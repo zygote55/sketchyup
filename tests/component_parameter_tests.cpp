@@ -7,9 +7,12 @@
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/hosted_components.hpp"
+#include "core/selection.hpp"
 #include "core/transform_selection.hpp"
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -1600,6 +1603,370 @@ void evaluationBudget() {
               << best << " ms; ceiling " << evaluationCeilingMs << " ms\n";
     check(best <= evaluationCeilingMs, "The worst definition evaluates within the ceiling");
 }
+// ---- D-039: the unique-geometry check against its R093.b form ----
+LimitCounts bodyCounts(const BodyPtr &b) {
+    if (!b)
+        return {};
+    return {0,
+            1,
+            b->surface.vertices.size(),
+            b->surface.faces.size(),
+            b->surface.wires.size(),
+            b->topology.edges.size(),
+            b->curves.size(),
+            b->guides.size()};
+}
+// The R093.b (74f6d509) algorithm, kept verbatim as the oracle: it walks every
+// variant placement's member records.
+LimitCounts referenceUniqueGeometry(const DocumentTotals &totals,
+                                    const std::map<Id, size_t> &placementCounts,
+                                    const ComponentDefinitions &definitions,
+                                    const ComponentVariantIndex *variants) {
+    LimitCounts unique{0,           totals.records, totals.vertices, totals.faces,
+                       totals.wires, totals.edges,  totals.curves,   totals.guides};
+    auto variantDirect = [](const ComponentVariant &variant) {
+        LimitCounts result;
+        for (const auto &[member, body] : variant.members)
+            if (!variant.references.contains(member)) {
+                const auto c = bodyCounts(body);
+                result.bodies += c.bodies;
+                result.vertices += c.vertices;
+                result.faces += c.faces;
+                result.wires += c.wires;
+                result.edges += c.edges;
+                result.curves += c.curves;
+                result.guides += c.guides;
+            }
+        return result;
+    };
+    if (variants && !variants->placements.empty()) {
+        const auto geometry = componentGeometry(definitions);
+        std::array<long long, 7> value{
+            (long long)unique.bodies, (long long)unique.vertices, (long long)unique.faces,
+            (long long)unique.wires,  (long long)unique.edges,    (long long)unique.curves,
+            (long long)unique.guides};
+        auto add = [&](const LimitCounts &counts, long long times) {
+            const std::array<size_t, 7> fields{counts.bodies, counts.vertices, counts.faces,
+                                               counts.wires,  counts.edges,    counts.curves,
+                                               counts.guides};
+            for (size_t i = 0; i < 7; ++i)
+                value[i] += times * (long long)fields[i];
+        };
+        for (const auto &[definition, count] : placementCounts)
+            if (count && geometry.direct.contains(definition))
+                add(limitCounts(geometry.direct.at(definition)), -(long long)count);
+        add(limitCounts(geometry.stored), 1);
+        for (const auto &[root, variant] : variants->placements) {
+            add(limitCounts(geometry.direct.at(variant->definition)), 1);
+            add(variantDirect(*variant), -1);
+        }
+        for (const auto &[key, variant] : variants->variants)
+            add(variantDirect(*variant), 1);
+        auto clamp = [](long long v) { return size_t(std::max(0LL, v)); };
+        unique = {0,
+                  clamp(value[0]),
+                  clamp(value[1]),
+                  clamp(value[2]),
+                  clamp(value[3]),
+                  clamp(value[4]),
+                  clamp(value[5]),
+                  clamp(value[6])};
+    } else if (!definitions.empty()) {
+        const auto geometry = componentGeometry(definitions);
+        auto subtract = [](size_t &value, size_t owned) { value -= std::min(value, owned); };
+        for (const auto &[definition, count] : placementCounts) {
+            if (!count || !geometry.direct.contains(definition))
+                continue;
+            const auto owned = limitCounts(geometry.direct.at(definition));
+            subtract(unique.bodies, owned.bodies * count);
+            subtract(unique.vertices, owned.vertices * count);
+            subtract(unique.faces, owned.faces * count);
+            subtract(unique.wires, owned.wires * count);
+            subtract(unique.edges, owned.edges * count);
+            subtract(unique.curves, owned.curves * count);
+            subtract(unique.guides, owned.guides * count);
+        }
+        const auto stored = limitCounts(geometry.stored);
+        unique.bodies += stored.bodies;
+        unique.vertices += stored.vertices;
+        unique.faces += stored.faces;
+        unique.wires += stored.wires;
+        unique.edges += stored.edges;
+        unique.curves += stored.curves;
+        unique.guides += stored.guides;
+    }
+    return unique;
+}
+bool sameCounts(const LimitCounts &a, const LimitCounts &b) {
+    return a.placements == b.placements && a.bodies == b.bodies && a.vertices == b.vertices &&
+           a.faces == b.faces && a.wires == b.wires && a.edges == b.edges &&
+           a.curves == b.curves && a.guides == b.guides;
+}
+std::string countsText(const LimitCounts &c) {
+    return std::to_string(c.bodies) + "/" + std::to_string(c.vertices) + "/" +
+           std::to_string(c.faces) + "/" + std::to_string(c.wires) + "/" +
+           std::to_string(c.edges) + "/" + std::to_string(c.curves) + "/" +
+           std::to_string(c.guides);
+}
+// The table of makeTable() with up to `maxShelves` shelf copies, nested once in a
+// parametric room that drives its width.
+struct VariantScene {
+    Table table;
+    Id room{}, roomPlacement{};
+};
+// `ballast` loose faces of 9,700 vertices each bring the document near the 100,000
+// unique-vertex budget while keeping its record count small.
+VariantScene variantScene(std::uint32_t maxShelves, int placements = 3, int ballast = 0) {
+    VariantScene s;
+    auto &t = s.table;
+    tableBodies(t);
+    auto &doc = t.doc;
+    defineComponentParameter(doc, t.definition,
+                             spec("width", "Width", ParameterType::Length,
+                                  ComponentParameterMode::Input, "900mm", .4, 2.4));
+    defineComponentParameter(doc, t.definition,
+                             spec("shelves", "Shelves", ParameterType::Count,
+                                  ComponentParameterMode::Input, "1", 0, maxShelves));
+    defineComponentParameter(doc, t.definition,
+                             spec("leg_x", "Leg position", ParameterType::Length,
+                                  ComponentParameterMode::Derived, "width-60 mm"));
+    auto stretch = driver(ComponentDriverKind::Stretch, t.top, "width");
+    stretch.at = .45;
+    driveComponent(doc, t.definition, 0, stretch);
+    driveComponent(doc, t.definition, 0,
+                   driver(ComponentDriverKind::Position, t.legRightFront, "leg_x"));
+    driveComponent(doc, t.definition, 0,
+                   driver(ComponentDriverKind::Position, t.legRightBack, "leg_x"));
+    auto repeat = driver(ComponentDriverKind::Repeat, t.shelf, "max(shelves,1)", ComponentAxis::Z);
+    repeat.maxCount = maxShelves;
+    repeat.spacing = "300 mm";
+    driveComponent(doc, t.definition, 0, repeat);
+    driveComponent(doc, t.definition, 0,
+                   driver(ComponentDriverKind::Visibility, t.shelf, "shelves > 0"));
+    const auto floor = box(doc, {-1, -1, -.1}, {3, 3, 0}, "Floor");
+    const auto group = createGroup(doc, {t.placement, floor}, "Room");
+    const auto created = createComponent(doc, group, "Room");
+    s.room = created.definition;
+    s.roomPlacement = created.instance;
+    defineComponentParameter(doc, s.room,
+                             spec("table_width", "Table width", ParameterType::Length,
+                                  ComponentParameterMode::Input, "1500 mm"));
+    auto child = driver(ComponentDriverKind::ChildParameter, t.placement, "table_width");
+    child.parameter = "width";
+    driveComponent(doc, s.room, 0, child);
+    for (int i = 0; i < placements; ++i)
+        placeComponent(doc, t.definition, Transform::translation({4.0 * (i + 1), 0, 0}));
+    if (ballast > 0) {
+        constexpr double pi = 3.14159265358979323846;
+        std::vector<Vec3> ring;
+        for (int k = 0; k < 9700; ++k)
+            ring.push_back({100 * std::cos(2 * pi * k / 9700), 100 * std::sin(2 * pi * k / 9700), -5});
+        const auto first = doc.addFace({ring}, "Ballast");
+        // Copies are loaded rather than drawn, which keeps the fixture fast.
+        auto bodies = doc.bodies();
+        Id next = doc.nextId();
+        for (int i = 1; i < ballast; ++i) {
+            auto copy = std::make_shared<Body>(*bodies.at(first));
+            copy->id = next++;
+            copy->transform = Transform::translation({0, 250.0 * i, 0});
+            bodies[copy->id] = copy;
+        }
+        doc = rebuilt(doc, bodies, doc.instances(), next, doc.definitions());
+    }
+    return s;
+}
+struct EquivalenceRun {
+    std::size_t observed{}, accepted{}, refusedUnique{}, refusedOther{}, undos{}, redos{},
+        amends{}, loads{};
+};
+// Random edits (apply, undo, redo, amend, load, make-unique, promote, delete, copy,
+// override/reset, default changes) on `scene`; the observer compares every check.
+EquivalenceRun randomVariantEdits(VariantScene scene, std::uint32_t seed, int steps,
+                                  const std::vector<double> &shelfCounts,
+                                  const std::vector<double> &widths = {.6, .9, 1.2, 1.5}) {
+    EquivalenceRun run;
+    std::mt19937 random(seed);
+    auto pick = [&](std::size_t n) { return std::size_t(random() % n); };
+    // The observer runs inside Document::apply, whose refusals the loop below counts,
+    // so it records a disagreement instead of throwing it.
+    std::string mismatch;
+    setUniqueGeometryObserver([&](const DocumentTotals &totals,
+                                  const std::map<Id, size_t> &placementCounts,
+                                  const ComponentDefinitions &definitions,
+                                  const ComponentVariantIndex *variants, const LimitCounts &counts) {
+        ++run.observed;
+        const auto expected =
+            referenceUniqueGeometry(totals, placementCounts, definitions, variants);
+        if (!sameCounts(counts, expected) ||
+            exceededLimit(counts, LimitClass::UniqueGeometry) !=
+                exceededLimit(expected, LimitClass::UniqueGeometry))
+            mismatch += " unique geometry " + countsText(counts) + " vs the R093.b algorithm " +
+                        countsText(expected) + ";";
+        if (variants) {
+            std::map<VariantPtr, std::size_t> uses;
+            for (const auto &[root, variant] : variants->placements)
+                ++uses[variant];
+            if (uses != variants->placementUses)
+                mismatch += " per-variant placement counts;";
+        }
+    });
+    struct Reset {
+        ~Reset() { setUniqueGeometryObserver({}); }
+    } reset;
+    auto &doc = scene.table.doc;
+    auto topLevel = [&](bool tables) {
+        std::vector<Id> result;
+        for (const auto &[root, instance] : doc.instances()) {
+            if (doc.bodies().at(root)->parent != 0)
+                continue;
+            const auto &definition = *doc.definitions().at(instance->definition);
+            if (!definition.parameters)
+                continue;
+            const bool table = std::any_of(definition.parameters->parameters.begin(),
+                                           definition.parameters->parameters.end(),
+                                           [](const auto &p) { return p.name == "shelves"; });
+            if (table == tables)
+                result.push_back(root);
+        }
+        return result;
+    };
+    auto tableValues = [&] {
+        ComponentOverrides values;
+        if (random() % 2)
+            values["width"] = metres(widths[pick(widths.size())]);
+        if (random() % 2 || values.empty())
+            values["shelves"] = number(shelfCounts[pick(shelfCounts.size())]);
+        return values;
+    };
+    auto edit = [&](const std::function<void()> &operation) {
+        try {
+            operation();
+            ++run.accepted;
+        } catch (const std::exception &error) {
+            if (std::string(error.what()).find("exceeds document unique geometry limits") !=
+                std::string::npos)
+                ++run.refusedUnique;
+            else
+                ++run.refusedOther;
+        }
+    };
+    for (int step = 0; step < steps; ++step) {
+        const auto tables = topLevel(true);
+        const auto rooms = topLevel(false);
+        const auto op = pick(100);
+        if (op < 8) {
+            edit([&] {
+                placeComponent(doc, scene.table.definition,
+                               Transform::translation({double(pick(40)), double(pick(40)), 0}));
+            });
+        } else if (op < 36 && !tables.empty()) {
+            const auto target = tables[pick(tables.size())];
+            edit([&] { overrideComponentParameters(doc, target, tableValues()); });
+        } else if (op < 42 && !rooms.empty()) {
+            const auto target = rooms[pick(rooms.size())];
+            edit([&] {
+                overrideComponentParameters(doc, target,
+                                            {{"table_width", metres(widths[pick(widths.size())])}});
+            });
+        } else if (op < 48 && !tables.empty()) {
+            const auto target = tables[pick(tables.size())];
+            edit([&] {
+                if (random() % 2)
+                    resetComponentParameters(doc, target);
+                else
+                    resetComponentParameters(doc, target, {"shelves"});
+            });
+        } else if (op < 53 && tables.size() > 1) {
+            const auto target = tables[pick(tables.size())];
+            edit([&] {
+                Selection selection;
+                selection.sync(doc);
+                selection.apply(doc, {{target, SelectionKind::Body, 0}}, SelectionMode::Replace);
+                eraseSelected(doc, selection);
+            });
+        } else if (op < 59 && !tables.empty()) {
+            const auto target = tables[pick(tables.size())];
+            edit([&] {
+                transformSelected(doc, {{target}},
+                                  Transform::translation({double(pick(40)), 50, 0}), {},
+                                  TransformSpace::World, true);
+            });
+        } else if (op < 62 && !tables.empty() && doc.definitions().size() < 12) {
+            const auto target = tables[pick(tables.size())];
+            edit([&] { makeComponentUnique(doc, target); });
+        } else if (op < 65 && !tables.empty()) {
+            const auto target = tables[pick(tables.size())];
+            edit([&] { promoteComponentParameters(doc, target); });
+        } else if (op < 70) {
+            // A default change re-baselines the template and every variant.
+            Id definition = scene.table.definition;
+            if (!tables.empty())
+                definition = doc.instances().at(tables[pick(tables.size())])->definition;
+            ComponentParameterUpdate update;
+            update.expression =
+                std::to_string(int(widths[pick(widths.size())] * 1000)) + " mm";
+            edit([&] { updateComponentParameter(doc, definition, "width", update); });
+        } else if (op < 82) {
+            if (doc.canUndo()) {
+                doc.undo();
+                ++run.undos;
+            }
+        } else if (op < 92) {
+            if (doc.canRedo()) {
+                doc.redo();
+                ++run.redos;
+            }
+        } else if (op < 97 && !tables.empty()) {
+            const auto target = tables[pick(tables.size())];
+            const auto stamp = doc.amendmentStamp();
+            if (doc.canAmend(stamp)) {
+                ++run.amends;
+                edit([&] {
+                    doc.amendLast(stamp, [&](Document &candidate) {
+                        overrideComponentParameters(candidate, target, tableValues());
+                    });
+                });
+            }
+        } else {
+            ++run.loads;
+            doc = rebuilt(doc, doc.bodies(), doc.instances(), doc.nextId(), doc.definitions());
+        }
+        check(mismatch.empty(), "seed " + std::to_string(seed) + ", step " +
+                                    std::to_string(step) + ":" + mismatch);
+        if (step % 16 == 15)
+            doc.verifyIncrementalState();
+    }
+    doc.verifyIncrementalState();
+    return run;
+}
+void uniqueGeometryEquivalence() {
+    const auto started = std::chrono::steady_clock::now();
+    EquivalenceRun small;
+    for (std::uint32_t seed = 1; seed <= 4; ++seed) {
+        const auto run = randomVariantEdits(variantScene(4), seed, 120, {0, 1, 2, 3, 4});
+        check(run.observed >= run.accepted && run.accepted > 30 && run.undos > 0 &&
+                  run.redos > 0 && run.loads > 0,
+              "seed " + std::to_string(seed) + ": the edit mix exercises the check");
+        small.observed += run.observed;
+        small.accepted += run.accepted;
+        small.amends += run.amends;
+    }
+    check(small.amends > 0, "Amendment is exercised");
+    // Near the 100,000-vertex budget: each distinct variant adds its shelf copies once,
+    // so some edits are refused by the unique-geometry limit itself.
+    const bool oracle = Document::fullValidationOracle();
+    Document::setFullValidationOracle(false);
+    const auto large = randomVariantEdits(variantScene(100, 8, 10), 7, 80,
+                                          {40, 55, 70, 85, 100}, {.5, .7, .9, 1.1, 1.3, 1.5});
+    Document::setFullValidationOracle(oracle);
+    check(large.refusedUnique > 0 && large.accepted > 20,
+          "Edits over the unique-geometry budget are refused identically (" +
+              std::to_string(large.refusedUnique) + " refused)");
+    const auto seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    std::cout << "unique geometry equivalence: ok (" << small.observed + large.observed
+              << " checks, " << large.refusedUnique << " limit refusals, " << seconds << " s)\n";
+}
 } // namespace
 int main(int argc, char **argv) {
     const std::string argument = argc > 1 ? argv[1] : "";
@@ -1625,6 +1992,7 @@ int main(int argc, char **argv) {
         {"definition-limits", definitionLimits},
         {"document-limits", documentLimits},
         {"evaluation-budget", evaluationBudget},
+        {"unique-geometry", uniqueGeometryEquivalence},
     };
     try {
         for (const auto &[name, suite] : suites) {

@@ -267,7 +267,8 @@ bool sameComponentVariants(const ComponentVariantIndex &a, const ComponentVarian
     return true;
 }
 std::size_t componentVariantBytes(const ComponentVariantIndex &index) {
-    std::size_t bytes = sizeof(ComponentVariantIndex) + index.placements.size() * 64;
+    std::size_t bytes = sizeof(ComponentVariantIndex) + index.placements.size() * 64 +
+                        index.placementUses.size() * 64;
     for (const auto &[key, entry] : index.evaluations)
         bytes += sizeof(ComponentEvaluationEntry) + 96 + key.second.size() +
                  (entry->evaluation.parameters.size() + entry->evaluation.drivers.size()) *
@@ -732,7 +733,16 @@ std::set<Id> nestedRoots(const ComponentInstances &instances) {
 }
 template <class Lookup>
 void walk(ComponentVariantIndex &index, const Lookup &instances, Id root, const VariantPtr &variant) {
-    index.placements[root] = variant;
+    auto &shown = index.placements[root];
+    if (shown != variant) {
+        if (shown) {
+            const auto use = index.placementUses.find(shown);
+            if (--use->second == 0)
+                index.placementUses.erase(use);
+        }
+        ++index.placementUses[variant];
+        shown = variant;
+    }
     const auto binding = instances(root);
     if (!binding)
         return;

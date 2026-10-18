@@ -281,15 +281,21 @@ LimitCounts variantDirect(const ComponentVariant &variant) {
             addTotals(totals, body);
     return limitCounts(totals);
 }
-void checkUniqueGeometry(const DocumentTotals &totals,
-                         const std::map<Id, size_t> &placementCounts,
-                         const ComponentDefinitions &definitions, const Edit *edit,
-                         const ComponentVariantIndex *variants = nullptr) {
+UniqueGeometryObserver &uniqueGeometryObserver() {
+    static UniqueGeometryObserver observer;
+    return observer;
+}
+LimitCounts computeUniqueGeometry(const DocumentTotals &totals,
+                                  const std::map<Id, size_t> &placementCounts,
+                                  const ComponentDefinitions &definitions,
+                                  const ComponentVariantIndex *variants) {
     auto unique = limitCounts(totals);
     if (variants && !variants->placements.empty()) {
         // A placement of a variant owns the variant's records, not the template's, and
         // each distinct variant other than the template counts once (ADR 0165 §3).
         // Bindings are validated, so every intermediate value is non-negative.
+        // Placements are grouped by the variant they show (D-039): the work is
+        // proportional to the distinct variants, not to the placements.
         const auto geometry = componentGeometry(definitions);
         std::array<long long, 7> value{
             (long long)unique.bodies, (long long)unique.vertices, (long long)unique.faces,
@@ -302,16 +308,23 @@ void checkUniqueGeometry(const DocumentTotals &totals,
             for (size_t i = 0; i < 7; ++i)
                 value[i] += times * (long long)fields[i];
         };
+        std::map<const ComponentVariant *, LimitCounts> direct;
+        auto ownedBy = [&](const ComponentVariant &variant) -> const LimitCounts & {
+            auto found = direct.find(&variant);
+            if (found == direct.end())
+                found = direct.emplace(&variant, variantDirect(variant)).first;
+            return found->second;
+        };
         for (const auto &[definition, count] : placementCounts)
             if (count && geometry.direct.contains(definition))
                 add(limitCounts(geometry.direct.at(definition)), -(long long)count);
         add(limitCounts(geometry.stored), 1);
-        for (const auto &[root, variant] : variants->placements) {
-            add(limitCounts(geometry.direct.at(variant->definition)), 1);
-            add(variantDirect(*variant), -1);
+        for (const auto &[variant, uses] : variants->placementUses) {
+            add(limitCounts(geometry.direct.at(variant->definition)), (long long)uses);
+            add(ownedBy(*variant), -(long long)uses);
         }
         for (const auto &[key, variant] : variants->variants)
-            add(variantDirect(*variant), 1);
+            add(ownedBy(*variant), 1);
         auto clamp = [](long long v) { return size_t(std::max(0LL, v)); };
         unique = {0,
                   clamp(value[0]),
@@ -345,6 +358,15 @@ void checkUniqueGeometry(const DocumentTotals &totals,
         unique.curves += stored.curves;
         unique.guides += stored.guides;
     }
+    return unique;
+}
+void checkUniqueGeometry(const DocumentTotals &totals,
+                         const std::map<Id, size_t> &placementCounts,
+                         const ComponentDefinitions &definitions, const Edit *edit,
+                         const ComponentVariantIndex *variants = nullptr) {
+    const auto unique = computeUniqueGeometry(totals, placementCounts, definitions, variants);
+    if (const auto &observer = uniqueGeometryObserver())
+        observer(totals, placementCounts, definitions, variants, unique);
     if (const auto exceeded = exceededLimit(unique, LimitClass::UniqueGeometry);
         !exceeded.empty())
         checkLimits(unique, LimitClass::UniqueGeometry, edit ? "Document edit" : "Document load",
@@ -479,6 +501,15 @@ void validate(const Body &b) {
             throw std::runtime_error("Guide identity collides with a curve");
 }
 } // namespace
+LimitCounts uniqueGeometryCounts(const DocumentTotals &totals,
+                                 const std::map<Id, size_t> &placementCounts,
+                                 const ComponentDefinitions &definitions,
+                                 const ComponentVariantIndex *variants) {
+    return computeUniqueGeometry(totals, placementCounts, definitions, variants);
+}
+void setUniqueGeometryObserver(UniqueGeometryObserver observer) {
+    uniqueGeometryObserver() = std::move(observer);
+}
 size_t Document::readSnapshotBytes() const {
     size_t result = sizeof(Document) + identity_.size() + 256 + hostedComponentBytes(hosted_);
     for (const auto &[id, body] : bodies_)
@@ -2552,6 +2583,11 @@ void Document::verifyIncrementalState() const {
     if (!sameComponentVariants(*computeComponentVariants(definitions_, instances_),
                                componentVariants()))
         failure += " component variants";
+    std::map<VariantPtr, size_t> uses;
+    for (const auto &[root, variant] : componentVariants().placements)
+        ++uses[variant];
+    if (uses != componentVariants().placementUses)
+        failure += " variant placement counts";
     if (!failure.empty())
         throw ValidationOracleMismatch("Incremental bookkeeping disagrees with a recount:" +
                                        failure);
