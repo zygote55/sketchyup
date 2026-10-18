@@ -13,8 +13,8 @@
 #include <iostream>
 #include <optional>
 #include <set>
-#include <tuple>
 #include <string>
+#include <tuple>
 
 using namespace sketchy;
 namespace {
@@ -80,13 +80,15 @@ std::uint64_t digest(const Mesh &m) {
 void pinned(const Mesh &m, std::uint64_t expected, const char *name) {
     if (digest(m) != expected) {
         char text[160];
-        std::snprintf(text, sizeof text, "%s digest changed: 0x%016llxull (update the generator identity)", name,
+        std::snprintf(text, sizeof text,
+                      "%s digest changed: 0x%016llxull (update the generator identity)", name,
                       (unsigned long long)digest(m));
         throw std::runtime_error(text);
     }
 }
 
-TerrainContour ring(double z, double radius, int n, std::uint64_t id, double cx = 0, double cy = 0) {
+TerrainContour ring(double z, double radius, int n, std::uint64_t id, double cx = 0,
+                    double cy = 0) {
     TerrainContour c;
     c.z = z;
     c.closed = true;
@@ -147,12 +149,15 @@ void simpleContours() {
             check(hasEdgeAt(m, p, q), "a contour segment is a mesh edge");
         }
     // The mesh is the convex hull of the outer ring (a regular 24-gon of radius 10).
-    check(std::abs(area(m) - 0.5 * 24 * 100 * std::sin(2 * M_PI / 24)) < 1e-9, "the mesh covers the hull");
+    check(std::abs(area(m) - 0.5 * 24 * 100 * std::sin(2 * M_PI / 24)) < 1e-9,
+          "the mesh covers the hull");
     check(m.report.constraintEdges == 24 + 20 + 16 + 8, "one constraint edge per contour segment");
     check(m.report.rawVertexCount == 68 && m.report.uniqueVertexCount == 68, "vertex counts");
     // Only the summit ring encloses flat triangles that nothing can flip or fill.
-    check(m.report.flatTrianglesRemaining == 6 && m.report.flatTrianglesInitial >= 6, "the summit stays flat");
-    check(m.report.flatAreaRemaining > 0 && m.report.flatLocations.size() == 6, "flat area and locations are reported");
+    check(m.report.flatTrianglesRemaining == 6 && m.report.flatTrianglesInitial >= 6,
+          "the summit stays flat");
+    check(m.report.flatAreaRemaining > 0 && m.report.flatLocations.size() == 6,
+          "flat area and locations are reported");
     const auto again = run(in);
     check(digest(m) == digest(again), "hill is stable");
     pinned(m, 0x12c1794ce3c761edull, "hill");
@@ -168,9 +173,11 @@ void breakline() {
     check(m.ok, "breakline triangulates");
     for (std::size_t i = 0; i < line.points.size(); ++i) {
         const auto v = find(m, line.points[i].x, line.points[i].y);
-        check(v && m.vertices[*v].z == line.points[i].z, "a breakline vertex keeps its own elevation");
+        check(v && m.vertices[*v].z == line.points[i].z,
+              "a breakline vertex keeps its own elevation");
         if (i)
-            check(hasEdgeAt(m, {line.points[i - 1].x, line.points[i - 1].y}, {line.points[i].x, line.points[i].y}),
+            check(hasEdgeAt(m, {line.points[i - 1].x, line.points[i - 1].y},
+                            {line.points[i].x, line.points[i].y}),
                   "a breakline segment is a mesh edge");
     }
     // Breakline vertices are not contour vertices, so a breakline never makes a flat triangle.
@@ -196,8 +203,10 @@ void boundaryAndHole() {
         check(v.x >= 1 && v.x <= 9 && v.y >= 1 && v.y <= 9, "no vertex outside the boundary");
         check(!(v.x > 4 && v.x < 6 && v.y > 4 && v.y < 6), "no vertex inside the hole");
     }
-    check(m.report.droppedOutsideVertices == 121 - 81 + 1, "points outside the boundary and inside the hole are dropped");
-    check(m.report.interpolatedPolygonVertices == 0, "polygon corners on grid points take their elevations");
+    check(m.report.droppedOutsideVertices == 121 - 81 + 1,
+          "points outside the boundary and inside the hole are dropped");
+    check(m.report.interpolatedPolygonVertices == 0,
+          "polygon corners on grid points take their elevations");
     check(hasEdgeAt(m, {1, 1}, {9, 1}) || find(m, 5, 1), "the boundary is a constraint");
     check(m.report.droppedHoles == 0, "the hole is inside");
 
@@ -206,12 +215,15 @@ void boundaryAndHole() {
     // takes the nearest source elevation.
     auto in2 = grid(11, 11);
     in2.boundary = TerrainPolygon{{{0.5, 0.5}, {9.5, 0.5}, {9.5, 9.5}, {0.5, 9.5}}, 710};
-    in2.holes.push_back(TerrainPolygon{{{3.25, 3.25}, {4.75, 3.25}, {4.75, 4.75}, {3.25, 4.75}}, 711});
+    in2.holes.push_back(
+        TerrainPolygon{{{3.25, 3.25}, {4.75, 3.25}, {4.75, 4.75}, {3.25, 4.75}}, 711});
     m = run(in2);
-    check(m.ok && m.report.interpolatedPolygonVertices == 8 && m.report.extrapolatedPolygonVertices == 0,
+    check(m.ok && m.report.interpolatedPolygonVertices == 8 &&
+              m.report.extrapolatedPolygonVertices == 0,
           "polygon vertices are interpolated");
     for (const auto &v : m.vertices)
-        check(std::abs(v.z - (0.1 * v.x + 0.2 * v.y)) < 1e-12, "interpolation reproduces the plane");
+        check(std::abs(v.z - (0.1 * v.x + 0.2 * v.y)) < 1e-12,
+              "interpolation reproduces the plane");
     check(std::abs(area(m) - (81 - 2.25)) < 1e-9, "area of the second boundary and hole");
     TerrainTriangulationInput in3;
     for (double x : {0.0, 4.0})
@@ -219,8 +231,10 @@ void boundaryAndHole() {
             in3.points.push_back({{x, y, x + y}, 1});
     in3.boundary = TerrainPolygon{{{-1, -1}, {5, -1}, {5, 5}, {-1, 5}}, 2};
     m = run(in3);
-    check(m.ok && m.report.extrapolatedPolygonVertices == 4, "corners outside the hull take the nearest elevation");
-    check(find(m, -1, -1) && m.vertices[*find(m, -1, -1)].z == 0 && m.vertices[*find(m, 5, 5)].z == 8,
+    check(m.ok && m.report.extrapolatedPolygonVertices == 4,
+          "corners outside the hull take the nearest elevation");
+    check(find(m, -1, -1) && m.vertices[*find(m, -1, -1)].z == 0 &&
+              m.vertices[*find(m, 5, 5)].z == 8,
           "nearest source elevation");
 
     // A hole outside the boundary is dropped and counted; a hole around it is refused.
@@ -228,10 +242,12 @@ void boundaryAndHole() {
     in4.boundary = TerrainPolygon{{{1, 1}, {4, 1}, {4, 4}, {1, 4}}, 1};
     in4.holes.push_back(TerrainPolygon{{{6, 6}, {8, 6}, {8, 8}, {6, 8}}, 2});
     m = run(in4);
-    check(m.ok && m.report.droppedHoles == 1 && std::abs(area(m) - 9) < 1e-12, "outside hole dropped");
+    check(m.ok && m.report.droppedHoles == 1 && std::abs(area(m) - 9) < 1e-12,
+          "outside hole dropped");
     in4.holes.push_back(TerrainPolygon{{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, 3});
     m = run(in4);
-    check(!m.ok && problem(m, TerrainProblemKind::InvalidPolygon), "a hole around the boundary is refused");
+    check(!m.ok && problem(m, TerrainProblemKind::InvalidPolygon),
+          "a hole around the boundary is refused");
     // Nested holes and degenerate polygons are refused.
     auto in5 = grid(11, 11);
     in5.holes.push_back(TerrainPolygon{{{2, 2}, {8, 2}, {8, 8}, {2, 8}}, 1});
@@ -241,7 +257,8 @@ void boundaryAndHole() {
     auto in6 = grid(5, 5);
     in6.boundary = TerrainPolygon{{{0, 0}, {4, 0}, {2, 0}}, 1};
     m = run(in6);
-    check(!m.ok && problem(m, TerrainProblemKind::InvalidPolygon), "a zero-area boundary is refused");
+    check(!m.ok && problem(m, TerrainProblemKind::InvalidPolygon),
+          "a zero-area boundary is refused");
     // Holes without a boundary: the hull is the outside.
     auto in7 = grid(11, 11);
     in7.holes.push_back(TerrainPolygon{{{4, 4}, {6, 4}, {6, 6}, {4, 6}}, 1});
@@ -263,7 +280,8 @@ void constraintsOnBoundary() {
             in.points.push_back({{x, y, 1}, 3});
     auto m = run(in);
     check(m.ok && std::abs(area(m) - 100) < 1e-12, "a vertex on a boundary edge");
-    check(hasEdgeAt(m, {0, 0}, {5, 0}) && hasEdgeAt(m, {5, 0}, {10, 0}), "the boundary edge is split at the vertex");
+    check(hasEdgeAt(m, {0, 0}, {5, 0}) && hasEdgeAt(m, {5, 0}, {10, 0}),
+          "the boundary edge is split at the vertex");
     // A contour with an end outside the boundary loses that segment, not the import.
     TerrainTriangulationInput clip;
     clip.boundary = TerrainPolygon{{{0, 0}, {10, 0}, {10, 10}, {0, 10}}, 1};
@@ -290,9 +308,12 @@ void constraintsOnBoundary() {
     concave.points.push_back({{1, 1, 0}, 3});
     m = run(concave);
     const auto *p = problem(m, TerrainProblemKind::CrossingConstraints);
-    check(!m.ok && p && p->count == 2 && p->locations.size() == 2, "a contour crossing the boundary twice");
-    check(std::abs(p->locations[0].xy.x - 6) < 1e-9 && std::abs(p->locations[0].xy.y - 4) < 1e-9, "first crossing");
-    check(std::abs(p->locations[1].xy.x - 4) < 1e-9 && std::abs(p->locations[1].xy.y - 6) < 1e-9, "second crossing");
+    check(!m.ok && p && p->count == 2 && p->locations.size() == 2,
+          "a contour crossing the boundary twice");
+    check(std::abs(p->locations[0].xy.x - 6) < 1e-9 && std::abs(p->locations[0].xy.y - 4) < 1e-9,
+          "first crossing");
+    check(std::abs(p->locations[1].xy.x - 4) < 1e-9 && std::abs(p->locations[1].xy.y - 6) < 1e-9,
+          "second crossing");
 }
 
 void crossingRefused() {
@@ -310,8 +331,10 @@ void crossingRefused() {
     check(!m.ok && m.vertices.empty() && m.triangles.empty(), "crossing contours are refused");
     const auto *p = problem(m, TerrainProblemKind::CrossingConstraints);
     check(p && p->count == 1 && p->locations.size() == 1, "one crossing");
-    check(std::abs(p->locations[0].xy.x - 2) < 1e-9 && std::abs(p->locations[0].xy.y - 2) < 1e-9, "at (2, 2)");
-    check(p->locations[0].sourceA == 11 && p->locations[0].sourceB == 22, "with both source references");
+    check(std::abs(p->locations[0].xy.x - 2) < 1e-9 && std::abs(p->locations[0].xy.y - 2) < 1e-9,
+          "at (2, 2)");
+    check(p->locations[0].sourceA == 11 && p->locations[0].sourceB == 22,
+          "with both source references");
     check(!p->message.empty() && p->message.size() <= terrainMaxMessageBytes, "a bounded message");
 
     // A contour that crosses itself.
@@ -324,7 +347,8 @@ void crossingRefused() {
     bow.contours.push_back(bowtie);
     m = run(bow);
     p = problem(m, TerrainProblemKind::CrossingConstraints);
-    check(!m.ok && p && p->count == 1 && p->locations[0].sourceA == 5 && p->locations[0].sourceB == 5,
+    check(!m.ok && p && p->count == 1 && p->locations[0].sourceA == 5 &&
+              p->locations[0].sourceB == 5,
           "a self-crossing contour");
 
     // Counts stay complete past the 32 locations, and every location is bounded.
@@ -343,7 +367,8 @@ void crossingRefused() {
     }
     m = run(comb);
     p = problem(m, TerrainProblemKind::CrossingConstraints);
-    check(!m.ok && p && p->count == 40 && p->locations.size() == terrainMaxLocationsPerKind, "40 crossings, 32 listed");
+    check(!m.ok && p && p->count == 40 && p->locations.size() == terrainMaxLocationsPerKind,
+          "40 crossings, 32 listed");
 
     // A vertex in the middle of a contour segment touches it; overlapping segments overlap.
     TerrainTriangulationInput touch;
@@ -367,7 +392,8 @@ void crossingRefused() {
     part.points = {{3, 0}, {13, 0}};
     overlap.contours = {base, part};
     m = run(overlap);
-    check(!m.ok && problem(m, TerrainProblemKind::CrossingConstraints), "overlapping collinear segments");
+    check(!m.ok && problem(m, TerrainProblemKind::CrossingConstraints),
+          "overlapping collinear segments");
 
     // Contours that share a vertex at the same elevation, and repeated segments, are fine.
     TerrainTriangulationInput shared;
@@ -381,7 +407,8 @@ void crossingRefused() {
     shared.contours = {s1, s2};
     shared.points.push_back({{0, 6, 0}, 3});
     m = run(shared);
-    check(m.ok && m.report.mergedDuplicates == 2 && m.report.mergedSegments == 1, "shared vertices and segments merge");
+    check(m.ok && m.report.mergedDuplicates == 2 && m.report.mergedSegments == 1,
+          "shared vertices and segments merge");
 }
 
 void conflictingDuplicates() {
@@ -400,13 +427,16 @@ void conflictingDuplicates() {
     auto near = grid(4, 4);
     near.points.push_back({{1 + 5e-8, 1 - 5e-8, 100}, 99});
     m = run(near);
-    check(!m.ok && problem(m, TerrainProblemKind::ConflictingDuplicate), "duplicates within tolerance conflict");
+    check(!m.ok && problem(m, TerrainProblemKind::ConflictingDuplicate),
+          "duplicates within tolerance conflict");
     // The same place at the same elevation merges and is counted; the first occurrence stays.
     auto same = grid(4, 4);
     same.points.push_back({{1 + 5e-8, 1, 0.1 + 0.2}, 99});
     m = run(same);
-    check(m.ok && m.report.mergedDuplicates == 1 && m.report.uniqueVertexCount == 16, "merged duplicate");
-    check(find(m, 1, 1) && m.vertices[*find(m, 1, 1)].z == 0.1 * 1 + 0.2 * 1, "the first occurrence is kept");
+    check(m.ok && m.report.mergedDuplicates == 1 && m.report.uniqueVertexCount == 16,
+          "merged duplicate");
+    check(find(m, 1, 1) && m.vertices[*find(m, 1, 1)].z == 0.1 * 1 + 0.2 * 1,
+          "the first occurrence is kept");
     // More than 32 conflicts: complete count, bounded locations.
     TerrainTriangulationInput many;
     for (int i = 0; i < 50; ++i) {
@@ -428,7 +458,8 @@ void insufficientPoints() {
             line.points.push_back({{double(i), 2.0 * i + 1, double(i)}, std::uint64_t(i + 1)});
         m = run(line);
         const auto *p = problem(m, TerrainProblemKind::InsufficientPoints);
-        check(!m.ok && p && p->count == std::uint64_t(n) && p->locations.size() == std::min<std::size_t>(n, 32),
+        check(!m.ok && p && p->count == std::uint64_t(n) &&
+                  p->locations.size() == std::min<std::size_t>(n, 32),
               "collinear or too few points are refused");
     }
     // Collinear contour vertices count the same way, and a duplicate does not add a third point.
@@ -440,7 +471,8 @@ void insufficientPoints() {
     TerrainTriangulationInput away = grid(3, 3);
     away.boundary = TerrainPolygon{{{10, 10}, {12, 10}, {12, 12}}, 1};
     m = run(away);
-    check(!m.ok && problem(m, TerrainProblemKind::InsufficientPoints), "all sources outside the boundary");
+    check(!m.ok && problem(m, TerrainProblemKind::InsufficientPoints),
+          "all sources outside the boundary");
 }
 
 void inputValidation() {
@@ -448,7 +480,8 @@ void inputValidation() {
     in.points[4].position.z = std::nan("");
     auto m = run(in);
     const auto *p = problem(m, TerrainProblemKind::NonFinite);
-    check(!m.ok && p && p->count == 1 && p->locations[0].sourceA == 5, "a non-finite elevation is refused");
+    check(!m.ok && p && p->count == 1 && p->locations[0].sourceA == 5,
+          "a non-finite elevation is refused");
     in = grid(3, 3);
     in.contours.push_back(ring(0, 1, 6, 9));
     in.contours.back().points[2].x = INFINITY;
@@ -456,17 +489,20 @@ void inputValidation() {
     check(!m.ok && problem(m, TerrainProblemKind::NonFinite), "an infinite x is refused");
     // Source coordinates are refused: the adapter wants the local frame.
     TerrainTriangulationInput utm;
-    utm.points = {{{512345.678, 5234567.891, 1850}, 1}, {{512350.678, 5234567.891, 1851}, 2},
+    utm.points = {{{512345.678, 5234567.891, 1850}, 1},
+                  {{512350.678, 5234567.891, 1851}, 2},
                   {{512345.678, 5234572.891, 1852}, 3}};
     m = run(utm);
     p = problem(m, TerrainProblemKind::ExtentExceeded);
-    check(!m.ok && p && p->count == 3 && p->message.find("local") != std::string::npos, "UTM coordinates are refused");
+    check(!m.ok && p && p->count == 3 && p->message.find("local") != std::string::npos,
+          "UTM coordinates are refused");
     // Limits.
     TerrainTriangulationOptions tight;
     tight.limits.maxRawVertices = 5;
     m = run(grid(3, 3), tight);
     p = problem(m, TerrainProblemKind::LimitExceeded);
-    check(!m.ok && p && p->message.find("9 input vertices") != std::string::npos, "raw vertex limit states the count");
+    check(!m.ok && p && p->message.find("9 input vertices") != std::string::npos,
+          "raw vertex limit states the count");
     tight = {};
     tight.limits.maxVertices = 8;
     m = run(grid(3, 3), tight);
@@ -485,7 +521,8 @@ void inputValidation() {
     c.points = {{0.5, 0.5}, {0.5, 0.5}, {1.5, 0.5}, {1.5, 0.5}, {1.5, 1.5}};
     zero.contours.push_back(c);
     m = run(zero);
-    check(m.ok && m.report.droppedZeroLengthSegments == 2 && m.report.mergedDuplicates == 2, "zero-length segments drop");
+    check(m.ok && m.report.droppedZeroLengthSegments == 2 && m.report.mergedDuplicates == 2,
+          "zero-length segments drop");
     // A lone vertex per contour is just a point.
     TerrainContour one;
     one.z = 9;
@@ -512,23 +549,29 @@ void flatFlip() {
     off.flatMode = TerrainFlatMode::ReportOnly;
     auto m = run(tent(), off);
     check(m.ok && m.triangles.size() == 2, "tent, report only");
-    check(m.report.flatTrianglesInitial == 1 && m.report.flatTrianglesRemaining == 1 && m.report.flipsApplied == 0,
+    check(m.report.flatTrianglesInitial == 1 && m.report.flatTrianglesRemaining == 1 &&
+              m.report.flipsApplied == 0,
           "one flat triangle is reported");
     check(std::abs(m.report.flatAreaRemaining - 6) < 1e-12, "with its area");
-    check(m.report.flatLocations.size() == 1 && std::abs(m.report.flatLocations[0].y - 1) < 1e-12, "and its centroid");
+    check(m.report.flatLocations.size() == 1 && std::abs(m.report.flatLocations[0].y - 1) < 1e-12,
+          "and its centroid");
     check(hasEdgeAt(m, {0, 0}, {4, 0}), "the Delaunay edge joins the two same-elevation vertices");
 
     m = run(tent());
-    check(m.ok && m.report.flipsApplied == 1 && m.report.flatTrianglesRemaining == 0, "the flip removes the flat");
-    check(hasEdgeAt(m, {2, 3}, {2, -3}) && !hasEdgeAt(m, {0, 0}, {4, 0}), "across the quadrilateral");
-    check(hasEdgeAt(m, {0, 0}, {2, 3}) && hasEdgeAt(m, {2, 3}, {4, 0}), "the contour segments remain edges");
+    check(m.ok && m.report.flipsApplied == 1 && m.report.flatTrianglesRemaining == 0,
+          "the flip removes the flat");
+    check(hasEdgeAt(m, {2, 3}, {2, -3}) && !hasEdgeAt(m, {0, 0}, {4, 0}),
+          "across the quadrilateral");
+    check(hasEdgeAt(m, {0, 0}, {2, 3}) && hasEdgeAt(m, {2, 3}, {4, 0}),
+          "the contour segments remain edges");
     check(std::abs(area(m) - 12) < 1e-12, "the area is unchanged");
 
     // A flip that would break a constraint is never made: make a-b a contour segment.
     auto closed = tent();
     closed.contours[0].closed = true;
     m = run(closed);
-    check(m.ok && m.report.flipsApplied == 0 && m.report.flatTrianglesRemaining == 1, "a constraint edge is not flipped");
+    check(m.ok && m.report.flipsApplied == 0 && m.report.flatTrianglesRemaining == 1,
+          "a constraint edge is not flipped");
     check(hasEdgeAt(m, {0, 0}, {4, 0}), "the constraint stays");
 
     // The summit ring of a hill is all flat and cannot be flipped away.
@@ -538,8 +581,10 @@ void flatFlip() {
     TerrainTriangulationOptions report = {};
     report.flatMode = TerrainFlatMode::ReportOnly;
     const auto before = run(hill(), report);
-    check(m.report.flatTrianglesRemaining <= before.report.flatTrianglesRemaining, "flips only remove flats");
-    check(m.report.flatTrianglesInitial == before.report.flatTrianglesInitial, "the initial count is the Delaunay count");
+    check(m.report.flatTrianglesRemaining <= before.report.flatTrianglesRemaining,
+          "flips only remove flats");
+    check(m.report.flatTrianglesInitial == before.report.flatTrianglesInitial,
+          "the initial count is the Delaunay count");
 }
 
 // The same flat triangle with a quadrilateral that is not convex: only Steiner fill can help.
@@ -556,22 +601,27 @@ TerrainTriangulationInput bentTent() {
 
 void steinerFill() {
     auto m = run(bentTent());
-    check(m.ok && m.report.flatTrianglesInitial == 1 && m.report.flipsApplied == 0 && m.report.flatTrianglesRemaining == 1,
+    check(m.ok && m.report.flatTrianglesInitial == 1 && m.report.flipsApplied == 0 &&
+              m.report.flatTrianglesRemaining == 1,
           "off by default: the flat triangle is reported");
     check(m.triangles.size() == 3 && m.report.steinerPointsAdded == 0, "no points are invented");
     TerrainTriangulationOptions fill;
     fill.steinerFill = true;
     m = run(bentTent(), fill);
-    check(m.ok && m.report.steinerPointsAdded == 1 && m.report.flatTrianglesRemaining == 0, "Steiner fill resolves it");
+    check(m.ok && m.report.steinerPointsAdded == 1 && m.report.flatTrianglesRemaining == 0,
+          "Steiner fill resolves it");
     check(m.vertices.size() == 5 && m.triangles.size() == 5, "one point, two more triangles");
     const auto mid = find(m, 2, 0);
-    check(mid && m.vertices[*mid].z == 0.5, "the midpoint of the free edge, halfway to the neighbour's vertex");
+    check(mid && m.vertices[*mid].z == 0.5,
+          "the midpoint of the free edge, halfway to the neighbour's vertex");
     check(std::abs(area(m) - area(run(bentTent()))) < 1e-12, "area is unchanged by the fill");
     // The new point is not a contour vertex and the contour segments survive.
-    check(hasEdgeAt(m, {0, 0}, {6, 1}) && hasEdgeAt(m, {6, 1}, {4, 0}), "constraint edges survive the fill");
+    check(hasEdgeAt(m, {0, 0}, {6, 1}) && hasEdgeAt(m, {6, 1}, {4, 0}),
+          "constraint edges survive the fill");
     // Fill does not touch a region it cannot reach: the hill's summit stays reported.
     m = run(hill(), fill);
-    check(m.ok && m.report.flatTrianglesRemaining == 6 && m.report.steinerPointsAdded <= m.report.flatTrianglesInitial,
+    check(m.ok && m.report.flatTrianglesRemaining == 6 &&
+              m.report.steinerPointsAdded <= m.report.flatTrianglesInitial,
           "an enclosed summit is left and reported");
     // The fill is deterministic.
     check(digest(run(hill(), fill)) == digest(m), "fill is stable");
@@ -587,7 +637,8 @@ void maxEdge() {
     TerrainTriangulationOptions limit;
     limit.maxEdgeLength = 3;
     m = run(in, limit);
-    check(m.ok && m.report.trimmedTriangles > 0 && std::abs(area(m) - 32) < 1e-12, "long outer triangles are trimmed");
+    check(m.ok && m.report.trimmedTriangles > 0 && std::abs(area(m) - 32) < 1e-12,
+          "long outer triangles are trimmed");
     for (const auto &t : m.triangles)
         for (int i = 0; i < 3; ++i) {
             const auto &a = m.vertices[t[i]];
@@ -620,7 +671,8 @@ void determinism() {
     Random random(42);
     TerrainTriangulationInput in;
     for (int i = 0; i < 400; ++i)
-        in.points.push_back({{random.unit() * 100, random.unit() * 100, random.unit() * 10}, std::uint64_t(i)});
+        in.points.push_back(
+            {{random.unit() * 100, random.unit() * 100, random.unit() * 10}, std::uint64_t(i)});
     const auto base = run(in);
     using Tri3 = std::array<std::array<double, 3>, 3>;
     const auto geometric = [](const Mesh &m) {
@@ -638,7 +690,8 @@ void determinism() {
     for (std::size_t i = shuffled.points.size() - 1; i > 0; --i)
         std::swap(shuffled.points[i], shuffled.points[random.pick(int(i + 1))]);
     const auto other = run(shuffled);
-    check(other.ok && geometric(base) == geometric(other), "points in general position: the same triangles");
+    check(other.ok && geometric(base) == geometric(other),
+          "points in general position: the same triangles");
     check(base.vertices != other.vertices, "but numbered by input order");
 }
 
@@ -660,7 +713,8 @@ void budget() {
     // The real limit: 250,001 or more triangles refuse. A 360 x 360 grid has 257,762.
     m = run(grid(360, 360));
     p = problem(m, TerrainProblemKind::TriangleBudget);
-    check(!m.ok && p && p->message.find("257762") != std::string::npos && p->message.find("250000") != std::string::npos,
+    check(!m.ok && p && p->message.find("257762") != std::string::npos &&
+              p->message.find("250000") != std::string::npos,
           "the 250,000 triangle budget refuses with the count");
     check(m.vertices.empty() && m.triangles.empty(), "and returns no mesh");
     // 353 x 353 = 2 x 352^2 = 247,808 triangles fit.
@@ -671,7 +725,8 @@ void budget() {
     fill.steinerFill = true;
     fill.limits.maxTriangles = 3;
     m = run(bentTent(), fill);
-    check(!m.ok && problem(m, TerrainProblemKind::TriangleBudget), "Steiner fill is held to the budget");
+    check(!m.ok && problem(m, TerrainProblemKind::TriangleBudget),
+          "Steiner fill is held to the budget");
 }
 
 void utmScale() {
@@ -688,10 +743,12 @@ void utmScale() {
                            datum + std::round(random.unit() * 5000) / 1000});
     TerrainTriangulationInput local;
     for (std::size_t i = 0; i < sources.size(); ++i)
-        local.points.push_back({{sources[i].e - originE, sources[i].n - originN, sources[i].z - datum}, i + 1});
+        local.points.push_back(
+            {{sources[i].e - originE, sources[i].n - originN, sources[i].z - datum}, i + 1});
     // The conversion is exact: adding the origin back reproduces the source bit for bit.
     for (std::size_t i = 0; i < sources.size(); ++i) {
-        check(local.points[i].position.x + originE == sources[i].e && local.points[i].position.y + originN == sources[i].n &&
+        check(local.points[i].position.x + originE == sources[i].e &&
+                  local.points[i].position.y + originN == sources[i].n &&
                   local.points[i].position.z + datum == sources[i].z,
               "local coordinates convert back exactly");
     }
@@ -702,14 +759,16 @@ void utmScale() {
         expected.insert({p.position.x, p.position.y, p.position.z});
     check(m.vertices.size() == expected.size(), "no vertex is added or lost");
     for (const auto &v : m.vertices) {
-        check(expected.contains({v.x, v.y, v.z}), "every vertex keeps its local coordinates bit for bit");
+        check(expected.contains({v.x, v.y, v.z}),
+              "every vertex keeps its local coordinates bit for bit");
     }
     // Within 1e-9 m of the source after adding the origin back, at the source's own precision.
     for (const auto &v : m.vertices) {
         bool found = false;
         for (const auto &s : sources)
-            found = found || (std::abs(v.x + originE - s.e) <= 1e-9 && std::abs(v.y + originN - s.n) <= 1e-9 &&
-                              std::abs(v.z + datum - s.z) <= 1e-9);
+            found = found ||
+                    (std::abs(v.x + originE - s.e) <= 1e-9 &&
+                     std::abs(v.y + originN - s.n) <= 1e-9 && std::abs(v.z + datum - s.z) <= 1e-9);
         check(found, "within 1e-9 m of a source vertex after the origin is added back");
     }
     // The triangulation is the same wherever the origin is chosen only up to the local
@@ -742,7 +801,8 @@ void reportBounds() {
         check(p.locations.size() <= 32 && p.message.size() <= 256, "bounded");
         check(p.count >= p.locations.size(), "counts are complete");
     }
-    check(problem(m, TerrainProblemKind::CrossingConstraints)->count == 100, "100 crossings counted");
+    check(problem(m, TerrainProblemKind::CrossingConstraints)->count == 100,
+          "100 crossings counted");
     check(problem(m, TerrainProblemKind::ConflictingDuplicate)->count == 1, "and the duplicate");
 }
 
@@ -762,14 +822,16 @@ void boundaryAreaProperty() {
         in.boundary = TerrainPolygon{{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, 1};
         double expected = (x1 - x0) * (y1 - y0);
         if (random.pick(2)) {
-            const double hx0 = x0 + 1.5, hx1 = hx0 + 1 + random.pick(3), hy0 = y0 + 1.5, hy1 = hy0 + 1 + random.pick(3);
+            const double hx0 = x0 + 1.5, hx1 = hx0 + 1 + random.pick(3), hy0 = y0 + 1.5,
+                         hy1 = hy0 + 1 + random.pick(3);
             in.holes.push_back(TerrainPolygon{{{hx0, hy0}, {hx1, hy0}, {hx1, hy1}, {hx0, hy1}}, 2});
             expected -= (hx1 - hx0) * (hy1 - hy0);
         }
         const auto m = run(in);
         if (!m.ok) {
             // Only too few usable points can refuse this input.
-            check(problem(m, TerrainProblemKind::InsufficientPoints) != nullptr && m.report.refusals.size() == 1,
+            check(problem(m, TerrainProblemKind::InsufficientPoints) != nullptr &&
+                      m.report.refusals.size() == 1,
                   "only too few points refuse a clean boundary");
             continue;
         }
@@ -850,7 +912,8 @@ void generatedInputs(int count) {
             c.input.holes.push_back(p);
         }
         c.options.steinerFill = random.pick(2);
-        c.options.flatMode = random.pick(5) == 0 ? TerrainFlatMode::ReportOnly : TerrainFlatMode::Flip;
+        c.options.flatMode =
+            random.pick(5) == 0 ? TerrainFlatMode::ReportOnly : TerrainFlatMode::Flip;
         if (random.pick(4) == 0)
             c.options.maxEdgeLength = 0.5 + random.pick(4);
         auto bytes = fuzz::encodeTerrainCase(c);
@@ -894,7 +957,8 @@ int main(int argc, char **argv) {
         boundaryAreaProperty();
         generatedInputs(fuzzCount);
         std::cout << "terrain triangulation tests passed in "
-                  << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() << " s\n";
+                  << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()
+                  << " s\n";
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << "\n";
         return 1;

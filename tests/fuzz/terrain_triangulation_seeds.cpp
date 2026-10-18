@@ -18,7 +18,8 @@ TerrainContour ring(double z, double radius, int n, std::uint64_t id) {
     c.sourceId = id;
     for (int i = 0; i < n; ++i) {
         const double a = 2 * M_PI * i / n;
-        c.points.push_back({std::round(radius * std::cos(a) * 16) / 16, std::round(radius * std::sin(a) * 16) / 16});
+        c.points.push_back({std::round(radius * std::cos(a) * 16) / 16,
+                            std::round(radius * std::sin(a) * 16) / 16});
     }
     return c;
 }
@@ -66,7 +67,8 @@ int main(int argc, char **argv) {
         {
             fuzz::TerrainCase c;
             c.input = grid(7);
-            c.input.breaklines = {TerrainBreakline{{{0.5, 0.5, 3}, {3.5, 2.5, 4}, {2.5, 5.25, 5}}, false, 90}};
+            c.input.breaklines = {
+                TerrainBreakline{{{0.5, 0.5, 3}, {3.5, 2.5, 4}, {2.5, 5.25, 5}}, false, 90}};
             seeds["grid-breakline"] = c;
         }
         {
@@ -89,7 +91,8 @@ int main(int argc, char **argv) {
         }
         {
             fuzz::TerrainCase c; // refused: crossing contours
-            c.input.contours = {TerrainContour{1, {{0, 0}, {4, 4}}, false, 1}, TerrainContour{2, {{0, 4}, {4, 0}}, false, 2}};
+            c.input.contours = {TerrainContour{1, {{0, 0}, {4, 4}}, false, 1},
+                                TerrainContour{2, {{0, 4}, {4, 0}}, false, 2}};
             c.input.points = {{{9, 9, 0}, 3}};
             seeds["refused-crossing"] = c;
         }
@@ -114,7 +117,8 @@ int main(int argc, char **argv) {
                 throw std::runtime_error("seed " + name + " has the wrong outcome");
             std::ofstream out(root / (name + ".bin"), std::ios::binary);
             out.write(reinterpret_cast<const char *>(bytes.data()), std::streamsize(bytes.size()));
-            std::cout << name << ' ' << bytes.size() << " bytes, " << (accepted ? "accepted" : "refused") << '\n';
+            std::cout << name << ' ' << bytes.size() << " bytes, "
+                      << (accepted ? "accepted" : "refused") << '\n';
         }
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << "\n";

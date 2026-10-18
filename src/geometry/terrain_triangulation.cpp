@@ -28,8 +28,8 @@ namespace {
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 constexpr u32 kNone = std::numeric_limits<u32>::max();
-constexpr std::size_t kMaxCrossingPairs = 1000000;   // pairs counted before the count stops growing
-constexpr std::size_t kMaxGridEntries = 64000000;    // segment-cell registrations
+constexpr std::size_t kMaxCrossingPairs = 1000000; // pairs counted before the count stops growing
+constexpr std::size_t kMaxGridEntries = 64000000;  // segment-cell registrations
 
 struct Pt {
     double x{0};
@@ -65,7 +65,9 @@ class Problems {
         add(kind, &where);
     }
     void setCount(TerrainProblemKind kind, u64 count) { entries_[std::size_t(kind)].count = count; }
-    void detail(TerrainProblemKind kind, std::string text) { entries_[std::size_t(kind)].detail = std::move(text); }
+    void detail(TerrainProblemKind kind, std::string text) {
+        entries_[std::size_t(kind)].detail = std::move(text);
+    }
     bool any() const {
         for (const auto &entry : entries_)
             if (entry.count)
@@ -105,19 +107,24 @@ class Problems {
             break;
         case TerrainProblemKind::ExtentExceeded:
             std::snprintf(text, sizeof text,
-                          "%llu coordinate(s) are beyond the local frame bound; convert to local coordinates first.", n);
+                          "%llu coordinate(s) are beyond the local frame bound; convert to local "
+                          "coordinates first.",
+                          n);
             break;
         case TerrainProblemKind::LimitExceeded:
             std::snprintf(text, sizeof text, "An input limit was exceeded (%llu).", n);
             break;
         case TerrainProblemKind::ConflictingDuplicate:
-            std::snprintf(text, sizeof text, "%llu vertex pair(s) share an x and y but have different elevations.", n);
+            std::snprintf(text, sizeof text,
+                          "%llu vertex pair(s) share an x and y but have different elevations.", n);
             break;
         case TerrainProblemKind::CrossingConstraints:
-            std::snprintf(text, sizeof text, "%llu constraint segment pair(s) cross, touch or overlap.", n);
+            std::snprintf(text, sizeof text,
+                          "%llu constraint segment pair(s) cross, touch or overlap.", n);
             break;
         case TerrainProblemKind::InsufficientPoints:
-            std::snprintf(text, sizeof text, "Fewer than three non-collinear points (%llu usable).", n);
+            std::snprintf(text, sizeof text, "Fewer than three non-collinear points (%llu usable).",
+                          n);
             break;
         case TerrainProblemKind::InvalidPolygon:
             std::snprintf(text, sizeof text, "%llu boundary or hole polygon(s) are invalid.", n);
@@ -228,13 +235,15 @@ struct CellKey {
 };
 struct CellHash {
     std::size_t operator()(const CellKey &k) const {
-        return std::size_t(u64(k.x) * 0x9E3779B97F4A7C15ull ^ (u64(k.y) + 0x7F4A7C15ull) * 0xC2B2AE3D27D4EB4Full);
+        return std::size_t(u64(k.x) * 0x9E3779B97F4A7C15ull ^
+                           (u64(k.y) + 0x7F4A7C15ull) * 0xC2B2AE3D27D4EB4Full);
     }
 };
 
 class VertexStore {
   public:
-    VertexStore(double xyTol, double zTol) : tol_(xyTol), zTol_(zTol), cell_(xyTol > 0 ? xyTol : 1e-12) {}
+    VertexStore(double xyTol, double zTol)
+        : tol_(xyTol), zTol_(zTol), cell_(xyTol > 0 ? xyTol : 1e-12) {}
     struct Added {
         u32 id;
         bool merged;
@@ -251,7 +260,8 @@ class VertexStore {
                 if (it == cells_.end())
                     continue;
                 for (u32 id : it->second)
-                    if (std::abs(xy[id].x - x) <= tol_ && std::abs(xy[id].y - y) <= tol_ && id < best)
+                    if (std::abs(xy[id].x - x) <= tol_ && std::abs(xy[id].y - y) <= tol_ &&
+                        id < best)
                         best = id;
             }
         if (best != kNone) {
@@ -269,7 +279,8 @@ class VertexStore {
         const u32 id = u32(xy.size());
         xy.push_back({x, y});
         z.push_back(hasZ ? zValue : 0.0);
-        flags.push_back(static_cast<unsigned char>((hasZ ? HasZ : 0) | (contour && hasZ ? OnContour : 0)));
+        flags.push_back(
+            static_cast<unsigned char>((hasZ ? HasZ : 0) | (contour && hasZ ? OnContour : 0)));
         source_.push_back(source);
         cells_[{cx, cy}].push_back(id);
         return {id, false, false, id};
@@ -311,7 +322,8 @@ void dedupe(std::vector<Segment> &segments, const std::vector<Pt> &xy, Problems 
         auto &kept = out[it->second];
         if ((kept.kind & RegionSegment) && (s.kind & RegionSegment)) {
             problems.add(TerrainProblemKind::CrossingConstraints,
-                         Pt{(xy[s.a].x + xy[s.b].x) / 2, (xy[s.a].y + xy[s.b].y) / 2}, kept.source, s.source);
+                         Pt{(xy[s.a].x + xy[s.b].x) / 2, (xy[s.a].y + xy[s.b].y) / 2}, kept.source,
+                         s.source);
             continue;
         }
         kept.kind |= s.kind;
@@ -357,7 +369,9 @@ class Grid {
                 xl = sxlo;
                 xh = sxhi;
             } else {
-                const auto at = [&](double y) { return a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y); };
+                const auto at = [&](double y) {
+                    return a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y);
+                };
                 xl = std::min(at(u), at(v));
                 xh = std::max(at(u), at(v));
                 xl = std::clamp(xl, sxlo, sxhi);
@@ -422,11 +436,14 @@ void relink(Mesh &m, u32 t, u32 u, u32 w, u32 to) {
     if (t == kNone)
         return;
     for (u32 i = 0; i < 3; ++i)
-        if ((m.v[t][i] == u && m.v[t][(i + 1) % 3] == w) || (m.v[t][i] == w && m.v[t][(i + 1) % 3] == u))
+        if ((m.v[t][i] == u && m.v[t][(i + 1) % 3] == w) ||
+            (m.v[t][i] == w && m.v[t][(i + 1) % 3] == u))
             m.nb[t][i] = to;
 }
 
-bool sortedContains(const std::vector<u64> &keys, u64 key) { return std::binary_search(keys.begin(), keys.end(), key); }
+bool sortedContains(const std::vector<u64> &keys, u64 key) {
+    return std::binary_search(keys.begin(), keys.end(), key);
+}
 
 // Everything the flat pass needs about vertices. Steiner points are appended.
 struct Surface {
@@ -436,8 +453,8 @@ struct Surface {
 };
 
 bool isFlat(const Surface &s, const Tri &t, double tol) {
-    return s.contour[t[0]] && s.contour[t[1]] && s.contour[t[2]] && std::abs(s.z[t[0]] - s.z[t[1]]) <= tol &&
-           std::abs(s.z[t[0]] - s.z[t[2]]) <= tol;
+    return s.contour[t[0]] && s.contour[t[1]] && s.contour[t[2]] &&
+           std::abs(s.z[t[0]] - s.z[t[1]]) <= tol && std::abs(s.z[t[0]] - s.z[t[2]]) <= tol;
 }
 double planArea(const Surface &s, const Tri &t) {
     return std::abs(orientValue(s.xy[t[0]], s.xy[t[1]], s.xy[t[2]])) / 2;
@@ -445,7 +462,8 @@ double planArea(const Surface &s, const Tri &t) {
 
 // Flip an edge when the two triangles form a strictly convex quadrilateral. Triangle t is
 // (a, b, c) and its neighbour across slot-0 edge is (b, a, d). Returns the new pair.
-bool flipEdge(Mesh &m, const Surface &s, u32 t, u32 slot, double flatTol, bool requireFewerFlats, bool &flipped) {
+bool flipEdge(Mesh &m, const Surface &s, u32 t, u32 slot, double flatTol, bool requireFewerFlats,
+              bool &flipped) {
     flipped = false;
     const u32 n = m.nb[t][slot];
     if (n == kNone)
@@ -473,7 +491,8 @@ bool flipEdge(Mesh &m, const Surface &s, u32 t, u32 slot, double flatTol, bool r
                 return m.nb[tri][i];
         return kNone;
     };
-    const u32 nbBC = across(t, b, c), nbCA = across(t, c, a), nbAD = across(n, a, d), nbDB = across(n, d, b);
+    const u32 nbBC = across(t, b, c), nbCA = across(t, c, a), nbAD = across(n, a, d),
+              nbDB = across(n, d, b);
     m.v[t] = first;
     m.v[n] = second;
     m.nb[t] = {nbCA, nbAD, n};
@@ -518,7 +537,8 @@ using CdtTriangulation = CDT::Triangulation<double>;
 
 // Constrained Delaunay of `points` with `edges` (indices into `points`). The super triangle
 // is erased; the convex hull remains.
-void runCdt(const std::vector<Pt> &points, const std::vector<std::pair<u32, u32>> &edges, CdtTriangulation &tri) {
+void runCdt(const std::vector<Pt> &points, const std::vector<std::pair<u32, u32>> &edges,
+            CdtTriangulation &tri) {
     std::vector<CDT::V2d<double>> vertices;
     vertices.reserve(points.size());
     for (const auto &p : points)
@@ -601,7 +621,8 @@ class Elevation {
         }
         extrapolated = false;
         const auto &v = mesh_.v[t];
-        const double w0 = orientValue(xy_[v[1]], xy_[v[2]], p), w1 = orientValue(xy_[v[2]], xy_[v[0]], p),
+        const double w0 = orientValue(xy_[v[1]], xy_[v[2]], p),
+                     w1 = orientValue(xy_[v[2]], xy_[v[0]], p),
                      w2 = orientValue(xy_[v[0]], xy_[v[1]], p);
         const double sum = w0 + w1 + w2;
         return sum > 0 ? (w0 * z_[v[0]] + w1 * z_[v[1]] + w2 * z_[v[2]]) / sum : z_[v[0]];
@@ -645,14 +666,15 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
     if (raw > limits.maxRawVertices) {
         problems.add(TerrainProblemKind::LimitExceeded);
         problems.detail(TerrainProblemKind::LimitExceeded,
-                        format("%llu input vertices before merging; the limit is %llu.", raw, limits.maxRawVertices));
+                        format("%llu input vertices before merging; the limit is %llu.", raw,
+                               limits.maxRawVertices));
         return refuse();
     }
     if (polygonVertices > limits.maxPolygonVertices) {
         problems.add(TerrainProblemKind::LimitExceeded);
         problems.detail(TerrainProblemKind::LimitExceeded,
-                        format("%llu boundary and hole vertices; the limit is %llu.", polygonVertices,
-                               limits.maxPolygonVertices));
+                        format("%llu boundary and hole vertices; the limit is %llu.",
+                               polygonVertices, limits.maxPolygonVertices));
         return refuse();
     }
     {
@@ -660,8 +682,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             const double values[3] = {x, y, z ? *z : 0.0};
             for (double v : values)
                 if (!std::isfinite(v)) {
-                    problems.add(TerrainProblemKind::NonFinite, Pt{std::isfinite(x) ? x : 0, std::isfinite(y) ? y : 0},
-                                 source);
+                    problems.add(TerrainProblemKind::NonFinite,
+                                 Pt{std::isfinite(x) ? x : 0, std::isfinite(y) ? y : 0}, source);
                     return;
                 }
             if (std::abs(x) > limits.maxCoordinate || std::abs(y) > limits.maxCoordinate ||
@@ -685,7 +707,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                 check(p.x, p.y, nullptr, h.sourceId);
         if (problems.has(TerrainProblemKind::ExtentExceeded))
             problems.detail(TerrainProblemKind::ExtentExceeded,
-                            format("%llu coordinate(s) are beyond +/-%llu m; convert to the terrain's local frame first.",
+                            format("%llu coordinate(s) are beyond +/-%llu m; convert to the "
+                                   "terrain's local frame first.",
                                    problems.count(TerrainProblemKind::ExtentExceeded),
                                    (unsigned long long)limits.maxCoordinate));
         if (problems.any())
@@ -700,7 +723,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         if (added.merged)
             ++report.mergedDuplicates;
         if (added.conflict)
-            problems.add(TerrainProblemKind::ConflictingDuplicate, Pt{x, y}, store.source(added.other), source);
+            problems.add(TerrainProblemKind::ConflictingDuplicate, Pt{x, y},
+                         store.source(added.other), source);
         return added.id;
     };
     const auto addPolyline = [&](const std::vector<u32> &ids, bool closed, u64 source) {
@@ -732,7 +756,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
     if (sourceVertices > limits.maxVertices) {
         problems.add(TerrainProblemKind::LimitExceeded);
         problems.detail(TerrainProblemKind::LimitExceeded,
-                        format("%llu vertices after merging; the limit is %llu.", sourceVertices, limits.maxVertices));
+                        format("%llu vertices after merging; the limit is %llu.", sourceVertices,
+                               limits.maxVertices));
         return refuse();
     }
 
@@ -762,8 +787,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                 area = true;
         }
         if (distinct < 3 || !area) {
-            problems.add(TerrainProblemKind::InvalidPolygon, poly.raw.empty() ? Pt{} : poly.raw.front(),
-                         p.sourceId);
+            problems.add(TerrainProblemKind::InvalidPolygon,
+                         poly.raw.empty() ? Pt{} : poly.raw.front(), p.sourceId);
             return;
         }
         polygons.push_back(std::move(poly));
@@ -788,8 +813,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                     outside += index[0].locate(q) == PolygonIndex::Where::Outside;
                 if (outside == hole.raw.size()) {
                     if (index[i].locate(polygons[0].raw.front()) == PolygonIndex::Where::Inside)
-                        problems.add(TerrainProblemKind::InvalidPolygon, hole.raw.front(), hole.input->sourceId,
-                                     polygons[0].input->sourceId);
+                        problems.add(TerrainProblemKind::InvalidPolygon, hole.raw.front(),
+                                     hole.input->sourceId, polygons[0].input->sourceId);
                     hole.dropped = true;
                     ++report.droppedHoles;
                     continue;
@@ -798,8 +823,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             for (std::size_t j = hasBoundary ? 1 : 0; j < polygons.size(); ++j)
                 if (j != i && !polygons[j].dropped &&
                     index[j].locate(hole.raw.front()) == PolygonIndex::Where::Inside)
-                    problems.add(TerrainProblemKind::InvalidPolygon, hole.raw.front(), hole.input->sourceId,
-                                 polygons[j].input->sourceId);
+                    problems.add(TerrainProblemKind::InvalidPolygon, hole.raw.front(),
+                                 hole.input->sourceId, polygons[j].input->sourceId);
         }
         if (problems.has(TerrainProblemKind::InvalidPolygon)) {
             // Fall through so other problems are still found, without the broken polygons.
@@ -898,9 +923,11 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             });
         if (entries > kMaxGridEntries) {
             problems.add(TerrainProblemKind::LimitExceeded);
-            problems.detail(TerrainProblemKind::LimitExceeded,
-                            format("The constraint segments are too long and dense to check (%llu cell entries).",
-                                   entries));
+            problems.detail(
+                TerrainProblemKind::LimitExceeded,
+                format(
+                    "The constraint segments are too long and dense to check (%llu cell entries).",
+                    entries));
             return refuse();
         }
         for (std::size_t c = 0; c < cellCount; ++c)
@@ -910,7 +937,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             std::vector<u32> fill(cellCount, 0);
             for (u32 i = 0; i < segments.size(); ++i)
                 grid.raster(store.xy[segments[i].a], store.xy[segments[i].b], [&](int c) {
-                    segmentCells.items[segmentCells.start[std::size_t(c)] + fill[std::size_t(c)]++] = i;
+                    segmentCells
+                        .items[segmentCells.start[std::size_t(c)] + fill[std::size_t(c)]++] = i;
                 });
         }
         // Vertices inside segments.
@@ -919,7 +947,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             const Pt &a = store.xy[segments[i].a];
             const Pt &b = store.xy[segments[i].b];
             grid.raster(a, b, [&](int c) {
-                for (u32 k = vertexCells.start[std::size_t(c)]; k < vertexCells.start[std::size_t(c) + 1]; ++k) {
+                for (u32 k = vertexCells.start[std::size_t(c)];
+                     k < vertexCells.start[std::size_t(c) + 1]; ++k) {
                     const u32 v = vertexCells.items[k];
                     if (v != segments[i].a && v != segments[i].b && inBox(a, b, store.xy[v]) &&
                         orientSign(a, b, store.xy[v]) == 0)
@@ -933,8 +962,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             if (segments[i].kind & RegionSegment)
                 splits[i].push_back(v);
             else
-                problems.add(TerrainProblemKind::CrossingConstraints, store.xy[v], segments[i].source,
-                             store.source(v));
+                problems.add(TerrainProblemKind::CrossingConstraints, store.xy[v],
+                             segments[i].source, store.source(v));
         }
         // Segment pairs that properly cross.
         std::vector<u64> pairs;
@@ -947,8 +976,10 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                     if (r.a == s.a || r.a == s.b || r.b == s.a || r.b == s.b)
                         continue;
                     const Pt &c0 = store.xy[r.a], &d0 = store.xy[r.b];
-                    if (std::max(a.x, b.x) < std::min(c0.x, d0.x) || std::max(c0.x, d0.x) < std::min(a.x, b.x) ||
-                        std::max(a.y, b.y) < std::min(c0.y, d0.y) || std::max(c0.y, d0.y) < std::min(a.y, b.y))
+                    if (std::max(a.x, b.x) < std::min(c0.x, d0.x) ||
+                        std::max(c0.x, d0.x) < std::min(a.x, b.x) ||
+                        std::max(a.y, b.y) < std::min(c0.y, d0.y) ||
+                        std::max(c0.y, d0.y) < std::min(a.y, b.y))
                         continue;
                     const int o1 = orientSign(a, b, c0), o2 = orientSign(a, b, d0);
                     if (o1 * o2 >= 0)
@@ -964,15 +995,17 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         for (u64 pair : pairs) {
             const auto &s = segments[pair >> 32];
             const auto &r = segments[pair & 0xffffffffu];
-            const Pt &a = store.xy[s.a], &b = store.xy[s.b], &c0 = store.xy[r.a], &d0 = store.xy[r.b];
+            const Pt &a = store.xy[s.a], &b = store.xy[s.b], &c0 = store.xy[r.a],
+                     &d0 = store.xy[r.b];
             const double u = orientValue(c0, d0, a), w = orientValue(c0, d0, b);
             const double t = (u - w) != 0 ? u / (u - w) : 0.5;
-            problems.add(TerrainProblemKind::CrossingConstraints, Pt{a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)},
-                         s.source, r.source);
+            problems.add(TerrainProblemKind::CrossingConstraints,
+                         Pt{a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)}, s.source, r.source);
         }
         if (pairs.size() > kMaxCrossingPairs)
             problems.detail(TerrainProblemKind::CrossingConstraints,
-                            "More than 1000000 constraint segment pairs cross, touch or overlap; counting stopped.");
+                            "More than 1000000 constraint segment pairs cross, touch or overlap; "
+                            "counting stopped.");
         // Split region segments at the vertices that touch them.
         std::vector<Segment> pieces;
         pieces.reserve(segments.size());
@@ -1007,20 +1040,25 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
     {
         bool spread = false;
         for (std::size_t i = 2; i < sourceIds.size() && !spread; ++i)
-            spread = orientSign(store.xy[sourceIds[0]], store.xy[sourceIds[1]], store.xy[sourceIds[i]]) != 0;
+            spread = orientSign(store.xy[sourceIds[0]], store.xy[sourceIds[1]],
+                                store.xy[sourceIds[i]]) != 0;
         if (!spread) {
             for (std::size_t i = 0; i < sourceIds.size() && i < terrainMaxLocationsPerKind; ++i)
-                problems.add(TerrainProblemKind::InsufficientPoints, store.xy[sourceIds[i]], store.source(sourceIds[i]));
-            problems.setCount(TerrainProblemKind::InsufficientPoints, std::max<std::size_t>(sourceIds.size(), 1));
-            problems.detail(TerrainProblemKind::InsufficientPoints,
-                            format("Fewer than three non-collinear points (%llu usable).", sourceIds.size()));
+                problems.add(TerrainProblemKind::InsufficientPoints, store.xy[sourceIds[i]],
+                             store.source(sourceIds[i]));
+            problems.setCount(TerrainProblemKind::InsufficientPoints,
+                              std::max<std::size_t>(sourceIds.size(), 1));
+            problems.detail(
+                TerrainProblemKind::InsufficientPoints,
+                format("Fewer than three non-collinear points (%llu usable).", sourceIds.size()));
         }
     }
     report.uniqueVertexCount = total - report.droppedOutsideVertices;
     if (problems.any())
         return refuse();
 
-    // ---- 6. Elevations for polygon vertices ------------------------------------------------------
+    // ---- 6. Elevations for polygon vertices
+    // ------------------------------------------------------
     {
         bool pending = false;
         for (u32 v = 0; v < total; ++v)
@@ -1040,7 +1078,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             for (const auto &s : segments)
                 if ((s.kind & DataSegment) && toFirst[s.a] != kNone && toFirst[s.b] != kNone)
                     edges.emplace_back(toFirst[s.a], toFirst[s.b]);
-            CdtTriangulation first(CDT::VertexInsertionOrder::Auto, CDT::IntersectingConstraintEdges::NotAllowed, 0.0);
+            CdtTriangulation first(CDT::VertexInsertionOrder::Auto,
+                                   CDT::IntersectingConstraintEdges::NotAllowed, 0.0);
             try {
                 runCdt(pts, edges, first);
             } catch (const CDT::Error &) {
@@ -1064,7 +1103,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         }
     }
 
-    // ---- 7. Constrained Delaunay -------------------------------------------------------------------
+    // ---- 7. Constrained Delaunay
+    // -------------------------------------------------------------------
     std::vector<u32> packed(total, kNone);
     Surface surface;
     for (u32 v = 0; v < total; ++v) {
@@ -1088,7 +1128,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
     report.constraintEdges = edges.size();
     Mesh mesh;
     {
-        CdtTriangulation tri(CDT::VertexInsertionOrder::Auto, CDT::IntersectingConstraintEdges::NotAllowed, 0.0);
+        CdtTriangulation tri(CDT::VertexInsertionOrder::Auto,
+                             CDT::IntersectingConstraintEdges::NotAllowed, 0.0);
         try {
             runCdt(surface.xy, edges, tri);
         } catch (const CDT::IntersectingConstraintsError &) {
@@ -1103,7 +1144,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         // The library must keep every constraint as one edge; a split would break the region rule.
         bool intact = tri.fixedEdges.size() == edges.size();
         for (const auto &e : edges)
-            intact = intact && tri.fixedEdges.count(CDT::Edge(CDT::VertInd(e.first), CDT::VertInd(e.second))) != 0;
+            intact = intact && tri.fixedEdges.count(
+                                   CDT::Edge(CDT::VertInd(e.first), CDT::VertInd(e.second))) != 0;
         if (!intact || tri.vertices.size() != surface.xy.size()) {
             problems.add(TerrainProblemKind::TriangulationFailed);
             return refuse();
@@ -1115,9 +1157,10 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         return refuse();
     }
 
-    // ---- 8. Outside the boundary and inside holes ---------------------------------------------------
-    // Depth by region edges, from the outside of the hull: crossing a region edge adds one, and
-    // without a boundary the hull itself counts as one. Odd depth is terrain.
+    // ---- 8. Outside the boundary and inside holes
+    // --------------------------------------------------- Depth by region edges, from the outside
+    // of the hull: crossing a region edge adds one, and without a boundary the hull itself counts
+    // as one. Odd depth is terrain.
     {
         const std::size_t count = mesh.v.size();
         std::vector<int> depth(count, -1);
@@ -1162,8 +1205,9 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         }
     }
 
-    // ---- 9. Trim long outer edges ----------------------------------------------------------------------
-    // Never across a constraint: contour, breakline, boundary and hole edges are data.
+    // ---- 9. Trim long outer edges
+    // ---------------------------------------------------------------------- Never across a
+    // constraint: contour, breakline, boundary and hole edges are data.
     if (options.maxEdgeLength && *options.maxEdgeLength > 0) {
         const double limit = *options.maxEdgeLength;
         std::vector<char> removed(mesh.v.size(), 0);
@@ -1175,7 +1219,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                     continue;
                 const u32 a = mesh.v[t][i], b = mesh.v[t][(i + 1) % 3];
                 if (!sortedContains(fixedKeys, edgeKey(a, b)) &&
-                    std::hypot(surface.xy[a].x - surface.xy[b].x, surface.xy[a].y - surface.xy[b].y) > limit)
+                    std::hypot(surface.xy[a].x - surface.xy[b].x,
+                               surface.xy[a].y - surface.xy[b].y) > limit)
                     return true;
             }
             return false;
@@ -1212,18 +1257,21 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             return true;
         problems.add(TerrainProblemKind::TriangleBudget);
         problems.detail(TerrainProblemKind::TriangleBudget,
-                        format("The terrain has %llu triangles; the limit is %llu.", mesh.v.size(), limits.maxTriangles));
+                        format("The terrain has %llu triangles; the limit is %llu.", mesh.v.size(),
+                               limits.maxTriangles));
         return false;
     };
     if (!budget())
         return refuse();
     if (mesh.v.empty()) {
         problems.add(TerrainProblemKind::InsufficientPoints);
-        problems.detail(TerrainProblemKind::InsufficientPoints, "No triangles remain after the boundary, holes and edge limit.");
+        problems.detail(TerrainProblemKind::InsufficientPoints,
+                        "No triangles remain after the boundary, holes and edge limit.");
         return refuse();
     }
 
-    // ---- 10. Flat triangles --------------------------------------------------------------------------------
+    // ---- 10. Flat triangles
+    // --------------------------------------------------------------------------------
     const double flatTol = options.flatTolerance;
     for (const auto &t : mesh.v)
         report.flatTrianglesInitial += isFlat(surface, t, flatTol);
@@ -1245,7 +1293,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                 continue;
             for (u32 slot = 0; slot < 3; ++slot) {
                 const u32 n = mesh.nb[t][slot];
-                if (n == kNone || sortedContains(fixedKeys, edgeKey(mesh.v[t][slot], mesh.v[t][(slot + 1) % 3])))
+                if (n == kNone ||
+                    sortedContains(fixedKeys, edgeKey(mesh.v[t][slot], mesh.v[t][(slot + 1) % 3])))
                     continue;
                 bool flipped = false;
                 if (!flipEdge(mesh, surface, t, slot, flatTol, true, flipped)) {
@@ -1294,7 +1343,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                         d = w;
                 if (d == kNone || std::abs(surface.z[d] - surface.z[a]) <= flatTol)
                     continue;
-                const double length = std::hypot(surface.xy[a].x - surface.xy[b].x, surface.xy[a].y - surface.xy[b].y);
+                const double length = std::hypot(surface.xy[a].x - surface.xy[b].x,
+                                                 surface.xy[a].y - surface.xy[b].y);
                 if (length > bestLength) {
                     bestLength = length;
                     best = slot;
@@ -1302,16 +1352,20 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             }
             if (best == kNone)
                 continue;
-            const u32 a = mesh.v[t][best], b = mesh.v[t][(best + 1) % 3], c = mesh.v[t][(best + 2) % 3];
+            const u32 a = mesh.v[t][best], b = mesh.v[t][(best + 1) % 3],
+                      c = mesh.v[t][(best + 2) % 3];
             const u32 n = mesh.nb[t][best];
             u32 d = kNone;
             for (u32 w : mesh.v[n])
                 if (w != a && w != b)
                     d = w;
-            const Pt mid{(surface.xy[a].x + surface.xy[b].x) / 2, (surface.xy[a].y + surface.xy[b].y) / 2};
+            const Pt mid{(surface.xy[a].x + surface.xy[b].x) / 2,
+                         (surface.xy[a].y + surface.xy[b].y) / 2};
             // All four pieces must stay counter-clockwise (rounding of the midpoint).
-            if (orientSign(surface.xy[a], mid, surface.xy[c]) <= 0 || orientSign(mid, surface.xy[b], surface.xy[c]) <= 0 ||
-                orientSign(surface.xy[b], mid, surface.xy[d]) <= 0 || orientSign(mid, surface.xy[a], surface.xy[d]) <= 0)
+            if (orientSign(surface.xy[a], mid, surface.xy[c]) <= 0 ||
+                orientSign(mid, surface.xy[b], surface.xy[c]) <= 0 ||
+                orientSign(surface.xy[b], mid, surface.xy[d]) <= 0 ||
+                orientSign(mid, surface.xy[a], surface.xy[d]) <= 0)
                 continue;
             const u32 m = u32(surface.xy.size());
             surface.xy.push_back(mid);
@@ -1324,7 +1378,8 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                         return mesh.nb[tri][i];
                 return kNone;
             };
-            const u32 nbBC = across(t, b, c), nbCA = across(t, c, a), nbAD = across(n, a, d), nbDB = across(n, d, b);
+            const u32 nbBC = across(t, b, c), nbCA = across(t, c, a), nbAD = across(n, a, d),
+                      nbDB = across(n, d, b);
             const u32 t2 = u32(mesh.v.size()), n1 = t2 + 1;
             mesh.v.resize(mesh.v.size() + 2);
             mesh.nb.resize(mesh.nb.size() + 2);
@@ -1347,11 +1402,13 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             ++report.flatTrianglesRemaining;
             report.flatAreaRemaining += planArea(surface, t);
             if (report.flatLocations.size() < terrainMaxLocationsPerKind)
-                report.flatLocations.push_back({(surface.xy[t[0]].x + surface.xy[t[1]].x + surface.xy[t[2]].x) / 3,
-                                                (surface.xy[t[0]].y + surface.xy[t[1]].y + surface.xy[t[2]].y) / 3});
+                report.flatLocations.push_back(
+                    {(surface.xy[t[0]].x + surface.xy[t[1]].x + surface.xy[t[2]].x) / 3,
+                     (surface.xy[t[0]].y + surface.xy[t[1]].y + surface.xy[t[2]].y) / 3});
         }
 
-    // ---- 11. Output ---------------------------------------------------------------------------------------------
+    // ---- 11. Output
+    // ---------------------------------------------------------------------------------------------
     std::vector<u32> remap(surface.xy.size(), kNone);
     for (const auto &t : mesh.v)
         for (u32 v : t)

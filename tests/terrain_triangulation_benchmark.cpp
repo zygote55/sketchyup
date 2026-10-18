@@ -55,17 +55,22 @@ TerrainTriangulationInput contours(std::size_t triangles, double aspect = 1) {
     return in;
 }
 
-void measure(const char *name, const TerrainTriangulationInput &in, const TerrainTriangulationOptions &options) {
+void measure(const char *name, const TerrainTriangulationInput &in,
+             const TerrainTriangulationOptions &options) {
     double best = 1e300;
     TerrainTriangulationResult result;
     for (int run = 0; run < 3; ++run) {
         const auto start = std::chrono::steady_clock::now();
         result = triangulateTerrain(in, options);
-        best = std::min(best, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count());
+        best = std::min(best, std::chrono::duration<double, std::milli>(
+                                  std::chrono::steady_clock::now() - start)
+                                  .count());
     }
-    std::printf("%-28s %8zu triangles %8zu vertices %9.1f ms  flats %llu->%llu  %s\n", name, result.triangles.size(),
-                result.vertices.size(), best, (unsigned long long)result.report.flatTrianglesInitial,
-                (unsigned long long)result.report.flatTrianglesRemaining, result.ok ? "ok" : "REFUSED");
+    std::printf("%-28s %8zu triangles %8zu vertices %9.1f ms  flats %llu->%llu  %s\n", name,
+                result.triangles.size(), result.vertices.size(), best,
+                (unsigned long long)result.report.flatTrianglesInitial,
+                (unsigned long long)result.report.flatTrianglesRemaining,
+                result.ok ? "ok" : "REFUSED");
 }
 
 } // namespace

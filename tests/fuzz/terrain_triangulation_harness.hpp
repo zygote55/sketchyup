@@ -17,8 +17,8 @@
 // A truncated input decodes to what it holds. Every byte string is a valid input.
 #include "geometry/terrain_triangulation.hpp"
 #include <algorithm>
-#include <cmath>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -131,8 +131,9 @@ inline std::vector<std::uint8_t> encodeTerrainCase(const TerrainCase &c) {
         out.push_back(std::uint8_t(std::uint16_t(q) & 0xff));
         out.push_back(std::uint8_t(std::uint16_t(q) >> 8));
     };
-    u8((c.options.steinerFill ? 1 : 0) | (c.options.flatMode == TerrainFlatMode::ReportOnly ? 2 : 0) |
-       (c.input.boundary ? 4 : 0) | (c.options.maxEdgeLength ? 8 : 0));
+    u8((c.options.steinerFill ? 1 : 0) |
+       (c.options.flatMode == TerrainFlatMode::ReportOnly ? 2 : 0) | (c.input.boundary ? 4 : 0) |
+       (c.options.maxEdgeLength ? 8 : 0));
     u8(c.input.contours.size());
     u8(c.input.breaklines.size());
     u8(c.input.holes.size());
@@ -183,74 +184,93 @@ inline bool sameResult(const TerrainTriangulationResult &a, const TerrainTriangu
         a.report.refusals.size() != b.report.refusals.size())
         return false;
     for (std::size_t i = 0; i < a.vertices.size(); ++i)
-        if (!sameBits(a.vertices[i].x, b.vertices[i].x) || !sameBits(a.vertices[i].y, b.vertices[i].y) ||
+        if (!sameBits(a.vertices[i].x, b.vertices[i].x) ||
+            !sameBits(a.vertices[i].y, b.vertices[i].y) ||
             !sameBits(a.vertices[i].z, b.vertices[i].z))
             return false;
     for (std::size_t i = 0; i < a.report.refusals.size(); ++i) {
         const auto &l = a.report.refusals[i];
         const auto &r = b.report.refusals[i];
-        if (l.kind != r.kind || l.count != r.count || l.message != r.message || l.locations.size() != r.locations.size())
+        if (l.kind != r.kind || l.count != r.count || l.message != r.message ||
+            l.locations.size() != r.locations.size())
             return false;
     }
     const auto &l = a.report;
     const auto &r = b.report;
-    return l.flatTrianglesRemaining == r.flatTrianglesRemaining && l.flipsApplied == r.flipsApplied &&
-           l.steinerPointsAdded == r.steinerPointsAdded && l.mergedDuplicates == r.mergedDuplicates &&
+    return l.flatTrianglesRemaining == r.flatTrianglesRemaining &&
+           l.flipsApplied == r.flipsApplied && l.steinerPointsAdded == r.steinerPointsAdded &&
+           l.mergedDuplicates == r.mergedDuplicates &&
            sameBits(l.flatAreaRemaining, r.flatAreaRemaining);
 }
 
 // Invariants of any accepted or refused result.
-inline void checkTerrainResult(const TerrainTriangulationResult &result, const TerrainTriangulationOptions &options) {
+inline void checkTerrainResult(const TerrainTriangulationResult &result,
+                               const TerrainTriangulationOptions &options) {
     const auto &report = result.report;
     for (const auto &problem : report.refusals) {
         terrainRequire(problem.count >= 1, "a listed problem has a count");
-        terrainRequire(problem.locations.size() <= terrainMaxLocationsPerKind, "locations are bounded");
-        terrainRequire(problem.locations.size() <= problem.count, "locations do not exceed the count");
+        terrainRequire(problem.locations.size() <= terrainMaxLocationsPerKind,
+                       "locations are bounded");
+        terrainRequire(problem.locations.size() <= problem.count,
+                       "locations do not exceed the count");
         terrainRequire(!problem.message.empty() && problem.message.size() <= terrainMaxMessageBytes,
                        "messages are bounded");
         // The adapter checks constraints itself with exact predicates; the library's own
         // check firing, or the library failing, means that check missed something.
-        terrainRequire(problem.kind != TerrainProblemKind::TriangulationFailed, "the library did not fail");
-        terrainRequire(problem.message.find("library found") == std::string::npos, "no crossing slipped past the adapter");
+        terrainRequire(problem.kind != TerrainProblemKind::TriangulationFailed,
+                       "the library did not fail");
+        terrainRequire(problem.message.find("library found") == std::string::npos,
+                       "no crossing slipped past the adapter");
         for (const auto &where : problem.locations)
-            terrainRequire(std::isfinite(where.xy.x) && std::isfinite(where.xy.y), "locations are finite");
+            terrainRequire(std::isfinite(where.xy.x) && std::isfinite(where.xy.y),
+                           "locations are finite");
     }
-    terrainRequire(report.flatLocations.size() <= terrainMaxLocationsPerKind, "flat locations are bounded");
+    terrainRequire(report.flatLocations.size() <= terrainMaxLocationsPerKind,
+                   "flat locations are bounded");
     if (!result.ok) {
-        terrainRequire(result.vertices.empty() && result.triangles.empty(), "a refusal returns no mesh");
+        terrainRequire(result.vertices.empty() && result.triangles.empty(),
+                       "a refusal returns no mesh");
         terrainRequire(!report.refusals.empty(), "a refusal says why");
         return;
     }
     terrainRequire(report.refusals.empty(), "an accepted result has no refusals");
     terrainRequire(!result.triangles.empty(), "an accepted result has triangles");
-    terrainRequire(result.triangles.size() <= options.limits.maxTriangles, "the triangle budget holds");
-    terrainRequire(report.triangleCount == result.triangles.size() && report.vertexCount == result.vertices.size(),
+    terrainRequire(result.triangles.size() <= options.limits.maxTriangles,
+                   "the triangle budget holds");
+    terrainRequire(report.triangleCount == result.triangles.size() &&
+                       report.vertexCount == result.vertices.size(),
                    "report counts match the mesh");
     for (const auto &v : result.vertices)
-        terrainRequire(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z), "finite vertices");
+        terrainRequire(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z),
+                       "finite vertices");
     std::vector<char> used(result.vertices.size(), 0);
     std::map<std::pair<std::uint32_t, std::uint32_t>, int> directed;
     const std::array<std::uint32_t, 3> *previous = nullptr;
     for (const auto &t : result.triangles) {
         for (auto v : t)
             terrainRequire(v < result.vertices.size(), "triangle indices are in range");
-        terrainRequire(t[0] < t[1] && t[0] < t[2] && t[1] != t[2], "triangles are rotated to the smallest index");
+        terrainRequire(t[0] < t[1] && t[0] < t[2] && t[1] != t[2],
+                       "triangles are rotated to the smallest index");
         terrainRequire(!previous || *previous < t, "triangles are sorted and unique");
         previous = &t;
         const auto &a = result.vertices[t[0]];
         const auto &b = result.vertices[t[1]];
         const auto &c = result.vertices[t[2]];
-        terrainRequire((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0, "triangles are counter-clockwise");
+        terrainRequire((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0,
+                       "triangles are counter-clockwise");
         for (int i = 0; i < 3; ++i) {
             used[t[i]] = 1;
-            terrainRequire(++directed[{t[i], t[(i + 1) % 3]}] == 1, "no directed edge is used twice");
+            terrainRequire(++directed[{t[i], t[(i + 1) % 3]}] == 1,
+                           "no directed edge is used twice");
         }
     }
     for (char u : used)
         terrainRequire(u != 0, "every output vertex is used");
-    terrainRequire(report.flatTrianglesRemaining <= report.triangleCount, "flat triangles are a subset");
+    terrainRequire(report.flatTrianglesRemaining <= report.triangleCount,
+                   "flat triangles are a subset");
     if (options.flatMode == TerrainFlatMode::Flip && !options.steinerFill)
-        terrainRequire(report.flatTrianglesRemaining <= report.flatTrianglesInitial, "flips never add flats");
+        terrainRequire(report.flatTrianglesRemaining <= report.flatTrianglesInitial,
+                       "flips never add flats");
 }
 
 // One adapter call: decode, run twice, compare bit for bit, check the invariants.

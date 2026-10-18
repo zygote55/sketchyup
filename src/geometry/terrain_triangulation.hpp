@@ -105,9 +105,9 @@ enum class TerrainProblemKind : std::uint8_t {
     ConflictingDuplicate, // same XY, different Z
     CrossingConstraints,  // crossing, touching or overlapping constraint segments
     InsufficientPoints,   // fewer than 3 non-collinear points
-    InvalidPolygon,       // boundary or hole with fewer than 3 distinct vertices, or hole inside a hole
-    TriangleBudget,       // more triangles than the limit
-    TriangulationFailed,  // the library reported an error, or an internal check failed
+    InvalidPolygon, // boundary or hole with fewer than 3 distinct vertices, or hole inside a hole
+    TriangleBudget, // more triangles than the limit
+    TriangulationFailed, // the library reported an error, or an internal check failed
 };
 inline constexpr std::size_t terrainProblemKindCount = 9;
 const char *terrainProblemKindName(TerrainProblemKind kind);
@@ -131,9 +131,9 @@ struct TerrainProblem {
 struct TerrainTriangulationReport {
     // Input.
     std::uint64_t rawVertexCount{0};
-    std::uint64_t uniqueVertexCount{0};   // after merging duplicates
-    std::uint64_t mergedDuplicates{0};    // vertices merged into an earlier one
-    std::uint64_t mergedSegments{0};      // repeated segments merged into one constraint
+    std::uint64_t uniqueVertexCount{0}; // after merging duplicates
+    std::uint64_t mergedDuplicates{0};  // vertices merged into an earlier one
+    std::uint64_t mergedSegments{0};    // repeated segments merged into one constraint
     std::uint64_t droppedZeroLengthSegments{0};
     std::uint64_t droppedOutsideVertices{0}; // outside the boundary or inside a hole
     std::uint64_t droppedOutsideSegments{0}; // constraint segments lost with them
@@ -144,14 +144,14 @@ struct TerrainTriangulationReport {
     // Output.
     std::uint64_t vertexCount{0};
     std::uint64_t triangleCount{0};
-    std::uint64_t trimmedTriangles{0};  // removed by maxEdgeLength
-    std::uint64_t unusedVertices{0};    // present in the input, in no output triangle
+    std::uint64_t trimmedTriangles{0}; // removed by maxEdgeLength
+    std::uint64_t unusedVertices{0};   // present in the input, in no output triangle
     // Flat triangles.
     std::uint64_t flatTrianglesInitial{0};
     std::uint64_t flipsApplied{0};
     std::uint64_t steinerPointsAdded{0};
     std::uint64_t flatTrianglesRemaining{0};
-    double flatAreaRemaining{0}; // square metres in plan
+    double flatAreaRemaining{0};            // square metres in plan
     std::vector<TerrainVec2> flatLocations; // centroids, at most terrainMaxLocationsPerKind
     // Refusals, in TerrainProblemKind order.
     std::vector<TerrainProblem> refusals;
