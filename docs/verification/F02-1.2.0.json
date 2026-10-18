@@ -5,11 +5,39 @@
  "row": "F02",
  "version": "1.2.0",
  "recordComplete": true,
- "gateStatus": "ready for the owner's tag decision",
- "ownerApproval": "pending",
- "tagCreated": false,
- "releaseCreated": false,
- "published": false,
+ "gateStatus": "published",
+ "ownerApproval": {
+  "tag": "approved",
+  "release": "approved",
+  "corpusGate": "accepted by the owner with the tag and the release (scorer output unedited, releaseAccepted=false)",
+  "date": "2026-10-17"
+ },
+ "tagCreated": true,
+ "releaseCreated": true,
+ "published": true,
+ "publishedRelease": {
+  "tag": "v1.2.0",
+  "tagType": "annotated",
+  "tagObject": "6e2d5ddc9d27cfc08c2454440714b9709eb007b3",
+  "taggerDate": "2026-10-17T16:58:46-07:00",
+  "pointsAt": "d9af0396bd0f43c7d8635771623d46996a02d9ae",
+  "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.2.0",
+  "title": "SketchyUp 1.2.0",
+  "publishedAt": "2026-10-17T23:59:08Z",
+  "latest": true,
+  "prerelease": false,
+  "draft": false,
+  "assets": [
+   "sketchyup-1.2.0.tar.gz",
+   "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+   "PKGBUILD",
+   "SHA256SUMS",
+   "MANIFEST.json",
+   "THIRD_PARTY_NOTICES"
+  ],
+  "assetsVerified": "downloaded from the release; sha256sum -c SHA256SUMS passes (archive, package and THIRD_PARTY_NOTICES OK); GitHub asset digests of those three equal the artifact manifest",
+  "recordPr": "PR #345 merged 2026-10-18T00:48:56Z, after publication"
+ },
  "rc": {
   "commit": "d9af0396bd0f43c7d8635771623d46996a02d9ae",
   "mergeOf": "PR #344",
@@ -421,7 +449,11 @@
   "manual walkthrough on the installed RC"
  ],
  "openForOwner": [
-  "approve tag v1.2.0 and the release; accept the remote corpus gate",
+  {
+   "resolved": "2026-10-17",
+   "item": "approve tag v1.2.0 and the release; accept the remote corpus gate",
+   "decision": "Tag and publish; tag v1.2.0 created on the RC and the GitHub release published"
+  },
   "D-038"
  ],
  "evidenceRecords": [

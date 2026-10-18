@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 — unreleased
+## 1.2.0 — 2026-10-17
 
 A minor release that adds configurable components (scope row F02). Additive: existing
 commands, queries and schemas keep their shapes.
@@ -23,11 +23,13 @@ commands, queries and schemas keep their shapes.
   `component_parameters.*` inspection queries over MCP, the headless session and the
   CLI. The in-app assistant cannot change component parameters.
 - Assistant: the ChatGPT-plan budget is 524,288 tokens per task with no per-reply
-  output cap; 1.2.0 is evaluated against provider corpus v3.
+  output cap; 1.2.0 is evaluated against provider corpus v4.
 - Format: schema 28 (`component-parameters-v1`) is written only for documents with
   component parameters. SketchyUp 1.1.x and 1.0.x refuse those files unchanged and
   still open parameter-free ones.
 - SketchUp Dynamic Components are not imported or converted.
+
+Tag `v1.2.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.2.0).
 - Package: Arch `sketchyup` 1.2.0-1, upgrading from 1.1.1-1.
 
 ## 1.1.1 — 2026-10-16
