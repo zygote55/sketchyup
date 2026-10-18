@@ -76,6 +76,8 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
         edit.displayPrecision = std::pair{before.displayPrecision(), after.displayPrecision()};
     if (before.solar() != after.solar())
         edit.solar = std::pair{before.solar(), after.solar()};
+    if (before.site() != after.site())
+        edit.site = std::pair{before.site(), after.site()};
     if (before.style() != after.style())
         edit.style = std::pair{before.style(), after.style()};
 }

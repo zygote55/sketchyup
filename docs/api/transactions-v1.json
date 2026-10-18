@@ -8773,6 +8773,109 @@
                                         "command"
                                     ],
                                     "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Set site origin",
+                                    "properties": {
+                                        "command": {
+                                            "const": "site.set"
+                                        },
+                                        "crs": {
+                                            "description": "Informational CRS label; never used to transform",
+                                            "maxLength": 64,
+                                            "type": "string"
+                                        },
+                                        "easting": {
+                                            "description": "Projected easting of the model origin, metres",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        },
+                                        "elevation": {
+                                            "description": "Site elevation of model Z = 0, metres; default 0",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        },
+                                        "northing": {
+                                            "description": "Projected northing of the model origin, metres",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        },
+                                        "sha256": {
+                                            "maxLength": 64,
+                                            "pattern": "^[0-9a-f]{64}$",
+                                            "type": "string"
+                                        },
+                                        "source": {
+                                            "maxLength": 256,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "easting",
+                                        "northing",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Re-anchor site origin",
+                                    "properties": {
+                                        "command": {
+                                            "const": "site.reanchor"
+                                        },
+                                        "easting": {
+                                            "description": "New projected easting of the model origin, metres",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        },
+                                        "elevation": {
+                                            "description": "New site elevation of model Z = 0; default unchanged",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        },
+                                        "northing": {
+                                            "description": "New projected northing of the model origin, metres",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "easting",
+                                        "northing",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Explode terrain",
+                                    "properties": {
+                                        "body": {
+                                            "description": "Terrain body",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "terrain.explode"
+                                        }
+                                    },
+                                    "required": [
+                                        "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
                                 }
                             ]
                         },
@@ -10934,6 +11037,170 @@
                                     "first",
                                     "second",
                                     "normal",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "site.describe"
+                                    }
+                                },
+                                "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "points": {
+                                        "items": {
+                                            "items": {
+                                                "maximum": 100000000,
+                                                "minimum": -100000000,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 3,
+                                            "minItems": 3,
+                                            "type": "array"
+                                        },
+                                        "maxItems": 200,
+                                        "minItems": 1,
+                                        "type": "array"
+                                    },
+                                    "query": {
+                                        "const": "site.convert"
+                                    },
+                                    "to": {
+                                        "enum": [
+                                            "site",
+                                            "model"
+                                        ],
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "to",
+                                    "points",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "body": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "terrain.describe"
+                                    }
+                                },
+                                "required": [
+                                    "body",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "body": {
+                                        "maxLength": 20,
+                                        "pattern": "^[1-9][0-9]*$",
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "points": {
+                                        "items": {
+                                            "items": {
+                                                "maximum": 1000000,
+                                                "minimum": -1000000,
+                                                "type": "number"
+                                            },
+                                            "maxItems": 2,
+                                            "minItems": 2,
+                                            "type": "array"
+                                        },
+                                        "maxItems": 200,
+                                        "minItems": 1,
+                                        "type": "array"
+                                    },
+                                    "query": {
+                                        "const": "terrain.elevation_at"
+                                    }
+                                },
+                                "required": [
+                                    "body",
+                                    "points",
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

@@ -3,12 +3,14 @@
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
 #include "io/native_limits.hpp"
+#include "io/terrain_io.hpp"
 #include "sketchyup/version.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QtEndian>
+#include <optional>
 #include <set>
 namespace sketchy {
 namespace {
@@ -84,7 +86,8 @@ QByteArray encodeContainer(const Document &doc) {
     // The lowest schema the content needs (ADR 0163 decision 2); encodeDocument
     // applies the same policy to the payload.
     const auto version = nativeDocumentVersionFor(doc);
-    const bool drawingSheets = version >= 27, componentParameters = version >= 28;
+    const bool drawingSheets = version >= 27, componentParameters = version >= 28,
+               terrain = version >= 29;
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
@@ -108,6 +111,18 @@ QByteArray encodeContainer(const Document &doc) {
                                   {"sha256", asset["sha256"]}});
         payload.append(bytes);
     }
+    // Schema 29: every tile mesh in one binary chunk after the assets (ADR 0168 §2).
+    if (terrain) {
+        const auto mesh = encodeTerrainMesh(doc.bodies());
+        if (!mesh.isEmpty()) {
+            chunks.append(QJsonObject{{"kind", "terrain-mesh"},
+                                      {"encoding", "f64-u32-le-v1"},
+                                      {"offset", QString::number(payload.size())},
+                                      {"bytes", QString::number(mesh.size())},
+                                      {"sha256", hash(mesh)}});
+            payload.append(mesh);
+        }
+    }
     QJsonArray features{"scene-v2", "topology-v1", "curves-v1", "guides-v1",
                         "groups-v1", "face-colors-v1", "components-v1",
                         "tags-v1", "materials-v1", "assets-v1",
@@ -118,6 +133,8 @@ QByteArray encodeContainer(const Document &doc) {
         features.append("drawing-sheets-v1");
     if (componentParameters)
         features.append("component-parameters-v1");
+    if (terrain)
+        features.append("terrain-v1");
     const auto manifest =
         QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
                                   {"epoch", "1"},
@@ -162,7 +179,14 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool componentParameters = features == std::set<QString>{
+    const bool terrain = features == std::set<QString>{
+        "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
+        "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
+        "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
+        "model-style-v1", "saved-scenes-v1", "section-planes-v1", "section-scenes-v1", "annotations-v1", "editable-text-v1", "solar-study-v1", "reference-images-v1",
+        "display-precision-v1", "instanced-placements-v1", "drawing-sheets-v1", "component-parameters-v1",
+        "terrain-v1"};
+    const bool componentParameters = terrain || features == std::set<QString>{
         "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
         "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
         "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
@@ -299,7 +323,8 @@ Document decodeContainer(const QByteArray &bytes) {
     if (!manifest["chunks"].isArray())
         throw std::runtime_error("Missing container chunks");
     const auto chunks = manifest["chunks"].toArray();
-    if (chunks.empty() || chunks.size() > 1025 || (!assets && chunks.size() != 1))
+    if (chunks.empty() || chunks.size() > (terrain ? 1026 : 1025) ||
+        (!assets && chunks.size() != 1))
         throw std::runtime_error("Invalid container chunk count");
     if (assets && (!manifest["assets"].isArray() || manifest["assets"].toArray().size() > 1024))
         throw std::runtime_error("Invalid asset manifest");
@@ -308,7 +333,7 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (componentParameters ? "json-v28" : drawingSheets ? "json-v27" : instancedPlacements ? "json-v26" : displayPrecision ? "json-v25" : referenceImages ? "json-v24" : solarStudy ? "json-v23" : editableText ? "json-v22"
+        chunk["encoding"] != (terrain ? "json-v29" : componentParameters ? "json-v28" : drawingSheets ? "json-v27" : instancedPlacements ? "json-v26" : displayPrecision ? "json-v25" : referenceImages ? "json-v24" : solarStudy ? "json-v23" : editableText ? "json-v22"
                                    : annotations ? "json-v21"
                               : sectionScenes ? "json-v20"
                               : sections ? "json-v19"
@@ -336,8 +361,24 @@ Document decodeContainer(const QByteArray &bytes) {
         throw std::runtime_error("Document checksum mismatch");
     AssetPayloads assetPayloads;
     quint64 cursor = documentSize, assetTotal = 0;
+    std::optional<QByteArray> terrainMesh;
     for (qsizetype i = 1; i < chunks.size(); ++i) {
         const auto asset = chunks[i].toObject();
+        if (asset["kind"] == "terrain-mesh") {
+            // At most one, after every asset; checked against the limit before reading.
+            fields(asset, {"kind", "encoding", "offset", "bytes", "sha256"});
+            const auto size = integer(asset["bytes"]);
+            if (!terrain || i != chunks.size() - 1 || asset["encoding"] != "f64-u32-le-v1" ||
+                integer(asset["offset"]) != cursor || !size ||
+                size > NativeLimits::terrainMeshBytes || size > total - cursor)
+                throw std::runtime_error("Invalid terrain-mesh chunk range or encoding");
+            const auto data = bytes.mid(16 + length + cursor, size);
+            if (asset["sha256"] != hash(data))
+                throw std::runtime_error("Terrain mesh checksum mismatch");
+            terrainMesh = data;
+            cursor += size;
+            continue;
+        }
         fields(asset, {"kind", "id", "path", "encoding", "offset", "bytes", "sha256"});
         const auto id = integer(asset["id"]), size = integer(asset["bytes"]);
         // Paths are logical keys only. Never extract or resolve user-supplied paths.
@@ -359,7 +400,7 @@ Document decodeContainer(const QByteArray &bytes) {
     QJsonParseError payloadError;
     const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
     const auto payloadTree = parsedPayload.object();
-    if (payloadTree["version"] != (componentParameters ? 28 : drawingSheets ? 27 : instancedPlacements ? 26 : displayPrecision ? 25 : referenceImages ? 24 : solarStudy ? 23 : editableText ? 22
+    if (payloadTree["version"] != (terrain ? 29 : componentParameters ? 28 : drawingSheets ? 27 : instancedPlacements ? 26 : displayPrecision ? 25 : referenceImages ? 24 : solarStudy ? 23 : editableText ? 22
                                    : annotations ? 21
                                    : sectionScenes ? 20
                                    : sections ? 19
@@ -385,7 +426,8 @@ Document decodeContainer(const QByteArray &bytes) {
         throw std::runtime_error("Packaged document requires external asset chunks");
     if (payloadError.error != QJsonParseError::NoError || !parsedPayload.isObject())
         throw std::runtime_error("Invalid JSON document");
-    auto doc = document_io_detail::decodeParsedDocument(payloadTree, payload.size(), assetPayloads);
+    auto doc = document_io_detail::decodeParsedDocument(payloadTree, payload.size(), assetPayloads,
+                                                        terrainMesh ? &*terrainMesh : nullptr);
     if (assets && manifest["assets"] != assetManifest(doc))
         throw std::runtime_error("Asset manifest disagrees with document");
     if (manifest["documentId"] != QString::fromStdString(doc.identity()) ||

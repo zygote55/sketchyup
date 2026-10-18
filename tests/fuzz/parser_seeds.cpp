@@ -3,6 +3,7 @@
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
+#include "core/terrain.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
 #include "io/stl_export.hpp"
@@ -257,6 +258,46 @@ int main(int argc, char **argv) {
                             QJsonDocument(malformed).toJson(QJsonDocument::Compact),
                             "component-assembly-malformed");
         }
+        // R095.a: schema 29. A site origin and a two-tile terrain; the terrain-mesh chunk
+        // on its own, and one whose header claims more triangles than the limit.
+        {
+            Document terrain;
+            setSiteOrigin(terrain, SiteOrigin{512300, 5234500, 0, "EPSG:32633", {}});
+            TerrainMesh mesh;
+            for (int j = 0; j <= 40; ++j)
+                for (int i = 0; i <= 30; ++i)
+                    mesh.vertices.push_back({i * .5, j * .5, .1 * ((i * 7 + j * 3) % 5)});
+            for (std::uint32_t j = 0; j < 40; ++j)
+                for (std::uint32_t i = 0; i < 30; ++i) {
+                    const auto a = j * 31 + i;
+                    mesh.triangles.push_back({a, a + 1, a + 32});
+                    mesh.triangles.push_back({a, a + 32, a + 31});
+                }
+            TerrainRecord record;
+            record.generator = "seed/terrain-v1";
+            record.sources.push_back(
+                {TerrainSourceRole::Contour, "DXF handle 2F", {mesh.vertices[0], mesh.vertices[5]}});
+            createTerrain(terrain, mesh, record);
+            terrain = stableIdentity(terrain, QStringLiteral("00000000000000000000000000000840"));
+            publish("native-json", encodeDocument(terrain), "terrain");
+            publish("native-container", encodeContainer(terrain), "terrain");
+            const auto chunk = encodeTerrainMesh(terrain.bodies());
+            fuzz::require(chunk.size() > 12, "the terrain seed has a mesh chunk");
+            publish("terrain-mesh", chunk, "block");
+            QByteArray oversized("SKTMESH1", 8);
+            char word[8];
+            qToLittleEndian<quint32>(123, word);
+            oversized.append(word, 4);
+            for (quint64 tile = 1; tile <= 123; ++tile) {
+                qToLittleEndian<quint64>(tile, word);
+                oversized.append(word, 8);
+                qToLittleEndian<quint32>(3000, word);
+                oversized.append(word, 4);
+                qToLittleEndian<quint32>(2048, word);
+                oversized.append(word, 4);
+            }
+            publishRejected("terrain-mesh", oversized, "oversized-counts");
+        }
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {
             {"table-width", "width - 60 mm"},
@@ -276,7 +317,7 @@ int main(int argc, char **argv) {
             publish("parameter-expression", QByteArray(text), QString::fromLatin1(name));
         std::cout << QJsonDocument(QJsonObject{{"validSeeds", rows},
                                                {"rejectedSeeds", rejectedRows},
-                                               {"formats", 11},
+                                               {"formats", 12},
                                                {"inputLimitBytes", qint64(fuzz::inputLimit)},
                                                {"releaseAcceptance", false}})
                          .toJson(QJsonDocument::Compact)

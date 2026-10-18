@@ -1,6 +1,7 @@
 #include "automation/reference_image_commands.hpp"
 #include "automation/commands.hpp"
 #include "automation/solar_commands.hpp"
+#include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/scene_commands.hpp"
@@ -943,6 +944,9 @@ QJsonArray commandCatalog() {
              {"body", "matrix"})};
     // ADR 0165 §6 (R093.d): component parameter operations.
     for (const auto &entry : componentParameterCommandSpecs())
+        result.append(entry);
+    // ADR 0168 §5 (R095.a): site origin and terrain operations.
+    for (const auto &entry : terrainCommandSpecs())
         result.append(entry);
     return result;
 }

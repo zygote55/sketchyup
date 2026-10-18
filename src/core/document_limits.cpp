@@ -72,6 +72,15 @@ void checkLimits(const LimitCounts &attempted, LimitClass limits, std::string_vi
     }
     throw std::runtime_error(utf8Prefix(message, limitMessageBytes));
 }
+std::string groupedCount(std::size_t value) { return grouped(value); }
+void checkTerrainLimit(std::size_t triangles, std::string_view operation) {
+    if (triangles <= terrainTriangleLimit)
+        return;
+    std::string message(operation);
+    message += " exceeds the document terrain limit: terrain triangles would be " +
+               grouped(triangles) + " of " + grouped(terrainTriangleLimit);
+    throw std::runtime_error(utf8Prefix(message, limitMessageBytes));
+}
 std::string quotedLimitName(std::string_view name) {
     std::string clean;
     clean.reserve(name.size());

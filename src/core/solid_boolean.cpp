@@ -1,3 +1,4 @@
+#include "core/terrain.hpp"
 #include "core/solid_boolean.hpp"
 #include "core/appearance.hpp"
 #include "core/face_textures.hpp"
@@ -20,6 +21,8 @@ SolidBooleanResult solidBodies(Document &doc, Id target, Id tool, SolidAction ac
         throw BooleanError("BOOLEAN_OPERANDS", "Choose two different solid bodies");
     Selection policy;
     policy.enter(doc, context);
+    for (auto id : {target, tool})
+        requireOrdinaryGeometry(doc, id);
     for (auto id : {target, tool})
         if (!doc.bodies().contains(id) || doc.bodies().at(id)->kind != BodyKind::Geometry ||
             !policy.inContext(doc, id) || policy.locked(doc, id) ||

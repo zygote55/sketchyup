@@ -9,6 +9,7 @@
 #include "core/face_textures.hpp"
 #include "core/reference_images.hpp"
 #include "core/record_overlay.hpp"
+#include "core/terrain.hpp"
 #include "geometry/offset.hpp"
 #include <algorithm>
 #include <atomic>
@@ -24,6 +25,7 @@ Document Document::readSnapshot() const {
     result.displayPrecision_ = displayPrecision_;
     result.style_ = style_;
     result.solar_ = solar_;
+    result.site_ = site_;
     result.identity_ = identity_;
     result.bodies_ = bodies_;
     result.nextId_ = nextId_;
@@ -109,6 +111,8 @@ size_t bytes(const BodyPtr &b) {
                b->surface.wires.size() * sizeof(std::array<Id, 2>) +
                b->topology.edges.size() * (sizeof(EdgeRecord) + 64);
     if (b->textSource) n += textSourceBytes(*b->textSource);
+    if (b->terrain)
+        n += terrainRecordBytes(*b->terrain);
     n += b->edgeAppearances.size() * (sizeof(Id) + sizeof(EdgeAppearance) + 64);
     n += b->faceColors.size() * (sizeof(Id) + sizeof(std::array<float, 3>) + 64);
     n += b->faceMaterials.size() * (sizeof(Id) + sizeof(MaterialSides) + 64);
@@ -170,6 +174,10 @@ void addTotals(DocumentTotals &totals, const BodyPtr &b) {
     if (!b)
         return;
     totals.records += 1;
+    if (b->terrainTile) { // Tiles count in their own limit class (ADR 0168 §2).
+        totals.terrainTriangles += b->surface.faces.size();
+        return;
+    }
     totals.vertices += b->surface.vertices.size();
     totals.faces += b->surface.faces.size();
     totals.wires += b->surface.wires.size();
@@ -181,6 +189,10 @@ void subtractTotals(DocumentTotals &totals, const BodyPtr &b) {
     if (!b)
         return;
     totals.records -= 1;
+    if (b->terrainTile) {
+        totals.terrainTriangles -= b->surface.faces.size();
+        return;
+    }
     totals.vertices -= b->surface.vertices.size();
     totals.faces -= b->surface.faces.size();
     totals.wires -= b->surface.wires.size();
@@ -254,6 +266,7 @@ std::string editLimitContext(const Edit &edit, const ComponentDefinitions &defin
 // Materialized totals; an edit names its offending record, a load does not.
 void checkDocumentLimits(const DocumentTotals &totals, const Edit *edit,
                          const ComponentDefinitions &definitions) {
+    checkTerrainLimit(totals.terrainTriangles, edit ? "Document edit" : "Document load");
     const auto counts = limitCounts(totals);
     const auto exceeded = exceededLimit(counts, LimitClass::Placement);
     if (exceeded.empty())
@@ -400,6 +413,9 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies, const Edit *edit,
         addTotals(totals, b);
         if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
             throw std::runtime_error("Reference images cannot own child entities");
+        checkTerrainParent(*b, b->parent && bodies.contains(b->parent)
+                                   ? bodies.at(b->parent).get()
+                                   : nullptr);
         const auto world = worldTransformIn(bodies, id);
         // worldTransformIn still validates every candidate parent chain. World
         // bounds need another scan only when this record or an ancestor changed.
@@ -428,6 +444,9 @@ void validateChangedDocumentSize(const RecordOverlay<BodyPtr> &bodies,
     auto check = [&](Id id, const BodyPtr &b) {
         if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
             throw std::runtime_error("Reference images cannot own child entities");
+        checkTerrainParent(*b, b->parent && bodies.contains(b->parent)
+                                   ? bodies.at(b->parent).get()
+                                   : nullptr);
         checkWorldBounds(*b, worldTransformIn(bodies, id));
     };
     // Merge both ID-ordered sequences so the first failure is the full scan's.
@@ -464,8 +483,9 @@ void validate(const Body &b) {
             throw std::runtime_error("Reference images cannot own modeled geometry or materials");
     }
     if (b.kind != BodyKind::Geometry && b.kind != BodyKind::Group &&
-        b.kind != BodyKind::ReferenceImage)
+        b.kind != BodyKind::ReferenceImage && b.kind != BodyKind::Terrain)
         throw std::runtime_error("Unknown entity kind");
+    validateTerrainBody(b);
     for (const auto &[id, color] : b.faceColors) {
         if (!b.surface.faces.contains(id))
             throw std::runtime_error("Face color references a missing face");
@@ -594,6 +614,7 @@ Id Document::addFace(const std::vector<std::vector<Vec3>> &loops, std::string na
     return b->id;
 }
 Id Document::addWire(Id context, Vec3 a, Vec3 b) {
+    requireOrdinaryGeometry(*this, context);
     BodyPtr old = context ? bodies_.at(context) : nullptr;
     auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
     if (!old) {
@@ -610,6 +631,7 @@ Id Document::addWire(Id context, Vec3 a, Vec3 b) {
 ChangeReport Document::insertEdges(Id context, Vec3 origin, Vec3 normal,
                                    const std::vector<std::array<Vec3, 2>> &edges,
                                    std::string name) {
+    requireOrdinaryGeometry(*this, context);
     BodyPtr old = context ? bodies_.at(context) : nullptr;
     auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
     if (!old) {
@@ -626,6 +648,7 @@ ChangeReport Document::insertEdges(Id context, Vec3 origin, Vec3 normal,
                  revision_);
 }
 ChangeReport Document::addCurve(Id context, Curve curve) {
+    requireOrdinaryGeometry(*this, context);
     const auto chords = curve.chords();
     BodyPtr old = context ? bodies_.at(context) : nullptr;
     auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
@@ -651,6 +674,7 @@ ChangeReport Document::addCurve(Id context, Curve curve) {
     return apply({"Draw curve", {{body->id, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::addGuide(Id context, Guide guide) {
+    requireOrdinaryGeometry(*this, context);
     guide.validate();
     const BodyPtr old = context ? bodies_.at(context) : nullptr;
     auto body = old ? std::make_shared<Body>(*old) : std::make_shared<Body>();
@@ -705,12 +729,14 @@ ChangeReport Document::clearGuides(Id context) {
                                                             : apply(std::move(edit), revision_);
 }
 ChangeReport Document::splitEdge(Id context, Id edge, double fraction) {
+    requireOrdinaryGeometry(*this, context);
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
     sketchy::splitEdge(body->surface, old->topology.edges.at(edge), fraction);
     return apply({"Split edge", {{context, old, body}}}, revision_);
 }
 ChangeReport Document::eraseFace(Id context, Id face) {
+    requireOrdinaryGeometry(*this, context);
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
     auto result = sketchy::eraseFace(old->surface, face);
@@ -720,6 +746,7 @@ ChangeReport Document::eraseFace(Id context, Id face) {
     return apply({"Erase face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::eraseEdge(Id context, Id edge) {
+    requireOrdinaryGeometry(*this, context);
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
     auto result = sketchy::eraseEdge(old->surface, old->topology, edge);
@@ -729,6 +756,7 @@ ChangeReport Document::eraseEdge(Id context, Id edge) {
     return apply({"Erase edge", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::healFace(Id context, Id edge, Vec3 origin, Vec3 normal) {
+    requireOrdinaryGeometry(*this, context);
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
     if (!old->topology.edges.contains(edge))
@@ -746,6 +774,7 @@ ChangeReport Document::healFace(Id context, Id edge, Vec3 origin, Vec3 normal) {
     return apply({"Heal face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 ChangeReport Document::cleanup(Id context) {
+    requireOrdinaryGeometry(*this, context);
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
     auto result = cleanupCoincident(old->surface, old->topology);
@@ -760,6 +789,7 @@ ChangeReport Document::cleanup(Id context) {
                  revision_);
 }
 ChangeReport Document::offsetFace(Id context, Id face, double distance, bool worldSpace) {
+    requireOrdinaryGeometry(*this, context);
     const auto old = bodies_.at(context);
     // Only the selected face enters the offset kernel; unrelated geometry is
     // retained by the subsequent context-scoped planar arrangement.
@@ -794,6 +824,7 @@ ChangeReport Document::offsetFace(Id context, Id face, double distance, bool wor
                  revision_);
 }
 ChangeReport Document::pushPull(Id context, Id face, double distance, bool newFace) {
+    requireOrdinaryGeometry(*this, context);
     const auto old = bodies_.at(context);
     auto body = std::make_shared<Body>(*old);
     auto result = sketchy::pushPull(old->surface, face, distance, newFace);
@@ -804,6 +835,7 @@ ChangeReport Document::pushPull(Id context, Id face, double distance, bool newFa
     return apply({"Push/pull face", {{context, old, body, std::move(result.faces)}}}, revision_);
 }
 void Document::extrude(Id id, Id face, double distance) {
+    requireOrdinaryGeometry(*this, id);
     auto old = bodies_.at(id);
     auto b = std::make_shared<Body>(*old);
     b->surface.extrude(face, distance);
@@ -1031,6 +1063,8 @@ void Document::update(Edit edit, bool forward) {
         style_ = forward ? edit.style->second : edit.style->first;
     if (edit.solar)
         solar_ = forward ? edit.solar->second : edit.solar->first;
+    if (edit.site)
+        site_ = forward ? edit.site->second : edit.site->first;
 }
 ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullValidation) {
     auto boundedText = [](const std::string &text, size_t limit) {
@@ -1047,7 +1081,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         throw std::runtime_error("STALE_REVISION: inspect current document before retrying");
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar &&
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site &&
         edit.scenes.empty() && edit.sections.empty() && !edit.activeSections &&
         edit.annotations.empty() && edit.drawingSheets.empty() && edit.drawingViews.empty() &&
         edit.drawingItems.empty())
@@ -1079,6 +1113,15 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         edit.solar->second.validate();
         if (edit.solar->first != solar_ || edit.solar->first == edit.solar->second)
             throw std::runtime_error("Invalid or stale sun study change");
+    }
+    if (edit.site) {
+        if (edit.site->first)
+            validateSiteOrigin(*edit.site->first);
+        if (!edit.site->second)
+            throw std::runtime_error("A site origin cannot be removed");
+        validateSiteOrigin(*edit.site->second);
+        if (edit.site->first != site_ || edit.site->first == edit.site->second)
+            throw std::runtime_error("Invalid or stale site origin change");
     }
     if (edit.style) {
         edit.style->first.validate();
@@ -1309,6 +1352,10 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             return false;
         std::set<Id> inserted;
         for (const auto &c : edit.changes) {
+            // Terrain containers and tiles are checked as a whole (ADR 0168 §2).
+            if ((c.before && (c.before->terrain || c.before->terrainTile)) ||
+                (c.after && (c.after->terrain || c.after->terrainTile)))
+                return false;
             if (!c.before) {
                 if (c.after)
                     inserted.insert(c.id);
@@ -1374,6 +1421,9 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         for (const auto &[member, body] : change.after->members) {
             if (!body)
                 throw std::runtime_error("Null component member");
+            if (body->terrain || body->terrainTile)
+                throw TerrainError("UNSUPPORTED_TARGET",
+                                   "Terrain cannot be part of a component definition");
             const auto before = change.before && change.before->members.contains(member)
                                     ? change.before->members.at(member)
                                     : nullptr;
@@ -1449,6 +1499,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     };
     edit.bytes = sizeof(Edit) + edit.label.size() + edit.metadata.taskId.size() +
                  edit.metadata.request.size();
+    const auto terrainRecords = terrainRecordChanges(edit);
     for (const auto &c : edit.changes) {
         if (!c.id || !ids.insert(c.id).second || (!c.before && !c.after))
             throw std::runtime_error("Invalid change set");
@@ -1457,6 +1508,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             throw std::runtime_error("Change precondition failed");
         if (!c.before && c.id < nextId_)
             throw std::runtime_error("Retired ID cannot be reused");
+        // Generic tools never change a terrain tile's mesh (ADR 0168 §2).
+        checkTerrainChange(c, terrainRecords);
         if (c.after) {
             if (c.after->id != c.id || c.id == UINT64_MAX)
                 throw std::runtime_error("Identity mismatch");
@@ -1573,6 +1626,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
                 change.after = std::move(styled);
             }
             validateEdgeAppearances(*change.after);
+            if (change.after->terrainTile)
+                validateTerrainTileAppearance(*change.after);
             reportEdgeAppearanceChanges(before, *change.after, changes.edges);
             reportFaceTextureMappingChanges(before, *change.after, changes.faces);
             change.edgeAppearancesResolved = true;
@@ -1683,6 +1738,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     if (edit.hosted)
         edit.bytes += sizeof(HostedChange) + hostedComponentBytes(edit.hosted->before) +
                       hostedComponentBytes(edit.hosted->after);
+    if (edit.site)
+        edit.bytes += 2 * (sizeof(SiteOrigin) + siteCrsBytes + siteSourceBytes + 64);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
     if (!edit.sections.empty() || !activeSections.empty()) {
@@ -1954,6 +2011,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         style_ = h.edit.style->second;
     if (h.edit.solar)
         solar_ = h.edit.solar->second;
+    if (h.edit.site)
+        site_ = h.edit.site->second;
     state_ = h.after;
     ++revision_;
     while ((historyBytes_ > historyLimit || undo_.size() > historyEntryLimit) && undo_.size() > 1) {
@@ -2075,6 +2134,7 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselinePrecision = staged.displayPrecision_;
     const auto baselineStyle = staged.style_;
     const auto baselineSolar = staged.solar_;
+    const auto baselineSite = staged.site_;
     const auto baselineHosted = staged.hosted_;
     // Rewind only the private candidate. A replacement publishes one revision,
     // and retains the pre-operation history entry and monotonic allocator floors.
@@ -2089,6 +2149,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         throw std::runtime_error("Replacement cannot change display precision outside its scope");
     if (!undo_.back().edit.solar && staged.solar_ != baselineSolar)
         throw std::runtime_error("Replacement cannot change sun study outside its scope");
+    if (!undo_.back().edit.site && staged.site_ != baselineSite)
+        throw std::runtime_error("Replacement cannot change the site origin outside its scope");
     if (!undo_.back().edit.style && staged.style_ != baselineStyle)
         throw std::runtime_error("Replacement cannot change model style outside its scope");
     if (!undo_.back().edit.activeSections && staged.activeSections_ != baselineActiveSections)
@@ -2336,7 +2398,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        int displayPrecision, DrawingSheetRecords drawingSheets,
                        Id nextDrawingSheetId, DrawingViewRecords drawingViews,
                        Id nextDrawingViewId, DrawingItemRecords drawingItems,
-                       Id nextDrawingItemId, Id nextComponentDriverId) {
+                       Id nextDrawingItemId, Id nextComponentDriverId,
+                       std::optional<SiteOrigin> site) {
     restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
@@ -2345,7 +2408,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                    std::move(annotations), nextAnnotationId, solar, displayPrecision,
                    std::move(drawingSheets), nextDrawingSheetId, std::move(drawingViews),
                    nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
-                   nextComponentDriverId);
+                   nextComponentDriverId, std::move(site));
 }
 void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
                               std::map<Id, BodyPtr> bodies, std::uint64_t revision,
@@ -2360,10 +2423,12 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
                               DrawingSheetRecords drawingSheets, Id nextDrawingSheetId,
                               DrawingViewRecords drawingViews, Id nextDrawingViewId,
                               DrawingItemRecords drawingItems, Id nextDrawingItemId,
-                              Id nextComponentDriverId) {
+                              Id nextComponentDriverId, std::optional<SiteOrigin> site) {
     requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
+    if (site)
+        validateSiteOrigin(*site);
     if (identity.size() != 32 ||
         !std::all_of(identity.begin(), identity.end(),
                      [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) ||
@@ -2384,6 +2449,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
             restored->topology.validate(restored->surface);
         }
         validateEdgeAppearances(*restored);
+        if (restored->terrainTile)
+            validateTerrainTileAppearance(*restored);
         validateCurves(restored->curves, restored->surface, restored->topology);
         edgeFloors.emplace(id, restored->topology.nextId);
         b = std::move(restored);
@@ -2415,6 +2482,9 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     // record's own), so the variant index names the definitions the document stores.
     std::map<Id, DefinitionFloor> definitionFloors;
     for (auto &[id, definition] : definitions) {
+        for (const auto &[member, body] : definition->members)
+            if (body && (body->terrain || body->terrainTile))
+                throw std::runtime_error("Terrain cannot be part of a component definition");
         auto &floor = definitionFloors[id];
         floor.nextMemberId = definition->nextMemberId;
         for (const auto &[member, body] : definition->members)
@@ -2473,6 +2543,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     displayPrecision_ = displayPrecision;
     style_ = style;
     solar_ = solar;
+    site_ = std::move(site);
     nextId_ = next;
     bodies_ = std::move(bodies);
     definitions_ = std::move(definitions);
@@ -2669,6 +2740,7 @@ std::string Document::stateMismatch(const Document &other) const {
               detachedFloors_ == other.detachedFloors_ && historyRefs_ == other.historyRefs_,
           "incremental indexes");
     check(readSnapshotBytes() == other.readSnapshotBytes(), "retained bytes");
+    check(site_ == other.site_, "site origin");
     return failure;
 }
 ChangeReport Document::apply(Edit edit, std::uint64_t expected) {

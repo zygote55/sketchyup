@@ -120,6 +120,8 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
         stage.changes.push_back({"displayPrecision", "updated", 0});
     if (live.solar() != snapshot.solar())
         stage.changes.push_back({"solar", "updated", 0});
+    if (live.site() != snapshot.site())
+        stage.changes.push_back({"site", "updated", 0});
     if (live.style() != snapshot.style())
         stage.changes.push_back({"style", "updated", 0});
     const auto resultBytes = QJsonDocument(stage.result).toJson(QJsonDocument::Compact).size();

@@ -1,6 +1,7 @@
 #pragma once
 #include "core/texture_mapping.hpp"
 #include "core/reference_image.hpp"
+#include "core/terrain_records.hpp"
 #include "core/text_source.hpp"
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
@@ -14,7 +15,9 @@
 #include <string>
 #include <variant>
 namespace sketchy {
-enum class BodyKind { Geometry, Group, ReferenceImage };
+// Terrain is a container (it behaves like a group) that carries a TerrainRecord;
+// its children are geometry tiles (ADR 0168 §2).
+enum class BodyKind { Geometry, Group, ReferenceImage, Terrain };
 struct MaterialSides {
     Id front{}, back{};
     bool operator==(const MaterialSides &) const = default;
@@ -49,6 +52,11 @@ struct Body {
     std::map<std::string, std::variant<bool, double, std::string>> properties;
     std::optional<TextSource> textSource;
     std::optional<ReferenceImage> referenceImage;
+    // Present exactly on BodyKind::Terrain.
+    std::optional<TerrainRecord> terrain;
+    // A geometry body that is one tile of its parent terrain: triangles only, no
+    // wires, curves or guides, identity transform, implied edge appearance.
+    bool terrainTile{};
     bool operator==(const Body &) const = default;
 };
 using BodyPtr = std::shared_ptr<const Body>;

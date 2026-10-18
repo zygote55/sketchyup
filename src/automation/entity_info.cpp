@@ -55,6 +55,8 @@ QJsonObject entityDescription(const Document &doc, SelectedEntity entity) {
             {"ownerKind", body.referenceImage ? "reference_image"
                           : doc.instances().contains(entity.body) ? "component"
                           : body.kind == BodyKind::Group        ? "group"
+                          : body.kind == BodyKind::Terrain      ? "terrain"
+                          : body.terrainTile                    ? "terrain_tile"
                                                                 : "geometry"},
             {"color", QJsonArray{body.color[0], body.color[1], body.color[2]}},
             {"properties", properties},

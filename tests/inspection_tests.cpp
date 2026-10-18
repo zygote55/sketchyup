@@ -11,6 +11,7 @@
 #include "core/annotations.hpp"
 #include "core/entity_measure.hpp"
 #include "core/groups.hpp"
+#include "core/terrain.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QFile>
@@ -460,6 +461,35 @@ int main(int argc, char **argv) {
             rejects("NOT_FOUND", [&] {
                 run(parametric, "component_parameters.describe", {{"definition", "999999"}});
             });
+        }
+        {
+            // R095.a site and terrain queries (ADR 0168 §5); terrain_io_tests covers more.
+            Document site;
+            check(run(site, "site.describe")["established"] == false, "No site origin yet");
+            rejects("NOT_FOUND", [&] {
+                run(site, "site.convert", {{"to", "site"}, {"points", QJsonArray{QJsonArray{0, 0, 0}}}});
+            });
+            setSiteOrigin(site, SiteOrigin{512300, 5234500, 0, "EPSG:32633", {}});
+            check(run(site, "site.describe")["crs"] == "EPSG:32633", "Site origin described");
+            check(run(site, "site.convert",
+                      {{"to", "site"}, {"points", QJsonArray{QJsonArray{45.5, 67.25, 1}}}})
+                          ["points"].toArray()[0].toArray() == QJsonArray{512345.5, 5234567.25, 1},
+                  "Model to site conversion");
+            TerrainMesh mesh;
+            mesh.vertices = {{0, 0, 1}, {4, 0, 2}, {4, 4, 3}, {0, 4, 2}};
+            mesh.triangles = {{0, 1, 2}, {0, 2, 3}};
+            TerrainRecord record;
+            record.generator = "test/terrain-v1";
+            const auto terrain = createTerrain(site, mesh, record).terrain;
+            const auto body = QString::number(terrain);
+            const auto described = run(site, "terrain.describe", {{"body", body}});
+            check(described["triangles"] == 2 && described["changedSinceGenerated"] == false,
+                  "Terrain described");
+            check(run(site, "terrain.elevation_at",
+                      {{"body", body}, {"points", QJsonArray{QJsonArray{4, 4}}}})
+                          ["points"].toArray()[0].toObject()["elevation"] == 3,
+                  "Elevation at a vertex");
+            rejects("NOT_FOUND", [&] { run(site, "terrain.describe", {{"body", "999"}}); });
         }
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&

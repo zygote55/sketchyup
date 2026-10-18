@@ -15,6 +15,7 @@
 #include "core/component_parameters.hpp"
 #include "core/component_publish.hpp"
 #include "automation/section_commands.hpp"
+#include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/texture_commands.hpp"
 #include "automation/transactions.hpp"
@@ -292,7 +293,7 @@ QJsonObject describe(const Document &doc) {
         bodies.append(
             QJsonObject{{"id", QString::number(id)},
                         {"parent", QString::number(b->parent)},
-                        {"kind", b->referenceImage ? "reference_image" : b->kind == BodyKind::Group ? "group" : "geometry"},
+                        {"kind", b->referenceImage ? "reference_image" : b->kind == BodyKind::Group ? "group" : b->kind == BodyKind::Terrain ? "terrain" : "geometry"},
                         {"hidden", b->hidden},
                         {"effectiveHidden", presentation.hidden(doc, {id, SelectionKind::Body, 0})},
                         {"locked", b->locked},
@@ -716,6 +717,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             compose(executeReferenceImageCommand(staged, command));
         } else if (isTextCommand(name)) {
             compose(executeTextCommand(staged, command));
+        } else if (isTerrainCommand(name)) {
+            compose(executeTerrainCommand(staged, command));
         } else if (isAnnotationCommand(name)) {
             executeAnnotationCommand(staged, command);
         } else if (isSectionCommand(name)) {
@@ -1729,7 +1732,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
         edit.drawingSheets.empty() && edit.drawingViews.empty() && edit.drawingItems.empty())
         throw std::runtime_error("Batch has no committed changes");
     if (sheetBatch) {
@@ -1955,6 +1958,9 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
     } catch (const ComponentParameterError &error) {
         // Keep ADR 0165's codes and context for sessions, MCP, staging and the CLI.
         throw InspectionError(error.code(), error.what(), componentParameterErrorDetails(error));
+    } catch (const TerrainError &error) {
+        // ADR 0168: terrain refusals keep their shared error code.
+        throw InspectionError(error.code(), error.what());
     }
 }
 // The dry run's drawable result (ADR 0166 §2): `geometry` holds every body that is

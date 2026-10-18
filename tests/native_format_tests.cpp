@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
             width.expression = "1 m";
             defineComponentParameter(model, component.definition, width);
             const auto parametric = encodeContainer(model);
-            check(nativeDocumentVersionFor(model) == nativeDocumentVersion &&
+            check(nativeDocumentVersionFor(model) == nativeTerrainFreeDocumentVersion &&
                       encodeContainer(decodeContainer(parametric)) == parametric &&
                       decodeDocument(encodeDocument(model))
                               .definitions()
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
             const auto sheets = !loaded.drawingSheets().empty();
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (parametric ? nativeDocumentVersion
+                          (parametric ? nativeTerrainFreeDocumentVersion
                            : sheets   ? nativeParameterFreeDocumentVersion
                                       : nativeSheetFreeDocumentVersion),
                   "Migration report identifies public schema");
@@ -243,6 +243,10 @@ int main(int argc, char **argv) {
                 tree["componentParameters"] = QJsonArray{};
                 tree["componentParameterOverrides"] = QJsonArray{};
                 tree["nextComponentDriverId"] = "1";
+            }
+            if (version >= 29) {
+                tree["site"] = QJsonValue::Null;
+                tree["terrainMesh"] = QJsonValue::Null;
             }
             if (version == 1)
                 tree.remove("revision");

@@ -1,4 +1,5 @@
 #include "core/intersection_edit.hpp"
+#include "core/terrain.hpp"
 #include "core/appearance.hpp"
 #include "geometry/intersection.hpp"
 #include <algorithm>
@@ -61,6 +62,9 @@ ChangeReport intersectSelected(Document &doc, const SelectionSet &targets, Inter
         fail("INTERSECTION_MODE", "Choose selected, context or model intersection mode");
     Selection policy;
     policy.enter(doc, context);
+    // Intersecting *into* terrain changes its tiles; terrain as a reference is allowed.
+    for (auto target : targets)
+        requireOrdinaryGeometry(doc, target.body);
     for (auto target : targets)
         if (target.kind != SelectionKind::Face || !policy.selectable(doc, target))
             fail("INTERSECTION_SCOPE",

@@ -13,11 +13,13 @@
 #include "io/model_style_io.hpp"
 #include "io/solar_io.hpp"
 #include "automation/solar_commands.hpp"
+#include "automation/terrain_commands.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
 #include "core/material_records.hpp"
+#include "core/terrain.hpp"
 #include "geometry/diagnostics.hpp"
 #include <QCryptographicHash>
 #include <QJsonDocument>
@@ -91,7 +93,11 @@ enum class Operation {
     Diagnose,
     Measure,
     Distance,
-    Angle
+    Angle,
+    SiteDescribe,
+    SiteConvert,
+    TerrainDescribe,
+    TerrainElevation
 };
 struct Spec {
     QString name;
@@ -206,7 +212,26 @@ const std::vector<Spec> &registry() {
                   {"first", point},
                   {"second", point},
                   {"normal", point}},
-                 {"space", "origin", "first", "second", "normal"})};
+                 {"space", "origin", "first", "second", "normal"}),
+            // ADR 0168 §5 (R095.a). Site coordinates exceed the model coordinate limit.
+            spec("site.describe", Operation::SiteDescribe, {}, {}),
+            spec("site.convert", Operation::SiteConvert,
+                 {{"to", choices({"site", "model"})},
+                  {"points", list(list({{"type", "number"},
+                                        {"minimum", -siteCoordinateLimit},
+                                        {"maximum", siteCoordinateLimit}},
+                                       3, 3),
+                                  1, int(terrainPointBatch))}},
+                 {"to", "points"}),
+            spec("terrain.describe", Operation::TerrainDescribe, {{"body", idSchema()}}, {"body"}),
+            spec("terrain.elevation_at", Operation::TerrainElevation,
+                 {{"body", idSchema()},
+                  {"points", list(list({{"type", "number"},
+                                        {"minimum", -coordinateLimit},
+                                        {"maximum", coordinateLimit}},
+                                       2, 2),
+                                  1, int(terrainPointBatch))}},
+                 {"body", "points"})};
     }();
     return specs;
 }
@@ -394,10 +419,11 @@ QString kind(SelectedEntity e) {
                                            : "guide";
 }
 QString ownerKind(const Document &doc, Id id) {
-    return doc.bodies().at(id)->referenceImage             ? "reference_image"
-           : doc.instances().contains(id)                   ? "component"
-           : doc.bodies().at(id)->kind == BodyKind::Group ? "group"
-                                                          : "geometry";
+    return doc.bodies().at(id)->referenceImage               ? "reference_image"
+           : doc.instances().contains(id)                     ? "component"
+           : doc.bodies().at(id)->kind == BodyKind::Group     ? "group"
+           : doc.bodies().at(id)->kind == BodyKind::Terrain   ? "terrain"
+                                                              : "geometry";
 }
 QJsonArray point(Vec3 p) { return {p.x, p.y, p.z}; }
 Vec3 point(const QJsonValue &v) {
@@ -613,6 +639,22 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         break;
     case Operation::Solar:
         data = solarDescription(doc);
+        break;
+    case Operation::SiteDescribe:
+    case Operation::SiteConvert:
+    case Operation::TerrainDescribe:
+    case Operation::TerrainElevation:
+        try {
+            data = spec->operation == Operation::SiteDescribe ? siteDescription(doc)
+                   : spec->operation == Operation::SiteConvert
+                       ? siteConversion(doc, request["to"].toString(), request["points"].toArray())
+                   : spec->operation == Operation::TerrainDescribe
+                       ? terrainDescription(doc, decimal(request["body"]))
+                       : terrainElevationDescription(doc, decimal(request["body"]),
+                                                     request["points"].toArray());
+        } catch (const TerrainError &error) {
+            throw InspectionError(error.code(), error.what());
+        }
         break;
     case Operation::ReferenceImages:
         for (const auto &[id, body] : doc.bodies())

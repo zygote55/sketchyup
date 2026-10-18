@@ -2,7 +2,8 @@
 
 Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R095](../PR_ROADMAP.md#r095) (M10, scope row [F03](../SCOPE.md)); shapes
-[R096](../PR_ROADMAP.md#r096). Nothing is implemented. Each section gives the
+[R096](../PR_ROADMAP.md#r096). **R095.a (terrain core, persistence and site origin)
+is implemented**; see "Implementation status". Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
 [R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
@@ -591,6 +592,88 @@ status line). It settles §5's list as follows:
 - **Keyboard and scale:** every control is a native widget in the Tab order with an
   accessible name; the report list and preview follow the existing list and canvas
   keyboard patterns; 1×, 2×, fractional and 200 % text follow the existing rules.
+
+## Implementation status
+
+R095 is split into layers. R095.b (the CDT adapter in
+`src/geometry/terrain_triangulation.*`) is built in parallel; importers, Regenerate and
+the desktop are later slices.
+
+**R095.a: terrain core, persistence and site origin.** On `feat/r095a-terrain-core`.
+It takes an already-triangulated mesh (local XYZ vertices plus triangle indices); it
+does not triangulate.
+
+- **Records** (`src/core/terrain_records.hpp`, `src/core/terrain.*`). `BodyKind::Terrain`
+  carries a `TerrainRecord` (sources with role and source reference, triangulation
+  parameters, generator identity, import provenance, mesh digest). Its children are
+  geometry bodies marked `terrainTile`: triangles bucketed by centroid into a square XY
+  grid (cell sized for about 1,024 triangles, halved until no cell exceeds 2,048; a
+  cluster the grid still cannot separate is split in triangle order), empty cells
+  omitted, tiles in row-major order with body IDs allocated in that order, border
+  vertices duplicated. Within a tile, vertices are numbered 1..n in first-use order and
+  faces n+1..n+m, interior edges are soft and smooth, and the tile shares its terrain's
+  frame (identity transform). `createTerrain` builds the record and tiles as one
+  labelled edit ("Create terrain"). A terrain behaves like a group for selection
+  (`enclosingGroup`, click targeting).
+- **Limits.** `terrainTriangleLimit` (250,000 per document) in `document_limits`, checked
+  on every edit and load. Tile triangles, vertices and edges are counted only there
+  (`DocumentTotals::terrainTriangles`); tiles still count as body records. Refusals name
+  the count and the limit ("… terrain triangles would be 250,001 of 250,000").
+- **Generic tools refuse terrain tiles** with "Edit terrain with the terrain tools, or
+  Explode it to ordinary geometry" (`UNSUPPORTED_TARGET`). The rule is enforced once in
+  `Document::applyEdit`, next to the lock rule: a change to a tile's surface, topology,
+  edge appearance, curves, guides, transform, parent or kind, or the deletion or
+  creation of a tile, is refused unless the same edit changes that terrain's record (as
+  only terrain operations do). Tools that run a kernel first refuse earlier, where they
+  check their targets: push/pull, extrude, offset, erase face and edge, split edge,
+  heal, merge coincident topology, insert edges, draw edge and curve, guides into a
+  tile, move of vertices/edges/faces (`transformSelected`), intersect *into* a tile,
+  and solid booleans. Also refused: moving, reparenting or deleting one tile, edge
+  appearance, reverse/orient faces, group explode of a terrain (pointing to Explode
+  terrain) and making a terrain part of a component. Allowed: paint, materials and
+  texture mapping, tags, names and properties, hide/lock, moving or deleting the whole
+  terrain, and intersect *with* terrain as a reference.
+- **Mesh digest.** SHA-256 of the tile meshes in ID order (counts, f64 XYZ, u32
+  indices; body IDs excluded, so a copy or a moved terrain keeps its digest).
+  `terrainChangedSinceGenerated` compares it with the record.
+- **Explode terrain** (`terrain.explode`): the terrain becomes an ordinary group of its
+  tiles, the record is dropped, one edit. Refused (`LIMIT_EXCEEDED`) when the faces
+  would exceed the 100,000-face modelling limit, naming the resulting count, the limit
+  and the terrain's triangles.
+- **Site origin.** `Document::site()`: easting, northing, elevation (metres, double,
+  each within ±1e8 m), an informational CRS label (≤ 64 bytes) and provenance (source,
+  SHA-256). `site.set` establishes it only when none exists. `site.reanchor` changes
+  E/N/Z (CRS and provenance are kept) and, in the same edit, moves every top-level body,
+  every model-frame section plane and every saved camera target and clip plane by the
+  difference, so site coordinates are unchanged; Undo restores both. A locked top-level
+  body refuses the re-anchor (locks are authoritative), as does any geometry that would
+  pass the ±1e6 m coordinate limit. Model ↔ site helpers: `modelToSite`, `siteToModel`.
+- **Persistence.** Schema 29 with required feature `terrain-v1`, written only when the
+  document has a terrain or a site origin; other documents keep schema 26, 27 or 28
+  unchanged. The model JSON holds the record (`terrain` on the body), the tile marker
+  (`terrainTile: true`, with empty vertex, face and edge arrays), `site` and
+  `terrainMesh` (null in a container; base64 of the chunk in the inline raw-JSON form).
+  The `terrain-mesh` chunk (`f64-u32-le-v1`, after the asset chunks, SHA-256 in the
+  manifest) is `SKTMESH1`, u32 tile count, per tile {u64 body ID, u32 vertices, u32
+  triangles}, then per tile f64 XYZ and u32 x3 indices. The decoder checks the tile
+  count (≤ 10,000), every tile (1–2,048 triangles, 3 to 3x vertices), the 250,000
+  document limit and the exact length before allocating any tile. Edges are rebuilt by
+  `Topology::rebuild`. `NativeLimits::containerBytes` grows by the chunk bound
+  (21.2 MB).
+- **Commands and queries.** Batch commands `site.set`, `site.reanchor`,
+  `terrain.explode` (dry run, revision checks, shared codes); inspection queries
+  `site.describe`, `site.convert`, `terrain.describe`, `terrain.elevation_at` (point
+  batches of at most 200, which fit the 16 KiB request bound). MCP exposes all of them;
+  `assistantVisible` hides every `site.*` and `terrain.*` name until the corpus
+  measurement (decision 10), and the tool-surface baseline is unchanged.
+- **Fuzzing.** `parser_fuzz_terrain_mesh` (format `terrain-mesh`) with valid and
+  oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
+  chunk decoder.
+
+Left for later slices: importers (`terrain.inspect_source`, `terrain.import`,
+`terrain.create_from_edges`), `terrain.set_parameters` and `terrain.regenerate`, the
+desktop (Site settings, Entity info Terrain section, tool cursors), DXF "Write site
+coordinates", and the assistant surface.
 
 ## Owner decisions
 
