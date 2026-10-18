@@ -940,6 +940,11 @@ jobs:
           # R094.c (ADR 0166 §8): placement parameter rows at fractional 1.5 on both platforms.
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/component_parameter_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_input_tests
+          # D-032: every focus indicator at fractional 1.5 on both platforms, Model and Sheets.
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/visible_focus_input_tests
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/visible_focus_input_tests --workspace=sheets
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
           # R091.f (ADR 0164 §6): page layout at fractional 1.5 on both platforms.
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_layout_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/sheet_annotation_input_tests

@@ -83,6 +83,10 @@ D-021's exposure timeouts are root-caused and fixed in the Wayland harness; see 
 D-021 fix". The transient-activation waits that PR #340 fixed in `entity_info_input_tests` are
 fixed in five more suites (D-007). See the
 [activation and exposure matrix](#activation-and-exposure-matrix-2026-10-17) and the counts.
+**Updated 2026-10-17 (D-032 fixed; branch `fix/d032-fractional-focus`).** Focus rings at the
+fractional 1.5× factor are snapped to whole device pixels by one application-wide filter, and
+`visible_focus_input_tests` (Model and Sheets) runs at 1.5 on X11 and Wayland in the
+fractional-scaling CI job; see "Closed by the D-032 fix" below and the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -136,7 +140,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-027 | `verify-m6-offline.sh` fails in its final summary when `git` is missing | [R089.d](R089d-release-candidate.md#failures) | E04–E07, O03 (study tooling) | **Open.** At the RC, attempt 1 completed every step, including 190/190 regressions, then raised `FileNotFoundError: … 'git'` in the summary. `verify-m5-offline.sh` handles a missing `git`; the M6 script does not. Attempt 2, with `git` installed from the same pinned archive, passed. No code was changed. | Minor | Test infrastructure only: every study check passed before the summary failed, and the study passes when `git` is present. | Study tooling: record a null source commit when `git` is absent, as the M5 script does |
 | D-028 | `visible_focus_input_tests` exceeds the 60 s Wayland harness limit at 2× on one CPU | [R089.d](R089d-release-candidate.md#failures) | N05 (test harness) | **Open.** Three attempts on the one-CPU runner ended at 60.2–60.3 s in `test-wayland.sh` with no failed check. The same build passed on six CPUs (Wayland 1× 14.4 s, 2× 28.4 s), and CI run 38435734443 passed the same line. | Minor | Test infrastructure: a harness timeout under a one-CPU quota. No check failed, and the suite passes with more CPU and in CI. | Test-only: a per-suite limit for this suite, or a split |
 | D-031 | `keyboard_reachability_tests` exits silently on Wayland with a Weston "finalizing a layer with views still on it" BUG line | [R091.h](R091h-sheet-layout.md#defect-note-d-031), [PR #320 run 38605636463, attempt 1](https://github.com/zygote55/sketchyup/actions/runs/38605636463/attempts/1) (job 115995661310) | N03 (test harness) | **Unverified.** Once, in CI on PR #320 (R091.d, `5bf306b8`), attempt 1: the Wayland 1× line `SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/keyboard_reachability_tests` printed "Side tabs: … passed", then, 7 s after Weston started, the only further output was Weston's `BUG: finalizing a layer with views still on it.` and the step failed with exit 1. No check message was printed. Attempt 2 on the same commit passed every job, and R091.h's local matrix passed the suite on Wayland. R091.d changed no desktop code. The failure is in the window phase that follows "Side tabs" (Render with Blender reopening), with no application message, so the cause (a client crash, a compositor shutdown race, or the harness ending Weston early) is not established. | Minor | Test infrastructure: no check failed and no product code path is implicated; distinct from D-021 (exposure timeout with a named check) and D-007 (focus lost after exposure, with a named check). | [R085](../PR_ROADMAP.md#r085) / [R084](../PR_ROADMAP.md#r084) (test-only): keep the Weston log and a core dump on failure |
-| D-032 | Focus ring under the threshold at fractional 1.5× | [R091.h](R091h-sheet-layout.md#native-matrix) | N05 | **Open.** `visible_focus_input_tests` at `QT_SCALE_FACTOR=1.5` (X11 and Wayland; not a CI cell, R084.q measured 1× and 2× only) reports about 137 failing measurements per run, most of them Model-window controls untouched by R091: 36 tool buttons, 20 panel tab bars, 15 breadcrumb, and controls in the material, solar, drawing-plane and assistant-preference dialogs. At a fractional factor the 1 px ring is antialiased across two device pixels, so its painted colour falls under 3:1 against the chrome next to it. The R091.h accent-fill rule (2 px rings) does not change this. | Minor | A rendering residual of a 1 px indicator at a fractional factor; the ring is still drawn and keyboard focus is unaffected. Every 1× and 2× cell passes. | [R084](../PR_ROADMAP.md#r084): a 2 px ring or device-pixel-aligned focus drawing, with the suite at 1.5 in CI |
+| D-032 | Focus ring under the threshold at fractional 1.5× | [R091.h](R091h-sheet-layout.md#native-matrix) | N05 | **Fixed 2026-10-17** (see "Closed by the D-032 fix"). Was: `visible_focus_input_tests` at `QT_SCALE_FACTOR=1.5` failed on X11 and Wayland (143 and 135 measurements in the Model run, 88 and 90 in the Sheets run, in `sketchyup-ci-pinned:r094a`): tool buttons, panel tab bars, the breadcrumb and controls in the material, solar, drawing-plane and assistant-preference dialogs. Qt's style sheet style paints every border antialiased, so a ring edge in the middle of a device pixel left that pixel a blend of the ring and the chrome beside it, under 3:1. A 2 px ring (R091.h) has the same part-covered edge pixel. Now 0 failures at 1×, 1.5× and 2× on both platforms, both themes. | Minor | A rendering residual of a 1 px indicator at a fractional factor; the ring is still drawn and keyboard focus is unaffected. Every 1× and 2× cell passes. | [R084](../PR_ROADMAP.md#r084): a 2 px ring or device-pixel-aligned focus drawing, with the suite at 1.5 in CI |
 | D-034 | `render_input_tests` timed out on Wayland 2× with no output | [main run 38742605671](https://github.com/zygote55/sketchyup/actions/runs/38742605671) (job 116447893819, `68ff9ae2`, after #327) | N03 (test harness) | **Unverified.** Once on `main`: the section-fixture line `SKETCHYUP_TEST_SCALE=2 SKETCHYUP_RENDER_SECTION_FIXTURE=1 SKETCHYUP_RENDER_MODEL=…/section-nested.sketchyup scripts/test-wayland.sh build/dev/render_input_tests` printed nothing for 60 s and Weston was stopped. Blender is not involved: Wayland lines set no `SKETCHYUP_BLENDER_TEST`, so the fake worker runs. The silence does not place the hang: the suite prints one line, at its end, to `std::cout`, which is block-buffered into the CI pipe, so a hang anywhere in its 8–11 s flow, or at exit, prints nothing; the four "could not load cursor" lines are Weston's own keyboard and shell clients, not the test. No other `render_input_tests` timeout is in the 80 failed Native build runs since 2026-10-07, while the line has run on every run since 2026-10-06. Locally, at `68ff9ae2` in the CI image without Blender: 0 of 740 runs of the exact line hung (540 with six parallel lanes, 300 of them through the new harness; 200 with two). One six-lane run failed a 5 s "First native queued worker starts" wait under that load, which is not this signature. | Minor | One CI occurrence with no check failed and no frame known; treated as test infrastructure until a stack shows otherwise. | The harness now prints every thread's stack and flushes stdio at the deadline ([Harness diagnostics](#harness-diagnostics-d-034)); a recurrence names the frame, and the fix goes to its owner |
 | D-041 | The ChatGPT-plan decoder rejects replies that batch `transaction.inspect` with `transaction.diff` | [F02-rc-1.2.0](F02-rc-1.2.0.md#rc2-provider-corpus-d-041) | A04, A05 | **Fixed at RC3 `d9af0396`** (found by the 1.2.0 RC2 gate; fix [PR #344](https://github.com/zygote55/sketchyup/pull/344)). In the owner-approved corpus v4 run at RC2 (`d80fb729`, profile `chatgpt-astra`), resize, advanced and site scored 0/3 each: `OpenAiConversation::decode` (`src/integrations/openai_provider.cpp`) rejected multi-call replies that combine `transaction.inspect` with `transaction.diff`, so those turns failed. The private run evidence is kept outside the repository. | Major | A wrong result in the supported provider workflow (three corpus tasks cannot complete); no document is changed by a rejected reply, and no data is lost | [R086](../PR_ROADMAP.md#r086): fixed by PR #344 (RC3): `transaction.diff` and `transaction.describe` may share a read-only batch; `openai_provider_tests` covers it |
 | D-038 | A paint inside a definition marks its driver Changed, with "changed shape" wording | [R094.h Findings](R094h-configurable-components.md#findings) | F02 | **Fixed 2026-10-17** (see "Closed by the D-038 fix"). A driver's `bound` digest covers its target member's whole record, colour included (ADR 0165 §4), so painting the top made Stretch Top Changed and the strip said the driver "now starts from a changed shape". A template edit that changes only a driven member's appearance now restamps the digest, and the driver stays bound. | Minor | Specified behaviour with misleading wording: Rebind or Undo cleared it, and no geometry or document was wrong | Fixed: [ADR 0165 addendum](../decisions/0165-constrained-component-parameters.md#addendum-d-038-2026-10-17-a-paint-keeps-its-drivers-bound); no file-format change |
@@ -297,6 +301,47 @@ Closed by the D-033 harness fix (2026-10-15, branch `fix/startup-abort`):
   The Wayland lines start no Xvfb; for them only the logging changes. The journald routing applies to every native
   test in CI, so D-031's message-less Wayland exit (recorded by R091.h) may also have lost a Qt
   message the same way; that is not shown.
+
+Closed by the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`):
+
+- **D-032** (focus rings under the 3:1 threshold at the fractional 1.5× factor). Class:
+  **Minor**. **Cause.** Every focus ring is a style-sheet border (`Window::applyTheme` and the
+  dialogs' own sheets), and Qt 6.11's `QRenderRule::drawBorder` (`qstylesheetstyle.cpp`)
+  always turns antialiasing on before `qDrawBorder`. At 1.5× a control whose logical edge maps
+  to the middle of a device pixel leaves that pixel half covered, so its painted colour is the
+  ring blended with the chrome beside it (for example `#a6b8a5` for the light accent
+  `#547858` over `#f7f7f2`, 1.95:1). A wider ring keeps the same part-covered outer pixel,
+  which is why R091.h's 2 px accent-fill rule did not help. **Fix.** One application-wide
+  filter, `src/app/focus_ring.cpp`, installed by `Window`, acts only when a control paints at a
+  fractional device pixel ratio. For each shown focusable control it reads the border the
+  style sheet paints, from the control rendered at 1× (colour, width, margin and straight span
+  per edge, once per state: focused or not, checked or not, size), and after the control's own
+  paint fills each straight edge without antialiasing over whole device pixels:
+  ceil(width × ratio) pixels from the pixel holding the outer edge, with a pixel the inner edge
+  leaves part-covered given the fill just inside. The colour token and the placement are the
+  style sheet's own; the rounded corners are left as painted. Unfocused borders are snapped as
+  well, so an accent-filled control's indicator (the change of its boundary colour) is
+  measured between whole pixels. GL surfaces and controls that paint all their own pixels
+  (the page canvas) are left alone. At 1× and 2× nothing runs. **Verified** in
+  `sketchyup-ci-pinned:r094a` with the native.yml lines (Wayland at 1.5 as the fractional job
+  runs it: `SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 …`), both
+  themes in each run. Failing measurements, before → after:
+
+  | Run | X11 1× | X11 1.5× | X11 2× | Wayland 1× | Wayland 1.5× | Wayland 2× |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | Model | 0 → 0 | 143 → 0 | 0 → 0 | 0 → 0 | 135 → 0 | 0 → 0 |
+  | Sheets (`--workspace=sheets`) | 0 → 0 | 88 → 0 | 0 → 0 | 0 → 0 | 90 → 0 | 0 → 0 |
+
+  Every after cell exits 0. The host was loaded by other work (load average about 60 on 22
+  cores), so the Wayland 2× cells, where the change does nothing, ran past the harness's 60 s
+  Weston deadline or hit the D-021 "Focus window exposed" timeout; with the deadline raised
+  to 240 s they passed with 0 failures (113 s and 67 s). The fractional-scaling CI job now
+  runs both lines at 1.5 on X11 and Wayland, and `.github/ci-line-inventory.txt` is
+  regenerated (`ci-line-inventory.py check`: 518 lines, 513 distinct). In the same image,
+  `ctest --preset dev -E "_real$"` passes 198 of 198; `theme_input_tests` passes on X11 at 1×,
+  1.5× and 2× and on Wayland at 1× and 2×; `native_accessibility_audit` and every
+  `--dialogs-keyboard` group pass on X11 at 1× and 2×; and every other line of the
+  fractional-scaling job (1.5× and 1.75×, X11 and Wayland) passes.
 
 Closed by the D-038 fix (2026-10-17, branch `fix/d038-paint-digest`):
 
@@ -601,10 +646,10 @@ Closed by the D-039 fix (2026-10-17, branch `perf/d039-variant-geometry-count`):
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 13 | D-006–D-009, D-019, D-022, D-023, D-027, D-028, D-031, D-032, D-034, D-040 |
+| Minor | 12 | D-006–D-009, D-019, D-022, D-023, D-027, D-028, D-031, D-034, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **27** | |
-| Fixed since the 2026-10-11 refresh | 11 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0) |
+| **Total open** | **26** | |
+| Fixed since the 2026-10-11 refresh | 12 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -626,6 +671,8 @@ After the D-039 fix (2026-10-17): 28 open (0 release-blocking, 0 Major, 14 Minor
 Limitation). D-038 and D-039 are fixed on `main`; 1.2.0 still has both.
 After the D-021 fix (2026-10-17, branch `test/wayland-activation-exposure`): 27 open (0
 release-blocking, 0 Major, 13 Minor, 14 Limitation).
+After the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`): 26 open (0
+release-blocking, 0 Major, 12 Minor, 14 Limitation).
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

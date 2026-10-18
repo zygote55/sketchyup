@@ -5,6 +5,7 @@
 #include "app/components_tab.hpp"
 #include "app/context_label.hpp"
 #include "app/file_operation.hpp"
+#include "app/focus_ring.hpp"
 #include "app/inspection_service.hpp"
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
@@ -1131,6 +1132,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         focusWorkspace();
     });
     new ModalReturn(this);
+    installFractionalFocusRings();
     keyboardTabBars(this);
     keepPagesAfterTabBar(modelTabs);
     keepPagesAfterTabBar(sideTabs_);
