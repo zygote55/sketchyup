@@ -37,8 +37,8 @@ owner is the only user and will test them in daily use ([ADR 0161](decisions/016
 The requirements below are kept as written. Each one the ADR waives is marked
 **Waived (ADR 0161)**; a waived requirement is not claimed to pass. Everything not
 marked is still required at the RC, including every automated check: all four CI
-jobs, the regression and sanitizer suites, the provider corpus and the Arch package
-acceptance job. The session that did run is recorded in
+jobs (the four of the 1.0.0 RC; CI now has ten, see the CI item below), the regression
+and sanitizer suites, the provider corpus and the Arch package acceptance job. The session that did run is recorded in
 [R082.ii](verification/R082ii-amd-hardware-session.md) (AMD discrete GPU) and
 [R085.r](verification/R085r-hotplug-owner-attested.md) (Wayland hotplug, owner-attested).
 
@@ -87,7 +87,9 @@ The automated steps above stay required.
 - Complete regression suite and dedicated ASan/UBSan tests, without suppressed
   application findings.
 - All four CI jobs pass at the RC: development build and native tests, Blender
-  interoperability, sanitized builds, and Arch package acceptance.
+  interoperability, sanitized builds, and Arch package acceptance. (These were the four
+  jobs at the 1.0.0 RC. CI now has ten, and [M10 acceptance](M10_ACCEPTANCE.md) requires
+  every job to pass.)
 - The M9 exit criteria in [BUILD_PLAN.md](BUILD_PLAN.md#5-milestones-and-dependencies):
   all Core acceptance rows pass, no known data-loss/recovery or critical security
   defect remains, performance budgets pass, and the support matrix and release

@@ -28,8 +28,8 @@ The 1.0 release-candidate evidence and the M0–M9 gate record are in
 [verification/M9.md](verification/M9.md). The F01 release gate is
 [M10 acceptance](M10_ACCEPTANCE.md); its record, with the 1.1.0 release-candidate
 evidence, is [verification/F01-1.1.0.md](verification/F01-1.1.0.md). The F02 release
-uses the same gate; its record, with the 1.2.0 release-candidate evidence, will be
-`docs/verification/F02-1.2.0.md`. The [release notes](RELEASE_NOTES.md) list
+uses the same gate; its record, with the 1.2.0 release-candidate evidence, is
+[verification/F02-1.2.0.md](verification/F02-1.2.0.md). The [release notes](RELEASE_NOTES.md) list
 versions, upgrade and rollback notes and known limitations. The
 [roadmap](PR_ROADMAP.md) traces each Core row to its work.
 

@@ -6,7 +6,7 @@ SketchyUp 1.2.0 is a minor release. It adds configurable components, Extended
 [scope row F02](SCOPE.md), in its own gated release ([M10 acceptance](M10_ACCEPTANCE.md)).
 Existing commands, queries and schemas keep their shapes; everything new is additive,
 as a minor version allows ([ADR 0162](decisions/0162-release-versioning.md)). The release
-record, with the release-candidate evidence, will be `docs/verification/F02-1.2.0.md`.
+record, with the release-candidate evidence, is [verification/F02-1.2.0.md](verification/F02-1.2.0.md).
 The [support matrix](SUPPORT_MATRIX.md) states what is supported. 1.2.0 also contains the
 1.1.1 fix (D-036).
 
