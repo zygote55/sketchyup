@@ -344,3 +344,66 @@ to stderr. Both open parameter-free saves from this build: 1.1.0 at schema 26 an
 output) and the `component-parameters-v28.sketchyup` writer fixture. Package acceptance
 keeps its generic rule (the prior package refuses, unchanged, every retained fixture
 newer than it reads) and also passes the prior CLI to `component_parameter_io`.
+
+## Schema 29: terrain and site origin (R095.a)
+
+2026-10-18. The public schema advances to **sketchyup-document-v29** under the same
+container version 2; see [terrain import and surfaces](0168-terrain-import-and-surfaces.md)
+§2 and §4. The schema-29 document chunk uses `json-v29`, and `requiredFeatures` appends
+`terrain-v1` after `component-parameters-v1`: the feature set is exactly the schema-28
+set plus `terrain-v1`. A schema-29 root always carries the schema-27 and schema-28
+tables and allocators, possibly empty, and adds two required fields:
+
+- `site`: `null`, or `{easting, northing, elevation, crs, established {source, sha256}}`.
+  The coordinates are metres within ±1e8; `crs` is an informational label of at most 64
+  bytes without control characters; `source` is at most 256 bytes and `sha256` is empty
+  or 64 lowercase hexadecimal digits.
+- `terrainMesh`: `null` in a container (the mesh is its own chunk), or, in the inline raw
+  JSON form, the base64 of the same bytes.
+
+A body record may carry two new fields. A terrain has `kind: "terrain"` and `terrain
+{sources, parameters, generator, provenance, meshDigest}`: `sources` is an array of
+`{role, reference, points}` (`role` `contour`, `breakline`, `boundary`, `hole` or
+`points`; `reference` at most 128 bytes; `points` `[x, y, z]` in the terrain frame; at
+most 100,000 sources and 250,000 points in all), `parameters` is `{boundary,
+maxEdgeLength, flipFlatTriangles, steinerFill}` (`boundary` `convex-hull`,
+`max-edge-length` or `boundary`), `generator` is 1–64 bytes, `provenance` is `{sha256,
+units, metresPerUnit}` and `meshDigest` is 64 lowercase hexadecimal digits. A terrain owns
+no geometry, and its children are exactly its tiles. A tile is a `geometry` body with
+`terrainTile: true` (no other value is accepted) whose `vertices`, `faces`, `edges` and
+`edgeAppearances` are empty: the mesh is in the chunk. Every other body field (materials,
+face paint, texture mappings, tag, visibility, lock, name, properties, allocators) is
+stored as before. A terrain or tile cannot be a component definition member.
+
+**The `terrain-mesh` chunk.** It follows the asset chunks, at most once and only with
+`terrain-v1`: `{kind: "terrain-mesh", encoding: "f64-u32-le-v1", offset, bytes,
+sha256}`, with the SHA-256 of its bytes in the manifest as for assets. Its bytes, all
+little-endian, are `SKTMESH1`, a u32 tile count, then per tile `{u64 body ID, u32 vertex
+count, u32 triangle count}`, then per tile every vertex as three f64 (`x, y, z`, in the
+terrain frame) and every triangle as three u32 vertex indices. Tiles appear in strictly
+ascending body ID order and must be exactly the bodies marked `terrainTile`. Vertex and
+face IDs are implicit: vertex *i* has ID *i* + 1 and triangle *j* has face ID *n* + *j* +
+1 for *n* vertices; edge IDs come from `Topology::rebuild`, and every interior edge
+(two faces) is soft and smooth. Limits, checked from the header before any tile is
+allocated: 1–10,000 tiles; 1–2,048 triangles and 3 to 3× as many vertices per tile;
+250,000 triangles in the document (the terrain limit class, apart from the modelling
+limits); and an exact length. The chunk is at most 21,160,012 bytes, and
+`containerBytes` grows by that bound. Indices must be in range and distinct within a
+triangle, and coordinates finite within ±1e6.
+
+**Writer policy** (extends decision 2 of ADR 0163 and the schema-28 policy): a document
+with a terrain or a site origin is written as 29; any other document keeps 28, 27 or 26
+exactly as before, byte for byte. Exploding the last terrain (with no site origin) writes
+the lower schema again. Readers accept raw document versions 1–29; schemas 1–28 load with
+no site origin and refuse terrain fields.
+
+**Older readers.** SketchyUp 1.2.0 (package `sketchyup-1.2.0-1`) and 1.1.0 refuse a
+schema-29 file at `decodeContainer`, before reading the document, and leave it
+unchanged: `sketchyup-cli --validate-native` exits 1 and writes exactly
+
+```json
+{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}
+```
+
+to stderr. Package acceptance also passes its prior CLI (the pinned 1.1.1 package) to
+`terrain_io`, which checks the same refusal.

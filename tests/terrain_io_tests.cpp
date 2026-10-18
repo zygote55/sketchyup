@@ -5,6 +5,13 @@
 #include "automation/commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/mcp.hpp"
+#include "core/annotations.hpp"
+#include "core/assets.hpp"
+#include "core/drawing_sheets.hpp"
+#include "core/groups.hpp"
+#include "core/reference_images.hpp"
+#include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "core/tags.hpp"
 #include "core/terrain.hpp"
 #include "io/document_io.hpp"
@@ -496,6 +503,133 @@ void automation() {
         check(commands.contains(name), std::string("The command catalogue has ") + name);
     check(mcpToolCatalog().size() <= 64, "The MCP tool list stays within its 64-tool bound");
 }
+// Re-anchoring moves every stored world position by the same delta and leaves the
+// origin-independent records alone; Undo restores the exact encoding.
+void reanchorAudit() {
+    Document doc;
+    setSiteOrigin(doc, SiteOrigin{512300, 5234500, 100, "EPSG:32633", {}});
+    const auto box = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
+    doc.addGuide(box, guidePoint({1, 1, 1}));
+    const auto inner = doc.addFace({{{5, 5, 0}, {6, 5, 0}, {6, 6, 0}, {5, 6, 0}}});
+    const auto group = createGroup(doc, {inner}, "Group");
+    const auto asset = createAsset(doc, "Plan", "image/png");
+    const auto image = createReferenceImage(doc, {asset, 2, 1, 1});
+    const auto worldSection =
+        createSection(doc, "World", 0, SectionPlane::through({0, 0, 1}, {0, 0, 1}));
+    const auto localSection =
+        createSection(doc, "Local", group, SectionPlane::through({0, 0, 1}, {1, 0, 0}));
+    auto style = doc.style();
+    style.groundHeight = -1;
+    doc.setStyle(style);
+    SolarSettings solar;
+    solar.enabled = true;
+    solar.latitude = 47;
+    solar.longitude = 9;
+    doc.setSolar(solar);
+    SceneSnapshot snapshot;
+    snapshot.camera = SceneCamera{{1, 2, 3}};
+    snapshot.camera->orthographic = true;
+    snapshot.section = SceneSection{std::array<double, 4>{0, 0, 1, -2}, {}};
+    snapshot.style = doc.style();
+    const auto scene = createScene(doc, "Plan", snapshot);
+    AnnotationRecord dimension;
+    dimension.name = "Width";
+    dimension.anchors = {pointAnchor({0, 0, 0}),
+                         vertexAnchor(doc, box, doc.bodies().at(box)->surface.vertices.begin()->first)};
+    dimension.offset = {0, -1, 0};
+    const auto annotation = createAnnotation(doc, dimension);
+    const auto sheet = createDrawingSheet(doc, "A-101", {420, 297});
+    DrawingViewRecord view;
+    view.name = "Plan view";
+    view.sheet = sheet;
+    view.source = {DrawingViewSourceKind::Scene, scene};
+    view.frame = {20, 20, 200, 150};
+    const auto viewId = createDrawingView(doc, view);
+    DrawingDimensionItem paperDimension;
+    paperDimension.view = viewId;
+    const auto &vertices = doc.bodies().at(box)->surface.vertices;
+    paperDimension.anchors = {vertexAnchor(doc, box, vertices.begin()->first),
+                              vertexAnchor(doc, box, std::next(vertices.begin())->first)};
+    const auto paperItem = createDrawingItem(doc, sheet, paperDimension);
+    DrawingLabelItem label;
+    label.target.kind = DrawingLabelTargetKind::View;
+    label.target.view = viewId;
+    label.target.anchor = vertexAnchor(doc, box, std::prev(vertices.end())->first);
+    const auto labelItem = createDrawingItem(doc, sheet, label);
+    DrawingTextItem note;
+    note.frame = {20, 180, 120, 20};
+    note.text = "Notes";
+    const auto noteItem = createDrawingItem(doc, sheet, note);
+
+    const Vec3 delta{100, -50, 2};
+    const auto before = doc.readSnapshot();
+    auto tree = [](const Document &state) {
+        auto json = QJsonDocument::fromJson(encodeDocument(state)).object();
+        json.remove("revision");
+        return QJsonDocument(json).toJson(QJsonDocument::Compact);
+    };
+    const auto original = tree(doc);
+    const auto &site = *doc.site();
+    reanchorSite(doc, site.easting - delta.x, site.northing - delta.y, site.elevation - delta.z);
+    auto moved = [&](Vec3 a, Vec3 b) { return length(b - (a + delta)) <= 1e-9; };
+    auto world = [](const Document &state, Id body, Vec3 local) {
+        return state.worldTransform(body).point(local);
+    };
+    // Moved: geometry and everything placed in it.
+    for (const auto body : {box, inner, image})
+        check(moved(world(before, body, {}), world(doc, body, {})), "Body moved");
+    check(moved(world(before, box, doc.bodies().at(box)->guides.begin()->second.origin),
+                world(doc, box, doc.bodies().at(box)->guides.begin()->second.origin)),
+          "Guides move with their body");
+    check(std::abs(doc.sections().at(worldSection)->plane.distance(Vec3{0, 0, 1} + delta)) < 1e-12,
+          "World section plane moved");
+    check(doc.style().groundHeight == -1 + delta.z, "Ground height keeps its site elevation");
+    const auto &shot = doc.scenes().at(scene)->snapshot;
+    check(moved(before.scenes().at(scene)->snapshot.camera->target,
+                shot.camera->target) &&
+              std::abs((*shot.section->plane)[3] - (-2 - delta.z)) < 1e-12 &&
+              shot.style->groundHeight == -1 + delta.z,
+          "Saved camera, clip plane and ground height moved");
+    const auto &anchors = doc.annotations().at(annotation)->anchors;
+    const auto &oldAnchors = before.annotations().at(annotation)->anchors;
+    check(moved(oldAnchors[0].fallback, anchors[0].fallback) &&
+              moved(oldAnchors[1].fallback, anchors[1].fallback) &&
+              doc.annotations().at(annotation)->offset == Vec3{0, -1, 0},
+          "Annotation anchors moved; the text offset is a vector");
+    const auto measured = measureAnnotation(doc, *doc.annotations().at(annotation));
+    const auto measuredBefore = measureAnnotation(before, *before.annotations().at(annotation));
+    check(moved(measuredBefore.textPoint, measured.textPoint) &&
+              measured.distance && measuredBefore.distance &&
+              std::abs(*measured.distance - *measuredBefore.distance) < 1e-9,
+          "Annotations measure the same, in the moved place");
+    const auto &dimensionItem =
+        std::get<DrawingDimensionItem>(doc.drawingItems().at(paperItem)->data);
+    const auto &dimensionBefore =
+        std::get<DrawingDimensionItem>(before.drawingItems().at(paperItem)->data);
+    check(moved(dimensionBefore.anchors[0].fallback, dimensionItem.anchors[0].fallback) &&
+              moved(dimensionBefore.anchors[1].fallback, dimensionItem.anchors[1].fallback),
+          "Paper dimension anchors moved");
+    check(moved(std::get<DrawingLabelItem>(before.drawingItems().at(labelItem)->data)
+                    .target.anchor.fallback,
+                std::get<DrawingLabelItem>(doc.drawingItems().at(labelItem)->data)
+                    .target.anchor.fallback),
+          "Paper label anchor moved");
+    // Unchanged: origin-independent records.
+    check(doc.sections().at(localSection) == before.sections().at(localSection) &&
+              doc.bodies().at(inner) == before.bodies().at(inner) &&
+              doc.solar() == before.solar() && doc.drawingViews() == before.drawingViews() &&
+              doc.drawingSheets() == before.drawingSheets() &&
+              doc.drawingItems().at(noteItem) == before.drawingItems().at(noteItem) &&
+              doc.assets() == before.assets(),
+          "Body-local records, the sun study, views, sheets and paper text are unchanged");
+    std::cout << "re-anchor audit: bodies, guides, reference image, world section, ground, "
+                 "saved camera/clip/ground, annotation and paper anchors moved\n";
+    doc.undo();
+    check(tree(doc) == original, "Undo restores the exact encoding");
+    doc.redo();
+    doc.undo();
+    check(tree(doc) == original, "Redo and Undo restore the exact encoding");
+}
 } // namespace
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -505,6 +639,7 @@ int main(int argc, char **argv) {
         persistence(files);
         decoderLimits(files);
         automation();
+        reanchorAudit();
         std::cout << "terrain io tests passed\n";
         return 0;
     } catch (const std::exception &error) {

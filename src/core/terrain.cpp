@@ -489,7 +489,8 @@ ChangeReport reanchorSite(Document &doc, double easting, double northing, double
     }
     for (const auto &[id, scene] : doc.scenes()) {
         const auto &snapshot = scene->snapshot;
-        if (!snapshot.camera && !(snapshot.section && snapshot.section->plane))
+        if (!snapshot.camera && !(snapshot.section && snapshot.section->plane) &&
+            !(snapshot.style && delta.z != 0))
             continue;
         auto moved = std::make_shared<SceneRecord>(*scene);
         if (moved->snapshot.camera)
@@ -498,8 +499,45 @@ ChangeReport reanchorSite(Document &doc, double easting, double northing, double
             auto &plane = *moved->snapshot.section->plane;
             plane[3] -= plane[0] * delta.x + plane[1] * delta.y + plane[2] * delta.z;
         }
-        edit.scenes.push_back({id, scene, moved});
+        if (moved->snapshot.style)
+            moved->snapshot.style->groundHeight += delta.z;
+        if (*moved != *scene)
+            edit.scenes.push_back({id, scene, moved});
     }
+    // The ground plane is a model-Z height: it keeps its site elevation.
+    if (delta.z != 0) {
+        auto style = doc.style();
+        style.groundHeight += delta.z;
+        edit.style = std::pair{doc.style(), style};
+    }
+    // Annotation and paper anchors keep a world fallback (the fixed point of a point
+    // anchor, or the last resolved position of an entity anchor).
+    auto shift = [&](AnnotationAnchor &anchor) { anchor.fallback = anchor.fallback + delta; };
+    for (const auto &[id, annotation] : doc.annotations()) {
+        if (annotation->anchors.empty())
+            continue;
+        auto moved = std::make_shared<AnnotationRecord>(*annotation);
+        for (auto &anchor : moved->anchors)
+            shift(anchor);
+        edit.annotations.push_back({id, annotation, moved});
+    }
+    edit.annotationsResolved = true;
+    for (const auto &[id, item] : doc.drawingItems()) {
+        auto moved = std::make_shared<DrawingItemRecord>(*item);
+        bool changed = false;
+        if (auto *label = std::get_if<DrawingLabelItem>(&moved->data);
+            label && label->target.kind == DrawingLabelTargetKind::View) {
+            shift(label->target.anchor);
+            changed = true;
+        } else if (auto *dimension = std::get_if<DrawingDimensionItem>(&moved->data)) {
+            for (auto &anchor : dimension->anchors)
+                shift(anchor);
+            changed = true;
+        }
+        if (changed)
+            edit.drawingItems.push_back({id, item, moved});
+    }
+    edit.drawingAnchorsResolved = true;
     return doc.apply(std::move(edit), doc.revision());
 }
 Vec3 modelToSite(const SiteOrigin &origin, Vec3 model) {

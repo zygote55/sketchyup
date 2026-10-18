@@ -643,9 +643,14 @@ does not triangulate.
 - **Site origin.** `Document::site()`: easting, northing, elevation (metres, double,
   each within ±1e8 m), an informational CRS label (≤ 64 bytes) and provenance (source,
   SHA-256). `site.set` establishes it only when none exists. `site.reanchor` changes
-  E/N/Z (CRS and provenance are kept) and, in the same edit, moves every top-level body,
-  every model-frame section plane and every saved camera target and clip plane by the
-  difference, so site coordinates are unchanged; Undo restores both. A locked top-level
+  E/N/Z (CRS and provenance are kept) and, in the same edit, moves every stored world
+  position by the difference: top-level bodies (with their guides, reference images and
+  descendants), model-frame section planes, saved camera targets, clip planes and ground
+  heights, the model ground height, and the world fallbacks of annotation anchors and of
+  paper dimension and label anchors. Origin-independent and unchanged: body-local
+  records, annotation text offsets (vectors), paper positions, drawing views (they show
+  saved scenes), hosted attachments (host-local) and the sun study. Site coordinates are
+  unchanged and Undo restores the exact encoding. A locked top-level
   body refuses the re-anchor (locks are authoritative), as does any geometry that would
   pass the ±1e6 m coordinate limit. Model ↔ site helpers: `modelToSite`, `siteToModel`.
 - **Persistence.** Schema 29 with required feature `terrain-v1`, written only when the

@@ -75,8 +75,13 @@ TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainReco
 ChangeReport explodeTerrain(Document &doc, Id terrain);
 // Establishes the site origin; refuses (INVALID_REQUEST) when one exists.
 void setSiteOrigin(Document &doc, SiteOrigin origin);
-// Changes the origin and moves every top-level body, world section plane and saved
-// camera by the difference, so site coordinates are unchanged. One edit.
+// Changes the origin and moves by the difference every stored world position: top-level
+// bodies (with their guides, reference images and descendants), model-frame section
+// planes, saved cameras and clip planes, the model and saved-scene ground heights, and
+// the world fallbacks of annotation and paper anchors. Site coordinates are unchanged.
+// One edit. Origin-independent: body-local records, annotation text offsets (vectors),
+// paper positions, drawing views (they show saved scenes), hosted attachments (host-local)
+// and the sun study (latitude, longitude, north angle and time only).
 ChangeReport reanchorSite(Document &doc, double easting, double northing, double elevation);
 Vec3 modelToSite(const SiteOrigin &origin, Vec3 model);
 Vec3 siteToModel(const SiteOrigin &origin, Vec3 site);
