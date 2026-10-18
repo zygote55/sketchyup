@@ -435,6 +435,73 @@ void sideTabs(Fixture &f) {
     check(QTest::qWaitFor([&] { return !assistant->isVisible() && window.viewport()->hasFocus(); }),
           "Ctrl+J again hides the Assistant and returns to the canvas" + f.state());
 }
+// UX_DESIGN §3.3: at 900 px the panel strip is one Tab stop and the Menu button another; Enter
+// on a strip button opens the overlay sheet with focus inside, Esc returns to the button; and
+// after the window is wide again the Tab cycle is the one it had before.
+void narrowLayout(Fixture &f) {
+    auto &window = f.window;
+    auto *panels = window.findChild<QTabWidget *>("organizationTabs");
+    const int tab = panels->currentIndex();
+    const auto wide = f.cycle(false);
+    window.resize(900, 900);
+    check(QTest::qWaitFor([&] { return window.width() == 900; }), "Window narrowed to 900 px");
+    QTest::qWait(50);
+    auto *strip = window.findChild<QToolBar *>("panelStrip");
+    auto *menu = window.findChild<QToolButton *>("menuButton");
+    auto *overlay = window.findChild<QWidget *>("panelOverlay");
+    check(strip && strip->isVisible() && menu && menu->isVisible() && overlay,
+          "The strip and the Menu button show at 900 px");
+    const auto narrow = f.cycle(false);
+    int stripStops{}, menuStops{};
+    for (auto *stop : narrow) {
+        stripStops += strip->isAncestorOf(stop);
+        menuStops += stop == menu;
+    }
+    std::string listed;
+    for (auto *stop : narrow)
+        listed += " " + identity(stop);
+    if (stripStops != 1)
+        for (auto *button : strip->findChildren<QToolButton *>())
+            listed += "\n  strip " + identity(button) + " policy " +
+                      std::to_string(int(button->focusPolicy())) + " visible " +
+                      std::to_string(button->isVisible()) + " prev " +
+                      identity(button->previousInFocusChain()) + " next " +
+                      identity(button->nextInFocusChain());
+    check(stripStops == 1 && menuStops == 1,
+          "The narrow Tab cycle has one strip stop and the Menu button, found " +
+              std::to_string(stripStops) + " and " + std::to_string(menuStops) + ":" + listed);
+    // Tab reaches the strip's stop.
+    window.viewport()->setFocus();
+    check(QTest::qWaitFor([&] { return window.viewport()->hasFocus(); }), "Viewport focused");
+    for (int i = 0; i < 40 && !strip->isAncestorOf(focused()); ++i)
+        key(Qt::Key_Tab);
+    check(strip->isAncestorOf(focused()), "Tab reaches the strip" + f.state());
+    auto *stop = focused();
+    key(Qt::Key_Return);
+    check(QTest::qWaitFor([&] { return overlay->isVisible() && overlay->isAncestorOf(focused()); }),
+          "Enter on the strip opens the sheet with focus inside" + f.state());
+    // The sheet's controls keep the docked panel's order (its hidden tab row is no stop), so
+    // Shift+Tab walks back inside it.
+    auto *opened = focused();
+    key(Qt::Key_Backtab, Qt::ShiftModifier);
+    check(overlay->isAncestorOf(focused()) && focused() != opened,
+          "Shift+Tab moves on inside the sheet from " + identity(opened) + f.state());
+    key(Qt::Key_Escape);
+    check(QTest::qWaitFor([&] { return !overlay->isVisible() && focused() == stop; }),
+          "Esc closes the sheet and returns to the strip button" + f.state());
+    window.resize(1280, 900);
+    check(QTest::qWaitFor([&] { return window.width() == 1280; }), "Window wide again");
+    QTest::qWait(50);
+    // Info, opened from the strip, is the docked panel's tab now; the cycle is compared on
+    // the tab that was open before.
+    check(panels->tabText(panels->currentIndex()) == "Info", "The sheet's tab stays open");
+    panels->setCurrentIndex(tab);
+    QTest::qWait(30);
+    const auto again = f.cycle(false);
+    check(again == wide, "The wide Tab cycle is unchanged after the narrow round trip (" +
+                             std::to_string(wide.size()) + " vs " + std::to_string(again.size()) +
+                             " stops)");
+}
 // D-026, then the Model/Render tabs that the finished render adds.
 void renderReopen(Fixture &f, const QString &files) {
     auto &window = f.window;
@@ -1051,6 +1118,9 @@ int main(int argc, char **argv) {
         f.checkCycle({window.findChild<QTabWidget *>("organizationTabs")->tabBar()});
         sideTabs(f);
         std::cout << "Side tabs: Ctrl+J, arrows, Tab into Model/Assistant pages and back passed\n";
+        narrowLayout(f);
+        std::cout << "Narrow layout: one strip stop, Menu button, Enter into the sheet, Esc back, "
+                     "Tab cycle kept after the round trip passed\n";
         renderReopen(f, files.path());
         std::cout << "Render with Blender reopens on Render (D-026); Model/Render tabs passed\n";
         promptsReturnFocus(f);

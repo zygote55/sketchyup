@@ -868,13 +868,18 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     // Every panel action reveals the Model panel, selects its tab and moves keyboard focus into
     // that tab's content, so a menu or palette command is never a dead end for keyboard users.
     auto showPanel = [this](void (OrganizationPanel::*show)()) {
-        // Model panels live in the Model workspace's Tray.
+        // Model panels live in the Model workspace's Tray. Focus returns to where it was when
+        // the narrow layout's sheet closes, not to the canvas setWorkspace focuses.
+        const QPointer<QWidget> before = focusWidget();
         setWorkspace(Workspace::Model);
         sideTabs_->show();
         sideTabs_->setCurrentWidget(tray_);
         tray_->show();
         findChild<QAction *>("view.tray")->setChecked(true);
         (organization_->*show)();
+        // The narrow layout opens the panel in its overlay sheet (UX_DESIGN §3.3).
+        if (narrowLayout())
+            openOverlay(organizationKey(), before);
         organization_->setFocus(Qt::ShortcutFocusReason);
     };
     view->addAction(action("view.outliner", "Outliner", {},
@@ -915,6 +920,16 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     view->addAction(action("view.assistant", "Assistant", QKeySequence("Ctrl+J"),
                            [this] { toggleAssistant(); }));
     auto *panel = action("view.tray", "Model panel", QKeySequence("Ctrl+Shift+T"), [this] {
+        if (narrowLayout()) {
+            // The strip's More panels: the whole panel in the overlay sheet, or closed again.
+            if (overlayOpen_ && overlayKey_ == PanelKey::More) {
+                closeOverlay();
+                return;
+            }
+            sideTabs_->setCurrentWidget(tray_);
+            openOverlay(PanelKey::More);
+            return;
+        }
         sideTabs_->setVisible(findChild<QAction *>("view.tray")->isChecked());
     });
     panel->setCheckable(true);
@@ -967,6 +982,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     modelRegions_ = {search, tools, viewport_, organization_, assistant_, measurements_};
     focusRegions_ = modelRegions_;
     setupSheets(header, view);
+    setupNarrow(header);
     // The rails sit in a stack, which put them late in the focus chain: Tab from command search
     // skipped them. Move the stack, with both rails, back to right after the search. Qt moves
     // only a focusable widget, so the stack is focusable just for the call.
@@ -1107,8 +1123,11 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     connect(assistant_, &AssistantPanel::modelChanged, this, &Window::sync);
     connect(assistant_, &AssistantPanel::fenceChanged, this, &Window::assistantFence);
     connect(assistant_, &AssistantPanel::focusViewport, this, [this] {
-        if (assistantSheet_ && assistantSheet_->isVisible())
-            assistantSheet_->reject();
+        // Esc in the Assistant: the overlay sheet closes and focus returns to where it was.
+        if (overlayOpen_) {
+            closeOverlay();
+            return;
+        }
         activateWindow();
         focusWorkspace();
     });
@@ -1132,7 +1151,7 @@ QMenuBar {padding:5px;background:$surface;border-bottom:1px solid $border;}
 QMenuBar::item {padding:5px 10px;} QMenuBar::item:selected,QMenu::item:selected {background:$selected;}
 QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
-#tray {border-left:1px solid $border;} #section {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
+#tray {border-left:1px solid $border;} #section,#overlayHeading {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
 #hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
 QToolBar {border:1px solid transparent;border-right:1px solid $border;spacing:6px;padding:9px 5px 9px 4px;}
 QToolButton {padding:11px 4px;border:1px solid transparent;border-radius:4px;}
@@ -1180,6 +1199,9 @@ QLineEdit[invalid="true"] {border:2px solid #bc4343;}
 #sheetPlaceSceneRow QRadioButton::indicator:disabled {border:1px solid $border;}
 #sheetPlaceCancel,#sheetInfoActions QPushButton {border-radius:6px;padding:4px 10px;background:$input;}
 #sheetRail QToolButton {padding:6px;border-radius:6px;}
+#panelStrip {border:1px solid transparent;border-left:1px solid $border;padding:9px $stripPad;}
+#panelStrip QToolButton {padding:$stripButtonPad;border-radius:6px;}
+#menuButton {padding:$stripButtonPad;border-radius:6px;} #menuButton::menu-indicator {image:none;width:0;}
 #sheetPageTabs::tab {border:1px solid $border;border-radius:6px;padding:3px 10px;background:$input;margin:1px 5px 1px 1px;}
 #sheetPageTabs::tab:selected {border:1px solid $accent;background:$selected;}
 #sheetPageTabs::tab:selected:focus {border:2px solid $ink;margin:0 4px 0 0;}
@@ -1232,6 +1254,16 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     style.replace("$sectionHeadingPx", QString::number(interfaceExtent(14, textPercent)) + "px");
     style.replace("$hintPx", QString::number(interfaceExtent(11, textPercent)) + "px");
     style.replace("$arrowTheme", dark ? "dark" : "light");
+    // UX_DESIGN §3.3: the panel strip is 46 px with 36 px buttons and 24 px icons, all scaled by
+    // text size; these paddings centre them.
+    style.replace("$stripPad", QString::number((interfaceExtent(46, textPercent) - 2 -
+                                                interfaceExtent(36, textPercent)) /
+                                               2) +
+                                   "px");
+    style.replace("$stripButtonPad", QString::number((interfaceExtent(36, textPercent) - 2 -
+                                                      interfaceExtent(24, textPercent)) /
+                                                     2) +
+                                         "px");
     style.replace("$selectionInk", dark ? colors.surface.name() : colors.input.name());
     style.replace("$onAccent", dark ? "#172019" : "#ffffff");
     style.replace("$surface", colors.surface.name());
@@ -1266,6 +1298,7 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
     setContextLabelColor(componentBanner_, colors.accent);
     themeSheets(colors);
     themeSidebar(colors);
+    themeNarrow(colors);
     if (auto *components = findChild<ComponentsTab *>())
         components->setTheme(colors);
 }
@@ -1644,8 +1677,8 @@ void Window::resizeEvent(QResizeEvent *e) {
     QTimer::singleShot(0, this, [this] { resizeContextLabels(this); });
     if (sideTabs_)
         layoutAssistant();
-    if (auto *panel = findChild<QAction *>("view.tray"))
-        panel->setChecked(width() >= 800);
+    if (auto *panel = findChild<QAction *>("view.tray"); panel && !narrowLayout())
+        panel->setChecked(true);
     setProperty("layoutClass", width() < 800    ? "compact"
                                : width() < 1100 ? "standard"
                                : width() < 1500 ? "expanded"

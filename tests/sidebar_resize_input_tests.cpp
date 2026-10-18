@@ -225,16 +225,18 @@ int main(int argc, char **argv) {
             check(f.width(f.side) == maximum, "Widen stops at the maximum");
             // Window shrink clamps; growing restores the preference.
             f.resize(1600);
-            f.drag(1, f.width(f.side) - 600);
-            check(f.width(f.side) == 600, "A 600 px sidebar fits a 1600 px window");
-            f.resize(1000);
-            f.checkGeometry("Shrunk to 1000 px");
+            f.drag(1, f.width(f.side) - 700);
+            check(f.width(f.side) == 700, "A 700 px sidebar fits a 1600 px window");
+            f.resize(1100);
+            f.checkGeometry("Shrunk to 1100 px");
             check(f.width(f.side) == f.splitter->width() - 400 - f.splitter->handleWidth(),
                   "The sidebar clamps when the window shrinks");
+            // Below 1100 px the panel is the narrow layout's overlay sheet (UX_DESIGN §3.3,
+            // narrow_layout_input_tests); the docked width comes back when the window grows.
             f.resize(820);
-            f.checkGeometry("Shrunk to 820 px");
+            check(f.splitter->indexOf(f.side) < 0, "Below 1100 px the panel leaves the splitter");
             f.resize(1600);
-            check(f.width(f.side) == 600, "Growing the window restores the chosen width");
+            check(f.width(f.side) == 700, "Growing the window restores the chosen width");
             // Reset: double-click the handle, then the View action.
             QTest::mouseDClick(f.handle(1), Qt::LeftButton, {}, f.handle(1)->rect().center());
             check(QTest::qWaitFor([&] { return f.width(f.side) == 248; }),
@@ -321,8 +323,8 @@ int main(int argc, char **argv) {
         {
             // A stored width larger than the window allows is clamped on launch.
             QSettings("SketchyUp", "SketchyUp").setValue("sidebarTrayWidth", 700);
-            Fixture f(900);
-            f.checkGeometry("Launch at 900 px");
+            Fixture f(1100);
+            f.checkGeometry("Launch at 1100 px");
             check(f.width(f.side) == f.splitter->width() - 400 - f.splitter->handleWidth(),
                   "A stored width clamps to the current bounds");
             f.resize(1600);

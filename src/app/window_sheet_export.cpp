@@ -313,6 +313,8 @@ void Window::chooseSheetItemFont(Id item) {
     sheets_->canvas()->setSelectedItem(item);
     if (const auto index = sideTabs_->indexOf(tray_); index >= 0)
         sideTabs_->setCurrentIndex(index);
+    if (narrowLayout())
+        openOverlay(PanelKey::More);
     if (auto *font = sheetsTray_->itemInfo()->findChild<QComboBox *>("sheetItemFont");
         font && font->isVisibleTo(this))
         font->setFocus(Qt::OtherFocusReason);

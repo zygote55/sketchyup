@@ -36,7 +36,11 @@ int main(int argc, char **argv) {
             check(window.width() == widths[i], "Exact logical width tested");
             check(window.property("layoutClass") == classes[i],
                   "Responsive class matches boundary");
-            check(tray->isVisible() == (widths[i] >= 800), "Tray follows responsive boundary");
+            // Below 1100 px the Tray is in the narrow layout's closed overlay sheet, and the
+            // panel strip shows instead (UX_DESIGN §3.3).
+            check(tray->isVisible() == (widths[i] >= 1100), "Tray follows responsive boundary");
+            check(window.findChild<QWidget *>("panelStrip")->isVisible() == (widths[i] < 1100),
+                  "Panel strip follows responsive boundary");
             check(field->isVisible() &&
                       window.rect().contains(field->mapTo(&window, field->rect().bottomRight())),
                   "Measurements remain on screen at every width");

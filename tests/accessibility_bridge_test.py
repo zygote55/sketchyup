@@ -113,6 +113,97 @@ class Bridge:
                 self.objects.g_object_unref(pointer)
 
 
+STRIP_NAMES = ["Info", "Outliner", "Materials", "Tags", "History", "Assistant", "More panels"]
+
+
+def showing(bridge, app, path):
+    """AT-SPI state 25 (showing)."""
+    with bridge.at_path(app, path) as control:
+        with bridge.owned(bridge.accessible_get_state_set(control)) as states:
+            return bool(bridge.state_set_contains(states, 25))
+
+
+def strip_checks(bridge, app, rows, narrow):
+    """UX_DESIGN §3.3: the panel strip's seven buttons, their names and tooltips, and the Menu
+    button show exactly in the narrow layout. Exactly one "Resize sidebar" handle is named, and it
+    shows: the docked sidebar's edge, or (narrow) the overlay sheet's once a strip button opens
+    it. Returns the rows to continue with."""
+    strip = find(rows, "Panels", "tool bar")
+    assert showing(bridge, app, strip["path"]) == narrow, f"The strip shows only when narrow ({narrow})"
+    buttons = [r for r in rows if r["path"][:-1] == strip["path"] and r["name"] in STRIP_NAMES]
+    assert [r["name"] for r in buttons] == STRIP_NAMES, f"Strip buttons {[r['name'] for r in buttons]}"
+    assert all(showing(bridge, app, r["path"]) == narrow for r in buttons), \
+        "Strip buttons show exactly when the strip does"
+    tips = {r["name"]: r["description"] for r in buttons}
+    assert tips["Assistant"] == "Assistant (Ctrl+J)" and \
+        tips["More panels"] == "More panels (Ctrl+Shift+T)" and tips["Info"] == "Info", \
+        f"Strip tooltips {tips}"
+    menus = [r for r in rows if r["name"] == "Menu"]
+    assert len(menus) == 1 and showing(bridge, app, menus[0]["path"]) == narrow, \
+        "One Menu button, shown exactly in the narrow layout"
+
+    def handles(current):
+        return [r for r in current if r["name"] == "Resize sidebar"]
+
+    if narrow:
+        assert not handles(rows), "A closed sheet's edge is not named"
+        with bridge.at_path(app, buttons[0]["path"]) as control:
+            with bridge.owned(bridge.accessible_get_action_iface(control)) as action:
+                # "Press" clicks the button (and runs its command); "Toggle" would only check it.
+                names = [bridge.string(bridge.action_get_name(action, i, None))
+                         for i in range(bridge.action_get_n_actions(action, None))]
+                assert "Press" in names and bridge.action_do_action(action, names.index("Press"), None), \
+                    f"AT-SPI could not press the strip's Info button ({names})"
+
+        def sheet_open():
+            current = bridge.snapshot(app)
+            named = handles(current)
+            return current if len(named) == 1 and showing(bridge, app, named[0]["path"]) else None
+
+        rows = wait_for(bridge, sheet_open, "Info did not open the sheet")
+    handle = find(rows, "Resize sidebar", "split pane")
+    assert showing(bridge, app, handle["path"]), "The named sidebar handle shows"
+    return rows
+
+
+def narrow_phase(bridge, application, root, environment):
+    """UX_DESIGN §3.3 at 900 px (-qwindowgeometry sizes the first window on X11 and Wayland)."""
+    with (root / "narrow.log").open("w") as log:
+        process = subprocess.Popen([str(application.resolve()), "--demo", "-qwindowgeometry", "900x700"],
+                                   env=environment, stdout=log, stderr=log)
+        try:
+            with bridge.owned(bridge.get_desktop(0)) as desktop:
+                def own_application():
+                    assert process.poll() is None, "Narrow demo exited before registration"
+                    for index in range(bridge.accessible_get_child_count(desktop, None)):
+                        child = bridge.accessible_get_child_at_index(desktop, index, None)
+                        if not child:
+                            continue
+                        if bridge.accessible_get_process_id(child, None) == process.pid:
+                            return child
+                        bridge.objects.g_object_unref(child)
+                    return None
+
+                with bridge.owned(wait_for(bridge, own_application,
+                                           "The narrow demo did not register")) as app:
+                    def ready():
+                        rows = bridge.snapshot(app)
+                        strips = [r for r in rows if r["name"] == "Panels" and r["role"] == "tool bar"]
+                        return rows if strips and showing(bridge, app, strips[0]["path"]) else None
+
+                    rows = wait_for(bridge, ready, "The 900 px window did not show the panel strip")
+                    rows = strip_checks(bridge, app, rows, narrow=True)
+                    return {"window": "900x700", "strip": STRIP_NAMES, "menuButton": True,
+                            "sheetHandle": "Resize sidebar"}
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
 def find(rows, name, role=None):
     matches = [row for row in rows if row["name"] == name and (role is None or row["role"] == role)]
     assert len(matches) == 1, f"Expected one accessible {name!r} ({role}), found {len(matches)}"
@@ -546,7 +637,12 @@ def main():
                                 return rows if any(r["name"] == "Model hierarchy" for r in rows) else None
 
                             rows = wait_for(bridge, ready, "Model hierarchy did not appear")
-                            # R094.a: the sidebar's resize handle is a named, vertical split pane
+                            # UX_DESIGN §3.3: the demo window (1200 px) is wide: the strip and
+                            # the Menu button are hidden and the docked sidebar's edge is the one
+                            # named handle. narrow_phase runs a 900 px window.
+                            rows = strip_checks(bridge, app, rows, narrow=False)
+                            # R094.a: exactly one named sidebar handle, shown: the docked
+                            # sidebar's edge, or the open sheet's. It is a vertical split pane
                             # (AT-SPI states 14 horizontal, 29 vertical).
                             sidebar_handle = find(rows, "Resize sidebar", "split pane")
                             with bridge.at_path(app, sidebar_handle["path"]) as control:
@@ -601,6 +697,7 @@ def main():
                             sheets = sheets_phase(bridge, args.application, root, environment)
                             parameters = parameters_phase(bridge, args.application, root,
                                                           environment)
+                            narrow = narrow_phase(bridge, args.application, root, environment)
                             report = {
                                 "fixture": "built-in courtyard demo; private config/data and owned process only",
                                 "platformRequested": environment.get("QT_QPA_PLATFORM", "default"),
@@ -611,6 +708,7 @@ def main():
                                 "sheets": sheets,
                                 "parameters": parameters,
                                 "sidebarHandle": {key: sidebar_handle[key] for key in ("name", "role", "orientation")},
+                                "narrowLayout": narrow,
                                 "qtVersion": qt_version,
                                 "accessibleNodes": len(rows),
                                 "passes": True,

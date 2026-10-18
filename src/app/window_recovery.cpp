@@ -24,6 +24,8 @@
 #include <QVBoxLayout>
 namespace sketchy {
 Window::~Window() {
+    // UX_DESIGN §3.3: the narrow layout's connections and overlay filter go first.
+    detachNarrow();
     // R094.e: the context opener, the message actions and a suspended placement's restore must
     // not reach the window while it is torn down.
     detachParameterStates();
