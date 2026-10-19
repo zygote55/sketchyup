@@ -229,7 +229,8 @@
    "renderer": "llvmpipe (LLVM 23.1.1, 256 bits)",
    "platform": "xcb (Xvfb), LIBGL_ALWAYS_SOFTWARE=1",
    "framebuffer": "1920x1080",
-   "runs": "best of 3"
+   "runs": "best of 3",
+   "completeFrameEnvironment": "AMD discrete GPU session, see the complete-frame row's hardware object; the llvmpipe values are kept for comparison"
   },
   "rows": [
    {
@@ -308,16 +309,81 @@
    {
     "operation": "complete frame with the terrain visible",
     "budget": "within the M9 frame budget",
-    "measuredP95Ms": {
+    "result": "pass on the AMD discrete GPU (p95 0.79-0.94 ms against 16.7 ms)",
+    "softwareMeasuredP95Ms": {
      "default": 35.77,
      "contours1mAndElevationBands": 52.44
     },
-    "m9HarnessAt250k": {
+    "softwareM9HarnessAt250k": {
      "command": "real_model_benchmark 2500 repeated",
      "viewportGpuCompleteP95Ms": 79.728182,
      "editToViewportGpuCompleteP95Ms": 90.65698
     },
-    "result": "measured in software only; hardware budget not judged"
+    "hardware": {
+     "date": "2026-10-19",
+     "sourceRevision": "cdf13befce741ae015373ec6921df09ff05e55c9",
+     "branch": "docs/r095-amd-frame",
+     "machine": "sketchyup-gpu (CachyOS QEMU guest, kernel 7.2.10-1-cachyos, XFCE on X11)",
+     "renderer": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64, 7.2.10-1-cachyos)",
+     "mesa": "26.3.0-devel (git-74b69717c5)",
+     "qt6-base": "6.12.0-3",
+     "gcc": "16.2.1",
+     "platform": "xcb",
+     "display": "3840x2160",
+     "framebuffer": "1920x1080",
+     "build": "Release on the AMD machine from git archive of cdf13bef; systemd-run MemoryMax=12G MemorySwapMax=0 CPUQuota=800%, -j8",
+     "binarySha256": {
+      "terrain_budget_benchmark": "7401f0549e408580e236b9903f31dd4a77206a6282d879479608788d84e40023",
+      "real_model_benchmark": "010596f74a8edadeb7e32f49f324e7fa19a7982e47bd16e57a9c1ca3d6ed5f94"
+     },
+     "controls": "per run: MemoryMax=4G, no swap, CPUQuota=100%, TasksMax=128, CPU 11, 900 s, QT_SCALE_FACTOR=1; real_model_benchmark fullscreen, terrain_budget_benchmark a 1920x1080 window",
+     "loadAverage1m": "1.4-2.1",
+     "hypervisorLoad": "not measured",
+     "runs": 3,
+     "terrainCompleteFrameP95Ms": {
+      "default": [
+       0.84,
+       0.824,
+       0.792
+      ],
+      "contours1mAndElevationBands": [
+       0.937,
+       0.856,
+       0.86
+      ]
+     },
+     "terrainCompleteFrameMedianMs": {
+      "default": [
+       0.717,
+       0.69,
+       0.702
+      ],
+      "contours1mAndElevationBands": [
+       0.764,
+       0.754,
+       0.753
+      ]
+     },
+     "m9HarnessAt250k": {
+      "command": "real_model_benchmark 2500 repeated",
+      "fixtureSha256": "b3bd38154198d47d18ec4d4655d48ae30e48cec83d6535e9e126d51a44fcee1e",
+      "viewportGpuCompleteP95Ms": [
+       4.693,
+       4.867,
+       4.902
+      ],
+      "editToViewportGpuCompleteP95Ms": [
+       8.007,
+       7.853,
+       8.008
+      ],
+      "hostFullScreen": true,
+      "viewportClippedByHost": false
+     },
+     "budgetRowApplied": "100k visible triangles: p95 <= 16.7 ms (the stricter of the 100k and 1M rows for a 250k scene)",
+     "contoursTerrainFramed": false,
+     "evidence": "sketchyup-gpu:/home/keith/sketchyup-verification/r095-amd-frame-20261019/evidence/"
+    }
    }
   ],
   "raw": {
@@ -441,7 +507,15 @@
    "wayland-1x": "pass",
    "wayland-2x": "pass"
   },
-  "ci": {"run": 39273946365, "commit": "057aa466", "x11-1x": "pass", "x11-2x": "pass", "wayland-1x": "pass", "wayland-2x": "pass", "auditAndAccessibility": "pass"},
+  "ci": {
+   "run": 39273946365,
+   "commit": "057aa466",
+   "x11-1x": "pass",
+   "x11-2x": "pass",
+   "wayland-1x": "pass",
+   "wayland-2x": "pass",
+   "auditAndAccessibility": "pass"
+  },
   "dialogAudit": "all groups, X11 2x and Wayland 1x, in CI"
  },
  "fuzzing": {
@@ -533,7 +607,6 @@
  "remaining": [
   "R095.g assistant surface (decision 10)",
   "D-044",
-  "complete frame on the AMD hardware",
   "one-tile replacement budget with R096"
  ],
  "ownerQuestions": [

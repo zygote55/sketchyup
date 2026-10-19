@@ -7,7 +7,8 @@ native lines) with the benchmark change of `915d6c11`. The native matrix ran in 
 [PR #377](https://github.com/zygote55/sketchyup/pull/377): all ten jobs passed at `057aa466`
 (the test fix for the native platforms; run
 [39273946365](https://github.com/zygote55/sketchyup/actions/runs/39273946365)).
-[Summary](R095f-terrain.json).
+[Summary](R095f-terrain.json). The complete frame was measured on the AMD discrete GPU on
+2026-10-19 at `cdf13bef` (branch `docs/r095-amd-frame`); see "Complete frame on the AMD GPU".
 
 R095 delivers [ADR 0168](../decisions/0168-terrain-import-and-surfaces.md): the terrain record,
 schema 29 and the site origin (R095.a), the CDT triangulation adapter (R095.b), the DXF and
@@ -29,7 +30,8 @@ against §6 of the ADR (the verification plan) and the roadmap's Verify line.
   about 12 MB because of the stored sources; this was raised as **D-045** and closed when the owner
   confirmed on 2026-10-19 that the budget covers the mesh chunk only.
 - The one-tile replacement budget belongs to R096 and is not applicable yet.
-- The complete frame was measured only in software, so the hardware M9 budget is not judged.
+- The complete frame passes on the AMD discrete GPU (2026-10-19): p95 0.79–0.84 ms by default and
+  0.86–0.94 ms with 1 m contour lines and elevation bands at 249,970 triangles, against 16.7 ms.
 - **Remaining work:** the assistant surface, R095.g (decision 10).
 - **Open owner questions:**
   - Should Create terrain from selection get a way to mark boundary and hole edges?
@@ -133,7 +135,7 @@ after the commit.
 | Added resident memory | ≤ 200 MB | 99.8 MiB (peak resident of the process 647 MiB) | 108.6 MiB (peak 779 MiB) | pass |
 | File growth | ≤ 8 MB (binary mesh chunk) | mesh chunk 6.31 MB; whole file +12.51 MB | mesh chunk 7.57 MB; whole file +12.26 MB | **Pass** (the budget covers the chunk; D-045 closed) |
 | One-tile replacement (R096 preview path) | p95 ≤ 100 ms | — | — | **Not applicable**: the R096 preview path does not exist yet |
-| Complete frame with the terrain visible | Within the M9 frame budget | p95 35.8 ms (scene 34.6); with 1 m contour lines and elevation bands 52.4 ms | — | **Measured in software only**; see below |
+| Complete frame with the terrain visible | Within the M9 frame budget | AMD RX 6800 XT, 3 runs: p95 0.79–0.84 ms; with 1 m contour lines and elevation bands 0.86–0.94 ms (llvmpipe: 35.8 and 52.4 ms) | — (the benchmark frames the points terrain only) | **Pass** (16.7 ms, the 100k row); see below |
 
 **Parse and triangulate: progress and cancel.**
 
@@ -176,10 +178,55 @@ after the commit.
   of ordinary geometry. It ran in the same container and renderer and gives a complete-viewport p95
   of 79.7 ms (edit to complete frame 90.7 ms). A terrain at the limit therefore draws faster than M9's
   own fixture at the same triangle count.
-- **Not judged:** the M9 budgets are hardware budgets: 16.7 ms at 100,000 triangles, and 33.3 ms
-  for the 1M row on the AMD machine ([R082.ii](R082ii-amd-hardware-session.md)). Software rendering
-  cannot settle them, and no AMD session was run. As for R094.g, the hardware confirmation is open;
-  it needs the owner's hardware session.
+- **Software is not the budget:** the M9 budgets are hardware budgets: 16.7 ms at 100,000
+  triangles, and 33.3 ms for the 1M row ([R082.ii](R082ii-amd-hardware-session.md)). The llvmpipe
+  figures above do not judge them; the AMD session below does.
+
+**Complete frame on the AMD GPU (2026-10-19).**
+
+- **Machine:** `sketchyup-gpu`, the R082.ii guest: CachyOS (kernel 7.2.10-1-cachyos), XFCE on X11
+  (`QT_QPA_PLATFORM=xcb`), AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64), Mesa
+  26.3.0-devel (git-74b69717c5), Qt 6.12.0, GCC 16.2.1. The display is 3840 × 2160; the viewport
+  framebuffer is 1920 × 1080 in every run, as the benchmarks check. Guest load average 1.4–2.1
+  (1 min) during the runs, falling from the build; hypervisor load not measured.
+- **Build:** Release (`-DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF`) on the AMD machine from a
+  `git archive` of `cdf13bef`, in one `systemd-run --user` unit with `MemoryMax=12G`,
+  `MemorySwapMax=0`, `CPUQuota=800%`, `-j8` (1 min 56 s, peak 4.4 GB), with CMake 4.4.3 and Ninja
+  1.13.2 copied into the session directory from an earlier session's tools (the machine has
+  none installed). The binaries differ from the pinned-image build above. SHA-256: `terrain_budget_benchmark`
+  `7401f0549e408580e236b9903f31dd4a77206a6282d879479608788d84e40023`, `real_model_benchmark`
+  `010596f74a8edadeb7e32f49f324e7fa19a7982e47bd16e57a9c1ca3d6ed5f94`.
+- **Controls:** R082.ii's AMD frame controls: one transient unit per run with 4 GiB, no swap,
+  `CPUQuota=100%`, `TasksMax=128`, CPU 11, 900 s; `QT_QPA_PLATFORMTHEME=generic`,
+  `QT_SCALE_FACTOR=1`, one OpenMP/BLAS thread, private TMP and XDG directories, the XFCE
+  session's display. `real_model_benchmark` ran fullscreen (`SKETCHYUP_BENCHMARK_FULLSCREEN=1`);
+  `terrain_budget_benchmark` has no fullscreen option and shows a 1920 × 1080 window, which the
+  3840 × 2160 display holds unclipped. Every run reports the radeonsi renderer, and no run set
+  `LIBGL_ALWAYS_SOFTWARE`.
+- **Results:** three runs each, interleaved, all exit 0. Values are p95 ms over 50 frames after 10
+  warm-up frames.
+
+| Run | Terrain, default | Terrain, 1 m contours and elevation bands | `real_model_benchmark 2500 repeated`: complete viewport | Same: edit to complete frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.840 | 0.937 | 4.69 | 8.01 |
+| 2 | 0.824 | 0.856 | 4.87 | 7.85 |
+| 3 | 0.792 | 0.860 | 4.90 | 8.01 |
+
+- **Budget row:** BUILD_PLAN's frame rows are "100k visible triangles, 1k instances": p95 at most
+  16.7 ms at 1920 × 1080, and "1M visible triangles, 10k instances": at most 33.3 ms. A 250,000-
+  triangle terrain lies between them. This record applies the stricter 16.7 ms row, because
+  holding a larger scene to the smaller scene's limit cannot pass anything the budget would fail;
+  the 1M row's 33.3 ms (R082.ii) is the looser alternative.
+- **Verdict: pass.** The terrain's worst p95, 0.94 ms with contour lines and elevation bands, is
+  about 1/18 of 16.7 ms. The M9 fixture at the same triangle count, 4.7–4.9 ms, passes too; the
+  terrain draws about six times faster than it; under llvmpipe the factor was about 2.2.
+- **Not measured on hardware:** a framed contours terrain (the benchmark frames the points
+  terrain only), and the Wayland/Intel configurations (waived by
+  [ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md)).
+- **Evidence:** the JSON outputs, cgroup limits, stderr and environment stay outside the
+  repository in `sketchyup-gpu:/home/keith/sketchyup-verification/r095-amd-frame-20261019/evidence/`;
+  the build tree was deleted. A first trial run (`terrain-0-trial`, 0.85 and 0.88 ms) is kept there
+  but not counted: its CPU affinity was not recorded.
 
 ## Native matrix
 
@@ -257,7 +304,7 @@ not by a new suite.
 | (b) Create terrain from selection cannot mark boundary or hole edges | **Owner question**, not a defect | The approved UX design gives no way to mark them from a selection, so R095.e1 offers none. The command (`terrain.create_from_edges`) takes `boundary` and `holes`, and `terrain_regenerate` covers them. Pending the owner's decision on a role picker |
 | (c) Assistant surface (decision 10) | **Done in R095.g** (after this record) | At this record: not done; `assistantVisible` hid every `site.*` and `terrain.*` name. R095.g (2026-10-19) measured the token cost offline (about +1,000 tokens a turn, within the corpus task budget), exposed `site.describe`, `terrain.describe` and `terrain.elevation_at` to the in-app assistant, re-pinned the tool-surface baseline and froze corpus v5; MCP still exposes everything. See [ADR 0168, R095.g notes](../decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095g) |
 | One-tile replacement budget | Not applicable | R096's preview path |
-| Complete frame on hardware | Evidence open | Measured in software only; needs the AMD session (owner) |
+| Complete frame on hardware | Closed 2026-10-19 | AMD RX 6800 XT: p95 0.79–0.94 ms against 16.7 ms (three runs, both displays) |
 | (d) R089.a rows R095 touched | Checked | **D-042** (Release-blocking; Clipper2 tessellation, found by R095.c) and **D-043** (Major; terrain history budget, found by R095.e2) are fixed and verified here: `terrain` checks the tile triangle in a capped child, and `terrain_history` applies every terrain operation at 250k with undo and redo (98 s dev, 236 s sanitized). No open R089.a row is affected by R095 |
 
 **Sanitizer note.** Under the sanitize preset on the development host, the three desktop suites
@@ -359,12 +406,29 @@ docker run --rm --cpus=4 --memory=4g --memory-swap=4g -u 1000:1000 -v "$PWD":/w 
 #   ... build/bench/real_model_benchmark 2500 repeated
 ```
 
+Complete frame on the AMD GPU (over SSH, from a `git archive` of `cdf13bef`; `R` is the evidence
+directory, `run-case.sh` and `build.sh` are kept in `$R/evidence`):
+
+```sh
+systemd-run --user --wait --pipe --collect -p MemoryMax=12G -p MemorySwapMax=0 -p CPUQuota=800% \
+  -p TasksMax=256 -p RuntimeMaxSec=3600 /usr/bin/bash -c \
+  'cmake -S $R/src -B $R/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF &&
+   cmake --build $R/build -j8 --target terrain_budget_benchmark real_model_benchmark'
+# One unit per run: MemoryMax=4G MemorySwapMax=0 CPUQuota=100% TasksMax=128 RuntimeMaxSec=900s,
+# taskset -c 11, QT_QPA_PLATFORM=xcb QT_QPA_PLATFORMTHEME=generic QT_SCALE_FACTOR=1
+# SKETCHYUP_BENCHMARK_FULLSCREEN=1, DISPLAY and XAUTHORITY from the XFCE session.
+for i in 1 2 3; do
+  run-case.sh terrain-$i $R/build/terrain_budget_benchmark --frame --repeat 3
+  run-case.sh m9-2500-repeated-$i $R/build/real_model_benchmark 2500 repeated
+done
+```
+
 Native lines: the twelve `native.yml` lines above, in CI.
 
 ## Caveats
 
-- Budgets come from one shared development machine (load average 3–6) in a container with software
-  rendering. They are not the AMD reference session.
+- Budgets other than the complete frame come from one shared development machine (load average
+  3–6) in a container with software rendering. The complete frame is judged on the AMD session only.
 - The native matrix ran in CI only; the development machine has no Xvfb or Weston outside the
   pinned image.
 - The digests are pinned for this toolchain. A compiler or CDT change that alters a mesh must update
