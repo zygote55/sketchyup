@@ -5,6 +5,7 @@
 #include "app/tool_session.hpp"
 #include "core/model.hpp"
 #include "core/selection.hpp"
+#include "core/terrain_display.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
@@ -175,6 +176,24 @@ class Viewport : public QOpenGLWidget {
     // The tool's name in the refusal message ("Push/pull does not edit terrain…"), or empty
     // for a tool that may act on terrain (Select, Paint, camera tools, Intersect with it).
     static QString terrainRefusingToolName(Tool tool);
+    // R095.e2 (ADR 0168 "Decisions > Interaction design", Site): the site origin marker, a
+    // labelled crosshair at model (0, 0, 0) = the site origin. View > Site origin shows it
+    // always; otherwise it shows while a terrain is selected or Site settings is open. Never
+    // without a document site origin.
+    void setSiteOriginVisible(bool visible);
+    bool siteOriginVisible() const { return siteOriginVisible_; }
+    void setSiteSettingsOpen(bool open);
+    bool siteOriginMarkerShown() const;
+    // The marker's label as painted ("Site origin · E … · N … · Z …"), empty when not shown.
+    QString siteOriginMarkerLabel() const;
+    // R095.e2: the contour lines currently drawn for a terrain (null when off or none).
+    std::shared_ptr<const TerrainContours> terrainContoursShown(Id terrain) const;
+    // The contours of a terrain at its display interval from the viewport's cache (the same
+    // lines the viewport draws, computed once), whether or not they are switched on.
+    std::shared_ptr<const TerrainContours> terrainContours(Id terrain);
+    // Whether an edge of a terrain tile is drawn: only edges on the terrain's outer boundary;
+    // tile seams and interior edges are not (nor picked or snapped while not drawn).
+    bool terrainEdgeDrawn(Id tile, Id edge) const;
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
@@ -250,6 +269,8 @@ class Viewport : public QOpenGLWidget {
         size_t cachedBodies{}, placementMeshes{}, sharedPlacements{};
         unsigned contextGeneration{}, glError{};
         size_t meshTriangles{}, profileEdges{};
+        // R095.e2: contour segments uploaded in the last rebuild, and terrain surfaces built.
+        size_t contourSegments{}, terrainSurfaces{};
     };
     RenderStats renderStats() const { return stats_; }
     struct GeometryCacheMemory {
@@ -554,8 +575,29 @@ class Viewport : public QOpenGLWidget {
         QString sectionError;
         float alpha{1};
         std::uint64_t presentationRevision{}, meshPass{};
+        // R095.e2: a terrain tile's surface display and elevation-band shading when built.
+        std::shared_ptr<const TerrainSurfaceDisplay> terrainSurface;
+        bool terrainBands{};
     };
     std::map<Id, std::unique_ptr<BodyCache>> bodyCaches_;
+    // R095.e2: per terrain, the surface display (normals across seams, outer edges, elevation
+    // range) and the contour lines' GPU batches, rebuilt when the tiles or settings change.
+    struct TerrainView {
+        BodyPtr record;
+        std::vector<BodyPtr> tiles;
+        std::shared_ptr<const TerrainSurfaceDisplay> surface;
+        std::shared_ptr<const TerrainContours> contours;
+        Transform world;
+        bool hidden{}, dark{};
+        GpuBatch linesGpu, indexGpu;
+    };
+    std::map<Id, std::unique_ptr<TerrainView>> terrainViews_;
+    TerrainContourCache contourCache_;
+    void syncTerrainViews();
+    void drawTerrainContours();
+    void paintSiteOrigin(QPainter &p);
+    const TerrainView *terrainViewOfTile(Id tile) const;
+    bool siteOriginVisible_{}, siteSettingsOpen_{};
     // Registries hold their source records so raw keys are never reused.
     std::map<const Body *, std::pair<BodyPtr, std::weak_ptr<BodyGeometry>>> sharedGeometry_;
     std::map<PlacementKey, std::pair<BodyPtr, std::weak_ptr<BodyMesh>>> placementMeshes_;
@@ -629,6 +671,9 @@ class Viewport : public QOpenGLWidget {
     QJsonObject transformAt(Vec3 point);
     void finishTransform(const QJsonObject &command, bool arrayEligible = true);
     bool transformMeasurements(const QString &text);
+    // R095.e2: "@E, N[, Z]" (without the @) as the model point "[x;y;z]" in metres. Throws
+    // without a site origin or for a tool that takes no point.
+    QString sitePositionMeasurement(const QString &text) const;
     Vec3 extrusionAxis_{};
     double extrusionScale_{1}, previewDistance_{};
     Id offsetBody_{}, offsetFace_{};

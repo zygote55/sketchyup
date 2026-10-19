@@ -375,6 +375,17 @@ no geometry, and its children are exactly its tiles. A tile is a `geometry` body
 face paint, texture mappings, tag, visibility, lock, name, properties, allocators) is
 stored as before. A terrain or tile cannot be a component definition member.
 
+**Schema 29 addendum: terrain display (R095.e2).** 2026-10-19. Schema 29 and `terrain-v1`
+had not shipped in a release (1.2.0 predates them), so the terrain record gains one optional
+field without a new schema or feature: `display {contours, contourInterval, shading}`, each
+member optional and written only when it differs from its default (`contours` false,
+`contourInterval` 1 m, `shading` `material`; the other value is `elevation-bands`), and the
+object written only when a member is. A record at its defaults therefore encodes exactly as
+before, and existing schema-29 documents and digests are unchanged. `contourInterval` is 0.01 to
+1,000 metres. Readers refuse unknown members, an empty `display` object and out-of-range values;
+a default written explicitly is accepted. The settings are derived display: they are not part
+of the mesh digest. See [ADR 0168](0168-terrain-import-and-surfaces.md#implementation-notes-r095e2).
+
 **The `terrain-mesh` chunk.** It follows the asset chunks, at most once and only with
 `terrain-v1`: `{kind: "terrain-mesh", encoding: "f64-u32-le-v1", offset, bytes,
 sha256}`, with the SHA-256 of its bytes in the manifest as for assets. Its bytes, all

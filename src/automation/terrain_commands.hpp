@@ -2,7 +2,8 @@
 // R095.a site and terrain commands and queries (ADR 0168 §5): site.set, site.reanchor
 // and terrain.explode are batch commands; site.describe, site.convert,
 // terrain.describe and terrain.elevation_at are inspection queries. None is shown to
-// the in-app assistant yet (assistantVisible); MCP exposes all of them.
+// the in-app assistant yet (assistantVisible); MCP exposes all of them. R095.e2 adds the batch
+// command terrain.set_display (contour lines, interval, shading; the mesh is untouched).
 #include "core/model.hpp"
 #include "core/terrain_records.hpp"
 #include "io/terrain_import.hpp"
@@ -73,5 +74,7 @@ QJsonObject siteDescription(const Document &doc);
 // "site" converts model points to site coordinates, "model" the reverse.
 QJsonObject siteConversion(const Document &doc, const QString &to, const QJsonArray &points);
 QJsonObject terrainDescription(const Document &doc, Id terrain);
+// R095.e2: terrain.set_display's settings as terrain.describe reports them.
+QJsonObject terrainDisplayJson(const TerrainDisplay &display);
 QJsonObject terrainElevationDescription(const Document &doc, Id terrain, const QJsonArray &points);
 } // namespace sketchy

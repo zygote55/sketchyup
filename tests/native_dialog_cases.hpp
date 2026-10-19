@@ -819,6 +819,49 @@ inline std::vector<Case> cases(Context &ctx) {
          [](Context &context) { terrainFixture(context, false, true); },
          viaPalette("Create terrain from selection"), named("terrainReportDialog"), Enter::Closes,
          "Close", Return::Viewport, {}, {}, {}, "Crossing contours: nothing was changed."});
+    // R095.e2: File > Site settings… without and with a site origin, and its Re-anchor… and
+    // Set origin… dialogs (the action waits for a different origin; Set origin would edit).
+    const auto siteFixture = [](Context &context) {
+        terrainFixture(context, false);
+        setSiteOrigin(context.window.document(),
+                      SiteOrigin{512300, 5234500, 0, "EPSG:32633", {"hill.dxf", std::string(64, 'a')}});
+        context.window.viewport()->refresh();
+    };
+    add({"site-settings-none", "terrain", "Site settings (no site origin)",
+         "File > Site settings… (palette)", fresh, viaPalette("Site settings…"),
+         named("siteSettingsDialog"), Enter::Closes, "Close", Return::Viewport, {}, {}, {},
+         "Explains that the first terrain import sets the origin and offers Set origin…."});
+    add({"site-settings", "terrain", "Site settings (origin set)", "File > Site settings… (palette)",
+         siteFixture, viaPalette("Site settings…"), named("siteSettingsDialog"), Enter::Closes,
+         "Close", Return::Viewport, {}, {}, {}, "Origin, CRS label and provenance are read-only."});
+    add({"site-reanchor",
+         "terrain",
+         "Re-anchor site origin",
+         "Site settings… > Re-anchor… (Tab, Space)",
+         siteFixture,
+         viaPalette("Site settings…"),
+         named("siteReanchorDialog"),
+         Enter::Disabled,
+         "Re-anchor site origin",
+         Return::Opener,
+         {},
+         {},
+         {childOf(ctx, named("siteSettingsDialog"), "siteReanchor")},
+         "Re-anchor waits for a different origin; it is one undoable edit."});
+    add({"site-set-origin",
+         "terrain",
+         "Set site origin",
+         "Site settings… > Set origin… (Tab, Space)",
+         fresh,
+         viaPalette("Site settings…"),
+         named("siteSetOriginDialog"),
+         Enter::DefaultOnly,
+         "Set site origin",
+         Return::Opener,
+         {},
+         {},
+         {childOf(ctx, named("siteSettingsDialog"), "siteSetOrigin")},
+         "Enter would set the origin (site.set)."});
     add({"measured-export", "components", "Export measured PDF / SVG",
          "File > Export measured PDF/SVG… (palette)", fresh, viaPalette("Export measured PDF/SVG…"),
          named("measuredExportDialog"), Enter::Child, "Save", Return::Viewport,

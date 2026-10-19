@@ -1,6 +1,9 @@
 #pragma once
 #include "app/collapsible_section.hpp"
 #include "app/viewport.hpp"
+class QCheckBox;
+class QComboBox;
+class QDoubleSpinBox;
 class QFormLayout;
 class QFrame;
 namespace sketchy {
@@ -10,8 +13,9 @@ namespace sketchy {
 // areas left; Terrain settings… and Explode terrain…; and an amber "Changed since generated"
 // chip with Regenerate when the mesh digest no longer matches the record.
 //
-// The Display controls (contour lines, shading) are left to R095.e2, which draws them; see ADR
-// 0168, "Implementation notes (R095.e1)".
+// R095.e2 adds Display: contour lines on or off, their interval (metres, as Terrain settings)
+// and shading by material or elevation bands. Each change is one "Terrain display" edit
+// (terrain.set_display) that leaves the mesh digest and "Changed since generated" alone.
 class TerrainSection : public CollapsibleSection {
   public:
     TerrainSection(Document &document, Viewport &viewport, QWidget *parent = nullptr);
@@ -22,8 +26,14 @@ class TerrainSection : public CollapsibleSection {
     QPushButton *regenerateButton() const { return regenerate_; }
     QPushButton *settingsButton() const { return settings_; }
     QPushButton *explodeButton() const { return explode_; }
+    QCheckBox *contoursBox() const { return contours_; }
+    QDoubleSpinBox *intervalBox() const { return interval_; }
+    QComboBox *shadingBox() const { return shading_; }
+    QLabel *contourStatus() const { return contourStatus_; }
 
   private:
+    void applyDisplay();
+    void showContourStatus();
     void run(const QString &id, const std::function<void()> &action);
     Document &doc_;
     Viewport &view_;
@@ -33,6 +43,9 @@ class TerrainSection : public CollapsibleSection {
     QLabel *chipText_{};
     QPushButton *regenerate_{}, *settings_{}, *explode_{};
     QLabel *name_{}, *triangles_{}, *source_{}, *sources_{}, *elevation_{}, *generator_{},
-        *flat_{}, *error_{};
+        *flat_{}, *error_{}, *contourStatus_{};
+    QCheckBox *contours_{};
+    QDoubleSpinBox *interval_{};
+    QComboBox *shading_{};
 };
 } // namespace sketchy

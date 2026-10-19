@@ -15,6 +15,19 @@ their 1.2.0 schema.
   sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain display and site settings (R095.e2, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095e2)):
+  new terrains use a built-in **Terrain** material and draw as one smooth surface, with tile
+  seams and interior edges hidden and normals continuous across seams. The Terrain section's
+  **Display** shows contour lines at a chosen interval (every fifth an index line, drawn
+  heavier; derived display, never geometry, picking or snapping) and shades by material or by
+  ten elevation bands; each change is one undoable edit that keeps the mesh digest, stored on
+  the terrain record with defaults omitted, and `terrain.set_display` exposes it to automation
+  and MCP. **File → Site settings…** shows the site origin, CRS label and provenance, with
+  **Re-anchor…** (one edit that moves geometry so site coordinates are unchanged; refused for a
+  locked top-level entity or the coordinate limit) and, without an origin, **Set origin…**.
+  Entity info shows site coordinates, `@E, N[, Z]` in the Measurements box types a site
+  position, and a labelled crosshair marks the site origin (always with **View → Site
+  origin**, a remembered choice).
 - Terrain in Entity info and the tools (R095.e1, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095e1)):
   a Terrain section in the Info tab (name, triangle and tile counts, source file and digest,
   sources by role, elevation range, generator and flat areas) with **Terrain settings…** (a

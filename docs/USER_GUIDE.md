@@ -456,6 +456,29 @@ not-allowed cursor over a terrain, and the status bar offers **Explode terrain�
 Paint, tags, hiding and locking, and moving the whole terrain work as usual. All terrain actions
 are also in command search (Ctrl+K).
 
+**Terrain display.** A new terrain uses the **Terrain** material and draws as one smooth
+surface: the seams between its tiles and its interior edges are not drawn (Show hidden geometry
+shows them dashed). Under **Display** in its Terrain section, **Show contour lines** draws
+contours at the **Interval** (metres; every fifth line, a multiple of five intervals, is a
+heavier index line), and **Shading** colours the surface by its material or by ten **Elevation
+bands** from green through sand to brown. Contour lines are display only: they are not
+geometry, and selection and snapping ignore them. Each change is one undoable edit that does not
+mark the terrain as changed since generated. An interval that would need more than 500,000 line
+segments draws none and says so.
+
+**Site coordinates.** **File → Site settings…** shows the site origin (the easting, northing and
+elevation of the model origin, in metres), its CRS label and where it came from (the source file
+and its SHA-256). The first terrain import sets the origin; without one, the dialog explains this
+and offers **Set origin…**. **Re-anchor…** moves the origin: all geometry moves by the
+difference, so every site coordinate stays the same, as one undoable edit. It is unavailable
+while a top-level entity is locked or when geometry would pass the ±1,000 km model limit, and
+the dialog says which. With a site origin, Entity info adds a **Site** row (the origin, or an
+edge's two endpoints with their model coordinates), and in the Measurements box a leading `@`
+types an absolute site position for any tool that takes a point: `@512310, 5234510, 100`
+(without Z the point lies on the drawing plane). The viewport marks the site origin with a
+labelled crosshair while a terrain is selected or Site settings is open; **View → Site origin**
+shows it all the time, and the choice is remembered.
+
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance
 is identified as raster content. Print at actual size to preserve the requested

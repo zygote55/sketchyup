@@ -1157,6 +1157,11 @@ int main(int argc, char **argv) {
         parameterCase("terrain.set_parameters",
                       {{"terrain", "1"}, {"boundary", "maxEdgeLength"}, {"maxEdgeLength", 5}});
         parameterCase("terrain.regenerate", {{"terrain", "1"}});
+        // R095.e2: display settings (contours, interval, shading); the fixture is set below.
+        parameterCase("terrain.set_display", {{"terrain", "1"},
+                                              {"contours", true},
+                                              {"contourInterval", 0.5},
+                                              {"shading", "elevationBands"}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1349,12 +1354,14 @@ int main(int argc, char **argv) {
                 doc.addFace({{{.5, 0, -1}, {.5, 1, -1}, {.5, 1, 1}, {.5, 0, 1}}});
             if (command["command"] == "site.reanchor")
                 setSiteOrigin(doc, SiteOrigin{512300, 5234500, 0, {}, {}});
-            if (command["command"] == "terrain.explode") {
+            if (command["command"] == "terrain.explode" ||
+                command["command"] == "terrain.set_display") {
                 TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}, {0, 2, -3}},
                                  {{0, 1, 2}, {0, 2, 3}}};
                 TerrainRecord record;
                 record.generator = "test/terrain-v1";
-                command["body"] = QString::number(createTerrain(doc, mesh, record).terrain);
+                const auto terrain = QString::number(createTerrain(doc, mesh, record).terrain);
+                command[command["command"] == "terrain.explode" ? "body" : "terrain"] = terrain;
             }
             if (command["command"] == "terrain.set_parameters" ||
                 command["command"] == "terrain.regenerate") {

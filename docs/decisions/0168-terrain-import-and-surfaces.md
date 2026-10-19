@@ -4,9 +4,9 @@ Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R095](../PR_ROADMAP.md#r095) (M10, scope row [F03](../SCOPE.md)); shapes
 [R096](../PR_ROADMAP.md#r096). **R095.a (terrain core, persistence and site origin)
 is implemented**, and so are R095.b (triangulation), R095.c (importers), R095.c2 (terrain
-from edges, settings and Regenerate), R095.d (the desktop import dialog) and R095.e1 (the
-Entity info Terrain section, terrain settings, Explode and the tools on terrain); see
-"Implementation status". Each section gives the
+from edges, settings and Regenerate), R095.d (the desktop import dialog), R095.e1 (the
+Entity info Terrain section, terrain settings, Explode and the tools on terrain) and R095.e2
+(terrain display, Site settings and site coordinates); see "Implementation status". Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
 [R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
@@ -691,10 +691,12 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: the rest of the desktop (R095.e2: terrain display with contour lines,
-elevation shading and hidden tile seams and interior edges, Site settings and Re-anchor, site
-coordinates in Entity info and the Measurements box, and the origin crosshair with View → Site
-origin), DXF "Write site coordinates" (R095.e3), and the assistant surface. The Entity info
+Left for later slices: DXF "Write site coordinates" (R095.e3), a role picker for Create terrain
+from selection (pending an owner decision), and the assistant surface. Terrain display (the
+Terrain material, hidden seams and interior edges, contour lines, elevation shading),
+`terrain.set_display`, Site settings with Re-anchor and Set origin, site coordinates in Entity
+info and the Measurements box, and the origin crosshair with View → Site origin are R095.e2; see
+"Implementation notes (R095.e2)". The Entity info
 Terrain section, Terrain settings…, Regenerate, the Explode confirmation, the tool cursors and
 Create terrain from selection are R095.e1; see "Implementation notes (R095.e1)". File → Import terrain… is R095.d; see "Implementation notes (R095.d)". The DXF and
 point-file importers with `terrain.inspect_source` and `terrain.import` are R095.c; see
@@ -1325,6 +1327,154 @@ settings (Apply disabled until a change), Explode (Cancel default), Regenerate w
 Deviation: the brief's "open-boundary refusal" from a selection cannot occur without a way to
 mark a boundary (see above); the desktop test uses crossing contours, which refuse with located
 pairs, and the open-boundary refusal stays covered by `terrain_regenerate_tests`.
+
+## Implementation notes (R095.e2)
+
+R095.e2 completes the desktop: terrain appearance and display settings, and the site UI.
+Modules: `src/core/terrain_display.*` (the display edit, contour lines and their cache, the
+surface data, the band colours), `src/app/site_dialogs.*` (Site settings, Re-anchor, Set
+origin), the Display controls in `src/app/terrain_section.*`, the viewport parts in
+`src/app/viewport_terrain.cpp` and `Viewport::rebuild`, the Site row in
+`src/app/entity_info_panel.*`, and `@` in `Viewport::measurements` with `parseSitePosition`.
+
+**Terrain material.** New terrains (`createTerrain`, `importTerrain`, so every import and
+`terrain.create_from_edges`) give every tile the material "Terrain" (#8a9a6b, opaque) on both
+sides, created in the same edit when the document has no material of that name (an existing one
+is reused; with a full 1,024-material table the tiles stay plain). The Materials panel's local
+library offers the same preset. Regenerate gives the new tiles the old tiles' shared default
+material (so a terrain painted as a whole keeps its paint), and mixed tiles return to "Terrain";
+`terrainTilePaint` therefore counts a tile only when its material differs from what the new
+tiles get. The material is not in the mesh digest.
+
+**Seams and normals.** Tiles stay ordinary geometry; the viewport draws each terrain as one
+surface from per-terrain data (`terrainSurfaceDisplay`), rebuilt when the tile records change:
+area-weighted normals by exact terrain-frame position over all tiles (a seam vertex's copies
+share one normal, equal to the average over every triangle at that position, so shading is
+continuous), the terrain's outer boundary edges, and its elevation range. A tile's interior edges
+are soft and hidden as before; its other edges are drawn only when they are on the outer
+boundary, so seams are neither drawn nor picked or snapped (`Viewport::visible`), and Show hidden
+geometry shows them dashed like soft edges. The outer boundary stays drawn: it is neither a seam
+nor an interior edge, and outlines the terrain.
+
+**Contour lines** (`terrainContours`) are levels at site elevations: terrain-frame z plus the
+terrain's world Z translation and the site origin's elevation, so they read true heights and
+stay put through a re-anchor. A triangle meets level L = k × interval when min(e) < L ≤ max(e)
+(a vertex at L counts as above it); a crossed edge is interpolated from its endpoints in a
+canonical order, so neighbours give bit-identical points; a level that only touches a vertex
+gives no segment. Index lines are k divisible by 5. Generation is O(triangles + segments) and
+deterministic (tile ID order, triangle order). **Bound:** an upper bound of the segments is
+counted first in O(triangles); over 500,000 segments (about 28 MB of segments; the GPU copy is
+similar) the interval draws nothing and the section says "No contour lines: this interval needs
+about N line segments, over the 500,000 limit". At 249,924 triangles the refusal takes about
+0.1 s and 337,155 one-metre segments about 0.3 s (debug build). **Cache:** per terrain, keyed by
+the mesh digest, interval and elevation offset; a lookup with the same tile records skips the
+digest, a paint-only change recomputes the digest but keeps the lines; at most eight terrains,
+least recently used first out, and removed terrains are pruned. The viewport and the Terrain
+section share one cache. Contours are drawn after edges with the depth test (surfaces have a
+polygon offset), never written to the pick buffers, and hidden with their terrain; index lines
+are the line plus four one-pixel screen offsets (drivers limit GL lines to 1 px). A terrain
+whose frame is rotated off level would get levels in its own frame; terrains are created level.
+
+**Shading** by elevation bands colours each triangle by the band of its centroid: ten bands over
+the terrain's elevation range, green through sand to brown (the import preview's ramp), replacing
+the material colour and image; Monochrome style keeps its colours. Band edges therefore follow
+triangle edges.
+
+**Display settings storage.** On the terrain record (`TerrainRecord::display`), not a view or
+style: the settings belong to one terrain (two terrains can differ), Entity info edits them per
+terrain, they travel with copies, and they undo with the model. Model styles are document-wide and
+scenes would have to name terrains. Schema 29 had not shipped, so the record gains an optional
+`display` object with defaults omitted (ADR 0108, schema 29 addendum): existing schema-29
+documents and digests are unchanged. `setTerrainDisplay` is ONE "Terrain display" edit of the
+record only, so the mesh digest and "Changed since generated" do not change; equal settings
+record nothing; a locked terrain refuses. `terrain.set_parameters` regenerates, so it is not the
+place for display settings: **`terrain.set_display`** (`terrain`, optional `contours`,
+`contourInterval` 0.01–1,000 m and `shading` `material` or `elevationBands`; omitted fields keep
+their values) follows the catalogue, dry-run, revision and assistant-hidden rules of the other
+terrain commands, and `terrain.describe` reports `display`.
+
+**Display controls.** Under the Terrain section's fields: a "Display" heading, **Show contour
+lines** (check box), **Interval** (spin box in metres, as Terrain settings' maximum edge length;
+committed when editing finishes, not per keystroke) and **Shading** (Material, Elevation bands),
+then a status line ("18 contour lines · 4 index lines", or why there are none). Each change is
+one edit through the batch API; the controls follow Undo. Tab order: Regenerate (when shown),
+Contour lines, Interval, Shading, Terrain settings…, Explode terrain….
+
+**Site settings** (File → Site settings…, after Document units): a modal dialog. With an origin:
+Easting, Northing, Elevation (metres, three decimals), CRS label, Source and SHA-256 (two lines of
+two 16-digit groups; the whole digest in the tooltip and accessible description), all read-only
+labels in the Tab order; a note on site = model + origin and the CRS being a label; Re-anchor…;
+Close (default). The CRS label is read-only because the core sets it only with the origin
+(`site.set` or the first import) and `site.reanchor` keeps it. Without an origin it explains that
+the first terrain import establishes it (proposed as the data centre rounded to 100 m) and offers
+**Set origin…** (`site.set`: E, N, Z and an optional CRS label; geometry does not move). The site
+origin marker shows while the dialog is open.
+
+**Re-anchor…** takes the new E, N, Z (spin boxes in metres, starting at the current origin),
+explains that geometry moves so site coordinates are unchanged, shows the current origin and the
+model move ("Geometry moves by X … · Y … · Z …"), and runs `site.reanchor` as one edit
+(Re-anchor is the default button). It is checked before anything is applied: a locked top-level
+body names itself in a failure banner ("Re-anchor is not available: “Fence” is locked, and
+re-anchoring moves every top-level body. Unlock it first.") and the coordinate limit and other
+refusals come from a dry run of the command on a copy of the document (debounced 200 ms);
+Re-anchor stays disabled until the origin differs and while refused.
+
+**Entity info** gains a **Site** row while the document has a site origin: E · N · Z of the
+selection's world origin (the point the World-coordinates Origin row shows), and for an edge both
+endpoints, each in site and model coordinates. It sits under Origin in every frame (site
+coordinates are always world-based), rather than as another frame choice, because the design asks
+for model and site coordinates together. Values use the document's display units.
+
+**Measurements box:** `@E, N` or `@E, N, Z` (the coordinate separators of the locale, lengths in
+display units unless suffixed) becomes the model point [E − origin E, N − origin N, Z − origin Z]
+and is entered as `[x;y;z]` metres, so every tool that takes a point (the drawing tools, Tape
+measure, Protractor, Move, Rotate, Scale) accepts it. Without Z the point is on the active
+drawing plane above or below E, N. Site values are bounded at ±1e8 m (not the model length
+bound); the model point is checked against the coordinate limit. Refusals: no site origin ("…
+this document has no site origin. Import a terrain, or set one in File → Site settings…") and a
+tool that takes no point.
+
+**Origin marker:** a crosshair with a canvas-coloured halo at model (0, 0, 0), the site origin,
+labelled "Site origin · E … · N … · Z …" in display units, drawn over the scene (not depth
+tested; skipped behind the camera or far off screen). It shows while a terrain is selected or Site
+settings is open; **View → Site origin** (checkable) shows it always; never without a site origin.
+The toggle is persisted in the preferences (`siteOriginVisible`) like the navigation choice.
+
+**Verification.** `terrain_display_tests` (ctest `terrain_display`): counts and index lines on a
+ramp (40 segments over 10 levels with 2 index levels; 20 when levels pass through grid lines, no
+zero-length segments; interval 2 gives 5 levels and 1 index), interval range refusals,
+determinism (repeat runs and another document give identical segments; shared edges give
+identical points), the cache (reuse without a digest, interval and elevation offset in the key,
+paint keeps the lines, capacity and pruning), the bound at 249,924 triangles (dense refusal in
+about 0.1 s, 337,155 segments in about 0.3 s, outer edges only), the display edit (one labelled
+history entry, digest and "Changed since generated" unchanged, equal settings record nothing,
+defaults omitted and only changed fields written, save and reopen, Undo restoring the document
+JSON, decoder refusals, locked and missing terrains), `terrain.set_display` (report,
+omitted fields kept, describe, refusals changing nothing, catalogue label), the Terrain material
+(created in the terrain's edit, reused, undone, carried by Regenerate) and the surface data
+(exactly the boundary drawn, seams present but hidden, normals equal to the global average within
+1e-12, ten bands). `terrain_site_desktop_tests` (ctest `terrain_site_desktop`, offscreen): the
+Display controls' names and Tab order, each change one edit with the digest and chip unchanged,
+the status line, Undo, the dense interval; Site settings without an origin (explanation, Set
+origin… as one `site.set` edit, the marker while open) and with one (provenance); Re-anchor
+through the dialog (one edit, site coordinates of a tile vertex and a wire unchanged, model moved,
+Undo), refused for a locked top-level body (banner, Re-anchor disabled, Enter inert, nothing
+changed) and past the coordinate limit; `@` drawing a line from site positions with and without
+Z, refused without an origin and for Select; the Entity info Site row for an edge and a body and
+its absence without an origin; View → Site origin (contextual display, always when checked, the
+saved preference read by a new window). It passes at QT_SCALE_FACTOR 1, 1.5 and 2 and at 200 %
+interface text. The offscreen platform has no GL context, so the viewport does not render there
+(as R095.e1 found); the same test's viewport part checks rendering whenever the renderer is ready,
+and it was run on a Wayland session: only the 220 outer-boundary edges of a 6,000-triangle
+multi-tile terrain are drawn, the drawn contour segments equal the computed ones, contours and
+bands change the frame, a hidden terrain draws no contours. The dialog audit inventory adds Site
+settings without and with an origin, Re-anchor (default disabled until a change) and Set origin.
+
+Deviations: none from the decisions. Where the design was silent: the material colour, the
+contour and band colours, the outer boundary staying drawn, per-triangle bands, the 500,000-segment
+bound and its message, metres for the interval and the site fields, the marker shown by selection
+or Site settings and always when View → Site origin is checked, and the Site row under Origin
+rather than a new frame choice.
 
 ## Appendix: experiments
 

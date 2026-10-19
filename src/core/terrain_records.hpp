@@ -1,5 +1,6 @@
 #pragma once
 #include "geometry/surface.hpp"
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <stdexcept>
@@ -33,14 +34,32 @@ struct TerrainProvenance {
     double metresPerUnit{1};
     bool operator==(const TerrainProvenance &) const = default;
 };
+// R095.e2 display settings (ADR 0168 "Decisions > Interaction design", Appearance). Derived
+// display only: they never change the mesh or its digest. Contour lines are drawn at site
+// elevations that are multiples of the interval, every fifth an index line; shading is by the
+// tiles' material or by ten elevation bands. Stored on the record (schema 29 addendum, ADR
+// 0108) with defaults omitted, so a record at its defaults encodes as before.
+enum class TerrainShading { Material, ElevationBands };
+struct TerrainDisplay {
+    bool contours{false};
+    double contourInterval{1}; // Metres.
+    TerrainShading shading{TerrainShading::Material};
+    bool operator==(const TerrainDisplay &) const = default;
+};
+inline constexpr double terrainContourIntervalMin = 0.01, terrainContourIntervalMax = 1000;
 struct TerrainRecord {
     std::vector<TerrainSource> sources;
     TerrainParameters parameters;
     std::string generator;  // e.g. "cdt-2.0.0/terrain-v1"
     TerrainProvenance provenance;
     std::string meshDigest; // terrainMeshDigest of the tiles when generated.
+    TerrainDisplay display;
     bool operator==(const TerrainRecord &) const = default;
 };
+// R095.e2: the built-in material new terrains get ("Terrain"; the Materials panel's local
+// library offers the same name and colour). An existing material of that name is reused.
+inline constexpr const char *terrainMaterialName = "Terrain";
+inline constexpr std::array<float, 3> terrainMaterialColor{0.541f, 0.604f, 0.420f}; // #8a9a6b
 struct TerrainLimits {
     // Per document, in its own limit class (ADR 0168 decision 3).
     static constexpr std::size_t triangles = 250000;
@@ -68,6 +87,7 @@ class TerrainError : public std::runtime_error {
     std::string code_;
 };
 void validateTerrainRecord(const TerrainRecord &record);
+void validateTerrainDisplay(const TerrainDisplay &display);
 std::size_t terrainRecordBytes(const TerrainRecord &record);
 // Document site origin (ADR 0168 §4): projected metres; the CRS is a label only.
 struct SiteProvenance {

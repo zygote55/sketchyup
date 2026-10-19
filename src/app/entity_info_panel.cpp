@@ -121,6 +121,11 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     name_ = value(form, "Name", "entityInfoName");
     type_ = value(form, "Selection", "entityInfoType");
     position_ = value(form, "Origin", "entityInfoPosition");
+    site_ = value(form, "Site", "entityInfoSite");
+    site_->setAccessibleName("Site coordinates");
+    site_->setToolTip("Site coordinates (E · N · Z) of the entity origin, or of an edge's two "
+                      "endpoints with their model coordinates: site = model + site origin");
+    form_ = form;
     dimensions_ = value(form, "Bounds", "entityInfoDimensions");
     length_ = value(form, "Edge length", "entityInfoLength");
     area_ = value(form, "Area", "entityInfoArea");
@@ -188,9 +193,10 @@ void EntityInfoPanel::refresh() {
         entity_.reset();
         measured_.reset();
         name_->setText(selected.empty() ? "Select an entity" : "Select one entity for details");
-        for (auto *label :
-             {type_, tag_, color_, position_, dimensions_, length_, area_, volume_, properties_})
+        for (auto *label : {type_, tag_, color_, position_, dimensions_, length_, area_, volume_,
+                            properties_, site_})
             label->clear();
+        form_->setRowVisible(site_, false);
         edit_->setEnabled(false);
         editAction_->setEnabled(false);
         problems_->setEnabled(false);
@@ -243,6 +249,35 @@ void EntityInfoPanel::refresh() {
         if (frame_->currentIndex() == 2 && entity.kind == SelectionKind::Guide)
             origin = body.guides.at(entity.entity).origin;
         position_->setText(vector(origin, doc_.displayUnits(), doc_.displayPrecision()));
+        // R095.e2 (ADR 0168, Site): with a site origin, the same point (world origin) in site
+        // coordinates; an edge shows both endpoints in model and site coordinates.
+        if (const auto &site = doc_.site()) {
+            const auto units = doc_.displayUnits();
+            const auto precision = doc_.displayPrecision();
+            auto siteText = [&](Vec3 model) {
+                const auto at = modelToSite(*site, model);
+                return QString("E %1 · N %2 · Z %3")
+                    .arg(displayLength(at.x, units, precision),
+                         displayLength(at.y, units, precision),
+                         displayLength(at.z, units, precision));
+            };
+            QString text;
+            if (entity.kind == SelectionKind::Edge && body.topology.edges.contains(entity.entity)) {
+                const auto &edge = body.topology.edges.at(entity.entity);
+                const auto world = doc_.worldTransform(entity.body);
+                const auto a = world.point(body.surface.vertices.at(edge.a)),
+                           b = world.point(body.surface.vertices.at(edge.b));
+                text = "Start " + siteText(a) + "\n  model " + vector(a, units, precision) +
+                       "\nEnd " + siteText(b) + "\n  model " + vector(b, units, precision);
+            } else
+                text = siteText(measured.worldOrigin);
+            site_->setText(text);
+            site_->setAccessibleDescription(text);
+            form_->setRowVisible(site_, true);
+        } else {
+            site_->clear();
+            form_->setRowVisible(site_, false);
+        }
         dimensions_->setText(frame.bounds ? vector(frame.bounds->dimensions(), doc_.displayUnits(),
                                                  doc_.displayPrecision())
                                           : "No finite bounds");
@@ -285,6 +320,7 @@ void EntityInfoPanel::refresh() {
     } catch (const std::exception &error) {
         measured_.reset();
         entity_.reset();
+        form_->setRowVisible(site_, false);
         edit_->setEnabled(false);
         editAction_->setEnabled(false);
         problems_->setEnabled(false);
