@@ -348,6 +348,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
@@ -500,6 +503,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/m6_workflow_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/viewport_precision_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
@@ -645,6 +651,9 @@ jobs:
           scripts/test-wayland.sh build/dev/m6_workflow_input_tests
           scripts/test-wayland.sh build/dev/viewport_precision_tests
           scripts/test-wayland.sh build/dev/site_recipe_input_tests
+          scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
+          scripts/test-wayland.sh build/dev/terrain_desktop_tests
+          scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
           scripts/test-wayland.sh build/dev/group_input_tests
           scripts/test-wayland.sh build/dev/selection_input_tests
           scripts/test-wayland.sh build/dev/transform_input_tests
@@ -787,6 +796,9 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/m6_workflow_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/viewport_precision_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/site_recipe_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_desktop_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/group_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/selection_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/transform_input_tests

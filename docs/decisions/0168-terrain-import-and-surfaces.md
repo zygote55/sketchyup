@@ -5,8 +5,14 @@ Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R096](../PR_ROADMAP.md#r096). **R095.a (terrain core, persistence and site origin)
 is implemented**, and so are R095.b (triangulation), R095.c (importers), R095.c2 (terrain
 from edges, settings and Regenerate), R095.d (the desktop import dialog), R095.e1 (the
-Entity info Terrain section, terrain settings, Explode and the tools on terrain) and R095.e2
-(terrain display, Site settings and site coordinates); see "Implementation status". Each section gives the
+Entity info Terrain section, terrain settings, Explode and the tools on terrain), R095.e2
+(terrain display, Site settings and site coordinates) and R095.e3 (DXF export with site
+coordinates); see "Implementation status". **R095.f accepted them on 2026-10-19 with open gaps**
+([R095.f record](../verification/R095f-terrain.md)): the Verify line and every check of §6 pass;
+the 250k budgets pass except progress and cancel for parse and triangulate (D-044, Minor); the
+owner restated the file-growth budget as the mesh chunk, which closed D-045; the one-tile replacement budget waits for R096 and
+the complete frame is measured in software only. The assistant surface (decision 10) remains,
+as R095.g. Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
 [R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
@@ -504,7 +510,7 @@ measurement layer before freezing):
 | Commit edit, tiles and validation | ≤ 2 s |
 | Open and save the document | ≤ 2 s each above the same document without terrain |
 | Added resident memory | ≤ 200 MB |
-| File growth | ≤ 8 MB (binary mesh chunk) |
+| File growth | ≤ 8 MB for the binary `terrain-mesh` chunk; the stored sources are measured and reported, not budgeted (owner, 2026-10-19) |
 | One-tile replacement (R096 preview path) | p95 ≤ 100 ms, the existing routine-edit budget |
 | Complete frame with the terrain visible | Within the M9 frame budget |
 
@@ -691,8 +697,11 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: a role picker for Create terrain
-from selection (pending an owner decision), and the assistant surface. Terrain display (the
+Left for later slices: the assistant surface (decision 10: the corpus token measurement, then
+`site.describe`, `terrain.describe` and `terrain.elevation_at` in the in-app assistant), which is
+R095.g; a role picker for Create terrain from selection (pending an owner decision); progress and
+cancel for the import's parse and triangulation (D-044). R095.f is the acceptance record; see
+[R095.f](../verification/R095f-terrain.md). Terrain display (the
 Terrain material, hidden seams and interior edges, contour lines, elevation shading),
 `terrain.set_display`, Site settings with Re-anchor and Set origin, site coordinates in Entity
 info and the Measurements box, and the origin crosshair with View → Site origin are R095.e2; see

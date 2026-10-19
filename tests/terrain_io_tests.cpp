@@ -6,6 +6,8 @@
 #include "automation/inspection.hpp"
 #include "automation/mcp.hpp"
 #include "core/annotations.hpp"
+#include "core/component_parameters.hpp"
+#include "core/components.hpp"
 #include "core/assets.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/groups.hpp"
@@ -283,6 +285,30 @@ void persistence(const QTemporaryDir &files) {
     check(nativeDocumentVersionFor(only) == 26 &&
               documentTree(encodeContainer(only))["version"] == 26,
           "An exploded terrain is ordinary schema-26 geometry");
+    // R095.f (ADR 0168 section 6, "a terrain-free document still writes 28"): a document that
+    // needs schema 28 (component parameters) keeps it without terrain, a terrain makes it 29,
+    // and Undo returns it to 28.
+    Document parametric;
+    const auto panel = parametric.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+    const auto component = createComponent(parametric, panel, "Panel");
+    ComponentParameterSpec width;
+    width.name = "width";
+    width.label = "Width";
+    width.expression = "1 m";
+    defineComponentParameter(parametric, component.definition, width);
+    check(nativeDocumentVersionFor(parametric) == 28 &&
+              documentTree(encodeContainer(parametric))["version"] == 28,
+          "A terrain-free document with parameters writes schema 28");
+    const auto parametricMesh = grid(3, 3, 1, {10, 0, 0});
+    createTerrain(parametric, parametricMesh, record(parametricMesh));
+    check(nativeDocumentVersionFor(parametric) == 29 &&
+              documentTree(encodeContainer(parametric))["version"] == 29,
+          "A terrain makes it schema 29");
+    parametric.undo();
+    check(nativeDocumentVersionFor(parametric) == 28 &&
+              documentTree(encodeContainer(parametric))["version"] == 28 &&
+              sameDocument(decodeContainer(encodeContainer(parametric)), parametric),
+          "Without the terrain it writes schema 28 again");
 }
 void decoderLimits(const QTemporaryDir &files) {
     auto f = fixture();
