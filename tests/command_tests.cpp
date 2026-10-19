@@ -16,6 +16,7 @@
 #include "core/groups.hpp"
 #include "core/materials.hpp"
 #include "core/tags.hpp"
+#include "core/terrain.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
@@ -1138,6 +1139,11 @@ int main(int argc, char **argv) {
                       {{"body", "1"}, {"values", QJsonObject{{"width", "2 m"}}}});
         parameterCase("component_parameter.reset", {{"body", "1"}, {"all", true}});
         parameterCase("component_parameter.promote", {{"body", "1"}});
+        // Site and terrain operations (R095.a, ADR 0168 §5).
+        parameterCase("site.set", {{"easting", 512300}, {"northing", 5234500},
+                                   {"elevation", 12}, {"crs", "EPSG:32633"}});
+        parameterCase("site.reanchor", {{"easting", 512000}, {"northing", 5234000}});
+        parameterCase("terrain.explode", {{"body", "1"}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1328,6 +1334,15 @@ int main(int argc, char **argv) {
             }
             if (command["command"] == "geometry.intersect")
                 doc.addFace({{{.5, 0, -1}, {.5, 1, -1}, {.5, 1, 1}, {.5, 0, 1}}});
+            if (command["command"] == "site.reanchor")
+                setSiteOrigin(doc, SiteOrigin{512300, 5234500, 0, {}, {}});
+            if (command["command"] == "terrain.explode") {
+                TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}, {0, 2, -3}},
+                                 {{0, 1, 2}, {0, 2, 3}}};
+                TerrainRecord record;
+                record.generator = "test/terrain-v1";
+                command["body"] = QString::number(createTerrain(doc, mesh, record).terrain);
+            }
             if (command["command"] == "geometry.merge_context")
                 doc.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});
             if (command["command"] == "group.explode" || command["command"] == "scene.reparent")

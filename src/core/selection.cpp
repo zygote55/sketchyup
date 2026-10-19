@@ -87,7 +87,9 @@ std::optional<SelectedEntity> Selection::pickTarget(const Document &doc,
         return entity;
     for (auto body = entity.body; body; body = doc.bodies().at(body)->parent) {
         const SelectedEntity group{body, SelectionKind::Body, 0};
-        if (doc.bodies().at(body)->kind == BodyKind::Group && selectable(doc, group))
+        if ((doc.bodies().at(body)->kind == BodyKind::Group ||
+             doc.bodies().at(body)->kind == BodyKind::Terrain) &&
+            selectable(doc, group))
             return group;
     }
     return {};

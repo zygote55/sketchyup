@@ -1,3 +1,4 @@
+#include "core/terrain.hpp"
 #include "core/groups.hpp"
 #include "core/component_regeneration.hpp"
 #include "core/geometry_subset.hpp"
@@ -14,7 +15,9 @@ ChangeReport renameEntity(Document &doc, Id id, std::string name) {
 Id enclosingGroup(const Document &doc, Id body) {
     for (auto parent = doc.bodies().at(body)->parent; parent;
          parent = doc.bodies().at(parent)->parent)
-        if (doc.bodies().at(parent)->kind == BodyKind::Group)
+        // A terrain behaves like a group: its tiles are edited inside it (ADR 0168 §2).
+        if (doc.bodies().at(parent)->kind == BodyKind::Group ||
+            doc.bodies().at(parent)->kind == BodyKind::Terrain)
             return parent;
     return 0;
 }
@@ -62,6 +65,10 @@ ChangeReport reparentPreservingWorld(Document &doc, Id id, Id parent) {
 }
 ChangeReport explodeGroup(Document &doc, Id id) {
     const auto old = doc.bodies().at(id);
+    if (old->kind == BodyKind::Terrain)
+        throw TerrainError("UNSUPPORTED_TARGET",
+                           "Explode terrain with Explode terrain, which converts it to ordinary "
+                           "geometry");
     if (old->kind != BodyKind::Group)
         throw std::runtime_error("Explode requires a group");
     Edit edit{"Explode group", {}};

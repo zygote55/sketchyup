@@ -50,9 +50,14 @@ QString phaseName(AssistantTask::Phase phase) {
 // resulting surface to the 1.0.1 baseline, so any addition here must be deliberate.
 // Component parameter operations and queries (every component_parameter.* and
 // component_parameters.* name, ADR 0165 §6) are hidden the same way in the F02 release.
+// Site and terrain operations and queries (every site.* and terrain.* name, ADR 0168
+// §5) stay hidden until a corpus run measures the token cost of the ones decision 10
+// will show (site.describe, terrain.describe, terrain.elevation_at).
 bool assistantVisible(const QString &name) {
     return !name.startsWith(QStringLiteral("drawing_")) &&
-           !name.startsWith(QStringLiteral("component_parameter"));
+           !name.startsWith(QStringLiteral("component_parameter")) &&
+           !name.startsWith(QStringLiteral("site.")) &&
+           !name.startsWith(QStringLiteral("terrain."));
 }
 QJsonArray visibleInspectionCatalog() {
     QJsonArray result;

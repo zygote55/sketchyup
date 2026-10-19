@@ -64,8 +64,8 @@ QJsonObject describe(const QByteArray &bytes, const Document &doc) {
             {"containerVersion", container ? nativeContainerVersion : 0},
             {"documentVersion", tree["version"]},
             {"currentDocumentVersion", nativeDocumentVersion},
-            // Sheet-free documents are current at schema 26 and parameter-free ones at 27
-            // (ADR 0163 decision 2, ADR 0165 §5).
+            // Sheet-free documents are current at schema 26, parameter-free ones at 27 and
+            // terrain-free ones at 28 (ADR 0163 decision 2, ADR 0165 §5, ADR 0168 §2).
             {"migrationNeeded",
              !container || tree["version"].toInt() != nativeDocumentVersionFor(doc)},
             {"documentId", QString::fromStdString(doc.identity())},
@@ -123,11 +123,11 @@ QJsonObject migrateNativeFile(const QString &input, const QString &output) {
 QJsonObject nativeFormatCapabilities() {
     return {{"apiVersion", 1},
             {"format", "sketchyup"},
-            {"publicSchema", "sketchyup-document-v28"},
+            {"publicSchema", "sketchyup-document-v29"},
             {"documentVersion", nativeDocumentVersion},
             {"containerVersion", nativeContainerVersion},
             {"readDocumentVersions", QJsonArray{1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
-                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}},
+                                                13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29}},
             {"fileLimitBytes", QString::number(fileLimit)},
             {"migrationReplacesFiles", false},
             {"unknownRequiredRecords", "reject"},

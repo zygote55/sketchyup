@@ -16,7 +16,9 @@
 #include "io/scenes_io.hpp"
 #include "io/sections_io.hpp"
 #include "io/solar_io.hpp"
+#include "io/terrain_io.hpp"
 #include "io/text_source_io.hpp"
+#include "core/terrain.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -342,7 +344,7 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
                         {"faceTextureMappings", faceTextureMappings},
                         {"edgeAppearances", edgeAppearances},
                         {"parent", sid(b->parent)},
-                        {"kind", b->referenceImage ? "reference_image" : b->kind == BodyKind::Group ? "group" : "geometry"},
+                        {"kind", b->referenceImage ? "reference_image" : b->kind == BodyKind::Group ? "group" : b->kind == BodyKind::Terrain ? "terrain" : "geometry"},
                         {"faceColors", faceColors},
                         {"hidden", b->hidden},
                         {"locked", b->locked},
@@ -365,6 +367,16 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
         const auto &body = records.at(readId(record["id"]));
         if (body->textSource) record["textSource"] = encodeTextSource(*body->textSource);
         if (body->referenceImage) record["referenceImage"] = encodeReferenceImage(*body->referenceImage);
+        // Schema 29 (ADR 0168 §2): a tile's mesh is in the terrain-mesh chunk, and its
+        // edges and interior edge appearance are implied by it.
+        if (body->terrain)
+            record["terrain"] = encodeTerrainRecord(*body->terrain);
+        if (body->terrainTile) {
+            record["terrainTile"] = true;
+            for (const auto *key : {"vertices", "faces", "edges"})
+                record[key] = QJsonArray{};
+            record["edgeAppearances"] = QJsonObject{};
+        }
         bodies[i] = record;
     }
     return bodies;
@@ -473,6 +485,13 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         root["componentParameterOverrides"] = encodeComponentParameterOverrides(doc.instances());
         root["nextComponentDriverId"] = sid(doc.nextComponentDriverId());
     }
+    if (version >= 29) {
+        root["site"] = encodeSiteOrigin(doc.site());
+        const auto mesh = encodeTerrainMesh(doc.bodies());
+        root["terrainMesh"] = mesh.isEmpty() || assetStorage == AssetStorage::External
+                                  ? QJsonValue::Null
+                                  : QJsonValue(QString::fromLatin1(mesh.toBase64()));
+    }
     if (version >= 27) {
         root["drawingSheets"] = encodeDrawingSheets(doc.drawingSheets());
         root["nextDrawingSheetId"] = sid(doc.nextDrawingSheetId());
@@ -517,12 +536,27 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
             allowed.append("faceTextureMappings");
         if (version >= 22) allowed.append("textSource");
         if (version >= 24) allowed.append("referenceImage");
+        if (version >= 29)
+            allowed += {"terrain", "terrainTile"};
         supportedFields(o, allowed);
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
         if (o.contains("referenceImage"))
             b->referenceImage = decodeReferenceImage(object(o["referenceImage"]));
         if (o.contains("textSource")) b->textSource = decodeTextSource(object(o["textSource"]));
+        if (o.contains("terrain"))
+            b->terrain = decodeTerrainRecord(o["terrain"]);
+        if (o.contains("terrainTile")) {
+            if (o["terrainTile"] != QJsonValue(true))
+                throw std::runtime_error("A terrain tile marker must be true");
+            b->terrainTile = true;
+            for (const auto *key : {"vertices", "faces", "wires", "edges"})
+                if (!array(o[key]).isEmpty())
+                    throw std::runtime_error(
+                        "Terrain tile geometry belongs in the terrain-mesh chunk");
+            if (!object(o["edgeAppearances"]).isEmpty())
+                throw std::runtime_error("Terrain tile edge appearance is implied by its mesh");
+        }
         if (version >= 16) {
             const auto mappings = object(o["faceTextureMappings"]);
             if (mappings.size() > 100000)
@@ -567,11 +601,14 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
             b->tag = readId(o["tag"], true);
         if (version >= 6) {
             if ((o["kind"] != "geometry" && o["kind"] != "group" &&
-                 !(version >= 24 && o["kind"] == "reference_image")) || !o["hidden"].isBool() ||
+                 !(version >= 24 && o["kind"] == "reference_image") &&
+                 !(version >= 29 && o["kind"] == "terrain")) || !o["hidden"].isBool() ||
                 !o["locked"].isBool())
                 throw std::runtime_error("Invalid entity kind, visibility or lock");
             b->kind = o["kind"] == "reference_image" ? BodyKind::ReferenceImage
-                      : o["kind"] == "group" ? BodyKind::Group : BodyKind::Geometry;
+                      : o["kind"] == "group"         ? BodyKind::Group
+                      : o["kind"] == "terrain"       ? BodyKind::Terrain
+                                                     : BodyKind::Geometry;
             b->hidden = o["hidden"].toBool();
             b->locked = o["locked"].toBool();
         }
@@ -769,8 +806,42 @@ Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) 
         throw std::runtime_error("Invalid JSON document");
     return document_io_detail::decodeParsedDocument(json.object(), bytes.size(), payloads);
 }
+namespace {
+// Schema 29: fill each tile body from the terrain-mesh chunk. The JSON names the
+// tiles; the chunk must hold exactly those tiles, in ID order.
+void restoreTerrainTiles(std::map<Id, BodyPtr> &bodies, const QByteArray &mesh) {
+    std::vector<Id> tiles;
+    for (const auto &[id, body] : bodies)
+        if (body->terrainTile)
+            tiles.push_back(id);
+    if (tiles.empty() != mesh.isEmpty())
+        throw std::runtime_error("Terrain tiles and the terrain-mesh chunk disagree");
+    if (tiles.empty())
+        return;
+    const auto decoded = decodeTerrainMesh(mesh);
+    if (decoded.size() != tiles.size())
+        throw std::runtime_error("Terrain tiles and the terrain-mesh chunk disagree");
+    for (size_t i = 0; i < tiles.size(); ++i) {
+        const auto &tile = decoded[i];
+        if (tile.body != tiles[i])
+            throw std::runtime_error("Terrain tiles and the terrain-mesh chunk disagree");
+        // decodeBodies allocated this record and owns its only reference.
+        auto body = std::const_pointer_cast<Body>(bodies.at(tile.body));
+        const auto built =
+            makeTerrainTile(body->id, body->parent, body->name, tile.vertices, tile.triangles);
+        if (body->surface.nextId < built.surface.nextId ||
+            body->topology.nextId < built.topology.nextId)
+            throw std::runtime_error("Terrain tile allocator is below its implicit IDs");
+        body->surface.vertices = built.surface.vertices;
+        body->surface.faces = built.surface.faces;
+        body->topology.edges = built.topology.edges;
+        body->edgeAppearances = built.edgeAppearances;
+    }
+}
+} // namespace
 Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsizetype inputBytes,
-                                                  const AssetPayloads &payloads) {
+                                                  const AssetPayloads &payloads,
+                                                  const QByteArray *terrainMesh) {
     if (inputBytes < 0 || inputBytes > fileLimit)
         throw std::runtime_error("Document exceeds the 128 MiB JSON limit");
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
@@ -815,11 +886,17 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     if (parameters)
         rootFields += {"componentParameters", "componentParameterOverrides",
                        "nextComponentDriverId"};
+    // Terrain and site origin (ADR 0168 §2, §4); older schemas have neither.
+    const bool terrain = root["version"].toInt() >= 29;
+    if (terrain)
+        rootFields += {"site", "terrainMesh"};
     supportedFields(root, rootFields);
     // Every schema-28 field is required.
     for (const auto &field : rootFields)
         if (parameters && !root.contains(field))
             throw std::runtime_error("Missing document field: " + field.toStdString());
+    if (terrainMesh && (!terrain || root["assetStorage"] != "external"))
+        throw std::runtime_error("Unexpected terrain-mesh chunk");
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
         throw std::runtime_error("Packaged model exceeds the 32 MiB JSON limit");
@@ -1043,6 +1120,30 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                : std::pair<DrawingSheetRecords, DrawingViewRecords>{};
     // Items are validated against the sheets, views and allocator on restore.
     auto drawingItems = sheets ? decodeDrawingItems(root["drawingItems"]) : DrawingItemRecords{};
+    std::optional<SiteOrigin> site;
+    if (terrain) {
+        site = decodeSiteOrigin(root["site"]);
+        QByteArray mesh;
+        if (root["assetStorage"] == "external") {
+            if (!root["terrainMesh"].isNull())
+                throw std::runtime_error("Packaged terrain mesh belongs in its chunk");
+            if (terrainMesh)
+                mesh = *terrainMesh;
+        } else if (!root["terrainMesh"].isNull()) {
+            if (!root["terrainMesh"].isString() ||
+                size_t(root["terrainMesh"].toString().size()) > terrainMeshChunkLimit / 3 * 4 + 4)
+                throw std::runtime_error("Invalid inline terrain mesh");
+            const auto decoded = QByteArray::fromBase64Encoding(
+                root["terrainMesh"].toString().toLatin1(), QByteArray::AbortOnBase64DecodingErrors);
+            if (!decoded || (*decoded).isEmpty())
+                throw std::runtime_error("Invalid inline terrain mesh");
+            mesh = *decoded;
+        }
+        restoreTerrainTiles(bodies, mesh);
+    } else
+        for (const auto &[id, body] : bodies)
+            if (body->terrainTile || body->terrain)
+                throw std::runtime_error("Terrain requires schema 29");
     Document doc;
     DocumentDecodeAccess::restore(
         doc, root["documentId"].toString().toStdString(), readId(root["nextId"]), std::move(bodies),
@@ -1075,7 +1176,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                                       : fullDisplayPrecision,
         std::move(drawingSheets.first), nextDrawingSheetId, std::move(drawingSheets.second),
         nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
-        parameters ? readId(root["nextComponentDriverId"]) : 1);
+        parameters ? readId(root["nextComponentDriverId"]) : 1, std::move(site));
     return doc;
 }
 } // namespace sketchy

@@ -2,7 +2,18 @@
 
 ## Unreleased
 
-Changes on `main` since 1.2.0. No format, schema or API change.
+Changes on `main` since 1.2.0. R095.a adds native schema 29 (`terrain-v1`) and new
+site and terrain commands and queries; documents without a terrain or site origin keep
+their 1.2.0 schema.
+
+- Terrain core (R095.a, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md)):
+  a terrain body with its sources and tiled triangle mesh (at most 2,048 triangles a
+  tile, 250,000 a document, outside the 100,000-face modelling budget), a document site
+  origin with an informational CRS label, schema 29 with a binary `terrain-mesh` chunk,
+  and the `site.set`, `site.reanchor`, `terrain.explode` commands and `site.describe`,
+  `site.convert`, `terrain.describe`, `terrain.elevation_at` queries in automation
+  sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
+  Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
 - Terrain: the triangulation adapter for terrain import (R095.b, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095b)):
   contours, breaklines, points, a boundary and holes in local metres become a constrained

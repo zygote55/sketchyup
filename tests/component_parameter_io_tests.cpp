@@ -351,9 +351,10 @@ int main(int argc, char **argv) {
         check(files.isValid(), "Temporary directory");
         const QDir fixtures(QString(SOURCE_DIR) + "/tests/fixtures");
 
-        // The policy constants: 28 is read and written; parameter-free content stays 27
-        // or 26.
-        static_assert(nativeDocumentVersion == 28 && nativeParameterFreeDocumentVersion == 27 &&
+        // The policy constants: 28 is written for parameters (29 only adds terrain and
+        // the site origin, ADR 0168); parameter-free content stays 27 or 26.
+        static_assert(nativeDocumentVersion == 29 && nativeTerrainFreeDocumentVersion == 28 &&
+                      nativeParameterFreeDocumentVersion == 27 &&
                       nativeSheetFreeDocumentVersion == 26);
         check(nativeDocumentVersionFor(Document{}) == 26, "An empty document needs schema 26");
 

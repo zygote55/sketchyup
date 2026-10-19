@@ -1,0 +1,616 @@
+#include "core/terrain.hpp"
+#include "core/component_parameter_records.hpp"
+#include "core/document_limits.hpp"
+#include <algorithm>
+#include <bit>
+#include <cmath>
+#include <limits>
+#include <map>
+#include <utility>
+namespace sketchy {
+static_assert(TerrainLimits::triangles == terrainTriangleLimit);
+namespace {
+[[noreturn]] void refuse(const char *code, const std::string &message) {
+    throw TerrainError(code, message);
+}
+[[noreturn]] void protectedTarget() { refuse("UNSUPPORTED_TARGET", terrainProtectedMessage); }
+void u32(std::string &out, std::uint32_t value) {
+    for (int i = 0; i < 4; ++i)
+        out.push_back(char((value >> (8 * i)) & 0xFF));
+}
+void f64(std::string &out, double value) {
+    const auto bits = std::bit_cast<std::uint64_t>(value);
+    for (int i = 0; i < 8; ++i)
+        out.push_back(char((bits >> (8 * i)) & 0xFF));
+}
+bool boundedText(const std::string &text, std::size_t bytes) {
+    return text.size() <= bytes &&
+           std::none_of(text.begin(), text.end(), [](char c) {
+               return static_cast<unsigned char>(c) < 0x20 || c == 0x7F;
+           });
+}
+bool sha256Text(const std::string &text) {
+    return text.size() == 64 && std::all_of(text.begin(), text.end(), [](char c) {
+               return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+           });
+}
+const Body *bodyOf(const Document &doc, Id id) {
+    const auto found = doc.bodies().find(id);
+    return found == doc.bodies().end() ? nullptr : found->second.get();
+}
+// Every field a generic tool could change that defines the tile's mesh, its frame
+// or its membership. Paint, texture mapping, tags, names, properties, visibility and
+// lock are deliberately not here.
+bool protectedChange(const Body &before, const Body &after) {
+    return before.surface != after.surface || before.topology != after.topology ||
+           before.edgeAppearances != after.edgeAppearances || before.curves != after.curves ||
+           before.guides != after.guides || before.transform != after.transform ||
+           before.parent != after.parent || before.kind != after.kind ||
+           before.terrainTile != after.terrainTile || before.textSource != after.textSource ||
+           before.referenceImage != after.referenceImage || before.terrain != after.terrain;
+}
+std::string limitMessage(std::size_t triangles) {
+    return "Terrain exceeds the document terrain limit: terrain triangles would be " +
+           groupedCount(triangles) + " of " + groupedCount(TerrainLimits::triangles);
+}
+} // namespace
+void validateTerrainRecord(const TerrainRecord &record) {
+    if (record.sources.size() > TerrainLimits::sources)
+        throw std::runtime_error("Terrain record has too many sources");
+    std::size_t points = 0;
+    for (const auto &source : record.sources) {
+        if (!boundedText(source.reference, TerrainLimits::referenceBytes))
+            throw std::runtime_error("Invalid terrain source reference");
+        const std::size_t minimum =
+            source.role == TerrainSourceRole::Boundary || source.role == TerrainSourceRole::Hole
+                ? 3
+            : source.role == TerrainSourceRole::Points ? 1
+                                                        : 2;
+        if (source.points.size() < minimum)
+            throw std::runtime_error("Terrain source has too few points for its role");
+        points += source.points.size();
+        if (points > TerrainLimits::sourceVertices)
+            throw std::runtime_error("Terrain sources exceed 250,000 vertices");
+        for (const auto point : source.points)
+            checkPoint(point);
+    }
+    const auto &parameters = record.parameters;
+    if (!std::isfinite(parameters.maxEdgeLength) || parameters.maxEdgeLength < 0 ||
+        parameters.maxEdgeLength > 2 * coordinateLimit ||
+        (parameters.boundary != TerrainBoundaryMode::ConvexHull &&
+         parameters.boundary != TerrainBoundaryMode::MaxEdgeLength &&
+         parameters.boundary != TerrainBoundaryMode::Boundary))
+        throw std::runtime_error("Invalid terrain triangulation parameters");
+    if (record.generator.empty() || !boundedText(record.generator, TerrainLimits::generatorBytes))
+        throw std::runtime_error("Invalid terrain generator identity");
+    const auto &provenance = record.provenance;
+    if ((!provenance.sha256.empty() && !sha256Text(provenance.sha256)) ||
+        provenance.units.empty() || !boundedText(provenance.units, TerrainLimits::unitBytes) ||
+        !std::isfinite(provenance.metresPerUnit) || provenance.metresPerUnit <= 0 ||
+        provenance.metresPerUnit > 1e6)
+        throw std::runtime_error("Invalid terrain import provenance");
+    if (!sha256Text(record.meshDigest))
+        throw std::runtime_error("Invalid terrain mesh digest");
+}
+std::size_t terrainRecordBytes(const TerrainRecord &record) {
+    std::size_t bytes = sizeof(TerrainRecord) + record.generator.size() +
+                        record.provenance.sha256.size() + record.provenance.units.size() +
+                        record.meshDigest.size();
+    for (const auto &source : record.sources)
+        bytes += sizeof(TerrainSource) + 64 + source.reference.size() +
+                 source.points.size() * sizeof(Vec3);
+    return bytes;
+}
+void validateSiteOrigin(const SiteOrigin &origin) {
+    for (const auto value : {origin.easting, origin.northing, origin.elevation})
+        if (!std::isfinite(value) || std::abs(value) > siteCoordinateLimit)
+            throw TerrainError("INVALID_REQUEST",
+                               "Site origin coordinates must be finite and within 100,000 km");
+    if (!boundedText(origin.crs, siteCrsBytes))
+        throw TerrainError("INVALID_REQUEST",
+                           "The CRS label is at most 64 bytes without control characters");
+    if (!boundedText(origin.established.source, siteSourceBytes) ||
+        (!origin.established.sha256.empty() && !sha256Text(origin.established.sha256)))
+        throw TerrainError("INVALID_REQUEST", "Invalid site origin provenance");
+}
+TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh) {
+    TerrainTiling result;
+    const auto count = mesh.triangles.size();
+    if (!count)
+        return result;
+    std::vector<std::array<double, 2>> centroids(count);
+    double minX = std::numeric_limits<double>::infinity(), minY = minX, maxX = -minX,
+           maxY = -minX;
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto &t = mesh.triangles[i];
+        const auto a = mesh.vertices.at(t[0]), b = mesh.vertices.at(t[1]),
+                   c = mesh.vertices.at(t[2]);
+        centroids[i] = {(a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3};
+        minX = std::min(minX, centroids[i][0]);
+        maxX = std::max(maxX, centroids[i][0]);
+        minY = std::min(minY, centroids[i][1]);
+        maxY = std::max(maxY, centroids[i][1]);
+    }
+    const double width = std::max(maxX - minX, 1e-6), height = std::max(maxY - minY, 1e-6);
+    constexpr auto limit = TerrainLimits::tileTriangles;
+    // Aim at half the limit on average, then halve the cell until no cell overflows.
+    double cell = std::max(width, height) * 1.0001;
+    if (count > limit)
+        cell = std::min(cell, std::sqrt(width * height * double(limit / 2) / double(count)));
+    using Key = std::pair<std::uint64_t, std::uint64_t>; // row, column
+    std::map<Key, std::vector<std::uint32_t>> buckets;
+    for (int attempt = 0; attempt < 24; ++attempt) {
+        buckets.clear();
+        std::size_t largest = 0;
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto column = std::uint64_t(std::floor((centroids[i][0] - minX) / cell));
+            const auto row = std::uint64_t(std::floor((centroids[i][1] - minY) / cell));
+            auto &bucket = buckets[{row, column}];
+            bucket.push_back(std::uint32_t(i));
+            largest = std::max(largest, bucket.size());
+        }
+        if (largest <= limit)
+            break;
+        cell *= .5;
+    }
+    result.cell = cell;
+    // A cluster that the grid still cannot separate is split in triangle order; the
+    // tiles remain a partition of the triangle set.
+    for (auto &[key, bucket] : buckets)
+        for (std::size_t start = 0; start < bucket.size(); start += limit)
+            result.tiles.emplace_back(bucket.begin() + std::ptrdiff_t(start),
+                                      bucket.begin() +
+                                          std::ptrdiff_t(std::min(bucket.size(), start + limit)));
+    return result;
+}
+std::map<Id, EdgeAppearance> terrainTileEdgeAppearances(const Surface &surface,
+                                                        const Topology &topology) {
+    std::map<std::pair<Id, Id>, int> uses;
+    for (const auto &[id, face] : surface.faces)
+        for (const auto &loop : face.loops)
+            for (std::size_t i = 0; i < loop.size(); ++i) {
+                const auto a = loop[i], b = loop[(i + 1) % loop.size()];
+                ++uses[{std::min(a, b), std::max(a, b)}];
+            }
+    std::map<Id, EdgeAppearance> result;
+    for (const auto &[id, edge] : topology.edges) {
+        const auto found = uses.find({std::min(edge.a, edge.b), std::max(edge.a, edge.b)});
+        if (found != uses.end() && found->second >= 2)
+            result.emplace_hint(result.end(), id, EdgeAppearance{false, true, true});
+    }
+    return result;
+}
+Body makeTerrainTile(Id id, Id parent, std::string name, const std::vector<Vec3> &vertices,
+                     const std::vector<std::array<std::uint32_t, 3>> &triangles) {
+    if (triangles.empty() || triangles.size() > TerrainLimits::tileTriangles ||
+        vertices.size() > 3 * triangles.size())
+        throw std::runtime_error("A terrain tile holds 1 to 2,048 triangles");
+    Body body;
+    body.id = id;
+    body.parent = parent;
+    body.name = std::move(name);
+    body.terrainTile = true;
+    const Id count = vertices.size();
+    for (std::size_t i = 0; i < vertices.size(); ++i)
+        body.surface.vertices.emplace_hint(body.surface.vertices.end(), Id(i + 1), vertices[i]);
+    for (std::size_t j = 0; j < triangles.size(); ++j) {
+        const auto &t = triangles[j];
+        if (t[0] >= count || t[1] >= count || t[2] >= count || t[0] == t[1] || t[1] == t[2] ||
+            t[0] == t[2])
+            throw std::runtime_error("Terrain triangle references an invalid vertex");
+        const Id face = count + 1 + j;
+        body.surface.faces.emplace_hint(
+            body.surface.faces.end(), face,
+            Face{face, {{Id(t[0]) + 1, Id(t[1]) + 1, Id(t[2]) + 1}}});
+    }
+    body.surface.nextId = count + triangles.size() + 1;
+    body.topology = Topology::rebuild(body.surface, {});
+    body.edgeAppearances = terrainTileEdgeAppearances(body.surface, body.topology);
+    return body;
+}
+TerrainMesh terrainTileMesh(const Body &tile) {
+    TerrainMesh mesh;
+    mesh.vertices.reserve(tile.surface.vertices.size());
+    for (const auto &[id, point] : tile.surface.vertices)
+        mesh.vertices.push_back(point);
+    mesh.triangles.reserve(tile.surface.faces.size());
+    for (const auto &[id, face] : tile.surface.faces) {
+        const auto &loop = face.loops.at(0);
+        mesh.triangles.push_back({std::uint32_t(loop.at(0) - 1), std::uint32_t(loop.at(1) - 1),
+                                  std::uint32_t(loop.at(2) - 1)});
+    }
+    return mesh;
+}
+void appendTerrainTileBytes(std::string &out, const Body &tile) {
+    const auto mesh = terrainTileMesh(tile);
+    u32(out, std::uint32_t(mesh.vertices.size()));
+    u32(out, std::uint32_t(mesh.triangles.size()));
+    for (const auto point : mesh.vertices) {
+        f64(out, point.x);
+        f64(out, point.y);
+        f64(out, point.z);
+    }
+    for (const auto &triangle : mesh.triangles)
+        for (const auto index : triangle)
+            u32(out, index);
+}
+void validateTerrainBody(const Body &b) {
+    if (b.kind == BodyKind::Terrain) {
+        if (!b.terrain)
+            throw std::runtime_error("A terrain body requires its terrain record");
+        validateTerrainRecord(*b.terrain);
+        if (!b.surface.vertices.empty() || !b.surface.faces.empty() || !b.surface.wires.empty() ||
+            !b.topology.edges.empty() || !b.curves.empty() || !b.guides.empty() ||
+            !b.faceColors.empty() || !b.faceMaterials.empty() || !b.faceTextureMappings.empty() ||
+            !b.edgeAppearances.empty() || b.textSource || b.referenceImage || b.terrainTile)
+            throw std::runtime_error("A terrain owns only its tiles");
+    } else if (b.terrain)
+        throw std::runtime_error("Only a terrain body carries a terrain record");
+    if (!b.terrainTile)
+        return;
+    if (b.kind != BodyKind::Geometry || b.textSource || b.referenceImage)
+        throw std::runtime_error("A terrain tile is ordinary geometry");
+    if (!b.surface.wires.empty() || !b.curves.empty() || !b.guides.empty())
+        throw std::runtime_error("A terrain tile holds triangles only");
+    if (b.transform != Transform{})
+        throw std::runtime_error("A terrain tile shares its terrain's frame");
+    const auto vertices = b.surface.vertices.size(), faces = b.surface.faces.size();
+    if (!faces || faces > TerrainLimits::tileTriangles || vertices > 3 * faces)
+        throw std::runtime_error("A terrain tile holds 1 to 2,048 triangles");
+    // Canonical implicit IDs: vertices 1..n, faces n+1..n+m.
+    if (b.surface.vertices.begin()->first != 1 || b.surface.vertices.rbegin()->first != vertices ||
+        b.surface.faces.begin()->first != vertices + 1 ||
+        b.surface.faces.rbegin()->first != vertices + faces ||
+        b.surface.nextId < vertices + faces + 1)
+        throw std::runtime_error("A terrain tile uses its canonical vertex and face IDs");
+    for (const auto &[id, face] : b.surface.faces)
+        if (face.loops.size() != 1 || face.loops[0].size() != 3)
+            throw std::runtime_error("A terrain tile holds triangles only");
+}
+void validateTerrainTileAppearance(const Body &tile) {
+    if (tile.edgeAppearances != terrainTileEdgeAppearances(tile.surface, tile.topology))
+        throw std::runtime_error("A terrain tile's edge appearance is implied by its mesh");
+}
+void checkTerrainParent(const Body &body, const Body *parent) {
+    const bool terrainParent = parent && parent->kind == BodyKind::Terrain;
+    if (body.terrainTile && !terrainParent)
+        throw std::runtime_error("A terrain tile must be a child of its terrain");
+    if (terrainParent && !body.terrainTile)
+        throw std::runtime_error("A terrain owns only its tiles");
+}
+std::set<Id> terrainRecordChanges(const Edit &edit) {
+    std::set<Id> result;
+    for (const auto &change : edit.changes) {
+        const bool before = change.before && change.before->kind == BodyKind::Terrain,
+                   after = change.after && change.after->kind == BodyKind::Terrain;
+        if ((before || after) &&
+            (before != after || change.before->terrain != change.after->terrain))
+            result.insert(change.id);
+    }
+    return result;
+}
+void checkTerrainChange(const Change &change, const std::set<Id> &recordChanges) {
+    const bool wasTile = change.before && change.before->terrainTile,
+               isTile = change.after && change.after->terrainTile;
+    if (!wasTile && !isTile)
+        return;
+    if (wasTile && isTile && !protectedChange(*change.before, *change.after))
+        return;
+    if ((wasTile && !recordChanges.contains(change.before->parent)) ||
+        (isTile && !recordChanges.contains(change.after->parent)))
+        protectedTarget();
+}
+void requireOrdinaryGeometry(const Document &doc, Id body) {
+    if (const auto *record = bodyOf(doc, body);
+        record && (record->terrainTile || record->kind == BodyKind::Terrain))
+        protectedTarget();
+}
+bool isTerrain(const Document &doc, Id body) {
+    const auto *record = bodyOf(doc, body);
+    return record && record->kind == BodyKind::Terrain;
+}
+std::vector<Id> terrainTiles(const Document &doc, Id terrain) {
+    std::vector<Id> tiles;
+    for (const auto &[id, body] : doc.bodies())
+        if (body->terrainTile && body->parent == terrain)
+            tiles.push_back(id);
+    return tiles;
+}
+std::size_t terrainTriangleCount(const Document &doc, Id terrain) {
+    std::size_t count = 0;
+    for (const auto id : terrainTiles(doc, terrain))
+        count += doc.bodies().at(id)->surface.faces.size();
+    return count;
+}
+std::string terrainMeshDigest(const std::vector<const Body *> &tiles) {
+    std::string bytes;
+    u32(bytes, std::uint32_t(tiles.size()));
+    for (const auto *tile : tiles)
+        appendTerrainTileBytes(bytes, *tile);
+    return digestHex(sha256Digest(bytes));
+}
+std::string terrainMeshDigest(const Document &doc, Id terrain) {
+    std::vector<const Body *> tiles;
+    for (const auto id : terrainTiles(doc, terrain))
+        tiles.push_back(doc.bodies().at(id).get());
+    return terrainMeshDigest(tiles);
+}
+bool terrainChangedSinceGenerated(const Document &doc, Id terrain) {
+    const auto *record = bodyOf(doc, terrain);
+    if (!record || !record->terrain)
+        refuse("NOT_FOUND", "Terrain body does not exist");
+    return terrainMeshDigest(doc, terrain) != record->terrain->meshDigest;
+}
+TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
+                             Id parent, std::string name) {
+    if (mesh.triangles.empty())
+        refuse("INVALID_REQUEST", "A terrain needs at least one triangle");
+    const auto existing = doc.materializedTotals().terrainTriangles;
+    if (mesh.triangles.size() > TerrainLimits::triangles ||
+        existing + mesh.triangles.size() > TerrainLimits::triangles)
+        refuse("LIMIT_EXCEEDED", limitMessage(existing + mesh.triangles.size()));
+    if (mesh.vertices.size() > std::numeric_limits<std::uint32_t>::max())
+        refuse("LIMIT_EXCEEDED", "Terrain mesh has too many vertices");
+    for (const auto point : mesh.vertices)
+        checkPoint(point);
+    for (const auto &triangle : mesh.triangles)
+        for (const auto index : triangle)
+            if (index >= mesh.vertices.size())
+                refuse("INVALID_REQUEST", "Terrain triangle references a missing vertex");
+    if (parent) {
+        const auto *owner = bodyOf(doc, parent);
+        if (!owner || owner->kind != BodyKind::Group)
+            refuse("INVALID_REQUEST", "A terrain's parent must be a group");
+    }
+    if (name.empty() || name.size() > 1024)
+        refuse("INVALID_REQUEST", "Invalid terrain name");
+    const auto tiling = tileTerrainTriangles(mesh);
+    const Id terrain = doc.nextId();
+    if (terrain > UINT64_MAX - tiling.tiles.size() - 1)
+        refuse("LIMIT_EXCEEDED", "Entity identity space exhausted");
+    std::vector<std::shared_ptr<Body>> tiles;
+    tiles.reserve(tiling.tiles.size());
+    std::vector<std::uint32_t> local(mesh.vertices.size(), 0);
+    for (std::size_t t = 0; t < tiling.tiles.size(); ++t) {
+        std::vector<Vec3> vertices;
+        std::vector<std::array<std::uint32_t, 3>> triangles;
+        std::vector<std::uint32_t> touched;
+        for (const auto index : tiling.tiles[t]) {
+            std::array<std::uint32_t, 3> triangle{};
+            for (int corner = 0; corner < 3; ++corner) {
+                const auto global = mesh.triangles[index][corner];
+                if (!local[global]) {
+                    vertices.push_back(mesh.vertices[global]);
+                    local[global] = std::uint32_t(vertices.size());
+                    touched.push_back(global);
+                }
+                triangle[corner] = local[global] - 1;
+            }
+            triangles.push_back(triangle);
+        }
+        for (const auto global : touched)
+            local[global] = 0;
+        tiles.push_back(std::make_shared<Body>(makeTerrainTile(
+            terrain + 1 + t, terrain, "Terrain tile " + std::to_string(t + 1), vertices,
+            triangles)));
+    }
+    std::vector<const Body *> views;
+    for (const auto &tile : tiles)
+        views.push_back(tile.get());
+    record.meshDigest = terrainMeshDigest(views);
+    validateTerrainRecord(record);
+    auto container = std::make_shared<Body>();
+    container->id = terrain;
+    container->name = std::move(name);
+    container->parent = parent;
+    container->kind = BodyKind::Terrain;
+    container->terrain = std::move(record);
+    Edit edit{"Create terrain", {}};
+    edit.changes.push_back({terrain, nullptr, container, {}, {}, {}, true});
+    TerrainCreated created;
+    created.terrain = terrain;
+    for (auto &tile : tiles) {
+        created.tiles.push_back(tile->id);
+        edit.changes.push_back({tile->id, nullptr, std::move(tile), {}, {}, {}, true});
+    }
+    created.changes = doc.apply(std::move(edit), doc.revision());
+    return created;
+}
+ChangeReport explodeTerrain(Document &doc, Id terrain) {
+    const auto found = doc.bodies().find(terrain);
+    if (found == doc.bodies().end() || found->second->kind != BodyKind::Terrain)
+        refuse("NOT_FOUND", "Terrain body does not exist");
+    const auto tiles = terrainTiles(doc, terrain);
+    std::size_t faces = 0;
+    for (const auto id : tiles)
+        faces += doc.bodies().at(id)->surface.faces.size();
+    std::map<Id, std::size_t> placements;
+    for (const auto &[root, instance] : doc.instances())
+        ++placements[instance->definition];
+    const auto unique = uniqueGeometryCounts(doc.materializedTotals(), placements,
+                                             doc.definitions(), &doc.componentVariants());
+    if (unique.faces + faces > DocumentLimits::unique.faces)
+        refuse("LIMIT_EXCEEDED",
+               "Explode terrain would make " + groupedCount(unique.faces + faces) +
+                   " faces, over the " + groupedCount(DocumentLimits::unique.faces) +
+                   "-face modelling limit (the terrain has " + groupedCount(faces) +
+                   " triangles)");
+    Edit edit{"Explode terrain", {}};
+    auto group = std::make_shared<Body>(*found->second);
+    group->kind = BodyKind::Group;
+    group->terrain.reset();
+    edit.changes.push_back({terrain, found->second, group, {}, {}, {}, true});
+    for (const auto id : tiles) {
+        const auto &before = doc.bodies().at(id);
+        auto ordinary = std::make_shared<Body>(*before);
+        ordinary->terrainTile = false;
+        edit.changes.push_back({id, before, ordinary, {}, {}, {}, true});
+    }
+    return doc.apply(std::move(edit), doc.revision());
+}
+void setSiteOrigin(Document &doc, SiteOrigin origin) {
+    if (doc.site())
+        refuse("INVALID_REQUEST",
+               "The site origin is already set; re-anchor to change it");
+    validateSiteOrigin(origin);
+    Edit edit{"Set site origin", {}};
+    edit.site = std::pair{std::optional<SiteOrigin>{}, std::optional<SiteOrigin>{std::move(origin)}};
+    doc.apply(std::move(edit), doc.revision());
+}
+ChangeReport reanchorSite(Document &doc, double easting, double northing, double elevation) {
+    if (!doc.site())
+        refuse("NOT_FOUND", "The document has no site origin; set it first");
+    auto origin = *doc.site();
+    origin.easting = easting;
+    origin.northing = northing;
+    origin.elevation = elevation;
+    validateSiteOrigin(origin);
+    if (origin == *doc.site())
+        refuse("INVALID_REQUEST", "Re-anchor needs a different site origin");
+    // local = site - origin, so every local point moves by old origin - new origin.
+    const Vec3 delta{doc.site()->easting - easting, doc.site()->northing - northing,
+                     doc.site()->elevation - elevation};
+    const auto move = Transform::translation(delta);
+    Edit edit{"Re-anchor site origin", {}};
+    edit.site = std::pair{doc.site(), std::optional<SiteOrigin>{origin}};
+    for (const auto &[id, body] : doc.bodies()) {
+        if (body->parent)
+            continue;
+        auto moved = std::make_shared<Body>(*body);
+        moved->transform = move * body->transform;
+        edit.changes.push_back({id, body, moved, {}, {}, {}, true});
+    }
+    for (const auto &[id, section] : doc.sections()) {
+        if (section->context)
+            continue;
+        auto moved = std::make_shared<SectionRecord>(*section);
+        moved->plane.offset -= dot(moved->plane.normal, delta);
+        edit.sections.push_back({id, section, moved});
+    }
+    for (const auto &[id, scene] : doc.scenes()) {
+        const auto &snapshot = scene->snapshot;
+        if (!snapshot.camera && !(snapshot.section && snapshot.section->plane) &&
+            !(snapshot.style && delta.z != 0))
+            continue;
+        auto moved = std::make_shared<SceneRecord>(*scene);
+        if (moved->snapshot.camera)
+            moved->snapshot.camera->target = moved->snapshot.camera->target + delta;
+        if (moved->snapshot.section && moved->snapshot.section->plane) {
+            auto &plane = *moved->snapshot.section->plane;
+            plane[3] -= plane[0] * delta.x + plane[1] * delta.y + plane[2] * delta.z;
+        }
+        if (moved->snapshot.style)
+            moved->snapshot.style->groundHeight += delta.z;
+        if (*moved != *scene)
+            edit.scenes.push_back({id, scene, moved});
+    }
+    // The ground plane is a model-Z height: it keeps its site elevation.
+    if (delta.z != 0) {
+        auto style = doc.style();
+        style.groundHeight += delta.z;
+        edit.style = std::pair{doc.style(), style};
+    }
+    // Annotation and paper anchors keep a world fallback (the fixed point of a point
+    // anchor, or the last resolved position of an entity anchor).
+    auto shift = [&](AnnotationAnchor &anchor) { anchor.fallback = anchor.fallback + delta; };
+    for (const auto &[id, annotation] : doc.annotations()) {
+        if (annotation->anchors.empty())
+            continue;
+        auto moved = std::make_shared<AnnotationRecord>(*annotation);
+        for (auto &anchor : moved->anchors)
+            shift(anchor);
+        edit.annotations.push_back({id, annotation, moved});
+    }
+    edit.annotationsResolved = true;
+    for (const auto &[id, item] : doc.drawingItems()) {
+        auto moved = std::make_shared<DrawingItemRecord>(*item);
+        bool changed = false;
+        if (auto *label = std::get_if<DrawingLabelItem>(&moved->data);
+            label && label->target.kind == DrawingLabelTargetKind::View) {
+            shift(label->target.anchor);
+            changed = true;
+        } else if (auto *dimension = std::get_if<DrawingDimensionItem>(&moved->data)) {
+            for (auto &anchor : dimension->anchors)
+                shift(anchor);
+            changed = true;
+        }
+        if (changed)
+            edit.drawingItems.push_back({id, item, moved});
+    }
+    edit.drawingAnchorsResolved = true;
+    return doc.apply(std::move(edit), doc.revision());
+}
+Vec3 modelToSite(const SiteOrigin &origin, Vec3 model) {
+    return {model.x + origin.easting, model.y + origin.northing, model.z + origin.elevation};
+}
+Vec3 siteToModel(const SiteOrigin &origin, Vec3 site) {
+    return {site.x - origin.easting, site.y - origin.northing, site.z - origin.elevation};
+}
+std::vector<TerrainElevation> terrainElevationAt(const Document &doc, Id terrain,
+                                                 const std::vector<std::array<double, 2>> &points) {
+    if (!isTerrain(doc, terrain))
+        refuse("NOT_FOUND", "Terrain body does not exist");
+    if (points.size() > terrainPointBatch)
+        refuse("LIMIT_EXCEEDED", "Ask for at most 200 points at a time");
+    struct Tile {
+        Id id{};
+        double minX{}, minY{}, maxX{}, maxY{};
+        std::map<Id, Vec3> world;
+        const Body *body{};
+    };
+    std::vector<Tile> tiles;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        Tile tile;
+        tile.id = id;
+        tile.body = doc.bodies().at(id).get();
+        const auto frame = doc.worldTransform(id);
+        tile.minX = tile.minY = std::numeric_limits<double>::infinity();
+        tile.maxX = tile.maxY = -std::numeric_limits<double>::infinity();
+        for (const auto &[vertex, point] : tile.body->surface.vertices) {
+            const auto world = frame.point(point);
+            tile.world.emplace_hint(tile.world.end(), vertex, world);
+            tile.minX = std::min(tile.minX, world.x);
+            tile.maxX = std::max(tile.maxX, world.x);
+            tile.minY = std::min(tile.minY, world.y);
+            tile.maxY = std::max(tile.maxY, world.y);
+        }
+        tiles.push_back(std::move(tile));
+    }
+    std::vector<TerrainElevation> result;
+    result.reserve(points.size());
+    for (const auto &[x, y] : points) {
+        if (!std::isfinite(x) || !std::isfinite(y))
+            refuse("INVALID_REQUEST", "Elevation points must be finite");
+        TerrainElevation best;
+        for (const auto &tile : tiles) {
+            constexpr double slack = 1e-9;
+            if (x < tile.minX - slack || x > tile.maxX + slack || y < tile.minY - slack ||
+                y > tile.maxY + slack)
+                continue;
+            for (const auto &[face, record] : tile.body->surface.faces) {
+                const auto &loop = record.loops[0];
+                const auto a = tile.world.at(loop[0]), b = tile.world.at(loop[1]),
+                           c = tile.world.at(loop[2]);
+                const double area = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+                if (std::abs(area) < 1e-18)
+                    continue; // Vertical in plan: no unique surface point.
+                const double u = ((b.x - x) * (c.y - y) - (c.x - x) * (b.y - y)) / area,
+                             v = ((c.x - x) * (a.y - y) - (a.x - x) * (c.y - y)) / area,
+                             w = 1 - u - v;
+                // Inside, or within the 1e-7 m geometry tolerance of an edge in plan.
+                auto beyond = [&](double weight, Vec3 p, Vec3 q) {
+                    return weight < 0 &&
+                           -weight * std::abs(area) > tolerance * std::hypot(q.x - p.x, q.y - p.y);
+                };
+                if (beyond(u, b, c) || beyond(v, c, a) || beyond(w, a, b))
+                    continue;
+                const double z = u * a.z + v * b.z + w * c.z;
+                if (!best.found || z > best.elevation)
+                    best = {true, z, tile.id, face};
+            }
+        }
+        result.push_back(best);
+    }
+    return result;
+}
+} // namespace sketchy

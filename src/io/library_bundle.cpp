@@ -201,7 +201,7 @@ Document instantiateTemplate(const TemplateBundle &bundle) {
                    d.assets(), d.nextAssetId(), d.displayUnits(), d.hostedRecords(), d.style(),
                    d.scenes(), d.nextSceneId(), d.sections(), d.nextSectionId(), d.activeSections(),
                    d.annotations(), d.nextAnnotationId(), d.solar(), d.displayPrecision(), {}, 1,
-                   {}, 1, {}, 1, d.nextComponentDriverId());
+                   {}, 1, {}, 1, d.nextComponentDriverId(), d.site());
     result.markRecovered();
     return result;
 }

@@ -1,4 +1,5 @@
 #include "core/transform_selection.hpp"
+#include "core/terrain.hpp"
 #include "core/appearance.hpp"
 #include "core/face_textures.hpp"
 #include "core/geometry_subset.hpp"
@@ -134,6 +135,9 @@ TransformResult transformSelected(Document &doc, const TransformTargets &targets
     for (auto target : targets) {
         if (!doc.bodies().contains(target.body))
             throw std::runtime_error("Transform context does not exist");
+        // Moving vertices, edges or faces of a terrain tile changes its mesh.
+        if (target.kind != TransformKind::Context)
+            requireOrdinaryGeometry(doc, target.body);
         const auto &body = *doc.bodies().at(target.body);
         auto &part = parts[target.body];
         switch (target.kind) {

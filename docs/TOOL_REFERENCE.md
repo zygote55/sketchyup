@@ -152,6 +152,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `component_parameter.override` | Set component parameter values on a placement | `body`, `values`, `command` |
 | `component_parameter.promote` | Make a placement's parameter values its definition's defaults | `body`, `command` |
 | `component_parameter.reset` | Reset component parameter values on a placement | `body`, `command` |
+| `site.set` | Set site origin | `easting`, `northing`, `command` |
+| `site.reanchor` | Re-anchor site origin | `easting`, `northing`, `command` |
+| `terrain.explode` | Explode terrain | `body`, `command` |
 
 ## Bounded queries
 
@@ -195,6 +198,10 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `measure.entity` |  | `target`, `space`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.distance` |  | `space`, `start`, `end`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.angle` |  | `space`, `origin`, `first`, `second`, `normal`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `site.describe` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `site.convert` |  | `to`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `terrain.describe` |  | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `terrain.elevation_at` |  | `body`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 
 ## Transactions
 
@@ -265,6 +272,10 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `measure.entity` | measure.entity: shared versioned SketchyUp operation | `target`, `space`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.distance` | measure.distance: shared versioned SketchyUp operation | `space`, `start`, `end`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `measure.angle` | measure.angle: shared versioned SketchyUp operation | `space`, `origin`, `first`, `second`, `normal`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `site.describe` | site.describe: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `site.convert` | site.convert: shared versioned SketchyUp operation | `to`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `terrain.describe` | terrain.describe: shared versioned SketchyUp operation | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `terrain.elevation_at` | terrain.elevation_at: shared versioned SketchyUp operation | `body`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `snapshot.begin` | snapshot.begin: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `snapshot.release` | snapshot.release: shared versioned SketchyUp operation | `snapshotId`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `transaction.begin` | Create an empty private draft at the current revision | `expectedRevision`, `apiVersion`, `documentId`, `operation` |

@@ -115,6 +115,9 @@ struct Edit {
     Id nextAnnotationFloor{};
     bool annotationsResolved{};
     std::optional<std::pair<SolarSettings, SolarSettings>> solar{};
+    // Document site origin (ADR 0168 §4): established once, then changed only by a
+    // re-anchor that moves geometry in the same edit.
+    std::optional<std::pair<std::optional<SiteOrigin>, std::optional<SiteOrigin>>> site{};
     // Drawing-sheet edits (ADR 0163) change only these tables. An edit that changes
     // them, or that is tagged with the drawing-sheet scope, must satisfy
     // isDrawingSheetOnlyEdit and must not raise a model allocator floor.
@@ -140,8 +143,11 @@ struct Edit {
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 // Running materialized-record totals compared with DocumentLimits::materialized.
+// Terrain tiles (ADR 0168 §2) count as records but their triangles, vertices and edges
+// count only in terrainTriangles, compared with TerrainLimits::triangles.
 struct DocumentTotals {
     size_t records{}, vertices{}, faces{}, wires{}, edges{}, curves{}, guides{};
+    size_t terrainTriangles{};
     bool operator==(const DocumentTotals &) const = default;
 };
 // Unique-geometry counts (ADR 0005, ADR 0165 §3): `totals` less every record a placement
@@ -256,6 +262,7 @@ class Document {
     const ModelStyle &style() const { return style_; }
     void setStyle(const ModelStyle &style);
     const SolarSettings &solar() const { return solar_; }
+    const std::optional<SiteOrigin> &site() const { return site_; }
     void setSolar(const SolarSettings &solar);
     // A unit change resets precision to Full unless a precision is given.
     void setDisplayUnits(DisplayUnit units, std::optional<int> precision = std::nullopt);
@@ -324,7 +331,7 @@ class Document {
                  DrawingSheetRecords drawingSheets = {}, Id nextDrawingSheetId = 1,
                  DrawingViewRecords drawingViews = {}, Id nextDrawingViewId = 1,
                  DrawingItemRecords drawingItems = {}, Id nextDrawingItemId = 1,
-                 Id nextComponentDriverId = 1);
+                 Id nextComponentDriverId = 1, std::optional<SiteOrigin> site = std::nullopt);
 
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
@@ -341,13 +348,16 @@ class Document {
                         int displayPrecision, DrawingSheetRecords drawingSheets = {},
                         Id nextDrawingSheetId = 1, DrawingViewRecords drawingViews = {},
                         Id nextDrawingViewId = 1, DrawingItemRecords drawingItems = {},
-                        Id nextDrawingItemId = 1, Id nextComponentDriverId = 1);
+                        Id nextDrawingItemId = 1, Id nextComponentDriverId = 1,
+                        std::optional<SiteOrigin> site = std::nullopt);
 
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
     int displayPrecision_{fullDisplayPrecision};
     ModelStyle style_;
     SolarSettings solar_;
+    // Persisted from schema 29 (R095.a); absent until established.
+    std::optional<SiteOrigin> site_;
     std::map<Id, BodyPtr> bodies_;
     Id nextId_{1};
     ComponentDefinitions definitions_;

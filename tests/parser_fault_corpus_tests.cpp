@@ -4,6 +4,7 @@
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
+#include "core/terrain.hpp"
 #include "fuzz/parameter_expression_harness.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
@@ -12,6 +13,7 @@
 #include "io/obj_source.hpp"
 #include "io/stl_export.hpp"
 #include "io/texture_image.hpp"
+#include "io/terrain_io.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QFile>
@@ -296,6 +298,55 @@ int main(int argc, char **argv) {
                                     parsed = true;
                                     roundtrip(document);
                                 }));
+        // Schema 29 (R095.a): a site origin and a two-tile terrain, and the terrain-mesh
+        // chunk decoder on its own.
+        Document terrain;
+        {
+            setSiteOrigin(terrain, SiteOrigin{512300, 5234500, 0, "EPSG:32633", {}});
+            TerrainMesh mesh;
+            for (int j = 0; j <= 40; ++j)
+                for (int i = 0; i <= 30; ++i)
+                    mesh.vertices.push_back({i * .5, j * .5, .1 * ((i * 7 + j * 3) % 5)});
+            for (std::uint32_t j = 0; j < 40; ++j)
+                for (std::uint32_t i = 0; i < 30; ++i) {
+                    const auto a = j * 31 + i;
+                    mesh.triangles.push_back({a, a + 1, a + 32});
+                    mesh.triangles.push_back({a, a + 32, a + 31});
+                }
+            TerrainRecord record;
+            record.generator = "corpus/terrain-v1";
+            createTerrain(terrain, mesh, record);
+            auto tree = QJsonDocument::fromJson(encodeDocument(terrain)).object();
+            tree["documentId"] = "00000000000000000000000000000840";
+            terrain = decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
+        }
+        const auto terrainContainer = encodeContainer(terrain);
+        results.append(exercise("native-container-terrain", terrainContainer,
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto document = decodeContainer(bytes);
+                                    parsed = true;
+                                    roundtrip(document);
+                                }));
+        results.append(exercise("terrain-mesh", encodeTerrainMesh(terrain.bodies()),
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto tiles = decodeTerrainMesh(bytes);
+                                    parsed = true;
+                                    size_t triangles = 0;
+                                    for (const auto &tile : tiles) {
+                                        check(!tile.triangles.empty() &&
+                                                  tile.triangles.size() <= 2048,
+                                              "Accepted terrain tile exceeds its limits");
+                                        triangles += tile.triangles.size();
+                                        for (const auto point : tile.vertices)
+                                            coordinate(point);
+                                        for (const auto &triangle : tile.triangles)
+                                            for (const auto index : triangle)
+                                                check(index < tile.vertices.size(),
+                                                      "Accepted terrain index is out of range");
+                                    }
+                                    check(triangles <= 250000,
+                                          "Accepted terrain exceeds the document limit");
+                                }));
         const auto glb = exportGlb(RenderSnapshot::capture(source)).glb;
         const auto glbPath = temporary.filePath("mutated.glb");
         results.append(exercise("glb", glb, [&](const auto &bytes, bool &parsed) {
@@ -402,12 +453,15 @@ int main(int argc, char **argv) {
         check(encodeContainer(items) == itemContainer, "Corpus never mutates its item model");
         check(encodeContainer(parameters) == parameterContainer,
               "Corpus never mutates its parameter model");
-        check(results.size() == 19,
-              "Corpus covers eleven formats plus the four schema-27 and four schema-28 seeds");
+        check(encodeContainer(terrain) == terrainContainer,
+              "Corpus never mutates its terrain model");
+        check(results.size() == 21,
+              "Corpus covers twelve formats plus the four schema-27, four schema-28 and one "
+              "schema-29 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},
                                                {"formats", results},
-                                               {"mutations", 9728},
+                                               {"mutations", 10752},
                                                {"sourcePreserved", true}})
                          .toJson()
                          .toStdString();

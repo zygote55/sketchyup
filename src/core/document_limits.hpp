@@ -51,6 +51,14 @@ inline constexpr std::size_t limitNameBytes = 64;
 std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits);
 void checkLimits(const LimitCounts &attempted, LimitClass limits, std::string_view operation,
                  std::string_view context);
+// The terrain limit class (ADR 0168 decision 3): terrain triangles per document,
+// counted apart from the modelling budget above. Throws std::runtime_error
+// "<operation> exceeds the document terrain limit: terrain triangles would be
+// 250,001 of 250,000".
+inline constexpr std::size_t terrainTriangleLimit = 250000;
+void checkTerrainLimit(std::size_t triangles, std::string_view operation);
+// Locale-independent thousands separators ("250,000").
+std::string groupedCount(std::size_t value);
 // A single-quoted, UTF-8-safe name truncated to limitNameBytes with control
 // characters replaced; the only user content a limit message may carry.
 std::string quotedLimitName(std::string_view name);

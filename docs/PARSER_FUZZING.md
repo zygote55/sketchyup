@@ -4,7 +4,10 @@ The opt-in Clang/libFuzzer targets instrument the linked SketchyUp and bundled
 parser code with coverage, AddressSanitizer and UndefinedBehaviorSanitizer.
 There is one target per native JSON/container, GLB, binary/ASCII STL, OBJ, DXF,
 template, component and extension format, and one for component parameter
-expressions (`parameter-expression`, R093.a; [ADR 0165 §7](decisions/0165-constrained-component-parameters.md)).
+expressions (`parameter-expression`, R093.a; [ADR 0165 §7](decisions/0165-constrained-component-parameters.md)),
+and one for the schema-29 `terrain-mesh` chunk decoder (`terrain-mesh`, R095.a;
+[ADR 0168 §2](decisions/0168-terrain-import-and-surfaces.md)), whose accepted input must
+stay within the tile and document limits and re-encode to exactly its bytes.
 Existing deterministic parser-fault and transaction tests remain required.
 
 Configure a separate build and generate valid, deterministic seeds:
