@@ -19,7 +19,9 @@
 #include <QJsonDocument>
 #include <QProcess>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <chrono>
+#include <functional>
 #include <cmath>
 #include <iostream>
 #include <map>
@@ -786,6 +788,248 @@ void timings(bool large) {
               << " bytes, parse " << ms(start, parsed) << " ms, prepare+triangulate "
               << ms(parsed, done) << " ms, " << meshed.mesh.triangles.size() << " triangles\n";
 }
+
+// ---- R095.f acceptance (ADR 0168 section 6): the Verify-line checks the slices left partial.
+
+bool insideRing(const std::vector<std::array<double, 2>> &ring, double x, double y) {
+    bool inside = false;
+    for (std::size_t i = 0, j = ring.size() - 1; i < ring.size(); j = i++) {
+        const auto &a = ring[i], &b = ring[j];
+        if ((a[1] > y) != (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0])
+            inside = !inside;
+    }
+    return inside;
+}
+double ringDistance(const std::vector<std::array<double, 2>> &ring, double x, double y) {
+    double best = INFINITY;
+    for (std::size_t i = 0, j = ring.size() - 1; i < ring.size(); j = i++) {
+        const auto &a = ring[j], &b = ring[i];
+        const double dx = b[0] - a[0], dy = b[1] - a[1];
+        const double t = std::clamp(((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy), 0.0, 1.0);
+        best = std::min(best, std::hypot(x - a[0] - t * dx, y - a[1] - t * dy));
+    }
+    return best;
+}
+
+// Elevations preserved: EVERY source vertex of a contour or breakline that lies inside the
+// boundary and outside the pond (further than 1e-6 m from either) is a mesh vertex whose Z is the
+// source Z x scale, exactly for metres and within 1e-9 m for US survey feet, and
+// terrain.elevation_at on every one of them returns that elevation.
+void everySourceVertex() {
+    struct Case {
+        const char *name;
+        QByteArray bytes;
+        std::optional<TerrainUnit> unit;
+        QString units;
+    };
+    for (const auto &c : {Case{"metres", fixture::terrainContoursMetres(), std::nullopt, "header"},
+                          Case{"usft", fixture::terrainContoursUsft(), terrainUnit("usft"), "usft"}}) {
+        const auto set = c.unit ? parseDxfTerrain(c.bytes, {c.unit, 0.05}) : parseDxfTerrain(c.bytes);
+        const double scale = set.unit.metresPerUnit;
+        const auto result = runTerrainImport(set, siteOptions(), std::nullopt);
+        check(result.ok && result.origin == TerrainOriginMetres{0, 0, 0},
+              std::string(c.name) + " fixture imports at the zero origin");
+        std::vector<std::array<double, 2>> boundary;
+        std::vector<std::vector<std::array<double, 2>>> holes;
+        for (const auto &polyline : set.polylines) {
+            const auto &layer = set.layers.at(polyline.layer).name;
+            if (layer != "BOUNDARY" && layer != "POND")
+                continue;
+            std::vector<std::array<double, 2>> ring;
+            for (const auto &p : polyline.points)
+                ring.push_back({p.x * scale, p.y * scale});
+            (layer == "BOUNDARY" ? boundary : holes.emplace_back()) = ring;
+        }
+        check(boundary.size() == 4 && holes.size() == 1, "the boundary and the pond");
+        // Mesh vertices by micrometre cell, for a lookup within 1e-7 m.
+        std::map<std::pair<long long, long long>, std::vector<Vec3>> cells;
+        for (const auto &v : result.mesh.vertices)
+            cells[{std::llround(v.x * 1e6), std::llround(v.y * 1e6)}].push_back(v);
+        auto meshVertex = [&](double x, double y) -> std::optional<Vec3> {
+            const auto cx = std::llround(x * 1e6), cy = std::llround(y * 1e6);
+            for (long long i = -1; i <= 1; ++i)
+                for (long long j = -1; j <= 1; ++j)
+                    if (const auto cell = cells.find({cx + i, cy + j}); cell != cells.end())
+                        for (const auto &v : cell->second)
+                            if (std::abs(v.x - x) <= 1e-7 && std::abs(v.y - y) <= 1e-7)
+                                return v;
+            return std::nullopt;
+        };
+        std::vector<std::array<double, 2>> checked;
+        std::vector<double> checkedZ;
+        std::size_t outside = 0;
+        double worst = 0;
+        for (const auto &polyline : set.polylines) {
+            const auto &layer = set.layers.at(polyline.layer).name;
+            if (layer == "BOUNDARY" || layer == "POND")
+                continue;
+            for (const auto &p : polyline.points) {
+                const double x = p.x * scale, y = p.y * scale, z = p.z * scale;
+                const bool kept = insideRing(boundary, x, y) && !insideRing(holes[0], x, y);
+                const bool near = ringDistance(boundary, x, y) <= 1e-6 ||
+                                  ringDistance(holes[0], x, y) <= 1e-6;
+                if (!kept || near) {
+                    outside += !kept;
+                    continue;
+                }
+                const auto v = meshVertex(x, y);
+                check(v.has_value(), std::string(c.name) + ": source vertex (" +
+                                         std::to_string(x) + ", " + std::to_string(y) +
+                                         ") is in the mesh");
+                if (scale == 1)
+                    check(v->z == p.z, "metre source Z is preserved exactly");
+                worst = std::max(worst, std::abs(v->z - z));
+                checked.push_back({v->x, v->y});
+                checkedZ.push_back(z);
+            }
+        }
+        check(worst <= 1e-9, std::string(c.name) + ": every source Z x scale within 1e-9 m");
+        check(checked.size() > 1000 && outside > 0,
+              "the region's source vertices are checked and the clipped arms skipped");
+        Document doc;
+        const auto response = executeBatch(
+            doc, batch(doc, {importCommand(c.bytes, "dxf", {{"roles", siteRoles}, {"units", c.units}})}));
+        const Id id = response["terrainOperations"].toArray().at(0).toObject()["terrain"]
+                          .toString()
+                          .toULongLong();
+        double worstAt = 0;
+        for (std::size_t start = 0; start < checked.size(); start += terrainPointBatch) {
+            const std::vector<std::array<double, 2>> chunk(
+                checked.begin() + std::ptrdiff_t(start),
+                checked.begin() + std::ptrdiff_t(std::min(checked.size(), start + terrainPointBatch)));
+            const auto found = terrainElevationAt(doc, id, chunk);
+            for (std::size_t i = 0; i < chunk.size(); ++i) {
+                check(found[i].found, "terrain.elevation_at finds every source vertex");
+                worstAt = std::max(worstAt, std::abs(found[i].elevation - checkedZ[start + i]));
+            }
+        }
+        check(worstAt <= 1e-9, std::string(c.name) + ": terrain.elevation_at within 1e-9 m");
+        std::cout << c.name << ": " << checked.size() << " source vertices in the mesh (worst Z "
+                  << worst << " m), " << outside << " outside the region, elevation_at worst "
+                  << worstAt << " m\n";
+    }
+}
+
+// Units preserved: changing the display units changes no terrain geometry.
+void displayUnits() {
+    Document doc;
+    const auto response = executeBatch(
+        doc, batch(doc, {importCommand(fixture::terrainContoursMetres(), "dxf", {{"roles", siteRoles}})}));
+    const Id id =
+        response["terrainOperations"].toArray().at(0).toObject()["terrain"].toString().toULongLong();
+    // The model without the display settings and the revision: records, tiles and, in the
+    // raw-JSON form, the mesh chunk.
+    auto geometry = [&] {
+        auto json = QJsonDocument::fromJson(encodeDocument(doc)).object();
+        for (const auto *key : {"displayUnits", "displayPrecision", "revision"})
+            json.remove(key);
+        return json;
+    };
+    const auto digest = terrainMeshDigest(doc, id);
+    const auto before = geometry();
+    check(!before["terrainMesh"].isNull(), "the raw form carries the mesh");
+    const std::vector<std::array<double, 2>> probe{{0, 0}, {-45.37, 3.13}, {52.48, -30}};
+    const auto elevations = terrainElevationAt(doc, id, probe);
+    for (const auto unit : {DisplayUnit::FeetInches, DisplayUnit::Millimeters, DisplayUnit::Meters}) {
+        doc.setDisplayUnits(unit, 3);
+        check(terrainMeshDigest(doc, id) == digest && geometry() == before,
+              "display units do not change the terrain's records or mesh");
+        const auto again = terrainElevationAt(doc, id, probe);
+        for (std::size_t i = 0; i < probe.size(); ++i)
+            check(again[i].found == elevations[i].found && again[i].elevation == elevations[i].elevation,
+                  "display units do not change terrain.elevation_at");
+    }
+}
+
+// Determinism: two imports of EVERY fixture give identical meshes, records and reports (the
+// invalid one identical refusals), two documents identical IDs, and the digests are pinned.
+void everyFixtureTwice() {
+    TerrainPointOptions xyz;
+    xyz.unit = *terrainUnit("m");
+    const QJsonObject invalidRoles{{"BOUNDARY", "boundary"}, {"CONTOURS", "contour"}};
+    TerrainImportOptions invalidOptions;
+    invalidOptions.roles = {{"BOUNDARY", TerrainImportRole::Boundary},
+                            {"CONTOURS", TerrainImportRole::Contour}};
+    struct Case {
+        const char *name;
+        std::function<TerrainSourceSet()> parse;
+        TerrainImportOptions options;
+        QJsonObject command;
+        const char *digest;
+    };
+    const std::vector<Case> cases{
+        {"terrain-contours-m.dxf", [] { return parseDxfTerrain(fixture::terrainContoursMetres()); },
+         siteOptions(), importCommand(fixture::terrainContoursMetres(), "dxf", {{"roles", siteRoles}}),
+         "c093a02ec36dc4d8544eefb4fc7d99c2d62f7b9ba568331feedf46e974529584"},
+        {"terrain-contours-usft.dxf",
+         [] { return parseDxfTerrain(fixture::terrainContoursUsft(), {terrainUnit("usft"), 0.05}); },
+         siteOptions(),
+         importCommand(fixture::terrainContoursUsft(), "dxf", {{"roles", siteRoles}, {"units", "usft"}}),
+         "d0159b4896285dc4634f851d096a6901bcf2a91fd6257abb5e5afdad4fe56f6e"},
+        {"terrain-utm.dxf", [] { return parseDxfTerrain(fixture::terrainUtm()); }, siteOptions(),
+         importCommand(fixture::terrainUtm(), "dxf", {{"roles", siteRoles}}), "3cb8d78bc064bab623680bcdaa2d1a803c7bdd5288ac34882d3898ff3af11c3d"},
+        {"terrain-utm.xyz", [&] { return parseTerrainPoints(fixture::terrainXyz(true), xyz); }, {},
+         importCommand(fixture::terrainXyz(true), "points", {{"units", "m"}}), "b7a8e5086271290094191288a3e08228266dde2eef714a96a00475b5f110dbc8"},
+        {"terrain-invalid.dxf", [] { return parseDxfTerrain(fixture::terrainInvalid(), {terrainUnit("m"), 0.05}); },
+         invalidOptions,
+         importCommand(fixture::terrainInvalid(), "dxf", {{"roles", invalidRoles}, {"units", "m"}}), nullptr},
+    };
+    for (const auto &c : cases) {
+        const auto first = runTerrainImport(c.parse(), c.options, std::nullopt);
+        const auto second = runTerrainImport(c.parse(), c.options, std::nullopt);
+        check(first.ok == (c.digest != nullptr), std::string(c.name) + " imports or refuses as expected");
+        check(first.mesh.vertices == second.mesh.vertices &&
+                  first.mesh.triangles == second.mesh.triangles && first.record == second.record &&
+                  first.report == second.report,
+              std::string(c.name) + ": two imports are identical");
+        if (!c.digest)
+            continue;
+        Document one, two;
+        for (auto *doc : {&one, &two})
+            executeBatch(*doc, batch(*doc, {c.command}));
+        check(encodeDocument(one).size() > 0 && one.bodies().size() == two.bodies().size(),
+              "the same bodies");
+        Id terrain{};
+        for (const auto &[id, body] : one.bodies()) {
+            check(two.bodies().contains(id), std::string(c.name) + ": the same IDs");
+            const auto &other = *two.bodies().at(id);
+            check(body->terrain == other.terrain && body->surface.vertices == other.surface.vertices &&
+                      body->name == other.name,
+                  std::string(c.name) + ": identical records and tiles");
+            if (body->terrain)
+                terrain = id;
+        }
+        const auto digest = terrainMeshDigest(one, terrain);
+        std::cout << c.name << " mesh digest " << digest << '\n';
+        check(digest == c.digest, std::string(c.name) + ": the mesh digest is pinned");
+    }
+}
+
+// Limits: an import over the 250,000-triangle limit refuses with the count and the limit
+// and changes nothing.
+void overLimitImport() {
+    QByteArray file;
+    for (int i = 0; i < 355; ++i)
+        for (int j = 0; j < 355; ++j)
+            file += QByteArray::number(i) + ' ' + QByteArray::number(j) + ' ' +
+                    QByteArray::number(0.001 * ((i * 7 + j * 13) % 101), 'f', 3) + '\n';
+    Document doc;
+    const auto revision = doc.revision();
+    const auto before = encodeContainer(doc);
+    const auto error = refusal([&] {
+        executeBatch(doc, batch(doc, {importCommand(file, "points", {{"units", "m"}})}));
+    });
+    check(error.code() == "LIMIT_EXCEEDED", "an import over the limit refuses LIMIT_EXCEEDED, not " +
+                                                std::string(error.code()));
+    const auto report = error.details()["importReport"].toObject();
+    const auto budget = kind(report, "refusals", "triangle-budget");
+    const auto text = QJsonDocument(budget).toJson(QJsonDocument::Compact);
+    std::cout << "over-limit import: " << text.left(300).toStdString() << '\n';
+    check(budget["count"].toInt() == 1 && text.contains("250632") && text.contains("250000"),
+          "the refusal names the count (250,632) and the limit");
+    check(doc.revision() == revision && encodeContainer(doc) == before && doc.bodies().empty(),
+          "the refusal changes nothing");
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -800,6 +1044,10 @@ int main(int argc, char **argv) {
         utmFixture();
         determinism();
         invalidFixture();
+        everySourceVertex();
+        displayUnits();
+        everyFixtureTwice();
+        overLimitImport();
         inspection();
         cli();
         timings(large);
