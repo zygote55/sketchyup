@@ -188,7 +188,8 @@ dispatch is not enabled in today's CLI.
 ## Budgets and verification
 
 Initial live-model limits remain 10000 bodies and 100000 each of vertices, faces
-and wires. Retained undo history is 64 MiB; stage plus validation scratch has a
+and wires. Retained undo history is 64 MiB (terrain edits: a separate 512 MiB, ADR 0168,
+D-043); stage plus validation scratch has a
 separate 128 MiB target. One over-budget operation fails before publication.
 Estimate shared allocations once, then compare RSS and allocator telemetry on
 empty, room, 1000-body, large single-mesh and import fixtures. Track checkpoint,

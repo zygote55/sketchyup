@@ -1577,14 +1577,25 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         }
     edit.bytes = sizeof(Edit) + edit.label.size() + edit.metadata.taskId.size() +
                  edit.metadata.request.size();
+    edit.terrainBytes = 0;
+    // D-043: a terrain operation's record and tile changes go to terrain's history class.
+    auto terrainCharged = [&](const Change &change) {
+        auto tile = [&](const BodyPtr &body) {
+            return body && body->terrainTile && terrainRecords.contains(body->parent);
+        };
+        return terrainRecords.contains(change.id) || tile(change.before) || tile(change.after);
+    };
     ChangeReport report;
     const Surface emptySurface;
     const Topology emptyTopology;
     for (auto &change : edit.changes) {
+        // A terrain change's lineage (a batch carries the erased tiles' entities) is charged
+        // with it.
+        auto &charged = terrainCharged(change) ? edit.terrainBytes : edit.bytes;
         for (const auto *mapping :
              {&change.faceDescendants, &change.vertexDescendants, &change.edgeDescendants})
             for (const auto &[id, targets] : *mapping)
-                edit.bytes += 96 + targets.size() * sizeof(Id);
+                charged += 96 + targets.size() * sizeof(Id);
         auto changes = compareTopology(change.before ? change.before->surface : emptySurface,
                                        change.before ? change.before->topology : emptyTopology,
                                        change.after ? change.after->surface : emptySurface,
@@ -1632,7 +1643,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             reportFaceTextureMappingChanges(before, *change.after, changes.faces);
             change.edgeAppearancesResolved = true;
         }
-        edit.bytes += sizeof(Change) + bytes(change.before) + bytes(change.after);
+        charged += sizeof(Change) + bytes(change.before) + bytes(change.after);
         const std::map<Id, Curve> noCurves;
         changes.curves = compareCurves(change.before ? change.before->curves : noCurves,
                                        change.after ? change.after->curves : noCurves);
@@ -1742,6 +1753,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         edit.bytes += 2 * (sizeof(SiteOrigin) + siteCrsBytes + siteSourceBytes + 64);
     if (edit.bytes > historyLimit)
         throw std::runtime_error("Edit exceeds the 64 MiB history budget");
+    if (edit.terrainBytes > terrainHistoryLimit)
+        throw TerrainError("LIMIT_EXCEEDED", terrainHistoryMessage);
     if (!edit.sections.empty() || !activeSections.empty()) {
         auto sectionCandidate = readSnapshot();
         sectionCandidate.bodies_ = updated;
@@ -1940,10 +1953,13 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         throw;
     }
     // Nothing below allocates: staged map nodes are spliced, assigned or erased.
-    for (const auto &r : redo_)
+    for (const auto &r : redo_) {
         historyBytes_ -= r.edit.bytes;
+        terrainHistoryBytes_ -= r.edit.terrainBytes;
+    }
     redo_.clear();
     historyBytes_ += h.edit.bytes;
+    terrainHistoryBytes_ += h.edit.terrainBytes;
     auto commitSparse = [](auto &base, auto &staged) {
         for (auto it = staged.begin(); it != staged.end();)
             if (const auto found = base.find(it->first); found != base.end()) {
@@ -2015,9 +2031,12 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         site_ = h.edit.site->second;
     state_ = h.after;
     ++revision_;
-    while ((historyBytes_ > historyLimit || undo_.size() > historyEntryLimit) && undo_.size() > 1) {
+    while ((historyBytes_ > historyLimit || terrainHistoryBytes_ > terrainHistoryLimit ||
+            undo_.size() > historyEntryLimit) &&
+           undo_.size() > 1) {
         historyPruned_ = true;
         historyBytes_ -= undo_.front().edit.bytes;
+        terrainHistoryBytes_ -= undo_.front().edit.terrainBytes;
         removeHistoryRefs(undo_.front().edit);
         undo_.pop_front();
     }
@@ -2320,9 +2339,12 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     staged.historyBytes_ = staged.historyBytes_ - oldTextBytes + newTextBytes;
     if (revised.bytes > historyLimit)
         throw std::runtime_error("Amended edit exceeds history budget");
-    while (staged.historyBytes_ > historyLimit && staged.undo_.size() > 1) {
+    while ((staged.historyBytes_ > historyLimit ||
+            staged.terrainHistoryBytes_ > terrainHistoryLimit) &&
+           staged.undo_.size() > 1) {
         staged.historyPruned_ = true;
         staged.historyBytes_ -= staged.undo_.front().edit.bytes;
+        staged.terrainHistoryBytes_ -= staged.undo_.front().edit.terrainBytes;
         staged.removeHistoryRefs(staged.undo_.front().edit);
         staged.undo_.pop_front();
     }
@@ -2582,6 +2604,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     undo_.clear();
     redo_.clear();
     historyBytes_ = 0;
+    terrainHistoryBytes_ = 0;
     historyPruned_ = false;
     revision_ = revision;
     session_ = std::move(session);
@@ -2731,6 +2754,7 @@ std::string Document::stateMismatch(const Document &other) const {
           "component variants");
     check(revision_ == other.revision_ && undo_.size() == other.undo_.size() &&
               redo_.size() == other.redo_.size() && historyBytes_ == other.historyBytes_ &&
+              terrainHistoryBytes_ == other.terrainHistoryBytes_ &&
               historyPruned_ == other.historyPruned_,
           "history");
     check((!hosted_ && !other.hosted_) || (hosted_ && other.hosted_ && *hosted_ == *other.hosted_),

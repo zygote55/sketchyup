@@ -35,7 +35,8 @@ charge before cloning. Final accounting includes proposed records, the prepared
 edit's before/after records, result data and diff rows; shared data is charged
 conservatively. Owned asset payloads count toward admission. These are retained
 record limits, not a strict process RSS or transient allocator ceiling. Core
-geometry/model and 64 MiB single-edit history limits still apply during staging.
+geometry/model and 64 MiB single-edit history limits (512 MiB for terrain edits, D-043)
+still apply during staging.
 
 Requests are at most 64 KiB compact JSON and retain the command driver's limit
 of 100 operations. Results are at most 256 KiB. Oversized created-ID results fail
