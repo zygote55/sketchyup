@@ -39,6 +39,7 @@ class DrawingViewRenderCache;
 class SheetWorkspace;
 class SheetsTray;
 class SheetExportDialog;
+class TerrainImportDialog;
 struct SheetExport;
 struct SheetExportOptions;
 struct SheetExportPreflight;
@@ -73,6 +74,10 @@ class Window : public QMainWindow {
     void importDxfPath(const QString &path, DxfOptions options = {}, unsigned segments = 96);
     void exportDxfPath(const QString &path, double metresPerUnit);
     void importDxfDialog();
+    // R095.d: File > Import terrain… (window_terrain.cpp). Reads a DXF or point file and opens
+    // the import dialog, which adds the terrain to this document in one undoable edit.
+    void importTerrainDialog();
+    void importTerrainPath(const QString &path);
     void exportDxfDialog();
     void importStlDialog();
     void exportStlDialog();
@@ -331,6 +336,7 @@ class Window : public QMainWindow {
     void moveSheetPage(Id sheet, int delta);
     // R092.b: the export and print flow (window_sheet_export.cpp).
     QPointer<SheetExportDialog> sheetExport_;
+    QPointer<TerrainImportDialog> terrainImport_;
     std::unique_ptr<QPrinter> sheetPrinter_;
     ThemeColors sheetColors_{themeColors(false)};
     void sheetExportFlow(bool print);

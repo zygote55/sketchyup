@@ -5,6 +5,7 @@
 #include "app/render_panel.hpp"
 #include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
+#include "app/terrain_import_dialog.hpp"
 #include "automation/extension_store.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
@@ -164,6 +165,28 @@ inline void writeImportSources(Context &context) {
     require(obj.open(QIODevice::WriteOnly) && obj.write("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n") > 0,
             "Write OBJ import fixture");
     obj.close();
+    // R095.d terrain sources: a point file (no units, so Import waits for them) and a DXF that
+    // declares metres.
+    QFile points(dir.filePath("survey.xyz"));
+    require(points.open(QIODevice::WriteOnly) &&
+                points.write("0 0 10\n10 0 11\n0 10 12\n10 10 13\n5 5 12.5\n") > 0,
+            "Write terrain point fixture");
+    points.close();
+    QFile contours(dir.filePath("contours.dxf"));
+    QStringList dxf{"0", "SECTION", "2", "HEADER", "9", "$ACADVER", "1", "AC1015", "9",
+                    "$INSUNITS", "70", "6", "0", "ENDSEC", "0", "SECTION", "2", "ENTITIES"};
+    for (const auto &[handle, half, z] : {std::tuple{"100", 20, 10}, std::tuple{"101", 10, 11}}) {
+        dxf << "0" << "LWPOLYLINE" << "5" << handle << "8" << "CONTOURS" << "90" << "4" << "70"
+            << "1" << "38" << QString::number(z);
+        for (const auto &[x, y] : {std::pair{-1, -1}, std::pair{1, -1}, std::pair{1, 1},
+                                   std::pair{-1, 1}})
+            dxf << "10" << QString::number(x * half) << "20" << QString::number(y * half);
+    }
+    dxf << "0" << "ENDSEC" << "0" << "EOF";
+    require(contours.open(QIODevice::WriteOnly) &&
+                contours.write((dxf.join('\n') + '\n').toUtf8()) > 0,
+            "Write terrain DXF fixture");
+    contours.close();
     QFile::remove(dir.filePath("existing.sketchyup"));
     QFile existing(dir.filePath("existing.sketchyup"));
     require(existing.open(QIODevice::WriteOnly) && existing.write("placeholder") > 0,
@@ -670,6 +693,43 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          {},
          {chooseFile("Import Formline v1", source("tests/fixtures/formline-v1.formline"))}});
+    // R095.d: File > Import terrain…. The dialog checks the source on a worker; its default
+    // button imports, and stays disabled until units are chosen (a point file has none).
+    const auto terrainSettles = [](QWidget &dialog) {
+        auto *terrain = dynamic_cast<TerrainImportDialog *>(&dialog);
+        require(terrain && QTest::qWaitFor([&] { return !terrain->checking(); }, 20000),
+                "The terrain dry run settles");
+    };
+    add({"terrain-import-file", "import", "Import terrain (file chooser)",
+         "File > Import terrain… (palette)", fresh, viaPalette("Import terrain…"),
+         fileDialog("Import terrain"), Enter::DefaultOnly, "Open"});
+    add({"terrain-import-points",
+         "import",
+         "Import terrain (point file, units not chosen)",
+         "Import terrain… > file name",
+         writeImportSources,
+         viaPalette("Import terrain…"),
+         named("terrainImportDialog"),
+         Enter::Disabled,
+         "Import",
+         Return::Viewport,
+         {},
+         terrainSettles,
+         {chooseFile("Import terrain", QDir(ctx.files).filePath("survey.xyz"))}});
+    add({"terrain-import-dxf",
+         "import",
+         "Import terrain (DXF with declared units)",
+         "Import terrain… > file name",
+         writeImportSources,
+         viaPalette("Import terrain…"),
+         named("terrainImportDialog"),
+         Enter::Accept,
+         "Import",
+         Return::Viewport,
+         {},
+         terrainSettles,
+         {chooseFile("Import terrain", QDir(ctx.files).filePath("contours.dxf"))},
+         "Import adds the terrain to the open model in one undoable edit."});
     add({"measured-export", "components", "Export measured PDF / SVG",
          "File > Export measured PDF/SVG… (palette)", fresh, viaPalette("Export measured PDF/SVG…"),
          named("measuredExportDialog"), Enter::Child, "Save", Return::Viewport,

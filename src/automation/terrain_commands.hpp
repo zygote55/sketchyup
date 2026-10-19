@@ -5,6 +5,7 @@
 // the in-app assistant yet (assistantVisible); MCP exposes all of them.
 #include "core/model.hpp"
 #include "core/terrain_records.hpp"
+#include "io/terrain_import.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
 namespace sketchy {
@@ -50,6 +51,22 @@ QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command);
 QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes,
                                 const QJsonObject &command);
+// R095.d: importTerrainSource in its two halves, so the desktop dialog parses and dry-runs a
+// source off the UI thread and applies only the edit on it. parseTerrainSourceRequest checks
+// and parses exactly as the commands do (throwing TerrainError); runTerrainImport then gives
+// the dry run, and applyTerrainImport applies a successful one as the ONE labelled "Import
+// terrain" edit (refusing a failed one with TerrainImportError, changing nothing). The dry run
+// must have been made with the document's current site origin.
+struct TerrainSourceRequest {
+    TerrainSourceSet set;
+    TerrainImportOptions options;
+    TerrainImportProvenance provenance;
+    std::string name{"Terrain"};
+};
+TerrainSourceRequest parseTerrainSourceRequest(const QByteArray &bytes, const QJsonObject &command,
+                                               bool importing = true);
+QJsonObject applyTerrainImport(Document &doc, TerrainImportResult result,
+                               const std::string &name = "Terrain");
 // Entries in the shared command catalogue format.
 QJsonArray terrainCommandSpecs();
 QJsonObject siteDescription(const Document &doc);
