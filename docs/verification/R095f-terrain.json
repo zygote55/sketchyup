@@ -297,7 +297,7 @@
      "points": 6079082,
      "contours": 3132060
     },
-    "result": "chunk pass; whole file over",
+    "result": "pass (budget covers the mesh chunk, owner 2026-10-19)",
     "defect": "D-045"
    },
    {
@@ -515,7 +515,8 @@
    {
     "id": "D-045",
     "class": "Minor",
-    "title": "A 250,000-triangle terrain grows its file by about 12 MB, over the 8 MB budget"
+    "title": "A 250,000-triangle terrain grows its file by about 12 MB, over the 8 MB budget",
+    "status": "closed 2026-10-19: the owner restated the budget as the mesh chunk"
    }
   ],
   "checked": [
@@ -532,12 +533,10 @@
  "remaining": [
   "R095.g assistant surface (decision 10)",
   "D-044",
-  "D-045",
   "complete frame on the AMD hardware",
   "one-tile replacement budget with R096"
  ],
  "ownerQuestions": [
-  "A way to mark boundary and hole edges in Create terrain from selection",
-  "Whether the file-growth budget covers the mesh chunk only (D-045)"
+  "A way to mark boundary and hole edges in Create terrain from selection"
  ]
 }

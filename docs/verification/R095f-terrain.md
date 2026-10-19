@@ -22,17 +22,17 @@ against §6 of the ADR (the verification plan) and the roadmap's Verify line.
 
 - The Verify line passes. Terrain fixtures preserve elevations and units, far-from-origin data
   stays precise, and invalid contours give bounded reports. Every row of §6's check table passes.
-- Every budget measured at 250,000 triangles is within its limit except two:
-  - Parse and triangulate meets its time (0.36–0.50 s against 3 s) but has no progress
-    indication or cancel. This is **D-044** (Minor).
-  - The file grows by about 12 MB against 8 MB. The binary mesh chunk the budget names is 6.3–7.6
-    MB; the stored sources make up the rest. This is **D-045** (Minor).
+- Every budget measured at 250,000 triangles is within its limit except one: parse and
+  triangulate meets its time (0.36–0.50 s against 3 s) but has no progress indication or cancel.
+  This is **D-044** (Minor).
+- File growth passes: the binary mesh chunk is 6.3–7.6 MB against 8 MB. The whole file grows by
+  about 12 MB because of the stored sources; this was raised as **D-045** and closed when the owner
+  confirmed on 2026-10-19 that the budget covers the mesh chunk only.
 - The one-tile replacement budget belongs to R096 and is not applicable yet.
 - The complete frame was measured only in software, so the hardware M9 budget is not judged.
 - **Remaining work:** the assistant surface, R095.g (decision 10).
 - **Open owner questions:**
   - Should Create terrain from selection get a way to mark boundary and hole edges?
-  - Does the file-growth budget cover the mesh chunk only (D-045)?
 - No Release-blocking or Major defect was found.
 
 ## The Verify line
@@ -131,7 +131,7 @@ after the commit.
 | Open, above the same document without terrain | ≤ 2 s | +0.61 s (0.61 vs 0.001) | +0.55 s | pass |
 | Save, above the same document without terrain | ≤ 2 s | +1.24 s (1.24 vs 0.005) | +1.31 s | pass |
 | Added resident memory | ≤ 200 MB | 99.8 MiB (peak resident of the process 647 MiB) | 108.6 MiB (peak 779 MiB) | pass |
-| File growth | ≤ 8 MB (binary mesh chunk) | mesh chunk 6.31 MB; whole file +12.51 MB | mesh chunk 7.57 MB; whole file +12.26 MB | **Chunk pass; whole file over (D-045)** |
+| File growth | ≤ 8 MB (binary mesh chunk) | mesh chunk 6.31 MB; whole file +12.51 MB | mesh chunk 7.57 MB; whole file +12.26 MB | **Pass** (the budget covers the chunk; D-045 closed) |
 | One-tile replacement (R096 preview path) | p95 ≤ 100 ms | — | — | **Not applicable**: the R096 preview path does not exist yet |
 | Complete frame with the terrain visible | Within the M9 frame budget | p95 35.8 ms (scene 34.6); with 1 m contour lines and elevation bands 52.4 ms | — | **Measured in software only**; see below |
 
@@ -162,6 +162,8 @@ after the commit.
 - **Assessment:** the budget's parenthesis names the chunk, so this record does not treat the
   whole-file growth as a pass. It is recorded as **D-045** (Minor), with the owner question of
   whether the budget covers the chunk only.
+- **Owner decision (2026-10-19):** the budget covers the mesh chunk; the stored sources are
+  measured and reported, not budgeted. ADR 0168 §6 now says so, and D-045 is closed.
 
 **Complete frame.**
 
@@ -251,7 +253,7 @@ not by a new suite.
 | Item | Kind | Status |
 | --- | --- | --- |
 | (a) Progress and cancel for parse and triangulate | **D-044** (Minor), added to [R089.a](R089a-defect-triage.md) | Open. The time budget is met (0.36–0.50 s); "Checking…" only, and Cancel waits for the run |
-| File growth over 8 MB | **D-045** (Minor), added to R089.a | Open. The mesh chunk is within budget; the stored sources as JSON add about 3–6 MB |
+| File growth over 8 MB | **D-045** (Minor), added to R089.a | Closed 2026-10-19: the owner restated the budget as the mesh chunk, which is within it; the stored sources as JSON add about 3–6 MB, reported only |
 | (b) Create terrain from selection cannot mark boundary or hole edges | **Owner question**, not a defect | The approved UX design gives no way to mark them from a selection, so R095.e1 offers none. The command (`terrain.create_from_edges`) takes `boundary` and `holes`, and `terrain_regenerate` covers them. Pending the owner's decision on a role picker |
 | (c) Assistant surface (decision 10) | **Remaining work: R095.g** | Not done: the corpus token measurement, then exposing `site.describe`, `terrain.describe` and `terrain.elevation_at` to the in-app assistant. `assistantVisible` still hides every `site.*` and `terrain.*` name; MCP exposes all of them |
 | One-tile replacement budget | Not applicable | R096's preview path |
