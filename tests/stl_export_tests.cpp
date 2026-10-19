@@ -1,3 +1,4 @@
+#include "core/terrain.hpp"
 #include "io/stl_export.hpp"
 #include <QCoreApplication>
 #include <QFile>
@@ -48,6 +49,22 @@ int main(int argc, char **argv) {
         QTemporaryDir dir;
         check(dir.isValid(), "Scratch folder");
         auto doc = fixture();
+        {
+            // R095.e3: with a site origin the report says the coordinates are model coordinates.
+            auto notices = [](const StlExport &e) {
+                QStringList out;
+                for (const auto &n : e.report["notices"].toArray())
+                    out << n.toString();
+                return out.join('\n');
+            };
+            const auto bare = exportStl(doc, {.001, StlUpAxis::Z}, StlEncoding::Binary);
+            check(!notices(bare).contains("model coordinates"), "No notice without a site origin");
+            auto sited = doc;
+            setSiteOrigin(sited, SiteOrigin{512300, 5234500, 0, "EPSG:32633", {"a.dxf", ""}});
+            const auto withSite = exportStl(sited, {.001, StlUpAxis::Z}, StlEncoding::Binary);
+            check(notices(withSite).contains("model coordinates") && withSite.bytes == bare.bytes,
+                  "STL says model coordinates and its bytes are unchanged");
+        }
         if (app.arguments().contains("--blender-real")) {
             const auto blender = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
             if (blender.isEmpty())

@@ -1,4 +1,6 @@
+#include "core/terrain.hpp"
 #include "io/dxf_import.hpp"
+#include "io/native_format.hpp"
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
@@ -127,6 +129,40 @@ int main(int argc, char **argv) {
                 "header"},
                false);
         check(loadDxf(output).report["curves"].toInt() == 3, "CLI export retains analytic curves");
+        // R095.e3: --dxf-site-coordinates needs a site origin and is export-only.
+        const QStringList sitePlain{"--export-dxf", directory.filePath("site-bad.dxf"), "--input",
+                                    native,         "--dxf-unit",
+                                    "m",            "--dxf-site-coordinates"};
+        invoke(sitePlain, false);
+        check(!QFile::exists(directory.filePath("site-bad.dxf")), "Refused site export writes nothing");
+        invoke(base + QStringList{"--dxf-site-coordinates"}, false);
+        {
+            QProcess p;
+            p.start(cli, sitePlain);
+            check(p.waitForFinished(30000), "CLI refusal completed");
+            const auto text = QJsonDocument::fromJson(p.readAllStandardOutput() +
+                                                      p.readAllStandardError())
+                                  .object();
+            check(text.toVariantMap().value("code").toString() == "INVALID_REQUEST" ||
+                      QJsonDocument(text).toJson().contains("INVALID_REQUEST"),
+                  "Missing site origin refuses with INVALID_REQUEST");
+        }
+        auto sited = loadDxf(path).document;
+        setSiteOrigin(sited, SiteOrigin{512300, 5234500, 0, "EPSG:32633", {"a.dxf", ""}});
+        const auto siteNative = directory.filePath("site.sketchyup"),
+                   siteDxf = directory.filePath("site.dxf"), modelDxf = directory.filePath("model.dxf");
+        createNativeFile(sited, siteNative);
+        invoke({"--export-dxf", siteDxf, "--input", siteNative, "--dxf-unit", "m",
+                "--dxf-site-coordinates"},
+               true);
+        invoke({"--export-dxf", modelDxf, "--input", siteNative, "--dxf-unit", "m"}, true);
+        QFile written(siteDxf), model(modelDxf);
+        check(written.open(QIODevice::ReadOnly) && model.open(QIODevice::ReadOnly), "CLI outputs");
+        const auto siteBytes = written.readAll(), modelBytes = model.readAll();
+        check(siteBytes != modelBytes, "The CLI flag changes the coordinates");
+        check(siteBytes.contains("\n5123") && siteBytes.contains("\n52345") &&
+                  !modelBytes.contains("\n5123"),
+              "The CLI flag adds the origin back");
         check(file.seek(0) && file.readAll() == bytes, "CLI leaves source DXF untouched");
 #endif
         std::cout << "Native DXF independent dimensions, layers, analytic curves, undo, "

@@ -1,3 +1,4 @@
+#include "core/terrain.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "integrations/glb_export.hpp"
@@ -166,11 +167,14 @@ int main(int argc, char **argv) {
         const auto beforeHistory = doc.history().total;
         QTimer exportTimer;
         exportTimer.setInterval(10);
-        bool exportSeen = false, exportScopeExplained = false;
+        bool exportSeen = false, exportScopeExplained = false, siteDisabledWithoutOrigin = false;
         QObject::connect(&exportTimer, &QTimer::timeout, &window, [&] {
             if (auto *dialog = window.findChild<QDialog *>("dxfOptionsDialog");
                 dialog && dialog->isVisible()) {
                 dialog->findChild<QComboBox *>("dxfUnits")->setCurrentIndex(0);
+                auto *site = dialog->findChild<QCheckBox *>("dxfSiteCoordinates");
+                siteDisabledWithoutOrigin = site && !site->isEnabled() && !site->isChecked() &&
+                                            site->accessibleName() == "Write site coordinates";
                 dialog->accept();
             } else if (auto *file = window.findChild<QFileDialog *>("dxfExportFileDialog");
                        file && file->isVisible()) {
@@ -195,6 +199,46 @@ int main(int argc, char **argv) {
         check(exportSeen && exportScopeExplained && QFile::exists(files.filePath("export.dxf")) &&
                   encodeDocument(doc) == beforeExport && doc.history().total == beforeHistory,
               "Native export leaves model and history unchanged");
+        check(siteDisabledWithoutOrigin, "Write site coordinates is disabled without a site origin");
+        // R095.e3: with a site origin the checkbox is enabled, unchecked, and writes site values.
+        setSiteOrigin(doc, SiteOrigin{512300, 5234500, 0, "EPSG:32633", {"a.dxf", ""}});
+        {
+            bool enabledWithOrigin = false, siteReport = false;
+            QTimer siteTimer;
+            siteTimer.setInterval(10);
+            QObject::connect(&siteTimer, &QTimer::timeout, &window, [&] {
+                if (auto *dialog = window.findChild<QDialog *>("dxfOptionsDialog");
+                    dialog && dialog->isVisible()) {
+                    auto *site = dialog->findChild<QCheckBox *>("dxfSiteCoordinates");
+                    enabledWithOrigin = site && site->isEnabled() && !site->isChecked();
+                    site->setChecked(true);
+                    // SKETCHYUP_SHOT_DIR saves the dialog as a screenshot (not run in CI).
+                    if (const auto shots = qEnvironmentVariable("SKETCHYUP_SHOT_DIR");
+                        !shots.isEmpty())
+                        dialog->grab().save(shots + "/dxf-export-options-site.png");
+                    dialog->accept();
+                } else if (auto *file = window.findChild<QFileDialog *>("dxfExportFileDialog");
+                           file && file->isVisible()) {
+                    file->findChild<QLineEdit *>("fileNameEdit")
+                        ->setText(files.filePath("site.dxf"));
+                    QMetaObject::invokeMethod(file, "accept");
+                } else if (auto *dialog = window.findChild<QDialog *>("dxfReport");
+                           dialog && dialog->isVisible()) {
+                    siteReport = dialog->findChild<QPlainTextEdit *>("dxfDetails")
+                                     ->toPlainText()
+                                     .contains("site coordinates");
+                    siteTimer.stop();
+                    dialog->reject();
+                }
+            });
+            siteTimer.start();
+            window.findChild<QAction *>("file.exportDxf")->trigger();
+            siteTimer.stop();
+            QFile written(files.filePath("site.dxf"));
+            check(enabledWithOrigin && siteReport && written.open(QIODevice::ReadOnly) &&
+                      written.readAll().contains("5123"),
+                  "The checkbox is enabled with a site origin and writes site coordinates");
+        }
         const auto target = files.filePath("native-copy");
         bool saveSeen = false;
         QTimer saveTimer;

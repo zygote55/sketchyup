@@ -479,6 +479,12 @@ types an absolute site position for any tool that takes a point: `@512310, 52345
 labelled crosshair while a terrain is selected or Site settings is open; **View → Site origin**
 shows it all the time, and the choice is remembered.
 
+**Site coordinates in DXF.** With a site origin, **File → Export 2D DXF…** offers **Write site
+coordinates** (off by default; disabled without an origin). It adds the origin back to X
+(easting) and Y (northing) in the chosen unit, so coordinates match the survey; Z is not written.
+On the command line use `--dxf-site-coordinates`. STL, OBJ and the other exports keep model
+coordinates, and their reports say so.
+
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance
 is identified as raster content. Print at actual size to preserve the requested

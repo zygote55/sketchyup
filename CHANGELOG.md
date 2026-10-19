@@ -15,6 +15,14 @@ their 1.2.0 schema.
   sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- DXF export option **Write site coordinates** (R095.e3, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095e3)):
+  File → Export 2D DXF… and `sketchyup-cli --export-dxf … --dxf-site-coordinates` add the
+  site origin back to X (easting) and Y (northing) in the chosen unit, so an imported
+  survey-scale drawing round-trips at its own decimals. It is off by default (output bytes
+  unchanged), disabled in the dialog and refused with INVALID_REQUEST when the model has no site
+  origin, and Z is still not written. STL and OBJ export reports now say that coordinates are
+  model coordinates when the model has a site origin; their geometry is unchanged.
+
 - Terrain display and site settings (R095.e2, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095e2)):
   new terrains use a built-in **Terrain** material and draw as one smooth surface, with tile
   seams and interior edges hidden and normals continuous across seams. The Terrain section's

@@ -23,7 +23,16 @@ struct Writer {
     QJsonObject losses;
     QJsonArray layerNames;
     std::map<Id, QString> layers;
-    Writer(const Document &d, double s) : doc(d), scale(s), bytes(result.bytes) {}
+    // Set only for "Write site coordinates" (ADR 0168 section 4).
+    const SiteOrigin *site{};
+    Writer(const Document &d, double s, bool siteCoordinates)
+        : doc(d), scale(s), bytes(result.bytes) {
+        if (siteCoordinates) {
+            require(d.site().has_value(),
+                    "Write site coordinates needs a site origin; this model has none");
+            site = &*d.site();
+        }
+    }
     void loss(const QString &name, int n = 1) { losses[name] = losses[name].toInt() + n; }
     void field(int code, const QByteArray &value) {
         bytes += QByteArray::number(code) + '\n' + value + '\n';
@@ -38,12 +47,32 @@ struct Writer {
         require(std::isfinite(value), "Nonfinite DXF output");
         field(code, QByteArray::number(value == 0 ? 0 : value, 'g', 17));
     }
+    // Site coordinates are model + origin in double, then divided by the unit. For whole-metre
+    // origins the sum is exact, and the division adds at most about one ulp. The text is the
+    // fewest-decimal fixed text within four ulps of that value, so a source's own decimals come back
+    // exactly (ADR 0168, R095.e3) instead of 17-digit noise. Model coordinates keep 17 digits.
+    void coordinate(int code, double value) {
+        require(std::isfinite(value), "Nonfinite DXF output");
+        value = value == 0 ? 0 : value;
+        if (!site) {
+            field(code, QByteArray::number(value, 'g', 17));
+            return;
+        }
+        const double ulp = std::nextafter(std::abs(value), HUGE_VAL) - std::abs(value);
+        // Fixed notation never needs an exponent; the fewest decimals that land within tolerance.
+        for (int decimals = 0; decimals <= 20; ++decimals) {
+            const auto text = QByteArray::number(value, 'f', decimals);
+            if (std::abs(text.toDouble() - value) <= 4 * ulp)
+                return field(code, text);
+        }
+        field(code, QByteArray::number(value, 'g', 17));
+    }
     void point(Vec3 p, int x = 10, int y = 20) {
         checkPoint(p);
         require(std::abs(p.z) <= tolerance,
                 "DXF export requires world-XY geometry; use a projected view export for 3D models");
-        number(x, p.x / scale);
-        number(y, p.y / scale);
+        coordinate(x, (site ? p.x + site->easting : p.x) / scale);
+        coordinate(y, (site ? p.y + site->northing : p.y) / scale);
     }
     void entity(const QString &type, const QString &layer) {
         require(++entityCount <= 100000, "DXF export exceeds 100000 entities");
@@ -248,6 +277,20 @@ struct Writer {
             loss("componentInstancesExpanded", int(doc.instances().size()));
         if (!doc.annotations().empty())
             loss("annotationsOmitted", int(doc.annotations().size()));
+        QJsonArray notices{"All model edges, including hidden geometry, export in world XY without "
+                           "section clipping.",
+                           "Filled faces export as contours; this is a documented 2D DXF subset, "
+                           "not full CAD or DWG interchange.",
+                           "Circular curves retain analytic arcs when their world transform "
+                           "preserves circles; other curves export as chord edges.",
+                           "Native hierarchy, per-body locking/visibility, materials, textures and "
+                           "view metadata are not retained."};
+        if (site)
+            notices.append("Coordinates are site coordinates: the site origin is added back to X "
+                           "(easting) and Y (northing). Z is not written.");
+        else if (doc.site())
+            notices.append("Coordinates are model coordinates, not site coordinates; enable Write "
+                           "site coordinates to add the site origin back.");
         result.report = {
             {"apiVersion", 1},
             {"version", "AC1032"},
@@ -260,21 +303,16 @@ struct Writer {
             {"losses", losses},
             {"bytes", qint64(bytes.size())},
             {"sha256", hash(bytes)},
-            {"notices",
-             QJsonArray{"All model edges, including hidden geometry, export in world XY without "
-                        "section clipping.",
-                        "Filled faces export as contours; this is a documented 2D DXF subset, not "
-                        "full CAD or DWG interchange.",
-                        "Circular curves retain analytic arcs when their world transform preserves "
-                        "circles; other curves export as chord edges.",
-                        "Native hierarchy, per-body locking/visibility, materials, textures and "
-                        "view metadata are not retained."}}};
+            {"notices", notices}};
         return std::move(result);
     }
 };
 } // namespace
-DxfExport exportDxf(const Document &document, double metresPerUnit) {
-    return Writer(document, metresPerUnit).run();
+DxfExport exportDxf(const Document &document, double metresPerUnit, bool siteCoordinates) {
+    auto result = Writer(document, metresPerUnit, siteCoordinates).run();
+    if (siteCoordinates)
+        result.report["siteCoordinates"] = true;
+    return result;
 }
 void writeDxfExport(const DxfExport &result, const QString &path) {
     require(!result.bytes.isEmpty() && result.bytes.size() <= 64 * 1024 * 1024 &&

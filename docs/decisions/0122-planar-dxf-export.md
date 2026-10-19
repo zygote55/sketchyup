@@ -37,3 +37,8 @@ pinned test-only dependencies from `tests/dxf-oracle-requirements.txt` into an
 isolated build venv; they are not installed with the application. R12/R2018 producer
 fixtures and their regeneration script remain the independent import reference.
 CLI/native workflow and final R077 acceptance follow separately.
+
+R095.e3 adds an opt-in "Write site coordinates" option (ADR 0168): X and Y are written as the site
+origin plus the model value, in the chosen unit, as the fewest-decimal text within four ulps. Z stays
+unwritten and the planar rules above are unchanged. It is off by default (bytes unchanged) and refused
+without a site origin.

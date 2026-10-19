@@ -834,6 +834,11 @@ inline std::vector<Case> cases(Context &ctx) {
     add({"site-settings", "terrain", "Site settings (origin set)", "File > Site settings… (palette)",
          siteFixture, viaPalette("Site settings…"), named("siteSettingsDialog"), Enter::Closes,
          "Close", Return::Viewport, {}, {}, {}, "Origin, CRS label and provenance are read-only."});
+    add({"dxf-export-options-site", "dxf", "DXF export options (site origin set)",
+         "File > Export 2D DXF… (palette)", siteFixture, viaPalette("Export 2D DXF…"),
+         namedTitle("dxfOptionsDialog", "DXF export options"), Enter::Next, "OK", Return::Viewport,
+         fileDialog("New 2D DXF drawing"), {}, {},
+         "Write site coordinates is enabled and unchecked."});
     add({"site-reanchor",
          "terrain",
          "Re-anchor site origin",

@@ -2,6 +2,7 @@
 #include "app/report_sheet.hpp"
 #include "app/window.hpp"
 #include "io/dxf_export.hpp"
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -15,8 +16,9 @@ namespace {
 struct Options {
     DxfOptions units;
     unsigned segments;
+    bool siteCoordinates{};
 };
-std::optional<Options> options(QWidget *parent, bool exporting) {
+std::optional<Options> options(QWidget *parent, bool exporting, bool hasSite = false) {
     QDialog dialog(parent);
     dialog.setObjectName("dxfOptionsDialog");
     dialog.setWindowTitle(exporting ? "DXF export options" : "DXF import options");
@@ -35,6 +37,19 @@ std::optional<Options> options(QWidget *parent, bool exporting) {
     if (exporting)
         units->setCurrentIndex(2);
     form.addRow("Coordinate units", units);
+    auto *site = new QCheckBox("Write site coordinates", &dialog);
+    site->setObjectName("dxfSiteCoordinates");
+    site->setAccessibleName("Write site coordinates");
+    site->setChecked(false);
+    if (exporting) {
+        site->setEnabled(hasSite);
+        site->setAccessibleDescription(
+            hasSite ? "Adds the site origin back to X and Y. Off writes model coordinates."
+                    : "Unavailable: this model has no site origin.");
+        site->setToolTip(site->accessibleDescription());
+        form.addRow(site);
+    } else
+        site->hide();
     auto *segments = new QSpinBox(&dialog);
     segments->setObjectName("dxfSegments");
     segments->setAccessibleName("Chord segments per full circle");
@@ -63,7 +78,7 @@ std::optional<Options> options(QWidget *parent, bool exporting) {
     DxfOptions unit;
     if (units->currentData().toDouble() != 0)
         unit.metresPerUnit = units->currentData().toDouble();
-    return Options{unit, unsigned(segments->value())};
+    return Options{unit, unsigned(segments->value()), exporting && site->isChecked()};
 }
 QString describe(QString key) {
     key.replace(QRegularExpression("([a-z])([A-Z])"), "\\1 \\2");
@@ -127,8 +142,8 @@ void Window::importDxfPath(const QString &path, DxfOptions options, unsigned seg
     status_->setText("Imported an unsaved DXF drawing · Source unchanged");
     report(this, imported.report, false);
 }
-void Window::exportDxfPath(const QString &path, double metresPerUnit) {
-    const auto exported = exportDxf(doc_, metresPerUnit);
+void Window::exportDxfPath(const QString &path, double metresPerUnit, bool siteCoordinates) {
+    const auto exported = exportDxf(doc_, metresPerUnit, siteCoordinates);
     writeDxfExport(exported, path);
     status_->setText("Exported a new DXF drawing · Model unchanged");
     report(this, exported.report, true);
@@ -145,7 +160,7 @@ void Window::importDxfDialog() {
         importDxfPath(file.selectedFiles().front(), choice->units, choice->segments);
 }
 void Window::exportDxfDialog() {
-    const auto choice = options(this, true);
+    const auto choice = options(this, true, doc_.site().has_value());
     if (!choice)
         return;
     QFileDialog file(this, "New 2D DXF drawing");
@@ -156,6 +171,7 @@ void Window::exportDxfDialog() {
     file.setNameFilter("DXF drawing (*.dxf)");
     file.setDefaultSuffix("dxf");
     if (file.exec() == QDialog::Accepted && !file.selectedFiles().isEmpty())
-        exportDxfPath(file.selectedFiles().front(), *choice->units.metresPerUnit);
+        exportDxfPath(file.selectedFiles().front(), *choice->units.metresPerUnit,
+                      choice->siteCoordinates);
 }
 } // namespace sketchy

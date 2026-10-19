@@ -318,6 +318,12 @@ struct Writer {
         for (auto it = losses.begin(); it != losses.end(); ++it)
             notices.append(QJsonObject{
                 {"code", it.key()}, {"count", it.value()}, {"message", descriptions[it.key()]}});
+        if (doc.site())
+            notices.append(QJsonObject{
+                {"code", "modelCoordinates"},
+                {"count", 1},
+                {"message", "Coordinates are model coordinates, not site coordinates; the site "
+                            "origin is not added back."}});
         result.manifest = {{"apiVersion", 1},
                            {"format", "OBJ"},
                            {"documentId", QString::fromStdString(doc.identity())},

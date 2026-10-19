@@ -103,6 +103,9 @@ int main(int argc, char **argv) {
     parser.addOption({"export-dxf", "Export world-XY model edges to a new DXF file", "path"});
     parser.addOption(
         {"dxf-unit", "Explicit unit: mm, cm, m, in, ft, or header for import", "unit"});
+    parser.addOption({"dxf-site-coordinates",
+                      "DXF export: write site coordinates (the site origin added back); needs a "
+                      "model with a site origin"});
     parser.addOption({"dxf-segments", "Import chord segments per full circle: 12..256", "count"});
     parser.addOption({"import-terrain",
                       "Import a terrain from a DXF or point file into --input (or a new model); "
@@ -407,7 +410,7 @@ int main(int argc, char **argv) {
                 invalid("Choose one DXF operation and explicit --dxf-unit");
             const QStringList allowed =
                 importing ? QStringList{"import-dxf", "output", "dxf-unit", "dxf-segments"}
-                          : QStringList{"export-dxf", "input", "dxf-unit"};
+                          : QStringList{"export-dxf", "input", "dxf-unit", "dxf-site-coordinates"};
             for (const auto &option : parser.optionNames())
                 if (!allowed.contains(option))
                     invalid("DXF commands are standalone operations");
@@ -438,7 +441,11 @@ int main(int argc, char **argv) {
                 if (!parser.isSet("input"))
                     invalid("DXF export requires native --input");
                 const auto document = sketchy::loadDocument(parser.value("input"));
-                const auto exported = sketchy::exportDxf(document, *options.metresPerUnit);
+                const bool site = parser.isSet("dxf-site-coordinates");
+                if (site && !document.site())
+                    invalid("--dxf-site-coordinates needs a model with a site origin; this model "
+                            "has none");
+                const auto exported = sketchy::exportDxf(document, *options.metresPerUnit, site);
                 sketchy::writeDxfExport(exported, parser.value("export-dxf"));
                 result = {{"status", "exported"}, {"exportReport", exported.report}};
             }
