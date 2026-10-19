@@ -1,15 +1,22 @@
 {
-  "description": "The in-app assistant's provider-facing tool list (AssistantTask first request) for the corpus v2 task authorizations and a superset of the desktop assistant. assistant_tool_surface_tests requires the current build to match every field. Change this file only with a deliberate decision to change what the assistant sees (ADR 0164, Assistant tool surface).",
+  "description": "The in-app assistant's provider-facing tool list (AssistantTask first request) for the corpus v2 task authorizations and a superset of the desktop assistant. assistant_tool_surface_tests requires the current build to match every field. Change this file only with a deliberate decision to change what the assistant sees (ADR 0164, Assistant tool surface; ADR 0168 decision 10).",
   "source": {
     "tag": "v1.0.1",
     "commit": "12b652d075fe895e243b4fe5bfc335687cbb4948",
     "method": "tests/assistant_tool_surface_tests.cpp compiled unchanged against v1.0.1 (dev preset) and run with --dump",
     "toolsBytes": "compact JSON of the task request's tools array",
-    "chatGptPlanToolsBytes": "compact JSON of the ChatGPT-plan OpenAI request's tools; for advanced this is 55,230 bytes with Python json.dumps separators, the R086.ca first-request figure (64,972 at the 1.1.0 RC, R086.cb)"
+    "chatGptPlanToolsBytes": "compact JSON of the ChatGPT-plan OpenAI request's tools; for advanced this is 55,230 bytes with Python json.dumps separators, the R086.ca first-request figure (64,972 at the 1.1.0 RC, R086.cb)",
+    "repinned": {
+      "slice": "R095.g",
+      "date": "2026-10-19",
+      "change": "adds site.describe, terrain.describe and terrain.elevation_at (top-level tools and transaction.inspect requests) with their assistant tool descriptions; every other name and schema is unchanged",
+      "method": "assistant_tool_surface_tests --dump at the R095.g head",
+      "measurement": "ADR 0168, Implementation notes (R095.g): +3,825 ChatGPT-plan tool bytes on each edit surface, +2,373 on inspection-only"
+    }
   },
   "surfaces": {
     "advanced": {
-      "chatGptPlanToolsBytes": 50567,
+      "chatGptPlanToolsBytes": 54392,
       "names": [
         "document.describe",
         "solar.describe",
@@ -38,6 +45,9 @@
         "measure.entity",
         "measure.distance",
         "measure.angle",
+        "site.describe",
+        "terrain.describe",
+        "terrain.elevation_at",
         "transaction.begin",
         "transaction.apply",
         "transaction.describe",
@@ -46,12 +56,12 @@
         "transaction.preview",
         "transaction.abort"
       ],
-      "toolCount": 34,
-      "toolsBytes": 49198,
-      "toolsSha256": "26bcd2ee423222da2edb92b66f4214ef974e6ac061f0a28888449a15e2d5b208"
+      "toolCount": 37,
+      "toolsBytes": 52912,
+      "toolsSha256": "ec18f5d5a138fab20aaa1d4d4cc027b532517e674a10bf991fd783e923abdb40"
     },
     "every-command-with-clarification": {
-      "chatGptPlanToolsBytes": 131550,
+      "chatGptPlanToolsBytes": 135375,
       "names": [
         "document.describe",
         "solar.describe",
@@ -80,6 +90,9 @@
         "measure.entity",
         "measure.distance",
         "measure.angle",
+        "site.describe",
+        "terrain.describe",
+        "terrain.elevation_at",
         "transaction.begin",
         "transaction.apply",
         "transaction.describe",
@@ -89,12 +102,12 @@
         "transaction.abort",
         "assistant.ask_user"
       ],
-      "toolCount": 35,
-      "toolsBytes": 130144,
-      "toolsSha256": "4397c3cf4e9c965fdb5910e2296ffd3c476065356da841af753f150d99591801"
+      "toolCount": 38,
+      "toolsBytes": 133858,
+      "toolsSha256": "6a0ee784a8206f1781cbb478920ecf7623176529645cbbdf34150c383dc55973"
     },
     "inspection-only": {
-      "chatGptPlanToolsBytes": 22627,
+      "chatGptPlanToolsBytes": 25000,
       "names": [
         "document.describe",
         "solar.describe",
@@ -122,14 +135,17 @@
         "geometry.diagnose",
         "measure.entity",
         "measure.distance",
-        "measure.angle"
+        "measure.angle",
+        "site.describe",
+        "terrain.describe",
+        "terrain.elevation_at"
       ],
-      "toolCount": 27,
-      "toolsBytes": 21517,
-      "toolsSha256": "92bfcc7604827de6fad1ec6403a0dfaa4fdadb56b214e2ffad3bb432e5add25f"
+      "toolCount": 30,
+      "toolsBytes": 23779,
+      "toolsSha256": "38a216a2f35ca3076cce21644a71b010d67046ce939e511f394ad7db28019fe1"
     },
     "resize": {
-      "chatGptPlanToolsBytes": 47312,
+      "chatGptPlanToolsBytes": 51137,
       "names": [
         "document.describe",
         "solar.describe",
@@ -158,6 +174,9 @@
         "measure.entity",
         "measure.distance",
         "measure.angle",
+        "site.describe",
+        "terrain.describe",
+        "terrain.elevation_at",
         "transaction.begin",
         "transaction.apply",
         "transaction.describe",
@@ -166,12 +185,12 @@
         "transaction.preview",
         "transaction.abort"
       ],
-      "toolCount": 34,
-      "toolsBytes": 45943,
-      "toolsSha256": "979f8c9bcd6ffc6731f7a4a474b67df29d5d3d9c50fdefa32646610d65a3057e"
+      "toolCount": 37,
+      "toolsBytes": 49657,
+      "toolsSha256": "16afd08368f8d96972319826fd2a2d3c04018345494f5a6be6a68407e42077ea"
     },
     "room": {
-      "chatGptPlanToolsBytes": 47599,
+      "chatGptPlanToolsBytes": 51424,
       "names": [
         "document.describe",
         "solar.describe",
@@ -200,6 +219,9 @@
         "measure.entity",
         "measure.distance",
         "measure.angle",
+        "site.describe",
+        "terrain.describe",
+        "terrain.elevation_at",
         "transaction.begin",
         "transaction.apply",
         "transaction.describe",
@@ -208,12 +230,12 @@
         "transaction.preview",
         "transaction.abort"
       ],
-      "toolCount": 34,
-      "toolsBytes": 46230,
-      "toolsSha256": "4e283a8d8fb6054bcfabe6316d5ed93606da9d31177b2faf287e52607972c262"
+      "toolCount": 37,
+      "toolsBytes": 49944,
+      "toolsSha256": "319eb05ad0aabc015ec01a372cbf78eb621279651ab9b5829fa109ab73faa6bf"
     },
     "site": {
-      "chatGptPlanToolsBytes": 48419,
+      "chatGptPlanToolsBytes": 52244,
       "names": [
         "document.describe",
         "solar.describe",
@@ -242,6 +264,9 @@
         "measure.entity",
         "measure.distance",
         "measure.angle",
+        "site.describe",
+        "terrain.describe",
+        "terrain.elevation_at",
         "transaction.begin",
         "transaction.apply",
         "transaction.describe",
@@ -250,9 +275,9 @@
         "transaction.preview",
         "transaction.abort"
       ],
-      "toolCount": 34,
-      "toolsBytes": 47050,
-      "toolsSha256": "4e018b7b6c8ac5a244dbc0dc8dd1c7b69966c8a8342eab1c5193ff5d8c38e82f"
+      "toolCount": 37,
+      "toolsBytes": 50764,
+      "toolsSha256": "5907c3ed75dca933b5294d7d787f929fb012d663b2e4d0f639879c866142e49c"
     }
   }
 }

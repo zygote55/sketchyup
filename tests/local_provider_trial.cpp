@@ -1,6 +1,8 @@
 // Explicit opt-in corpus. Only synthetic models are sent to the selected provider.
 // Corpus v4 (R086.e) runs every task through the native assistant session, its transaction
 // options and the desktop's 15-minute task lifetime, not the public headless session.
+// Corpus v5 (R095.g) keeps the v4 rules and freezes the tool surface that adds
+// site.describe, terrain.describe and terrain.elevation_at.
 #include "automation/commands.hpp"
 #include "automation/native_assistant_session.hpp"
 #include "core/entity_measure.hpp"
@@ -26,10 +28,11 @@
 #include <optional>
 using namespace sketchy;
 // R086.e: the frozen corpus version this harness writes, and its native task lifetime.
-constexpr int corpusVersion = 4;
+// R095.g: version 5, the v4 rules on the re-pinned assistant tool surface.
+constexpr int corpusVersion = 5;
 constexpr int corpusTaskSeconds = maximumTrustedStagingTtlSeconds;
 // The per-turn host budget and binding follow this marker; everything before it is the
-// static assistant instruction text that corpus v4 freezes as instructionsSha256.
+// static assistant instruction text that corpus v4 and v5 freeze as instructionsSha256.
 const QString hostBudgetMarker = QStringLiteral("\nHost task budget: ");
 void check(bool ok, const char *message) {
     if (!ok)

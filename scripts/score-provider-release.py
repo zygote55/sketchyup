@@ -13,6 +13,8 @@ with its 15-minute task lifetime (R086.e). Every report must also match the froz
 assistant surface: the native session and draft ceiling, each task's command
 authorization and tool-list hash, and the profile's instruction hash, which every
 recorded provider request must carry.
+Version 5 keeps the version 4 rules and freezes the R095.g tool surface, which adds
+site.describe, terrain.describe and terrain.elevation_at to every task's tools.
 """
 import argparse
 import hashlib
@@ -117,7 +119,7 @@ def postcondition_failures(data):
 
 def score(manifest, bundle, root):
     version = manifest['corpusVersion']
-    require(type(version) is int and version in (1, 2, 3, 4), 'Unsupported corpus')
+    require(type(version) is int and version in (1, 2, 3, 4, 5), 'Unsupported corpus')
     if version >= 2:
         require(manifest['requiredPostconditions'] == list(POSTCONDITIONS) and
                 all(name in manifest['hardZero'] for name in POSTCONDITION_BLOCKERS),
@@ -127,7 +129,7 @@ def score(manifest, bundle, root):
         require(assistant['session'] == 'native' and
                 assistant['maximumDraftTtlSeconds'] == manifest['deadlineSeconds'] and
                 set(assistant['surfaces']) == {task['trial'] for task in manifest['tasks']},
-                'Corpus v4 requires the native session surface for every task')
+                'Corpus v4+ requires the native session surface for every task')
     postcondition_totals = dict.fromkeys(POSTCONDITIONS, 0)
     profile = manifest['profiles'][bundle['profile']]
     tasks = {task['trial']: task for task in manifest['tasks']}

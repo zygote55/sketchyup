@@ -407,5 +407,31 @@ class VersionFourScoreTests(VersionThreeScoreTests):
                     SCORE.score(manifest, self.bundle, self.root)
 
 
+class VersionFiveScoreTests(VersionFourScoreTests):
+    """v4 rules unchanged; only the frozen tool-list hashes move to the R095.g surface."""
+    MANIFEST = 'tests/provider-release-corpus-v5.json'
+
+    def test_only_tool_hashes_differ_from_version_four(self):
+        v4 = json.loads((ROOT / 'tests/provider-release-corpus-v4.json').read_text())
+        v5 = json.loads((ROOT / self.MANIFEST).read_text())
+        self.assertEqual((v4['corpusVersion'], v5['corpusVersion']), (4, 5))
+        for key in set(v4) | set(v5):
+            if key not in ('corpusVersion', 'assistant', 'surfacePolicy'):
+                self.assertEqual(v5[key], v4[key], key)
+        old, new = v4['assistant'], v5['assistant']
+        self.assertEqual({k: v for k, v in old.items() if k != 'surfaces'},
+                         {k: v for k, v in new.items() if k != 'surfaces'})
+        self.assertEqual(set(old['surfaces']), set(new['surfaces']))
+        for trial, row in new['surfaces'].items():
+            self.assertEqual(row['allowedCommands'], old['surfaces'][trial]['allowedCommands'])
+            self.assertNotEqual(row['toolsSha256'], old['surfaces'][trial]['toolsSha256'])
+
+    def test_version_four_report_rejected_by_version_five_manifest(self):
+        self.data[0]['corpusVersion'] = 4
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'Wrong corpus task'):
+            self.evaluate()
+
+
 if __name__ == '__main__':
     unittest.main()

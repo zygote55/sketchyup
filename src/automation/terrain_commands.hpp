@@ -1,8 +1,9 @@
 #pragma once
 // R095.a site and terrain commands and queries (ADR 0168 §5): site.set, site.reanchor
 // and terrain.explode are batch commands; site.describe, site.convert,
-// terrain.describe and terrain.elevation_at are inspection queries. None is shown to
-// the in-app assistant yet (assistantVisible); MCP exposes all of them. R095.e2 adds the batch
+// terrain.describe and terrain.elevation_at are inspection queries. The in-app assistant
+// sees only site.describe, terrain.describe and terrain.elevation_at (R095.g,
+// assistantVisible); MCP exposes all of them. R095.e2 adds the batch
 // command terrain.set_display (contour lines, interval, shading; the mesh is untouched).
 #include "core/model.hpp"
 #include "core/terrain_records.hpp"

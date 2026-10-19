@@ -51,13 +51,38 @@ QString phaseName(AssistantTask::Phase phase) {
 // Component parameter operations and queries (every component_parameter.* and
 // component_parameters.* name, ADR 0165 §6) are hidden the same way in the F02 release.
 // Site and terrain operations and queries (every site.* and terrain.* name, ADR 0168
-// §5) stay hidden until a corpus run measures the token cost of the ones decision 10
-// will show (site.describe, terrain.describe, terrain.elevation_at).
+// §5) are hidden except the three read-only queries of decision 10 (R095.g):
+// site.describe, terrain.describe and terrain.elevation_at. Their token cost was
+// measured offline before the baseline was re-pinned (ADR 0168, "Implementation notes
+// (R095.g)").
 bool assistantVisible(const QString &name) {
+    if (name == QStringLiteral("site.describe") || name == QStringLiteral("terrain.describe") ||
+        name == QStringLiteral("terrain.elevation_at"))
+        return true;
     return !name.startsWith(QStringLiteral("drawing_")) &&
            !name.startsWith(QStringLiteral("component_parameter")) &&
            !name.startsWith(QStringLiteral("site.")) &&
            !name.startsWith(QStringLiteral("terrain."));
+}
+// Tool descriptions the assistant sees where the shared catalogue has none (inspection
+// queries carry only their schema). They state units and coordinate spaces (R095.g).
+QString assistantDescription(const QString &name) {
+    if (name == QStringLiteral("site.describe"))
+        return QStringLiteral(
+            "Site origin, in metres: established, origin {easting, northing, elevation} and a CRS "
+            "label (never reprojected). site = model + origin. Every other tool uses model "
+            "coordinates in metres, never site coordinates.");
+    if (name == QStringLiteral("terrain.describe"))
+        return QStringLiteral(
+            "One terrain body (entities.query ownerKind \"terrain\"): triangles, tiles, sources, "
+            "parameters, display and elevationRange [min, max] of world Z. Model coordinates, "
+            "metres.");
+    if (name == QStringLiteral("terrain.elevation_at"))
+        return QStringLiteral(
+            "Terrain surface height under 1-200 [x, y] points in model coordinates (world X and Y "
+            "in metres, not site easting/northing). Each result has found and elevation (world Z, "
+            "metres) with tile and face; off the terrain found is false and elevation is null.");
+    return {};
 }
 QJsonArray visibleInspectionCatalog() {
     QJsonArray result;
@@ -133,9 +158,11 @@ QJsonArray catalog(const QStringList &commands, bool clarification, int taskSeco
     QJsonArray tools;
     for (const auto &value : entries) {
         const auto entry = value.toObject();
+        const auto name = entry["name"].toString();
+        const auto own = assistantDescription(name);
         tools.append(QJsonObject{
-            {"name", entry["name"]},
-            {"description", entry.value("description").toString(entry["name"].toString())},
+            {"name", name},
+            {"description", entry.value("description").toString(own.isEmpty() ? name : own)},
             {"inputSchema", entry["parameters"]}});
     }
     return tools;

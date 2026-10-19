@@ -12,8 +12,14 @@ their 1.2.0 schema.
   origin with an informational CRS label, schema 29 with a binary `terrain-mesh` chunk,
   and the `site.set`, `site.reanchor`, `terrain.explode` commands and `site.describe`,
   `site.convert`, `terrain.describe`, `terrain.elevation_at` queries in automation
-  sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
+  sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
+
+- Terrain queries for the in-app assistant (R095.g, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095g)):
+  the assistant can now call `site.describe`, `terrain.describe` and `terrain.elevation_at`,
+  with descriptions that give units and say which coordinates are site and which are model
+  coordinates. It still cannot see or run any other site or terrain command; MCP exposes all of
+  them. Each assistant turn sends about 2.4–3.8 KB more tool schema.
 
 - DXF export option **Write site coordinates** (R095.e3, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095e3)):
   File → Export 2D DXF… and `sketchyup-cli --export-dxf … --dxf-site-coordinates` add the

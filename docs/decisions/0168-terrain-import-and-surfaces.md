@@ -6,13 +6,13 @@ Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 is implemented**, and so are R095.b (triangulation), R095.c (importers), R095.c2 (terrain
 from edges, settings and Regenerate), R095.d (the desktop import dialog), R095.e1 (the
 Entity info Terrain section, terrain settings, Explode and the tools on terrain), R095.e2
-(terrain display, Site settings and site coordinates) and R095.e3 (DXF export with site
-coordinates); see "Implementation status". **R095.f accepted them on 2026-10-19 with open gaps**
+(terrain display, Site settings and site coordinates), R095.e3 (DXF export with site
+coordinates) and R095.g (decision 10, the assistant surface); see "Implementation status". **R095.f accepted them on 2026-10-19 with open gaps**
 ([R095.f record](../verification/R095f-terrain.md)): the Verify line and every check of §6 pass;
 the 250k budgets pass except progress and cancel for parse and triangulate (D-044, Minor); the
 owner restated the file-growth budget as the mesh chunk, which closed D-045; the one-tile replacement budget waits for R096 and
-the complete frame is measured in software only. The assistant surface (decision 10) remains,
-as R095.g. Each section gives the
+the complete frame is measured in software only. R095.g then implemented the assistant surface
+(decision 10; see "Implementation notes (R095.g)"). Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
 [R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
@@ -559,7 +559,7 @@ The owner decided these points on 2026-10-18, each as recommended:
 7. **Persistence:** schema 29 with required feature `terrain-v1`; tile meshes in a binary `terrain-mesh` chunk, stored rather than re-derived on load. Documents without terrain keep their lower schema.
 8. **Georeferencing:** a document site origin plus an informational CRS label; imports must already be projected; no PROJ dependency.
 9. **Export conversion in R095:** DXF export gains "Write site coordinates"; other exporters write model coordinates and say so.
-10. **Assistant visibility:** the in-app assistant sees only `site.describe`, `terrain.describe` and `terrain.elevation_at`, pinned after a corpus token measurement; MCP exposes every command.
+10. **Assistant visibility:** the in-app assistant sees only `site.describe`, `terrain.describe` and `terrain.elevation_at`, pinned after a corpus token measurement; MCP exposes every command. *Implemented in R095.g; see "Implementation notes (R095.g)".*
 11. **Import target:** terrain import adds to the open document in one labelled edit.
 
 **Interaction design.** The owner approved the R095 UX design on 2026-10-18 (link in the
@@ -697,10 +697,11 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: the assistant surface (decision 10: the corpus token measurement, then
-`site.describe`, `terrain.describe` and `terrain.elevation_at` in the in-app assistant), which is
-R095.g; a role picker for Create terrain from selection (pending an owner decision); progress and
-cancel for the import's parse and triangulation (D-044). R095.f is the acceptance record; see
+Left for later slices: R095.h, a role picker for Create terrain from selection (approved by the
+owner on 2026-10-19: a tag-based roles step that reuses the import dialog's layer → role table,
+shown only when the selection has a closed loop or spans more than one tag); progress and cancel
+for the import's parse and triangulation (D-044). The assistant surface (decision 10) is R095.g;
+see "Implementation notes (R095.g)". R095.f is the acceptance record; see
 [R095.f](../verification/R095f-terrain.md). Terrain display (the
 Terrain material, hidden seams and interior edges, contour lines, elevation shading),
 `terrain.set_display`, Site settings with Re-anchor and Set origin, site coordinates in Entity
@@ -724,7 +725,7 @@ point-file importers with `terrain.inspect_source` and `terrain.import` are R095
 7. **Persistence:** schema 29 with `terrain-v1`; the mesh stored in a binary `terrain-mesh` chunk, not re-derived on load. *Decided 2026-10-18: yes.*
 8. **Georeferencing:** document site origin plus an informational CRS label; user supplies projected coordinates; no PROJ. *Decided 2026-10-18: yes.*
 9. **Export conversion in R095:** DXF export option "Write site coordinates" only; other exporters later. *Decided 2026-10-18: DXF only.*
-10. **Assistant visibility:** only `site.describe`, `terrain.describe` and `terrain.elevation_at`, after a corpus token measurement; MCP gets everything. *Decided 2026-10-18: yes.*
+10. **Assistant visibility:** only `site.describe`, `terrain.describe` and `terrain.elevation_at`, after a corpus token measurement; MCP gets everything. *Decided 2026-10-18: yes. Implemented in R095.g (2026-10-19).*
 11. **Import target:** terrain import adds to the open document in one labelled edit, unlike the other importers. *Decided 2026-10-18: add to the open document.*
 
 ## Implementation notes (R095.b)
@@ -1518,6 +1519,75 @@ R095.e3 adds owner decision 9: DXF export can write site coordinates. Modules:
 - **Tests.** `dxf_export` (exactness, off by default, refusal, notices), `dxf_import` (CLI flag),
   `stl_export` and `obj_export` (notices), `dxf_input` (checkbox disabled and enabled) and the dialog
   audit case `dxf-export-options-site`.
+
+## Implementation notes (R095.g)
+
+R095.g implements owner decision 10: the in-app assistant sees `site.describe`,
+`terrain.describe` and `terrain.elevation_at`, and no other `site.*` or `terrain.*` name.
+Modules: `assistantVisible` and `assistantDescription` in `src/automation/assistant.cpp`.
+
+- **Rule.** `assistantVisible` admits the three names and still hides every other `site.*`
+  and `terrain.*` name: `site.set`, `site.reanchor`, `site.convert` and every terrain
+  command (`terrain.import`, `terrain.inspect_source`, `terrain.create_from_edges`,
+  `terrain.set_parameters`, `terrain.regenerate`, `terrain.set_display`,
+  `terrain.explode`). The three are read-only inspection queries, so they appear as
+  top-level tools on every surface and in `transaction.inspect` requests; none is a
+  command an assistant task can be authorized for. Authorizing a site or terrain command
+  is refused with `UNSUPPORTED_CAPABILITY`, and a `site.convert` call is rejected without
+  reaching the document. MCP is unchanged and exposes everything.
+- **Descriptions.** Inspection queries carry no description in the shared catalogue, so
+  the assistant used to see only the name. `assistantDescription` gives the three a short
+  description with units and spaces, used only in the assistant's tool list (MCP and the
+  generated schemas are unchanged):
+  - `site.describe`: the origin (easting, northing, elevation) in metres and the CRS label,
+    which is never reprojected; site = model + origin; every other tool uses model
+    coordinates in metres.
+  - `terrain.describe`: one terrain body (found with `entities.query`, `ownerKind`
+    `"terrain"`), with triangles, tiles, sources, parameters, display and `elevationRange`
+    as world Z, in model metres.
+  - `terrain.elevation_at`: 1–200 `[x, y]` points in model coordinates (world X and Y in
+    metres, not easting and northing); each result has `found` and `elevation` (world Z,
+    metres) with tile and face; off the terrain `found` is false and `elevation` is null.
+  The system instructions are unchanged.
+- **Token measurement.** Measured offline on 2026-10-19; no live provider run. The first
+  provider request of each `assistant_tool_surface_tests` surface was dumped before and
+  after the change. The system prompt is unchanged (6,728 bytes, 1,219 tokens with the
+  fixture's host budget). The ChatGPT-plan wire tools were counted with the `o200k_base`
+  tokenizer, a proxy because the provider's tokenizer is not available offline:
+
+  | Surface | Tools | Wire tool bytes | System + tools, tokens (proxy) |
+  | --- | --- | --- | --- |
+  | inspection-only | 27 → 30 | 22,627 → 25,000 (+2,373) | 7,429 → 8,049 (+620) |
+  | room | 34 → 37 | 47,599 → 51,424 (+3,825) | 14,472 → 15,501 (+1,029) |
+  | resize | 34 → 37 | 47,312 → 51,137 (+3,825) | 14,381 → 15,410 (+1,029) |
+  | advanced | 34 → 37 | 50,567 → 54,392 (+3,825) | 15,306 → 16,335 (+1,029) |
+  | site | 34 → 37 | 48,419 → 52,244 (+3,825) | 14,674 → 15,703 (+1,029) |
+  | every command + clarification | 35 → 38 | 131,550 → 135,375 (+3,825) | 36,771 → 37,800 (+1,029) |
+
+  Edit surfaces grow more because `transaction.inspect` repeats the query schemas. The
+  provider-reported cost is likely lower: in R086.cb the drawing-sheet tools added 9,742
+  wire bytes and 1,606 reported tokens a turn, which scales to about 630 tokens for 3,825
+  bytes. Either way it is well under the sheet tools' 1,606 tokens that D-035 removed.
+- **Budget.** The precedent is the corpus's per-task reported-token budget (R086.cb,
+  D-035). Corpus v4 runs at 524,288 tokens and 16 turns a task; the 1.2.0 corpus's largest
+  run used 155,383 tokens in at most 9 turns (F02 1.2.0 record). At the proxy figure the
+  surface adds at most 16 × 1,029 = 16,464 tokens a task (3.1% of the budget), which leaves
+  the worst 1.2.0 run under 172,000 tokens. The surface stays within budget.
+- **Pinning.** `tests/assistant-tool-surface-baseline.json` is re-pinned (its `source`
+  records the R095.g change); every other name and schema is byte-for-byte unchanged.
+  Because every tool list changed, the frozen corpus v4 hashes no longer match, so
+  `tests/provider-release-corpus-v5.json` freezes the new per-task `toolsSha256` with the v4
+  tasks, prompts, profiles, limits and instructions unchanged. `provider_trial` writes
+  version 5 and the scorer accepts it under the v4 rules. The v4 manifest and its 1.2.0
+  evidence are kept. A live v5 run is needed before the next release and has not been made.
+- **Tests.** `assistant_tool_surface_tests` checks that every surface has the three as
+  top-level tools and no other site or terrain name anywhere in its schemas, that site and
+  terrain commands cannot be authorized and `site.convert` is rejected, that MCP still
+  lists every site and terrain query and command, and that an assistant task calls the
+  three on a document holding the R095.c UTM fixture terrain: `site.describe` returns the
+  imported origin, `terrain.describe` the terrain, and `terrain.elevation_at` a tile
+  vertex's exact Z and, off the terrain, `found: false` with a null elevation.
+  `provider_release_corpus` and `provider_release_score` cover the v5 manifest.
 
 ## Appendix: experiments
 
