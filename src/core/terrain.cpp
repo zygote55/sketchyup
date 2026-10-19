@@ -9,6 +9,8 @@
 #include <utility>
 namespace sketchy {
 static_assert(TerrainLimits::triangles == terrainTriangleLimit);
+// terrainHistoryMessage names the budget.
+static_assert(Document::terrainHistoryLimit == 512u * 1024 * 1024);
 namespace {
 [[noreturn]] void refuse(const char *code, const std::string &message) {
     throw TerrainError(code, message);

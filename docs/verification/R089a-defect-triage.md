@@ -109,6 +109,10 @@ see "Closed by the D-023 fix" below and the counts.
 **Updated 2026-10-18 (D-042 added and fixed; branch `fix/clipper2-tessellation-hang`).** Face
 tessellation and section caps could allocate without bound on faces larger than about 10 m
 (Clipper2's inexact segment test); see "Closed by the D-042 fix" below and the counts.
+**Updated 2026-10-19 (D-043 added and fixed; branch `fix/d043-terrain-history-budget`).** A
+single terrain over about 151,000 triangles (about 76,000 for Regenerate, Terrain settings and
+Explode) could not be applied: its tiles exceeded the 64 MiB per-edit history budget. Terrain
+edits now have their own history budget; see "Closed by the D-043 fix" below and the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -168,6 +172,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-038 | A paint inside a definition marks its driver Changed, with "changed shape" wording | [R094.h Findings](R094h-configurable-components.md#findings) | F02 | **Fixed 2026-10-17** (see "Closed by the D-038 fix"). A driver's `bound` digest covers its target member's whole record, colour included (ADR 0165 §4), so painting the top made Stretch Top Changed and the strip said the driver "now starts from a changed shape". A template edit that changes only a driven member's appearance now restamps the digest, and the driver stays bound. | Minor | Specified behaviour with misleading wording: Rebind or Undo cleared it, and no geometry or document was wrong | Fixed: [ADR 0165 addendum](../decisions/0165-constrained-component-parameters.md#addendum-d-038-2026-10-17-a-paint-keeps-its-drivers-bound); no file-format change |
 | D-039 | `checkUniqueGeometry` costs O(variant placements × members) per edit | [R094.g](R094g-variant-instancing.md#the-22-edit-feedback-gap-in-the-first-report) | F02, N01 | **Fixed 2026-10-17** (after 1.2.0; see "Closed by the D-039 fix"). Every `Document::apply` walked each variant placement's member records while any placement showed a variant: 1.1–1.5 ms per placement move with 10,000 variant placements against 0.4–0.6 ms with default placements (software, R094.g). The variant index now counts placements per variant, so the check is O(distinct variants). | Minor | A performance cost about 1 ms at 10,000 placements, well inside the edit-feedback budget; disclosed in the 1.2.0 release notes | Fixed: per-variant placement counts in the variant index; ships in the next release after 1.2.0 |
 | D-042 | Face tessellation and section caps could allocate without bound on faces larger than about 10 m | This PR (branch `fix/clipper2-tessellation-hang`); R095.c (PR #369) | Core modelling (faces, sections); every edit, load and render validates surfaces | **Fixed 2026-10-18** (see "Closed by the D-042 fix"). Was: Clipper2 2.0.1's beta `Triangulate` tested segment crossings with int64 grid products in double. On the 1e-7 m tessellation grid, products pass 2^53 on faces larger than about 10 m, a shared end-point could read as a crossing, and `FixupEdgeIntersects` split edges until memory ran out (systemd-oomd killed the developer session twice). PR #369 only bypassed single triangles. In a capped harness, up to 6 % of random millimetre-rounded quads, L-shapes and faces with a hole of 10–1,000 m hung, and a 100 m quad prism's section cap did too | Release-blocking | A hang/OOM reachable from ordinary modelling (a floor slab or site plan), which the class definition lists as "a crash or hang in a Core workflow"; there was no workaround short of splitting the face | Fixed: exact `SegsIntersect` (shared end-points skipped as upstream 6a36be1c8b, remaining tests on the exact `CrossProductSign`/`ProductsAreEqual`) and hard work bounds in the vendored triangulator; see [PATCHES](../../third_party/clipper2/PATCHES.md) |
+| D-043 | Terrain edits over about 76,000–151,000 triangles exceed the 64 MiB history budget | This PR (branch `fix/d043-terrain-history-budget`); found by the R095.e2 worker (PR #374) | Terrain (R095): `terrain.import`, `terrain.create_from_edges`, `terrain.regenerate`, `terrain.set_parameters`, `terrain.explode`, the import and settings dialogs | **Fixed 2026-10-19** (see "Closed by the D-043 fix"). Was: a terrain is created, regenerated or exploded as one edit whose tile bodies are charged at about 440 B per triangle, and `Document::applyEdit` refused any edit over the 64 MiB `historyLimit` with a raw `runtime_error` ("Edit exceeds the 64 MiB history budget"). Create and import refused above 151,250 triangles (275 × 275 grid), Regenerate and Explode above 76,050 (their before and after are both charged), well under the 250,000-triangle document limit (ADR 0168 decision 3). Commands and sessions reported it as `INVALID_OPERATION`, the CLI as a failed `INVALID_OPERATION`, and the import dialog showed the raw text after a successful dry run | Major | A broken workflow inside the declared terrain limit, with a workaround (a coarser or split terrain); nothing was changed by the refusal | Fixed: terrain's own history budget (`Document::terrainHistoryLimit`, 512 MiB charged) for the record, tile and lineage changes of terrain edits; general history unchanged |
 | D-040 | Weston 15.0.1 segfaulted in `weston_view_animation_destroy` during a CI Wayland 2× line | [main run 38920762782](https://github.com/zygote55/sketchyup/actions/runs/38920762782) (job 117047789178, `9d3a786c`) | N03 (test harness) | **Mitigated (unconfirmed) 2026-10-18; stays open** until CI has run a reasonable period without the crash. Once on `main` (2026-10-16): after `section_viewport_tests` passed, the next line (`style_input_tests`, Wayland 2×) ended when the isolated Weston received SIGSEGV; the D-034 trace shows `wl_list_remove` ← `weston_view_animation_destroy` ← `wl_event_loop_dispatch_idle` in Weston's main thread. No SketchyUp check failed. Later `main` runs passed the line. **Cause narrowed (not reproduced).** In Weston 15.0.1, `libweston/animation.c` frees a finished view animation from an idle source (`idle_animation_destroy`, a tail call, so the trace shows `wl_event_loop_dispatch_idle` directly; an `LD_PRELOAD` probe records that caller for every such destroy). The startup fade's idle callback (`do_shell_fade_startup`) only starts a fade and destroys nothing, so it does not match the stack as such (the PR #356 lead). A `wl_list_remove` fault there means the animation was destroyed twice. The only session-time code that destroys a view animation directly, without cancelling its queued idle destroy, is `show_input_panel_surface()` in `desktop-shell/input-panel.c` (the focus animation is off, and shell teardown runs after the loop); upstream `main` is unchanged. The tests reach it: Qt's text-input-v1 shows the `weston-keyboard` panel, and in a 2× run the crashing line, `style_input_tests`, started 5 panel slides and `text_input_tests` 6. With the idle destroy delayed by fault injection, the probe recorded the panel destroying a slide whose idle destroy was still queued. A crash also needs the replacement slide not to reuse the freed block, as when the panel is shown while no surface has keyboard focus. Focus-toggle, window-churn and timed hide/show clients (18 sessions) did not crash Weston. **Mitigation:** `scripts/test-wayland.sh` starts Weston with a generated `weston.ini` holding `[input-method]` `path=` instead of `--no-config`, so `weston-keyboard` never starts and no panel slide runs; no test uses the input method, and removing the helper costs nothing. The other shell animations (startup and close fades) remain, but no direct destroy of them was found during a session. | Minor | An external compositor crash in the isolated test session, like D-020 and D-031; no product frame is involved | [R085](../PR_ROADMAP.md#r085) (test-only): watch CI for recurrence; keep the core dump; close after a clean period. Upstream: report the input-panel double destroy to Weston |
 | D-010 | System Wayland 1.26 client leaks a destroyed-proxy reference | [R062.b proxy](R062b-wayland-proxy.md), [R058.c](R058c-native-diagnostics.md) | N01 | **Open (external).** The leak is reproduced standalone without Qt or SketchyUp. Only sanitized CI uses the patched private client (`scripts/ci-wayland-client.sh`); users get the system library. | Limitation | A 96-byte leak per affected dialog event, in a third-party library. Disclosed in R062.b as "a documented external limitation until a fixed distribution library is available". | [R085](../PR_ROADMAP.md#r085): track the distribution fix |
 | D-011 | Qt Wayland client-decoration framebuffer leak | [R050](R050-native-render-ui.md) | N01 | **Open (external).** Sanitized Wayland steps still set `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` (`.github/workflows/native.yml`). | Limitation | Upstream Qt allocation, with no application frame in the stack. Disclosed in R050 as a test-environment workaround. | [R085](../PR_ROADMAP.md#r085): track upstream |
@@ -376,6 +381,42 @@ Closed by the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`):
   1.5× and 2× and on Wayland at 1× and 2×; `native_accessibility_audit` and every
   `--dialogs-keyboard` group pass on X11 at 1× and 2×; and every other line of the
   fractional-scaling job (1.5× and 1.75×, X11 and Wayland) passes.
+
+Closed by the D-043 fix (2026-10-19, branch `fix/d043-terrain-history-budget`):
+
+- **D-043** (terrain edits exceed the 64 MiB history budget). Class: **Major** by the scale
+  above (a broken workflow inside the declared 250,000-triangle terrain limit, with a coarser
+  or split terrain as the workaround); added and fixed on the same branch, so it is not open.
+  **Reproduction** (debug build, rolling grid terrains, binary search): `createTerrain` and
+  `importTerrain` applied at most 151,250 triangles; `regenerateTerrain` with every tile
+  changed and `explodeTerrain` at most 76,050, below Explode's own 100,000-face modelling
+  limit. A 178,802-triangle point-file `terrain.import` dry run reported success, then the
+  import threw "Edit exceeds the 64 MiB history budget" (`INVALID_OPERATION` through
+  `executeBatch`, sessions and the CLI; the raw message in the import dialog after Import).
+  **Measurements** (`mallinfo2` heap, `ru_maxrss`): a 249,218-triangle terrain is 96.9 MiB of
+  heap and charged 104.6 MiB (440 B per triangle; a strip-shaped mesh with one vertex per
+  triangle charges 546 B, 250,000 disjoint triangles 673 B, and a record at the source limits
+  30.1 MiB). The create entry adds no heap: history shares the immutable tile bodies with the
+  document. A regeneration that replaces every tile holds the old tile set, 194 MiB in all,
+  unchanged by undo and redo (peak 299 MiB resident). Through `executeBatch`, the edit also
+  carries the erased tiles' lineage (775,752 entries, 74 MB charged), so a near-limit
+  `terrain.set_parameters` is charged 288 MiB, and the document holds 255 MiB of heap after
+  import, settings, undo and redo (peak 737 MiB resident, mostly the batch's transient
+  staging). **Fix (option a).** The record, tile and lineage changes of an edit that creates,
+  changes or drops a terrain record are charged to `Edit::terrainBytes` against
+  `Document::terrainHistoryLimit` (512 MiB), sized for a 250,000-triangle terrain plus one
+  regeneration's before and after: the worst terrain any 250,000-triangle mesh and record can
+  make charges 190.7 MiB, so every terrain operation within the document limit applies as one
+  undoable edit, and no history refusal remains reachable there. The oldest entries are
+  dropped while either budget is exceeded (as for the 64 MiB budget); an edit over the terrain
+  budget would refuse as `TerrainError` `LIMIT_EXCEEDED`, never as a raw error. **Worst case**
+  (250k terrain, regenerate, undo, redo): 194 MiB of heap through the core and 255 MiB through
+  commands; repeated full regenerations stay at 303 MiB of heap (the terrain and two older
+  tile sets), with 511–539 MiB peak resident during a regeneration. The terrain history
+  charge never exceeds 512 MiB, and heap is about 0.93 of the charge. Edits that touch no
+  terrain record are charged exactly as before. `terrain_history_tests` covers create,
+  import, regenerate, set_parameters (twice) and explode with undo and redo, the explode
+  refusal at 250k, and the worst-case bound.
 
 Closed by the D-042 fix (2026-10-18, branch `fix/clipper2-tessellation-hang`):
 
@@ -826,7 +867,7 @@ Closed by the D-028 fix (2026-10-18, branch `test/d027-d028-tooling`):
 | Minor | 8 | D-006–D-009, D-019, D-031, D-034, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
 | **Total open** | **22** | |
-| Fixed since the 2026-10-11 refresh | 17 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-027 and D-028 (Minor, added at the RC and fixed 2026-10-18), D-022 (Minor, fixed 2026-10-18 in the fuzz harness), D-023 (Minor, fixed 2026-10-18), D-042 (Release-blocking, added and fixed 2026-10-18) |
+| Fixed since the 2026-10-11 refresh | 18 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-027 and D-028 (Minor, added at the RC and fixed 2026-10-18), D-022 (Minor, fixed 2026-10-18 in the fuzz harness), D-023 (Minor, fixed 2026-10-18), D-042 (Release-blocking, added and fixed 2026-10-18), D-043 (Major, added and fixed 2026-10-19) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -858,6 +899,8 @@ After the D-023 fix (2026-10-18, branch `fix/d023-focus-contrast`): 22 open (0
 release-blocking, 0 Major, 8 Minor, 14 Limitation).
 After the D-042 fix (2026-10-18, branch `fix/clipper2-tessellation-hang`): 22 open (0
 release-blocking, 0 Major, 8 Minor, 14 Limitation). D-042 was added and fixed on the same branch.
+After the D-043 fix (2026-10-19, branch `fix/d043-terrain-history-budget`): 22 open (0
+release-blocking, 0 Major, 8 Minor, 14 Limitation). D-043 was added and fixed on the same branch.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

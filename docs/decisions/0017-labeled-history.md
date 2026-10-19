@@ -14,6 +14,8 @@ Task labels do not imply that an AI provider exists yet.
 
 The existing change-set stack remains authoritative. Metadata counts against the
 64 MiB history budget, and retained entries are additionally capped at 10,000.
+(Terrain record and tile changes have their own 512 MiB budget,
+`Document::terrainHistoryLimit`; see ADR 0168 and D-043.)
 Pruning exposes a marked retained baseline; it never claims that earlier steps
 can still be undone. Pages contain at most 1,000 entries (200 by default), ordered
 chronologically across both applied and redo portions. Each row has the cursor

@@ -90,6 +90,10 @@ struct Edit {
     std::string label;
     std::vector<Change> changes;
     size_t bytes{};
+    // The body changes of a terrain operation (D-043): the record of each terrain whose
+    // record the edit creates, changes or drops, and its tiles. Charged against
+    // Document::terrainHistoryLimit instead of `bytes` and historyLimit.
+    size_t terrainBytes{};
     Id nextIdFloor{};
     std::vector<DefinitionChange> definitions{};
     std::vector<InstanceChange> instances{};
@@ -255,6 +259,15 @@ class Document {
     bool canRedo() const { return !redo_.empty(); }
     size_t historyBytes() const { return historyBytes_; }
     static constexpr size_t historyLimit = 64 * 1024 * 1024;
+    // Terrain's own history limit class (ADR 0168 decision 3, D-043). A terrain operation
+    // replaces whole tile sets in one edit, so the record and tile changes of terrain
+    // edits are charged here (Edit::terrainBytes), not against historyLimit. Sized for a
+    // 250,000-triangle terrain plus one regeneration's before and after: the worst tile
+    // set any 250,000-triangle mesh can make plus a full record is about 191 MiB, so every
+    // terrain edit up to the document limit fits. The oldest entries are dropped while
+    // either budget is exceeded; an edit over this one refuses (LIMIT_EXCEEDED).
+    static constexpr size_t terrainHistoryLimit = 512 * 1024 * 1024;
+    size_t terrainHistoryBytes() const { return terrainHistoryBytes_; }
     explicit Document(DisplayUnit units = DisplayUnit::Meters,
                       int displayPrecision = fullDisplayPrecision);
     DisplayUnit displayUnits() const { return displayUnits_; }
@@ -402,7 +415,7 @@ class Document {
         StatePtr before, after;
     };
     std::deque<History> undo_, redo_;
-    size_t historyBytes_{};
+    size_t historyBytes_{}, terrainHistoryBytes_{};
     bool historyPruned_{};
     // Incremental bookkeeping. Invariants (checked by verifyIncrementalState):
     // totals_ sums bodies_; lockedBodies_ is the set of locked body IDs;
