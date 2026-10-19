@@ -3,6 +3,10 @@
 #include <iostream>
 #include <numbers>
 #include <random>
+#include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <unistd.h>
 using namespace sketchy;
 namespace {
 void check(bool condition, const char *message) {
@@ -45,6 +49,54 @@ double capArea(const SectionMesh &mesh, Id section = 0) {
                       .5;
     return result;
 }
+// D-042: section caps go through the same Clipper2 triangulation as faces. Its 2.0.1 segment
+// test multiplied grid coordinates in double, so a cap larger than about 10 m could split edges
+// without bound. The prism below (a 100 m quad, sides split by diagonals so the contour also
+// carries edge midpoints) hung the unpatched triangulator. It runs in a non-dumpable forked child
+// under a 2 GiB address-space cap (skipped under AddressSanitizer, which reserves more) and a
+// 60 s alarm, so a regression fails the check instead of exhausting the machine.
+bool largeQuadCapCloses() {
+    const std::vector<std::array<double, 2>> outline{{174.76435922241663, 8.6169342626427614},
+                                                     {272.26606466103436, 30.829935783396845},
+                                                     {280.74121574820549, 77.75647954274541},
+                                                     {174.4393460688579, 49.263853788672712}};
+    std::vector<Triangle> prism;
+    const auto at = [&](size_t i, double z) {
+        return Vec3{outline[i % 4][0], outline[i % 4][1], z};
+    };
+    prism.push_back({at(0, 0), at(2, 0), at(1, 0), 1});
+    prism.push_back({at(0, 0), at(3, 0), at(2, 0), 1});
+    prism.push_back({at(0, 2), at(1, 2), at(2, 2), 2});
+    prism.push_back({at(0, 2), at(2, 2), at(3, 2), 2});
+    for (size_t i = 0; i < 4; ++i) {
+        prism.push_back({at(i, 0), at(i + 1, 0), at(i + 1, 2), Id(3 + i)});
+        prism.push_back({at(i, 0), at(i + 1, 2), at(i, 2), Id(3 + i)});
+    }
+    const auto cut = sectionMesh(prism, {{1, {{0, 0, 1}, -1}}});
+    return cut.unfilledSections.empty() && std::abs(capArea(cut) - 4358.631761680461) < 1e-3;
+}
+void largeCap() {
+    const pid_t child = fork();
+    check(child >= 0, "fork for the capped section check");
+    if (child == 0) {
+        prctl(PR_SET_DUMPABLE, 0);
+#if !defined(__SANITIZE_ADDRESS__)
+        const rlimit cap{2ull << 30, 2ull << 30};
+        setrlimit(RLIMIT_AS, &cap);
+#endif
+        alarm(60);
+        try {
+            _exit(largeQuadCapCloses() ? 0 : 2);
+        } catch (const std::bad_alloc &) {
+            _exit(3);
+        } catch (...) {
+            _exit(4);
+        }
+    }
+    int status = 0;
+    check(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+          "A 100 m quad section cap fills (bounded)");
+}
 void verify(const SectionMesh &mesh, const std::vector<Triangle> &source,
             const std::vector<SectionCut> &cuts) {
     for (const auto &t : mesh.triangles) {
@@ -86,6 +138,7 @@ void verify(const SectionMesh &mesh, const std::vector<Triangle> &source,
 } // namespace
 int main() {
     try {
+        largeCap();
         auto source = box({0, 0, 0}, {2, 2, 2});
         const auto original = source;
         auto plain = sectionMesh(source, {});

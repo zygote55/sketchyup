@@ -18,6 +18,11 @@ namespace Clipper2Lib
   enum class IntersectKind { none, collinear, intersect };
   enum class EdgeContainsResult { neither, left, right };
 
+  // SketchyUp patch: thrown when a triangulation exceeds the work bound set in
+  // Delaunay::Execute; Triangulate() reports it as TriangulateResult::fail.
+  struct WorkLimitExceeded {};
+  static thread_local double workBoundScale = 1.0;
+
   //forward definitions
   class Vertex2;
   class Edge;
@@ -74,6 +79,9 @@ namespace Clipper2Lib
     bool                      useDelaunay = true;
     Vertex2*                  lowermostVertex = nullptr;
     Edge*                     firstActive = nullptr;
+    // SketchyUp patch: hard work bounds, proportional to the input vertex count.
+    size_t                    edgeLimit = 0;
+    size_t                    triangleLimit = 0;
     void AddPath(const Path64& path);
     bool AddPaths(const Paths64& paths);
     void CleanUp();
@@ -303,39 +311,22 @@ namespace Clipper2Lib
   static IntersectKind SegsIntersect(const Point64 s1a, const Point64 s1b, 
     const Point64 s2a, const Point64 s2b)
   {
-    double dy1 = static_cast<double>(s1b.y - s1a.y);
-    double dx1 = static_cast<double>(s1b.x - s1a.x);
-    double dy2 = static_cast<double>(s2b.y - s2a.y);
-    double dx2 = static_cast<double>(s2b.x - s2a.x);
-    double cp = dy1 * dx2 - dy2 * dx1;
-    if (cp == 0) return IntersectKind::collinear;
-
-    double t = (static_cast<double>(s1a.x - s2a.x) * dy2 - 
-      static_cast<double>(s1a.y - s2a.y) * dx2);
-    //ignore segments that 'intersect' at an end-point
-    if (t == 0) return IntersectKind::none;
-    if (t > 0)
-    {
-      if (cp < 0 || t >= cp) return IntersectKind::none;
-    }
-    else
-    {
-      if (cp > 0 || t <= cp) return IntersectKind::none;
-    }
-
-    // so far, the *segment* 's1' intersects the *line* through 's2',
-    // but now make sure it also intersects the *segment* 's2'
-    t = ((s1a.x - s2a.x) * dy1 - (s1a.y - s2a.y) * dx1);
-    if (t == 0) return IntersectKind::none;
-    if (t > 0)
-    {
-      if (cp > 0 && t < cp) return IntersectKind::intersect;
-    }
-    else
-    { 
-      if (cp < 0 && t > cp) return IntersectKind::intersect;
-    }
-    return IntersectKind::none;
+    // SketchyUp patch: exact segment test. The 2.0.1 version multiplied int64
+    // coordinates in double; past about 2^53 a shared end-point could read as a
+    // crossing and FixupEdgeIntersects then split edges without bound. Segments
+    // sharing an end-point are skipped as upstream 6a36be1c8b (#1055, #1056) does
+    // (plus the s1a == s2b case), and the remaining tests use the exact
+    // ProductsAreEqual / CrossProductSign helpers from clipper.core.h. In exact
+    // arithmetic this is the 2.0.1 rule: a proper crossing needs each segment's
+    // end-points strictly on opposite sides of the other segment's line.
+    if (s1a == s2a || s1a == s2b || s1b == s2a || s1b == s2b) return IntersectKind::none;
+    if (ProductsAreEqual(s1b.y - s1a.y, s2b.x - s2a.x, s2b.y - s2a.y, s1b.x - s1a.x))
+      return IntersectKind::collinear;
+    const int a1 = CrossProductSign(s2a, s2b, s1a), a2 = CrossProductSign(s2a, s2b, s1b);
+    if (a1 == 0 || a2 == 0 || a1 == a2) return IntersectKind::none;
+    const int b1 = CrossProductSign(s1a, s1b, s2a), b2 = CrossProductSign(s1a, s1b, s2b);
+    if (b1 == 0 || b2 == 0 || b1 == b2) return IntersectKind::none;
+    return IntersectKind::intersect;
   }
   
   /////////////////////////////////////////////////////////////////////////////
@@ -470,6 +461,8 @@ namespace Clipper2Lib
 
   Edge* Delaunay::CreateEdge(Vertex2* v1, Vertex2* v2, EdgeKind k)
   {
+    // SketchyUp patch: refuse instead of growing without bound.
+    if (allEdges.size() >= edgeLimit) throw WorkLimitExceeded();
     Edge* res = allEdges.emplace_back(new Edge());
     if (v1->pt.y == v2->pt.y)
     {
@@ -506,6 +499,8 @@ namespace Clipper2Lib
 
   Triangle* Delaunay::CreateTriangle(Edge* e1, Edge* e2, Edge* e3)
   {
+    // SketchyUp patch: refuse instead of growing without bound.
+    if (allTriangles.size() >= triangleLimit) throw WorkLimitExceeded();
     Triangle* res = allTriangles.emplace_back(new Triangle(e1, e2, e3));
     // nb: only expire loose edges when both sides of these edges have triangles.
     for (int i = 0; i < 3; ++i)       
@@ -898,6 +893,21 @@ namespace Clipper2Lib
 
   Paths64 Delaunay::Execute(const Paths64& paths, TriangulateResult& triResult)
   {
+    // SketchyUp patch: a triangulation of V vertices has at most 3V edges and 2V
+    // triangles, and each RemoveIntersection split adds one edge. Bound the work
+    // well above that so any future predicate failure refuses the input instead of
+    // allocating until the process runs out of memory. Delaunay legalisation was
+    // measured at up to about 20 edge visits per vertex (10,000 vertices, 625
+    // holes), growing slowly with V, so its bound is V * (64 + sqrt(V)).
+    size_t vertexCount = 0;
+    for (const Path64& path : paths) vertexCount += path.size();
+    const auto scaled = [](size_t limit)
+      { return static_cast<size_t>(static_cast<double>(limit) * workBoundScale); };
+    edgeLimit = scaled(8 * vertexCount + 64);
+    triangleLimit = scaled(4 * vertexCount + 64);
+    size_t legalizeLimit = scaled(vertexCount *
+      (64 + static_cast<size_t>(std::sqrt(static_cast<double>(vertexCount)))) + 1024);
+
     if (!AddPaths(paths))
     {
       triResult = TriangulateResult::no_polygons;
@@ -1046,6 +1056,8 @@ namespace Clipper2Lib
       // Convert triangles to Delaunay conforming
       while (!pendingDelaunayStack.empty())
       {
+        // SketchyUp patch: InCircleTest is inexact in double, so bound the flips.
+        if (legalizeLimit-- == 0) throw WorkLimitExceeded();
         Edge* e = pendingDelaunayStack.top();
         pendingDelaunayStack.pop();
         ForceLegal(e);
@@ -1192,11 +1204,21 @@ namespace Clipper2Lib
     return (allVertices.size() > 2);
   }
 
+  // SketchyUp patch: test hook for the work bounds.
+  double SetTriangulateWorkBoundScale(double scale)
+  {
+    const double previous = workBoundScale;
+    workBoundScale = scale;
+    return previous;
+  }
+
   TriangulateResult Triangulate(const Paths64& pp, Paths64& solution, bool useDelaunay)
   {
     TriangulateResult result;
     Delaunay d(useDelaunay);
-    solution = d.Execute(pp, result);
+    // SketchyUp patch: a work-bound refusal is a failure, not unbounded growth.
+    try { solution = d.Execute(pp, result); }
+    catch (const WorkLimitExceeded&) { solution.clear(); return TriangulateResult::fail; }
     return result;
   }
 
@@ -1211,7 +1233,10 @@ namespace Clipper2Lib
     Paths64 pp64 = ScalePaths<int64_t, double>(pp, scale, ec);
 
     Delaunay d(useDelaunay);
-    Paths64 sol64 = d.Execute(pp64, result);
+    Paths64 sol64;
+    // SketchyUp patch: a work-bound refusal is a failure, not unbounded growth.
+    try { sol64 = d.Execute(pp64, result); }
+    catch (const WorkLimitExceeded&) { solution.clear(); return TriangulateResult::fail; }
     solution = ScalePaths<double, int64_t>(sol64, 1 / scale, ec);
     return result;
   }

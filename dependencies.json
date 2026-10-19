@@ -8,7 +8,7 @@
   "dependencies": [
     {"name": "Qt Base", "minimum": "6.8", "linkage": "dynamic", "license": "LGPL-3.0-only", "source": "Arch qt6-base package"},
     {"name": "Qt Wayland", "minimum": "6.8", "linkage": "dynamic", "license": "LGPL-3.0-only", "source": "Arch qt6-wayland package"},
-    {"name": "Clipper2", "version": "2.0.1", "commit": "21ebba05db8894f0c7217ad35ea518080f324946", "linkage": "static", "license": "BSL-1.0", "source": "third_party/clipper2"},
+    {"name": "Clipper2", "version": "2.0.1", "commit": "21ebba05db8894f0c7217ad35ea518080f324946", "linkage": "static", "license": "BSL-1.0", "source": "third_party/clipper2", "patches": ["clipper.triangulation.cpp/.h: exact SegsIntersect (shared end-point check from upstream 6a36be1c8b) and hard work bounds in Triangulate (D-042); see third_party/clipper2/PATCHES.md"]},
     {"name": "CDT", "version": "2.0.0", "commit": "c888b30d83312114d3ff332855a97fd95ce95f17", "archiveSha256": "81ed0c7a8cbdc059b26948a160c3ce68c7a147976334093fe3175c8fa161a447", "linkage": "header-only, static", "license": "MPL-2.0", "source": "third_party/cdt", "bundledLicenses": ["BSD-3-Clause (predicates.h)", "Apache-2.0 WITH LLVM-exception (portable_nth_element.hpp)"]},
     {"name": "OpenGL", "minimum": "3.3", "linkage": "system driver", "source": "system Mesa or supported vendor driver"}
   ]

@@ -23,5 +23,10 @@ namespace Clipper2Lib
   TriangulateResult Triangulate(const Paths64& pp, Paths64& solution, bool useDelaunay = true);
   TriangulateResult Triangulate(const PathsD& pp, int decPlaces, PathsD& solution, bool useDelaunay = true);
 
+  // SketchyUp patch: Triangulate() refuses (TriangulateResult::fail) once its work
+  // exceeds bounds proportional to the input vertex count. Tests can scale those
+  // bounds on the calling thread; 1.0 is the production value. Returns the old scale.
+  double SetTriangulateWorkBoundScale(double scale);
+
 } // Clipper2Lib namespace
 #endif  // CLIPPER_TRIANGULATION_H

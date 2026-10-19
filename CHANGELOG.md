@@ -28,6 +28,13 @@ their 1.2.0 schema.
   `--terrain-units`, `--origin` and the point-file and role options. Also fixes a hang in
   face tessellation: a large triangle face could send Clipper2's Delaunay triangulation into
   unbounded memory growth; triangle faces are now their own tessellation.
+
+- Fixed (D-042): faces larger than about 10 m (quads, L-shapes, faces with holes) and section
+  caps of similar size could send face tessellation into unbounded memory growth, hanging an
+  edit, a load or a render until the system killed SketchyUp. The vendored Clipper2
+  triangulation now tests segment crossings exactly and bounds its work, refusing a face it
+  cannot triangulate instead of growing; see `third_party/clipper2/PATCHES.md`. Faces that
+  tessellated before produce the same triangles.
 - Terrain: the triangulation adapter for terrain import (R095.b, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095b)):
   contours, breaklines, points, a boundary and holes in local metres become a constrained
   Delaunay mesh, with flat triangles flipped and the rest reported, optional Steiner fill, and
