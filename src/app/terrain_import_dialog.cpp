@@ -1,6 +1,7 @@
 #include "app/terrain_import_dialog.hpp"
 #include "app/accessible_names.hpp"
 #include "app/interface_preferences.hpp"
+#include "app/terrain_report_view.hpp"
 #include "app/unit_display.hpp"
 #include "automation/terrain_commands.hpp"
 #include <QApplication>
@@ -241,46 +242,6 @@ QString extentsText(const QJsonObject &extents, const QString &unit) {
         parts << QString("%1 %2 to %3").arg(axes[i], decimal(min[i].toDouble()),
                                             decimal(max[i].toDouble()));
     return parts.join(" · ") + ' ' + unit;
-}
-
-// Group: refusals, merges (notices whose kind starts "merged-") and the other notices.
-enum class Group { Refusals, Merges, Notices };
-QJsonArray groupKinds(const QJsonObject &terrain, Group group) {
-    QJsonArray kinds;
-    if (group == Group::Refusals)
-        return terrain["refusals"].toArray();
-    for (const auto &value : terrain["notices"].toArray()) {
-        const bool merge = value.toObject()["kind"].toString().startsWith("merged-");
-        if (merge == (group == Group::Merges))
-            kinds.append(value);
-    }
-    return kinds;
-}
-QString kindText(const QJsonObject &kind) {
-    auto message = kind["message"].toString();
-    if (message.endsWith('.'))
-        message.chop(1);
-    const auto total = kind["count"].toDouble();
-    const auto listed = kind["locations"].toArray().size();
-    // The adapter's messages lead with their count; the parser's describe the kind.
-    QString text = message.startsWith(count(total) + ' ') || message.startsWith(QString::number(total) + ' ')
-                       ? message
-                       : message + " · " + count(total);
-    if (listed && kind["locationsOmitted"].toDouble() > 0)
-        text += QString(" (%1 listed)").arg(listed);
-    return text;
-}
-QString locationText(const QJsonObject &location, const QString &units) {
-    QString text = location["reference"].toString();
-    if (location.contains("reference2"))
-        text += " and " + location["reference2"].toString();
-    const auto xy = location["xy"].toArray();
-    if (xy.size() == 2)
-        text += QString(" · E %1, N %2 %3")
-                    .arg(decimal(xy[0].toDouble(), 3), decimal(xy[1].toDouble(), 3), units);
-    if (location.contains("detail"))
-        text += " · " + location["detail"].toString();
-    return text;
 }
 
 // Enter on a list chooses its current row instead of reaching the dialog's default button.
@@ -1294,24 +1255,7 @@ QString TerrainImportDialog::reportText() const {
     out << QString("Triangles: %1 · Vertices: %2 · Tiles: %3")
                .arg(count(terrain["triangles"].toDouble()), count(terrain["vertices"].toDouble()),
                     count(terrain["tiles"].toDouble()));
-    const auto units = terrain["units"].toString();
-    for (const auto &[group, title] :
-         {std::pair{Group::Refusals, "Refusals"}, std::pair{Group::Merges, "Merges"},
-          std::pair{Group::Notices, "Notices"}}) {
-        const auto kinds = groupKinds(terrain, group);
-        if (kinds.isEmpty())
-            continue;
-        out << "" << title;
-        for (const auto &value : kinds) {
-            const auto kind = value.toObject();
-            out << "  " + kindText(kind) + " [" + kind["kind"].toString() + "]";
-            for (const auto &location : kind["locations"].toArray())
-                out << "    " + locationText(location.toObject(), units);
-            if (const auto omitted = kind["locationsOmitted"].toDouble();
-                omitted > 0 && !kind["locations"].toArray().isEmpty())
-                out << "    … " + count(omitted) + " more not listed";
-        }
-    }
+    out << terrainReportLines(terrain, terrain["units"].toString());
     if (const auto omitted = terrain["kindsOmitted"].toDouble(); omitted > 0)
         out << "" << QString("%1 further kinds (%2 occurrences) are counted but not listed.")
                          .arg(count(omitted), count(terrain["occurrencesInOmittedKinds"].toDouble()));
@@ -1357,51 +1301,12 @@ void TerrainImportDialog::refreshReport() {
     const auto units = terrain["units"].toString();
     const double scale = dryRun_->metresPerUnit;
     const auto origin = dryRun_->result->origin;
-    QTreeWidgetItem *restore = nullptr;
-    for (const auto &[group, title] :
-         {std::pair{Group::Refusals, "Refusals"}, std::pair{Group::Merges, "Merges"},
-          std::pair{Group::Notices, "Notices"}}) {
-        const auto kinds = groupKinds(terrain, group);
-        if (kinds.isEmpty())
-            continue;
-        double total = 0;
-        for (const auto &value : kinds)
-            total += value.toObject()["count"].toDouble();
-        auto *top = new QTreeWidgetItem(reportList_, {QString("%1 · %2 %3, %4")
-                                                          .arg(title)
-                                                          .arg(kinds.size())
-                                                          .arg(kinds.size() == 1 ? "kind" : "kinds")
-                                                          .arg(plural(total, "occurrence",
-                                                                      "occurrences"))});
-        top->setData(0, Qt::UserRole + 2, QString(title).toLower());
-        for (const auto &value : kinds) {
-            const auto kind = value.toObject();
-            auto *item = new QTreeWidgetItem(top, {kindText(kind)});
-            item->setToolTip(0, kindText(kind) + " [" + kind["kind"].toString() + "]");
-            item->setData(0, Qt::UserRole + 2, kind["kind"].toString());
-            for (const auto &entry : kind["locations"].toArray()) {
-                const auto location = entry.toObject();
-                auto *child = new QTreeWidgetItem(item, {locationText(location, units)});
-                child->setToolTip(0, child->text(0));
-                const auto xy = location["xy"].toArray();
-                if (xy.size() == 2) {
-                    child->setData(0, Qt::UserRole,
-                                   QPointF(xy[0].toDouble() * scale - origin.easting,
-                                           xy[1].toDouble() * scale - origin.northing));
-                    child->setData(0, Qt::UserRole + 1, true);
-                }
-                if (child->text(0) == chosen)
-                    restore = child;
-            }
-            if (const auto omitted = kind["locationsOmitted"].toDouble();
-                omitted > 0 && !kind["locations"].toArray().isEmpty())
-                new QTreeWidgetItem(item, {"… " + count(omitted) + " more not listed"});
-        }
-        top->setExpanded(true);
-        if (group == Group::Refusals)
-            for (int i = 0; i < top->childCount(); ++i)
-                top->child(i)->setExpanded(true);
-    }
+    auto *restore = fillTerrainReport(
+        reportList_, terrain, units,
+        [scale, origin](double x, double y) -> std::optional<QPointF> {
+            return QPointF(x * scale - origin.easting, y * scale - origin.northing);
+        },
+        chosen);
     if (restore)
         reportList_->setCurrentItem(restore);
     else if (reportList_->topLevelItemCount())

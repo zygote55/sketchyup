@@ -78,6 +78,10 @@ class Window : public QMainWindow {
     // the import dialog, which adds the terrain to this document in one undoable edit.
     void importTerrainDialog();
     void importTerrainPath(const QString &path);
+    // R095.e1 (window_terrain.cpp): the terrain actions on the selection (Create terrain from
+    // selection, Terrain settings…, Regenerate terrain, Explode terrain…), the viewport context
+    // menu and the tool refusal's Explode link in the status bar.
+    void showViewportMenu(const QPoint &position);
     void exportDxfDialog();
     void importStlDialog();
     void exportStlDialog();
@@ -337,6 +341,11 @@ class Window : public QMainWindow {
     // R092.b: the export and print flow (window_sheet_export.cpp).
     QPointer<SheetExportDialog> sheetExport_;
     QPointer<TerrainImportDialog> terrainImport_;
+    void setupTerrainActions();
+    void syncTerrainActions();
+    QPushButton *statusExplode_{};
+    Id statusExplodeTerrain_{};
+    QString terrainStatusSaved_, terrainStatusShown_;
     std::unique_ptr<QPrinter> sheetPrinter_;
     ThemeColors sheetColors_{themeColors(false)};
     void sheetExportFlow(bool print);

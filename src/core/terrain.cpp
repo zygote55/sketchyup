@@ -458,24 +458,34 @@ TerrainCreated importTerrain(Document &doc, const TerrainMesh &mesh, TerrainReco
     created.changes = doc.apply(std::move(edit), doc.revision());
     return created;
 }
-ChangeReport explodeTerrain(Document &doc, Id terrain) {
+TerrainExplodeBudget terrainExplodeBudget(const Document &doc, Id terrain) {
     const auto found = doc.bodies().find(terrain);
     if (found == doc.bodies().end() || found->second->kind != BodyKind::Terrain)
         refuse("NOT_FOUND", "Terrain body does not exist");
-    const auto tiles = terrainTiles(doc, terrain);
-    std::size_t faces = 0;
-    for (const auto id : tiles)
-        faces += doc.bodies().at(id)->surface.faces.size();
+    TerrainExplodeBudget budget;
+    for (const auto id : terrainTiles(doc, terrain))
+        budget.terrainFaces += doc.bodies().at(id)->surface.faces.size();
     std::map<Id, std::size_t> placements;
     for (const auto &[root, instance] : doc.instances())
         ++placements[instance->definition];
-    const auto unique = uniqueGeometryCounts(doc.materializedTotals(), placements,
-                                             doc.definitions(), &doc.componentVariants());
-    if (unique.faces + faces > DocumentLimits::unique.faces)
+    const auto totals = doc.materializedTotals();
+    budget.modelFaces = uniqueGeometryCounts(totals, placements, doc.definitions(),
+                                             &doc.componentVariants())
+                            .faces;
+    budget.faceLimit = DocumentLimits::unique.faces;
+    budget.documentTerrainTriangles = totals.terrainTriangles;
+    budget.terrainLimit = TerrainLimits::triangles;
+    return budget;
+}
+ChangeReport explodeTerrain(Document &doc, Id terrain) {
+    const auto budget = terrainExplodeBudget(doc, terrain);
+    const auto found = doc.bodies().find(terrain);
+    const auto tiles = terrainTiles(doc, terrain);
+    if (!budget.fits())
         refuse("LIMIT_EXCEEDED",
-               "Explode terrain would make " + groupedCount(unique.faces + faces) +
-                   " faces, over the " + groupedCount(DocumentLimits::unique.faces) +
-                   "-face modelling limit (the terrain has " + groupedCount(faces) +
+               "Explode terrain would make " + groupedCount(budget.facesAfter()) +
+                   " faces, over the " + groupedCount(budget.faceLimit) +
+                   "-face modelling limit (the terrain has " + groupedCount(budget.terrainFaces) +
                    " triangles)");
     Edit edit{"Explode terrain", {}};
     auto group = std::make_shared<Body>(*found->second);

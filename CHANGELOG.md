@@ -15,6 +15,18 @@ their 1.2.0 schema.
   sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain in Entity info and the tools (R095.e1, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095e1)):
+  a Terrain section in the Info tab (name, triangle and tile counts, source file and digest,
+  sources by role, elevation range, generator and flat areas) with **Terrain settings…** (a
+  dry-run report before one undoable "Terrain settings" edit), **Explode terrain…** (a
+  confirmation with the modelling and terrain budgets; Cancel is the default and Explode is
+  disabled over the 100,000-face limit) and an amber "Changed since generated" chip with
+  **Regenerate** (one undoable edit, confirmed first when tile paint would be dropped). The
+  viewport gains a context menu (right click without dragging, Menu key or Shift+F10) with
+  **Create terrain from selection** for selected edges and curves, also inside groups; a
+  refusal or notices show the bounded report. Push/pull, Offset, Follow Me, Solid tools, Face
+  orientation and, inside an open terrain, the drawing, guide and transform tools show the
+  not-allowed cursor over a terrain tile and a status-bar message with an Explode link.
 - File → Import terrain… (R095.d, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095d)):
   the desktop dialog for terrain import. Choose a DXF or point file, then the units (required;
   a DXF's declared units are offered), layer or description-code roles, point-file columns

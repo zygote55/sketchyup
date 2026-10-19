@@ -1,0 +1,693 @@
+#include "app/terrain_actions.hpp"
+#include "app/accessible_names.hpp"
+#include "app/terrain_report_view.hpp"
+#include "app/viewport.hpp"
+#include "automation/inspection.hpp"
+#include "io/terrain_import.hpp"
+#include <QApplication>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QDoubleSpinBox>
+#include <QFrame>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QJsonArray>
+#include <QLabel>
+#include <QLocale>
+#include <QMessageBox>
+#include <QPointer>
+#include <QPushButton>
+#include <QStyle>
+#include <QTreeWidget>
+#include <QVBoxLayout>
+#include <cmath>
+#include <set>
+#include <tuple>
+namespace sketchy {
+namespace {
+QString count(std::size_t value) { return QLocale().toString(qulonglong(value)); }
+QString plural(std::size_t value, const QString &one, const QString &many) {
+    return count(value) + ' ' + (value == 1 ? one : many);
+}
+QLabel *text(const QString &value, const QString &name) {
+    auto *label = new QLabel(value);
+    label->setObjectName(name);
+    label->setTextFormat(Qt::PlainText);
+    label->setWordWrap(true);
+    return label;
+}
+QLabel *title(const QString &value) {
+    auto *label = text(value, "terrainDialogTitle");
+    label->setAccessibleName(value);
+    return label;
+}
+// A banner in the failure colour (refused, or not available) or the warning colour (notices).
+QFrame *banner(const QString &value, bool failure) {
+    auto *frame = new QFrame;
+    frame->setObjectName("terrainDialogBanner");
+    frame->setProperty("tone", failure ? "failure" : "notice");
+    auto *row = new QHBoxLayout(frame);
+    row->setContentsMargins(12, 8, 12, 8);
+    auto *label = text(value, "terrainDialogBannerText");
+    label->setAccessibleName(value);
+    row->addWidget(label, 1);
+    return frame;
+}
+QTreeWidget *reportTree(const QString &name) {
+    auto *list = new QTreeWidget;
+    list->setObjectName(name);
+    list->setAccessibleName("Report: refusals, merges and notices");
+    list->setHeaderHidden(true);
+    list->setRootIsDecorated(true);
+    list->setUniformRowHeights(true);
+    list->setMinimumHeight(120);
+    return list;
+}
+// The refusal's bounded report from a batch error (InspectionError details), or empty.
+QJsonObject refusalReport(const std::exception &error) {
+    if (const auto *inspection = dynamic_cast<const InspectionError *>(&error))
+        return inspection->details()["terrainReport"].toObject();
+    return {};
+}
+QString firstRefusal(const QJsonObject &terrain) {
+    const auto refusals = terrain["refusals"].toArray();
+    auto first = refusals.isEmpty() ? QString() : refusals.first().toObject()["message"].toString();
+    if (first.endsWith('.'))
+        first.chop(1);
+    return first;
+}
+QString terrainName(const Document &doc, Id terrain) {
+    return QString::fromStdString(doc.bodies().at(terrain)->name);
+}
+// Commits one terrain command and returns the batch response's operation record.
+QJsonObject commitTerrain(Viewport &view, const QJsonObject &command) {
+    const auto result = view.commitTerrainCommand(command);
+    const auto operations = result["terrainOperations"].toArray();
+    return operations.isEmpty() ? QJsonObject{} : operations.first().toObject();
+}
+} // namespace
+
+Id terrainOfBody(const Document &doc, Id body) {
+    const auto found = doc.bodies().find(body);
+    if (found == doc.bodies().end())
+        return 0;
+    if (found->second->kind == BodyKind::Terrain)
+        return body;
+    if (found->second->terrainTile && isTerrain(doc, found->second->parent))
+        return found->second->parent;
+    return 0;
+}
+Id selectedTerrain(const Document &doc, const Selection &selection) {
+    const auto &entities = selection.entities();
+    if (entities.empty())
+        return 0;
+    Id terrain = 0;
+    for (const auto &entity : entities) {
+        const auto owner = terrainOfBody(doc, entity.body);
+        if (!owner || (terrain && owner != terrain))
+            return 0;
+        terrain = owner;
+    }
+    return terrain;
+}
+QJsonArray selectedTerrainEdges(const Selection &selection) {
+    QJsonArray edges;
+    for (const auto &entity : selection.entities())
+        if (entity.kind == SelectionKind::Edge)
+            edges.append(QJsonObject{{"body", QString::number(entity.body)},
+                                     {"edge", QString::number(entity.entity)}});
+    return edges;
+}
+TerrainFlatArea terrainFlatArea(const Document &doc, Id terrain) {
+    TerrainFlatArea flat;
+    if (!isTerrain(doc, terrain))
+        return flat;
+    std::set<std::tuple<double, double, double>> contour;
+    for (const auto &source : doc.bodies().at(terrain)->terrain->sources)
+        if (source.role == TerrainSourceRole::Contour)
+            for (const auto &p : source.points)
+                contour.insert({p.x, p.y, p.z});
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &surface = doc.bodies().at(id)->surface;
+        for (const auto &[face, record] : surface.faces) {
+            const auto &loop = record.loops.front();
+            if (loop.size() != 3)
+                continue;
+            std::array<Vec3, 3> p;
+            bool onContours = true;
+            for (int i = 0; i < 3; ++i) {
+                p[i] = surface.vertices.at(loop[i]);
+                onContours &= contour.contains({p[i].x, p[i].y, p[i].z});
+            }
+            if (!onContours || std::abs(p[1].z - p[0].z) > 1e-9 || std::abs(p[2].z - p[0].z) > 1e-9)
+                continue;
+            ++flat.triangles;
+            flat.area += std::abs((p[1].x - p[0].x) * (p[2].y - p[0].y) -
+                                  (p[2].x - p[0].x) * (p[1].y - p[0].y)) /
+                         2;
+        }
+    }
+    return flat;
+}
+QString terrainToolRefusal(const QString &tool) {
+    return tool + " does not edit terrain. Edit it with the terrain tools, or explode it to work "
+                  "on it as ordinary geometry.";
+}
+
+// ---- Report --------------------------------------------------------------------------------
+TerrainReportDialog::TerrainReportDialog(const QString &titleText, const QString &bannerText,
+                                         bool refused, const QJsonObject &report,
+                                         QWidget *parent)
+    : Settled<QDialog>(parent), title_(titleText), report_(report) {
+    setObjectName("terrainReportDialog");
+    setWindowTitle(titleText);
+    setModal(true);
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(10);
+    layout->addWidget(title(titleText));
+    layout->addWidget(banner(bannerText, refused));
+    const auto terrain = report["terrain"].toObject();
+    list_ = reportTree("terrainReportList");
+    fillTerrainReport(list_, terrain, report["units"].toString());
+    if (list_->topLevelItemCount())
+        list_->setCurrentItem(list_->topLevelItem(0));
+    layout->addWidget(list_, 1);
+    list_->setVisible(list_->topLevelItemCount() > 0);
+    auto *footer = new QHBoxLayout;
+    auto *copy = new QPushButton("Copy report");
+    copy->setObjectName("terrainReportCopy");
+    copy->setAccessibleName("Copy report as text");
+    copy->setAutoDefault(false);
+    footer->addWidget(copy);
+    footer->addStretch(1);
+    auto *close = new QPushButton("Close");
+    close->setObjectName("terrainReportClose");
+    close->setAutoDefault(false);
+    close->setDefault(true);
+    footer->addWidget(close);
+    layout->addLayout(footer);
+    connect(copy, &QPushButton::clicked, this,
+            [this] { QGuiApplication::clipboard()->setText(reportText()); });
+    connect(close, &QPushButton::clicked, this, &QDialog::accept);
+    resize(560, 420);
+}
+QString TerrainReportDialog::reportText() const {
+    const auto terrain = report_["terrain"].toObject();
+    QStringList out{title_ + " report", "Outcome: " + terrain["outcome"].toString()};
+    if (terrain.contains("triangles"))
+        out << QString("Triangles: %1 · Tiles: %2")
+                   .arg(count(std::size_t(terrain["triangles"].toDouble())),
+                        count(std::size_t(terrain["tiles"].toDouble())));
+    out << terrainReportLines(terrain, report_["units"].toString());
+    return out.join('\n') + '\n';
+}
+
+// ---- Explode -------------------------------------------------------------------------------
+TerrainExplodeDialog::TerrainExplodeDialog(const Document &doc, Id terrain, QWidget *parent,
+                                           std::optional<std::size_t> faceLimit)
+    : Settled<QDialog>(parent), budget_(terrainExplodeBudget(doc, terrain)) {
+    if (faceLimit)
+        budget_.faceLimit = *faceLimit;
+    setObjectName("terrainExplodeDialog");
+    setWindowTitle("Explode terrain");
+    setModal(true);
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(10);
+    layout->addWidget(title("Explode terrain"));
+    const auto name = terrainName(doc, terrain);
+    layout->addWidget(text(QString("“%1” becomes an ordinary group of its %2. Its sources and "
+                                   "settings are removed, so it can no longer be regenerated. "
+                                   "Undo restores it.")
+                               .arg(name, plural(budget_.terrainFaces, "triangle", "triangles")),
+                           "terrainExplodeSummary"));
+    auto *grid = new QGridLayout;
+    grid->setHorizontalSpacing(12);
+    grid->setVerticalSpacing(6);
+    grid->setColumnStretch(1, 1);
+    auto row = [&](int at, const QString &caption, const QString &value, const QString &name) {
+        auto *label = text(caption, "terrainBudgetCaption");
+        grid->addWidget(label, at, 0, Qt::AlignTop);
+        auto *figure = text(value, name);
+        figure->setAccessibleName(caption + ": " + value);
+        grid->addWidget(figure, at, 1);
+    };
+    row(0, "Modelling faces",
+        QString("%1 now + %2 = %3 of %4")
+            .arg(count(budget_.modelFaces), count(budget_.terrainFaces),
+                 count(budget_.facesAfter()), count(budget_.faceLimit)),
+        "terrainExplodeFaces");
+    const auto remaining = budget_.documentTerrainTriangles > budget_.terrainFaces
+                               ? budget_.documentTerrainTriangles - budget_.terrainFaces
+                               : 0;
+    row(1, "Terrain triangles",
+        QString("%1 now − %2 = %3 of %4 (%2 freed)")
+            .arg(count(budget_.documentTerrainTriangles), count(budget_.terrainFaces),
+                 count(remaining), count(budget_.terrainLimit)),
+        "terrainExplodeTriangles");
+    layout->addLayout(grid);
+    if (!budget_.fits())
+        layout->addWidget(banner(
+            QString("Explode is not available: the model would have %1 faces, over the %2-face "
+                    "modelling limit. Remove other geometry first, or keep it as a terrain.")
+                .arg(count(budget_.facesAfter()), count(budget_.faceLimit)),
+            true));
+    layout->addStretch(1);
+    auto *buttons = new QHBoxLayout;
+    buttons->addStretch(1);
+    auto *cancel = new QPushButton("Cancel");
+    cancel->setObjectName("terrainExplodeCancel");
+    cancel->setAutoDefault(false);
+    cancel->setDefault(true); // Cancel is the default (ADR 0168, Interaction design).
+    auto *explode = new QPushButton("Explode");
+    explode->setObjectName("terrainExplodeConfirm");
+    explode->setAccessibleName("Explode terrain");
+    explode->setAutoDefault(false);
+    explode->setEnabled(budget_.fits());
+    explode->setToolTip(budget_.fits() ? QString("Turn the terrain into ordinary geometry")
+                                       : QString("The faces would exceed the modelling limit"));
+    buttons->addWidget(cancel);
+    buttons->addWidget(explode);
+    layout->addLayout(buttons);
+    connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+    connect(explode, &QPushButton::clicked, this, [this] {
+        if (canExplode())
+            accept();
+    });
+    cancel->setFocus(Qt::OtherFocusReason);
+    resize(520, sizeHint().height());
+}
+
+// ---- Regenerate ----------------------------------------------------------------------------
+TerrainRegenerateDialog::TerrainRegenerateDialog(const TerrainPaint &paint, QWidget *parent)
+    : Settled<QDialog>(parent) {
+    setObjectName("terrainRegenerateDialog");
+    setWindowTitle("Regenerate terrain");
+    setModal(true);
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(10);
+    layout->addWidget(title("Regenerate terrain"));
+    layout->addWidget(text("Regenerate rebuilds the terrain from its stored sources. Paint on its "
+                           "tiles cannot follow the new mesh and will be removed:",
+                           "terrainRegenerateSummary"));
+    QStringList lost;
+    if (paint.faces)
+        lost << "• " + plural(paint.faces, "face", "faces") + " with their own paint";
+    if (paint.tiles)
+        lost << "• " + plural(paint.tiles, "tile", "tiles") + " with their own material or colour";
+    auto *list = text(lost.join('\n'), "terrainRegeneratePaint");
+    list->setAccessibleName(lost.join(", "));
+    layout->addWidget(list);
+    layout->addWidget(text("The terrain's own material is kept. Undo restores the paint.",
+                           "terrainDialogNote"));
+    auto *buttons = new QHBoxLayout;
+    buttons->addStretch(1);
+    auto *cancel = new QPushButton("Cancel");
+    cancel->setObjectName("terrainRegenerateCancel");
+    cancel->setAutoDefault(false);
+    cancel->setDefault(true);
+    auto *regenerate = new QPushButton("Regenerate");
+    regenerate->setObjectName("terrainRegenerateConfirm");
+    regenerate->setAutoDefault(false);
+    buttons->addWidget(cancel);
+    buttons->addWidget(regenerate);
+    layout->addLayout(buttons);
+    connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+    connect(regenerate, &QPushButton::clicked, this, &QDialog::accept);
+    cancel->setFocus(Qt::OtherFocusReason);
+    resize(480, sizeHint().height());
+}
+
+// ---- Settings ------------------------------------------------------------------------------
+struct TerrainSettingsDryRun {
+    QJsonObject command;
+    TerrainParameters parameters;
+    bool ok{}, unchanged{};
+    QString message;
+    QJsonObject report;
+    std::size_t triangles{}, tiles{};
+};
+namespace {
+std::shared_ptr<TerrainSettingsDryRun> settingsDryRun(std::shared_ptr<const TerrainRecord> record,
+                                                      TerrainParameters parameters,
+                                                      QJsonObject command, std::size_t other,
+                                                      TerrainPaint paint) {
+    auto run = std::make_shared<TerrainSettingsDryRun>();
+    run->command = std::move(command);
+    run->parameters = parameters;
+    // The paint notices regenerate adds (R095.c2): tiles are rebuilt fresh.
+    TerrainReport notices;
+    if (paint.faces)
+        notices.add(TerrainReport::Severity::Notice, "face-paint-dropped", paint.faces,
+                    "Per-face paint on the old tiles cannot follow a new mesh and was removed; "
+                    "the terrain's own material is kept.");
+    if (paint.tiles)
+        notices.add(TerrainReport::Severity::Notice, "tile-paint-dropped", paint.tiles,
+                    "Materials and colours of individual tiles were removed with the old tiles; "
+                    "the terrain's own material is kept.");
+    auto result = runTerrainRegenerate(*record, parameters, other, std::move(notices));
+    run->ok = result.ok;
+    run->message = QString::fromStdString(result.message);
+    run->report = result.report;
+    run->triangles = result.mesh.triangles.size();
+    run->tiles = result.tiles;
+    // Restating the stored parameters is not a settings change (Regenerate rebuilds a
+    // terrain with its own settings), and through the batch it may commit nothing.
+    run->unchanged = parameters == record->parameters;
+    return run;
+}
+} // namespace
+
+TerrainSettingsDialog::TerrainSettingsDialog(const Document &doc, Id terrain, QWidget *parent)
+    : Settled<QDialog>(parent), doc_(doc), terrain_(terrain) {
+    if (!isTerrain(doc, terrain))
+        throw std::runtime_error("Select a terrain to change its settings");
+    const auto &body = *doc.bodies().at(terrain);
+    record_ = std::make_shared<const TerrainRecord>(*body.terrain);
+    paint_ = terrainTilePaint(doc, terrain);
+    const auto total = doc.materializedTotals().terrainTriangles;
+    const auto own = terrainTriangleCount(doc, terrain);
+    otherTriangles_ = total > own ? total - own : 0;
+    pool_.setMaxThreadCount(1);
+    rerun_.setSingleShot(true);
+    connect(&rerun_, &QTimer::timeout, this, [this] { start(); });
+
+    setObjectName("terrainSettingsDialog");
+    setWindowTitle("Terrain settings");
+    setModal(true);
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(10);
+    layout->addWidget(title("Terrain settings"));
+    layout->addWidget(text(QString("“%1” · %2 · the settings rebuild the mesh from its stored "
+                                   "sources in one undoable edit")
+                               .arg(QString::fromStdString(body.name),
+                                    plural(own, "triangle", "triangles")),
+                           "terrainDialogNote"));
+    auto *grid = new QGridLayout;
+    grid->setHorizontalSpacing(12);
+    grid->setVerticalSpacing(8);
+    grid->setColumnStretch(1, 1);
+    boundary_ = new QComboBox;
+    boundary_->setObjectName("terrainSettingsBoundary");
+    boundary_->setAccessibleName("Boundary mode");
+    boundary_->addItem("Convex hull", "convexHull");
+    boundary_->addItem("Limit edge length", "maxEdgeLength");
+    boundary_->addItem("Boundary source", "boundary");
+    grid->addWidget(text("Boundary", "terrainBudgetCaption"), 0, 0);
+    grid->addWidget(boundary_, 0, 1);
+    maxEdge_ = new QDoubleSpinBox;
+    maxEdge_->setObjectName("terrainSettingsMaxEdge");
+    maxEdge_->setAccessibleName("Maximum edge length in metres");
+    maxEdge_->setRange(0, 2e6);
+    maxEdge_->setDecimals(3);
+    maxEdge_->setSuffix(" m");
+    maxEdge_->setSpecialValueText("Not set");
+    maxEdge_->setKeyboardTracking(false);
+    grid->addWidget(text("Max edge length", "terrainBudgetCaption"), 1, 0);
+    grid->addWidget(maxEdge_, 1, 1);
+    flip_ = new QCheckBox("Flip flat triangles");
+    flip_->setObjectName("terrainSettingsFlip");
+    grid->addWidget(flip_, 2, 0, 1, 2);
+    steiner_ = new QCheckBox("Fill remaining flat areas with Steiner points");
+    steiner_->setObjectName("terrainSettingsSteiner");
+    grid->addWidget(steiner_, 3, 0, 1, 2);
+    layout->addLayout(grid);
+    status_ = text({}, "terrainSettingsStatus");
+    layout->addWidget(status_);
+    list_ = reportTree("terrainSettingsReport");
+    layout->addWidget(list_, 1);
+    auto *footer = new QHBoxLayout;
+    copy_ = new QPushButton("Copy report");
+    copy_->setObjectName("terrainSettingsCopyReport");
+    copy_->setAccessibleName("Copy report as text");
+    copy_->setAutoDefault(false);
+    footer->addWidget(copy_);
+    footer->addStretch(1);
+    auto *cancel = new QPushButton("Cancel");
+    cancel->setObjectName("terrainSettingsCancel");
+    cancel->setAutoDefault(false);
+    footer->addWidget(cancel);
+    apply_ = new QPushButton("Apply");
+    apply_->setObjectName("terrainSettingsApply");
+    apply_->setAccessibleName("Apply terrain settings");
+    apply_->setProperty("accentFill", true);
+    apply_->setAutoDefault(false);
+    apply_->setDefault(true);
+    apply_->setEnabled(false);
+    footer->addWidget(apply_);
+    layout->addLayout(footer);
+
+    // The stored parameters.
+    const auto &parameters = record_->parameters;
+    boundary_->setCurrentIndex(parameters.boundary == TerrainBoundaryMode::ConvexHull ? 0
+                               : parameters.boundary == TerrainBoundaryMode::MaxEdgeLength ? 1
+                                                                                            : 2);
+    maxEdge_->setValue(parameters.maxEdgeLength);
+    flip_->setChecked(parameters.flipFlatTriangles);
+    steiner_->setChecked(parameters.steinerFill);
+
+    connect(boundary_, &QComboBox::currentIndexChanged, this, [this] { changed(0); });
+    connect(maxEdge_, &QDoubleSpinBox::valueChanged, this, [this] { changed(300); });
+    connect(flip_, &QCheckBox::toggled, this, [this] { changed(0); });
+    connect(steiner_, &QCheckBox::toggled, this, [this] { changed(0); });
+    connect(copy_, &QPushButton::clicked, this, [this] {
+        const auto terrain = report()["terrain"].toObject();
+        QStringList out{"Terrain settings dry run", status_->text()};
+        out << terrainReportLines(terrain, "m");
+        QGuiApplication::clipboard()->setText(out.join('\n') + '\n');
+    });
+    connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+    connect(apply_, &QPushButton::clicked, this, [this] {
+        if (canApply())
+            accept();
+    });
+    nameInternalEditors(this);
+    resize(560, 500);
+    changed(0);
+}
+TerrainSettingsDialog::~TerrainSettingsDialog() {
+    rerun_.stop();
+    pool_.waitForDone();
+}
+TerrainParameters TerrainSettingsDialog::chosen() const {
+    TerrainParameters parameters;
+    const auto mode = boundary_->currentData().toString();
+    parameters.boundary = mode == "convexHull"      ? TerrainBoundaryMode::ConvexHull
+                          : mode == "maxEdgeLength" ? TerrainBoundaryMode::MaxEdgeLength
+                                                    : TerrainBoundaryMode::Boundary;
+    parameters.maxEdgeLength = maxEdge_->value();
+    parameters.flipFlatTriangles = flip_->isChecked();
+    parameters.steinerFill = steiner_->isChecked();
+    return parameters;
+}
+QJsonObject TerrainSettingsDialog::command() const {
+    const auto parameters = chosen();
+    return {{"command", "terrain.set_parameters"},
+            {"terrain", QString::number(terrain_)},
+            {"boundary", boundary_->currentData().toString()},
+            {"maxEdgeLength", parameters.maxEdgeLength},
+            {"flipFlatTriangles", parameters.flipFlatTriangles},
+            {"steinerFill", parameters.steinerFill}};
+}
+bool TerrainSettingsDialog::checking() const { return running_ || rerun_.isActive(); }
+bool TerrainSettingsDialog::canApply() const {
+    return problem_.isEmpty() && !checking() && dryRun_ && dryRun_->command == command() &&
+           dryRun_->ok && !dryRun_->unchanged;
+}
+QJsonObject TerrainSettingsDialog::report() const {
+    return dryRun_ && problem_.isEmpty() ? dryRun_->report : QJsonObject();
+}
+void TerrainSettingsDialog::changed(int delayMs) {
+    // Contradictory choices are refused before any triangulation, as the command does.
+    problem_.clear();
+    try {
+        validateTerrainParameters(chosen(), record_->sources);
+    } catch (const std::exception &error) {
+        problem_ = QString::fromUtf8(error.what());
+    }
+    if (problem_.isEmpty())
+        rerun_.start(delayMs);
+    else
+        rerun_.stop();
+    refresh();
+}
+void TerrainSettingsDialog::start() {
+    if (running_) {
+        rerun_.start(50);
+        return;
+    }
+    running_ = true;
+    const auto generation = ++generation_;
+    QPointer<TerrainSettingsDialog> guard(this);
+    // The worker owns copies of its inputs and never reads the document.
+    pool_.start([record = record_, parameters = chosen(), command = command(),
+                 other = otherTriangles_, paint = paint_, generation, guard] {
+        std::shared_ptr<TerrainSettingsDryRun> result;
+        try {
+            result = settingsDryRun(record, parameters, command, other, paint);
+        } catch (const std::exception &error) {
+            result = std::make_shared<TerrainSettingsDryRun>();
+            result->command = command;
+            result->message = QString::fromUtf8(error.what());
+        }
+        QMetaObject::invokeMethod(
+            qApp,
+            [guard, generation, result = std::move(result)]() mutable {
+                if (guard)
+                    guard->finished(generation, std::move(result));
+            },
+            Qt::QueuedConnection);
+    });
+    refresh();
+}
+void TerrainSettingsDialog::finished(std::uint64_t generation,
+                                     std::shared_ptr<TerrainSettingsDryRun> result) {
+    running_ = false;
+    if (generation == generation_)
+        dryRun_ = std::move(result);
+    if (dryRun_ && dryRun_->command != command() && problem_.isEmpty() && !rerun_.isActive())
+        rerun_.start(0);
+    refresh();
+}
+void TerrainSettingsDialog::refresh() {
+    const bool current = dryRun_ && dryRun_->command == command() && !checking();
+    QString status;
+    bool refused = false;
+    if (!problem_.isEmpty()) {
+        status = "Cannot apply: " + problem_;
+        refused = true;
+    } else if (!current)
+        status = "Checking…";
+    else if (!dryRun_->ok) {
+        refused = true;
+        const auto first = firstRefusal(dryRun_->report["terrain"].toObject());
+        status = "Refused: nothing would change. " +
+                 (first.isEmpty() ? dryRun_->message : first + '.');
+    } else if (dryRun_->unchanged)
+        status = "These are the terrain's current settings.";
+    else {
+        const auto notices = dryRun_->report["terrain"].toObject()["notices"].toArray().size();
+        status = QString("Ready: %1 in %2 · %3")
+                     .arg(plural(dryRun_->triangles, "triangle", "triangles"),
+                          plural(dryRun_->tiles, "tile", "tiles"),
+                          plural(std::size_t(notices), "notice", "notices"));
+    }
+    status_->setText(status);
+    status_->setAccessibleName(status);
+    status_->setProperty("refused", refused);
+    status_->style()->unpolish(status_);
+    status_->style()->polish(status_);
+    // The report of the current dry run (kept while a new one runs, for steadiness).
+    const QSignalBlocker block(list_);
+    list_->clear();
+    if (problem_.isEmpty() && dryRun_)
+        fillTerrainReport(list_, dryRun_->report["terrain"].toObject(), "m");
+    if (list_->topLevelItemCount())
+        list_->setCurrentItem(list_->topLevelItem(0));
+    copy_->setEnabled(problem_.isEmpty() && dryRun_);
+    apply_->setEnabled(canApply());
+    apply_->setToolTip(apply_->isEnabled() ? QString("Rebuild the terrain with these settings")
+                                           : status);
+}
+
+// ---- Actions -------------------------------------------------------------------------------
+bool explodeTerrainInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain) {
+    if (!isTerrain(doc, terrain))
+        throw std::runtime_error("Select a terrain to explode it");
+    TerrainExplodeDialog dialog(doc, terrain, parent);
+    if (dialog.exec() != QDialog::Accepted || !isTerrain(doc, terrain))
+        return false;
+    view.commitTerrainCommand(
+        QJsonObject{{"command", "terrain.explode"}, {"body", QString::number(terrain)}});
+    view.setSelection(terrain);
+    return true;
+}
+bool terrainSettingsInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain) {
+    if (!isTerrain(doc, terrain))
+        throw std::runtime_error("Select a terrain to change its settings");
+    TerrainSettingsDialog dialog(doc, terrain, parent);
+    const auto revision = doc.revision();
+    if (dialog.exec() != QDialog::Accepted)
+        return false;
+    if (doc.revision() != revision)
+        throw std::runtime_error("The model changed while the settings were open. Try again.");
+    try {
+        commitTerrain(view, dialog.command());
+    } catch (const std::exception &error) {
+        const auto report = refusalReport(error);
+        if (report.isEmpty())
+            throw;
+        TerrainReportDialog(
+            "Terrain settings",
+            "Terrain settings refused. Nothing was changed. " + QString::fromUtf8(error.what()),
+            true, report, parent)
+            .exec();
+        return false;
+    }
+    return true;
+}
+bool regenerateTerrainInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain) {
+    if (!isTerrain(doc, terrain))
+        throw std::runtime_error("Select a terrain to regenerate it");
+    // Paint on the tiles cannot follow a new mesh: confirm before it is dropped.
+    if (const auto paint = terrainTilePaint(doc, terrain); paint.faces || paint.tiles) {
+        TerrainRegenerateDialog confirm(paint, parent);
+        if (confirm.exec() != QDialog::Accepted || !isTerrain(doc, terrain))
+            return false;
+    }
+    try {
+        const auto operation = commitTerrain(
+            view, {{"command", "terrain.regenerate"}, {"terrain", QString::number(terrain)}});
+        return operation["changed"].toBool();
+    } catch (const std::exception &error) {
+        const auto report = refusalReport(error);
+        if (report.isEmpty())
+            throw;
+        TerrainReportDialog("Regenerate terrain",
+                            "Regenerate refused. Nothing was changed. " +
+                                QString::fromUtf8(error.what()),
+                            true, report, parent)
+            .exec();
+        return false;
+    }
+}
+bool createTerrainFromSelectionInteractive(QWidget *parent, Document &doc, Viewport &view) {
+    const auto edges = selectedTerrainEdges(view.selectionState());
+    if (edges.isEmpty())
+        throw std::runtime_error("Select edges or curves to create a terrain from them");
+    QJsonObject operation;
+    try {
+        operation = commitTerrain(view, {{"command", "terrain.create_from_edges"}, {"edges", edges}});
+    } catch (const std::exception &error) {
+        const auto report = refusalReport(error);
+        if (report.isEmpty())
+            throw;
+        auto first = firstRefusal(report["terrain"].toObject());
+        TerrainReportDialog("Create terrain",
+                            "Terrain creation refused. Nothing was changed. " +
+                                (first.isEmpty() ? QString::fromUtf8(error.what()) : first + '.'),
+                            true, report, parent)
+            .exec();
+        return false;
+    }
+    const auto terrain = Id(operation["terrain"].toString().toULongLong());
+    if (doc.bodies().contains(terrain))
+        view.setSelection(terrain);
+    const auto report = operation["terrainReport"].toObject();
+    const auto notices = report["terrain"].toObject()["notices"].toArray().size();
+    if (notices)
+        TerrainReportDialog(
+            "Create terrain",
+            QString("Created “%1” with %2. Undo removes it.")
+                .arg(doc.bodies().contains(terrain) ? terrainName(doc, terrain) : QString("Terrain"),
+                     plural(std::size_t(notices), "notice", "notices")),
+            false, report, parent)
+            .exec();
+    return true;
+}
+} // namespace sketchy

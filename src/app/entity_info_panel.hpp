@@ -9,6 +9,7 @@ class CollapsibleSection;
 class ComponentParametersSection;
 class ComponentDefinitionSection;
 class ComponentDriversSection;
+class TerrainSection;
 // The Info tab (ADR 0166 §1.1): a vertical stack of collapsible sections, "Entity info" (the
 // selection's measurements and the Edit entity dialog) and, for a parametric placement,
 // "Parameters · this placement"; in a definition context, "Parameters · definition" and
@@ -20,6 +21,7 @@ class EntityInfoPanel : public QWidget {
     ComponentParametersSection *parameters() const { return parameters_; }
     ComponentDefinitionSection *definition() const { return definition_; }
     ComponentDriversSection *drivers() const { return drivers_; }
+    TerrainSection *terrain() const { return terrain_; }
 
   protected:
     void showEvent(QShowEvent *event) override;
@@ -36,6 +38,7 @@ class EntityInfoPanel : public QWidget {
     ComponentParametersSection *parameters_{};
     ComponentDefinitionSection *definition_{};
     ComponentDriversSection *drivers_{};
+    TerrainSection *terrain_{};
     std::optional<SelectedEntity> entity_;
     std::optional<EntityMeasures> measured_;
     Document::SaveStamp stamp_;
