@@ -149,7 +149,10 @@ struct DxfTerrainOptions {
     std::optional<TerrainUnit> unit; // explicit; otherwise $INSUNITS
     double chordTolerance{0.05};     // metres
 };
-TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOptions &options = {});
+// D-044: the parsers take an optional TerrainProgress (TerrainStage::Parse) and throw
+// TerrainCancelled when the run is cancelled.
+TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOptions &options = {},
+                                 TerrainProgress *progress = nullptr);
 
 // Point files.
 enum class TerrainColumn : std::uint8_t {
@@ -174,6 +177,11 @@ std::optional<TerrainColumn> terrainColumn(const QString &name);
 std::optional<TerrainDelimiter> terrainDelimiter(const QString &name);
 const char *terrainColumnName(TerrainColumn column);
 const char *terrainDelimiterName(TerrainDelimiter delimiter);
-TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointOptions &options);
+TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointOptions &options,
+                                    TerrainProgress *progress = nullptr);
+// The source's SHA-256 as lowercase hex, hashed in 1 MiB pieces with a Parse checkpoint between
+// them (`from` to `to`); the same value as hashing it at once.
+QString terrainSourceSha256(const QByteArray &bytes, TerrainProgress *progress = nullptr,
+                            double from = 0, double to = 0);
 
 } // namespace sketchy

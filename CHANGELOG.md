@@ -15,6 +15,14 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Progress and cancel for terrain import (D-044, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-d-044)):
+  File → Import terrain… and the roles step of Create terrain from selection show what their
+  check is doing (reading the source, preparing the sources, triangulating, tiling) with a
+  progress bar, instead of only "Checking…". Cancel, Escape or closing the dialog stops the
+  check at once, and changing a setting stops the outdated check before starting the new one.
+  `sketchyup-cli --import-terrain` shows the same stages on stderr when stderr is a terminal;
+  its stdout and JSON output are unchanged. Imported terrains are unchanged, bit for bit.
+
 - Roles for **Create terrain from selection** (R095.h, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095h)):
   when the selected edges include a closed loop or lie under more than one tag, a roles step
   lists each tag (Untagged included) with Automatic (contours and breaklines by Z, as before),

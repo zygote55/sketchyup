@@ -9,18 +9,21 @@
 #include "io/document_io.hpp"
 #include "native_dialog_audit.hpp"
 #include "terrain_import_fixtures.hpp"
+#include "terrain_run_hold.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QDoubleSpinBox>
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLineEdit>
 #include <QFile>
 #include <QFileDialog>
 #include <QLabel>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QTableWidget>
@@ -485,6 +488,81 @@ void menuImport(Window &window, const QString &screenshots) {
     check(doc.history().position == history, "Undo takes the import back");
     window.viewport()->refresh();
 }
+// D-044: progress and cancel. A dry run held at the start of triangulation shows its stage in
+// the footer and the preview and a determinate progress bar, without taking the focus; a changed
+// setting cancels it and starts again; Cancel (and closing the dialog) during a run closes at
+// once, the destructor does not wait for the run to finish, and the document is unchanged.
+void progressAndCancel(Window &window) {
+    window.demo();
+    auto &doc = window.document();
+    const auto encoded = encodeContainer(doc);
+    const auto revision = doc.revision();
+    const auto history = doc.history().total;
+    auto open = [&] {
+        auto dialog = std::make_unique<TerrainImportDialog>(
+            doc, TerrainImportDialog::Setup{"small.dxf", smallDxf(), themeColors(false)}, &window);
+        dialog->show();
+        check(QTest::qWaitForWindowExposed(dialog.get(), 5000), "The dialog shows");
+        return dialog;
+    };
+    {
+        test::TerrainRunHold hold;
+        auto dialog = open();
+        check(QTest::qWaitFor([&] { return hold.holding == 1; }, 10000),
+              "The dry run reaches triangulation");
+        auto *status = child<QLabel>(*dialog, "terrainImportStatus");
+        auto *bar = dialog->progressBar();
+        check(QTest::qWaitFor([&] { return status->text() == "Checking: triangulating…"; }, 5000),
+              "The footer names the stage: " + status->text().toStdString());
+        check(bar->isVisible() && bar->objectName() == "terrainImportProgress" &&
+                  !bar->accessibleName().isEmpty() && bar->focusPolicy() == Qt::NoFocus &&
+                  bar->minimum() == 0 && bar->maximum() == 100 && bar->value() >= 30 &&
+                  bar->value() < 95,
+              "A determinate, named progress bar shows the run: " +
+                  std::to_string(bar->value()));
+        check(dialog->preview()->placeholder() == "Checking the source: triangulating…",
+              "The preview names the stage: " + dialog->preview()->placeholder().toStdString());
+        check(!dialog->canImport() && dialog->checking(), "Import waits for the run");
+        auto *flip = child<QCheckBox>(*dialog, "terrainImportFlip");
+        flip->setFocus(Qt::OtherFocusReason);
+        QTest::qWait(150);
+        check(dialog->focusWidget() == flip, "Progress does not take the focus");
+        // A changed setting cancels the stale run and starts another.
+        flip->toggle();
+        check(QTest::qWaitFor([&] { return hold.cancelled == 1 && hold.held == 2; }, 10000),
+              "A changed setting cancels the running dry run and starts again");
+        hold.release = true;
+        settle(*dialog);
+        check(!bar->isVisible() && status->text().startsWith("Ready") && dialog->canImport() &&
+                  dialog->command()["flatMode"] == QJsonValue(flip->isChecked() ? "flip" : "reportOnly"),
+              "The new run finishes for the new setting: " + status->text().toStdString());
+        dialog.reset();
+    }
+    // Cancel and closing the window, each during a held run.
+    for (const bool close : {false, true}) {
+        test::TerrainRunHold hold;
+        auto dialog = open();
+        check(QTest::qWaitFor([&] { return hold.holding == 1; }, 10000),
+              "The dry run reaches triangulation");
+        QElapsedTimer clock;
+        clock.start();
+        if (close)
+            dialog->close();
+        else
+            QTest::mouseClick(child<QPushButton>(*dialog, "terrainImportCancel"), Qt::LeftButton);
+        check(QTest::qWaitFor([&] { return !dialog->isVisible(); }, 2000), "The dialog closes");
+        dialog.reset(); // waits for the worker
+        const auto elapsed = clock.elapsed();
+        std::cout << (close ? "close" : "Cancel") << " during a run: closed and destroyed in "
+                  << elapsed << " ms\n";
+        check(hold.cancelled == 1 && hold.holding == 0, "The run was cancelled, not finished");
+        check(elapsed < 2000, "The dialog closes without waiting for the run");
+        check(doc.revision() == revision && doc.history().total == history &&
+                  encodeContainer(doc) == encoded,
+              "Cancelling during a run changes nothing");
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -514,6 +592,8 @@ int main(int argc, char **argv) {
         std::cout << "keyboard audit\n";
         menuImport(window, screenshots);
         std::cout << "menu import is one undoable edit\n";
+        progressAndCancel(window);
+        std::cout << "progress and cancel\n";
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;

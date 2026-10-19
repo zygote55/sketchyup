@@ -25,6 +25,7 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QPointer>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSaveFile>
@@ -44,6 +45,7 @@ namespace sketchy {
 struct TerrainImportDryRun {
     QJsonObject command;
     bool unitsChosen{};
+    bool cancelled{}; // D-044: stopped by its TerrainRunControl; never shown
     std::uint64_t revision{};
     QString error;              // the source could not be read or the request was refused
     bool unitsMissing{};        // DXF: no usable $INSUNITS, so units must be chosen
@@ -174,14 +176,15 @@ std::shared_ptr<const TerrainPreviewData> previewOf(const TerrainSourceRequest &
 // The worker: parse and dry-run exactly as terrain.inspect_source and terrain.import do.
 std::shared_ptr<TerrainImportDryRun> dryRun(const QByteArray &bytes, QJsonObject command,
                                             bool unitsChosen, std::optional<SiteOrigin> site,
-                                            std::size_t otherTriangles, std::uint64_t revision) {
+                                            std::size_t otherTriangles, std::uint64_t revision,
+                                            TerrainProgress &progress) {
     auto run = std::make_shared<TerrainImportDryRun>();
     run->command = command;
     run->unitsChosen = unitsChosen;
     run->revision = revision;
     const bool dxf = command["format"].toString() == "dxf";
     auto parse = [&](const QJsonObject &request) {
-        return parseTerrainSourceRequest(bytes, request, true);
+        return parseTerrainSourceRequest(bytes, request, true, &progress);
     };
     std::optional<TerrainSourceRequest> request;
     try {
@@ -196,6 +199,8 @@ std::shared_ptr<TerrainImportDryRun> dryRun(const QByteArray &bytes, QJsonObject
             run->sourceReport = listed.set.report;
             return run;
         }
+    } catch (const TerrainCancelled &) {
+        throw;
     } catch (const std::exception &error) {
         if (dxf && !unitsChosen) {
             // Without usable $INSUNITS the DXF needs a unit; read it in metres to list layers.
@@ -207,6 +212,8 @@ std::shared_ptr<TerrainImportDryRun> dryRun(const QByteArray &bytes, QJsonObject
                 run->layers = listed.set.layers;
                 run->sourceReport = listed.set.report;
                 return run;
+            } catch (const TerrainCancelled &) {
+                throw;
             } catch (const std::exception &) {
             }
         }
@@ -223,13 +230,16 @@ std::shared_ptr<TerrainImportDryRun> dryRun(const QByteArray &bytes, QJsonObject
     // would pass it is refused in the report instead of by the edit.
     request->options.otherTerrainTriangles = otherTriangles;
     try {
-        run->result =
-            runTerrainImport(request->set, request->options, site, request->provenance);
+        run->result = runTerrainImport(request->set, request->options, site, request->provenance,
+                                       &progress);
     } catch (const std::exception &error) {
         run->error = QString::fromUtf8(error.what());
         return run;
     }
+    if (run->result->cancelled)
+        throw TerrainCancelled();
     run->preview = previewOf(*request, *run->result);
+    progress.check();
     return run;
 }
 
@@ -271,6 +281,8 @@ TerrainImportDialog::TerrainImportDialog(Document &doc, Setup setup, QWidget *pa
     pool_.setMaxThreadCount(1);
     rerun_.setSingleShot(true);
     connect(&rerun_, &QTimer::timeout, this, [this] { start(); });
+    progressPoll_.setInterval(50);
+    connect(&progressPoll_, &QTimer::timeout, this, [this] { refreshProgress(); });
     build();
     setTheme(setup_.colors);
     refresh();
@@ -278,8 +290,22 @@ TerrainImportDialog::TerrainImportDialog(Document &doc, Setup setup, QWidget *pa
 }
 TerrainImportDialog::~TerrainImportDialog() {
     rerun_.stop();
-    // A running dry run posts back through a guarded pointer; it owns its inputs.
+    progressPoll_.stop();
+    // A running dry run posts back through a guarded pointer; it owns its inputs. Cancelled, it
+    // stops at its next checkpoint, so this waits that long at most.
+    cancelRun();
     pool_.waitForDone();
+}
+void TerrainImportDialog::done(int result) {
+    // Cancel, Escape, closing the window and Import: a running dry run is no longer wanted.
+    closed_ = true;
+    rerun_.stop();
+    cancelRun();
+    Settled<QDialog>::done(result);
+}
+void TerrainImportDialog::cancelRun() {
+    if (control_)
+        control_->cancel.store(true, std::memory_order_relaxed);
 }
 
 bool TerrainImportDialog::points() const { return format_->currentData().toString() == "points"; }
@@ -637,6 +663,16 @@ void TerrainImportDialog::build() {
     status_->setTextFormat(Qt::PlainText);
     status_->setWordWrap(true);
     footer->addWidget(status_, 1);
+    // D-044: the running dry run's progress; shown only while one runs. It takes no focus.
+    progress_ = new QProgressBar;
+    progress_->setObjectName("terrainImportProgress");
+    progress_->setAccessibleName("Checking progress");
+    progress_->setRange(0, 100);
+    progress_->setTextVisible(false);
+    progress_->setFocusPolicy(Qt::NoFocus);
+    progress_->setFixedWidth(progress_->fontMetrics().horizontalAdvance(QLatin1Char('M')) * 9);
+    progress_->hide();
+    footer->addWidget(progress_);
     showReport_ = new QPushButton("Show report");
     showReport_->setObjectName("terrainImportShowReport");
     showReport_->setAutoDefault(false);
@@ -1256,6 +1292,8 @@ void TerrainImportDialog::chooseLocation(QTreeWidgetItem *item) {
 
 // ---- Dry runs ------------------------------------------------------------------------------
 void TerrainImportDialog::schedule(int delayMs) {
+    // D-044: the running dry run is for the old settings or revision; stop it.
+    cancelRun();
     rerun_.start(delayMs);
     refreshFooter();
 }
@@ -1265,6 +1303,10 @@ void TerrainImportDialog::documentChanged() {
         schedule(150);
 }
 void TerrainImportDialog::start() {
+    if (closed_) {
+        pending_ = false;
+        return;
+    }
     if (running_) {
         pending_ = true;
         refreshFooter();
@@ -1277,14 +1319,21 @@ void TerrainImportDialog::start() {
     const auto unit = units_->currentData().toString();
     const bool chosen = !unit.isEmpty();
     QPointer<TerrainImportDialog> guard(this);
+    control_ = std::make_shared<TerrainRunControl>();
     // The worker owns copies of its inputs: the source bytes (shared, read-only), the request,
     // the site origin and the document's other terrain triangles. It never reads the document.
+    // It shares only its TerrainRunControl with the dialog.
     pool_.start([bytes = setup_.bytes, command = command(), chosen, site = doc_.site(),
                  other = doc_.materializedTotals().terrainTriangles, revision = revision_,
-                 generation, guard] {
+                 generation, guard, control = control_] {
         std::shared_ptr<TerrainImportDryRun> result;
+        auto progress = terrainRunProgress(control);
         try {
-            result = dryRun(bytes, command, chosen, site, other, revision);
+            result = dryRun(bytes, command, chosen, site, other, revision, progress);
+        } catch (const TerrainCancelled &) {
+            result = std::make_shared<TerrainImportDryRun>();
+            result->command = command;
+            result->cancelled = true;
         } catch (const std::exception &error) {
             result = std::make_shared<TerrainImportDryRun>();
             result->command = command;
@@ -1300,13 +1349,18 @@ void TerrainImportDialog::start() {
             },
             Qt::QueuedConnection);
     });
+    polledStage_ = -1;
+    progressPoll_.start();
     refreshFooter();
 }
 void TerrainImportDialog::finished(std::uint64_t generation,
                                    std::shared_ptr<TerrainImportDryRun> result) {
     running_ = false;
-    // A stale run (the settings changed while it ran) is dropped; only one result is kept.
-    if (generation == generation_)
+    control_.reset();
+    progressPoll_.stop();
+    // A stale run (the settings changed while it ran) is dropped; only one result is kept. A
+    // cancelled run is always stale.
+    if (generation == generation_ && !result->cancelled)
         dryRun_ = std::move(result);
     if (pending_ || doc_.revision() != revision_) {
         pending_ = false;
@@ -1332,15 +1386,18 @@ void TerrainImportDialog::refresh() {
     refreshReport();
     // The preview.
     const auto unit = units_->currentData().toString();
-    if (unit.isEmpty())
+    if (unit.isEmpty() && !showsRun())
         preview_->setPlaceholder(dryRun_ && dryRun_->unitsMissing
                                      ? "This DXF does not declare its units. Choose them to "
                                        "preview the terrain."
                                      : "Choose units to preview the terrain.");
     else if (dryRun_ && !dryRun_->error.isEmpty())
         preview_->setPlaceholder("The source could not be read.");
-    else if (!dryRun_ || !dryRun_->preview)
-        preview_->setPlaceholder("Checking the source…");
+    else if (!dryRun_ || !dryRun_->preview) {
+        const auto stage = terrainRunStageText(control_ ? control_->stage.load() : -1);
+        preview_->setPlaceholder(stage.isEmpty() ? QString("Checking the source…")
+                                                 : "Checking the source: " + stage + "…");
+    }
     else
         preview_->setPlaceholder({});
     if (dryRun_ && dryRun_->preview && dryRun_->preview.get() != preview_->data())
@@ -1380,13 +1437,15 @@ void TerrainImportDialog::refreshFooter() {
     if (current && !dryRun_->error.isEmpty()) {
         text = "Cannot import: nothing was changed.";
         refused = true;
-    } else if (unit.isEmpty())
+    } else if (unit.isEmpty() && !showsRun())
         text = dryRun_ && dryRun_->unitsMissing
                    ? "Choose units: this DXF does not declare them."
                    : "Choose units to preview and import.";
-    else if (!current)
-        text = "Checking…";
-    else if (terrain["outcome"].toString() == "refused") {
+    else if (!current) {
+        // D-044: the running dry run's stage; "Checking…" while it waits to start.
+        const auto stage = terrainRunStageText(control_ ? control_->stage.load() : -1);
+        text = stage.isEmpty() ? QString("Checking…") : "Checking: " + stage + "…";
+    } else if (terrain["outcome"].toString() == "refused") {
         refused = true;
         text = QString("Refused: %1 · nothing was changed")
                    .arg(plural(double(terrain["refusals"].toArray().size()), "kind of problem",
@@ -1403,10 +1462,35 @@ void TerrainImportDialog::refreshFooter() {
     status_->setProperty("refused", refused);
     status_->style()->unpolish(status_);
     status_->style()->polish(status_);
+    if (control_)
+        progress_->setValue(control_->permille.load() / 10);
+    progress_->setVisible(showsRun());
     showReport_->setText(reportPanel_->isVisible() ? "Hide report" : "Show report");
     showReport_->setAccessibleName(showReport_->text());
     import_->setEnabled(canImport());
     import_->setToolTip(import_->isEnabled() ? "Add the terrain to the open model" : text);
+}
+// A dry run of the chosen units is a full one, and so is a DXF's first, which reads its header
+// units; a point file without units is only listed.
+bool TerrainImportDialog::showsRun() const {
+    return running_ && (!units_->currentData().toString().isEmpty() || (!points() && !dryRun_));
+}
+void TerrainImportDialog::refreshProgress() {
+    // Polled while a dry run is on the worker; changes only the footer and the placeholder,
+    // never the focus.
+    if (!control_)
+        return;
+    progress_->setValue(control_->permille.load() / 10);
+    const int stage = control_->stage.load();
+    if (stage == polledStage_)
+        return;
+    polledStage_ = stage;
+    refreshFooter();
+    if ((!dryRun_ || !dryRun_->preview) && showsRun() && !(dryRun_ && !dryRun_->error.isEmpty())) {
+        const auto text = terrainRunStageText(stage);
+        if (!text.isEmpty())
+            preview_->setPlaceholder("Checking the source: " + text + "…");
+    }
 }
 void TerrainImportDialog::importNow() {
     if (!canImport())

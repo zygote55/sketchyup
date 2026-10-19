@@ -13,6 +13,7 @@
 // breaklines, then points, then boundary and hole vertices that are not already present),
 // and co-circular ties resolve by insertion. Canonical ordering of the sources is the
 // caller's job (ADR section 3).
+#include "geometry/terrain_progress.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -164,6 +165,9 @@ struct TerrainTriangulationReport {
 
 struct TerrainTriangulationResult {
     bool ok{false};
+    // D-044: the run was cancelled through its TerrainProgress. `ok` is false and the vertices,
+    // triangles and report are all empty.
+    bool cancelled{false};
     std::vector<TerrainVec3> vertices;
     // Counter-clockwise in plan. Each triangle starts at its smallest vertex index and the
     // list is sorted, so the order does not depend on the library's internals.
@@ -173,7 +177,15 @@ struct TerrainTriangulationResult {
 
 // Never throws for bad input; a refusal leaves `ok` false and the vertices and triangles
 // empty. Throws std::bad_alloc only when memory is exhausted.
+//
+// D-044: with `progress`, the run reports TerrainStage::Triangulate (0 to 1) and checks
+// cancellation between phases, within the long loops and, through the library's own abort
+// hook, per vertex and per constraint inside CDT's vertex and edge insertion. Only the final
+// super-triangle erase (about 35 ms at 250,000 triangles) has no check. A cancelled run
+// returns `cancelled` (never throws TerrainCancelled). An uncancelled run gives the same bits
+// with or without `progress`.
 TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &input,
-                                              const TerrainTriangulationOptions &options = {});
+                                              const TerrainTriangulationOptions &options = {},
+                                              TerrainProgress *progress = nullptr);
 
 } // namespace sketchy

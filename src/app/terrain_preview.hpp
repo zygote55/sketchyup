@@ -49,6 +49,7 @@ class TerrainPreview final : public QWidget {
     const TerrainPreviewData *data() const { return data_.get(); }
     // Shown instead of the drawing while there is nothing to draw.
     void setPlaceholder(const QString &text);
+    const QString &placeholder() const { return placeholder_; }
     void setMode(Mode mode);
     Mode mode() const { return mode_; }
     void setShading(bool shading);

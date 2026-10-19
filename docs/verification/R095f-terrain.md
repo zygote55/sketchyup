@@ -17,6 +17,14 @@ import dialog (R095.d), Entity info, the tools on terrain and Explode (R095.e1),
 settings (R095.e2), and DXF export with site coordinates (R095.e3). This record checks them
 against §6 of the ADR (the verification plan) and the roadmap's Verify line.
 
+**Updated 2026-10-19 (D-044 fixed; branch `fix/d044-terrain-import-progress`).** Parse and
+triangulate now has stage progress and a cancel that stops the run: the import dialog and the
+roles step of Create terrain from selection show the stage with a progress bar, Cancel or a
+changed setting stops the running dry run, and the CLI shows the stages on a terminal. Cancel
+takes effect within 55 ms at 250,000 triangles (Release), and meshes and digests are unchanged.
+The budget row now passes in full; see "Parse and triangulate: progress and cancel" and
+[ADR 0168, D-044 notes](../decisions/0168-terrain-import-and-surfaces.md#implementation-notes-d-044).
+
 ## Verdict
 
 **Accepted with open gaps. R095 is not complete.**
@@ -25,7 +33,8 @@ against §6 of the ADR (the verification plan) and the roadmap's Verify line.
   stays precise, and invalid contours give bounded reports. Every row of §6's check table passes.
 - Every budget measured at 250,000 triangles is within its limit except one: parse and
   triangulate meets its time (0.36–0.50 s against 3 s) but has no progress indication or cancel.
-  This is **D-044** (Minor).
+  This is **D-044** (Minor), fixed on 2026-10-19: the row now passes in full (see the update
+  above).
 - File growth passes: the binary mesh chunk is 6.3–7.6 MB against 8 MB. The whole file grows by
   about 12 MB because of the stored sources; this was raised as **D-045** and closed when the owner
   confirmed on 2026-10-19 that the budget covers the mesh chunk only.
@@ -128,7 +137,7 @@ after the commit.
 
 | Operation (250k triangles) | Budget | Measured: points | Measured: contours | Result |
 | --- | --- | ---: | ---: | --- |
-| Parse and triangulate | ≤ 3 s, with progress and cancel | 0.36 s (parse 0.07, prepare and triangulate 0.29) | 0.50 s (0.08, 0.41) | **Time pass; progress and cancel missing (D-044)** |
+| Parse and triangulate | ≤ 3 s, with progress and cancel | 0.36 s (parse 0.07, prepare and triangulate 0.29) | 0.50 s (0.08, 0.41) | **Pass** (time at this record; progress and cancel since the D-044 fix, cancel within 55 ms) |
 | Commit edit, tiles and validation | ≤ 2 s | 1.20 s | 1.08 s | pass |
 | Open, above the same document without terrain | ≤ 2 s | +0.61 s (0.61 vs 0.001) | +0.55 s | pass |
 | Save, above the same document without terrain | ≤ 2 s | +1.24 s (1.24 vs 0.005) | +1.31 s | pass |
@@ -151,6 +160,15 @@ after the commit.
   not met. The fix is not small: a cancellation token and stage progress have to go through the
   importer and the CDT adapter. It is recorded as **D-044** (Minor) in
   [R089.a](R089a-defect-triage.md).
+- **After the D-044 fix (2026-10-19):** a `TerrainProgress` runs through parsing, preparation,
+  triangulation (including CDT's own abort hook during vertex and edge insertion) and tiling.
+  The dialog's footer shows the stage ("Checking: triangulating…") and a determinate progress
+  bar, its preview the stage; Cancel, closing the dialog and a changed setting cancel the
+  running dry run, and the destructor waits only until the next checkpoint. The roles step of
+  Create terrain from selection does the same. The CLI prints the stages on stderr when it is a
+  terminal. `terrain_budget_benchmark --cancel 200` (Release): maximum cancel latency 55.3 ms
+  for the points source and 49.0 ms for the contours (p95 48.4 and 42.8 ms); the dry runs take
+  375 and 523 ms, as before. Meshes and every pinned digest are unchanged.
 
 **File growth.**
 
@@ -299,7 +317,7 @@ not by a new suite.
 
 | Item | Kind | Status |
 | --- | --- | --- |
-| (a) Progress and cancel for parse and triangulate | **D-044** (Minor), added to [R089.a](R089a-defect-triage.md) | Open. The time budget is met (0.36–0.50 s); "Checking…" only, and Cancel waits for the run |
+| (a) Progress and cancel for parse and triangulate | **D-044** (Minor), added to [R089.a](R089a-defect-triage.md) | Fixed 2026-10-19 (branch `fix/d044-terrain-import-progress`): stage progress in the dialogs and on a terminal CLI; Cancel, closing and a changed setting stop the run within 55 ms at 250k (Release); digests unchanged |
 | File growth over 8 MB | **D-045** (Minor), added to R089.a | Closed 2026-10-19: the owner restated the budget as the mesh chunk, which is within it; the stored sources as JSON add about 3–6 MB, reported only |
 | (b) Create terrain from selection cannot mark boundary or hole edges | **Owner question**, not a defect | The approved UX design gives no way to mark them from a selection, so R095.e1 offers none. The command (`terrain.create_from_edges`) takes `boundary` and `holes`, and `terrain_regenerate` covers them. Pending the owner's decision on a role picker |
 | (c) Assistant surface (decision 10) | **Done in R095.g** (after this record) | At this record: not done; `assistantVisible` hid every `site.*` and `terrain.*` name. R095.g (2026-10-19) measured the token cost offline (about +1,000 tokens a turn, within the corpus task budget), exposed `site.describe`, `terrain.describe` and `terrain.elevation_at` to the in-app assistant, re-pinned the tool-surface baseline and froze corpus v5; MCP still exposes everything. See [ADR 0168, R095.g notes](../decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095g) |

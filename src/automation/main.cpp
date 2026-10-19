@@ -28,7 +28,10 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QJsonDocument>
+#include <cmath>
+#include <cstdio>
 #include <iostream>
+#include <unistd.h>
 int main(int argc, char **argv) {
     bool measuredExport = false;
     for (int i = 1; i < argc; ++i) {
@@ -109,7 +112,8 @@ int main(int argc, char **argv) {
     parser.addOption({"dxf-segments", "Import chord segments per full circle: 12..256", "count"});
     parser.addOption({"import-terrain",
                       "Import a terrain from a DXF or point file into --input (or a new model); "
-                      "optional new native --output",
+                      "optional new native --output; stage progress on stderr when it is a "
+                      "terminal",
                       "path"});
     parser.addOption({"terrain-units",
                       "Terrain source unit: mm, cm, m, in, ft, usft, or header for DXF", "unit"});
@@ -377,9 +381,36 @@ int main(int argc, char **argv) {
                 throw sketchy::InspectionError("INPUT_ERROR", "Cannot read the terrain source");
             auto document = parser.isSet("input") ? sketchy::loadDocument(parser.value("input"))
                                                   : sketchy::Document();
+            // D-044: stage progress on stderr, only when stderr is a terminal, so scripts and
+            // pipes see exactly the output they did before; stdout keeps the one JSON result.
+            const bool terminal = ::isatty(STDERR_FILENO) == 1;
+            int shown = -1;
+            sketchy::TerrainProgress progress({}, [&](sketchy::TerrainStage stage, double fraction) {
+                static const char *labels[]{"reading the source", "preparing the sources",
+                                            "triangulating", "tiling"};
+                const int percent =
+                    int(std::floor(100 * sketchy::terrainOverallProgress(stage, fraction)));
+                if (!terminal || percent == shown)
+                    return;
+                shown = percent;
+                std::fprintf(stderr, "\r\x1b[KImporting terrain: %s, %d%%",
+                             labels[int(stage)], percent);
+                std::fflush(stderr);
+            });
+            // The progress line is cleared before anything else is printed.
+            struct EndLine {
+                const int &shown;
+                ~EndLine() {
+                    if (shown >= 0) {
+                        std::fputs("\r\x1b[K", stderr);
+                        std::fflush(stderr);
+                    }
+                }
+            };
             QJsonObject operation;
             try {
-                operation = sketchy::importTerrainSource(document, bytes, command);
+                const EndLine endLine{shown};
+                operation = sketchy::importTerrainSource(document, bytes, command, &progress);
             } catch (const sketchy::TerrainImportError &error) {
                 throw sketchy::InspectionError(error.code(), error.what(),
                                                QJsonObject{{"importReport", error.report()}});

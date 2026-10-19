@@ -51,8 +51,10 @@ QJsonObject inspectTerrainCommand(const Document &doc, const QJsonObject &comman
 // changes nothing.
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command);
-QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes,
-                                const QJsonObject &command);
+// D-044: `progress` reports parse, prepare, triangulate and tile (the CLI's stage progress).
+// A cancelled run throws TerrainImportError CANCELLED and changes nothing.
+QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes, const QJsonObject &command,
+                                TerrainProgress *progress = nullptr);
 // R095.d: importTerrainSource in its two halves, so the desktop dialog parses and dry-runs a
 // source off the UI thread and applies only the edit on it. parseTerrainSourceRequest checks
 // and parses exactly as the commands do (throwing TerrainError); runTerrainImport then gives
@@ -65,8 +67,11 @@ struct TerrainSourceRequest {
     TerrainImportProvenance provenance;
     std::string name{"Terrain"};
 };
+// D-044: with `progress`, parsing reports TerrainStage::Parse and a cancelled parse throws
+// TerrainCancelled (not a TerrainError); pass the same TerrainProgress on to runTerrainImport.
 TerrainSourceRequest parseTerrainSourceRequest(const QByteArray &bytes, const QJsonObject &command,
-                                               bool importing = true);
+                                               bool importing = true,
+                                               TerrainProgress *progress = nullptr);
 QJsonObject applyTerrainImport(Document &doc, TerrainImportResult result,
                                const std::string &name = "Terrain");
 // R095.h: terrain.create_from_edges in two halves, as terrain.import above, so Create terrain
@@ -81,7 +86,9 @@ struct TerrainEdgeRequest {
     std::string name{"Terrain"};
 };
 TerrainEdgeRequest parseTerrainEdgeRequest(const Document &doc, const QJsonObject &command);
-TerrainImportResult runTerrainEdgeRequest(const TerrainEdgeRequest &request);
+// D-044: with `progress`, as runTerrainImport: a cancelled run returns `cancelled`.
+TerrainImportResult runTerrainEdgeRequest(const TerrainEdgeRequest &request,
+                                          TerrainProgress *progress = nullptr);
 // The terrain.create_from_edges fields for an edge selection: `edges` (always present),
 // `roles.contour` / `roles.breakline`, `boundary` and `holes` when non-empty.
 QJsonObject terrainCreateFromEdgesCommand(const TerrainEdgeSelection &selection);

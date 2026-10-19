@@ -14,6 +14,10 @@
 // caller sees (refusals, region removal, flats) is here, on exact predicates, so a library
 // upgrade changes triangle choice at co-circular ties and nothing else.
 #include "geometry/terrain_triangulation.hpp"
+// D-044: CDT's upstream abort hook (ICallbackHandler::isAbortCalculation, polled per vertex and
+// per constraint edge). The switch only compiles the hook in; the vendored headers are
+// unchanged, and only this file includes them, so the switch is the same for every use.
+#define CDT_ENABLE_CALLBACK_HANDLER
 #include <CDT/CDT.h>
 #include <algorithm>
 #include <cmath>
@@ -539,10 +543,63 @@ namespace {
 
 using CdtTriangulation = CDT::Triangulation<double>;
 
+// Triangulate-stage checkpoints. `step(f)` reports f (0..1 of the stage) and checks for
+// cancellation; `every(i, n, from, to)` does so once per 16,384 iterations of a loop.
+struct Steps {
+    TerrainProgress *progress;
+    void operator()(double fraction) const {
+        terrainCheckpoint(progress, TerrainStage::Triangulate, fraction);
+    }
+    void every(std::size_t i, std::size_t n, double from, double to) const {
+        if (progress && (i & 0x3fff) == 0)
+            (*this)(from + (to - from) * double(i) / double(std::max<std::size_t>(n, 1)));
+    }
+};
+
+// CDT's abort hook: polled once per inserted vertex or constraint edge; every 256th poll is a
+// checkpoint, with the fraction of the phase's items done. An abort is latched, as CDT checks
+// the hook again after it stops; the caller then throws TerrainCancelled.
+class CdtCheck final : public CDT::ICallbackHandler {
+  public:
+    explicit CdtCheck(Steps steps) : steps_(steps) {}
+    void phase(double from, double to, std::size_t items) {
+        from_ = from;
+        to_ = to;
+        items_ = std::max<std::size_t>(items, 1);
+        polls_ = 0;
+    }
+    bool isAbortCalculation() const override {
+        if (aborted_)
+            return true;
+        if ((++polls_ & 0xff) != 0)
+            return false;
+        try {
+            steps_(from_ + (to_ - from_) * std::min(1.0, double(polls_) / double(items_)));
+        } catch (const TerrainCancelled &) {
+            aborted_ = true;
+        }
+        return aborted_;
+    }
+    // The end of a phase: throws when the phase was aborted, otherwise reports its end.
+    void finish() const {
+        if (aborted_)
+            throw TerrainCancelled();
+        steps_(to_);
+    }
+
+  private:
+    Steps steps_;
+    double from_{}, to_{};
+    std::size_t items_{1};
+    mutable std::size_t polls_{};
+    mutable bool aborted_{};
+};
+
 // Constrained Delaunay of `points` with `edges` (indices into `points`). The super triangle
-// is erased; the convex hull remains.
+// is erased; the convex hull remains. With a TerrainProgress, the run reports `from` to `to`
+// and is cancellable within vertex and edge insertion (TerrainCancelled).
 void runCdt(const std::vector<Pt> &points, const std::vector<std::pair<u32, u32>> &edges,
-            CdtTriangulation &tri) {
+            CdtTriangulation &tri, Steps steps = {nullptr}, double from = 0, double to = 0) {
     std::vector<CDT::V2d<double>> vertices;
     vertices.reserve(points.size());
     for (const auto &p : points)
@@ -551,9 +608,28 @@ void runCdt(const std::vector<Pt> &points, const std::vector<std::pair<u32, u32>
     constraints.reserve(edges.size());
     for (const auto &e : edges)
         constraints.emplace_back(CDT::VertInd(e.first), CDT::VertInd(e.second));
+    if (!steps.progress) {
+        tri.insertVertices(vertices);
+        tri.insertEdges(constraints);
+        tri.eraseSuperTriangle();
+        return;
+    }
+    // Measured shares at 250,000 triangles: vertices about 70 %, edges 10 %, erase 20 %.
+    const double span = to - from;
+    CdtCheck check(steps);
+    struct Detach {
+        CdtTriangulation &tri;
+        ~Detach() { tri.setCallbackHandler(nullptr); }
+    } detach{tri};
+    tri.setCallbackHandler(&check);
+    check.phase(from, from + span * .7, vertices.size());
     tri.insertVertices(vertices);
+    check.finish();
+    check.phase(from + span * .7, from + span * .8, constraints.size());
     tri.insertEdges(constraints);
+    check.finish();
     tri.eraseSuperTriangle();
+    steps(to);
 }
 
 Mesh meshFrom(const CdtTriangulation &tri) {
@@ -643,8 +719,10 @@ class Elevation {
 
 } // namespace
 
-TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &input,
-                                              const TerrainTriangulationOptions &options) {
+namespace {
+TerrainTriangulationResult triangulate(const TerrainTriangulationInput &input,
+                                       const TerrainTriangulationOptions &options,
+                                       const Steps step) {
     TerrainTriangulationResult result;
     auto &report = result.report;
     Problems problems;
@@ -658,6 +736,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
     };
 
     // ---- 1. Numbers and sizes ------------------------------------------------------------
+    step(0);
     std::size_t raw = input.points.size();
     for (const auto &c : input.contours)
         raw += c.points.size();
@@ -718,11 +797,14 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         if (problems.any())
             return refuse();
     }
+    step(.02);
 
     // ---- 2. Vertices and polylines ---------------------------------------------------------
     VertexStore store(options.xyTolerance, options.zTolerance);
     std::vector<Segment> segments;
+    std::size_t visited = 0;
     const auto addVertex = [&](double x, double y, double z, bool hasZ, bool contour, u64 source) {
+        step.every(visited++, raw, .02, .10);
         const auto added = store.add(x, y, z, hasZ, contour, source);
         if (added.merged)
             ++report.mergedDuplicates;
@@ -848,6 +930,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             }
             // Sources outside the boundary or inside a hole are dropped.
             for (u32 v = 0; v < sourceVertices; ++v) {
+                step.every(v, sourceVertices, .10, .13);
                 if (store.flags[v] & OnPolygon)
                     continue;
                 bool drop = false;
@@ -865,6 +948,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             }
         }
     }
+    step(.13);
     const std::size_t total = store.xy.size();
     auto &flags = store.flags;
     // Segments lose their dropped endpoints; polygon edges join as region segments.
@@ -891,6 +975,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         }
         dedupe(segments, store.xy, problems, report);
     }
+    step(.15);
 
     // ---- 4. Crossing, touching and overlapping constraints -----------------------------------
     // Exact predicates throughout. A vertex strictly inside a segment is a touch: allowed only
@@ -917,6 +1002,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                     vertexCells.items[vertexCells.start[c] + fill[c]++] = v;
                 }
         }
+        step(.16);
         CellLists segmentCells;
         segmentCells.start.assign(cellCount + 1, 0);
         std::size_t entries = 0;
@@ -945,9 +1031,11 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                         .items[segmentCells.start[std::size_t(c)] + fill[std::size_t(c)]++] = i;
                 });
         }
+        step(.17);
         // Vertices inside segments.
         std::vector<std::pair<u32, u32>> touches; // (segment, vertex)
         for (u32 i = 0; i < segments.size(); ++i) {
+            step.every(i, segments.size(), .17, .20);
             const Pt &a = store.xy[segments[i].a];
             const Pt &b = store.xy[segments[i].b];
             grid.raster(a, b, [&](int c) {
@@ -972,6 +1060,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         // Segment pairs that properly cross.
         std::vector<u64> pairs;
         for (std::size_t c = 0; c < cellCount && pairs.size() <= kMaxCrossingPairs; ++c) {
+            step.every(c, cellCount, .20, .24);
             for (u32 x = segmentCells.start[c]; x < segmentCells.start[c + 1]; ++x) {
                 const auto &s = segments[segmentCells.items[x]];
                 const Pt &a = store.xy[s.a], &b = store.xy[s.b];
@@ -1036,6 +1125,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         dedupe(segments, store.xy, problems, report);
     }
 
+    step(.25);
     // ---- 5. Enough points ---------------------------------------------------------------------
     std::vector<u32> sourceIds; // kept source vertices, with an elevation
     for (u32 v = 0; v < sourceVertices; ++v)
@@ -1085,7 +1175,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             CdtTriangulation first(CDT::VertexInsertionOrder::Auto,
                                    CDT::IntersectingConstraintEdges::NotAllowed, 0.0);
             try {
-                runCdt(pts, edges, first);
+                runCdt(pts, edges, first, step, .26, .32);
             } catch (const CDT::Error &) {
                 problems.add(TerrainProblemKind::TriangulationFailed);
                 return refuse();
@@ -1098,6 +1188,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
             Elevation elevation(pts, zs, std::move(mesh));
             for (u32 v = 0; v < total; ++v)
                 if (!(flags[v] & Dropped) && !(flags[v] & HasZ)) {
+                    step.every(v, total, .32, .34);
                     bool extrapolated = false;
                     store.z[v] = elevation.at(store.xy[v], extrapolated);
                     flags[v] |= HasZ;
@@ -1107,6 +1198,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         }
     }
 
+    step(.34);
     // ---- 7. Constrained Delaunay
     // -------------------------------------------------------------------
     std::vector<u32> packed(total, kNone);
@@ -1135,7 +1227,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         CdtTriangulation tri(CDT::VertexInsertionOrder::Auto,
                              CDT::IntersectingConstraintEdges::NotAllowed, 0.0);
         try {
-            runCdt(surface.xy, edges, tri);
+            runCdt(surface.xy, edges, tri, step, .35, .80);
         } catch (const CDT::IntersectingConstraintsError &) {
             problems.add(TerrainProblemKind::CrossingConstraints);
             problems.detail(TerrainProblemKind::CrossingConstraints,
@@ -1156,10 +1248,12 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         }
         mesh = meshFrom(tri);
     }
+    step(.81);
     if (!buildNeighbors(mesh)) {
         problems.add(TerrainProblemKind::TriangulationFailed);
         return refuse();
     }
+    step(.83);
 
     // ---- 8. Outside the boundary and inside holes
     // --------------------------------------------------- Depth by region edges, from the outside
@@ -1182,7 +1276,9 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                         queue.emplace(d, t);
                     }
                 }
+        std::size_t popped = 0;
         while (!queue.empty()) {
+            step.every(popped++, 2 * count, .83, .85);
             const auto [d, t] = queue.top();
             queue.pop();
             if (d != depth[t])
@@ -1209,6 +1305,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         }
     }
 
+    step(.86);
     // ---- 9. Trim long outer edges
     // ---------------------------------------------------------------------- Never across a
     // constraint: contour, breakline, boundary and hole edges are data.
@@ -1265,6 +1362,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                                limits.maxTriangles));
         return false;
     };
+    step(.88);
     if (!budget())
         return refuse();
     if (mesh.v.empty()) {
@@ -1291,6 +1389,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                 queued[t] = 1;
             }
         for (std::size_t head = 0; head < queue.size(); ++head) {
+            step.every(head, queue.size(), .88, .94);
             const u32 t = queue[head];
             queued[t] = 0;
             if (!isFlat(surface, mesh.v[t], flatTol))
@@ -1331,7 +1430,9 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         for (u32 t = 0; t < mesh.v.size(); ++t)
             if (isFlat(surface, mesh.v[t], flatTol))
                 flat.push_back(t);
-        for (u32 t : flat) {
+        for (std::size_t k = 0; k < flat.size(); ++k) {
+            step.every(k, flat.size(), .94, .97);
+            const u32 t = flat[k];
             if (!isFlat(surface, mesh.v[t], flatTol))
                 continue;
             u32 best = kNone;
@@ -1411,6 +1512,7 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                      (surface.xy[t[0]].y + surface.xy[t[1]].y + surface.xy[t[2]].y) / 3});
         }
 
+    step(.97);
     // ---- 11. Output
     // ---------------------------------------------------------------------------------------------
     std::vector<u32> remap(surface.xy.size(), kNone);
@@ -1431,11 +1533,27 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         std::rotate(r.begin(), std::min_element(r.begin(), r.end()), r.end());
         result.triangles.push_back(r);
     }
+    step(.99);
     std::sort(result.triangles.begin(), result.triangles.end());
     report.vertexCount = result.vertices.size();
     report.triangleCount = result.triangles.size();
+    step(1.0);
     result.ok = true;
     return result;
+}
+} // namespace
+
+TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &input,
+                                              const TerrainTriangulationOptions &options,
+                                              TerrainProgress *progress) {
+    try {
+        return triangulate(input, options, Steps{progress});
+    } catch (const TerrainCancelled &) {
+        // Nothing of the run is kept: no vertices, triangles or report.
+        TerrainTriangulationResult cancelled;
+        cancelled.cancelled = true;
+        return cancelled;
+    }
 }
 
 } // namespace sketchy

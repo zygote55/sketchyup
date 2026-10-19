@@ -22,6 +22,7 @@
 #include "core/terrain.hpp"
 #include "native_dialog_audit.hpp"
 #include "terrain_import_fixtures.hpp"
+#include "terrain_run_hold.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -29,10 +30,12 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDoubleSpinBox>
+#include <QElapsedTimer>
 #include <QFrame>
 #include <QJsonArray>
 #include <QLabel>
 #include <QMenu>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSettings>
@@ -884,6 +887,59 @@ void selectionRoles(Window &window) {
           "Undo removes the terrain");
 }
 
+// D-044: the roles step's dry run, held at the start of triangulation, shows its stage and a
+// determinate progress bar without taking the focus; a changed role cancels it and starts
+// again; Cancel during a run closes at once without waiting for it and changes nothing.
+void selectionRolesProgress(Window &window) {
+    rolesFixture(window);
+    auto &doc = window.document();
+    const auto revision = doc.revision();
+    const auto history = doc.history().total;
+    test::TerrainRunHold hold;
+    QElapsedTimer clock;
+    check(drive(
+              "terrainSelectionRolesDialog",
+              [&](QWidget &widget) {
+                  auto &dialog = static_cast<TerrainSelectionRolesDialog &>(widget);
+                  check(QTest::qWaitFor([&] { return hold.holding == 1; }, 10000),
+                        "The roles dry run reaches triangulation");
+                  auto *status = child<QLabel>(dialog, "terrainSelectionStatus");
+                  check(QTest::qWaitFor(
+                            [&] { return status->text() == "Checking: triangulating…"; }, 5000),
+                        "The status names the stage: " + status->text().toStdString());
+                  auto *bar = dialog.progressBar();
+                  check(bar->isVisible() && bar->objectName() == "terrainSelectionProgress" &&
+                            !bar->accessibleName().isEmpty() && bar->focusPolicy() == Qt::NoFocus &&
+                            bar->value() >= 30 && bar->value() < 95,
+                        "A determinate, named progress bar shows the run");
+                  check(!dialog.canCreate() && dialog.running(), "Create waits for the run");
+                  auto *table = dialog.roleTable()->table();
+                  check(dialog.focusWidget() == table, "Progress does not take the focus");
+                  // A changed role cancels the stale run and starts another.
+                  // Each step of the combo is a change; every run before the last is cancelled.
+                  chooseRole(dialog, table, 3, 5); // Notes: Ignore
+                  check(QTest::qWaitFor(
+                            [&] {
+                                return hold.held >= 2 && hold.holding == 1 &&
+                                       hold.cancelled == hold.held - 1;
+                            },
+                            10000),
+                        "A changed role cancels the running dry run and starts again");
+                  check(dialog.focusWidget() == child<QComboBox>(dialog, "terrainSelectionRole"),
+                        "The focus stays on the Role");
+                  clock.start();
+                  click(dialog, "terrainSelectionCancel");
+              },
+              [&] { action(window, "terrain.createFromSelection")->trigger(); }),
+          "The roles step opens");
+    const auto elapsed = clock.elapsed();
+    std::cout << "roles step Cancel during a run: closed in " << elapsed << " ms\n";
+    check(hold.cancelled == hold.held && hold.holding == 0, "Cancel cancels the running dry run");
+    check(elapsed < 2000, "The roles step closes without waiting for the run");
+    check(doc.revision() == revision && doc.history().total == history,
+          "Cancel during a run changes nothing");
+}
+
 // ---- Tools on terrain ----------------------------------------------------------------------
 // A pointer move sent to the viewport, as the other input suites hover: QTest::mouseMove moves
 // the real cursor, which on X11 at 2x does not reach the viewport as a move event.
@@ -981,6 +1037,9 @@ int main(int argc, char **argv) {
         std::cout << "create terrain from selection\n" << std::flush;
         selectionRoles(window);
         std::cout << "create terrain from selection: roles step\n" << std::flush;
+        selectionRolesProgress(window);
+        std::cout << "create terrain from selection: roles step progress and cancel\n"
+                  << std::flush;
         toolsOnTerrain(window);
         std::cout << "tools on terrain\n" << std::flush;
     } catch (const std::exception &error) {

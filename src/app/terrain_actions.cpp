@@ -19,6 +19,7 @@
 #include <QLocale>
 #include <QMessageBox>
 #include <QPointer>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QStyle>
 #include <QTableWidget>
@@ -601,6 +602,7 @@ void TerrainSettingsDialog::refresh() {
 struct TerrainSelectionDryRun {
     QJsonObject command;
     bool ok{};
+    bool cancelled{}; // D-044: stopped by its TerrainRunControl; never shown
     QString message;
     QJsonObject report;
     std::size_t triangles{}, tiles{};
@@ -619,6 +621,8 @@ TerrainSelectionRolesDialog::TerrainSelectionRolesDialog(const Document &doc,
     pool_.setMaxThreadCount(1);
     rerun_.setSingleShot(true);
     connect(&rerun_, &QTimer::timeout, this, [this] { start(); });
+    progressPoll_.setInterval(50);
+    connect(&progressPoll_, &QTimer::timeout, this, [this] { refresh(); });
 
     setObjectName("terrainSelectionRolesDialog");
     setWindowTitle("Create terrain");
@@ -663,6 +667,16 @@ TerrainSelectionRolesDialog::TerrainSelectionRolesDialog(const Document &doc,
     list_ = reportTree("terrainSelectionReport");
     layout->addWidget(list_, 1);
     auto *footer = new QHBoxLayout;
+    // D-044: the running dry run's progress; shown only while one runs. It takes no focus.
+    progress_ = new QProgressBar;
+    progress_->setObjectName("terrainSelectionProgress");
+    progress_->setAccessibleName("Checking progress");
+    progress_->setRange(0, 100);
+    progress_->setTextVisible(false);
+    progress_->setFocusPolicy(Qt::NoFocus);
+    progress_->setFixedWidth(progress_->fontMetrics().horizontalAdvance(QLatin1Char('M')) * 9);
+    progress_->hide();
+    footer->addWidget(progress_);
     footer->addStretch(1);
     auto *cancel = new QPushButton("Cancel");
     cancel->setObjectName("terrainSelectionCancel");
@@ -693,7 +707,21 @@ TerrainSelectionRolesDialog::TerrainSelectionRolesDialog(const Document &doc,
 }
 TerrainSelectionRolesDialog::~TerrainSelectionRolesDialog() {
     rerun_.stop();
+    progressPoll_.stop();
+    // Cancelled, a running dry run stops at its next checkpoint, so this waits that long at most.
+    cancelRun();
     pool_.waitForDone();
+}
+void TerrainSelectionRolesDialog::done(int result) {
+    // Cancel, Escape, closing the window and Create: a running dry run is no longer wanted.
+    closed_ = true;
+    rerun_.stop();
+    cancelRun();
+    Settled<QDialog>::done(result);
+}
+void TerrainSelectionRolesDialog::cancelRun() {
+    if (control_)
+        control_->cancel.store(true, std::memory_order_relaxed);
 }
 std::map<Id, TerrainImportRole> TerrainSelectionRolesDialog::chosen() const {
     std::map<Id, TerrainImportRole> roles;
@@ -728,6 +756,8 @@ void TerrainSelectionRolesDialog::changed(int delayMs) {
         }
     }
     problem_ = problems.join('\n');
+    // D-044: the running dry run is for the old roles; stop it.
+    cancelRun();
     if (problem_.isEmpty())
         rerun_.start(delayMs);
     else
@@ -735,6 +765,8 @@ void TerrainSelectionRolesDialog::changed(int delayMs) {
     refresh();
 }
 void TerrainSelectionRolesDialog::start() {
+    if (closed_)
+        return;
     if (running_) {
         rerun_.start(50);
         return;
@@ -744,12 +776,16 @@ void TerrainSelectionRolesDialog::start() {
     running_ = true;
     const auto generation = ++generation_;
     QPointer<TerrainSelectionRolesDialog> guard(this);
-    // The worker owns a copy of the chained request and never reads the document.
-    pool_.start([request = *request_, command = command_, generation, guard] {
+    control_ = std::make_shared<TerrainRunControl>();
+    // The worker owns a copy of the chained request and never reads the document. It shares
+    // only its TerrainRunControl with the dialog.
+    pool_.start([request = *request_, command = command_, generation, guard, control = control_] {
         auto result = std::make_shared<TerrainSelectionDryRun>();
         result->command = command;
+        auto progress = terrainRunProgress(control);
         try {
-            const auto run = runTerrainEdgeRequest(request);
+            const auto run = runTerrainEdgeRequest(request, &progress);
+            result->cancelled = run.cancelled;
             result->ok = run.ok;
             result->message = QString::fromStdString(run.message);
             result->report = run.report;
@@ -766,12 +802,16 @@ void TerrainSelectionRolesDialog::start() {
             },
             Qt::QueuedConnection);
     });
+    progressPoll_.start();
     refresh();
 }
 void TerrainSelectionRolesDialog::finished(std::uint64_t generation,
                                            std::shared_ptr<TerrainSelectionDryRun> result) {
     running_ = false;
-    if (generation == generation_)
+    control_.reset();
+    progressPoll_.stop();
+    // A cancelled run is always stale.
+    if (generation == generation_ && !result->cancelled)
         dryRun_ = std::move(result);
     if (dryRun_ && dryRun_->command != command_ && problem_.isEmpty() && !rerun_.isActive())
         rerun_.start(0);
@@ -784,9 +824,11 @@ void TerrainSelectionRolesDialog::refresh() {
     if (!problem_.isEmpty()) {
         status = "Cannot create: " + problem_;
         refused = true;
-    } else if (!current)
-        status = "Checking…";
-    else if (!dryRun_->ok) {
+    } else if (!current) {
+        // D-044: the running dry run's stage; "Checking…" while it waits to start.
+        const auto stage = terrainRunStageText(control_ ? control_->stage.load() : -1);
+        status = stage.isEmpty() ? QString("Checking…") : "Checking: " + stage + "…";
+    } else if (!dryRun_->ok) {
         refused = true;
         const auto first = firstRefusal(dryRun_->report["terrain"].toObject());
         status = "Refused: nothing would change. " +
@@ -798,6 +840,12 @@ void TerrainSelectionRolesDialog::refresh() {
                           plural(dryRun_->tiles, "tile", "tiles"),
                           plural(std::size_t(notices), "notice", "notices"));
     }
+    if (control_)
+        progress_->setValue(control_->permille.load() / 10);
+    progress_->setVisible(running_ && problem_.isEmpty());
+    // Polled while a run is on the worker: only a changed status touches the label and list.
+    if (running_ && status == status_->text())
+        return;
     status_->setText(status);
     status_->setAccessibleName(status);
     status_->setProperty("refused", refused);

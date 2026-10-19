@@ -1,6 +1,7 @@
 #pragma once
 #include "app/settled_dialog.hpp"
 #include "app/terrain_preview.hpp"
+#include "app/terrain_run.hpp"
 #include "app/theme.hpp"
 #include "core/model.hpp"
 #include <QByteArray>
@@ -20,6 +21,7 @@ class QFrame;
 class QGridLayout;
 class QLabel;
 class QLineEdit;
+class QProgressBar;
 class QPushButton;
 class QRadioButton;
 class QTableWidget;
@@ -37,6 +39,9 @@ struct TerrainImportDryRun;
 //
 // Every change runs the core's terrain.import dry run again (parseTerrainSourceRequest and
 // runTerrainImport) on a worker, debounced, one run at a time, with stale results dropped.
+// D-044: the footer shows the run's stage and a determinate progress bar, and the preview the
+// stage while it has nothing to show; a change cancels the running dry run, and Cancel or
+// closing the dialog cancels it, so the destructor waits only until its next checkpoint.
 // Import applies the current dry run through applyTerrainImport: ONE labelled "Import terrain"
 // edit on the open document (owner decision 11), the same core path as terrain.import. A
 // refusal shows a banner that nothing was changed and keeps Import disabled.
@@ -57,6 +62,10 @@ class TerrainImportDialog final : public Settled<QDialog> {
     // The terrain.import fields the settings stand for (without `data`).
     QJsonObject command() const;
     bool checking() const;
+    // D-044: whether a dry run is on the worker (checking() also covers the debounce).
+    bool running() const { return running_; }
+    QProgressBar *progressBar() const { return progress_; }
+    void done(int result) override;
     bool canImport() const;
     // The latest dry run's bounded report (empty before the first one) and its text form.
     QJsonObject report() const;
@@ -81,6 +90,9 @@ class TerrainImportDialog final : public Settled<QDialog> {
     void refreshTriangulation();
     void refreshReport();
     void refreshFooter();
+    void refreshProgress();
+    bool showsRun() const;
+    void cancelRun();
     void applyPreset();
     void chooseLocation(QTreeWidgetItem *item);
     void importNow();
@@ -92,7 +104,11 @@ class TerrainImportDialog final : public Settled<QDialog> {
     Setup setup_;
     QThreadPool pool_;
     QTimer rerun_;
+    QTimer progressPoll_;
+    std::shared_ptr<TerrainRunControl> control_; // the running dry run's, while running_
     bool running_{}, pending_{};
+    bool closed_{}; // done() was called: no further dry runs start
+    int polledStage_{-1}; // the stage the footer last showed
     std::uint64_t generation_{}, revision_{};
     std::shared_ptr<TerrainImportDryRun> dryRun_;
     QJsonObject operation_;
@@ -128,6 +144,7 @@ class TerrainImportDialog final : public Settled<QDialog> {
     QTreeWidget *reportList_{};
     QPushButton *copyReport_{}, *saveReport_{};
     QLabel *status_{};
+    QProgressBar *progress_{};
     QPushButton *showReport_{}, *cancel_{}, *import_{};
 };
 } // namespace sketchy

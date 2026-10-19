@@ -930,6 +930,86 @@ void generatedInputs(int count) {
     check(accepted > count / 20 && refused > count / 20, "the generator reaches both outcomes");
 }
 
+// D-044: progress and cancel. With a TerrainProgress a run gives the same mesh and report, its
+// reports rise from 0 to 1, and a cancel at any report returns a cancelled result that keeps
+// nothing. A cancel during CDT's vertex insertion stops inside it (the library's abort hook).
+void progressAndCancel() {
+    struct Case {
+        const char *name;
+        TerrainTriangulationInput input;
+        TerrainTriangulationOptions options;
+    };
+    std::vector<Case> cases;
+    cases.push_back({"hill", hill(), {}});
+    {
+        TerrainTriangulationOptions fill;
+        fill.steinerFill = true;
+        fill.maxEdgeLength = 6;
+        cases.push_back({"hill, fill and trim", hill(), fill});
+    }
+    {
+        auto in = grid(30, 30);
+        // Corners off the grid: their elevations come from a first triangulation.
+        in.boundary = TerrainPolygon{{{1.5, 1.5}, {27.5, 1.5}, {27.5, 27.5}, {1.5, 27.5}}, 700};
+        in.holes.push_back(TerrainPolygon{{{10.5, 10.5}, {14.5, 10.5}, {14.5, 14.5}}, 701});
+        cases.push_back({"grid with boundary and hole", in, {}});
+    }
+    for (const auto &c : cases) {
+        const auto plain = triangulateTerrain(c.input, c.options);
+        check(plain.ok, "the progress fixture triangulates");
+        std::vector<std::pair<int, double>> reports;
+        TerrainProgress progress({}, [&](TerrainStage stage, double fraction) {
+            reports.emplace_back(int(stage), fraction);
+        });
+        const auto reported = triangulateTerrain(c.input, c.options, &progress);
+        check(reported.ok && !reported.cancelled && reported.vertices == plain.vertices &&
+                  reported.triangles == plain.triangles &&
+                  reported.report.flatTrianglesRemaining == plain.report.flatTrianglesRemaining &&
+                  reported.report.interpolatedPolygonVertices ==
+                      plain.report.interpolatedPolygonVertices &&
+                  reported.report.trimmedTriangles == plain.report.trimmedTriangles &&
+                  reported.report.steinerPointsAdded == plain.report.steinerPointsAdded,
+              "progress does not change the result");
+        check(reports.size() >= 10, "a run reports its phases");
+        check(reports.front() == std::pair<int, double>{int(TerrainStage::Triangulate), 0} &&
+                  reports.back() == std::pair<int, double>{int(TerrainStage::Triangulate), 1},
+              "progress runs from 0 to 1");
+        for (std::size_t i = 1; i < reports.size(); ++i)
+            check(reports[i].first == reports[0].first && reports[i].second > reports[i - 1].second,
+                  "progress only rises");
+        for (std::size_t n = 0; n < reports.size(); ++n) {
+            bool cancel = false;
+            std::size_t seen = 0;
+            TerrainProgress cancelling([&] { return cancel; },
+                                       [&](TerrainStage, double) { cancel = cancel || seen++ == n; });
+            const auto cancelled = triangulateTerrain(c.input, c.options, &cancelling);
+            check(cancelled.cancelled && !cancelled.ok && cancelled.vertices.empty() &&
+                      cancelled.triangles.empty() && cancelled.report.rawVertexCount == 0 &&
+                      cancelled.report.triangleCount == 0 && cancelled.report.refusals.empty() &&
+                      cancelled.report.flatLocations.empty(),
+                  "a cancel at any report keeps nothing");
+            check(seen == n + 1, "the run stops at the checkpoint that saw the cancel");
+        }
+        // Cancelled before it starts.
+        TerrainProgress before([] { return true; });
+        check(triangulateTerrain(c.input, c.options, &before).cancelled,
+              "a cancelled progress stops the run at once");
+    }
+    // Inside CDT: about 10,000 points; vertex insertion spans 0.35 to 0.665 of the stage.
+    const auto in = grid(100, 100, 0.5);
+    bool cancel = false;
+    double at = -1;
+    TerrainProgress inside([&] { return cancel; }, [&](TerrainStage, double fraction) {
+        if (!cancel && fraction > .4 && fraction < .6) {
+            cancel = true;
+            at = fraction;
+        }
+    });
+    const auto stopped = triangulateTerrain(in, {}, &inside);
+    check(stopped.cancelled && stopped.triangles.empty() && at > .4 && at < .6,
+          "a cancel during CDT vertex insertion stops the run there");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -956,6 +1036,7 @@ int main(int argc, char **argv) {
         reportBounds();
         boundaryAreaProperty();
         generatedInputs(fuzzCount);
+        progressAndCancel();
         std::cout << "terrain triangulation tests passed in "
                   << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()
                   << " s\n";

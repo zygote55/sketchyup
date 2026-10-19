@@ -4,6 +4,7 @@
 // most 2,048 triangles; the document site origin and model <-> site conversion.
 // Triangulation is not here: callers pass an already-triangulated mesh.
 #include "core/model.hpp"
+#include "geometry/terrain_progress.hpp"
 #include <array>
 #include <cstdint>
 #include <set>
@@ -23,7 +24,8 @@ struct TerrainTiling {
     double cell{};
     std::vector<std::vector<std::uint32_t>> tiles;
 };
-TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh);
+// D-044: with `progress`, reports TerrainStage::Tile and may throw TerrainCancelled.
+TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh, TerrainProgress *progress = nullptr);
 // One tile body. Its vertices take IDs 1..n in the given order and its faces IDs
 // n+1..n+m, so the binary mesh stores neither (ADR 0168 §2); edges come from
 // Topology::rebuild and every interior edge is soft and smooth.

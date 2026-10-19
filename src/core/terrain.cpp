@@ -126,9 +126,10 @@ void validateSiteOrigin(const SiteOrigin &origin) {
         (!origin.established.sha256.empty() && !sha256Text(origin.established.sha256)))
         throw TerrainError("INVALID_REQUEST", "Invalid site origin provenance");
 }
-TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh) {
+TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh, TerrainProgress *progress) {
     TerrainTiling result;
     const auto count = mesh.triangles.size();
+    terrainCheckpoint(progress, TerrainStage::Tile, 0);
     if (!count)
         return result;
     std::vector<std::array<double, 2>> centroids(count);
@@ -155,7 +156,10 @@ TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh) {
     for (int attempt = 0; attempt < 24; ++attempt) {
         buckets.clear();
         std::size_t largest = 0;
+        terrainCheckpoint(progress, TerrainStage::Tile, .1 + .03 * attempt);
         for (std::size_t i = 0; i < count; ++i) {
+            if (progress && (i & 0x3fff) == 0)
+                progress->check();
             const auto column = std::uint64_t(std::floor((centroids[i][0] - minX) / cell));
             const auto row = std::uint64_t(std::floor((centroids[i][1] - minY) / cell));
             auto &bucket = buckets[{row, column}];
@@ -166,6 +170,7 @@ TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh) {
             break;
         cell *= .5;
     }
+    terrainCheckpoint(progress, TerrainStage::Tile, .9);
     result.cell = cell;
     // A cluster that the grid still cannot separate is split in triangle order; the
     // tiles remain a partition of the triangle set.

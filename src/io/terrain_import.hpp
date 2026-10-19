@@ -61,9 +61,12 @@ struct TerrainPrepared {
     std::map<std::pair<double, double>, std::vector<TerrainSourceRef>> pointRefs;
 };
 // Refuses (INVALID_REQUEST) an explicit origin that differs from the document's site origin.
+// D-044: with `progress`, reports TerrainStage::Prepare and throws TerrainCancelled when the
+// run is cancelled.
 TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
                                       const TerrainImportOptions &options,
-                                      const std::optional<SiteOrigin> &site);
+                                      const std::optional<SiteOrigin> &site,
+                                      TerrainProgress *progress = nullptr);
 
 // Stored sources to adapter input. Source i (0-based) has sourceId i + 1. A contour or
 // breakline whose last point repeats its first is closed.
@@ -71,6 +74,9 @@ TerrainTriangulationInput terrainTriangulationInput(const std::vector<TerrainSou
 
 struct TerrainImportResult {
     bool ok{};
+    // D-044: cancelled through its TerrainProgress; `ok` is false, `code` is CANCELLED and the
+    // mesh, record and report are empty.
+    bool cancelled{};
     std::string code; // when refused: INVALID_REQUEST or LIMIT_EXCEEDED
     std::string message;
     TerrainMesh mesh;
@@ -86,10 +92,15 @@ struct TerrainImportProvenance {
     std::string sourceName; // file name for the site provenance
     std::string crs;        // informational label for a new site origin
 };
+// D-044: with `progress`, the run reports TerrainStage::Prepare, Triangulate and Tile (each 0
+// to 1, Tile reaching 1 at the end of every finished run, refused or not) and checks for
+// cancellation throughout; a cancelled run returns `cancelled` and never throws
+// TerrainCancelled. An uncancelled run gives the same result with or without `progress`.
 TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
                                      const TerrainImportOptions &options,
                                      const std::optional<SiteOrigin> &site,
-                                     const TerrainImportProvenance &provenance = {});
+                                     const TerrainImportProvenance &provenance = {},
+                                     TerrainProgress *progress = nullptr);
 
 // terrain.inspect_source: extents, layers or codes with counts and default roles, the
 // proposed origin, the conversion and the bounded report including the triangulation dry run.

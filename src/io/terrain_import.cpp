@@ -444,7 +444,12 @@ const char *terrainImportRoleName(TerrainImportRole role) {
 
 TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
                                       const TerrainImportOptions &options,
-                                      const std::optional<SiteOrigin> &site) {
+                                      const std::optional<SiteOrigin> &site,
+                                      TerrainProgress *progress) {
+    const auto step = [progress](double fraction) {
+        terrainCheckpoint(progress, TerrainStage::Prepare, fraction);
+    };
+    step(0);
     TerrainPrepared prepared;
     prepared.report = set.problems;
     auto &report = prepared.report;
@@ -509,6 +514,7 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
         const auto found = options.roles.find(set.layers.at(layer).name);
         return found == options.roles.end() ? TerrainImportRole::Auto : found->second;
     };
+    step(.1);
     // Roles.
     std::vector<Line> contours, breaklines, boundaries, holes;
     struct Ground {
@@ -584,6 +590,7 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
             line.points.push_back(local(p));
         place(std::move(line), role, polyline.points.front());
     }
+    step(.2);
     // Points: ground by default; a code mapped to a line role forms one polyline per code
     // from its points in file order.
     {
@@ -622,6 +629,7 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
             place(std::move(line), roleOf(layer), firstOf[layer]);
         }
     }
+    step(.3);
     counts["ignoredByRole"] = ignored;
     if (boundaries.size() > 1)
         for (const auto &boundary : boundaries)
@@ -659,6 +667,7 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
     }
     if (report.refused())
         return prepared;
+    step(.35);
     // Clean, canonical orientation, then clip.
     std::uint64_t zeroLength = 0, spikes = 0;
     std::vector<Line> lines;
@@ -696,6 +705,7 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
     counts["collinearSpikes"] = spikes;
     if (report.refused())
         return prepared;
+    step(.45);
     ClipCounts clip_;
     if (!boundaries.empty() || !holes.empty()) {
         std::vector<Polygon> polygons;
@@ -741,10 +751,12 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
     counts["clippedPiecesKept"] = clip_.piecesKept;
     counts["clippedPiecesDropped"] = clip_.piecesDropped;
     counts["droppedOutsidePolylines"] = clip_.linesOutside;
+    step(.6);
     // Canonical order: polylines by vertex sequence within each role (ties by reference),
     // points by (x, y, z) (ties by reference), grouped by description code.
     for (auto *group : {&contours, &breaklines, &boundaries, &holes})
         std::sort(group->begin(), group->end(), sequenceLess);
+    step(.65);
     std::sort(ground.begin(), ground.end(), [](const Ground &a, const Ground &b) {
         if (lexLess(a.p, b.p))
             return true;
@@ -752,6 +764,7 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
             return false;
         return std::tie(a.ref, a.code) < std::tie(b.ref, b.code);
     });
+    step(.75);
     // Records.
     std::size_t vertices = 0;
     auto record = [&](const Line &line) {
@@ -774,12 +787,16 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
         std::map<QString, std::vector<const Ground *>> byCode;
         for (const auto &g : ground)
             byCode[g.code].push_back(&g);
+        step(.8);
         for (const auto &[code, members] : byCode) {
             TerrainSource source;
             source.role = TerrainSourceRole::Points;
             source.reference =
                 "points, code " + (code.isEmpty() ? std::string("(none)") : text(code));
-            for (const auto *g : members) {
+            for (std::size_t k = 0; k < members.size(); ++k) {
+                if (progress && (k & 0x3fff) == 0)
+                    step(.8 + .2 * double(k) / double(members.size()));
+                const auto *g = members[k];
                 source.points.push_back({g->p.x, g->p.y, g->p.z});
                 auto &refs = prepared.pointRefs[{g->p.x, g->p.y}];
                 if (refs.size() < 2)
@@ -873,12 +890,15 @@ MeshStage triangulateSources(
     const std::vector<TerrainSource> &sources, const TerrainTriangulationOptions &options,
     bool useBoundary, std::size_t otherTerrainTriangles, TerrainReport &report, QJsonObject &counts,
     const std::function<std::string(std::uint64_t, const TerrainVec2 &, int)> &reference,
-    const std::function<std::array<double, 2>(const TerrainVec2 &)> &toSource) {
+    const std::function<std::array<double, 2>(const TerrainVec2 &)> &toSource,
+    TerrainProgress *progress = nullptr) {
     MeshStage stage;
     auto input = terrainTriangulationInput(sources);
     if (!useBoundary)
         input.boundary.reset();
-    const auto triangulated = triangulateTerrain(input, options);
+    const auto triangulated = triangulateTerrain(input, options, progress);
+    if (triangulated.cancelled)
+        throw TerrainCancelled();
     const auto &r = triangulated.report;
     for (const auto &problem : r.refusals) {
         const std::string kind = terrainProblemKindName(problem.kind);
@@ -970,7 +990,7 @@ MeshStage triangulateSources(
     } else {
         stage.triangles = r.triangleCount;
         stage.vertices = r.vertexCount;
-        stage.tiles = tileTerrainTriangles(stage.mesh).tiles.size();
+        stage.tiles = tileTerrainTriangles(stage.mesh, progress).tiles.size();
     }
     return stage;
 }
@@ -1017,11 +1037,12 @@ void refusalOutcome(const QJsonObject &terrain, const std::string &prefix, std::
 }
 } // namespace
 
-TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
-                                     const TerrainImportOptions &options,
-                                     const std::optional<SiteOrigin> &site,
-                                     const TerrainImportProvenance &provenance) {
-    auto prepared = prepareTerrainSources(set, options, site);
+namespace {
+TerrainImportResult importDryRun(const TerrainSourceSet &set, const TerrainImportOptions &options,
+                                 const std::optional<SiteOrigin> &site,
+                                 const TerrainImportProvenance &provenance,
+                                 TerrainProgress *progress) {
+    auto prepared = prepareTerrainSources(set, options, site, progress);
     auto &report = prepared.report;
     const double scale = set.unit.metresPerUnit;
     const auto origin = prepared.origin;
@@ -1058,9 +1079,9 @@ TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
             return std::array<double, 2>{(xy.x + origin.easting) / scale,
                                          (xy.y + origin.northing) / scale};
         };
-        auto stage =
-            triangulateSources(prepared.sources, options.triangulation, true,
-                               options.otherTerrainTriangles, report, counts, reference, toSource);
+        auto stage = triangulateSources(prepared.sources, options.triangulation, true,
+                                        options.otherTerrainTriangles, report, counts, reference,
+                                        toSource, progress);
         flat = stage.flat;
         result.mesh = std::move(stage.mesh);
         triangles = stage.triangles;
@@ -1139,7 +1160,25 @@ TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
     if (!result.ok)
         refusalOutcome(result.report["terrain"].toObject(), "Terrain import", result.code,
                        result.message);
+    terrainCheckpoint(progress, TerrainStage::Tile, 1);
     return result;
+}
+} // namespace
+
+TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
+                                     const TerrainImportOptions &options,
+                                     const std::optional<SiteOrigin> &site,
+                                     const TerrainImportProvenance &provenance,
+                                     TerrainProgress *progress) {
+    try {
+        return importDryRun(set, options, site, provenance, progress);
+    } catch (const TerrainCancelled &) {
+        TerrainImportResult cancelled;
+        cancelled.cancelled = true;
+        cancelled.code = "CANCELLED";
+        cancelled.message = "Terrain import cancelled; nothing was changed";
+        return cancelled;
+    }
 }
 
 QJsonObject terrainSourceInspection(const TerrainSourceSet &set,

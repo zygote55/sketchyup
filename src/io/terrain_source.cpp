@@ -258,7 +258,22 @@ std::optional<double> numeric(const QString &text) {
     return value;
 }
 } // namespace
-TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointOptions &options) {
+QString terrainSourceSha256(const QByteArray &bytes, TerrainProgress *progress, double from,
+                            double to) {
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    constexpr qsizetype piece = 1 << 20;
+    for (qsizetype at = 0; at < bytes.size(); at += piece) {
+        terrainCheckpoint(progress, TerrainStage::Parse,
+                          from + (to - from) * double(at) / double(bytes.size()));
+        hash.addData(QByteArrayView(bytes).sliced(at, std::min(piece, bytes.size() - at)));
+    }
+    terrainCheckpoint(progress, TerrainStage::Parse, to);
+    return QString::fromLatin1(hash.result().toHex());
+}
+
+TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointOptions &options,
+                                    TerrainProgress *progress) {
+    terrainCheckpoint(progress, TerrainStage::Parse, 0);
     require(!bytes.isEmpty() && bytes.size() <= TerrainSourceLimits::bytes,
             "A point file must be 1 byte to 64 MiB");
     require(!bytes.contains('\0'), "A point file must be text, not binary data");
@@ -269,9 +284,11 @@ TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointO
     require(!decoder.hasError(), "A point file must be valid UTF-8");
     if (text.startsWith(QChar(0xfeff)))
         text.remove(0, 1);
+    terrainCheckpoint(progress, TerrainStage::Parse, .05);
     auto lines = text.split('\n');
     if (!lines.isEmpty() && lines.back().isEmpty())
         lines.removeLast();
+    terrainCheckpoint(progress, TerrainStage::Parse, .1);
     require(std::size_t(lines.size()) <= TerrainSourceLimits::pointLines,
             "A point file has at most 1,000,000 lines");
     TerrainSourceSet set;
@@ -281,6 +298,8 @@ TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointO
     std::vector<qsizetype> data; // indices of non-blank, non-comment lines
     std::uint64_t blank = 0, comments = 0;
     for (qsizetype i = 0; i < lines.size(); ++i) {
+        if (progress && (i & 0x3fff) == 0)
+            progress->at(TerrainStage::Parse, .1 + .2 * double(i) / double(lines.size()));
         auto &line = lines[i];
         if (line.endsWith('\r'))
             line.chop(1);
@@ -390,7 +409,10 @@ TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointO
     const double bound = TerrainSourceLimits::coordinate / scale;
     using Severity = TerrainReport::Severity;
     set.points.reserve(data.size());
-    for (const auto index : data) {
+    for (std::size_t k = 0; k < data.size(); ++k) {
+        if (progress && (k & 0x3fff) == 0)
+            progress->at(TerrainStage::Parse, .3 + .65 * double(k) / double(data.size()));
+        const auto index = data[k];
         const std::uint64_t lineNumber = std::uint64_t(index) + 1;
         const TerrainSourceRef ref{TerrainSourceRef::Kind::Line, lineNumber};
         auto values = fields(lines[index], *delimiter);
@@ -462,8 +484,7 @@ TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointO
         ++set.layers[layer].points;
         set.points.push_back({ref, layer, {xyz[0], xyz[1], xyz[2]}});
     }
-    set.sha256 =
-        QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+    set.sha256 = terrainSourceSha256(bytes, progress, .95, 1);
     QJsonArray columnNames;
     for (const auto column : *columns)
         columnNames.append(terrainColumnName(column));
