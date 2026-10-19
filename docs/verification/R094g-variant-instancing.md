@@ -5,7 +5,8 @@ is `84937092`, the benchmark family is `e9855c63` and `bf3e2fa9`, and both merge
 `origin/f02/integration` are included (the second at `64a29e01`). The design is in
 [ADR 0166 §7](../decisions/0166-configurable-component-interface.md#7-instanced-rendering-of-variants)
 and its "Implementation notes (R094.g)". This record covers the R094.g Verify line.
-It is not M9 acceptance.
+It is not M9 acceptance. **Updated 2026-10-19:** the benchmark families ran on the AMD
+discrete GPU at `cdf13bef`; see "Hardware run (2026-10-19)".
 
 ## Result
 
@@ -15,6 +16,7 @@ It is not M9 acceptance.
 | 1,000 placements of one variant against 1,000 default placements | Body-cache and GPU payloads equal (ratio 1.00; the criterion is within 10 %) |
 | 10,000 all-overridden placements, software, Release, one CPU | With the 1 mm override, within run-to-run noise of the repeated family for complete-frame and edit-to-feedback p95 (two interleaved rounds, three runs per family); a 2.5 m round was 20–43 % slower (raster area, see below) |
 | Absolute M9 budgets in software (33.3 ms frame, 100 ms edit) | **Not met by either family**: one llvmpipe CPU takes 0.9–4.3 s per frame at a million triangles. These are hardware budgets, and the AMD session is waived ([ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md)) |
+| Absolute M9 budgets on the AMD GPU (2026-10-19, `cdf13bef`) | **Met by both families**: complete-frame p95 18.1–19.8 ms (variant) and 18.0–18.8 ms (repeated) against 33.3 ms; edit to complete frame 34.8–37.4 ms and 35.2–36.3 ms against 100 ms |
 | Documents without parameters | Identical fixture and frame hashes, counters and payloads against the base build; `placement_viewport_tests` output identical in all 18 states and 4 cells; no existing test changed |
 | `variant_instancing_input_tests`, X11 and Wayland, 1× and 2× | 4 of 4 pass |
 
@@ -166,6 +168,47 @@ Per-phase CPU time does show one real difference, well below the budget:
 - `Viewport::refresh` (16–20 ms) and the inference update are equal within noise. The
   frame is llvmpipe-bound for both families.
 
+## Hardware run (2026-10-19)
+
+The 10,000-placement families on the AMD discrete GPU, after the R095.f terrain session
+([R095.f](R095f-terrain.md#budgets) has the build and machine). Source `cdf13bef`
+(`main`-based R095.f branch, which contains R094.g); a Release build made on the AMD
+machine, `real_model_benchmark` SHA-256
+`010596f74a8edadeb7e32f49f324e7fa19a7982e47bd16e57a9c1ca3d6ed5f94`.
+
+- **Machine:** `sketchyup-gpu`, CachyOS (kernel 7.2.10-1-cachyos), XFCE on X11, AMD Radeon
+  RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64), Mesa 26.3.0-devel (git-74b69717c5), Qt 6.12.0.
+  Every report names the radeonsi renderer.
+- **Controls:** R082.ii's AMD frame controls: one transient unit per run with 4 GiB, no swap,
+  `CPUQuota=100%`, `TasksMax=128`, CPU 11, 900 s; fullscreen, a 1920 × 1080 framebuffer,
+  unclipped, `QT_SCALE_FACTOR=1`. Guest load average 1.4–1.8 (1 min); hypervisor load not
+  measured.
+- **Method:** `real_model_benchmark 10000 variant` and `10000 repeated`, interleaved, three
+  runs each, all exit 0. The variant family is the 1 mm override (2.001 m).
+
+| Run | Family | Complete frame p95 ms | Edit → feedback p95 ms | Edit + readback p95 ms | Inference update p95 ms | Pick p95 ms | Peak RSS MB |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | variant | 18.7 | 37.4 | 56.5 | 6.6 | 0.38 | 646.1 |
+| 2 | repeated | 18.0 | 35.2 | 53.8 | 5.9 | 0.37 | 636.3 |
+| 3 | variant | 19.8 | 34.8 | 53.6 | 6.3 | 0.43 | 644.8 |
+| 4 | repeated | 18.8 | 35.7 | 55.4 | 6.2 | 0.36 | 635.9 |
+| 5 | variant | 18.1 | 36.8 | 55.7 | 6.5 | 0.40 | 644.3 |
+| 6 | repeated | 18.1 | 36.3 | 55.7 | 6.2 | 0.42 | 636.6 |
+
+- **Budgets:** BUILD_PLAN's "1M visible triangles, 10k instances" row (33.3 ms) and the
+  "Routine primitive edit" row (100 ms). Both families meet both, with the frame at 54–59 %
+  of its limit and edit feedback at 35–37 %.
+- **Parity:** the variant medians are frame 18.7 against 18.1 ms (+3 %) and edit to feedback
+  36.8 against 35.7 ms (+3 %), within the 10 % criterion. Peak RSS is about 9 MB higher for
+  the variant family.
+- **Fixture hashes:** variant `c472bb7a1d95c42e…`, repeated `bcb40d9f8c7fec1d…`, equal in all
+  three runs of each family. They are not the hashes above (`2a02cd2b…` for repeated): the
+  native schema has changed since (schema 29, R095.a), so hashes are not compared across these
+  revisions.
+- **Evidence:** the JSON reports, limits and stderr stay outside the repository in
+  `sketchyup-gpu:/home/keith/sketchyup-verification/r095-amd-frame-20261019/evidence/`
+  (`r094g-10000-*`).
+
 ## Native results
 
 All lines are the exact `native.yml` invocations. They ran in
@@ -246,7 +289,8 @@ the same xvfb line. The host suite was `ctest --preset dev -j6`.
 
 - Timings come from a shared host (load average 0.7–38 during the runs). They support
   parity between the families, not absolute values.
-- No hardware run. The AMD session is waived (ADR 0161).
+- The hardware run (2026-10-19) is one machine, the AMD discrete GPU, at `cdf13bef`; Intel is waived
+  (ADR 0161).
 - The suite's Wayland 2× run takes about 49 s of a container's wall time against
   Weston's fixed 60 s limit on this loaded host.
 - The per-phase instrumentation is not committed.

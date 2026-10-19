@@ -10,8 +10,8 @@ Entity info Terrain section, terrain settings, Explode and the tools on terrain)
 coordinates); see "Implementation status". **R095.f accepted them on 2026-10-19 with open gaps**
 ([R095.f record](../verification/R095f-terrain.md)): the Verify line and every check of §6 pass;
 the 250k budgets pass except progress and cancel for parse and triangulate (D-044, Minor); the
-owner restated the file-growth budget as the mesh chunk, which closed D-045; the one-tile replacement budget waits for R096 and
-the complete frame is measured in software only. The assistant surface (decision 10) remains,
+owner restated the file-growth budget as the mesh chunk, which closed D-045; the one-tile replacement budget waits for R096; and
+the complete frame passes on the AMD discrete GPU (2026-10-19: p95 0.79–0.94 ms against 16.7 ms). The assistant surface (decision 10) remains,
 as R095.g. Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
