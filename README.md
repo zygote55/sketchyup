@@ -869,7 +869,11 @@ Unsupported entities and metadata losses are reported.
 ```sh
 sketchyup-cli --import-dxf source.dxf --dxf-unit header --output new.sketchyup
 sketchyup-cli --export-dxf new.dxf --input new.sketchyup --dxf-unit mm
+sketchyup-cli --export-dxf site.dxf --input terrain.sketchyup --dxf-unit m --dxf-site-coordinates
 ```
+
+`--dxf-site-coordinates` (the dialog's Write site coordinates) adds the model's site origin back
+to X and Y; it needs a site origin.
 
 See [DXF workflow and limits](docs/decisions/0123-native-dxf-interchange-workflow.md).
 

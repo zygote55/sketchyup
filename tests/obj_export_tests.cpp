@@ -1,3 +1,4 @@
+#include "core/terrain.hpp"
 #include "io/obj_export.hpp"
 #include "io/texture_image.hpp"
 #include <QCoreApplication>
@@ -88,6 +89,20 @@ int main(int argc, char **argv) {
         const auto original = encodeDocument(doc);
         const auto history = doc.history().total;
         const auto package = exportObj(doc, {.001, ObjUpAxis::Y});
+        {
+            // R095.e3: a site origin adds a model-coordinates notice and changes no geometry.
+            auto hasNotice = [](const ObjExport &e) {
+                for (const auto &n : e.manifest["notices"].toArray())
+                    if (n.toObject()["code"] == "modelCoordinates")
+                        return true;
+                return false;
+            };
+            auto sited = doc;
+            setSiteOrigin(sited, SiteOrigin{512300, 5234500, 0, "EPSG:32633", {"a.dxf", ""}});
+            const auto withSite = exportObj(sited, {.001, ObjUpAxis::Y});
+            check(!hasNotice(package) && hasNotice(withSite) && withSite.obj == package.obj,
+                  "OBJ says model coordinates and its geometry is unchanged");
+        }
         check(package.obj.contains("o body-2\n") && !package.obj.contains("/etc/passwd") &&
                   !package.mtl.contains("../"),
               "Untrusted names never become directives or filesystem paths");

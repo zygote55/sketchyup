@@ -72,7 +72,7 @@ class Window : public QMainWindow {
     void importStlPath(const QString &path, StlCoordinateOptions options, StlRepairOptions repairs);
     void exportStlPath(const QString &path, StlCoordinateOptions options, StlEncoding encoding);
     void importDxfPath(const QString &path, DxfOptions options = {}, unsigned segments = 96);
-    void exportDxfPath(const QString &path, double metresPerUnit);
+    void exportDxfPath(const QString &path, double metresPerUnit, bool siteCoordinates = false);
     void importDxfDialog();
     // R095.d: File > Import terrain… (window_terrain.cpp). Reads a DXF or point file and opens
     // the import dialog, which adds the terrain to this document in one undoable edit.

@@ -120,6 +120,16 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
         qToLittleEndian(quint32(count), result.bytes.data() + 80);
     else
         result.bytes += "endsolid sketchyup\n";
+    QJsonArray notices{
+        "STL carries triangles only; materials, textures, hierarchy and parametric "
+        "metadata are omitted.",
+        "All world geometry is exported, including hidden surfaces; sections do not "
+        "clip this export.",
+        "Units and up axis must be supplied when importing; STL does not encode them.",
+        "Export does not repair topology or certify a closed, printable solid."};
+    if (doc.site())
+        notices.append("Coordinates are model coordinates, not site coordinates; the site origin "
+                       "is not added back.");
     result.report = {
         {"apiVersion", 1},
         {"encoding", binary ? "binary" : "ascii"},
@@ -135,13 +145,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
                                {"wireSegmentsOmitted", qint64(wires)},
                                {"referenceImagesOmitted", qint64(images)},
                                {"annotationsOmitted", qint64(doc.annotations().size())}}},
-        {"notices",
-         QJsonArray{"STL carries triangles only; materials, textures, hierarchy and parametric "
-                    "metadata are omitted.",
-                    "All world geometry is exported, including hidden surfaces; sections do not "
-                    "clip this export.",
-                    "Units and up axis must be supplied when importing; STL does not encode them.",
-                    "Export does not repair topology or certify a closed, printable solid."}}};
+        {"notices", notices}};
     return result;
 }
 void writeStlExport(const StlExport &result, const QString &path) {

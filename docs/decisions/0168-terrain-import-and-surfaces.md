@@ -678,12 +678,13 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: DXF "Write site coordinates" (R095.e3), a role picker for Create terrain
+Left for later slices: a role picker for Create terrain
 from selection (pending an owner decision), and the assistant surface. Terrain display (the
 Terrain material, hidden seams and interior edges, contour lines, elevation shading),
 `terrain.set_display`, Site settings with Re-anchor and Set origin, site coordinates in Entity
 info and the Measurements box, and the origin crosshair with View → Site origin are R095.e2; see
-"Implementation notes (R095.e2)". The Entity info
+"Implementation notes (R095.e2)". DXF "Write site coordinates" and the model-coordinates
+notices on the other exporters are R095.e3; see "Implementation notes (R095.e3)". The Entity info
 Terrain section, Terrain settings…, Regenerate, the Explode confirmation, the tool cursors and
 Create terrain from selection are R095.e1; see "Implementation notes (R095.e1)". File → Import terrain… is R095.d; see "Implementation notes (R095.d)". The DXF and
 point-file importers with `terrain.inspect_source` and `terrain.import` are R095.c; see
@@ -1462,6 +1463,39 @@ contour and band colours, the outer boundary staying drawn, per-triangle bands, 
 bound and its message, metres for the interval and the site fields, the marker shown by selection
 or Site settings and always when View → Site origin is checked, and the Site row under Origin
 rather than a new frame choice.
+
+## Implementation notes (R095.e3)
+
+R095.e3 adds owner decision 9: DXF export can write site coordinates. Modules:
+`exportDxf(document, metresPerUnit, siteCoordinates)` in `src/io/dxf_export.*`, the CLI flag
+`--dxf-site-coordinates` in `src/automation/main.cpp`, and the checkbox in `src/app/window_dxf.cpp`.
+
+- **Conversion.** Each written X and Y is `(model + origin) / unitScale`, computed in double from
+  the world-transformed model point, the inverse of the importer's `source x scale - origin`.
+  Z is not written: ADR 0122's export is planar and writes Z as zero, and that stays. Arc and circle
+  radii and angles are unchanged; only the centre moves. Off (the default) takes the old path, so
+  bytes are identical, with or without a site origin.
+- **Exactness.** The proposed origin is whole metres, so for metre output `model = source - origin`
+  and `model + origin` are exact in double and give back the source double. Other units add at most
+  about one ulp in the division. Site text is therefore not the 17-digit form (which would print
+  `5234567.8910000001`): it is the fewest-decimal fixed text within four ulps of the value, which
+  is the source's own decimals (`5234567.891`). A source finer than four ulps (below 4e-9 at UTM
+  scale) is coarsened, which is below the double's own noise. A test imports the UTM fixture with its
+  proposed origin, builds the model edges, exports in metres and compares every written X, Y text with
+  the source decimals; millimetres and feet are checked to convert back to the same metre values.
+- **Surfaces.** The CLI flag is export-only and refuses with INVALID_REQUEST and a clear message when
+  the input has no site origin (the core function throws the same message). The desktop dialog's
+  checkbox ("Write site coordinates", accessible name and description) sits after the units and before
+  the buttons, is unchecked by default and disabled without an origin. There is no DXF export command
+  in the batch or MCP catalogue or the assistant, so no catalogue, schema or tool-surface baseline
+  changes. The report gains `siteCoordinates: true` and a notice when on; a model with an origin
+  exported without it gets the notice "model coordinates".
+- **Other exporters.** STL and OBJ reports add a notice that coordinates are model coordinates when
+  the document has a site origin; their geometry, bytes and digests do not change. GLB, measured
+  PDF/SVG and sheet exports have no coordinate report to extend.
+- **Tests.** `dxf_export` (exactness, off by default, refusal, notices), `dxf_import` (CLI flag),
+  `stl_export` and `obj_export` (notices), `dxf_input` (checkbox disabled and enabled) and the dialog
+  audit case `dxf-export-options-site`.
 
 ## Appendix: experiments
 
