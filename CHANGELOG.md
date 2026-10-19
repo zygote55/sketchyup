@@ -15,6 +15,17 @@ their 1.2.0 schema.
   sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- File → Import terrain… (R095.d, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095d)):
+  the desktop dialog for terrain import. Choose a DXF or point file, then the units (required;
+  a DXF's declared units are offered), layer or description-code roles, point-file columns
+  (PNEZD, PENZD, ENZ and XYZ presets, delimiter and header row over a sample), the site origin
+  (proposed, rounded to 100 m, editable; the document's origin when it has one), an optional
+  CRS label and the triangulation options, with the conversion formula and extents shown. A
+  live preview switches between the sources by role and the triangulated surface, with
+  elevation shading, pan, zoom and fit. The footer reports triangles and notices; the report
+  groups refusals, merges and notices with their locations, and choosing a location zooms the
+  preview to it. Copy or save the report. A refused import changes nothing and Import stays
+  disabled; Import adds the terrain to the open model as one undoable edit.
 - Terrain from model edges, terrain settings and regenerate (R095.c2, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095c2)):
   `terrain.create_from_edges` builds a terrain from picked model edges (inside groups too,
   in world coordinates), chained into contours (constant Z) and breaklines (varying Z), with

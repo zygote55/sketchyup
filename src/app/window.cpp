@@ -14,6 +14,7 @@
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
+#include "app/terrain_import_dialog.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
 #include "app/unit_display.hpp"
@@ -444,6 +445,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (!path.isEmpty())
             importFormlinePath(path);
     }));
+    file->addAction(
+        action("file.importTerrain", "Import terrain…", {}, [this] { importTerrainDialog(); }));
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
     file->addAction(
         action("file.saveAs", "Save as…", QKeySequence::SaveAs, [this] { save(true); }));
@@ -1465,6 +1468,8 @@ void Window::sync() {
     // An open export or print dialog checks the changed document again (R092.b).
     if (sheetExport_)
         sheetExport_->documentChanged();
+    if (terrainImport_)
+        terrainImport_->documentChanged();
     if (auto *exportSheets = findChild<QAction *>("file.exportSheets");
         exportSheets && workspace_ == Workspace::Model && !assistantFenced_)
         exportSheets->setEnabled(!doc_.drawingSheets().empty());

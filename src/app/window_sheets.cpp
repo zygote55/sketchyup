@@ -4,6 +4,7 @@
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
+#include "app/terrain_import_dialog.hpp"
 #include "app/sheet_item_info.hpp"
 #include "app/sheet_items.hpp"
 #include "app/sheet_text.hpp"
@@ -510,6 +511,8 @@ void Window::themeSheets(const ThemeColors &colors) {
     sheetColors_ = colors;
     if (sheetExport_)
         sheetExport_->setTheme(colors);
+    if (terrainImport_)
+        terrainImport_->setTheme(colors);
     for (const auto &[id, path] : std::vector<std::pair<const char *, QPainterPath>>{
              {"sheet.tool.select", icons::selectIcon()},
              {"sheet.tool.view", icons::modelViewIcon()},

@@ -426,6 +426,19 @@ materials or hierarchy. Imported content becomes an unsaved native model; Save
 chooses its native destination. Keep multi-file OBJ/MTL/image packages together.
 Use the [format matrix](SUPPORT_MATRIX.md#exchange-boundaries) for losses and limits.
 
+**File → Import terrain…** adds a terrain to the open model from a DXF with contours
+(LWPOLYLINE with elevation, 2D and 3D POLYLINE, LINE) or a CSV, TXT, XYZ or PTS point file. Choose
+the units first: Import stays disabled until you do (a DXF that declares its units offers them).
+Give each layer or description code a role (contour, breakline, boundary, hole, ground points or
+ignore) with the Role list under the table; for point files choose a column preset or a meaning
+per column above the sample rows. The site coordinates block shows the source extents, the
+proposed origin (the data centre rounded to 100 m, editable while the model has no site
+origin), the conversion formula and the local extents. The preview on the right shows the
+sources or the triangulated surface; drag or use the arrow keys to pan, + and − to zoom and
+Shift+Z to fit. **Show report** lists refusals, merges and notices; choose a location to zoom to
+it, and copy or save the report. A refused import changes nothing. Import is one undoable edit,
+and the first terrain also sets the model's site origin.
+
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance
 is identified as raster content. Print at actual size to preserve the requested

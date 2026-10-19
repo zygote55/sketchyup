@@ -3,8 +3,8 @@
 Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R095](../PR_ROADMAP.md#r095) (M10, scope row [F03](../SCOPE.md)); shapes
 [R096](../PR_ROADMAP.md#r096). **R095.a (terrain core, persistence and site origin)
-is implemented**, and so are R095.b (triangulation), R095.c (importers) and R095.c2 (terrain
-from edges, settings and Regenerate); see
+is implemented**, and so are R095.b (triangulation), R095.c (importers), R095.c2 (terrain
+from edges, settings and Regenerate) and R095.d (the desktop import dialog); see
 "Implementation status". Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
@@ -677,8 +677,10 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: the desktop (import dialog, Site settings, Entity info Terrain
-section, tool cursors), DXF "Write site coordinates", and the assistant surface. The DXF and
+Left for later slices: the rest of the desktop (R095.e: Site settings, Entity info Terrain
+section, terrain display, tool cursors, Explode confirmation, site coordinates in the Measurements
+box, the origin marker and Create terrain from selection), DXF "Write site coordinates", and the
+assistant surface. File → Import terrain… is R095.d; see "Implementation notes (R095.d)". The DXF and
 point-file importers with `terrain.inspect_source` and `terrain.import` are R095.c; see
 "Implementation notes (R095.c)". `terrain.create_from_edges`, `terrain.set_parameters` and
 `terrain.regenerate` are R095.c2; see "Implementation notes (R095.c2)".
@@ -1113,6 +1115,108 @@ split across two bodies.
 Deviations from the sections above: section 5 lists roles "per selection"; the command takes
 them as edge lists (`roles`, `boundary`, `holes`) rather than a selection, and section 3's
 "picked edges by edge ID" order is the (body, edge) order before the import's canonical sort.
+
+## Implementation notes (R095.d)
+
+R095.d adds **File → Import terrain…** (after Import Formline…): a file chooser for DXF and
+point files (`.dxf`, `.csv`, `.txt`, `.xyz`, `.pts`; at most 64 MiB, read off the UI thread with
+the shared file-operation progress), then the import dialog. Modules:
+`src/app/terrain_import_dialog.*`, `src/app/terrain_preview.*`, `src/app/window_terrain.cpp`;
+`parseTerrainSourceRequest` and `applyTerrainImport` in `src/automation/terrain_commands.*`.
+
+**One core path.** `importTerrainSource` (terrain.import and the CLI) is now
+`parseTerrainSourceRequest` + `runTerrainImport` + `applyTerrainImport`. The dialog builds the
+same terrain.import fields from its settings (`TerrainImportDialog::command()`), runs the first
+two on a worker as the dry run, and Import hands the dry run's result to `applyTerrainImport`:
+ONE "Import terrain" edit that creates the terrain and, when the document has none, the site
+origin (provenance: the file name and SHA-256). Import is enabled only for a dry run of exactly
+the current settings at the current document revision. One addition to the request: the dialog
+sets `otherTerrainTriangles` to the document's terrain triangles, so a mesh that would pass the
+250,000-triangle document limit is a located `triangle-budget` refusal in the preview instead
+of an edit error after Import (R095.c2 added the option for Regenerate; terrain.import leaves it
+zero and the edit refuses).
+
+**Responsiveness and memory.** Every change re-runs the dry run after a debounce (0 ms for
+choices, 250–400 ms for typed values) on a one-thread pool; a run that is overtaken is
+discarded on arrival and one more run follows, so at most one runs and one result is kept. The
+worker owns copies of its inputs (the implicitly shared source bytes, the request, the site
+origin) and never reads the document; it also builds the preview geometry (`TerrainPreviewData`:
+2D points, float elevations, triangle indices and unique edges, at most about 30 MB for the
+largest import). The dialog follows document changes (`Window::sync`) and re-runs when the
+revision moves.
+
+**Preview.** A plain QPainter top-down view (`TerrainPreview`), not the GL viewport: it needs
+no depth, lighting or picking, keeps the dialog independent of the main viewport's GL context,
+and renders identically offscreen. Sources draws contours (ink), breaklines (information blue,
+dashed), the boundary (accent), holes (amber, dashed) and ground points by role, with a legend;
+Surface draws the dry-run mesh's edges; Elevation shading colours lines, points or triangles in
+ten bands from green through sand to brown. The drawing is cached in an image per view, points
+are drawn in colour batches and off-screen triangles and edges are culled, so 250,000 triangles
+redraw only when the view changes. Drag or the arrow keys (Shift for larger steps) pan, the
+wheel or + and − zoom, Shift+Z or Home fits (as Fit model and Fit page), and the canvas draws
+the viewport's focus ring. The view refits to the data and the size until the user moves it.
+Before units are chosen it shows a placeholder: a point file cannot be read without units.
+
+**Settings choices the design left open.**
+- *Format* is detected from the extension (`.dxf`, else points). *Units* start at "Choose
+  units…"; a DXF whose `$INSUNITS` declares units offers and selects "From the file: <unit>"
+  (the section 1 rule: `$INSUNITS` or an explicit choice). Without units the dialog still reads
+  the file provisionally in metres to list its layers or codes and columns, but shows no preview
+  or report and keeps Import disabled.
+- *Roles:* a three-column table (layer or code, contents, role) and one **Role** combo below it
+  that sets the role of the selected rows (Extended selection), rather than a combo in every
+  cell: one Tab stop for up to 1,024 codes, and the table follows the list keyboard pattern.
+  "Automatic" shows the inspection's default ("Automatic: contour"). Point codes also offer
+  Ground points.
+- *Boundary mode* lists Convex hull, Limit edge length and Boundary layer. Section 3's rule
+  (a boundary source makes the mode Boundary) is kept visible rather than hidden: giving a layer
+  the Boundary role selects Boundary layer, removing the last one returns to Convex hull, and a
+  contradictory choice (Boundary layer without a boundary, or another mode with one, or Limit
+  edge length without a length) is named in the footer and keeps Import disabled. Max edge
+  length is in metres (the command's unit), "Not set" at 0.
+- *Origin:* three spin boxes in metres, filled with the proposed origin from each dry run until
+  edited; an edited origin is sent as the explicit origin and "Use proposed origin" returns to
+  the proposal. With a document site origin the fields are replaced by the origin read-only (the
+  dialog cannot change it); the core's refusal of a differing explicit origin would appear like
+  any other refusal (banner, nothing changed). The CRS field starts with the document's label.
+  Local extents use the document's display units; source extents are in source units.
+- *Point files:* Preset (Detect, PNEZD, PENZD, ENZ, XYZ, Custom), Delimiter (Detect, comma, tab,
+  semicolon, spaces) and Header row (Detect, header, none); Detect items name what the parser
+  detected ("Detect (comma)"). Up to 16 column meaning combos (four per row) above a sample of
+  the first eight data rows split as the parser splits them; changing a column chooses Custom
+  and sends the list.
+- *Footer:* "Ready: N triangles · K notices" counts notice *kinds* (each a report entry; merges
+  included), since occurrence counts of merged duplicates can be large.
+
+**Report.** Show report opens a panel under the preview: a tree with Refusals, Merges (notice
+kinds `merged-*`) and Notices, each kind with its message and complete count ("(32 listed)" when
+truncated) and at most 32 locations (reference, second reference, XY in source units, detail),
+then "… N more not listed". Choosing a location (selection, arrow keys or Enter; Enter stays in
+the list and never reaches Import) centres the preview on it, zooms to about an eighth of the
+data extent (5–500 m) and rings it in the failure colour. Copy report puts a plain-text form on
+the clipboard; Save report… writes that text, or the bounded JSON report when the name ends in
+`.json`. A refusal (or a source that cannot be read) shows a failure banner — "Import refused.
+Nothing was changed." with the first refusal and the totals — the footer turns to the failure
+colour, and Import stays disabled.
+
+**Keyboard and scale.** Every control is a native widget with an accessible name; Tab runs the
+settings top to bottom, then the preview column (Sources/Surface as one radio group, shading,
+Fit, the canvas, the report), then the footer; Import is the default button and Escape cancels.
+Focus returns to the viewport. The dialog sizes to the screen (at most 1,120 × 780), the
+settings scroll, and its title and headings follow the interface text size like the export
+dialog.
+
+**Verification.** `terrain_import_dialog_tests` (ctest `terrain_import_dialog`, offscreen):
+units gate Import (a point file; Enter does nothing; usft conversion; proposed origin), point
+presets (detection named, PENZD swaps E and N in the extents, XYZ, Custom columns, a code
+ignored), role mapping reaching the stored sources (boundary, ignore, breakline) with Surface
+and shading, a refusal (`terrainInvalid()`) showing the banner and leaving the encoded
+document, revision and history unchanged, the report grouped, copied and saved, location
+selection zooming and ringing, the preview keys, the dialog audit's Tab, Shift+Tab, naming and
+default-button checks on two states, and File → Import terrain… importing one labelled,
+undoable edit with the terrain selected. It passes at QT_SCALE_FACTOR 1, 1.5 and 2. The
+dialog audit inventory (`tests/native_dialog_cases.hpp`) adds the file chooser, a point file
+(Import disabled) and a DXF (Enter imports).
 
 ## Appendix: experiments
 

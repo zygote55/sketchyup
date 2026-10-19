@@ -81,12 +81,7 @@ std::string boundedText(const QJsonObject &command, const char *key, std::size_t
                                       " bytes without control characters");
     return value;
 }
-struct ParsedSource {
-    TerrainSourceSet set;
-    TerrainImportOptions options;
-    TerrainImportProvenance provenance;
-    std::string name{"Terrain"};
-};
+using ParsedSource = TerrainSourceRequest;
 ParsedSource parseSource(const QByteArray &bytes, const QJsonObject &command, bool importing) {
     const std::initializer_list<const char *> common{
         "command",   "data",      "format",     "units",       "origin",        "crs",
@@ -433,15 +428,24 @@ QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
 QJsonObject inspectTerrainCommand(const Document &doc, const QJsonObject &command) {
     return inspectTerrainSource(doc, sourceData(command), command);
 }
+TerrainSourceRequest parseTerrainSourceRequest(const QByteArray &bytes,
+                                               const QJsonObject &command, bool importing) {
+    return parseSource(bytes, command, importing);
+}
 QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes,
                                 const QJsonObject &command) {
     const auto parsed = parseSource(bytes, command, true);
-    auto result = runTerrainImport(parsed.set, parsed.options, doc.site(), parsed.provenance);
+    return applyTerrainImport(
+        doc, runTerrainImport(parsed.set, parsed.options, doc.site(), parsed.provenance),
+        parsed.name);
+}
+QJsonObject applyTerrainImport(Document &doc, TerrainImportResult result,
+                               const std::string &name) {
     if (!result.ok)
         throw TerrainImportError(result.code, result.message, result.report);
     const bool established = result.establish.has_value();
     const auto created = importTerrain(doc, result.mesh, std::move(result.record),
-                                       std::move(result.establish), parsed.name);
+                                       std::move(result.establish), name);
     QJsonArray tiles;
     for (const auto id : created.tiles)
         tiles.append(QString::number(id));
