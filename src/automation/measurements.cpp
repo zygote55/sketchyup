@@ -1,6 +1,7 @@
 #include "automation/measurements.hpp"
 #include "core/transform.hpp"
 #include <QRegularExpression>
+#include <cmath>
 namespace sketchy {
 namespace {
 double decimal(QString text, const QLocale &locale) {
@@ -85,6 +86,28 @@ double parseAngle(QString text, const QString &defaultUnit, const QLocale &local
     bounded(text);
     const auto [value, unit] = quantity(text, defaultUnit);
     return radians(scalar(value, locale), unit.toStdString());
+}
+std::vector<double> parseSitePosition(QString text, const QString &defaultUnit,
+                                      const QLocale &locale) {
+    text = text.trimmed();
+    bounded(text);
+    const auto separator = locale.decimalPoint() == "," ? ';' : ',';
+    const auto pieces = text.split(text.contains(';') ? ';' : separator, Qt::KeepEmptyParts);
+    if (pieces.size() < 2 || pieces.size() > 3)
+        throw std::runtime_error("A site position is @E, N or @E, N, Z");
+    // Site coordinates (projected eastings and northings in the millions) exceed the model's
+    // length bound, so each is a scalar times its unit's metre factor; the result is checked
+    // where it becomes a model point.
+    std::vector<double> values;
+    for (const auto &piece : pieces) {
+        bounded(piece.trimmed());
+        const auto [value, unit] = quantity(piece, defaultUnit);
+        const auto metres = scalar(value, locale) * meters(1, unit.toStdString());
+        if (!std::isfinite(metres) || std::abs(metres) > 1e8)
+            throw std::runtime_error("Site coordinates are within 100,000 km");
+        values.push_back(metres);
+    }
+    return values;
 }
 MeasurementInput parseMeasurements(QString text, const QString &defaultUnit,
                                    const QLocale &locale) {

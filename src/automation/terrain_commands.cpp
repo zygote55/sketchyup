@@ -1,5 +1,6 @@
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
+#include "core/terrain_display.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
 #include <algorithm>
@@ -413,10 +414,17 @@ TerrainParameters chosenParameters(const Document &doc, Id terrain, const QJsonO
     return parameters;
 }
 } // namespace
+QJsonObject terrainDisplayJson(const TerrainDisplay &display) {
+    return {{"contours", display.contours},
+            {"contourInterval", display.contourInterval},
+            {"shading", display.shading == TerrainShading::ElevationBands ? "elevationBands"
+                                                                          : "material"}};
+}
 bool isTerrainCommand(const QString &name) {
     return name == "site.set" || name == "site.reanchor" || name == "terrain.explode" ||
            name == "terrain.import" || name == "terrain.create_from_edges" ||
-           name == "terrain.set_parameters" || name == "terrain.regenerate";
+           name == "terrain.set_parameters" || name == "terrain.regenerate" ||
+           name == "terrain.set_display";
 }
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command) {
@@ -508,6 +516,45 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
     if (name == "terrain.explode") {
         onlyFields(command, {"command", "body"});
         return explodeTerrain(doc, identity(command["body"]));
+    }
+    if (name == "terrain.set_display") {
+        // R095.e2: display settings only; the mesh, its digest and "Changed since generated"
+        // are untouched. Omitted fields keep their values.
+        onlyFields(command, {"command", "terrain", "contours", "contourInterval", "shading"});
+        const auto terrain = identity(command["terrain"]);
+        if (!isTerrain(doc, terrain))
+            reject("NOT_FOUND", "Terrain body does not exist");
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        if (command.contains("contours")) {
+            if (!command["contours"].isBool())
+                reject("INVALID_REQUEST", "contours is true or false");
+            display.contours = command["contours"].toBool();
+        }
+        if (command.contains("contourInterval")) {
+            const auto value = command["contourInterval"];
+            if (!value.isDouble() || !std::isfinite(value.toDouble()) ||
+                value.toDouble() < terrainContourIntervalMin ||
+                value.toDouble() > terrainContourIntervalMax)
+                reject("INVALID_REQUEST", "contourInterval is 0.01 to 1,000 m");
+            display.contourInterval = value.toDouble();
+        }
+        if (command.contains("shading")) {
+            const auto mode = command["shading"].toString();
+            if (mode == "material")
+                display.shading = TerrainShading::Material;
+            else if (mode == "elevationBands")
+                display.shading = TerrainShading::ElevationBands;
+            else
+                reject("INVALID_REQUEST", "shading is material or elevationBands");
+        }
+        const auto revision = doc.revision();
+        auto changes = setTerrainDisplay(doc, terrain, display);
+        if (operation)
+            *operation = {{"command", name},
+                          {"terrain", QString::number(terrain)},
+                          {"changed", doc.revision() != revision},
+                          {"display", terrainDisplayJson(display)}};
+        return changes;
     }
     reject("UNSUPPORTED_CAPABILITY", "Unavailable terrain command");
 }
@@ -686,7 +733,23 @@ QJsonArray terrainCommandSpecs() {
               {"flipFlatTriangles", QJsonObject{{"type", "boolean"}}},
               {"steinerFill", QJsonObject{{"type", "boolean"}}}},
              {"terrain"}),
-        spec("terrain.regenerate", "Regenerate terrain", {{"terrain", terrainId}}, {"terrain"})};
+        spec("terrain.regenerate", "Regenerate terrain", {{"terrain", terrainId}}, {"terrain"}),
+        spec("terrain.set_display", "Terrain display",
+             {{"terrain", terrainId},
+              {"contours", QJsonObject{{"type", "boolean"},
+                                       {"description", "Draw contour lines (derived display, "
+                                                       "not geometry)"}}},
+              {"contourInterval",
+               QJsonObject{{"type", "number"},
+                           {"minimum", terrainContourIntervalMin},
+                           {"maximum", terrainContourIntervalMax},
+                           {"description", "Metres between contour lines; every fifth is an "
+                                           "index line"}}},
+              {"shading", QJsonObject{{"type", "string"},
+                                      {"enum", QJsonArray{"material", "elevationBands"}},
+                                      {"description", "Shade by the tiles' material or by ten "
+                                                      "elevation bands"}}}},
+             {"terrain"})};
 }
 QJsonObject siteDescription(const Document &doc) {
     if (!doc.site())
@@ -758,6 +821,7 @@ QJsonObject terrainDescription(const Document &doc, Id terrain) {
         {"generator", QString::fromStdString(record.generator)},
         {"parameters", encodeTerrainRecord(record)["parameters"]},
         {"provenance", encodeTerrainRecord(record)["provenance"]},
+        {"display", terrainDisplayJson(record.display)},
         {"sources", QJsonObject{{"count", double(record.sources.size())},
                                 {"vertices", double(sourceVertices)},
                                 {"roles", roles}}},

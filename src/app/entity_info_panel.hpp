@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QPushButton>
+class QFormLayout;
 namespace sketchy {
 class CollapsibleSection;
 class ComponentParametersSection;
@@ -32,6 +33,9 @@ class EntityInfoPanel : public QWidget {
     QComboBox *frame_{};
     QLabel *name_{}, *type_{}, *position_{}, *dimensions_{}, *length_{}, *area_{}, *volume_{};
     QLabel *tag_{}, *color_{}, *properties_{}, *error_{};
+    // R095.e2: the origin (or an edge's endpoints) in site coordinates, with a site origin.
+    QLabel *site_{};
+    QFormLayout *form_{};
     QPushButton *edit_{}, *problems_{};
     QAction *editAction_{};
     CollapsibleSection *info_{};

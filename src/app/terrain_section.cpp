@@ -1,8 +1,18 @@
 #include "app/terrain_section.hpp"
 #include "app/terrain_actions.hpp"
 #include "app/unit_display.hpp"
+#include "app/accessible_names.hpp"
+#include "app/keypad_decimal.hpp"
+#include "core/terrain_display.hpp"
 #include <QAction>
+#include <QApplication>
+#include <QJsonObject>
+#include <QPointer>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QSignalBlocker>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLocale>
@@ -64,6 +74,45 @@ TerrainSection::TerrainSection(Document &doc, Viewport &view, QWidget *parent)
     generator_ = field(form, "Generator", "terrainGenerator");
     flat_ = field(form, "Flat areas", "terrainFlatAreas");
     layout->addLayout(form);
+    // Display (R095.e2): derived display only, never the mesh.
+    auto *display = new QLabel("Display");
+    display->setObjectName("terrainDisplayHeading");
+    display->setAccessibleName("Terrain display");
+    layout->addWidget(display);
+    auto *displayForm = new QFormLayout;
+    displayForm->setContentsMargins(0, 0, 0, 0);
+    displayForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    contours_ = new QCheckBox("Show contour lines");
+    contours_->setObjectName("terrainContours");
+    contours_->setAccessibleName("Terrain contour lines");
+    contours_->setToolTip("Contour lines are drawn from the mesh at the interval; every fifth is "
+                          "an index line, drawn heavier. They are not geometry.");
+    displayForm->addRow("Contour lines", contours_);
+    interval_ = new QDoubleSpinBox;
+    interval_->setObjectName("terrainContourInterval");
+    interval_->setAccessibleName("Terrain contour interval");
+    interval_->setRange(terrainContourIntervalMin, terrainContourIntervalMax);
+    interval_->setDecimals(2);
+    interval_->setSuffix(" m");
+    interval_->setKeyboardTracking(false);
+    acceptKeypadDecimal(interval_);
+    displayForm->addRow("Interval", interval_);
+    shading_ = new QComboBox;
+    shading_->setObjectName("terrainShading");
+    shading_->setAccessibleName("Terrain shading");
+    shading_->addItem("Material", "material");
+    shading_->addItem("Elevation bands", "elevationBands");
+    displayForm->addRow("Shading", shading_);
+    layout->addLayout(displayForm);
+    contourStatus_ = new QLabel;
+    contourStatus_->setObjectName("terrainContourStatus");
+    contourStatus_->setTextFormat(Qt::PlainText);
+    contourStatus_->setWordWrap(true);
+    layout->addWidget(contourStatus_);
+    nameInternalEditors(this);
+    connect(contours_, &QCheckBox::toggled, this, [this] { applyDisplay(); });
+    connect(interval_, &QDoubleSpinBox::valueChanged, this, [this] { applyDisplay(); });
+    connect(shading_, &QComboBox::activated, this, [this] { applyDisplay(); });
     // Full-width buttons, one per row, as Entity info's own (a narrow Tray never clips them).
     auto *buttons = new QVBoxLayout;
     buttons->setSpacing(4);
@@ -82,7 +131,10 @@ TerrainSection::TerrainSection(Document &doc, Viewport &view, QWidget *parent)
     error_->setWordWrap(true);
     layout->addWidget(error_);
     error_->hide();
-    setTabOrder(regenerate_, settings_);
+    setTabOrder(regenerate_, contours_);
+    setTabOrder(contours_, interval_);
+    setTabOrder(interval_, shading_);
+    setTabOrder(shading_, settings_);
     setTabOrder(settings_, explode_);
     // The action rebuilds this section, so it runs once the click has returned.
     connect(regenerate_, &QPushButton::clicked, this, [this] {
@@ -217,5 +269,67 @@ void TerrainSection::refresh() {
     explode_->setEnabled(!locked);
     error_->setVisible(locked);
     error_->setText(locked ? QString("The terrain is locked. Unlock it to change it.") : QString());
+    const auto &settings = record.display;
+    {
+        const QSignalBlocker blockContours(contours_), blockInterval(interval_),
+            blockShading(shading_);
+        contours_->setChecked(settings.contours);
+        interval_->setValue(settings.contourInterval);
+        shading_->setCurrentIndex(settings.shading == TerrainShading::ElevationBands ? 1 : 0);
+    }
+    for (auto *control : std::initializer_list<QWidget *>{contours_, interval_, shading_})
+        control->setEnabled(!locked);
+    showContourStatus();
+}
+void TerrainSection::showContourStatus() {
+    if (!terrain_ || !isTerrain(doc_, terrain_) ||
+        !doc_.bodies().at(terrain_)->terrain->display.contours) {
+        contourStatus_->hide();
+        return;
+    }
+    QString text;
+    try {
+        const auto contours = view_.terrainContours(terrain_);
+        if (!contours)
+            text = "No contour lines: the terrain has no mesh.";
+        else if (contours->tooDense)
+            text = QString("No contour lines: this interval needs about %1 line segments, over "
+                           "the %2 limit. Choose a larger interval.")
+                       .arg(count(contours->estimatedSegments), count(terrainContourSegmentLimit));
+        else
+            text = QString("%1 · %2")
+                       .arg(plural(contours->levels, "contour line", "contour lines"),
+                            plural(contours->indexLevels, "index line", "index lines"));
+    } catch (const std::exception &error) {
+        text = QString::fromUtf8(error.what());
+    }
+    contourStatus_->setText(text);
+    contourStatus_->setAccessibleName("Terrain contour lines: " + text);
+    contourStatus_->show();
+}
+void TerrainSection::applyDisplay() {
+    if (!terrain_ || !isTerrain(doc_, terrain_))
+        return;
+    const QJsonObject command{{"command", "terrain.set_display"},
+                              {"terrain", QString::number(terrain_)},
+                              {"contours", contours_->isChecked()},
+                              {"contourInterval", interval_->value()},
+                              {"shading", shading_->currentData().toString()}};
+    const auto &current = doc_.bodies().at(terrain_)->terrain->display;
+    if (current.contours == contours_->isChecked() &&
+        current.contourInterval == interval_->value() &&
+        (current.shading == TerrainShading::ElevationBands) == (shading_->currentIndex() == 1))
+        return;
+    // One edit per change; the section is rebuilt by the change, after this call returns.
+    QPointer<QWidget> focus = QApplication::focusWidget();
+    try {
+        view_.commitTerrainCommand(command);
+    } catch (const std::exception &failure) {
+        emit view_.message(QString::fromUtf8(failure.what()));
+        cacheKey_.clear();
+        refresh();
+    }
+    if (focus)
+        focus->setFocus(Qt::OtherFocusReason);
 }
 } // namespace sketchy

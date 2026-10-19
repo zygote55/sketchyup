@@ -3,8 +3,10 @@
 // request. The core refusal rule (Document::applyEdit, R095.a) is unchanged; this is only the
 // pointer feedback before a click.
 #include "app/terrain_actions.hpp"
+#include "app/unit_display.hpp"
 #include "app/viewport.hpp"
 #include <QContextMenuEvent>
+#include <QPainter>
 namespace sketchy {
 QJsonObject Viewport::commitTerrainCommand(const QJsonObject &command) {
     cancel();
@@ -106,5 +108,173 @@ void Viewport::contextMenuEvent(QContextMenuEvent *event) {
         return;
     const auto local = mapFromGlobal(QCursor::pos());
     emit contextMenuRequested(rect().contains(local) ? local : rect().center());
+}
+
+// ---- R095.e2: terrain display and the site origin marker -----------------------------------
+// (ADR 0168 "Decisions > Interaction design", Appearance and Site.)
+const Viewport::TerrainView *Viewport::terrainViewOfTile(Id tile) const {
+    const auto body = doc_.bodies().find(tile);
+    if (body == doc_.bodies().end() || !body->second->terrainTile)
+        return nullptr;
+    const auto view = terrainViews_.find(body->second->parent);
+    return view == terrainViews_.end() ? nullptr : view->second.get();
+}
+bool Viewport::terrainEdgeDrawn(Id tile, Id edge) const {
+    const auto *view = terrainViewOfTile(tile);
+    return !view || !view->surface || view->surface->outerEdge(tile, edge);
+}
+std::shared_ptr<const TerrainContours> Viewport::terrainContoursShown(Id terrain) const {
+    const auto view = terrainViews_.find(terrain);
+    return view == terrainViews_.end() || view->second->hidden ? nullptr : view->second->contours;
+}
+std::shared_ptr<const TerrainContours> Viewport::terrainContours(Id terrain) {
+    if (!isTerrain(doc_, terrain) || terrainTiles(doc_, terrain).empty())
+        return nullptr;
+    return contourCache_.get(doc_, terrain);
+}
+void Viewport::syncTerrainViews() {
+    stats_.contourSegments = 0;
+    std::erase_if(terrainViews_, [&](const auto &item) { return !isTerrain(doc_, item.first); });
+    contourCache_.prune(doc_);
+    if (terrainViews_.empty() && !doc_.materializedTotals().terrainTriangles &&
+        std::none_of(doc_.bodies().begin(), doc_.bodies().end(),
+                     [](const auto &item) { return item.second->kind == BodyKind::Terrain; }))
+        return;
+    std::map<Id, std::vector<BodyPtr>> tiles;
+    for (const auto &[id, body] : doc_.bodies())
+        if (body->terrainTile)
+            tiles[body->parent].push_back(body);
+    for (const auto &[id, body] : doc_.bodies()) {
+        if (body->kind != BodyKind::Terrain || !body->terrain)
+            continue;
+        auto &view = terrainViews_[id];
+        if (!view)
+            view = std::make_unique<TerrainView>();
+        const auto &list = tiles[id];
+        if (!view->surface || view->tiles != list) {
+            std::vector<const Body *> records;
+            for (const auto &tile : list)
+                records.push_back(tile.get());
+            view->surface =
+                std::make_shared<const TerrainSurfaceDisplay>(terrainSurfaceDisplay(records));
+            view->tiles = list;
+            ++stats_.terrainSurfaces;
+        }
+        view->record = body;
+        view->hidden = selection_.hidden(doc_, {id, SelectionKind::Body, 0}) ||
+                       (opacity_.contains(id) && opacity_.at(id) == 0);
+        std::shared_ptr<const TerrainContours> contours;
+        if (body->terrain->display.contours && !list.empty())
+            contours = contourCache_.get(doc_, id);
+        const auto world = doc_.worldTransform(id);
+        if (contours != view->contours || world != view->world || colors_.dark != view->dark ||
+            (contours && view->linesGpu.origin != renderOrigin_) ||
+            !view->linesGpu.buffer.isCreated()) {
+            // World-space lines: ordinary and index levels in two batches, so index lines can
+            // be drawn heavier (screen offsets work on drivers limited to 1 px GL lines).
+            std::vector<Vertex> lines, index;
+            const std::array<float, 3> color =
+                colors_.dark ? std::array<float, 3>{.80f, .68f, .50f}
+                             : std::array<float, 3>{.42f, .31f, .20f};
+            if (contours)
+                for (const auto &segment : contours->segments) {
+                    auto &target = segment.index ? index : lines;
+                    for (const auto point : {segment.a, segment.b}) {
+                        const auto p = world.point(point);
+                        target.push_back(Vertex{p.x, p.y, p.z, color[0], color[1], color[2]});
+                    }
+                }
+            upload(view->linesGpu, lines);
+            upload(view->indexGpu, index);
+            view->contours = contours;
+            view->world = world;
+            view->dark = colors_.dark;
+        }
+        if (contours && !view->hidden)
+            stats_.contourSegments += contours->segments.size();
+    }
+}
+void Viewport::drawTerrainContours() {
+    if (terrainViews_.empty())
+        return;
+    // Contours lie on the surface; surfaces are drawn with a polygon offset, so the lines pass
+    // the depth test where the surface is visible and are hidden behind nearer ground.
+    gl_->glDepthMask(GL_FALSE);
+    for (auto &[id, view] : terrainViews_) {
+        if (view->hidden || !view->contours)
+            continue;
+        draw(view->linesGpu, GL_LINES);
+        // Index lines: the line and four one-pixel offsets.
+        for (const auto offset :
+             {QPointF{}, QPointF(1, 0), QPointF(-1, 0), QPointF(0, 1), QPointF(0, -1)}) {
+            shader_->setUniformValue("pixelOffset", QVector2D(float(2 * offset.x() / width()),
+                                                              float(2 * offset.y() / height())));
+            draw(view->indexGpu, GL_LINES);
+        }
+        shader_->setUniformValue("pixelOffset", QVector2D{});
+    }
+    gl_->glDepthMask(GL_TRUE);
+}
+void Viewport::setSiteOriginVisible(bool visible) {
+    if (siteOriginVisible_ == visible)
+        return;
+    siteOriginVisible_ = visible;
+    update();
+}
+void Viewport::setSiteSettingsOpen(bool open) {
+    if (siteSettingsOpen_ == open)
+        return;
+    siteSettingsOpen_ = open;
+    update();
+}
+bool Viewport::siteOriginMarkerShown() const {
+    return doc_.site() &&
+           (siteOriginVisible_ || siteSettingsOpen_ || selectedTerrain(doc_, selection_));
+}
+QString Viewport::siteOriginMarkerLabel() const {
+    if (!siteOriginMarkerShown())
+        return {};
+    const auto &site = *doc_.site();
+    const auto units = doc_.displayUnits();
+    const auto precision = doc_.displayPrecision();
+    return QString("Site origin · E %1 · N %2 · Z %3")
+        .arg(displayLength(site.easting, units, precision),
+             displayLength(site.northing, units, precision),
+             displayLength(site.elevation, units, precision));
+}
+void Viewport::paintSiteOrigin(QPainter &p) {
+    if (!siteOriginMarkerShown())
+        return;
+    // The site origin is model (0, 0, 0): model = site - origin.
+    const auto clip = matrix() * QVector4D(float(-renderOrigin_.x), float(-renderOrigin_.y),
+                                           float(-renderOrigin_.z), 1);
+    if (clip.w() <= 1e-9)
+        return; // Behind the camera.
+    const auto at = project(Vec3{});
+    if (!QRectF(rect()).adjusted(-40, -40, 40, 40).contains(at))
+        return;
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    // A halo in the canvas colour keeps the crosshair legible over any surface.
+    for (const auto &[pen, width] : {std::pair{colors_.canvas, 4.0}, std::pair{colors_.accent, 2.0}}) {
+        p.setPen(QPen(pen, width));
+        p.setBrush(Qt::NoBrush);
+        p.drawLine(at + QPointF(-16, 0), at + QPointF(-5, 0));
+        p.drawLine(at + QPointF(5, 0), at + QPointF(16, 0));
+        p.drawLine(at + QPointF(0, -16), at + QPointF(0, -5));
+        p.drawLine(at + QPointF(0, 5), at + QPointF(0, 16));
+        p.drawEllipse(at, 5, 5);
+    }
+    const auto label = siteOriginMarkerLabel();
+    const auto metrics = p.fontMetrics();
+    const auto extent = metrics.boundingRect(label).adjusted(-6, -3, 6, 3);
+    const auto labelWidth = std::min(extent.width(), std::max(1, width() - 24));
+    const QRectF box(std::clamp(at.x() + 20, 12.0, double(std::max(12, width() - labelWidth - 12))),
+                     std::clamp(at.y() + 20, 40.0, double(std::max(40, height() - 50))),
+                     labelWidth, extent.height());
+    p.fillRect(box, colors_.surface);
+    p.setPen(colors_.ink);
+    p.drawText(box, Qt::AlignCenter, metrics.elidedText(label, Qt::ElideRight, labelWidth - 12));
+    p.restore();
 }
 } // namespace sketchy

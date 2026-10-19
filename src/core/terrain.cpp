@@ -89,8 +89,19 @@ void validateTerrainRecord(const TerrainRecord &record) {
         !std::isfinite(provenance.metresPerUnit) || provenance.metresPerUnit <= 0 ||
         provenance.metresPerUnit > 1e6)
         throw std::runtime_error("Invalid terrain import provenance");
+    validateTerrainDisplay(record.display);
     if (!sha256Text(record.meshDigest))
         throw std::runtime_error("Invalid terrain mesh digest");
+}
+void validateTerrainDisplay(const TerrainDisplay &display) {
+    if (!std::isfinite(display.contourInterval) ||
+        display.contourInterval < terrainContourIntervalMin ||
+        display.contourInterval > terrainContourIntervalMax ||
+        (display.shading != TerrainShading::Material &&
+         display.shading != TerrainShading::ElevationBands))
+        throw TerrainError("INVALID_REQUEST",
+                           "The contour interval is 0.01 to 1,000 m and shading is material or "
+                           "elevation bands");
 }
 std::size_t terrainRecordBytes(const TerrainRecord &record) {
     std::size_t bytes = sizeof(TerrainRecord) + record.generator.size() +
@@ -363,7 +374,8 @@ void checkTerrainMesh(const TerrainMesh &mesh, std::size_t existing) {
 // "Terrain tile k+1".
 std::vector<std::shared_ptr<Body>> terrainTileBodies(const TerrainMesh &mesh,
                                                      const TerrainTiling &tiling,
-                                                     const std::vector<Id> &ids, Id terrain) {
+                                                     const std::vector<Id> &ids, Id terrain,
+                                                     MaterialSides materials) {
     std::vector<std::shared_ptr<Body>> tiles;
     tiles.reserve(tiling.tiles.size());
     std::vector<std::uint32_t> local(mesh.vertices.size(), 0);
@@ -386,8 +398,10 @@ std::vector<std::shared_ptr<Body>> terrainTileBodies(const TerrainMesh &mesh,
         }
         for (const auto global : touched)
             local[global] = 0;
-        tiles.push_back(std::make_shared<Body>(makeTerrainTile(
-            ids.at(t), terrain, "Terrain tile " + std::to_string(t + 1), vertices, triangles)));
+        auto tile = std::make_shared<Body>(makeTerrainTile(
+            ids.at(t), terrain, "Terrain tile " + std::to_string(t + 1), vertices, triangles));
+        tile->materials = materials;
+        tiles.push_back(std::move(tile));
     }
     return tiles;
 }
@@ -396,6 +410,32 @@ std::string tilesDigest(const std::vector<std::shared_ptr<Body>> &tiles) {
     for (const auto &tile : tiles)
         views.push_back(tile.get());
     return terrainMeshDigest(views);
+}
+// R095.e2: the "Terrain" material, reused when the document has one of that name; otherwise
+// `created` receives the material change that adds it in the same edit.
+Id terrainMaterial(const Document &doc, std::optional<MaterialChange> &created) {
+    for (const auto &[id, material] : doc.materials())
+        if (material->name == terrainMaterialName)
+            return id;
+    if (doc.materials().size() >= 1024)
+        return 0; // The material table is full: the tiles keep their plain colour.
+    const auto id = doc.nextMaterialId();
+    created = MaterialChange{id, nullptr,
+                             std::make_shared<MaterialRecord>(MaterialRecord{
+                                 id, terrainMaterialName, terrainMaterialColor, 1, 0})};
+    return id;
+}
+// The tiles' shared default material sides: what Regenerate gives the new tiles. Tiles that
+// all share one default keep it; mixed tiles return to the "Terrain" material.
+std::optional<MaterialSides> sharedTileMaterials(const Document &doc, Id terrain) {
+    std::optional<MaterialSides> shared;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &sides = doc.bodies().at(id)->materials;
+        if (shared && *shared != sides)
+            return std::nullopt;
+        shared = sides;
+    }
+    return shared;
 }
 // The record and tiles of a new terrain as one edit, not yet applied.
 std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &mesh,
@@ -416,7 +456,9 @@ std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &me
     std::vector<Id> ids;
     for (std::size_t t = 0; t < tiling.tiles.size(); ++t)
         ids.push_back(terrain + 1 + t);
-    auto tiles = terrainTileBodies(mesh, tiling, ids, terrain);
+    std::optional<MaterialChange> created;
+    const auto material = terrainMaterial(doc, created);
+    auto tiles = terrainTileBodies(mesh, tiling, ids, terrain, {material, material});
     record.meshDigest = tilesDigest(tiles);
     validateTerrainRecord(record);
     auto container = std::make_shared<Body>();
@@ -426,14 +468,16 @@ std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &me
     container->kind = BodyKind::Terrain;
     container->terrain = std::move(record);
     Edit edit{std::move(label), {}};
+    if (created)
+        edit.materials.push_back(std::move(*created));
     edit.changes.push_back({terrain, nullptr, container, {}, {}, {}, true});
-    TerrainCreated created;
-    created.terrain = terrain;
+    TerrainCreated result;
+    result.terrain = terrain;
     for (auto &tile : tiles) {
-        created.tiles.push_back(tile->id);
+        result.tiles.push_back(tile->id);
         edit.changes.push_back({tile->id, nullptr, std::move(tile), {}, {}, {}, true});
     }
-    return {std::move(edit), std::move(created)};
+    return {std::move(edit), std::move(result)};
 }
 } // namespace
 TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
@@ -503,13 +547,23 @@ ChangeReport explodeTerrain(Document &doc, Id terrain) {
 TerrainPaint terrainTilePaint(const Document &doc, Id terrain) {
     TerrainPaint paint;
     const Body plain;
+    // R095.e2: a default material every tile shares (the "Terrain" material, or one painted on
+    // all tiles) is carried to the new tiles, so it is not paint that Regenerate drops.
+    const auto shared = sharedTileMaterials(doc, terrain);
+    MaterialSides fallback; // What mixed tiles return to: the existing "Terrain" material.
+    if (!shared) {
+        std::optional<MaterialChange> added;
+        const auto material = terrainMaterial(doc, added);
+        if (!added)
+            fallback = {material, material};
+    }
     for (const auto id : terrainTiles(doc, terrain)) {
         const auto &tile = *doc.bodies().at(id);
         for (const auto &[face, record] : tile.surface.faces)
             if (tile.faceColors.contains(face) || tile.faceMaterials.contains(face) ||
                 tile.faceTextureMappings.contains(face))
                 ++paint.faces;
-        if (tile.materials != plain.materials || tile.color != plain.color)
+        if ((!shared && tile.materials != fallback) || tile.color != plain.color)
             ++paint.tiles;
     }
     return paint;
@@ -542,8 +596,16 @@ TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainMes
     // new tile takes a new ID from the document allocator in row-major order, and old tiles
     // not kept are removed. The same mesh therefore regenerates to the same IDs, and
     // regenerating twice gives identical records.
-    auto tiles =
-        terrainTileBodies(mesh, tiling, std::vector<Id>(tiling.tiles.size(), terrain), terrain);
+    // New tiles take the old tiles' shared default material (R095.e2); mixed tiles return to
+    // the "Terrain" material, added in this edit when the document has none.
+    std::optional<MaterialChange> createdMaterial;
+    auto materials = sharedTileMaterials(doc, terrain);
+    if (!materials) {
+        const auto material = terrainMaterial(doc, createdMaterial);
+        materials = MaterialSides{material, material};
+    }
+    auto tiles = terrainTileBodies(mesh, tiling, std::vector<Id>(tiling.tiles.size(), terrain),
+                                   terrain, *materials);
     std::vector<Id> ids;
     std::set<Id> kept;
     Id next = doc.nextId();
@@ -573,6 +635,8 @@ TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainMes
     result.tiles = ids;
     const auto &before = found->second;
     Edit edit{std::move(label), {}};
+    if (createdMaterial)
+        edit.materials.push_back(std::move(*createdMaterial));
     if (*before->terrain != record) {
         auto container = std::make_shared<Body>(*before);
         container->terrain = std::move(record);
@@ -591,7 +655,7 @@ TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainMes
     // A terrain whose mesh, record and tiles are already what the sources give is left
     // alone: no edit and no history entry, as for other commands with nothing to change.
     if (edit.changes.empty())
-        return result;
+        return result; // (A created material implies changed tiles, so it is never left alone.)
     result.changed = true;
     result.changes = doc.apply(std::move(edit), doc.revision());
     return result;

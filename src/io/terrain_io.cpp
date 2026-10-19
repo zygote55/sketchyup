@@ -84,6 +84,15 @@ TerrainBoundaryMode boundary(const QJsonValue &value) {
             return candidate;
     throw std::runtime_error("Unknown terrain boundary mode");
 }
+const char *shadingName(TerrainShading mode) {
+    return mode == TerrainShading::ElevationBands ? "elevation-bands" : "material";
+}
+TerrainShading shading(const QJsonValue &value) {
+    for (auto candidate : {TerrainShading::Material, TerrainShading::ElevationBands})
+        if (value == shadingName(candidate))
+            return candidate;
+    throw std::runtime_error("Unknown terrain shading");
+}
 void append32(QByteArray &out, std::uint32_t value) {
     char bytes[4];
     qToLittleEndian<quint32>(value, bytes);
@@ -107,7 +116,7 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
                                    {"points", points}});
     }
     const auto &parameters = record.parameters;
-    return {{"sources", sources},
+    QJsonObject encoded{{"sources", sources},
             {"parameters", QJsonObject{{"boundary", boundaryName(parameters.boundary)},
                                        {"maxEdgeLength", parameters.maxEdgeLength},
                                        {"flipFlatTriangles", parameters.flipFlatTriangles},
@@ -118,10 +127,27 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
                          {"units", QString::fromStdString(record.provenance.units)},
                          {"metresPerUnit", record.provenance.metresPerUnit}}},
             {"meshDigest", QString::fromStdString(record.meshDigest)}};
+    // R095.e2 display settings: optional, each field written only when it differs from its
+    // default, and the object only when one does, so default records encode as before.
+    const TerrainDisplay defaults;
+    QJsonObject display;
+    if (record.display.contours != defaults.contours)
+        display["contours"] = record.display.contours;
+    if (record.display.contourInterval != defaults.contourInterval)
+        display["contourInterval"] = record.display.contourInterval;
+    if (record.display.shading != defaults.shading)
+        display["shading"] = shadingName(record.display.shading);
+    if (!display.isEmpty())
+        encoded["display"] = display;
+    return encoded;
 }
 TerrainRecord decodeTerrainRecord(const QJsonValue &value) {
     const auto root = object(value);
-    exactFields(root, {"sources", "parameters", "generator", "provenance", "meshDigest"},
+    exactFields(root,
+                root.contains("display")
+                    ? QStringList{"sources", "parameters", "generator", "provenance", "meshDigest",
+                                  "display"}
+                    : QStringList{"sources", "parameters", "generator", "provenance", "meshDigest"},
                 "terrain record");
     TerrainRecord record;
     const auto sources = array(root["sources"]);
@@ -161,6 +187,20 @@ TerrainRecord decodeTerrainRecord(const QJsonValue &value) {
     record.provenance.units = text(provenance["units"]);
     record.provenance.metresPerUnit = number(provenance["metresPerUnit"]);
     record.meshDigest = text(root["meshDigest"]);
+    if (root.contains("display")) {
+        const auto display = object(root["display"]);
+        for (const auto &key : display.keys())
+            if (key != "contours" && key != "contourInterval" && key != "shading")
+                throw std::runtime_error("Unexpected fields in terrain display");
+        if (display.isEmpty())
+            throw std::runtime_error("An empty terrain display is written as no display");
+        if (display.contains("contours"))
+            record.display.contours = flag(display["contours"]);
+        if (display.contains("contourInterval"))
+            record.display.contourInterval = number(display["contourInterval"]);
+        if (display.contains("shading"))
+            record.display.shading = shading(display["shading"]);
+    }
     validateTerrainRecord(record);
     return record;
 }

@@ -123,6 +123,12 @@ void Viewport::cleanupGL() {
                     batch->buffer.destroy();
                     batch->count = 0;
                 }
+        for (auto &[id, view] : terrainViews_)
+            for (auto *batch : {&view->linesGpu, &view->indexGpu}) {
+                batch->buffer.destroy();
+                batch->count = 0;
+            }
+        terrainViews_.clear();
         for (const auto &[id, name] : textureGpu_)
             gl_->glDeleteTextures(1, &name);
         cleanupSolarShadowMap();
@@ -847,6 +853,7 @@ void Viewport::rebuild() {
         if (cachedDocument_ != doc_.identity())
             opacity_.clear();
         bodyCaches_.clear(); // Rebuild runs with the owning GL context current.
+        terrainViews_.clear();
         sharedGeometry_.clear();
         placementMeshes_.clear();
         placementDefinitions_.clear();
@@ -865,6 +872,7 @@ void Viewport::rebuild() {
         placementDefinitions_ = doc_.definitions();
     }
     syncTextures();
+    syncTerrainViews();
     textureMappingFallbacks_ = 0;
     std::erase_if(opacity_, [&](const auto &item) { return !doc_.bodies().contains(item.first); });
     // Both maps are in ID order: walk them together instead of searching.
@@ -1009,7 +1017,18 @@ void Viewport::rebuild() {
         const bool chainSame = !chainChanged[index++];
         const auto world = chainSame ? cache.world : doc_.worldTransform(id);
         const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
+        // R095.e2: a terrain tile draws with its terrain's surface (normals across seams, only
+        // outer edges) and, for elevation-band shading, band colours.
+        std::shared_ptr<const TerrainSurfaceDisplay> terrainSurface;
+        bool terrainBands = false;
+        if (body->terrainTile)
+            if (const auto view = terrainViews_.find(body->parent); view != terrainViews_.end()) {
+                terrainSurface = view->second->surface;
+                terrainBands = view->second->record->terrain->display.shading ==
+                               TerrainShading::ElevationBands;
+            }
         if (inputsUnchanged && chainSame && cache.mesh && cache.geometry &&
+            cache.terrainSurface == terrainSurface && cache.terrainBands == terrainBands &&
             cache.alpha == alpha && cache.presentationRevision == presentationRevision_ &&
             cache.sectionCuts.empty() && cache.sections.empty() &&
             cache.mesh->opaqueGpu.buffer.isCreated() && cache.mesh->linesGpu.buffer.isCreated() &&
@@ -1084,6 +1103,8 @@ void Viewport::rebuild() {
                                        worldChanged || topologyChanged || bodyAppearanceChanged ||
                                        cache.images != images || cache.materials != materials ||
                                        cache.alpha != alpha ||
+                                       cache.terrainSurface != terrainSurface ||
+                                       cache.terrainBands != terrainBands ||
                                        cache.presentationRevision != presentationRevision_ ||
                                        cache.source != previousSource || !cache.mesh;
         // Tessellation: shared by every body projecting the same canonical member.
@@ -1192,9 +1213,25 @@ void Viewport::rebuild() {
                         mesh.triangleFlags[triangleIndex] = magnitude == 0 ? 2 : 1;
                     if (magnitude == 0)
                         return;
-                    const auto normals = shading.triangle(local[triangleIndex]);
+                    auto normals = shading.triangle(local[triangleIndex]);
                     auto front = surfaceAppearance(doc_.materials(), *body, triangle.face);
                     auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
+                    const bool bands = terrainSurface && terrainBands &&
+                                       doc_.style().mode != ModelStyleMode::Monochrome;
+                    if (terrainSurface) {
+                        // One smooth surface: the copies of a seam vertex share one normal.
+                        const auto &t = local[triangleIndex];
+                        normals = {terrainSurface->normal(t.a, normals[0]),
+                                   terrainSurface->normal(t.b, normals[1]),
+                                   terrainSurface->normal(t.c, normals[2])};
+                        if (bands) {
+                            const auto color = terrainElevationBandColor(
+                                (t.a.z + t.b.z + t.c.z) / 3, terrainSurface->zMin,
+                                terrainSurface->zMax);
+                            front.color = back.color = color;
+                            front.material = back.material = 0;
+                        }
+                    }
                     if (doc_.style().mode == ModelStyleMode::Monochrome) {
                         front.color = doc_.style().front;
                         back.color = doc_.style().back;
@@ -1232,6 +1269,9 @@ void Viewport::rebuild() {
                                     ? .35f : 1.f;
                     }
                     textureVertices(*body, local[triangleIndex], world.determinant() < 0, vertices);
+                    if (bands)
+                        for (auto &v : vertices)
+                            v.image = v.backImage = 0; // Bands replace the material's image.
                     if (cut)
                         vertices = clippedVertices(vertices, *cut);
                     const auto &first = vertices[0];
@@ -1284,7 +1324,13 @@ void Viewport::rebuild() {
                         selection_.hidden(doc_, entity) || !selection_.inActiveHierarchy(doc_, id)
                             ? std::array<float, 3>{.56f, .58f, .60f}
                             : doc_.style().edge;
-                    auto &lines = selection_.hidden(doc_, entity) ? mesh.hiddenLines : mesh.lines;
+                    // A terrain's tile seams and interior edges are drawn only with hidden
+                    // geometry shown, like soft edges.
+                    const bool terrainHidden =
+                        terrainSurface && !terrainSurface->outerEdge(id, edge.id);
+                    auto &lines = selection_.hidden(doc_, entity) || terrainHidden
+                                      ? mesh.hiddenLines
+                                      : mesh.lines;
                     if (!cache.sectionError.isEmpty())
                         continue;
                     const auto segment = sectionSegment(edge.a, edge.b, cache.sectionCuts);
@@ -1380,6 +1426,8 @@ void Viewport::rebuild() {
         cache.images = std::move(images);
         textureMappingFallbacks_ += mesh.mappingFallbacks;
         cache.alpha = alpha;
+        cache.terrainSurface = std::move(terrainSurface);
+        cache.terrainBands = terrainBands;
         cache.presentationRevision = presentationRevision_;
         if (alpha > 0)
             stats_.meshTriangles += local.size();
@@ -1621,6 +1669,7 @@ void Viewport::paintScene(QPaintDevice *device) {
                     draw(cache->mesh->hiddenLinesGpu, GL_LINES, 1, placementOffset(*cache));
             shader_->setUniformValue("stipple", 0);
         }
+        drawTerrainContours();
         drawStyleProfiles(transform);
         if (rasterSize_.isEmpty()) {
             drawSelectionOverlay();
@@ -1644,6 +1693,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     if (!rasterSize_.isEmpty())
         return;
     paintGuides(p);
+    paintSiteOrigin(p);
     paintSelection(p);
     paintAssistantPreview(p);
     paintParameterOverlay(p);
@@ -2449,6 +2499,10 @@ bool Viewport::measurements(const QString &text) {
         const auto trimmed = text.trimmed();
         if (trimmed.isEmpty() || trimmed.size() > 1024)
             throw std::runtime_error("Measurements must contain 1–1024 characters");
+        // R095.e2 (ADR 0168, Site): a leading @ types an absolute site position E, N[, Z]
+        // for a tool that takes a point; it becomes the model point [x, y, z] (site - origin).
+        if (trimmed.startsWith('@'))
+            return measurements(sitePositionMeasurement(trimmed.mid(1)));
         if (tool_ == Tool::Protractor && !trimmed.startsWith('[') && !trimmed.startsWith('<')) {
             const auto origin =
                 anchor_ ? anchor_ : (session_.canRevise() ? committedAnchor_ : std::nullopt);
@@ -2688,6 +2742,37 @@ bool Viewport::measurements(const QString &text) {
         emit message(error.what());
     }
     return doc_.revision() != revision || measurementCompleted_;
+}
+QString Viewport::sitePositionMeasurement(const QString &text) const {
+    if (!doc_.site())
+        throw std::runtime_error("A leading @ types a site position (E, N, Z), but this document "
+                                 "has no site origin. Import a terrain, or set one in File → Site "
+                                 "settings….");
+    if (!drawingTool() && !transformTool())
+        throw std::runtime_error("A site position @E, N[, Z] needs a tool that takes a point: a "
+                                 "drawing tool, Tape measure, Protractor, Move, Rotate or Scale");
+    const auto values = parseSitePosition(text, inputUnit(doc_.displayUnits()), QLocale());
+    const auto &site = *doc_.site();
+    Vec3 model{values[0] - site.easting, values[1] - site.northing, 0};
+    if (values.size() == 3)
+        model.z = values[2] - site.elevation;
+    else if (std::abs(plane_.normal.z) > 1e-9) {
+        // Without Z the point lies on the active drawing plane above or below E, N.
+        const auto origin = plane_.point(0, 0);
+        model.z = origin.z - (plane_.normal.x * (model.x - origin.x) +
+                              plane_.normal.y * (model.y - origin.y)) /
+                                 plane_.normal.z;
+    }
+    checkPoint(model);
+    // Metres with an explicit unit, in the separators the parser expects for this locale.
+    const auto locale = QLocale();
+    auto number = [&](double value) {
+        auto text = QString::number(value, 'f', 9);
+        if (locale.decimalPoint() != ".")
+            text.replace('.', locale.decimalPoint());
+        return text + "m";
+    };
+    return "[" + number(model.x) + ";" + number(model.y) + ";" + number(model.z) + "]";
 }
 bool Viewport::event(QEvent *event) {
     if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange ||

@@ -471,6 +471,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     }));
     file->addSeparator();
     file->addAction(action("file.units", "Document units…", {}, [this] { unitsSettings(); }));
+    // R095.e2: the site origin, its CRS label and provenance; Re-anchor and Set origin.
+    file->addAction(action("file.siteSettings", "Site settings…", {}, [this] { siteSettings(); }));
     file->addAction(action("file.quit", "Quit", QKeySequence::Quit, [this] { close(); }));
     auto *edit = menuBar()->addMenu("&Edit");
     edit->addAction(
@@ -838,6 +840,18 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     showGuides->setCheckable(true);
     showGuides->setChecked(true);
     view->addAction(showGuides);
+    // R095.e2: the site origin marker, always (checked) or only while a terrain or Site
+    // settings is selected (unchecked); a preference like the navigation choice.
+    auto *siteOrigin = action("view.siteOrigin", "Site origin", {}, [this] {
+        const bool shown = findChild<QAction *>("view.siteOrigin")->isChecked();
+        viewport_->setSiteOriginVisible(shown);
+        QSettings("SketchyUp", "SketchyUp").setValue("siteOriginVisible", shown);
+    });
+    siteOrigin->setCheckable(true);
+    siteOrigin->setChecked(
+        QSettings("SketchyUp", "SketchyUp").value("siteOriginVisible", false).toBool());
+    viewport_->setSiteOriginVisible(siteOrigin->isChecked());
+    view->addAction(siteOrigin);
     view->addAction(
         action("view.fit", "Fit model", QKeySequence("Shift+Z"), [this] { viewport_->fit(); }));
     view->addAction(action("view.perspective", "Perspective", QKeySequence("1"),
