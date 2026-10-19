@@ -1,10 +1,12 @@
 # Terrain editing, drape and stamp
 
-Status: **Proposed (2026-10-19), draft for owner decisions.** Roadmap
-[R096](../PR_ROADMAP.md#r096) (M10, scope row [F03](../SCOPE.md)); builds on
-[ADR 0168](0168-terrain-import-and-surfaces.md) (R095). Nothing is implemented. Each
-section gives options, trade-offs and a recommendation. The owner's choices go under
-"Decisions", which is pending. The numbered list at the end is the short form.
+Status: **Accepted (2026-10-19)** for the decisions below; the UX design is pending
+owner approval. Roadmap [R096](../PR_ROADMAP.md#r096) (M10, scope row
+[F03](../SCOPE.md)); builds on [ADR 0168](0168-terrain-import-and-surfaces.md) (R095).
+Nothing is implemented. Each section gives the options and trade-offs that were
+weighed; the owner chose the recommended option in every case (see "Decisions"). The
+interaction design (§8, "Decisions the UX design must make") still needs the owner's
+approval, and R096.f waits for it.
 
 ## Context
 
@@ -377,7 +379,7 @@ crossing checks, report kinds and bounds as `triangulateTerrain`.
 
 ### Protected regions and the outline
 
-Recommended (owner decision 6):
+Decided (owner decision 6):
 
 - **Pads are protected.** Vertices on or inside a pad outline are never moved by a later
   sculpt or smooth: their falloff weight is zero. A later contour edit, stamp or
@@ -836,7 +838,8 @@ Fixtures (in-repo, generated, no third-party data):
 
 Budgets, measured by a `terrain_edit_benchmark` next to `terrain_budget_benchmark`,
 under the R095.f conditions (pinned image, software rendering, plus the AMD session
-for frames). Rows marked *proposed* need the owner's approval (decision 10).
+for frames). Rows marked *proposed* were adopted by the owner (decision 10) and are
+confirmed by R096.a's measurement before they are frozen.
 
 | Operation (250k-triangle terrain) | Budget |
 | --- | --- |
@@ -941,21 +944,35 @@ before R096.f.
 
 ## Decisions
 
-Pending owner decision. Nothing above is accepted until the owner answers the list
-below.
+The owner decided these points on 2026-10-19, each as recommended:
+
+1. **Edit model:** hybrid (c): the record keeps the base sources and an ordered edit list whose entries store their parameters and resolved geometry; current sources are derived; Regenerate is the CDT of the base sources plus a replay of the list, and is a no-op after edits.
+2. **Sculpt over source contours:** contour vertices a sculpt or smooth moves are clipped out of the current sources and become edited ground.
+3. **Pad grading:** daylight by separate cut and fill slopes to the surface (default 1:2, maximum distance 100 m) is the default mode; SketchUp's fixed-width band is the second mode.
+4. **Stamp linkage:** one-shot; the entry copies the footprint and offers Restamp; there is no live link to the building.
+5. **Drape result:** imprint into the terrain by splitting the crossed triangles only (shape unchanged, optional persistent region paint) is the default; overlay as ordinary geometry in a group is the second mode.
+6. **Protected regions and outline:** sculpt and smooth never move pad vertices; contour edits, stamps and imprints that enter a pad or leave the terrain's outline refuse with a location.
+7. **Paint on edited tiles:** rebuilt tiles keep their tile-level material; per-face paint on them is dropped with a notice; paint that must survive edits is a draped region.
+8. **Format:** the unshipped `terrain-v1` is amended in place (source IDs, tiling and tile keys, `edits`, key-order digest); there is no schema 30.
+9. **Assistant visibility:** no new assistant tools; MCP exposes every R096 command; `terrain.describe` reports edits.
+10. **New budgets:** one-tile commit p95 ≤ 100 ms; contour-edit preview p95 ≤ 100 ms for cavities up to 2,048 triangles; a replaying Regenerate ≤ 3 s at 250k with progress and cancel; at least 64 undoable one-tile edits. R096.a's measurement confirms them before they are frozen.
+
+**Interaction design.** Pending. The owner approves a UX design for §8's list
+separately, as for R095; R096.a–e (core and commands) do not depend on it, and R096.f
+does.
 
 ## Owner decisions
 
-1. **Edit model:** hybrid (c): base sources plus an ordered edit list with resolved geometry, current sources derived, Regenerate = CDT of the base plus replay (a no-op after edits); not sources-only (a) or mesh-operations-only (b). *Recommend: (c), the only option where contours stay consistent and distant terrain survives Regenerate.*
-2. **Sculpt over source contours:** moved contour vertices are clipped out of the current sources (they become edited ground); not "skip contour vertices" or "re-derive contours". *Recommend: clip, because skipping makes sculpt inert on contour terrains and re-deriving invents survey data.*
-3. **Pad grading:** daylight by separate cut and fill slopes to the surface (default 1:2, maximum distance 100 m), with SketchUp's fixed-width band as a second mode. *Recommend: both, daylight the default, because slopes are what site design specifies and Stamp's fixed offset cannot express them.*
-4. **Stamp linkage:** one-shot; the entry copies the footprint and offers Restamp; no live link to the building. *Recommend: one-shot, because a live link needs cross-body dependency tracking that F03 does not otherwise need.*
-5. **Drape result:** imprint into the terrain by splitting triangles only (shape unchanged, optional persistent region paint) as the default, plus overlay as ordinary geometry in a group. *Recommend: both, imprint the default, because painted paths need imprint and property lines need overlay.*
-6. **Protected regions and outline:** sculpt and smooth never move pad vertices; contour edits, stamps and imprints that enter a pad or leave the terrain's outline refuse with a location. *Recommend: yes, because it keeps pad heights exact by rule and keeps every edit local.*
-7. **Paint on edited tiles:** rebuilt tiles keep tile-level material; per-face paint on them is dropped with a notice; paint that must survive edits is a draped region. *Recommend: yes, because carrying per-face paint across re-triangulation has no exact answer.*
-8. **Format:** amend the unshipped `terrain-v1` in place (source IDs, tiling and tile keys, `edits`, key-order digest) instead of adding schema 30. *Recommend: amend in place, following the R095.e2 display addendum.*
-9. **Assistant visibility:** no new assistant tools; MCP exposes every R096 command; `terrain.describe` reports edits. *Recommend: yes, because edits need a visible preview the assistant cannot show, and each tool costs tokens every turn.*
-10. **New budgets:** one-tile commit p95 ≤ 100 ms; contour-edit preview p95 ≤ 100 ms for cavities up to 2,048 triangles; replaying Regenerate ≤ 3 s at 250k with progress and cancel; at least 64 undoable one-tile edits. *Recommend: adopt, to be confirmed by R096.a's measurement before they are frozen.*
+1. **Edit model:** hybrid (c): base sources plus an ordered edit list with resolved geometry, current sources derived, Regenerate = CDT of the base plus replay (a no-op after edits); not sources-only (a) or mesh-operations-only (b). *Decided 2026-10-19: (c).*
+2. **Sculpt over source contours:** moved contour vertices are clipped out of the current sources (they become edited ground); not "skip contour vertices" or "re-derive contours". *Decided 2026-10-19: clip.*
+3. **Pad grading:** daylight by separate cut and fill slopes to the surface (default 1:2, maximum distance 100 m), with SketchUp's fixed-width band as a second mode. *Decided 2026-10-19: both, daylight the default.*
+4. **Stamp linkage:** one-shot; the entry copies the footprint and offers Restamp; no live link to the building. *Decided 2026-10-19: one-shot.*
+5. **Drape result:** imprint into the terrain by splitting triangles only (shape unchanged, optional persistent region paint) as the default, plus overlay as ordinary geometry in a group. *Decided 2026-10-19: both, imprint the default.*
+6. **Protected regions and outline:** sculpt and smooth never move pad vertices; contour edits, stamps and imprints that enter a pad or leave the terrain's outline refuse with a location. *Decided 2026-10-19: yes.*
+7. **Paint on edited tiles:** rebuilt tiles keep tile-level material; per-face paint on them is dropped with a notice; paint that must survive edits is a draped region. *Decided 2026-10-19: yes.*
+8. **Format:** amend the unshipped `terrain-v1` in place (source IDs, tiling and tile keys, `edits`, key-order digest) instead of adding schema 30. *Decided 2026-10-19: amend in place.*
+9. **Assistant visibility:** no new assistant tools; MCP exposes every R096 command; `terrain.describe` reports edits. *Decided 2026-10-19: yes.*
+10. **New budgets:** one-tile commit p95 ≤ 100 ms; contour-edit preview p95 ≤ 100 ms for cavities up to 2,048 triangles; replaying Regenerate ≤ 3 s at 250k with progress and cancel; at least 64 undoable one-tile edits. *Decided 2026-10-19: adopt, to be confirmed by R096.a's measurement before they are frozen.*
 
 ## Sources
 
