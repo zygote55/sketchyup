@@ -21,6 +21,9 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <unistd.h>
 using namespace sketchy;
 namespace {
 void check(bool value, const std::string &message) {
@@ -543,8 +546,49 @@ void elevation() {
           "Elevation batches are bounded");
 }
 } // namespace
+// R095.c regression: a plain 50 m sliver-free triangle from the terrain import fixture sent
+// Clipper2's Delaunay triangulation into unbounded edge creation (tens of GB) when a tile was
+// validated. The face is triangulated in a child process under a 2 GiB address-space cap (no
+// cap under AddressSanitizer, which reserves more), so a regression fails instead of exhausting
+// the machine.
+void largeTriangle() {
+    const pid_t child = fork();
+    check(child >= 0, "fork for the capped triangle check");
+    if (child == 0) {
+#if !defined(__SANITIZE_ADDRESS__)
+        const rlimit cap{2ull << 30, 2ull << 30};
+        setrlimit(RLIMIT_AS, &cap);
+#endif
+        alarm(60);
+        try {
+            Surface surface;
+            const auto face = surface.addFace(
+                {{{46.3626, 51.310000000000002, 96},
+                  {46.366300000000003, 49.009999999999998, 96},
+                  {53.497500000000002, -2.1360999999999999, 96}}});
+            const auto triangles = surface.triangulateExact(face);
+            surface.validate();
+            _exit(triangles.size() == 1 ? 0 : 2);
+        } catch (...) {
+            _exit(3);
+        }
+    }
+    int status = 0;
+    check(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+          "a large triangle face tessellates without Clipper2 (bounded)");
+    // Zero-area triangles are still refused.
+    Surface surface;
+    bool refused = false;
+    try {
+        surface.addFace({{{0, 0, 0}, {1, 0, 0}, {2, 0, 0}}});
+    } catch (const std::exception &) {
+        refused = true;
+    }
+    check(refused, "a zero-area triangle face is refused");
+}
 int main() {
     try {
+        largeTriangle();
         tiling();
         limits();
         guards();

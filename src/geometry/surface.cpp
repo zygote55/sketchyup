@@ -125,7 +125,15 @@ std::vector<Triangle> tessellate(const Surface &surface, Id id,
                 throw std::runtime_error("Nested or overlapping holes are unsupported");
     }
     Paths64 result;
-    if (Triangulate(paths, result) != TriangulateResult::success)
+    if (paths.size() == 1 && paths[0].size() == 3) {
+        // A triangle is its own tessellation. Clipper2's Delaunay triangulation (beta) can
+        // also loop without bound on a plain triangle: its segment test multiplies int64
+        // grid coordinates in double, so beyond about 2^53 (faces larger than roughly 10 m)
+        // a shared endpoint can read as a crossing and RemoveIntersection keeps adding edges
+        // (R095.c; e.g. (0, 0), (23000030, 0), (534575087, 70489124) on the 1e-7 m grid).
+        // The zero-area refusal above still applies.
+        result.push_back(paths[0]);
+    } else if (Triangulate(paths, result) != TriangulateResult::success)
         throw std::runtime_error("Intersecting or degenerate face outline");
     std::vector<Triangle> output;
     for (const auto &t : result) {

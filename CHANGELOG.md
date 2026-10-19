@@ -15,6 +15,19 @@ their 1.2.0 schema.
   sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain import (R095.c, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095c)):
+  `terrain.import` adds a terrain from a DXF (contours, breaklines, boundary and holes from
+  LWPOLYLINE, 2D and 3D POLYLINE and LINE, arcs segmented) or a CSV/XYZ/PNEZD point file
+  (delimiter, header and columns detected or chosen; description codes as ground points or
+  breaklines) to the open document in one undoable edit, establishing the site origin from
+  the proposed origin (data centre rounded to 100 m) when the document has none. Units
+  include the US survey foot (1200/3937 m); conversion is explicit and reported.
+  `terrain.inspect_source` previews a source without changing anything. Crossing contours,
+  conflicting duplicates and other invalid input refuse the import with a bounded, located
+  report (at most 32 locations per kind, 64 KiB). The CLI gains `--import-terrain` with
+  `--terrain-units`, `--origin` and the point-file and role options. Also fixes a hang in
+  face tessellation: a large triangle face could send Clipper2's Delaunay triangulation into
+  unbounded memory growth; triangle faces are now their own tessellation.
 - Terrain: the triangulation adapter for terrain import (R095.b, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095b)):
   contours, breaklines, points, a boundary and holes in local metres become a constrained
   Delaunay mesh, with flat triangles flipped and the rest reported, optional Steiner fill, and

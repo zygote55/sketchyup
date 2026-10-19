@@ -8,6 +8,17 @@ expressions (`parameter-expression`, R093.a; [ADR 0165 §7](decisions/0165-const
 and one for the schema-29 `terrain-mesh` chunk decoder (`terrain-mesh`, R095.a;
 [ADR 0168 §2](decisions/0168-terrain-import-and-surfaces.md)), whose accepted input must
 stay within the tile and document limits and re-encode to exactly its bytes.
+Two more cover the R095.c terrain sources: `terrain-dxf` (the DXF terrain mode, metres) and
+`terrain-points` (CSV/XYZ/PNEZD point files, metres, delimiter, header and columns detected).
+An accepted source must have finite coordinates within the 100,000 km site bound, valid layer
+or code indices and polylines of at least two vertices; the harness then runs the whole import
+dry run (preparation and triangulation), which must not throw for bad data, must keep its
+report within 64 KiB with at most 64 kinds, 32 locations a kind and 256-byte messages, and,
+when it imports, must give a non-empty mesh within the triangle limit with in-range indices.
+Their seeds are the generated fixtures of `tests/terrain_import_fixtures.hpp` (the metre and
+UTM contour DXFs, the invalid DXF, the UTM XYZ file, a PNEZD file with coded breakline points
+and one with bad values) plus a rejected DXF version and a rejected two-column point file;
+`parser_fault_corpus_tests` mutates a slice of the contour DXF and a PNEZD file 512 times each.
 Existing deterministic parser-fault and transaction tests remain required.
 
 Configure a separate build and generate valid, deterministic seeds:

@@ -1,7 +1,9 @@
 #include "io/dxf_source.hpp"
+#include "io/terrain_source.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QStringDecoder>
+#include <algorithm>
 #include <numbers>
 #include <set>
 namespace sketchy {
@@ -242,8 +244,13 @@ struct Reader {
         result.entities.push_back(std::move(e));
     }
 };
-} // namespace
-DxfSource parseDxf(const QByteArray &bytes, DxfOptions options) {
+// The bounded tokenizer and the header stage shared by the planar reader and the terrain
+// mode: byte, line, pair and section budgets, version, units and the LAYER table.
+struct Prepared {
+    QString version;
+    int units{};
+};
+Prepared prepare(Reader &reader, const QByteArray &bytes, std::optional<double> metresPerUnit) {
     require(!bytes.isEmpty() && bytes.size() <= 64 * 1024 * 1024 && !bytes.contains('\0'),
             "DXF requires bounded ASCII/UTF-8 text, not binary data");
     require(bytes.count('\n') <= 1000001, "DXF exceeds line budget");
@@ -267,7 +274,6 @@ DxfSource parseDxf(const QByteArray &bytes, DxfOptions options) {
         if (code != 999)
             tags.push_back({code, value});
     }
-    Reader reader;
     std::optional<QString> section;
     bool ended = false;
     for (size_t i = 0; i < tags.size(); ++i) {
@@ -305,15 +311,17 @@ DxfSource parseDxf(const QByteArray &bytes, DxfOptions options) {
             header[variable].push_back(tag);
         }
     }
-    const auto version = field(header["$ACADVER"], 1).value_or("");
+    Prepared prepared;
+    prepared.version = field(header["$ACADVER"], 1).value_or("");
     const std::set<QString> versions{"AC1009", "AC1015", "AC1018", "AC1021",
                                      "AC1024", "AC1027", "AC1032"};
-    require(versions.contains(version),
+    require(versions.contains(prepared.version),
             "DXF version must be R12 or supported 2000..2018 ASCII format");
-    const auto units = integer(header["$INSUNITS"], 70, 0);
+    prepared.units = integer(header["$INSUNITS"], 70, 0);
+    const auto units = prepared.units;
     const std::map<int, double> scales{{1, .0254}, {2, .3048}, {4, .001}, {5, .01}, {6, 1}};
-    if (options.metresPerUnit) {
-        reader.scale = *options.metresPerUnit;
+    if (metresPerUnit) {
+        reader.scale = *metresPerUnit;
         require(std::isfinite(reader.scale) && reader.scale >= 1e-6 && reader.scale <= 1e6,
                 "DXF unit override out of bounds");
         if (!scales.contains(units) || scales.at(units) != reader.scale)
@@ -338,6 +346,14 @@ DxfSource parseDxf(const QByteArray &bytes, DxfOptions options) {
     for (const auto &[key, value] : reader.sections)
         if (key != "HEADER" && key != "TABLES" && key != "ENTITIES")
             reader.loss("sectionOmitted:" + key, int(value.size()));
+    return prepared;
+}
+} // namespace
+DxfSource parseDxf(const QByteArray &bytes, DxfOptions options) {
+    Reader reader;
+    const auto prepared = prepare(reader, bytes, options.metresPerUnit);
+    const auto &version = prepared.version;
+    const auto units = prepared.units;
     const auto entities = records(reader.sections.at("ENTITIES"));
     for (size_t i = 0; i < entities.size(); ++i)
         reader.entity(entities[i], entities, i);
@@ -357,5 +373,240 @@ DxfSource parseDxf(const QByteArray &bytes, DxfOptions options) {
         {"sha256",
          QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex())}};
     return std::move(reader.result);
+}
+// R095.c terrain mode (ADR 0168 section 1). Same tokenizer, budgets and unit rules as the
+// planar reader; coordinates stay in source units and elevations are kept.
+TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOptions &options) {
+    Reader reader;
+    const auto prepared = prepare(
+        reader, bytes,
+        options.unit ? std::optional<double>(options.unit->metresPerUnit) : std::nullopt);
+    require(std::isfinite(options.chordTolerance) && options.chordTolerance >= 1e-6 &&
+                options.chordTolerance <= 100,
+            "Chord tolerance must be 1e-6..100 m");
+    TerrainSourceSet set;
+    set.format = "dxf";
+    if (options.unit)
+        set.unit = *options.unit;
+    else {
+        const std::map<int, QString> names{{1, "in"}, {2, "ft"}, {4, "mm"}, {5, "cm"}, {6, "m"}};
+        set.unit = *terrainUnit(names.at(prepared.units));
+    }
+    const double scale = set.unit.metresPerUnit;
+    const double bound = TerrainSourceLimits::coordinate / scale;
+    const double chord = options.chordTolerance / scale; // source units
+    std::map<QString, std::uint32_t> layerIndex;
+    auto layerOf = [&](const QString &layer) {
+        const auto found = layerIndex.find(layer);
+        if (found != layerIndex.end())
+            return found->second;
+        require(set.layers.size() < TerrainSourceLimits::layers, "DXF exceeds 1024 layers");
+        const auto index = std::uint32_t(set.layers.size());
+        set.layers.push_back({layer, 0, 0, 0, 0, 0});
+        layerIndex[layer] = index;
+        return index;
+    };
+    for (const auto &[layer, record] : reader.result.layers)
+        layerOf(layer);
+    QJsonObject omitted;
+    auto skip = [&](const QString &type, const QString &reason) {
+        const auto key = type + ":" + reason;
+        require(omitted.contains(key) || omitted.size() < 128,
+                "Too many distinct unsupported DXF entities");
+        omitted[key] = omitted[key].toInt() + 1;
+        set.problems.add(TerrainReport::Severity::Notice, "ignored-entities", 1,
+                         "Entities that are not terrain sources were ignored; see "
+                         "omittedEntities for the types.");
+    };
+    std::size_t vertices = 0;
+    std::uint64_t arcs = 0;
+    auto coordinate = [&](const Tags &tags, int code, std::optional<double> fallback = {}) {
+        const auto value = number(tags, code, fallback);
+        require(std::abs(value) <= bound, "DXF coordinate is beyond 100,000 km");
+        return value;
+    };
+    const auto entities = records(reader.sections.at("ENTITIES"));
+    std::uint64_t ordinal = 0;
+    for (size_t index = 0; index < entities.size(); ++index) {
+        const auto &record = entities[index];
+        const auto &t = record.tags;
+        const auto &type = record.type;
+        ++ordinal;
+        std::vector<Record> vertexRecords;
+        if (type == "POLYLINE") {
+            while (index + 1 < entities.size() && entities[index + 1].type == "VERTEX")
+                vertexRecords.push_back(entities[++index]);
+            require(index + 1 < entities.size() && entities[index + 1].type == "SEQEND",
+                    "DXF POLYLINE lacks SEQEND");
+            ++index;
+            require(vertexRecords.size() <= 100000, "DXF polyline vertex count out of bounds");
+        }
+        if (integer(t, 67, 0) != 0 || field(t, 410).value_or("Model") != "Model") {
+            skip(type, "paperSpace");
+            continue;
+        }
+        if (type != "LINE" && type != "LWPOLYLINE" && type != "POLYLINE") {
+            skip(type, "notTerrain");
+            continue;
+        }
+        if (number(t, 210, 0) != 0 || number(t, 220, 0) != 0 || number(t, 230, 1) != 1) {
+            skip(type, "extrusion");
+            continue;
+        }
+        TerrainSourcePolyline polyline;
+        polyline.ref = {TerrainSourceRef::Kind::Entity, ordinal};
+        if (const auto handle = field(t, 5)) {
+            bool ok{};
+            const auto value = handle->toULongLong(&ok, 16);
+            if (ok && !handle->isEmpty() && handle->size() <= 16)
+                polyline.ref = {TerrainSourceRef::Kind::Handle, value};
+        }
+        polyline.layer = layerOf(name(field(t, 8).value_or("0")));
+        struct Vertex {
+            TerrainVec3 p;
+            double bulge{};
+        };
+        std::vector<Vertex> points;
+        if (type == "LINE") {
+            const TerrainVec3 a{coordinate(t, 10), coordinate(t, 20), coordinate(t, 30, 0)};
+            const TerrainVec3 b{coordinate(t, 11), coordinate(t, 21), coordinate(t, 31, 0)};
+            if (a.z != b.z) {
+                skip(type, "varyingZ");
+                continue;
+            }
+            points = {{a, 0}, {b, 0}};
+        } else if (type == "LWPOLYLINE") {
+            const int flags = integer(t, 70, 0);
+            if (flags < 0 || (flags & ~129)) {
+                skip(type, "polylineFlags");
+                continue;
+            }
+            polyline.closed = flags & 1;
+            const double elevation = coordinate(t, 38, 0);
+            std::optional<Tags> current;
+            auto add = [&] {
+                if (!current)
+                    return;
+                const auto &v = *current;
+                points.push_back(
+                    {{coordinate(v, 10), coordinate(v, 20), elevation}, number(v, 42, 0)});
+            };
+            for (const auto &tag : t) {
+                if (tag.code == 10) {
+                    add();
+                    current = Tags{tag};
+                } else if (tag.code == 20 || tag.code == 40 || tag.code == 41 || tag.code == 42 ||
+                           tag.code == 91) {
+                    require(current.has_value(), "DXF polyline vertex fields precede X");
+                    current->push_back(tag);
+                }
+            }
+            add();
+            require(integer(t, 90, -1) == int(points.size()), "DXF polyline vertex count mismatch");
+        } else {
+            const int flags = integer(t, 70, 0);
+            if (flags < 0 || (flags & (16 | 64)) || (flags & ~(1 | 2 | 4 | 8 | 32 | 128))) {
+                skip(type, "meshOrFlags");
+                continue;
+            }
+            polyline.closed = flags & 1;
+            const bool threeD = flags & 8;
+            const double elevation = coordinate(t, 30, 0);
+            bool unsupported = false;
+            for (const auto &v : vertexRecords) {
+                const int vertexFlags = integer(v.tags, 70, 0);
+                if (vertexFlags < 0 || (vertexFlags & (64 | 128))) {
+                    unsupported = true;
+                    break;
+                }
+                if (vertexFlags & 16) // spline frame control point, not on the curve
+                    continue;
+                double z = coordinate(v.tags, 30, 0);
+                if (!threeD && z == 0)
+                    z = elevation;
+                points.push_back({{coordinate(v.tags, 10), coordinate(v.tags, 20), z},
+                                  threeD ? 0 : number(v.tags, 42, 0)});
+            }
+            if (unsupported) {
+                skip(type, "meshOrFlags");
+                continue;
+            }
+        }
+        require(points.size() >= 2 && points.size() <= 100000,
+                "DXF polyline vertex count out of bounds");
+        // Bulges become chords within the chord tolerance; Z varies linearly along the arc.
+        const std::size_t count = points.size();
+        const std::size_t spans = polyline.closed ? count : count - 1;
+        polyline.points.reserve(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            polyline.points.push_back(points[i].p);
+            require(++vertices <= TerrainSourceLimits::vertices,
+                    "DXF terrain exceeds 1,000,000 vertices");
+            const double bulge = points[i].bulge;
+            if (i >= spans || bulge == 0)
+                continue;
+            require(std::isfinite(bulge) && std::abs(bulge) <= 1e6,
+                    "DXF bulge exceeds supported range");
+            const auto a = points[i].p, b = points[(i + 1) % count].p;
+            const double dx = b.x - a.x, dy = b.y - a.y, distance = std::hypot(dx, dy);
+            if (!(distance > 0))
+                continue;
+            const double sweep = 4 * std::atan(bulge);
+            const double radius = distance / (2 * std::abs(std::sin(sweep / 2)));
+            const double offset = distance * (1 - bulge * bulge) / (4 * bulge);
+            const double cx = (a.x + b.x) / 2 - dy / distance * offset;
+            const double cy = (a.y + b.y) / 2 + dx / distance * offset;
+            require(std::isfinite(radius) && std::isfinite(cx) && std::isfinite(cy) &&
+                        std::abs(cx) + radius <= bound && std::abs(cy) + radius <= bound,
+                    "DXF arc exceeds supported extents");
+            const double step =
+                chord >= radius ? pi : 2 * std::acos(std::max(-1.0, 1 - chord / radius));
+            const auto pieces = std::size_t(
+                std::clamp(std::ceil(std::abs(sweep) / std::max(step, 1e-9)), 1.0, 4096.0));
+            const double start = std::atan2(a.y - cy, a.x - cx);
+            for (std::size_t k = 1; k < pieces; ++k) {
+                const double f = double(k) / double(pieces);
+                polyline.points.push_back({cx + radius * std::cos(start + sweep * f),
+                                           cy + radius * std::sin(start + sweep * f),
+                                           a.z + (b.z - a.z) * f});
+                require(++vertices <= TerrainSourceLimits::vertices,
+                        "DXF terrain exceeds 1,000,000 vertices");
+            }
+            ++arcs;
+            set.problems.locate(TerrainReport::Severity::Notice, "arcs-segmented",
+                                "Arc segments (bulges) were replaced by chords within the chord "
+                                "tolerance.",
+                                {polyline.ref.text(), {}, std::array<double, 2>{a.x, a.y}});
+        }
+        auto &layer = set.layers[polyline.layer];
+        ++layer.polylines;
+        layer.closed += polyline.closed;
+        const bool constant =
+            std::all_of(polyline.points.begin(), polyline.points.end(),
+                        [&](const TerrainVec3 &p) { return p.z == polyline.points.front().z; });
+        ++(constant ? layer.constantZ : layer.varyingZ);
+        set.polylines.push_back(std::move(polyline));
+    }
+    set.sha256 =
+        QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+    set.report = {{"apiVersion", 1},
+                  {"format", "dxf"},
+                  {"mode", "terrain"},
+                  {"version", prepared.version},
+                  {"units", set.unit.name},
+                  {"metresPerUnit", scale},
+                  {"metresPerUnitExact", set.unit.exact},
+                  {"headerUnits", prepared.units},
+                  {"entities", qint64(ordinal)},
+                  {"polylines", qint64(set.polylines.size())},
+                  {"vertices", qint64(vertices)},
+                  {"arcsSegmented", qint64(arcs)},
+                  {"chordToleranceMetres", options.chordTolerance},
+                  {"layers", qint64(set.layers.size())},
+                  {"omittedEntities", omitted},
+                  {"losses", reader.losses},
+                  {"bytes", qint64(bytes.size())},
+                  {"sha256", set.sha256}};
+    return set;
 }
 } // namespace sketchy

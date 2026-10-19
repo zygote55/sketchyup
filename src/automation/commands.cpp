@@ -579,6 +579,24 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     auto commands = array(request["commands"]);
     if (commands.empty() || commands.size() > 100)
         throw std::runtime_error("Batch must contain 1–100 commands");
+    // R095.c: terrain.inspect_source parses and dry-runs a source and changes nothing, so it
+    // runs alone and returns the inspection at the unchanged revision.
+    for (const auto &value : commands)
+        if (value.toObject()["command"].toString() == "terrain.inspect_source") {
+            if (commands.size() != 1)
+                throw std::runtime_error(
+                    "terrain.inspect_source changes nothing and runs alone in its batch");
+            if (request.contains("history"))
+                throw std::runtime_error("terrain.inspect_source has no history entry");
+            const auto command = value.toObject();
+            const auto schema = commandDescription("terrain.inspect_source")["parameters"].toObject();
+            for (auto it = command.begin(); it != command.end(); ++it)
+                if (!schema["properties"].toObject().contains(it.key()))
+                    throw std::runtime_error("Unknown command parameter");
+            return {{"status", "inspected"},
+                    {"revision", QString::number(doc.revision())},
+                    {"inspection", inspectTerrainCommand(doc, command)}};
+        }
     HistoryMetadata historyMetadata;
     std::string historyLabel =
         commands.size() == 1
@@ -631,7 +649,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     const auto baseRevision = doc.revision();
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
-        solidOperations, assertionCommands;
+        solidOperations, assertionCommands, terrainOperations;
     std::vector<std::pair<Id, Id>> createdFaceIds;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
@@ -718,7 +736,10 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else if (isTextCommand(name)) {
             compose(executeTextCommand(staged, command));
         } else if (isTerrainCommand(name)) {
-            compose(executeTerrainCommand(staged, command));
+            QJsonObject operation;
+            compose(executeTerrainCommand(staged, command, &operation));
+            if (!operation.isEmpty())
+                terrainOperations.append(operation);
         } else if (isAnnotationCommand(name)) {
             executeAnnotationCommand(staged, command);
         } else if (isSectionCommand(name)) {
@@ -1871,6 +1892,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"regenerated", regenerated},
                 {"parameterWarnings", parameterWarnings},
                 {"recipeOperations", recipeOperations},
+                {"terrainOperations", terrainOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
                 {"booleans", survivingBooleans},
@@ -1941,6 +1963,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"parameterWarnings", parameterWarnings},
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
+                       {"terrainOperations", terrainOperations},
                        {"assertions", assertions},
                        {"sweeps", survivingSweeps},
                        {"booleans", survivingBooleans},
@@ -1958,6 +1981,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
     } catch (const ComponentParameterError &error) {
         // Keep ADR 0165's codes and context for sessions, MCP, staging and the CLI.
         throw InspectionError(error.code(), error.what(), componentParameterErrorDetails(error));
+    } catch (const TerrainImportError &error) {
+        // R095.c: a refused import carries its bounded report; nothing was changed.
+        throw InspectionError(error.code(), error.what(),
+                              QJsonObject{{"importReport", error.report()}});
     } catch (const TerrainError &error) {
         // ADR 0168: terrain refusals keep their shared error code.
         throw InspectionError(error.code(), error.what());

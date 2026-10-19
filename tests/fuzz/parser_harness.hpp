@@ -5,7 +5,9 @@
 #include "io/library_bundle.hpp"
 #include "io/obj_source.hpp"
 #include "io/stl_source.hpp"
+#include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
+#include <QJsonDocument>
 #include <QtEndian>
 #include "parameter_expression_harness.hpp"
 #include <QCoreApplication>
@@ -22,7 +24,7 @@ inline constexpr size_t inputLimit = 1024 * 1024;
 inline constexpr const char *formats[] = {
     "native-json", "native-container", "glb",       "stl-binary", "stl-ascii",           "obj",
     "dxf",         "template",         "component", "extension",  "parameter-expression",
-    "terrain-mesh"};
+    "terrain-mesh", "terrain-dxf",     "terrain-points"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -78,6 +80,47 @@ inline void terrainMeshInvariants(const std::vector<TerrainMeshTile> &tiles,
     }
     require(triangles <= 250000, "terrain triangles within the document limit");
     require(encoded + payload == bytes, "accepted terrain mesh re-encodes exactly");
+}
+// R095.c: an accepted terrain source has finite coordinates within the site bound, valid
+// layer indices and polylines of at least two vertices; its preparation and triangulation
+// (a dry run of terrain.import) never throws for bad data, the report stays within 64 KiB with
+// bounded kinds and locations, and an accepted mesh references existing vertices.
+inline void terrainSourceInvariants(const TerrainSourceSet &set) {
+    const double bound = TerrainSourceLimits::coordinate / set.unit.metresPerUnit;
+    auto finite = [&](const TerrainVec3 &p) {
+        require(std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z) &&
+                    std::abs(p.x) <= bound && std::abs(p.y) <= bound && std::abs(p.z) <= bound,
+                "terrain source coordinates within the site bound");
+    };
+    for (const auto &polyline : set.polylines) {
+        require(polyline.points.size() >= 2 && polyline.layer < set.layers.size(),
+                "terrain polylines have two vertices and a layer");
+        for (const auto &p : polyline.points)
+            finite(p);
+    }
+    for (const auto &point : set.points) {
+        require(point.layer < set.layers.size(), "terrain points have a code");
+        finite(point.position);
+    }
+    const auto result = runTerrainImport(set, {}, std::nullopt);
+    require(QJsonDocument(result.report).toJson(QJsonDocument::Compact).size() <= 64 * 1024,
+            "terrain import report within 64 KiB");
+    const auto terrain = result.report["terrain"].toObject();
+    require(terrain["refusals"].toArray().size() + terrain["notices"].toArray().size() <= 64,
+            "terrain report kinds bounded");
+    for (const auto *list : {"refusals", "notices"})
+        for (const auto &kind : terrain[list].toArray())
+            require(kind.toObject()["locations"].toArray().size() <= 32 &&
+                        kind.toObject()["message"].toString().toUtf8().size() <= 256,
+                    "terrain report locations and messages bounded");
+    require(result.ok == (terrain["outcome"] != "refused"), "terrain outcome matches");
+    if (result.ok) {
+        require(!result.mesh.triangles.empty() && result.mesh.triangles.size() <= 250000,
+                "terrain mesh within the triangle limit");
+        for (const auto &t : result.mesh.triangles)
+            for (const auto index : t)
+                require(index < result.mesh.vertices.size(), "terrain index in range");
+    }
 }
 inline void roundtrip(const Document &document) {
     const auto encoded = encodeContainer(document);
@@ -149,6 +192,16 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             roundtrip(result.document);
             require(result.document.definitions().contains(result.definition),
                     "component definition exists");
+        } else if (format == "terrain-dxf") {
+            const auto result = parseDxfTerrain(bytes, {terrainUnit("m"), 0.05});
+            accepted = true;
+            terrainSourceInvariants(result);
+        } else if (format == "terrain-points") {
+            TerrainPointOptions options;
+            options.unit = *terrainUnit("m");
+            const auto result = parseTerrainPoints(bytes, options);
+            accepted = true;
+            terrainSourceInvariants(result);
         } else if (format == "terrain-mesh") {
             const auto tiles = decodeTerrainMesh(bytes);
             accepted = true;

@@ -341,8 +341,11 @@ bool terrainChangedSinceGenerated(const Document &doc, Id terrain) {
         refuse("NOT_FOUND", "Terrain body does not exist");
     return terrainMeshDigest(doc, terrain) != record->terrain->meshDigest;
 }
-TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
-                             Id parent, std::string name) {
+namespace {
+// The record and tiles of a new terrain as one edit, not yet applied.
+std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &mesh,
+                                            TerrainRecord record, Id parent, std::string name,
+                                            std::string label) {
     if (mesh.triangles.empty())
         refuse("INVALID_REQUEST", "A terrain needs at least one triangle");
     const auto existing = doc.materializedTotals().terrainTriangles;
@@ -405,7 +408,7 @@ TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainReco
     container->parent = parent;
     container->kind = BodyKind::Terrain;
     container->terrain = std::move(record);
-    Edit edit{"Create terrain", {}};
+    Edit edit{std::move(label), {}};
     edit.changes.push_back({terrain, nullptr, container, {}, {}, {}, true});
     TerrainCreated created;
     created.terrain = terrain;
@@ -413,6 +416,28 @@ TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainReco
         created.tiles.push_back(tile->id);
         edit.changes.push_back({tile->id, nullptr, std::move(tile), {}, {}, {}, true});
     }
+    return {std::move(edit), std::move(created)};
+}
+} // namespace
+TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
+                             Id parent, std::string name) {
+    auto [edit, created] =
+        terrainEdit(doc, mesh, std::move(record), parent, std::move(name), "Create terrain");
+    created.changes = doc.apply(std::move(edit), doc.revision());
+    return created;
+}
+TerrainCreated importTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
+                             std::optional<SiteOrigin> establish, std::string name) {
+    if (establish) {
+        if (doc.site())
+            refuse("INVALID_REQUEST", "The site origin is already set; re-anchor to change it");
+        validateSiteOrigin(*establish);
+    }
+    auto [edit, created] =
+        terrainEdit(doc, mesh, std::move(record), 0, std::move(name), "Import terrain");
+    if (establish)
+        edit.site =
+            std::pair{std::optional<SiteOrigin>{}, std::optional<SiteOrigin>{std::move(*establish)}};
     created.changes = doc.apply(std::move(edit), doc.revision());
     return created;
 }

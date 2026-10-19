@@ -155,6 +155,8 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `site.set` | Set site origin | `easting`, `northing`, `command` |
 | `site.reanchor` | Re-anchor site origin | `easting`, `northing`, `command` |
 | `terrain.explode` | Explode terrain | `body`, `command` |
+| `terrain.inspect_source` | Inspect terrain source | `data`, `format`, `command` |
+| `terrain.import` | Import terrain | `data`, `format`, `command` |
 
 ## Bounded queries
 

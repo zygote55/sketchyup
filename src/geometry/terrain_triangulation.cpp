@@ -507,6 +507,10 @@ bool flipEdge(Mesh &m, const Surface &s, u32 t, u32 slot, double flatTol, bool r
 
 } // namespace
 
+int terrainOrientation(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c) {
+    return orientSign(Pt{a.x, a.y}, Pt{b.x, b.y}, Pt{c.x, c.y});
+}
+
 const char *terrainProblemKindName(TerrainProblemKind kind) {
     switch (kind) {
     case TerrainProblemKind::NonFinite:

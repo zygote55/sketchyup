@@ -112,6 +112,11 @@ enum class TerrainProblemKind : std::uint8_t {
 inline constexpr std::size_t terrainProblemKindCount = 9;
 const char *terrainProblemKindName(TerrainProblemKind kind);
 
+// The adapter's exact orientation predicate: +1 when a, b, c turn counter-clockwise, -1
+// clockwise, 0 when exactly collinear. Importers use it to clean collinear spikes with the
+// same test the constraint check applies (R095.c).
+int terrainOrientation(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c);
+
 inline constexpr std::size_t terrainMaxLocationsPerKind = 32; // ADR 0168 section 1
 inline constexpr std::size_t terrainMaxMessageBytes = 256;
 
