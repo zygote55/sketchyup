@@ -34,6 +34,7 @@
 #include <QScrollArea>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QSignalSpy>
 #include <QTest>
 #include <QTimer>
 #include <QTreeWidget>
@@ -535,22 +536,34 @@ void createFromSelection(Window &window) {
         join({edgesOf(doc, bodies[0]), edgesOf(doc, bodies[1]), edgesOf(doc, bodies[2])}));
     QTest::qWait(5);
     check(create->isEnabled(), "Selected edges enable Create terrain from selection");
-    // The context menu offers it: the Menu key (or Shift+F10) on the viewport.
-    check(drive(
-              "viewportContextMenu",
-              [&](QWidget &widget) {
-                  auto &menu = static_cast<QMenu &>(widget);
-                  check(menu.actions().size() == 1 && menu.actions().front() == create &&
-                            create->isEnabled(),
-                        "The context menu has Create terrain from selection, enabled");
-                  menu.close();
-              },
-              [&] {
-                  QContextMenuEvent event(QContextMenuEvent::Keyboard, QPoint(20, 20),
-                                          window.viewport()->mapToGlobal(QPoint(20, 20)));
-                  QApplication::sendEvent(window.viewport(), &event);
-              }),
-          "The keyboard opens the viewport context menu");
+    // The context menu offers it: the Menu key (or Shift+F10) on the viewport. Qt's Wayland
+    // popups need a compositor input serial that synthetic input cannot supply (as in
+    // narrow_layout_input_tests), so there the test checks the request and the menu's action.
+    if (QGuiApplication::platformName() == "wayland") {
+        QSignalSpy requested(window.viewport(), &Viewport::contextMenuRequested);
+        QContextMenuEvent event(QContextMenuEvent::Keyboard, QPoint(20, 20),
+                                window.viewport()->mapToGlobal(QPoint(20, 20)));
+        QApplication::sendEvent(window.viewport(), &event);
+        QTest::qWait(50);
+        check(requested.count() == 1 && create->isEnabled(),
+              "The keyboard requests the viewport context menu, with its action enabled");
+    } else {
+        check(drive(
+                  "viewportContextMenu",
+                  [&](QWidget &widget) {
+                      auto &menu = static_cast<QMenu &>(widget);
+                      check(menu.actions().size() == 1 && menu.actions().front() == create &&
+                                create->isEnabled(),
+                            "The context menu has Create terrain from selection, enabled");
+                      menu.close();
+                  },
+                  [&] {
+                      QContextMenuEvent event(QContextMenuEvent::Keyboard, QPoint(20, 20),
+                                              window.viewport()->mapToGlobal(QPoint(20, 20)));
+                      QApplication::sendEvent(window.viewport(), &event);
+                  }),
+              "The keyboard opens the viewport context menu");
+    }
     const auto history = doc.history().total;
     // The summit's flat triangles are a notice, so the report follows the edit.
     check(drive(
@@ -655,6 +668,14 @@ void createFromSelection(Window &window) {
 }
 
 // ---- Tools on terrain ----------------------------------------------------------------------
+// A pointer move sent to the viewport, as the other input suites hover: QTest::mouseMove moves
+// the real cursor, which on X11 at 2x does not reach the viewport as a move event.
+void hover(Viewport *view, QPoint point) {
+    QMouseEvent event(QEvent::MouseMove, QPointF(point), view->mapToGlobal(QPointF(point)),
+                      Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(view, &event);
+    QCoreApplication::processEvents();
+}
 void toolsOnTerrain(Window &window) {
     fresh(window);
     auto &doc = window.document();
@@ -670,8 +691,8 @@ void toolsOnTerrain(Window &window) {
     const QPoint offTerrain(4, 4);
     // Push/pull refuses a tile wherever it is.
     action(window, "tool.3")->trigger();
-    QTest::mouseMove(view, offTerrain);
-    QTest::mouseMove(view, onTerrain);
+    hover(view, offTerrain);
+    hover(view, onTerrain);
     QTest::qWait(20);
     check(view->refusedTerrain() == terrain && view->cursor().shape() == Qt::ForbiddenCursor,
           "Push/pull shows the not-allowed cursor over a tile");
@@ -688,15 +709,15 @@ void toolsOnTerrain(Window &window) {
           "The status link opens the Explode confirmation");
     check(isTerrain(doc, terrain), "Cancel keeps the terrain");
     // Leaving the tile clears it.
-    QTest::mouseMove(view, offTerrain);
+    hover(view, offTerrain);
     QTest::qWait(20);
     check(!view->refusedTerrain() && view->cursor().shape() == Qt::CrossCursor && !link->isVisible(),
           "Off the terrain the tool cursor and status return");
     // Paint and Select are allowed; Move moves the whole terrain from outside it.
     for (const char *id : {"tool.20", "tool.0", "tool.17"}) {
         action(window, id)->trigger();
-        QTest::mouseMove(view, offTerrain);
-        QTest::mouseMove(view, onTerrain);
+        hover(view, offTerrain);
+        hover(view, onTerrain);
         QTest::qWait(20);
         check(!view->refusedTerrain() && view->cursor().shape() != Qt::ForbiddenCursor,
               std::string(id) + " is allowed over the terrain");
@@ -704,8 +725,8 @@ void toolsOnTerrain(Window &window) {
     // Inside the open terrain, Move would move tile geometry: refused.
     view->enterContext(terrain);
     action(window, "tool.17")->trigger();
-    QTest::mouseMove(view, offTerrain);
-    QTest::mouseMove(view, onTerrain);
+    hover(view, offTerrain);
+    hover(view, onTerrain);
     QTest::qWait(20);
     check(view->refusedTerrain() == terrain && status->text().startsWith("Move does not edit terrain."),
           "Move refuses a tile inside the open terrain");
