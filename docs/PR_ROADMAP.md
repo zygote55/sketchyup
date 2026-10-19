@@ -1391,7 +1391,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R096 — Implement terrain editing, drape and stamp
 
-**Status:** Planned. **Track:** Geometry. **Scope:** F03. **UX:** —.
+**Status:** Planned; design drafted for owner decisions ([ADR 0169](decisions/0169-terrain-editing-drape-stamp.md)). **Track:** Geometry. **Scope:** F03. **UX:** —.
 
 **Requires:** [R095](#r095); milestone gate rule above.
 
