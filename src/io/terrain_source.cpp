@@ -55,6 +55,8 @@ std::string TerrainSourceRef::text() const {
         return "entity " + std::to_string(value);
     case Kind::Line:
         return "line " + std::to_string(value);
+    case Kind::Edge:
+        return "body " + std::to_string(body) + " edge " + std::to_string(value);
     }
     return {};
 }

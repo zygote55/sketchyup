@@ -4,8 +4,10 @@
 #include <QLocale>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <numeric>
+#include <set>
 #include <tuple>
 
 namespace sketchy {
@@ -856,6 +858,164 @@ TerrainTriangulationInput terrainTriangulationInput(const std::vector<TerrainSou
     return input;
 }
 
+namespace {
+// The triangulation stage shared by import, regenerate and set_parameters: stored sources
+// to a mesh, with the adapter's refusals and notices added to `report` (references by
+// `reference`, XY mapped by `toSource`) and its counts added to `counts`.
+struct MeshStage {
+    TerrainMesh mesh;
+    std::uint64_t triangles{}, vertices{};
+    std::size_t tiles{};
+    QJsonObject flat;
+};
+MeshStage triangulateSources(
+    const std::vector<TerrainSource> &sources, const TerrainTriangulationOptions &options,
+    bool useBoundary, std::size_t otherTerrainTriangles, TerrainReport &report, QJsonObject &counts,
+    const std::function<std::string(std::uint64_t, const TerrainVec2 &, int)> &reference,
+    const std::function<std::array<double, 2>(const TerrainVec2 &)> &toSource) {
+    MeshStage stage;
+    auto input = terrainTriangulationInput(sources);
+    if (!useBoundary)
+        input.boundary.reset();
+    const auto triangulated = triangulateTerrain(input, options);
+    const auto &r = triangulated.report;
+    for (const auto &problem : r.refusals) {
+        const std::string kind = terrainProblemKindName(problem.kind);
+        report.add(Severity::Refusal, kind, problem.count, problem.message);
+        for (const auto &location : problem.locations)
+            report.locate(
+                Severity::Refusal, kind, problem.message,
+                {reference(location.sourceA, location.xy, 0),
+                 location.sourceB ? reference(location.sourceB, location.xy, 1) : std::string(),
+                 toSource(location.xy)},
+                false);
+    }
+    auto notice = [&](const char *kind, std::uint64_t count, const char *message) {
+        if (count)
+            report.add(Severity::Notice, kind, count, message);
+    };
+    notice("merged-duplicates", r.mergedDuplicates,
+           "Exact duplicate points and vertices were merged.");
+    notice("merged-segments", r.mergedSegments, "Repeated segments were merged.");
+    notice("zero-length-segments", r.droppedZeroLengthSegments,
+           "Zero-length segments (repeated vertices) were dropped.");
+    notice("dropped-outside", r.droppedOutsideVertices,
+           "Points and vertices outside the boundary or inside a hole were dropped.");
+    notice("dropped-holes", r.droppedHoles, "Holes entirely outside the boundary were dropped.");
+    notice("extrapolated-polygon-vertices", r.extrapolatedPolygonVertices,
+           "Boundary or hole vertices outside the data took the nearest source elevation.");
+    if (r.flatTrianglesRemaining) {
+        report.add(Severity::Notice, "flat-triangles", r.flatTrianglesRemaining,
+                   "Flat triangles remain (three vertices of one contour); add spot heights "
+                   "or a breakline to resolve them.");
+        for (const auto &centroid : r.flatLocations)
+            report.locate(Severity::Notice, "flat-triangles", "",
+                          {"centroid", {}, toSource(centroid)}, false);
+    }
+    counts["rawVertices"] = double(r.rawVertexCount);
+    counts["uniqueVertices"] = double(r.uniqueVertexCount);
+    counts["mergedDuplicates"] = double(r.mergedDuplicates);
+    counts["mergedSegments"] = double(r.mergedSegments);
+    counts["droppedZeroLengthSegments"] = double(r.droppedZeroLengthSegments);
+    counts["droppedOutsideVertices"] = double(r.droppedOutsideVertices);
+    counts["droppedOutsideSegments"] = double(r.droppedOutsideSegments);
+    counts["droppedHoles"] = double(r.droppedHoles);
+    counts["interpolatedPolygonVertices"] = double(r.interpolatedPolygonVertices);
+    counts["extrapolatedPolygonVertices"] = double(r.extrapolatedPolygonVertices);
+    counts["constraintEdges"] = double(r.constraintEdges);
+    counts["trimmedTriangles"] = double(r.trimmedTriangles);
+    counts["unusedVertices"] = double(r.unusedVertices);
+    stage.flat = {{"initial", double(r.flatTrianglesInitial)},
+                  {"flips", double(r.flipsApplied)},
+                  {"steinerPoints", double(r.steinerPointsAdded)},
+                  {"remaining", double(r.flatTrianglesRemaining)},
+                  {"areaRemaining", r.flatAreaRemaining}};
+    if (!triangulated.ok || report.refused())
+        return stage;
+    // R095.c2: the document limit counts every terrain; `otherTerrainTriangles` are those of
+    // the other terrains (zero for import, where the edit itself checks the limit).
+    if (otherTerrainTriangles &&
+        otherTerrainTriangles + r.triangleCount > TerrainLimits::triangles) {
+        report.locate(Severity::Refusal, "triangle-budget",
+                      "The document's terrains would exceed the terrain triangle limit.",
+                      {"document",
+                       {},
+                       std::nullopt,
+                       "terrain triangles would be " +
+                           std::to_string(otherTerrainTriangles + r.triangleCount) + " of " +
+                           std::to_string(TerrainLimits::triangles)});
+        return stage;
+    }
+    stage.mesh.vertices.reserve(triangulated.vertices.size());
+    for (const auto &v : triangulated.vertices)
+        stage.mesh.vertices.push_back({v.x, v.y, v.z});
+    for (const auto &t : triangulated.triangles)
+        stage.mesh.triangles.push_back(t);
+    // The document tessellates every tile face on a 1e-7 m grid and refuses a face
+    // whose area is below its tolerance. The adapter never returns such a triangle for
+    // valid input, but refuse it here, located, rather than hand the kernel one.
+    for (const auto &t : stage.mesh.triangles) {
+        const auto &a = stage.mesh.vertices[t[0]], &b = stage.mesh.vertices[t[1]],
+                   &c = stage.mesh.vertices[t[2]];
+        if (length(cross(b - a, c - a)) < 1e-12)
+            report.locate(
+                Severity::Refusal, "degenerate-triangle",
+                "Triangles below the modelling tolerance (area under 5e-13 "
+                "m\u00b2) cannot become faces.",
+                {"centroid", {}, toSource({(a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3})});
+    }
+    if (report.refused()) {
+        stage.mesh = {};
+    } else {
+        stage.triangles = r.triangleCount;
+        stage.vertices = r.vertexCount;
+        stage.tiles = tileTerrainTriangles(stage.mesh).tiles.size();
+    }
+    return stage;
+}
+} // namespace
+TerrainTriangulationOptions terrainTriangulationOptions(const TerrainParameters &parameters) {
+    TerrainTriangulationOptions options;
+    options.flatMode =
+        parameters.flipFlatTriangles ? TerrainFlatMode::Flip : TerrainFlatMode::ReportOnly;
+    options.steinerFill = parameters.steinerFill;
+    const bool trim = parameters.boundary == TerrainBoundaryMode::MaxEdgeLength ||
+                      parameters.boundary == TerrainBoundaryMode::Boundary;
+    if (trim && parameters.maxEdgeLength > 0)
+        options.maxEdgeLength = parameters.maxEdgeLength;
+    return options;
+}
+namespace {
+QJsonObject parametersJson(const TerrainParameters &parameters) {
+    return {{"boundary", parameters.boundary == TerrainBoundaryMode::Boundary ? "boundary"
+                         : parameters.boundary == TerrainBoundaryMode::MaxEdgeLength
+                             ? "maxEdgeLength"
+                             : "convexHull"},
+            {"maxEdgeLength", parameters.maxEdgeLength},
+            {"flipFlatTriangles", parameters.flipFlatTriangles},
+            {"steinerFill", parameters.steinerFill}};
+}
+// The refusal code and message from a finished report's refusals.
+void refusalOutcome(const QJsonObject &terrain, const std::string &prefix, std::string &code,
+                    std::string &message) {
+    bool limit = false;
+    std::string kinds;
+    for (const auto &value : terrain["refusals"].toArray()) {
+        const auto entry = value.toObject();
+        const auto kind = entry["kind"].toString();
+        limit = limit || kind == "triangle-budget" || kind == "extent-exceeded" ||
+                kind == "limit-exceeded";
+        if (!kinds.empty())
+            kinds += ", ";
+        kinds += text(kind) + " (" + std::to_string(qint64(entry["count"].toDouble())) + ")";
+    }
+    code = limit ? "LIMIT_EXCEEDED" : "INVALID_REQUEST";
+    message = (prefix + " refused; nothing was changed: " +
+               (kinds.empty() ? std::string("no terrain") : kinds))
+                  .substr(0, 256);
+}
+} // namespace
+
 TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
                                      const TerrainImportOptions &options,
                                      const std::optional<SiteOrigin> &site,
@@ -879,9 +1039,6 @@ TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
         prepared.sources.begin(), prepared.sources.end(),
         [](const TerrainSource &source) { return source.role == TerrainSourceRole::Boundary; });
     if (prepared.ok) {
-        const auto input = terrainTriangulationInput(prepared.sources);
-        const auto triangulated = triangulateTerrain(input, options.triangulation);
-        const auto &r = triangulated.report;
         auto reference = [&](std::uint64_t id, const TerrainVec2 &xy, int which) -> std::string {
             if (!id || id > prepared.sources.size())
                 return {};
@@ -900,85 +1057,14 @@ TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
             return std::array<double, 2>{(xy.x + origin.easting) / scale,
                                          (xy.y + origin.northing) / scale};
         };
-        for (const auto &problem : r.refusals) {
-            const std::string kind = terrainProblemKindName(problem.kind);
-            report.add(Severity::Refusal, kind, problem.count, problem.message);
-            for (const auto &location : problem.locations)
-                report.locate(
-                    Severity::Refusal, kind, problem.message,
-                    {reference(location.sourceA, location.xy, 0),
-                     location.sourceB ? reference(location.sourceB, location.xy, 1) : std::string(),
-                     toSource(location.xy)},
-                    false);
-        }
-        auto notice = [&](const char *kind, std::uint64_t count, const char *message) {
-            if (count)
-                report.add(Severity::Notice, kind, count, message);
-        };
-        notice("merged-duplicates", r.mergedDuplicates,
-               "Exact duplicate points and vertices were merged.");
-        notice("merged-segments", r.mergedSegments, "Repeated segments were merged.");
-        notice("zero-length-segments", r.droppedZeroLengthSegments,
-               "Zero-length segments (repeated vertices) were dropped.");
-        notice("dropped-outside", r.droppedOutsideVertices,
-               "Points and vertices outside the boundary or inside a hole were dropped.");
-        notice("dropped-holes", r.droppedHoles,
-               "Holes entirely outside the boundary were dropped.");
-        notice("extrapolated-polygon-vertices", r.extrapolatedPolygonVertices,
-               "Boundary or hole vertices outside the data took the nearest source elevation.");
-        if (r.flatTrianglesRemaining) {
-            report.add(Severity::Notice, "flat-triangles", r.flatTrianglesRemaining,
-                       "Flat triangles remain (three vertices of one contour); add spot heights "
-                       "or a breakline to resolve them.");
-            for (const auto &centroid : r.flatLocations)
-                report.locate(Severity::Notice, "flat-triangles", "",
-                              {"centroid", {}, toSource(centroid)}, false);
-        }
-        counts["rawVertices"] = double(r.rawVertexCount);
-        counts["uniqueVertices"] = double(r.uniqueVertexCount);
-        counts["mergedDuplicates"] = double(r.mergedDuplicates);
-        counts["mergedSegments"] = double(r.mergedSegments);
-        counts["droppedZeroLengthSegments"] = double(r.droppedZeroLengthSegments);
-        counts["droppedOutsideVertices"] = double(r.droppedOutsideVertices);
-        counts["droppedOutsideSegments"] = double(r.droppedOutsideSegments);
-        counts["droppedHoles"] = double(r.droppedHoles);
-        counts["interpolatedPolygonVertices"] = double(r.interpolatedPolygonVertices);
-        counts["extrapolatedPolygonVertices"] = double(r.extrapolatedPolygonVertices);
-        counts["constraintEdges"] = double(r.constraintEdges);
-        counts["trimmedTriangles"] = double(r.trimmedTriangles);
-        counts["unusedVertices"] = double(r.unusedVertices);
-        flat = {{"initial", double(r.flatTrianglesInitial)},
-                {"flips", double(r.flipsApplied)},
-                {"steinerPoints", double(r.steinerPointsAdded)},
-                {"remaining", double(r.flatTrianglesRemaining)},
-                {"areaRemaining", r.flatAreaRemaining}};
-        if (triangulated.ok && !report.refused()) {
-            result.mesh.vertices.reserve(triangulated.vertices.size());
-            for (const auto &v : triangulated.vertices)
-                result.mesh.vertices.push_back({v.x, v.y, v.z});
-            for (const auto &t : triangulated.triangles)
-                result.mesh.triangles.push_back(t);
-            // The document tessellates every tile face on a 1e-7 m grid and refuses a face
-            // whose area is below its tolerance. The adapter never returns such a triangle for
-            // valid input, but refuse it here, located, rather than hand the kernel one.
-            for (const auto &t : result.mesh.triangles) {
-                const auto &a = result.mesh.vertices[t[0]], &b = result.mesh.vertices[t[1]],
-                           &c = result.mesh.vertices[t[2]];
-                if (length(cross(b - a, c - a)) < 1e-12)
-                    report.locate(
-                        Severity::Refusal, "degenerate-triangle",
-                        "Triangles below the modelling tolerance (area under 5e-13 "
-                        "m\u00b2) cannot become faces.",
-                        {"centroid", {}, toSource({(a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3})});
-            }
-            if (report.refused()) {
-                result.mesh = {};
-            } else {
-                triangles = r.triangleCount;
-                meshVertices = r.vertexCount;
-                result.tiles = tileTerrainTriangles(result.mesh).tiles.size();
-            }
-        }
+        auto stage =
+            triangulateSources(prepared.sources, options.triangulation, true,
+                               options.otherTerrainTriangles, report, counts, reference, toSource);
+        flat = stage.flat;
+        result.mesh = std::move(stage.mesh);
+        triangles = stage.triangles;
+        meshVertices = stage.vertices;
+        result.tiles = stage.tiles;
     }
     result.ok = prepared.ok && !report.refused() && !result.mesh.triangles.empty();
     if (prepared.ok && !result.ok && !report.refused())
@@ -1014,37 +1100,28 @@ TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
                             ") − (" + number(origin.easting) + " m E, " + number(origin.northing) +
                             " m N, " + number(origin.elevation) + " m)";
     auto triple = [](const std::array<double, 3> &v) { return QJsonArray{v[0], v[1], v[2]}; };
-    QJsonObject envelope{
-        {"outcome", outcome},
-        {"units", set.unit.name},
-        {"metresPerUnit", scale},
-        {"metresPerUnitExact", set.unit.exact},
-        {"conversion", formula},
-        {"sourceExtents", QJsonObject{{"min", triple(prepared.sourceMin)},
-                                      {"max", triple(prepared.sourceMax)},
-                                      {"units", set.unit.name}}},
-        {"localExtents", QJsonObject{{"min", triple(prepared.localMin)},
-                                     {"max", triple(prepared.localMax)},
-                                     {"units", "m"}}},
-        {"proposedOrigin", originJson(prepared.proposed)},
-        {"origin", originJson(origin)},
-        {"originSource", prepared.originSource},
-        {"roles", roles},
-        {"counts", counts},
-        {"flatTriangles", flat},
-        {"triangles", double(triangles)},
-        {"vertices", double(meshVertices)},
-        {"tiles", double(result.tiles)},
-        {"generator", terrainGenerator},
-        {"parameters",
-         QJsonObject{{"boundary", record.parameters.boundary == TerrainBoundaryMode::Boundary
-                                      ? "boundary"
-                                  : record.parameters.boundary == TerrainBoundaryMode::MaxEdgeLength
-                                      ? "maxEdgeLength"
-                                      : "convexHull"},
-                     {"maxEdgeLength", record.parameters.maxEdgeLength},
-                     {"flipFlatTriangles", record.parameters.flipFlatTriangles},
-                     {"steinerFill", record.parameters.steinerFill}}}};
+    QJsonObject envelope{{"outcome", outcome},
+                         {"units", set.unit.name},
+                         {"metresPerUnit", scale},
+                         {"metresPerUnitExact", set.unit.exact},
+                         {"conversion", formula},
+                         {"sourceExtents", QJsonObject{{"min", triple(prepared.sourceMin)},
+                                                       {"max", triple(prepared.sourceMax)},
+                                                       {"units", set.unit.name}}},
+                         {"localExtents", QJsonObject{{"min", triple(prepared.localMin)},
+                                                      {"max", triple(prepared.localMax)},
+                                                      {"units", "m"}}},
+                         {"proposedOrigin", originJson(prepared.proposed)},
+                         {"origin", originJson(origin)},
+                         {"originSource", prepared.originSource},
+                         {"roles", roles},
+                         {"counts", counts},
+                         {"flatTriangles", flat},
+                         {"triangles", double(triangles)},
+                         {"vertices", double(meshVertices)},
+                         {"tiles", double(result.tiles)},
+                         {"generator", terrainGenerator},
+                         {"parameters", parametersJson(record.parameters)}};
     if (!provenance.crs.empty())
         envelope["crs"] = QString::fromStdString(provenance.crs);
     if (site && !provenance.crs.empty() && provenance.crs != site->crs)
@@ -1058,26 +1135,9 @@ TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
                             ? TerrainReportBounds::reportBytes - sourceBytes - 64
                             : TerrainReportBounds::reportBytes / 2;
     result.report["terrain"] = report.json(envelope, budget);
-    if (!result.ok) {
-        bool limit = false;
-        for (const auto &value : result.report["terrain"].toObject()["refusals"].toArray()) {
-            const auto kind = value.toObject()["kind"].toString();
-            limit = limit || kind == "triangle-budget" || kind == "extent-exceeded" ||
-                    kind == "limit-exceeded";
-        }
-        result.code = limit ? "LIMIT_EXCEEDED" : "INVALID_REQUEST";
-        std::string kinds;
-        for (const auto &value : result.report["terrain"].toObject()["refusals"].toArray()) {
-            const auto entry = value.toObject();
-            if (!kinds.empty())
-                kinds += ", ";
-            kinds += text(entry["kind"].toString()) + " (" +
-                     std::to_string(qint64(entry["count"].toDouble())) + ")";
-        }
-        result.message = "Terrain import refused; nothing was changed: " +
-                         (kinds.empty() ? std::string("no terrain") : kinds);
-        result.message = result.message.substr(0, 256);
-    }
+    if (!result.ok)
+        refusalOutcome(result.report["terrain"].toObject(), "Terrain import", result.code,
+                       result.message);
     return result;
 }
 
@@ -1109,6 +1169,284 @@ QJsonObject terrainSourceInspection(const TerrainSourceSet &set,
             {"originSource", terrain["originSource"]},
             {"conversion", terrain["conversion"]},
             {"report", dryRun.report}};
+}
+
+// ---- R095.c2 ------------------------------------------------------------------------------
+
+void validateTerrainParameters(const TerrainParameters &parameters,
+                               const std::vector<TerrainSource> &sources) {
+    if (!std::isfinite(parameters.maxEdgeLength) || parameters.maxEdgeLength < 0 ||
+        parameters.maxEdgeLength > 2e6 ||
+        (parameters.maxEdgeLength > 0 && parameters.maxEdgeLength < 1e-3))
+        throw TerrainError("INVALID_REQUEST",
+                           "maxEdgeLength is 0 (not set) or 0.001 to 2,000,000 m");
+    if (parameters.boundary == TerrainBoundaryMode::Boundary &&
+        std::none_of(sources.begin(), sources.end(), [](const TerrainSource &source) {
+            return source.role == TerrainSourceRole::Boundary;
+        }))
+        throw TerrainError("INVALID_REQUEST",
+                           "Boundary mode needs a boundary source; this terrain has none");
+    if (parameters.boundary == TerrainBoundaryMode::MaxEdgeLength &&
+        !(parameters.maxEdgeLength > 0))
+        throw TerrainError("INVALID_REQUEST",
+                           "Max edge length mode needs a positive maxEdgeLength");
+}
+
+TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
+                                         const TerrainParameters &parameters,
+                                         std::size_t otherTerrainTriangles, TerrainReport report) {
+    validateTerrainParameters(parameters, record.sources);
+    TerrainImportResult result;
+    QJsonObject counts, roles;
+    for (const auto &source : record.sources) {
+        const char *role = source.role == TerrainSourceRole::Contour     ? "contour"
+                           : source.role == TerrainSourceRole::Breakline ? "breakline"
+                           : source.role == TerrainSourceRole::Boundary  ? "boundary"
+                           : source.role == TerrainSourceRole::Hole      ? "hole"
+                                                                         : "points";
+        roles[role] = roles[role].toDouble() +
+                      double(source.role == TerrainSourceRole::Points ? source.points.size() : 1);
+    }
+    for (const char *role : {"contour", "breakline", "boundary", "hole", "points"})
+        if (!roles.contains(role))
+            roles[role] = 0;
+    auto reference = [&](std::uint64_t id, const TerrainVec2 &, int) -> std::string {
+        return id && id <= record.sources.size() ? record.sources[id - 1].reference : std::string();
+    };
+    auto local = [](const TerrainVec2 &xy) { return std::array<double, 2>{xy.x, xy.y}; };
+    auto stage = triangulateSources(record.sources, terrainTriangulationOptions(parameters),
+                                    parameters.boundary == TerrainBoundaryMode::Boundary,
+                                    otherTerrainTriangles, report, counts, reference, local);
+    result.mesh = std::move(stage.mesh);
+    result.tiles = stage.tiles;
+    result.ok = !report.refused() && !result.mesh.triangles.empty();
+    if (!result.ok && !report.refused())
+        report.add(Severity::Refusal, "triangulation-failed", 1,
+                   "The sources gave no terrain triangles.");
+    result.record = record;
+    result.record.parameters = parameters;
+    result.record.generator = terrainGenerator;
+    const QString outcome = !result.ok            ? "refused"
+                            : report.hasNotices() ? "regeneratedWithNotices"
+                                                  : "regenerated";
+    QJsonObject envelope{{"outcome", outcome},
+                         {"units", "m"},
+                         {"space", "terrain"},
+                         {"roles", roles},
+                         {"counts", counts},
+                         {"flatTriangles", stage.flat},
+                         {"triangles", double(stage.triangles)},
+                         {"vertices", double(stage.vertices)},
+                         {"tiles", double(result.tiles)},
+                         {"generator", terrainGenerator},
+                         {"parameters", parametersJson(parameters)}};
+    result.report = {{"apiVersion", 1},
+                     {"format", "terrain-record"},
+                     {"units", "m"},
+                     {"metresPerUnit", 1},
+                     {"metresPerUnitExact", "1"},
+                     {"sources", double(record.sources.size())}};
+    result.report["terrain"] = report.json(envelope, TerrainReportBounds::reportBytes - 512);
+    if (!result.ok)
+        refusalOutcome(result.report["terrain"].toObject(), "Terrain regenerate", result.code,
+                       result.message);
+    return result;
+}
+
+std::map<QString, TerrainImportRole> terrainEdgeRoles() {
+    return {{"edges", TerrainImportRole::Auto},
+            {"contour", TerrainImportRole::Contour},
+            {"breakline", TerrainImportRole::Breakline},
+            {"boundary", TerrainImportRole::Boundary},
+            {"hole", TerrainImportRole::Hole}};
+}
+
+namespace {
+struct EdgeChain {
+    std::vector<TerrainVec3> points;
+    bool closed{};
+    TerrainEdgeRef first; // smallest (body, edge) in the chain
+};
+// Chains one group of edges (sorted, distinct) into polylines; see terrainEdgeSources.
+std::vector<EdgeChain> chainEdges(const Document &doc, std::vector<TerrainEdgeRef> edges,
+                                  std::uint64_t &zeroLength) {
+    std::sort(edges.begin(), edges.end());
+    constexpr double tolerance = 1e-7, cell = 1e-6;
+    std::vector<TerrainVec3> nodes;
+    std::map<std::array<std::int64_t, 3>, std::vector<std::size_t>> grid;
+    std::map<std::pair<Id, Id>, std::size_t> byVertex; // (body, vertex) -> node
+    auto node = [&](Id body, Id vertex, const Vec3 &p) {
+        if (const auto found = byVertex.find({body, vertex}); found != byVertex.end())
+            return found->second;
+        const std::array<std::int64_t, 3> key{std::int64_t(std::floor(p.x / cell)),
+                                              std::int64_t(std::floor(p.y / cell)),
+                                              std::int64_t(std::floor(p.z / cell))};
+        std::optional<std::size_t> match;
+        for (std::int64_t dx = -1; dx <= 1 && !match; ++dx)
+            for (std::int64_t dy = -1; dy <= 1 && !match; ++dy)
+                for (std::int64_t dz = -1; dz <= 1 && !match; ++dz) {
+                    const auto found = grid.find({key[0] + dx, key[1] + dy, key[2] + dz});
+                    if (found == grid.end())
+                        continue;
+                    for (const auto index : found->second) {
+                        const auto &q = nodes[index];
+                        if (std::abs(q.x - p.x) <= tolerance && std::abs(q.y - p.y) <= tolerance &&
+                            std::abs(q.z - p.z) <= tolerance) {
+                            match = index;
+                            break;
+                        }
+                    }
+                }
+        const auto index = match.value_or(nodes.size());
+        if (!match) {
+            nodes.push_back({p.x, p.y, p.z});
+            grid[key].push_back(index);
+        }
+        byVertex[{body, vertex}] = index;
+        return index;
+    };
+    struct Link {
+        std::size_t a, b;
+        TerrainEdgeRef ref;
+    };
+    std::vector<Link> links;
+    for (const auto &ref : edges) {
+        const auto &body = *doc.bodies().at(ref.body);
+        const auto &edge = body.topology.edges.at(ref.edge);
+        const auto world = doc.worldTransform(ref.body);
+        const auto a = node(ref.body, edge.a, world.point(body.surface.vertices.at(edge.a)));
+        const auto b = node(ref.body, edge.b, world.point(body.surface.vertices.at(edge.b)));
+        if (a == b) {
+            ++zeroLength;
+            continue;
+        }
+        links.push_back({a, b, ref});
+    }
+    std::vector<std::vector<std::size_t>> incident(nodes.size());
+    for (std::size_t i = 0; i < links.size(); ++i) {
+        incident[links[i].a].push_back(i);
+        incident[links[i].b].push_back(i);
+    }
+    std::vector<bool> used(links.size());
+    std::vector<EdgeChain> chains;
+    auto walk = [&](std::size_t start, std::size_t link) {
+        EdgeChain chain;
+        chain.first = links[link].ref;
+        chain.points.push_back(nodes[start]);
+        auto at = start;
+        while (true) {
+            used[link] = true;
+            chain.first = std::min(chain.first, links[link].ref);
+            const auto next = links[link].a == at ? links[link].b : links[link].a;
+            if (next == start) {
+                chain.closed = true;
+                break;
+            }
+            chain.points.push_back(nodes[next]);
+            at = next;
+            if (incident[at].size() != 2)
+                break;
+            const auto other = incident[at][0] == link ? incident[at][1] : incident[at][0];
+            if (used[other])
+                break;
+            link = other;
+        }
+        chains.push_back(std::move(chain));
+    };
+    // Open polylines from every end or branch node, in node order, then the closed loops.
+    for (std::size_t n = 0; n < nodes.size(); ++n)
+        if (incident[n].size() != 2)
+            for (const auto link : incident[n])
+                if (!used[link])
+                    walk(n, link);
+    for (std::size_t i = 0; i < links.size(); ++i)
+        if (!used[i])
+            walk(links[i].a, i);
+    return chains;
+}
+} // namespace
+
+TerrainSourceSet terrainEdgeSources(const Document &doc, const TerrainEdgeSelection &selection) {
+    std::set<TerrainEdgeRef> seen;
+    auto checkEdge = [&](const TerrainEdgeRef &ref) {
+        const auto name = "body " + std::to_string(ref.body) + " edge " + std::to_string(ref.edge);
+        const auto found = doc.bodies().find(ref.body);
+        if (found == doc.bodies().end())
+            throw TerrainError("NOT_FOUND", "Body " + std::to_string(ref.body) + " does not exist");
+        const auto &body = *found->second;
+        if (body.terrainTile || body.kind == BodyKind::Terrain)
+            throw TerrainError("UNSUPPORTED_TARGET", terrainProtectedMessage);
+        if (!body.topology.edges.contains(ref.edge))
+            throw TerrainError("NOT_FOUND", "Edge " + name + " does not exist");
+        for (Id id = ref.body; id && doc.bodies().contains(id); id = doc.bodies().at(id)->parent)
+            if (doc.bodies().at(id)->locked)
+                throw TerrainError("INVALID_OPERATION",
+                                   "Cannot use edges of a locked entity (" + name + ")");
+        if (!seen.insert(ref).second)
+            throw TerrainError("INVALID_REQUEST", "Edge " + name + " is given more than once");
+    };
+    std::vector<std::pair<QString, const std::vector<TerrainEdgeRef> *>> groups{
+        {"edges", &selection.edges},
+        {"contour", &selection.contours},
+        {"breakline", &selection.breaklines},
+        {"boundary", &selection.boundary}};
+    for (const auto &hole : selection.holes)
+        groups.push_back({"hole", &hole});
+    std::size_t total = 0;
+    for (const auto &[layer, edges] : groups) {
+        for (const auto &ref : *edges)
+            checkEdge(ref);
+        total += edges->size();
+    }
+    if (!total)
+        throw TerrainError("INVALID_REQUEST", "Choose at least one edge");
+    TerrainSourceSet set;
+    set.format = "edges";
+    set.unit = *terrainUnit("m");
+    for (const char *layer : {"edges", "contour", "breakline", "boundary", "hole"})
+        set.layers.push_back({layer, 0, 0, 0, 0, 0});
+    auto layerIndex = [](const QString &name) {
+        return name == "edges"       ? 0u
+               : name == "contour"   ? 1u
+               : name == "breakline" ? 2u
+               : name == "boundary"  ? 3u
+                                     : 4u;
+    };
+    std::uint64_t zeroLength = 0, vertices = 0;
+    for (const auto &[layer, edges] : groups) {
+        if (edges->empty())
+            continue;
+        for (auto &chain : chainEdges(doc, *edges, zeroLength)) {
+            TerrainSourcePolyline polyline;
+            polyline.ref = {TerrainSourceRef::Kind::Edge, chain.first.edge, chain.first.body};
+            polyline.layer = layerIndex(layer);
+            polyline.points = std::move(chain.points);
+            polyline.closed = chain.closed;
+            vertices += polyline.points.size();
+            if (vertices > TerrainSourceLimits::vertices)
+                throw TerrainError("LIMIT_EXCEEDED", "Terrain edges exceed 1,000,000 vertices");
+            auto &counts = set.layers[polyline.layer];
+            ++counts.polylines;
+            counts.closed += polyline.closed;
+            const bool constant =
+                std::all_of(polyline.points.begin(), polyline.points.end(),
+                            [&](const TerrainVec3 &p) { return p.z == polyline.points.front().z; });
+            ++(constant ? counts.constantZ : counts.varyingZ);
+            set.polylines.push_back(std::move(polyline));
+        }
+    }
+    if (zeroLength)
+        set.problems.add(TerrainReport::Severity::Notice, "zero-length-edges", zeroLength,
+                         "Edges whose ends meet within 1e-7 m were dropped.");
+    set.report = {{"apiVersion", 1},
+                  {"format", "edges"},
+                  {"units", "m"},
+                  {"metresPerUnit", 1},
+                  {"metresPerUnitExact", "1"},
+                  {"edges", double(total)},
+                  {"polylines", double(set.polylines.size())},
+                  {"sha256", ""}};
+    return set;
 }
 
 } // namespace sketchy

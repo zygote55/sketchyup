@@ -157,6 +157,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `terrain.explode` | Explode terrain | `body`, `command` |
 | `terrain.inspect_source` | Inspect terrain source | `data`, `format`, `command` |
 | `terrain.import` | Import terrain | `data`, `format`, `command` |
+| `terrain.create_from_edges` | Create terrain | `edges`, `command` |
+| `terrain.set_parameters` | Terrain settings | `terrain`, `command` |
+| `terrain.regenerate` | Regenerate terrain | `terrain`, `command` |
 
 ## Bounded queries
 

@@ -12098,6 +12098,240 @@
                                             "command"
                                         ],
                                         "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Create terrain",
+                                        "properties": {
+                                            "boundary": {
+                                                "description": "Edges of one closed outer boundary",
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "body": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "edge": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "body",
+                                                        "edge"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "maxItems": 100000,
+                                                "type": "array"
+                                            },
+                                            "command": {
+                                                "const": "terrain.create_from_edges"
+                                            },
+                                            "edges": {
+                                                "description": "Model edges; constant Z makes a contour, varying Z a breakline",
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "body": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "edge": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "body",
+                                                        "edge"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "maxItems": 100000,
+                                                "type": "array"
+                                            },
+                                            "flatMode": {
+                                                "description": "Flat-triangle handling; default flip",
+                                                "enum": [
+                                                    "flip",
+                                                    "reportOnly"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "holes": {
+                                                "items": {
+                                                    "description": "Edges of one closed hole",
+                                                    "items": {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "body": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            },
+                                                            "edge": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "body",
+                                                            "edge"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "maxItems": 100000,
+                                                    "type": "array"
+                                                },
+                                                "maxItems": 10000,
+                                                "type": "array"
+                                            },
+                                            "maxEdgeLength": {
+                                                "maximum": 2000000,
+                                                "minimum": 0.001,
+                                                "type": "number"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "roles": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "breakline": {
+                                                        "description": "Edges forced to be breaklines",
+                                                        "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "edge": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "body",
+                                                                "edge"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "maxItems": 100000,
+                                                        "type": "array"
+                                                    },
+                                                    "contour": {
+                                                        "description": "Edges forced to be contours",
+                                                        "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "body": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                },
+                                                                "edge": {
+                                                                    "maxLength": 20,
+                                                                    "pattern": "^[1-9][0-9]*$",
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "body",
+                                                                "edge"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "maxItems": 100000,
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "steinerFill": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "required": [
+                                            "edges",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Terrain settings",
+                                        "properties": {
+                                            "boundary": {
+                                                "description": "Boundary mode; boundary needs a stored boundary source, maxEdgeLength a positive length",
+                                                "enum": [
+                                                    "convexHull",
+                                                    "maxEdgeLength",
+                                                    "boundary"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "command": {
+                                                "const": "terrain.set_parameters"
+                                            },
+                                            "flipFlatTriangles": {
+                                                "type": "boolean"
+                                            },
+                                            "maxEdgeLength": {
+                                                "description": "Metres; 0 clears it (at least 0.001 when set)",
+                                                "maximum": 2000000,
+                                                "minimum": 0,
+                                                "type": "number"
+                                            },
+                                            "steinerFill": {
+                                                "type": "boolean"
+                                            },
+                                            "terrain": {
+                                                "description": "Terrain body",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "terrain",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Regenerate terrain",
+                                        "properties": {
+                                            "command": {
+                                                "const": "terrain.regenerate"
+                                            },
+                                            "terrain": {
+                                                "description": "Terrain body",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "terrain",
+                                            "command"
+                                        ],
+                                        "type": "object"
                                     }
                                 ]
                             },

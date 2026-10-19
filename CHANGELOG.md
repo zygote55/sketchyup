@@ -15,6 +15,15 @@ their 1.2.0 schema.
   sessions and MCP (not yet in the in-app assistant). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain from model edges, terrain settings and regenerate (R095.c2, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095c2)):
+  `terrain.create_from_edges` builds a terrain from picked model edges (inside groups too,
+  in world coordinates), chained into contours (constant Z) and breaklines (varying Z), with
+  an optional closed boundary and holes; the terrain uses the model frame and needs no site
+  origin. `terrain.regenerate` rebuilds a terrain's mesh from its stored sources (for example
+  when it shows "changed since generated"), and `terrain.set_parameters` changes the boundary
+  mode, maximum edge length and flat-triangle options and regenerates, each as one undoable
+  edit with a dry run. Paint on individual tiles cannot follow a new mesh; the report says how
+  many faces lost it. Refusals change nothing and return the import's bounded report.
 - Terrain import (R095.c, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095c)):
   `terrain.import` adds a terrain from a DXF (contours, breaklines, boundary and holes from
   LWPOLYLINE, 2D and 3D POLYLINE and LINE, arcs segmented) or a CSV/XYZ/PNEZD point file
