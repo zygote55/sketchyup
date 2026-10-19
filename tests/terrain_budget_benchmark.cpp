@@ -28,6 +28,7 @@
 #include <QOpenGLFunctions>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QtEndian>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -61,6 +62,36 @@ qint64 peakResident() {
     return qint64(usage.ru_maxrss) * 1024;
 }
 double mib(qint64 bytes) { return double(bytes) / (1024.0 * 1024.0); }
+// The container's chunks (manifest entries with their sizes), and the size of the terrain
+// record (sources, parameters, provenance) inside the document chunk.
+QJsonObject containerBreakdown(const QString &path) {
+    QFile file(path);
+    check(file.open(QIODevice::ReadOnly), "read the saved file");
+    const auto bytes = file.readAll();
+    const auto length = qFromLittleEndian<quint32>(bytes.constData() + 12);
+    const auto manifest = QJsonDocument::fromJson(bytes.mid(16, length)).object();
+    QJsonArray chunks;
+    qint64 recordBytes = 0;
+    for (const auto &value : manifest["chunks"].toArray()) {
+        const auto entry = value.toObject();
+        chunks.append(QJsonObject{{"name", entry["name"]},
+                                  {"format", entry["format"]},
+                                  {"bytes", entry["bytes"].toString().toDouble()}});
+        if (chunks.size() == 1) {
+            const auto tree = QJsonDocument::fromJson(
+                bytes.mid(16 + length + entry["offset"].toString().toLongLong(),
+                          entry["bytes"].toString().toLongLong())).object();
+            const auto bodies = tree["bodies"];
+            const auto list = bodies.isArray() ? bodies.toArray() : QJsonArray{};
+            for (const auto &body : list)
+                if (body.toObject().contains("terrain"))
+                    recordBytes += QJsonDocument(body.toObject()["terrain"].toObject())
+                                       .toJson(QJsonDocument::Compact)
+                                       .size();
+        }
+    }
+    return {{"chunks", chunks}, {"terrainRecordJsonBytes", double(recordBytes)}};
+}
 
 // About 125,000 random points at UTM scale: Delaunay gives 2n - hull - 2 triangles, just under
 // the 250,000 limit.
@@ -82,7 +113,8 @@ QByteArray pointSource(int points) {
 }
 // Concentric contour rings (every segment a constraint), metres, as a minimal DXF.
 QByteArray contourSource(int rings, int vertices) {
-    QByteArray out = "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n6\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
+    QByteArray out = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\n"
+                     "ENDSEC\n0\nSECTION\n2\nENTITIES\n";
     for (int k = 0; k < rings; ++k) {
         const double r = 10 + k * 0.9, z = 100 + 0.5 * k;
         out += "0\nLWPOLYLINE\n5\n" + QByteArray::number(0x100 + k, 16).toUpper() +
@@ -192,6 +224,7 @@ Measured measure(const char *name, const QByteArray &bytes, const QJsonObject &c
         {"fileWithoutBytes", double(withoutBytes)},
         {"fileWithBytes", double(withBytes)},
         {"fileGrowthMiB", mib(withBytes - withoutBytes)},
+        {"containerWith", containerBreakdown(with)},
     };
     std::cerr << QJsonDocument(json).toJson(QJsonDocument::Compact).toStdString() << '\n';
     return {json, std::move(last)};
