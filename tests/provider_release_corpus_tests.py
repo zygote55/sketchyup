@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Offline corpus checks; no provider requests leave the machine.
 
-1. Freeze: generated inputs/prompts must match every committed manifest (v1, v2
-   and v3 are retained for history; v4 is authoritative), reproduced twice. The
+1. Freeze: generated inputs/prompts must match every committed manifest (v1-v4
+   are retained for history; v5 is authoritative), reproduced twice. The
    native assistant surface (session, draft ceiling, task lifetime, per-task
-   authorization and tool hash, and both instruction hashes) must match v4.
-2. Corpus v4 postconditions (the v2 rules): a deterministic replayed
+   authorization and tool hash, and both instruction hashes) must match v5, which
+   keeps the v4 rules on the R095.g tool surface.
+2. Corpus v5 postconditions (the v2 rules): a deterministic replayed
    Ollama-protocol provider on loopback drives the real provider_trial for 3 x 8 runs
    through the native assistant session with its 15-minute lifetime. Every run must
    record passing undo and recovery postconditions, every edit draft must outlive the
@@ -35,9 +36,10 @@ sys.dont_write_bytecode = True
 TESTS = Path(__file__).resolve().parent
 MANIFESTS = [json.loads((TESTS / name).read_text()) for name in
              ('provider-release-corpus.json', 'provider-release-corpus-v2.json',
-              'provider-release-corpus-v3.json', 'provider-release-corpus-v4.json')]
-CURRENT = TESTS / 'provider-release-corpus-v4.json'
-VERSION = 4
+              'provider-release-corpus-v3.json', 'provider-release-corpus-v4.json',
+              'provider-release-corpus-v5.json')]
+CURRENT = TESTS / 'provider-release-corpus-v5.json'
+VERSION = 5
 NATIVE_SECONDS = 900
 SPEC = importlib.util.spec_from_file_location('score', TESTS.parent / 'scripts/score-provider-release.py')
 SCORE = importlib.util.module_from_spec(SPEC)
@@ -222,7 +224,7 @@ def freeze(trial_binary, root, env):
     for task in MANIFESTS[-1]['tasks']:
         for manifest in MANIFESTS[:-1]:
             check(task == next(t for t in manifest['tasks'] if t['trial'] == task['trial']),
-                  'v4 must keep the v1/v2/v3 task inputs, prompts and thresholds')
+                  'v5 must keep the v1-v4 task inputs, prompts and thresholds')
         for repeat in range(2):
             report = root / f"describe-{task['trial']}-{repeat}.json"
             subprocess.run([trial_binary, '--describe', 'gpt-6-astra', task['trial'], str(report)],
@@ -290,7 +292,7 @@ def postconditions(trial_binary, root, env):
                 post = data['postconditions']
                 check(data['corpusVersion'] == VERSION and data['testFault'] is None and
                       data['taskSeconds'] == NATIVE_SECONDS and
-                      data['assistantSession'] == 'native', 'v4 native report')
+                      data['assistantSession'] == 'native', 'v5 native report')
                 check(data['undoRestores'] and data['recoveryRestores'],
                       f'Postconditions failed for {name}: ' + json.dumps(post))
                 check(post['committed'] == (trial in EDITS), 'Commit classification: ' + name)
@@ -323,7 +325,7 @@ def postconditions(trial_binary, root, env):
         check(scored['corpusPassed'] and not scored['blockers'] and
               all(row == {'passed': 24, 'runs': 24, 'required': 24}
                   for row in scored['postconditions'].values()),
-              'Offline replay corpus v4 passes: ' + json.dumps(scored['blockers']))
+              'Offline replay corpus v5 passes: ' + json.dumps(scored['blockers']))
         # Injected defect: one extra host history step after the assistant commit.
         path, data = run(trial_binary, root, env, server.server_port, 'room', 'room-fault.json',
                          'extra-history-step')
@@ -386,5 +388,5 @@ with tempfile.TemporaryDirectory(prefix='sketchyup-corpus-') as name:
     postconditions(sys.argv[1], root, env)
     refusals(sys.argv[1], root, env)
 print('Eight frozen fixtures and the native assistant surface reproduced twice; 24 replayed '
-      'v4 native-session runs restore undo and recovery; injected split commit blocks scoring; '
+      'v5 native-session runs restore undo and recovery; injected split commit blocks scoring; '
       'a refused reply is answered with tool errors and the task commits; no provider requests.')

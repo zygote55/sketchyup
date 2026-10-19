@@ -541,6 +541,7 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_executable(assistant_tool_surface_tests tests/assistant_tool_surface_tests.cpp)
     target_link_libraries(assistant_tool_surface_tests PRIVATE sketchyup_providers)
     target_compile_definitions(assistant_tool_surface_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_include_directories(assistant_tool_surface_tests PRIVATE tests)
     add_test(NAME assistant_tool_surface COMMAND assistant_tool_surface_tests)
     # Explicit opt-in live diagnostic; never run against an account by CTest.
     add_executable(assistant_workflow_trial EXCLUDE_FROM_ALL tests/assistant_workflow_trial.cpp)
