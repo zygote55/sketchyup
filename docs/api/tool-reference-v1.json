@@ -10342,6 +10342,52 @@
       },
       "undo": "one batch history item",
       "validation": "Schema plus authoritative site, terrain, document and limit validation"
+    },
+    {
+      "category": "Site and terrain",
+      "label": "Terrain display",
+      "name": "terrain.set_display",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Terrain display",
+        "properties": {
+          "command": {
+            "const": "terrain.set_display"
+          },
+          "contourInterval": {
+            "description": "Metres between contour lines; every fifth is an index line",
+            "maximum": 1000,
+            "minimum": 0.01,
+            "type": "number"
+          },
+          "contours": {
+            "description": "Draw contour lines (derived display, not geometry)",
+            "type": "boolean"
+          },
+          "shading": {
+            "description": "Shade by the tiles' material or by ten elevation bands",
+            "enum": [
+              "material",
+              "elevationBands"
+            ],
+            "type": "string"
+          },
+          "terrain": {
+            "description": "Terrain body",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terrain",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative site, terrain, document and limit validation"
     }
   ],
   "extensions": {
@@ -25319,6 +25365,45 @@
                     "command"
                   ],
                   "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Terrain display",
+                  "properties": {
+                    "command": {
+                      "const": "terrain.set_display"
+                    },
+                    "contourInterval": {
+                      "description": "Metres between contour lines; every fifth is an index line",
+                      "maximum": 1000,
+                      "minimum": 0.01,
+                      "type": "number"
+                    },
+                    "contours": {
+                      "description": "Draw contour lines (derived display, not geometry)",
+                      "type": "boolean"
+                    },
+                    "shading": {
+                      "description": "Shade by the tiles' material or by ten elevation bands",
+                      "enum": [
+                        "material",
+                        "elevationBands"
+                      ],
+                      "type": "string"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "command"
+                  ],
+                  "type": "object"
                 }
               ]
             },
@@ -37529,6 +37614,45 @@
                   "properties": {
                     "command": {
                       "const": "terrain.regenerate"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Terrain display",
+                  "properties": {
+                    "command": {
+                      "const": "terrain.set_display"
+                    },
+                    "contourInterval": {
+                      "description": "Metres between contour lines; every fifth is an index line",
+                      "maximum": 1000,
+                      "minimum": 0.01,
+                      "type": "number"
+                    },
+                    "contours": {
+                      "description": "Draw contour lines (derived display, not geometry)",
+                      "type": "boolean"
+                    },
+                    "shading": {
+                      "description": "Shade by the tiles' material or by ten elevation bands",
+                      "enum": [
+                        "material",
+                        "elevationBands"
+                      ],
+                      "type": "string"
                     },
                     "terrain": {
                       "description": "Terrain body",

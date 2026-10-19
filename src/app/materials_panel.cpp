@@ -279,11 +279,14 @@ void MaterialsPanel::edit(bool create) {
             const char *color;
             double opacity;
         };
-        static constexpr std::array<Preset, 5> presets{{{"White", "#e6e6e6", 100},
+        // "Terrain" is the material new terrains get (core terrainMaterialName and
+        // terrainMaterialColor, R095.e2).
+        static constexpr std::array<Preset, 6> presets{{{"White", "#e6e6e6", 100},
                                                         {"Concrete", "#b0ada6", 100},
                                                         {"Terracotta", "#c45f42", 100},
                                                         {"Steel", "#7c8a96", 100},
-                                                        {"Glass", "#b7d9e5", 35}}};
+                                                        {"Glass", "#b7d9e5", 35},
+                                                        {"Terrain", "#8a9a6b", 100}}};
         auto *library = new QComboBox;
         library->setObjectName("materialLibrary");
         library->addItem("Custom");

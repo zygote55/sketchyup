@@ -1,4 +1,5 @@
 #include "app/file_operation.hpp"
+#include "app/site_dialogs.hpp"
 #include "app/terrain_actions.hpp"
 #include "app/terrain_import_dialog.hpp"
 #include "app/window.hpp"
@@ -169,5 +170,16 @@ void Window::showViewportMenu(const QPoint &position) {
     menu.setAccessibleName("Selection actions");
     menu.addAction(findChild<QAction *>("terrain.createFromSelection"));
     menu.exec(viewport_->mapToGlobal(position));
+}
+// R095.e2 (ADR 0168 "Decisions > Interaction design", Site): File > Site settings…. Re-anchor
+// and Set origin commit from their own dialogs (site.reanchor, site.set), one edit each.
+void Window::siteSettings() {
+    if (workspace_ != Workspace::Model)
+        setWorkspace(Workspace::Model);
+    viewport_->cancel();
+    SiteSettingsDialog dialog(doc_, *viewport_, this);
+    dialog.exec();
+    sync();
+    viewport_->setFocus(Qt::OtherFocusReason);
 }
 } // namespace sketchy

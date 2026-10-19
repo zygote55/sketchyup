@@ -14,6 +14,9 @@ constexpr std::array<float, 3> selectionColor{.36f, .31f, .83f}, hoverColor{.55f
 bool Viewport::visible(SelectedEntity entity) const {
     return selection_.exists(doc_, entity) &&
            (selection_.showingHidden() || !selection_.hidden(doc_, entity)) &&
+           // R095.e2: terrain tile seams and interior edges are not drawn, picked or snapped.
+           (entity.kind != SelectionKind::Edge || selection_.showingHidden() ||
+            terrainEdgeDrawn(entity.body, entity.entity)) &&
            (entity.kind != SelectionKind::Guide || guidesVisible_) &&
            !(cachedDocument_ == doc_.identity() && opacity_.contains(entity.body) &&
              opacity_.at(entity.body) == 0);
