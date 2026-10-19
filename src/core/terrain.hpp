@@ -70,6 +70,11 @@ struct TerrainCreated {
 // TerrainLimits::triangles; record.meshDigest is computed here.
 TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
                              Id parent = 0, std::string name = "Terrain");
+// R095.c: an imported terrain, and the site origin when the document has none yet, as ONE
+// labelled edit ("Import terrain"): one history entry, and Undo removes both. `establish`
+// must be empty when the document already has a site origin.
+TerrainCreated importTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
+                             std::optional<SiteOrigin> establish, std::string name = "Terrain");
 // The terrain becomes an ordinary group of its tiles and loses its record. Refuses
 // (LIMIT_EXCEEDED) when the faces would exceed the modelling limit.
 ChangeReport explodeTerrain(Document &doc, Id terrain);

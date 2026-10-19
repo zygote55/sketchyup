@@ -3,7 +3,8 @@
 Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R095](../PR_ROADMAP.md#r095) (M10, scope row [F03](../SCOPE.md)); shapes
 [R096](../PR_ROADMAP.md#r096). **R095.a (terrain core, persistence and site origin)
-is implemented**; see "Implementation status". Each section gives the
+is implemented**, and so are R095.b (triangulation) and R095.c (importers); see
+"Implementation status". Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
 [R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
@@ -675,10 +676,11 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: importers (`terrain.inspect_source`, `terrain.import`,
-`terrain.create_from_edges`), `terrain.set_parameters` and `terrain.regenerate`, the
-desktop (Site settings, Entity info Terrain section, tool cursors), DXF "Write site
-coordinates", and the assistant surface.
+Left for later slices: `terrain.create_from_edges`, `terrain.set_parameters` and
+`terrain.regenerate` (R095.c2), the desktop (import dialog, Site settings, Entity info Terrain
+section, tool cursors), DXF "Write site coordinates", and the assistant surface. The DXF and
+point-file importers with `terrain.inspect_source` and `terrain.import` are R095.c; see
+"Implementation notes (R095.c)".
 
 ## Owner decisions
 
@@ -829,6 +831,174 @@ inputs, and 3,000 generated inputs and seed mutations through the fuzz harness (
 `--fuzz-count`). The libFuzzer target `parser_fuzz_terrain_triangulation` (seeds from
 `terrain_triangulation_fuzz_seeds`) ran about 379,000 executions under ASan and UBSan without a
 finding; see [PARSER_FUZZING.md](../PARSER_FUZZING.md).
+
+## Implementation notes (R095.c)
+
+R095.c adds the importers and the import commands. Modules: `src/io/terrain_source.*` (source
+set, units, bounded report, point files), the terrain mode in `src/io/dxf_source.cpp`,
+`src/io/terrain_import.*` (preparation, mapping of the adapter report, inspection), the commands
+in `src/automation/terrain_commands.cpp`, `importTerrain` in `src/core/terrain.*`, and
+`--import-terrain` in the CLI.
+
+**Sources.** Parsing yields items in source units, each with its reference (DXF handle; the
+1-based entity number when an entity has no handle; the 1-based line number of a point) and its
+layer or description code.
+
+- *DXF terrain mode* shares the planar reader's tokenizer, byte, line, record, layer and unit
+  rules (the shared stage was factored out; the planar path and its tests are unchanged). It
+  accepts LWPOLYLINE (group 38 elevation), 2D POLYLINE (each vertex's group 30, or the polyline
+  elevation where a vertex has none or zero; spline frame points skipped), 3D POLYLINE (flag 8)
+  and LINE with equal end Z (each its own two-point polyline). A LINE with different end Z is
+  ignored as `LINE:varyingZ`; a non-default extrusion, a polyface or mesh and paper space are
+  ignored and counted in `omittedEntities`. Bulges become chords whose sagitta is within the
+  chord tolerance (default 0.05 m, given in model metres and converted to source units), Z
+  linear along the arc, each arc a located `arcs-segmented` notice. At most 1,000,000 vertices
+  after arc expansion and 100,000 per polyline; a value beyond 100,000 km after the unit refuses.
+- *Point files*: at most 64 MiB, 1,000,000 lines and 4,096 bytes a line; UTF-8. Blank lines and
+  lines starting with `#` are skipped. The delimiter is the first of comma, tab and semicolon
+  that every one of the first 20 data lines contains, otherwise whitespace. Without explicit
+  columns the first data line is a header when fewer than three of its fields are numbers (with
+  columns, when an easting, northing or elevation field is not a number), and three fields mean
+  ENZ, more mean PNEZD. The description code is the first word of the description (at most 64
+  bytes, at most 1,024 codes). Non-numeric and non-finite values and missing columns are located
+  refusals naming the line and the column and quoting the value.
+- *Units*: mm, cm, m, in, ft and `usft` (1200/3937 m), elevation in the horizontal unit; DXF also
+  `header`. The report gives `metresPerUnit` and `metresPerUnitExact` ("1200/3937").
+
+**Preparation** (`prepareTerrainSources`), in order:
+
+1. *Origin.* Proposed: the centre of all items' source extents in metres, E and N rounded to
+   100 m, Z 0. Used: the document's site origin when it has one (an explicit origin that differs
+   in any component refuses with INVALID_REQUEST), else the explicit origin, else the proposed
+   one. `local = source x metresPerUnit - origin` for X, Y and Z.
+2. *Roles* from the layer or code map (auto, contour, breakline, boundary, hole, ground,
+   ignore). Auto: constant Z is a contour, varying Z a breakline; points are ground. A varying
+   "contour" becomes a breakline with a `contour-not-constant` notice. Boundary and hole must be
+   closed (or repeat their first vertex) or refuse (`open-polygon`); more than one boundary
+   refuses. Codes mapped to a line role join their points in file order, one polyline per code.
+3. *Local extent*: beyond +-1,000,000 m refuses (`extent-exceeded`, naming the axis and range).
+4. *Cleaning*: consecutive vertices within 1e-7 m in XY and 1e-9 m in Z (zero-length segments)
+   and collinear spikes (a vertex where the polyline doubles back exactly along itself, tested
+   with the adapter's exact orientation predicate, `terrainOrientation`) are dropped and counted.
+5. *Pre-clipping* to the boundary and holes: each contour and breakline is split at proper
+   crossings with a boundary or hole edge, at polygon vertices lying on it and at its vertices
+   lying on a polygon edge (exact predicates; a crossing point within 1e-7 m of an endpoint
+   snaps to it). The crossing point gets Z interpolated along the segment and is also inserted
+   into the polygon edge, so the data ends exactly at a shared boundary vertex. Runs between
+   split points are kept when the midpoint of their first segment is strictly inside the region
+   (crossing-number test with exact orientation); runs on a boundary edge are dropped. A closed
+   contour's first and last runs are joined when its start is not a split point. Counts:
+   `clippedPolylines`, `clippedPiecesKept`, `clippedPiecesDropped`, `droppedOutsidePolylines`.
+   Clipper2 is not used here, a deviation from the brief: its open-path clipping snaps vertices
+   to its integer grid and drops Z (kept source vertices would no longer be exact), and its
+   `PointInPolygon` on doubles casts coordinates to integers in `CrossProductSign`, so points
+   near an edge read as "on" it (this dropped whole valley contours in the fixture).
+6. *Canonical order* (the rule that makes a shuffled source give the identical mesh): rings
+   start at their lexicographically smallest (x, y, z) vertex and run counter-clockwise; open
+   polylines start at the smaller endpoint; within each role polylines are sorted by their
+   vertex sequence (lexicographic over (x, y, z) vertices), ties by closedness and then
+   reference; ground points are sorted by (x, y, z), ties by reference, and grouped into one
+   `Points` source per code (codes in order). References are carried along, never part of the
+   key. Record order: contours, breaklines, boundary, holes, point groups.
+7. *Records*: one `TerrainSource` per polyline (a closed contour or breakline repeats its first
+   vertex), local metres, with its reference; points per code with the reference
+   "points, code X". At most 100,000 sources and 250,000 source vertices, else `limit-exceeded`.
+
+`terrainTriangulationInput(sources)` builds the adapter input from stored records only
+(source i has sourceId i + 1), so R095.c2's Regenerate and `terrain.set_parameters` rebuild the
+identical input from a `TerrainRecord`. The adapter's refusals are mapped back with the
+sourceId as the reference (a point group is resolved to the point's line by its exact XY) and
+XY in source units. Triangles with a 3D cross product below 1e-12 m^2 (twice the area) would be
+refused by the document's face tolerance; they are refused, located, as `degenerate-triangle`
+before any edit (none occur for valid adapter output).
+
+**Report.** The importer's source report (`apiVersion`, `format`, `units`, `metresPerUnit`,
+`metresPerUnitExact`, `sha256`, `bytes` and the format's counts) plus a `terrain` object:
+`outcome` (`refused`, `importedWithNotices`, `imported`), `conversion` (for example
+"model = (source × 1200/3937 m/usft) − (512300 m E, 5234600 m N, 0 m)"), `sourceExtents`,
+`localExtents`, `proposedOrigin`, `origin`, `originSource`, `roles`, complete `counts`,
+`flatTriangles` (initial, flips, Steiner points, remaining, area), `triangles`, `vertices`,
+`tiles`, `parameters`, and `refusals` and `notices`: each kind with its complete `count`, a
+message, at most 32 `locations` (`reference`, `reference2` for pairs, `xy` in source units,
+`detail`) and `locationsOmitted`. At most 64 kinds (further kinds are counted in `kindsOmitted`
+and `occurrencesInOmittedKinds`, and a refusal among them still refuses); messages and details at
+most 256 bytes quoting at most 64 bytes of user text (control characters replaced, cut on a UTF-8
+boundary); the whole report at most 64 KiB, reached by thinning locations evenly (32, 16, ... 0;
+`locationsPerKind`, `locationsThinned`), never counts.
+
+**Commands.** `terrain.inspect_source` runs alone in its batch and returns
+`{"status": "inspected", "inspection": ...}` at the unchanged revision: layers or codes with
+polyline, closed, constant-Z, varying-Z and point counts and a default role, extents, the
+proposed and used origin, the conversion and the full report including the triangulation dry
+run. `terrain.import` takes base64 `data`, `format`, `units`, optional `origin`, `crs`,
+`sourceName`, `roles`, `columns`, `delimiter`, `header`, `flatMode`, `steinerFill`,
+`maxEdgeLength`, `chordTolerance` and `name`; it applies `importTerrain`, ONE edit labelled
+"Import terrain" that creates the terrain and, when the document has no site origin, establishes
+it (CRS label, provenance: source name and SHA-256), so Undo removes both. The batch response
+lists `terrainOperations` (terrain, tiles, `siteEstablished`, `importReport`). A refusal throws
+INVALID_REQUEST (LIMIT_EXCEEDED for budget, extent and limit kinds) with
+`details.importReport` and leaves revision, history and records unchanged. The record stores the
+prepared sources, the parameters (boundary mode Boundary with a boundary, else MaxEdgeLength
+when given, else ConvexHull), generator `cdt-2.0.0/terrain-v1` and provenance (SHA-256, unit
+name, metresPerUnit). MCP reaches both through the command catalogue; `assistantVisible` still
+hides every `site.*` and `terrain.*` name and the tool-surface baseline is unchanged.
+
+**Data path bound.** `data` is canonical base64 of at most 16 MiB (22,369,624 characters, the
+`asset.import` bound). Session, MCP, staging and transaction requests keep their 64 KiB request
+bound, so through them a source is at most about 47 KiB; no global bound was raised. In-process
+callers (the future desktop dialog) and the CLI, which reads the file, take the full 64 MiB
+source budget.
+
+**CLI.** `sketchyup-cli --import-terrain FILE [--terrain-units U] [--terrain-format dxf|points]
+[--origin E,N[,Z]] [--terrain-crs LABEL] [--terrain-columns PRESET|m1,m2,...]
+[--terrain-delimiter D] [--terrain-header yes|no] [--terrain-roles NAME=ROLE,...]
+[--terrain-name NAME] [--input DOC] [--output NEW.sketchyup]`. The format defaults by extension
+(`.dxf`, else points); units are required for point files (`header` for DXF follows `$INSUNITS`).
+Without `--input` the terrain goes into a new model. It prints `{"status": "imported", ...,
+"importReport"}`; a refusal exits 1 with the code and `details.importReport`.
+
+**Kernel fix found on the way.** Validating a tile face sent Clipper2's (beta) Delaunay
+triangulation into unbounded edge creation on a plain 50 m triangle: `SegsIntersect` multiplies
+int64 grid coordinates in double, so beyond about 2^53 a shared endpoint can read as a crossing
+and `RemoveIntersection` keeps adding edges (reproducer on the 1e-7 m grid: (0, 0),
+(23000030, 0), (534575087, 70489124)). This was reachable on main through `createTerrain`. A
+face with one three-vertex loop is now its own tessellation (`tessellate` in
+`src/geometry/surface.cpp`); the zero-area refusal is unchanged. Larger faces still go through
+Clipper2 and could in principle meet the same precision fault; the vendored source is not
+patched. `terrain_tests` checks the triangle in a child process under a 2 GiB address-space cap.
+
+**Verification.** `terrain_import_tests` (dev and sanitize presets) generates the section 6
+fixtures in `tests/terrain_import_fixtures.hpp`: `terrain-contours-m.dxf` (16 rotated hill
+ellipses, 8 hairpin valley contours clipped by the boundary, a 3D breakline, a LINE contour, a
+boundary and a pond hole), `terrain-contours-usft.dxf` (6 decimals, unitless header),
+`terrain-utm.dxf` and `terrain-utm.xyz` (translated by (512345.678, 5234567.891) with an 1850 m
+datum, written exactly in decimal) and `terrain-invalid.dxf`. It checks: every kept source vertex
+in the mesh with Z exactly the source value and `terrain.elevation_at` within 1e-9 m; the usft
+fixture equals the metre fixture's triangles and is within 1e-6 m, stating 1200/3937; the UTM
+fixture with its proposed origin (512300, 5234600) gives the same triangles, every vertex within
+1e-9 m of `source x scale - origin`, the same micrometre-rounded digest after translation, and
+save, reopen, Undo and Redo bit for bit; the invalid fixture refused with at least 41 crossing pairs (32
+located), a conflicting duplicate and the notices, nothing changed, all bounds held; a crowded
+report (100 kinds x 100 locations) within 64 KiB; two imports identical; a shuffled DXF and a
+shuffled point file give the identical mesh; each preset, delimiter and header detection,
+description-code breaklines, required units and line-numbered errors; inspection, dry run,
+origins; and the CLI. The metre fixture's mesh digest is pinned
+(`c093a02e...29584`, identical in Debug and Release). The UTM point file (no constraints) is
+compared by vertices only: hull points that are nearly collinear may resolve differently under
+the translation's 1e-10 m rounding, which is why section 3 pins triangulation to the local frame.
+Fuzzing: `parser_fuzz_terrain_dxf` and `parser_fuzz_terrain_points` with seeds from
+`parser_fuzz_seeds`, and two `parser_fault_corpus_tests` entries; see
+[PARSER_FUZZING.md](../PARSER_FUZZING.md). The libFuzzer targets were not run in this slice (the
+seed generator and harness were built and run with GCC).
+
+**Timings.** `terrain_import_tests --timings`, Release, GCC 16.2, best of three, development
+machine under other load; source parse plus preparation and triangulation (the document edit
+is not included):
+
+| Source | Size | Parse | Prepare and triangulate | Triangles |
+| --- | --- | --- | --- | --- |
+| 120,000 random points (XYZ) | 3.8 MB | 64 ms | 288 ms | 239,962 |
+| 400 contour rings of 300 vertices (DXF) | 2.9 MB | 64 ms | 399 ms | 239,698 |
 
 ## Appendix: experiments
 

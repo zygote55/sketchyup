@@ -4,11 +4,43 @@
 // terrain.describe and terrain.elevation_at are inspection queries. None is shown to
 // the in-app assistant yet (assistantVisible); MCP exposes all of them.
 #include "core/model.hpp"
+#include "core/terrain_records.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
 namespace sketchy {
+// R095.c: terrain.import is a batch command; terrain.inspect_source parses and dry-runs a
+// source without changing anything (a batch holding only that command returns
+// {"status": "inspected"} at the unchanged revision).
+// Largest inline source: `data` is base64 of at most 16 MiB (22,369,624 characters, the
+// asset.import bound). Session, MCP and transaction requests stay within their 64 KiB request
+// bound, so through them a source is at most about 47 KiB; the in-process path (desktop) and
+// the CLI file path take the full 64 MiB source budget.
+inline constexpr int terrainDataCharacters = 22369624;
 bool isTerrainCommand(const QString &name);
-ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command);
+// A terrain.import refusal: the shared code plus the bounded import report.
+class TerrainImportError : public TerrainError {
+  public:
+    TerrainImportError(std::string code, const std::string &message, QJsonObject report)
+        : TerrainError(std::move(code), message), report_(std::move(report)) {}
+    const QJsonObject &report() const { return report_; }
+
+  private:
+    QJsonObject report_;
+};
+// `operation`, when given, receives the command's result record (terrain.import: the new
+// terrain, its tiles and the import report).
+ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
+                                   QJsonObject *operation = nullptr);
+// terrain.inspect_source with base64 `data`.
+QJsonObject inspectTerrainCommand(const Document &doc, const QJsonObject &command);
+// The same two operations on source bytes, with the other command fields as options (the CLI
+// reads a file instead of `data`; `data` is ignored here). importTerrainSource applies one
+// labelled edit and returns the operation record; a refusal throws TerrainImportError and
+// changes nothing.
+QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
+                                 const QJsonObject &command);
+QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes,
+                                const QJsonObject &command);
 // Entries in the shared command catalogue format.
 QJsonArray terrainCommandSpecs();
 QJsonObject siteDescription(const Document &doc);

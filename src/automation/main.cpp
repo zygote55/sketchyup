@@ -6,6 +6,7 @@
 #include "automation/optional_capabilities.hpp"
 #include "automation/recipe.hpp"
 #include "automation/session.hpp"
+#include "automation/terrain_commands.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/assembly_source.hpp"
 #include "io/document_io.hpp"
@@ -103,6 +104,28 @@ int main(int argc, char **argv) {
     parser.addOption(
         {"dxf-unit", "Explicit unit: mm, cm, m, in, ft, or header for import", "unit"});
     parser.addOption({"dxf-segments", "Import chord segments per full circle: 12..256", "count"});
+    parser.addOption({"import-terrain",
+                      "Import a terrain from a DXF or point file into --input (or a new model); "
+                      "optional new native --output",
+                      "path"});
+    parser.addOption({"terrain-units",
+                      "Terrain source unit: mm, cm, m, in, ft, usft, or header for DXF", "unit"});
+    parser.addOption(
+        {"terrain-format", "Terrain source format: dxf or points (default: by extension)", "format"});
+    parser.addOption({"origin", "Explicit site origin in metres: E,N[,Z]", "E,N[,Z]"});
+    parser.addOption({"terrain-crs", "Informational CRS label for a new site origin", "label"});
+    parser.addOption({"terrain-columns",
+                      "Point columns: PNEZD, PENZD, ENZ, XYZ or a comma list of point, easting, "
+                      "northing, elevation, description, ignore",
+                      "columns"});
+    parser.addOption(
+        {"terrain-delimiter", "Point delimiter: comma, tab, semicolon or whitespace", "delimiter"});
+    parser.addOption({"terrain-header", "Point file header row: yes or no", "yes|no"});
+    parser.addOption({"terrain-roles",
+                      "Roles by layer or code: NAME=ROLE[,NAME=ROLE...] with roles auto, contour, "
+                      "breakline, boundary, hole, ground, ignore",
+                      "roles"});
+    parser.addOption({"terrain-name", "Name of the imported terrain", "name"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption(
@@ -269,6 +292,111 @@ int main(int argc, char **argv) {
             if (parser.isSet(option))
                 throw sketchy::InspectionError("INVALID_REQUEST",
                                                "Sheet export options require --export-sheets");
+        if (parser.isSet("import-terrain")) {
+            // R095.c (ADR 0168 section 5): one labelled edit on --input or a new model.
+            auto invalid = [](const std::string &message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            const QStringList allowed{"import-terrain",    "terrain-units",  "terrain-format",
+                                      "origin",            "terrain-crs",    "terrain-columns",
+                                      "terrain-delimiter", "terrain-header", "terrain-roles",
+                                      "terrain-name",      "input",          "output"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("Terrain import is a standalone operation");
+            if (!parser.positionalArguments().isEmpty())
+                invalid("Unexpected positional arguments");
+            const auto path = parser.value("import-terrain");
+            QJsonObject command{{"command", "terrain.import"}};
+            command["format"] = parser.isSet("terrain-format")
+                                    ? parser.value("terrain-format")
+                                    : (path.endsWith(".dxf", Qt::CaseInsensitive) ? "dxf" : "points");
+            if (parser.isSet("terrain-units"))
+                command["units"] = parser.value("terrain-units");
+            else if (command["format"] == "points")
+                invalid("Point files have no units; choose --terrain-units");
+            if (parser.isSet("origin")) {
+                const auto parts = parser.value("origin").split(',');
+                QJsonObject origin;
+                const char *keys[3]{"easting", "northing", "elevation"};
+                if (parts.size() < 2 || parts.size() > 3)
+                    invalid("--origin is E,N or E,N,Z in metres");
+                for (qsizetype i = 0; i < parts.size(); ++i) {
+                    bool ok{};
+                    const double value = parts[i].trimmed().toDouble(&ok);
+                    if (!ok)
+                        invalid("--origin is E,N or E,N,Z in metres");
+                    origin[keys[i]] = value;
+                }
+                command["origin"] = origin;
+            }
+            if (parser.isSet("terrain-crs"))
+                command["crs"] = parser.value("terrain-crs");
+            if (parser.isSet("terrain-columns")) {
+                const auto value = parser.value("terrain-columns");
+                if (value.contains(',')) {
+                    QJsonArray columns;
+                    for (const auto &column : value.split(','))
+                        columns.append(column.trimmed());
+                    command["columns"] = columns;
+                } else
+                    command["columns"] = value;
+            }
+            if (parser.isSet("terrain-delimiter"))
+                command["delimiter"] = parser.value("terrain-delimiter");
+            if (parser.isSet("terrain-header")) {
+                const auto value = parser.value("terrain-header");
+                if (value != "yes" && value != "no")
+                    invalid("--terrain-header is yes or no");
+                command["header"] = value == "yes";
+            }
+            if (parser.isSet("terrain-roles")) {
+                QJsonObject roles;
+                for (const auto &entry : parser.value("terrain-roles").split(',')) {
+                    const auto at = entry.lastIndexOf('=');
+                    if (at <= 0)
+                        invalid("--terrain-roles is NAME=ROLE[,NAME=ROLE...]");
+                    roles[entry.left(at)] = entry.mid(at + 1).trimmed();
+                }
+                command["roles"] = roles;
+            }
+            if (parser.isSet("terrain-name"))
+                command["name"] = parser.value("terrain-name");
+            command["sourceName"] = QFileInfo(path).fileName().left(256);
+            QFile file(path);
+            const QFileInfo info(path);
+            if (!info.isFile() || info.size() > 64 * 1024 * 1024 ||
+                !file.open(QIODevice::ReadOnly))
+                throw sketchy::InspectionError("INPUT_ERROR",
+                                               "A terrain source is a regular file of at most 64 MiB");
+            const auto bytes = file.read(64 * 1024 * 1024 + 1);
+            if (file.error() != QFileDevice::NoError || bytes.size() > 64 * 1024 * 1024)
+                throw sketchy::InspectionError("INPUT_ERROR", "Cannot read the terrain source");
+            auto document = parser.isSet("input") ? sketchy::loadDocument(parser.value("input"))
+                                                  : sketchy::Document();
+            QJsonObject operation;
+            try {
+                operation = sketchy::importTerrainSource(document, bytes, command);
+            } catch (const sketchy::TerrainImportError &error) {
+                throw sketchy::InspectionError(error.code(), error.what(),
+                                               QJsonObject{{"importReport", error.report()}});
+            } catch (const sketchy::TerrainError &error) {
+                throw sketchy::InspectionError(error.code(), error.what());
+            }
+            QJsonObject result{{"status", "imported"},
+                               {"terrain", operation["terrain"]},
+                               {"tiles", operation["tiles"].toArray().size()},
+                               {"siteEstablished", operation["siteEstablished"]},
+                               {"importReport", operation["importReport"]}};
+            if (parser.isSet("output"))
+                result["nativeFile"] = sketchy::createNativeFile(document, parser.value("output"));
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("terrain-") || option == "origin")
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST", "Terrain options require --import-terrain");
         if (parser.isSet("import-dxf") || parser.isSet("export-dxf")) {
             auto invalid = [](const char *message) {
                 throw sketchy::InspectionError("INVALID_REQUEST", message);

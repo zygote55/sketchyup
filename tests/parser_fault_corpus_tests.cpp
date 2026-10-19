@@ -1,5 +1,6 @@
 #include "automation/extension.hpp"
 #include "component_parameter_fixture.hpp"
+#include "terrain_import_fixtures.hpp"
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
@@ -13,6 +14,7 @@
 #include "io/obj_source.hpp"
 #include "io/stl_export.hpp"
 #include "io/texture_image.hpp"
+#include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -390,6 +392,46 @@ int main(int argc, char **argv) {
                         coordinate(segment.center);
                     }
             }));
+        // R095.c terrain sources: an accepted source keeps finite, bounded coordinates and
+        // its dry-run import keeps the bounded report.
+        auto terrainSource = [](const TerrainSourceSet &set) {
+            for (const auto &polyline : set.polylines) {
+                check(polyline.points.size() >= 2 && polyline.layer < set.layers.size(),
+                      "Accepted terrain polyline is malformed");
+                for (const auto &p : polyline.points)
+                    check(std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z),
+                          "Accepted terrain coordinate is not finite");
+            }
+            for (const auto &point : set.points)
+                check(point.layer < set.layers.size() && std::isfinite(point.position.z),
+                      "Accepted terrain point is malformed");
+            const auto result = runTerrainImport(set, {}, std::nullopt);
+            check(QJsonDocument(result.report).toJson(QJsonDocument::Compact).size() <= 64 * 1024,
+                  "Terrain import report exceeds 64 KiB");
+        };
+        {
+            // A small slice of the contour fixture keeps 512 dry-run imports quick.
+            std::vector<terrain_fixture::Item> items;
+            for (const auto &item : terrain_fixture::site())
+                if (item.handle >= 0x10C && item.handle <= 0x112)
+                    items.push_back(item);
+            results.append(exercise("terrain-dxf", terrain_fixture::dxf(items, {}, 6),
+                                    [&](const auto &bytes, bool &parsed) {
+                                        const auto set = parseDxfTerrain(bytes);
+                                        parsed = true;
+                                        terrainSource(set);
+                                    }));
+        }
+        results.append(exercise("terrain-points",
+                                "P,N,E,Z,D\n1,200.5,100.25,10.5,GND\n2,201,103,11,BL\n"
+                                "3,205,101,12,BL\n4,199,104,9.5,GND\n5,198,99,9.75,GND\n",
+                                [&](const auto &bytes, bool &parsed) {
+                                    TerrainPointOptions options;
+                                    options.unit = *terrainUnit("m");
+                                    const auto set = parseTerrainPoints(bytes, options);
+                                    parsed = true;
+                                    terrainSource(set);
+                                }));
         const auto png = encodeTexturePng(TextureImage(1, 1, {10, 20, 30, 255}));
         const TemplateMetadata metadata{"Corpus", "Bounded corruption fixture", {"test"}, 0};
         results.append(exercise("template", encodeTemplateBundle(source, metadata, png),
@@ -455,13 +497,13 @@ int main(int argc, char **argv) {
               "Corpus never mutates its parameter model");
         check(encodeContainer(terrain) == terrainContainer,
               "Corpus never mutates its terrain model");
-        check(results.size() == 21,
-              "Corpus covers twelve formats plus the four schema-27, four schema-28 and one "
+        check(results.size() == 23,
+              "Corpus covers fourteen formats plus the four schema-27, four schema-28 and one "
               "schema-29 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},
                                                {"formats", results},
-                                               {"mutations", 10752},
+                                               {"mutations", 11776},
                                                {"sourcePreserved", true}})
                          .toJson()
                          .toStdString();

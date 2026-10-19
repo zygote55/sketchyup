@@ -9738,6 +9738,355 @@
       },
       "undo": "one batch history item",
       "validation": "Schema plus authoritative site, terrain, document and limit validation"
+    },
+    {
+      "category": "Site and terrain",
+      "label": "Inspect terrain source",
+      "name": "terrain.inspect_source",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Inspect terrain source",
+        "properties": {
+          "chordTolerance": {
+            "description": "DXF arc chord tolerance in metres; default 0.05",
+            "maximum": 100,
+            "minimum": 1e-06,
+            "type": "number"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "description": "Column preset",
+                "enum": [
+                  "PNEZD",
+                  "PENZD",
+                  "ENZ",
+                  "XYZ"
+                ],
+                "type": "string"
+              },
+              {
+                "items": {
+                  "description": "Meaning of one point-file column",
+                  "enum": [
+                    "point",
+                    "easting",
+                    "northing",
+                    "elevation",
+                    "description",
+                    "ignore"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 1,
+                "type": "array"
+              }
+            ]
+          },
+          "command": {
+            "const": "terrain.inspect_source"
+          },
+          "crs": {
+            "description": "Informational CRS label for a new site origin",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "data": {
+            "description": "Canonical base64 of the source file (at most 16 MiB; a 64 KiB request carries about 47 KiB)",
+            "maxLength": 22369624,
+            "type": "string"
+          },
+          "delimiter": {
+            "description": "Point-file delimiter; detected when omitted",
+            "enum": [
+              "comma",
+              "tab",
+              "semicolon",
+              "whitespace"
+            ],
+            "type": "string"
+          },
+          "flatMode": {
+            "description": "Flat-triangle handling; default flip",
+            "enum": [
+              "flip",
+              "reportOnly"
+            ],
+            "type": "string"
+          },
+          "format": {
+            "description": "DXF terrain mode or a CSV/XYZ/PNEZD point file",
+            "enum": [
+              "dxf",
+              "points"
+            ],
+            "type": "string"
+          },
+          "header": {
+            "description": "Whether the first data line is a header; detected when omitted",
+            "type": "boolean"
+          },
+          "maxEdgeLength": {
+            "maximum": 2000000,
+            "minimum": 0.001,
+            "type": "number"
+          },
+          "origin": {
+            "additionalProperties": false,
+            "description": "Explicit site origin in metres; default: the proposed origin, or the document's",
+            "properties": {
+              "easting": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              },
+              "elevation": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              },
+              "northing": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              }
+            },
+            "required": [
+              "easting",
+              "northing"
+            ],
+            "type": "object"
+          },
+          "roles": {
+            "additionalProperties": {
+              "description": "Role of a DXF layer or point description code",
+              "enum": [
+                "auto",
+                "contour",
+                "breakline",
+                "boundary",
+                "hole",
+                "ground",
+                "ignore"
+              ],
+              "type": "string"
+            },
+            "maxProperties": 1024,
+            "propertyNames": {
+              "maxLength": 256
+            },
+            "type": "object"
+          },
+          "sourceName": {
+            "description": "Source file name for the provenance",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "steinerFill": {
+            "type": "boolean"
+          },
+          "units": {
+            "description": "Source unit; required for point files and unitless DXF; usft is the US survey foot (1200/3937 m); header follows $INSUNITS",
+            "enum": [
+              "mm",
+              "cm",
+              "m",
+              "in",
+              "ft",
+              "usft",
+              "header"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "format",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative site, terrain, document and limit validation"
+    },
+    {
+      "category": "Site and terrain",
+      "label": "Import terrain",
+      "name": "terrain.import",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Import terrain",
+        "properties": {
+          "chordTolerance": {
+            "description": "DXF arc chord tolerance in metres; default 0.05",
+            "maximum": 100,
+            "minimum": 1e-06,
+            "type": "number"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "description": "Column preset",
+                "enum": [
+                  "PNEZD",
+                  "PENZD",
+                  "ENZ",
+                  "XYZ"
+                ],
+                "type": "string"
+              },
+              {
+                "items": {
+                  "description": "Meaning of one point-file column",
+                  "enum": [
+                    "point",
+                    "easting",
+                    "northing",
+                    "elevation",
+                    "description",
+                    "ignore"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 1,
+                "type": "array"
+              }
+            ]
+          },
+          "command": {
+            "const": "terrain.import"
+          },
+          "crs": {
+            "description": "Informational CRS label for a new site origin",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "data": {
+            "description": "Canonical base64 of the source file (at most 16 MiB; a 64 KiB request carries about 47 KiB)",
+            "maxLength": 22369624,
+            "type": "string"
+          },
+          "delimiter": {
+            "description": "Point-file delimiter; detected when omitted",
+            "enum": [
+              "comma",
+              "tab",
+              "semicolon",
+              "whitespace"
+            ],
+            "type": "string"
+          },
+          "flatMode": {
+            "description": "Flat-triangle handling; default flip",
+            "enum": [
+              "flip",
+              "reportOnly"
+            ],
+            "type": "string"
+          },
+          "format": {
+            "description": "DXF terrain mode or a CSV/XYZ/PNEZD point file",
+            "enum": [
+              "dxf",
+              "points"
+            ],
+            "type": "string"
+          },
+          "header": {
+            "description": "Whether the first data line is a header; detected when omitted",
+            "type": "boolean"
+          },
+          "maxEdgeLength": {
+            "maximum": 2000000,
+            "minimum": 0.001,
+            "type": "number"
+          },
+          "name": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "origin": {
+            "additionalProperties": false,
+            "description": "Explicit site origin in metres; default: the proposed origin, or the document's",
+            "properties": {
+              "easting": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              },
+              "elevation": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              },
+              "northing": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              }
+            },
+            "required": [
+              "easting",
+              "northing"
+            ],
+            "type": "object"
+          },
+          "roles": {
+            "additionalProperties": {
+              "description": "Role of a DXF layer or point description code",
+              "enum": [
+                "auto",
+                "contour",
+                "breakline",
+                "boundary",
+                "hole",
+                "ground",
+                "ignore"
+              ],
+              "type": "string"
+            },
+            "maxProperties": 1024,
+            "propertyNames": {
+              "maxLength": 256
+            },
+            "type": "object"
+          },
+          "sourceName": {
+            "description": "Source file name for the provenance",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "steinerFill": {
+            "type": "boolean"
+          },
+          "units": {
+            "description": "Source unit; required for point files and unitless DXF; usft is the US survey foot (1200/3937 m); header follows $INSUNITS",
+            "enum": [
+              "mm",
+              "cm",
+              "m",
+              "in",
+              "ft",
+              "usft",
+              "header"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "format",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative site, terrain, document and limit validation"
     }
   ],
   "extensions": {
@@ -24146,6 +24495,341 @@
                     "command"
                   ],
                   "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Inspect terrain source",
+                  "properties": {
+                    "chordTolerance": {
+                      "description": "DXF arc chord tolerance in metres; default 0.05",
+                      "maximum": 100,
+                      "minimum": 1e-06,
+                      "type": "number"
+                    },
+                    "columns": {
+                      "anyOf": [
+                        {
+                          "description": "Column preset",
+                          "enum": [
+                            "PNEZD",
+                            "PENZD",
+                            "ENZ",
+                            "XYZ"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "Meaning of one point-file column",
+                            "enum": [
+                              "point",
+                              "easting",
+                              "northing",
+                              "elevation",
+                              "description",
+                              "ignore"
+                            ],
+                            "type": "string"
+                          },
+                          "maxItems": 64,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "command": {
+                      "const": "terrain.inspect_source"
+                    },
+                    "crs": {
+                      "description": "Informational CRS label for a new site origin",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "data": {
+                      "description": "Canonical base64 of the source file (at most 16 MiB; a 64 KiB request carries about 47 KiB)",
+                      "maxLength": 22369624,
+                      "type": "string"
+                    },
+                    "delimiter": {
+                      "description": "Point-file delimiter; detected when omitted",
+                      "enum": [
+                        "comma",
+                        "tab",
+                        "semicolon",
+                        "whitespace"
+                      ],
+                      "type": "string"
+                    },
+                    "flatMode": {
+                      "description": "Flat-triangle handling; default flip",
+                      "enum": [
+                        "flip",
+                        "reportOnly"
+                      ],
+                      "type": "string"
+                    },
+                    "format": {
+                      "description": "DXF terrain mode or a CSV/XYZ/PNEZD point file",
+                      "enum": [
+                        "dxf",
+                        "points"
+                      ],
+                      "type": "string"
+                    },
+                    "header": {
+                      "description": "Whether the first data line is a header; detected when omitted",
+                      "type": "boolean"
+                    },
+                    "maxEdgeLength": {
+                      "maximum": 2000000,
+                      "minimum": 0.001,
+                      "type": "number"
+                    },
+                    "origin": {
+                      "additionalProperties": false,
+                      "description": "Explicit site origin in metres; default: the proposed origin, or the document's",
+                      "properties": {
+                        "easting": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "elevation": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "northing": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "easting",
+                        "northing"
+                      ],
+                      "type": "object"
+                    },
+                    "roles": {
+                      "additionalProperties": {
+                        "description": "Role of a DXF layer or point description code",
+                        "enum": [
+                          "auto",
+                          "contour",
+                          "breakline",
+                          "boundary",
+                          "hole",
+                          "ground",
+                          "ignore"
+                        ],
+                        "type": "string"
+                      },
+                      "maxProperties": 1024,
+                      "propertyNames": {
+                        "maxLength": 256
+                      },
+                      "type": "object"
+                    },
+                    "sourceName": {
+                      "description": "Source file name for the provenance",
+                      "maxLength": 256,
+                      "type": "string"
+                    },
+                    "steinerFill": {
+                      "type": "boolean"
+                    },
+                    "units": {
+                      "description": "Source unit; required for point files and unitless DXF; usft is the US survey foot (1200/3937 m); header follows $INSUNITS",
+                      "enum": [
+                        "mm",
+                        "cm",
+                        "m",
+                        "in",
+                        "ft",
+                        "usft",
+                        "header"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "format",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Import terrain",
+                  "properties": {
+                    "chordTolerance": {
+                      "description": "DXF arc chord tolerance in metres; default 0.05",
+                      "maximum": 100,
+                      "minimum": 1e-06,
+                      "type": "number"
+                    },
+                    "columns": {
+                      "anyOf": [
+                        {
+                          "description": "Column preset",
+                          "enum": [
+                            "PNEZD",
+                            "PENZD",
+                            "ENZ",
+                            "XYZ"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "Meaning of one point-file column",
+                            "enum": [
+                              "point",
+                              "easting",
+                              "northing",
+                              "elevation",
+                              "description",
+                              "ignore"
+                            ],
+                            "type": "string"
+                          },
+                          "maxItems": 64,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "command": {
+                      "const": "terrain.import"
+                    },
+                    "crs": {
+                      "description": "Informational CRS label for a new site origin",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "data": {
+                      "description": "Canonical base64 of the source file (at most 16 MiB; a 64 KiB request carries about 47 KiB)",
+                      "maxLength": 22369624,
+                      "type": "string"
+                    },
+                    "delimiter": {
+                      "description": "Point-file delimiter; detected when omitted",
+                      "enum": [
+                        "comma",
+                        "tab",
+                        "semicolon",
+                        "whitespace"
+                      ],
+                      "type": "string"
+                    },
+                    "flatMode": {
+                      "description": "Flat-triangle handling; default flip",
+                      "enum": [
+                        "flip",
+                        "reportOnly"
+                      ],
+                      "type": "string"
+                    },
+                    "format": {
+                      "description": "DXF terrain mode or a CSV/XYZ/PNEZD point file",
+                      "enum": [
+                        "dxf",
+                        "points"
+                      ],
+                      "type": "string"
+                    },
+                    "header": {
+                      "description": "Whether the first data line is a header; detected when omitted",
+                      "type": "boolean"
+                    },
+                    "maxEdgeLength": {
+                      "maximum": 2000000,
+                      "minimum": 0.001,
+                      "type": "number"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "origin": {
+                      "additionalProperties": false,
+                      "description": "Explicit site origin in metres; default: the proposed origin, or the document's",
+                      "properties": {
+                        "easting": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "elevation": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "northing": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "easting",
+                        "northing"
+                      ],
+                      "type": "object"
+                    },
+                    "roles": {
+                      "additionalProperties": {
+                        "description": "Role of a DXF layer or point description code",
+                        "enum": [
+                          "auto",
+                          "contour",
+                          "breakline",
+                          "boundary",
+                          "hole",
+                          "ground",
+                          "ignore"
+                        ],
+                        "type": "string"
+                      },
+                      "maxProperties": 1024,
+                      "propertyNames": {
+                        "maxLength": 256
+                      },
+                      "type": "object"
+                    },
+                    "sourceName": {
+                      "description": "Source file name for the provenance",
+                      "maxLength": 256,
+                      "type": "string"
+                    },
+                    "steinerFill": {
+                      "type": "boolean"
+                    },
+                    "units": {
+                      "description": "Source unit; required for point files and unitless DXF; usft is the US survey foot (1200/3937 m); header follows $INSUNITS",
+                      "enum": [
+                        "mm",
+                        "cm",
+                        "m",
+                        "in",
+                        "ft",
+                        "usft",
+                        "header"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "format",
+                    "command"
+                  ],
+                  "type": "object"
                 }
               ]
             },
@@ -35797,6 +36481,341 @@
                   },
                   "required": [
                     "body",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Inspect terrain source",
+                  "properties": {
+                    "chordTolerance": {
+                      "description": "DXF arc chord tolerance in metres; default 0.05",
+                      "maximum": 100,
+                      "minimum": 1e-06,
+                      "type": "number"
+                    },
+                    "columns": {
+                      "anyOf": [
+                        {
+                          "description": "Column preset",
+                          "enum": [
+                            "PNEZD",
+                            "PENZD",
+                            "ENZ",
+                            "XYZ"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "Meaning of one point-file column",
+                            "enum": [
+                              "point",
+                              "easting",
+                              "northing",
+                              "elevation",
+                              "description",
+                              "ignore"
+                            ],
+                            "type": "string"
+                          },
+                          "maxItems": 64,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "command": {
+                      "const": "terrain.inspect_source"
+                    },
+                    "crs": {
+                      "description": "Informational CRS label for a new site origin",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "data": {
+                      "description": "Canonical base64 of the source file (at most 16 MiB; a 64 KiB request carries about 47 KiB)",
+                      "maxLength": 22369624,
+                      "type": "string"
+                    },
+                    "delimiter": {
+                      "description": "Point-file delimiter; detected when omitted",
+                      "enum": [
+                        "comma",
+                        "tab",
+                        "semicolon",
+                        "whitespace"
+                      ],
+                      "type": "string"
+                    },
+                    "flatMode": {
+                      "description": "Flat-triangle handling; default flip",
+                      "enum": [
+                        "flip",
+                        "reportOnly"
+                      ],
+                      "type": "string"
+                    },
+                    "format": {
+                      "description": "DXF terrain mode or a CSV/XYZ/PNEZD point file",
+                      "enum": [
+                        "dxf",
+                        "points"
+                      ],
+                      "type": "string"
+                    },
+                    "header": {
+                      "description": "Whether the first data line is a header; detected when omitted",
+                      "type": "boolean"
+                    },
+                    "maxEdgeLength": {
+                      "maximum": 2000000,
+                      "minimum": 0.001,
+                      "type": "number"
+                    },
+                    "origin": {
+                      "additionalProperties": false,
+                      "description": "Explicit site origin in metres; default: the proposed origin, or the document's",
+                      "properties": {
+                        "easting": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "elevation": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "northing": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "easting",
+                        "northing"
+                      ],
+                      "type": "object"
+                    },
+                    "roles": {
+                      "additionalProperties": {
+                        "description": "Role of a DXF layer or point description code",
+                        "enum": [
+                          "auto",
+                          "contour",
+                          "breakline",
+                          "boundary",
+                          "hole",
+                          "ground",
+                          "ignore"
+                        ],
+                        "type": "string"
+                      },
+                      "maxProperties": 1024,
+                      "propertyNames": {
+                        "maxLength": 256
+                      },
+                      "type": "object"
+                    },
+                    "sourceName": {
+                      "description": "Source file name for the provenance",
+                      "maxLength": 256,
+                      "type": "string"
+                    },
+                    "steinerFill": {
+                      "type": "boolean"
+                    },
+                    "units": {
+                      "description": "Source unit; required for point files and unitless DXF; usft is the US survey foot (1200/3937 m); header follows $INSUNITS",
+                      "enum": [
+                        "mm",
+                        "cm",
+                        "m",
+                        "in",
+                        "ft",
+                        "usft",
+                        "header"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "format",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Import terrain",
+                  "properties": {
+                    "chordTolerance": {
+                      "description": "DXF arc chord tolerance in metres; default 0.05",
+                      "maximum": 100,
+                      "minimum": 1e-06,
+                      "type": "number"
+                    },
+                    "columns": {
+                      "anyOf": [
+                        {
+                          "description": "Column preset",
+                          "enum": [
+                            "PNEZD",
+                            "PENZD",
+                            "ENZ",
+                            "XYZ"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "Meaning of one point-file column",
+                            "enum": [
+                              "point",
+                              "easting",
+                              "northing",
+                              "elevation",
+                              "description",
+                              "ignore"
+                            ],
+                            "type": "string"
+                          },
+                          "maxItems": 64,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "command": {
+                      "const": "terrain.import"
+                    },
+                    "crs": {
+                      "description": "Informational CRS label for a new site origin",
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "data": {
+                      "description": "Canonical base64 of the source file (at most 16 MiB; a 64 KiB request carries about 47 KiB)",
+                      "maxLength": 22369624,
+                      "type": "string"
+                    },
+                    "delimiter": {
+                      "description": "Point-file delimiter; detected when omitted",
+                      "enum": [
+                        "comma",
+                        "tab",
+                        "semicolon",
+                        "whitespace"
+                      ],
+                      "type": "string"
+                    },
+                    "flatMode": {
+                      "description": "Flat-triangle handling; default flip",
+                      "enum": [
+                        "flip",
+                        "reportOnly"
+                      ],
+                      "type": "string"
+                    },
+                    "format": {
+                      "description": "DXF terrain mode or a CSV/XYZ/PNEZD point file",
+                      "enum": [
+                        "dxf",
+                        "points"
+                      ],
+                      "type": "string"
+                    },
+                    "header": {
+                      "description": "Whether the first data line is a header; detected when omitted",
+                      "type": "boolean"
+                    },
+                    "maxEdgeLength": {
+                      "maximum": 2000000,
+                      "minimum": 0.001,
+                      "type": "number"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "origin": {
+                      "additionalProperties": false,
+                      "description": "Explicit site origin in metres; default: the proposed origin, or the document's",
+                      "properties": {
+                        "easting": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "elevation": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "northing": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "easting",
+                        "northing"
+                      ],
+                      "type": "object"
+                    },
+                    "roles": {
+                      "additionalProperties": {
+                        "description": "Role of a DXF layer or point description code",
+                        "enum": [
+                          "auto",
+                          "contour",
+                          "breakline",
+                          "boundary",
+                          "hole",
+                          "ground",
+                          "ignore"
+                        ],
+                        "type": "string"
+                      },
+                      "maxProperties": 1024,
+                      "propertyNames": {
+                        "maxLength": 256
+                      },
+                      "type": "object"
+                    },
+                    "sourceName": {
+                      "description": "Source file name for the provenance",
+                      "maxLength": 256,
+                      "type": "string"
+                    },
+                    "steinerFill": {
+                      "type": "boolean"
+                    },
+                    "units": {
+                      "description": "Source unit; required for point files and unitless DXF; usft is the US survey foot (1200/3937 m); header follows $INSUNITS",
+                      "enum": [
+                        "mm",
+                        "cm",
+                        "m",
+                        "in",
+                        "ft",
+                        "usft",
+                        "header"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "format",
                     "command"
                   ],
                   "type": "object"

@@ -1144,6 +1144,14 @@ int main(int argc, char **argv) {
                                    {"elevation", 12}, {"crs", "EPSG:32633"}});
         parameterCase("site.reanchor", {{"easting", 512000}, {"northing", 5234000}});
         parameterCase("terrain.explode", {{"body", "1"}});
+        // Terrain import (R095.c): a small point file in metres, far from the model.
+        const auto terrainPoints =
+            QString::fromLatin1(QByteArray("100 100 1\n110 100 2\n100 110 3\n110 110 1.5\n")
+                                    .toBase64());
+        parameterCase("terrain.inspect_source",
+                      {{"data", terrainPoints}, {"format", "points"}, {"units", "m"}});
+        parameterCase("terrain.import", {{"data", terrainPoints}, {"format", "points"},
+                                         {"units", "m"}, {"crs", "EPSG:32633"}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1373,6 +1381,12 @@ int main(int argc, char **argv) {
             check(encodeDocument(doc) == original, "Unknown field never mutates document");
             const auto revision = doc.revision();
             const auto response = executeBatch(doc, request(doc, command));
+            if (command["command"] == "terrain.inspect_source") {
+                check(response["status"] == "inspected" && doc.revision() == revision &&
+                          encodeDocument(doc) == original,
+                      "terrain.inspect_source changes nothing");
+                continue;
+            }
             if (command["command"] == "group.selection") {
                 const auto transfer = response["transfers"].toArray()[0].toObject();
                 check(response["copies"].toArray().empty() && transfer["sourceBody"] == "1" &&

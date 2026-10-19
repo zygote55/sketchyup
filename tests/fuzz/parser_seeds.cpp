@@ -1,4 +1,5 @@
 #include "../component_parameter_fixture.hpp"
+#include "../terrain_import_fixtures.hpp"
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
@@ -298,6 +299,19 @@ int main(int argc, char **argv) {
             }
             publishRejected("terrain-mesh", oversized, "oversized-counts");
         }
+        // R095.c: terrain sources, the generated fixtures (ADR 0168 section 6). The invalid
+        // fixture parses and its import is refused, which the harness checks too.
+        publish("terrain-dxf", terrain_fixture::terrainContoursMetres(), "contours-m");
+        publish("terrain-dxf", terrain_fixture::terrainUtm(), "utm");
+        publish("terrain-dxf", terrain_fixture::terrainInvalid(), "invalid");
+        publishRejected("terrain-dxf", terrain_fixture::terrainContoursUsft().replace("AC1015", "AC1001"),
+                        "unsupported-version");
+        publish("terrain-points", terrain_fixture::terrainXyz(true), "utm-xyz");
+        publish("terrain-points", "P,N,E,Z,D\n1,200.5,100.25,10.5,GND\n2,201,103,11,BL\n"
+                                  "3,205,101,12,BL\n4,199,104,9.5,GND\n",
+                "pnezd");
+        publish("terrain-points", "100;200;10\n101;x;11\n102;203;inf\n", "bad-values");
+        publishRejected("terrain-points", QByteArray("1 2\n"), "too-few-columns");
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {
             {"table-width", "width - 60 mm"},
@@ -317,7 +331,7 @@ int main(int argc, char **argv) {
             publish("parameter-expression", QByteArray(text), QString::fromLatin1(name));
         std::cout << QJsonDocument(QJsonObject{{"validSeeds", rows},
                                                {"rejectedSeeds", rejectedRows},
-                                               {"formats", 12},
+                                               {"formats", 14},
                                                {"inputLimitBytes", qint64(fuzz::inputLimit)},
                                                {"releaseAcceptance", false}})
                          .toJson(QJsonDocument::Compact)
