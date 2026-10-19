@@ -78,6 +78,32 @@ TerrainCreated importTerrain(Document &doc, const TerrainMesh &mesh, TerrainReco
 // The terrain becomes an ordinary group of its tiles and loses its record. Refuses
 // (LIMIT_EXCEEDED) when the faces would exceed the modelling limit.
 ChangeReport explodeTerrain(Document &doc, Id terrain);
+// R095.c2 regeneration. Paint that a new mesh cannot keep: tile faces with their own colour,
+// material or texture mapping, and tiles with their own material or colour.
+struct TerrainPaint {
+    std::size_t faces{}, tiles{};
+};
+TerrainPaint terrainTilePaint(const Document &doc, Id terrain);
+// Refuses (INVALID_OPERATION) when the terrain, an ancestor or one of its tiles is locked.
+void requireUnlockedTerrain(const Document &doc, Id terrain);
+struct TerrainRegenerated {
+    bool changed{};
+    std::vector<Id> tiles; // the new tiles in row-major order
+    ChangeReport changes;
+};
+// Replaces the terrain's tiles with `mesh` and its record with `record` (meshDigest is
+// computed here) as ONE labelled edit. The terrain body keeps its ID, name, parent,
+// transform, tag, material, visibility and lock. Tile IDs: the leading new tiles
+// (row-major) whose meshes equal the old tiles' at the same position (ascending IDs) keep
+// those IDs; from the first difference on, tiles take new IDs from the document allocator
+// in row-major order (a tile body's entity IDs never go back, and IDs must ascend in
+// row-major order for the digest); old tiles not kept are removed. Tiles are rebuilt
+// fresh, so paint on them is dropped (see terrainTilePaint). When nothing would change the
+// document is left alone and `changed` is false. Refuses a locked terrain
+// (INVALID_OPERATION) and the document terrain limit (LIMIT_EXCEEDED).
+TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainMesh &mesh,
+                                     TerrainRecord record,
+                                     std::string label = "Regenerate terrain");
 // Establishes the site origin; refuses (INVALID_REQUEST) when one exists.
 void setSiteOrigin(Document &doc, SiteOrigin origin);
 // Changes the origin and moves by the difference every stored world position: top-level

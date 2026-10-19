@@ -3,7 +3,8 @@
 Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R095](../PR_ROADMAP.md#r095) (M10, scope row [F03](../SCOPE.md)); shapes
 [R096](../PR_ROADMAP.md#r096). **R095.a (terrain core, persistence and site origin)
-is implemented**, and so are R095.b (triangulation) and R095.c (importers); see
+is implemented**, and so are R095.b (triangulation), R095.c (importers) and R095.c2 (terrain
+from edges, settings and Regenerate); see
 "Implementation status". Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
@@ -676,11 +677,11 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: `terrain.create_from_edges`, `terrain.set_parameters` and
-`terrain.regenerate` (R095.c2), the desktop (import dialog, Site settings, Entity info Terrain
+Left for later slices: the desktop (import dialog, Site settings, Entity info Terrain
 section, tool cursors), DXF "Write site coordinates", and the assistant surface. The DXF and
 point-file importers with `terrain.inspect_source` and `terrain.import` are R095.c; see
-"Implementation notes (R095.c)".
+"Implementation notes (R095.c)". `terrain.create_from_edges`, `terrain.set_parameters` and
+`terrain.regenerate` are R095.c2; see "Implementation notes (R095.c2)".
 
 ## Owner decisions
 
@@ -999,6 +1000,119 @@ is not included):
 | --- | --- | --- | --- | --- |
 | 120,000 random points (XYZ) | 3.8 MB | 64 ms | 288 ms | 239,962 |
 | 400 contour rings of 300 vertices (DXF) | 2.9 MB | 64 ms | 399 ms | 239,698 |
+
+## Implementation notes (R095.c2)
+
+R095.c2 adds `terrain.create_from_edges`, `terrain.set_parameters` and `terrain.regenerate`.
+Modules: `regenerateTerrain`, `terrainTilePaint` and `requireUnlockedTerrain` in
+`src/core/terrain.*`; `runTerrainRegenerate`, `terrainTriangulationOptions`,
+`validateTerrainParameters` and `terrainEdgeSources` in `src/io/terrain_import.*` (the import's
+triangulation stage is shared, so all four paths map the adapter report the same way); the
+commands in `src/automation/terrain_commands.cpp`.
+
+**Regenerate.** The mesh is rebuilt from the stored `TerrainRecord` through
+`terrainTriangulationInput` and `triangulateTerrain`, with the options the parameters stand for:
+Boundary mode uses the stored boundary source, the other modes leave it out of the
+triangulation (it stays stored); the maximum edge length applies in MaxEdgeLength mode, and in
+Boundary mode when set (as the import applies it), never in ConvexHull mode. The generator
+identity is set to the current one. One labelled edit ("Regenerate terrain"; "Terrain
+settings" for `terrain.set_parameters`) replaces the tiles and the record (parameters,
+generator, mesh digest), so `Document::applyEdit`'s tile rule admits it. The terrain body
+keeps its ID, name, parent, transform, tag, material, colour, visibility and lock. A locked
+terrain, a locked ancestor or a locked tile refuses (INVALID_OPERATION, the document's lock
+message) before triangulating. The document limit counts the other terrains: a mesh that
+would pass 250,000 triangles in all is refused in the report (`triangle-budget`).
+
+**Tile IDs.** A body's vertex, face and edge IDs never go back (the document refuses retired
+IDs), so a tile body can only be kept when its mesh is unchanged; and the mesh digest reads
+tiles in ID order, so IDs must ascend in row-major order. The rule: the leading new tiles
+(row-major) whose meshes equal the old tiles' at the same position (old tiles in ascending ID
+order) keep those IDs; from the first difference on, every new tile takes a new ID from the
+document allocator in row-major order, and old tiles that are not kept are removed. Tile names
+are "Terrain tile k" by row-major position, as at creation. The same mesh therefore
+regenerates to the same IDs, and regenerating twice gives identical records; a regenerate in
+a copy of the document gives identical records too.
+
+**No-op.** A terrain whose mesh, record and tiles already equal what its sources give is left
+alone: no edit, no history entry, revision unchanged (`changed: false` from the core call),
+following the core operations that return without applying when nothing changes (for
+example face texture mapping). Through the batch API such a regenerate is, like any other
+command that changes nothing, a batch with no committed changes, which the batch refuses.
+A `terrain.set_parameters` that restates the stored parameters is the same.
+
+**Paint notice.** Tiles are rebuilt fresh, so paint on old tiles cannot follow a new mesh: a
+tile face with its own colour, material or texture mapping (`face-paint-dropped`, counted in
+faces) and a tile with its own material or colour (`tile-paint-dropped`, in tiles) are
+reported as notices in the report of the operation record and of the dry run. The terrain's
+own material and colour are kept. Paint is dropped even when the mesh is unchanged (the tile
+then keeps its ID), so a regenerate of a painted, current terrain is an edit.
+
+**Settings.** `terrain.set_parameters {terrain, boundary?, maxEdgeLength?, flipFlatTriangles?,
+steinerFill?}` starts from the stored parameters. `boundary` is `convexHull`, `maxEdgeLength` or
+`boundary`; `maxEdgeLength` is 0 (not set) or 0.001 to 2,000,000 m. Boundary mode without a
+stored boundary source and MaxEdgeLength mode without a positive length refuse
+(INVALID_REQUEST, no report: nothing was triangulated). Then it regenerates in the same edit.
+
+**From edges.** `terrain.create_from_edges {edges, roles?: {contour?, breakline?}, boundary?,
+holes?: [[...]], name?, flatMode?, steinerFill?, maxEdgeLength?}`. An edge is
+`{body, edge}`, since edge IDs are body-local; at most 100,000 edges in all. `edges` take their
+role from Z, `roles.contour` and `roles.breakline` force one, `boundary` is one closed loop and
+each list of `holes` one or more closed loops. Checks, in order, before any work: the body
+exists (NOT_FOUND), it is not a terrain or tile (UNSUPPORTED_TARGET with the terrain message),
+the edge exists (NOT_FOUND), neither the body nor an ancestor is locked (INVALID_OPERATION), and
+no edge is given twice (INVALID_REQUEST).
+
+- *Chaining.* Each list is chained on its own. Endpoints are taken in world coordinates through
+  the bodies' transforms, so edges inside (nested) groups work; endpoints of one body's vertex
+  are one node, and endpoints within 1e-7 m on every axis are one node across bodies. Edges are
+  visited in ascending (body, edge) order and nodes numbered by first use; polylines run from
+  every node that does not have exactly two selected edges (ends and branch points, in node
+  order), and the edges left form closed loops. An edge whose ends are one node is dropped
+  (`zero-length-edges` notice). A polyline's reference is its smallest edge, "body B edge E"
+  (`TerrainSourceRef::Kind::Edge`). The order only names and orients the polylines: the
+  preparation's canonical order (section "Implementation notes (R095.c)", step 6) then sorts
+  them, so a shuffled edge list gives the identical mesh (tested).
+- *Preparation.* The chains become a source set (format `edges`, unit m, no SHA-256) with the
+  layers `edges`, `contour`, `breakline`, `boundary` and `hole` mapped to the auto, contour,
+  breakline, boundary and hole roles, and go through `runTerrainImport` with origin (0, 0, 0)
+  and no site origin: the terrain frame is the model frame; the site origin is neither set nor
+  required, and the report's `originSource` is `model` (no `origin` or `proposedOrigin`). Hence
+  the import's rules: a varying-Z "contour" becomes a breakline with a notice; an open boundary or
+  hole refuses (`open-polygon`, located by its edge and the XY of its first end); more than one
+  boundary loop refuses; contours are pre-clipped to the boundary and holes.
+- *Edit.* `createTerrain`, one "Create terrain" edit, at the top level with an identity
+  transform. Provenance: empty SHA-256, units "m", 1 m per unit. The source edges stay in the
+  model, untouched.
+
+**Reports and refusals.** All three return the import's bounded report: the operation record is
+`{command, terrain, tiles, changed, terrainReport}` in `terrainOperations`, and a refusal throws
+INVALID_REQUEST (LIMIT_EXCEEDED for budget, extent and limit kinds) with
+`details.terrainReport`, leaving revision, history and records unchanged. Regenerate's report
+is `{apiVersion, format: "terrain-record", units: "m", metresPerUnit: 1, sources, terrain}` with
+XY in the terrain's local metres, references from the stored sources and `outcome`
+`regenerated`, `regeneratedWithNotices` or `refused`; from edges, the outcome reads `created`,
+`createdWithNotices` or `refused`. The commands are in the shared catalogue with dry run and
+revision checks; MCP exposes them and `assistantVisible` hides them (the tool-surface baseline
+is unchanged).
+
+**Verification.** `terrain_regenerate_tests` (dev and sanitize presets): regenerating the
+imported metre fixture is a no-op with the pinned digest; a terrain whose tile was changed
+behind its record shows "changed since generated", regenerates in one labelled edit to the
+pinned digest and is current again, with the terrain body otherwise unchanged; Undo and Redo
+restore the model exactly (except the ID allocator's high-water mark, which Undo keeps); save
+and reopen are bit for bit; the tile-ID rule (new IDs for a changed mesh, removed old tiles,
+leading unchanged tiles kept) and determinism across a copy and a second regenerate; each mode
+change and each invalid combination of `terrain.set_parameters`, with its dry run; refusals
+(crossing stored contours, the document budget, a locked terrain, a missing terrain) that
+change nothing; the paint notice in the dry run and the change report with the terrain
+colour kept; and from edges: contours and a forced-contour breakline, boundary and hole, the
+open-boundary refusal, edges in nested groups, tile-edge, lock, missing, duplicate and
+insufficient-point refusals, edge-order independence, and chaining of a T junction and a loop
+split across two bodies.
+
+Deviations from the sections above: section 5 lists roles "per selection"; the command takes
+them as edge lists (`roles`, `boundary`, `holes`) rather than a selection, and section 3's
+"picked edges by edge ID" order is the (body, edge) order before the import's canonical sort.
 
 ## Appendix: experiments
 

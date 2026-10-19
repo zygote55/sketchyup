@@ -233,10 +233,195 @@ ParsedSource parseSource(const QByteArray &bytes, const QJsonObject &command, bo
     }
     return parsed;
 }
+
+// ---- R095.c2: terrain.create_from_edges, terrain.set_parameters, terrain.regenerate -------
+constexpr qsizetype terrainEdgeLimit = 100000; // edges per list and in all
+TerrainEdgeRef edgeRef(const QJsonValue &value) {
+    const auto object = value.toObject();
+    if (!value.isObject() || object.size() != 2 || !object.contains("body") ||
+        !object.contains("edge"))
+        reject("INVALID_REQUEST", "An edge is {\"body\": ID, \"edge\": ID}");
+    return {identity(object["body"]), identity(object["edge"])};
+}
+std::vector<TerrainEdgeRef> edgeList(const QJsonValue &value, const char *key) {
+    if (!value.isArray() || value.toArray().size() > terrainEdgeLimit)
+        reject("INVALID_REQUEST",
+               std::string(key) + " is a list of at most 100,000 {body, edge} references");
+    std::vector<TerrainEdgeRef> edges;
+    for (const auto &entry : value.toArray())
+        edges.push_back(edgeRef(entry));
+    return edges;
+}
+QJsonArray idList(const std::vector<Id> &ids) {
+    QJsonArray list;
+    for (const auto id : ids)
+        list.append(QString::number(id));
+    return list;
+}
+TerrainTriangulationOptions edgeTriangulation(const QJsonObject &command) {
+    TerrainTriangulationOptions triangulation;
+    if (command.contains("flatMode")) {
+        const auto mode = command["flatMode"].toString();
+        if (mode != "flip" && mode != "reportOnly")
+            reject("INVALID_REQUEST", "flatMode is flip or reportOnly");
+        triangulation.flatMode =
+            mode == "flip" ? TerrainFlatMode::Flip : TerrainFlatMode::ReportOnly;
+    }
+    if (command.contains("steinerFill")) {
+        if (!command["steinerFill"].isBool())
+            reject("INVALID_REQUEST", "steinerFill is true or false");
+        triangulation.steinerFill = command["steinerFill"].toBool();
+    }
+    if (command.contains("maxEdgeLength")) {
+        const auto value = command["maxEdgeLength"];
+        if (!value.isDouble() || !std::isfinite(value.toDouble()) || value.toDouble() < 1e-3 ||
+            value.toDouble() > 2e6)
+            reject("INVALID_REQUEST", "maxEdgeLength is out of range");
+        triangulation.maxEdgeLength = value.toDouble();
+    }
+    return triangulation;
+}
+QJsonObject createTerrainFromEdges(Document &doc, const QJsonObject &command,
+                                   ChangeReport &changes) {
+    onlyFields(command, {"command", "edges", "roles", "boundary", "holes", "name", "flatMode",
+                         "steinerFill", "maxEdgeLength"});
+    TerrainEdgeSelection selection;
+    selection.edges = edgeList(command["edges"], "edges");
+    if (command.contains("roles")) {
+        const auto roles = command["roles"].toObject();
+        if (!command["roles"].isObject())
+            reject("INVALID_REQUEST", "roles is {contour?: edges, breakline?: edges}");
+        for (auto it = roles.begin(); it != roles.end(); ++it)
+            if (it.key() != "contour" && it.key() != "breakline")
+                reject("INVALID_REQUEST", "roles is {contour?: edges, breakline?: edges}");
+        if (roles.contains("contour"))
+            selection.contours = edgeList(roles["contour"], "roles.contour");
+        if (roles.contains("breakline"))
+            selection.breaklines = edgeList(roles["breakline"], "roles.breakline");
+    }
+    if (command.contains("boundary"))
+        selection.boundary = edgeList(command["boundary"], "boundary");
+    if (command.contains("holes")) {
+        if (!command["holes"].isArray() || command["holes"].toArray().size() > 10000)
+            reject("INVALID_REQUEST", "holes is a list of at most 10,000 edge lists");
+        for (const auto &hole : command["holes"].toArray())
+            selection.holes.push_back(edgeList(hole, "holes"));
+    }
+    qsizetype total = qsizetype(selection.edges.size() + selection.contours.size() +
+                                selection.breaklines.size() + selection.boundary.size());
+    for (const auto &hole : selection.holes)
+        total += qsizetype(hole.size());
+    if (total > terrainEdgeLimit)
+        reject("LIMIT_EXCEEDED", "A terrain is built from at most 100,000 edges");
+    std::string name = "Terrain";
+    if (command.contains("name")) {
+        name = boundedText(command, "name", 1024);
+        if (name.empty())
+            reject("INVALID_REQUEST", "A terrain name is 1 to 1,024 bytes");
+    }
+    TerrainImportOptions options;
+    options.roles = terrainEdgeRoles();
+    options.origin = TerrainOriginMetres{0, 0, 0};
+    options.triangulation = edgeTriangulation(command);
+    options.otherTerrainTriangles = doc.materializedTotals().terrainTriangles;
+    const auto set = terrainEdgeSources(doc, selection);
+    // The terrain frame is the model frame: no site origin is used, set or required.
+    auto result = runTerrainImport(set, options, std::nullopt);
+    auto terrain = result.report["terrain"].toObject();
+    terrain.remove("proposedOrigin");
+    terrain.remove("origin");
+    terrain["originSource"] = "model";
+    terrain["conversion"] = "none: the terrain uses the model frame, in metres";
+    terrain["outcome"] = terrain["outcome"] == "imported"              ? "created"
+                         : terrain["outcome"] == "importedWithNotices" ? "createdWithNotices"
+                                                                       : "refused";
+    result.report["terrain"] = terrain;
+    if (!result.ok) {
+        auto message = result.message;
+        if (message.starts_with("Terrain import"))
+            message = "Terrain creation" + message.substr(14);
+        throw TerrainImportError(result.code, message, result.report, "terrainReport");
+    }
+    auto created = createTerrain(doc, result.mesh, std::move(result.record), 0, std::move(name));
+    changes = std::move(created.changes);
+    return {{"command", "terrain.create_from_edges"},
+            {"terrain", QString::number(created.terrain)},
+            {"tiles", idList(created.tiles)},
+            {"changed", true},
+            {"terrainReport", result.report}};
+}
+// terrain.regenerate and terrain.set_parameters: one edit with `label`.
+QJsonObject regenerateTerrainCommand(Document &doc, Id terrain,
+                                     std::optional<TerrainParameters> parameters,
+                                     const QString &command, std::string label,
+                                     ChangeReport &changes) {
+    if (!isTerrain(doc, terrain))
+        reject("NOT_FOUND", "Terrain body does not exist");
+    requireUnlockedTerrain(doc, terrain);
+    const auto record = *doc.bodies().at(terrain)->terrain;
+    const auto chosen = parameters.value_or(record.parameters);
+    // Tiles are rebuilt, so paint on the old tiles cannot follow the new mesh.
+    TerrainReport notices;
+    const auto paint = terrainTilePaint(doc, terrain);
+    if (paint.faces)
+        notices.add(TerrainReport::Severity::Notice, "face-paint-dropped", paint.faces,
+                    "Per-face paint on the old tiles cannot follow a new mesh and was removed; "
+                    "the terrain's own material is kept.");
+    if (paint.tiles)
+        notices.add(TerrainReport::Severity::Notice, "tile-paint-dropped", paint.tiles,
+                    "Materials and colours of individual tiles were removed with the old tiles; "
+                    "the terrain's own material is kept.");
+    const auto total = doc.materializedTotals().terrainTriangles;
+    const auto own = terrainTriangleCount(doc, terrain);
+    auto result = runTerrainRegenerate(record, chosen, total > own ? total - own : 0, notices);
+    if (!result.ok)
+        throw TerrainImportError(result.code, result.message, result.report, "terrainReport");
+    auto regenerated =
+        regenerateTerrain(doc, terrain, result.mesh, std::move(result.record), std::move(label));
+    changes = std::move(regenerated.changes);
+    return {{"command", command},
+            {"terrain", QString::number(terrain)},
+            {"tiles", idList(regenerated.tiles)},
+            {"changed", regenerated.changed},
+            {"terrainReport", result.report}};
+}
+TerrainParameters chosenParameters(const Document &doc, Id terrain, const QJsonObject &command) {
+    if (!isTerrain(doc, terrain))
+        reject("NOT_FOUND", "Terrain body does not exist");
+    auto parameters = doc.bodies().at(terrain)->terrain->parameters;
+    if (command.contains("boundary")) {
+        const auto mode = command["boundary"].toString();
+        if (mode == "convexHull")
+            parameters.boundary = TerrainBoundaryMode::ConvexHull;
+        else if (mode == "maxEdgeLength")
+            parameters.boundary = TerrainBoundaryMode::MaxEdgeLength;
+        else if (mode == "boundary")
+            parameters.boundary = TerrainBoundaryMode::Boundary;
+        else
+            reject("INVALID_REQUEST", "boundary is convexHull, maxEdgeLength or boundary");
+    }
+    if (command.contains("maxEdgeLength")) {
+        const auto value = command["maxEdgeLength"];
+        if (!value.isDouble() || !std::isfinite(value.toDouble()))
+            reject("INVALID_REQUEST", "maxEdgeLength is 0 (not set) or 0.001 to 2,000,000 m");
+        parameters.maxEdgeLength = value.toDouble();
+    }
+    for (const auto *key : {"flipFlatTriangles", "steinerFill"})
+        if (command.contains(key)) {
+            if (!command[key].isBool())
+                reject("INVALID_REQUEST", std::string(key) + " is true or false");
+            (std::string(key) == "steinerFill" ? parameters.steinerFill
+                                               : parameters.flipFlatTriangles) =
+                command[key].toBool();
+        }
+    validateTerrainParameters(parameters, doc.bodies().at(terrain)->terrain->sources);
+    return parameters;
+}
 } // namespace
 bool isTerrainCommand(const QString &name) {
     return name == "site.set" || name == "site.reanchor" || name == "terrain.explode" ||
-           name == "terrain.import";
+           name == "terrain.import" || name == "terrain.create_from_edges" ||
+           name == "terrain.set_parameters" || name == "terrain.regenerate";
 }
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command) {
@@ -274,6 +459,27 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
         if (operation)
             *operation = std::move(record);
         return {};
+    }
+    if (name == "terrain.create_from_edges" || name == "terrain.set_parameters" ||
+        name == "terrain.regenerate") {
+        ChangeReport changes;
+        QJsonObject record;
+        if (name == "terrain.create_from_edges")
+            record = createTerrainFromEdges(doc, command, changes);
+        else if (name == "terrain.regenerate") {
+            onlyFields(command, {"command", "terrain"});
+            record = regenerateTerrainCommand(doc, identity(command["terrain"]), std::nullopt, name,
+                                              "Regenerate terrain", changes);
+        } else {
+            onlyFields(command, {"command", "terrain", "boundary", "maxEdgeLength",
+                                 "flipFlatTriangles", "steinerFill"});
+            const auto terrain = identity(command["terrain"]);
+            record = regenerateTerrainCommand(doc, terrain, chosenParameters(doc, terrain, command),
+                                              name, "Terrain settings", changes);
+        }
+        if (operation)
+            *operation = std::move(record);
+        return changes;
     }
     if (name == "site.set") {
         onlyFields(command, {"command", "easting", "northing", "elevation", "crs", "source",
@@ -371,7 +577,44 @@ QJsonObject sourceProperties(bool importing) {
     return properties;
 }
 } // namespace
+namespace {
+// R095.c2 terrain.create_from_edges parameters.
+QJsonObject edgeProperties() {
+    const QJsonObject id{{"type", "string"}, {"pattern", "^[1-9][0-9]*$"}, {"maxLength", 20}};
+    const QJsonObject edge{{"type", "object"},
+                           {"properties", QJsonObject{{"body", id}, {"edge", id}}},
+                           {"required", QJsonArray{"body", "edge"}},
+                           {"additionalProperties", false}};
+    auto edges = [&](const char *description) {
+        return QJsonObject{{"type", "array"},
+                           {"maxItems", int(terrainEdgeLimit)},
+                           {"items", edge},
+                           {"description", description}};
+    };
+    return {
+        {"edges", edges("Model edges; constant Z makes a contour, varying Z a breakline")},
+        {"roles", QJsonObject{{"type", "object"},
+                              {"properties",
+                               QJsonObject{{"contour", edges("Edges forced to be contours")},
+                                           {"breakline", edges("Edges forced to be breaklines")}}},
+                              {"additionalProperties", false}}},
+        {"boundary", edges("Edges of one closed outer boundary")},
+        {"holes", QJsonObject{{"type", "array"},
+                              {"maxItems", 10000},
+                              {"items", edges("Edges of one closed hole")}}},
+        {"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
+        {"flatMode", QJsonObject{{"type", "string"},
+                                 {"enum", QJsonArray{"flip", "reportOnly"}},
+                                 {"description", "Flat-triangle handling; default flip"}}},
+        {"steinerFill", QJsonObject{{"type", "boolean"}}},
+        {"maxEdgeLength", QJsonObject{{"type", "number"}, {"minimum", 1e-3}, {"maximum", 2e6}}}};
+}
+} // namespace
 QJsonArray terrainCommandSpecs() {
+    const QJsonObject terrainId{{"type", "string"},
+                                {"pattern", "^[1-9][0-9]*$"},
+                                {"maxLength", 20},
+                                {"description", "Terrain body"}};
     const QJsonObject coordinateSchema{{"type", "number"},
                                        {"minimum", -siteCoordinateLimit},
                                        {"maximum", siteCoordinateLimit}};
@@ -422,7 +665,24 @@ QJsonArray terrainCommandSpecs() {
              {"body"}),
         spec("terrain.inspect_source", "Inspect terrain source", sourceProperties(false),
              {"data", "format"}),
-        spec("terrain.import", "Import terrain", sourceProperties(true), {"data", "format"})};
+        spec("terrain.import", "Import terrain", sourceProperties(true), {"data", "format"}),
+        spec("terrain.create_from_edges", "Create terrain", edgeProperties(), {"edges"}),
+        spec("terrain.set_parameters", "Terrain settings",
+             {{"terrain", terrainId},
+              {"boundary",
+               QJsonObject{{"type", "string"},
+                           {"enum", QJsonArray{"convexHull", "maxEdgeLength", "boundary"}},
+                           {"description", "Boundary mode; boundary needs a stored boundary "
+                                           "source, maxEdgeLength a positive length"}}},
+              {"maxEdgeLength",
+               QJsonObject{{"type", "number"},
+                           {"minimum", 0},
+                           {"maximum", 2e6},
+                           {"description", "Metres; 0 clears it (at least 0.001 when set)"}}},
+              {"flipFlatTriangles", QJsonObject{{"type", "boolean"}}},
+              {"steinerFill", QJsonObject{{"type", "boolean"}}}},
+             {"terrain"}),
+        spec("terrain.regenerate", "Regenerate terrain", {{"terrain", terrainId}}, {"terrain"})};
 }
 QJsonObject siteDescription(const Document &doc) {
     if (!doc.site())

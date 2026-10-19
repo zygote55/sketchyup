@@ -1982,9 +1982,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
         // Keep ADR 0165's codes and context for sessions, MCP, staging and the CLI.
         throw InspectionError(error.code(), error.what(), componentParameterErrorDetails(error));
     } catch (const TerrainImportError &error) {
-        // R095.c: a refused import carries its bounded report; nothing was changed.
+        // R095.c: a refused import (R095.c2: create, settings, regenerate) carries its bounded
+        // report; nothing was changed.
         throw InspectionError(error.code(), error.what(),
-                              QJsonObject{{"importReport", error.report()}});
+                              QJsonObject{{error.reportKey(), error.report()}});
     } catch (const TerrainError &error) {
         // ADR 0168: terrain refusals keep their shared error code.
         throw InspectionError(error.code(), error.what());

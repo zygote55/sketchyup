@@ -1152,6 +1152,11 @@ int main(int argc, char **argv) {
                       {{"data", terrainPoints}, {"format", "points"}, {"units", "m"}});
         parameterCase("terrain.import", {{"data", terrainPoints}, {"format", "points"},
                                          {"units", "m"}, {"crs", "EPSG:32633"}});
+        // R095.c2: terrains from model edges, settings and regenerate (fixtures set below).
+        parameterCase("terrain.create_from_edges", {{"edges", QJsonArray{}}});
+        parameterCase("terrain.set_parameters",
+                      {{"terrain", "1"}, {"boundary", "maxEdgeLength"}, {"maxEdgeLength", 5}});
+        parameterCase("terrain.regenerate", {{"terrain", "1"}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1350,6 +1355,29 @@ int main(int argc, char **argv) {
                 TerrainRecord record;
                 record.generator = "test/terrain-v1";
                 command["body"] = QString::number(createTerrain(doc, mesh, record).terrain);
+            }
+            if (command["command"] == "terrain.set_parameters" ||
+                command["command"] == "terrain.regenerate") {
+                // Stored points whose mesh is not the hand-made one, so both commit.
+                TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}}, {{0, 1, 2}}};
+                TerrainRecord record;
+                record.generator = "test/terrain-v1";
+                record.parameters.boundary = TerrainBoundaryMode::ConvexHull;
+                record.sources = {{TerrainSourceRole::Points,
+                                   "points, code (none)",
+                                   {{0, 0, -3}, {2, 0, -3}, {2, 2, -2}, {0, 2, -3}}}};
+                command["terrain"] = QString::number(createTerrain(doc, mesh, record).terrain);
+            }
+            if (command["command"] == "terrain.create_from_edges") {
+                // A three-edge breakline drawn as wires.
+                const auto wires = doc.addWire(0, {10, 10, 0}, {12, 10, 1});
+                doc.addWire(wires, {12, 10, 1}, {12, 12, 2});
+                doc.addWire(wires, {12, 12, 2}, {10, 13, 1});
+                QJsonArray edges;
+                for (const auto &[edge, record] : doc.bodies().at(wires)->topology.edges)
+                    edges.append(QJsonObject{{"body", QString::number(wires)},
+                                             {"edge", QString::number(edge)}});
+                command["edges"] = edges;
             }
             if (command["command"] == "geometry.merge_context")
                 doc.addFace({{{1, 0, 0}, {2, 0, 0}, {2, 1, 0}, {1, 1, 0}}});

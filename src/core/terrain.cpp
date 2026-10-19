@@ -342,13 +342,11 @@ bool terrainChangedSinceGenerated(const Document &doc, Id terrain) {
     return terrainMeshDigest(doc, terrain) != record->terrain->meshDigest;
 }
 namespace {
-// The record and tiles of a new terrain as one edit, not yet applied.
-std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &mesh,
-                                            TerrainRecord record, Id parent, std::string name,
-                                            std::string label) {
+// The mesh checks shared by creation and regeneration; `existing` is the document's
+// terrain triangles outside the terrain being built.
+void checkTerrainMesh(const TerrainMesh &mesh, std::size_t existing) {
     if (mesh.triangles.empty())
         refuse("INVALID_REQUEST", "A terrain needs at least one triangle");
-    const auto existing = doc.materializedTotals().terrainTriangles;
     if (mesh.triangles.size() > TerrainLimits::triangles ||
         existing + mesh.triangles.size() > TerrainLimits::triangles)
         refuse("LIMIT_EXCEEDED", limitMessage(existing + mesh.triangles.size()));
@@ -360,17 +358,12 @@ std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &me
         for (const auto index : triangle)
             if (index >= mesh.vertices.size())
                 refuse("INVALID_REQUEST", "Terrain triangle references a missing vertex");
-    if (parent) {
-        const auto *owner = bodyOf(doc, parent);
-        if (!owner || owner->kind != BodyKind::Group)
-            refuse("INVALID_REQUEST", "A terrain's parent must be a group");
-    }
-    if (name.empty() || name.size() > 1024)
-        refuse("INVALID_REQUEST", "Invalid terrain name");
-    const auto tiling = tileTerrainTriangles(mesh);
-    const Id terrain = doc.nextId();
-    if (terrain > UINT64_MAX - tiling.tiles.size() - 1)
-        refuse("LIMIT_EXCEEDED", "Entity identity space exhausted");
+}
+// The tile bodies of `tiling`, the k-th (row-major) with body ID ids[k] and the name
+// "Terrain tile k+1".
+std::vector<std::shared_ptr<Body>> terrainTileBodies(const TerrainMesh &mesh,
+                                                     const TerrainTiling &tiling,
+                                                     const std::vector<Id> &ids, Id terrain) {
     std::vector<std::shared_ptr<Body>> tiles;
     tiles.reserve(tiling.tiles.size());
     std::vector<std::uint32_t> local(mesh.vertices.size(), 0);
@@ -394,13 +387,37 @@ std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &me
         for (const auto global : touched)
             local[global] = 0;
         tiles.push_back(std::make_shared<Body>(makeTerrainTile(
-            terrain + 1 + t, terrain, "Terrain tile " + std::to_string(t + 1), vertices,
-            triangles)));
+            ids.at(t), terrain, "Terrain tile " + std::to_string(t + 1), vertices, triangles)));
     }
+    return tiles;
+}
+std::string tilesDigest(const std::vector<std::shared_ptr<Body>> &tiles) {
     std::vector<const Body *> views;
     for (const auto &tile : tiles)
         views.push_back(tile.get());
-    record.meshDigest = terrainMeshDigest(views);
+    return terrainMeshDigest(views);
+}
+// The record and tiles of a new terrain as one edit, not yet applied.
+std::pair<Edit, TerrainCreated> terrainEdit(Document &doc, const TerrainMesh &mesh,
+                                            TerrainRecord record, Id parent, std::string name,
+                                            std::string label) {
+    checkTerrainMesh(mesh, doc.materializedTotals().terrainTriangles);
+    if (parent) {
+        const auto *owner = bodyOf(doc, parent);
+        if (!owner || owner->kind != BodyKind::Group)
+            refuse("INVALID_REQUEST", "A terrain's parent must be a group");
+    }
+    if (name.empty() || name.size() > 1024)
+        refuse("INVALID_REQUEST", "Invalid terrain name");
+    const auto tiling = tileTerrainTriangles(mesh);
+    const Id terrain = doc.nextId();
+    if (terrain > UINT64_MAX - tiling.tiles.size() - 1)
+        refuse("LIMIT_EXCEEDED", "Entity identity space exhausted");
+    std::vector<Id> ids;
+    for (std::size_t t = 0; t < tiling.tiles.size(); ++t)
+        ids.push_back(terrain + 1 + t);
+    auto tiles = terrainTileBodies(mesh, tiling, ids, terrain);
+    record.meshDigest = tilesDigest(tiles);
     validateTerrainRecord(record);
     auto container = std::make_shared<Body>();
     container->id = terrain;
@@ -472,6 +489,102 @@ ChangeReport explodeTerrain(Document &doc, Id terrain) {
         edit.changes.push_back({id, before, ordinary, {}, {}, {}, true});
     }
     return doc.apply(std::move(edit), doc.revision());
+}
+TerrainPaint terrainTilePaint(const Document &doc, Id terrain) {
+    TerrainPaint paint;
+    const Body plain;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &tile = *doc.bodies().at(id);
+        for (const auto &[face, record] : tile.surface.faces)
+            if (tile.faceColors.contains(face) || tile.faceMaterials.contains(face) ||
+                tile.faceTextureMappings.contains(face))
+                ++paint.faces;
+        if (tile.materials != plain.materials || tile.color != plain.color)
+            ++paint.tiles;
+    }
+    return paint;
+}
+void requireUnlockedTerrain(const Document &doc, Id terrain) {
+    for (Id id = terrain; id; id = doc.bodies().at(id)->parent)
+        if (doc.bodies().at(id)->locked)
+            refuse("INVALID_OPERATION", "Cannot edit a locked entity or its contents");
+    for (const auto id : terrainTiles(doc, terrain))
+        if (doc.bodies().at(id)->locked)
+            refuse("INVALID_OPERATION", "Cannot edit a locked entity or its contents");
+}
+TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainMesh &mesh,
+                                     TerrainRecord record, std::string label) {
+    const auto found = doc.bodies().find(terrain);
+    if (found == doc.bodies().end() || found->second->kind != BodyKind::Terrain)
+        refuse("NOT_FOUND", "Terrain body does not exist");
+    requireUnlockedTerrain(doc, terrain);
+    const auto old = terrainTiles(doc, terrain);
+    std::size_t current = 0;
+    for (const auto id : old)
+        current += doc.bodies().at(id)->surface.faces.size();
+    checkTerrainMesh(mesh, doc.materializedTotals().terrainTriangles - current);
+    const auto tiling = tileTerrainTriangles(mesh);
+    // Tile IDs. A body's vertex, face and edge IDs never go back (retired IDs are not
+    // reused), so a tile body can only be kept when its mesh is unchanged, and the mesh
+    // digest reads tiles in ID order, so IDs must ascend in row-major order. Rule: the
+    // leading new tiles (row-major) whose meshes equal the old tiles' at the same position
+    // (old tiles in ascending ID order) keep those IDs; from the first difference on, every
+    // new tile takes a new ID from the document allocator in row-major order, and old tiles
+    // not kept are removed. The same mesh therefore regenerates to the same IDs, and
+    // regenerating twice gives identical records.
+    auto tiles =
+        terrainTileBodies(mesh, tiling, std::vector<Id>(tiling.tiles.size(), terrain), terrain);
+    std::vector<Id> ids;
+    std::set<Id> kept;
+    Id next = doc.nextId();
+    bool same = true;
+    for (std::size_t t = 0; t < tiles.size(); ++t) {
+        if (same && t < old.size()) {
+            const auto before = terrainTileMesh(*doc.bodies().at(old[t])),
+                       after = terrainTileMesh(*tiles[t]);
+            same = before.vertices == after.vertices && before.triangles == after.triangles;
+        } else
+            same = false;
+        Id id = 0;
+        if (same) {
+            id = old[t];
+            kept.insert(id);
+        } else {
+            if (next == UINT64_MAX)
+                refuse("LIMIT_EXCEEDED", "Entity identity space exhausted");
+            id = next++;
+        }
+        tiles[t]->id = id;
+        ids.push_back(id);
+    }
+    record.meshDigest = tilesDigest(tiles);
+    validateTerrainRecord(record);
+    TerrainRegenerated result;
+    result.tiles = ids;
+    const auto &before = found->second;
+    Edit edit{std::move(label), {}};
+    if (*before->terrain != record) {
+        auto container = std::make_shared<Body>(*before);
+        container->terrain = std::move(record);
+        edit.changes.push_back({terrain, before, std::move(container), {}, {}, {}, true});
+    }
+    for (std::size_t t = 0; t < tiles.size(); ++t) {
+        const auto existing = doc.bodies().find(ids[t]);
+        const BodyPtr prior = existing == doc.bodies().end() ? nullptr : existing->second;
+        if (prior && *prior == *tiles[t])
+            continue;
+        edit.changes.push_back({ids[t], prior, std::move(tiles[t]), {}, {}, {}, true});
+    }
+    for (const auto id : old)
+        if (!kept.contains(id))
+            edit.changes.push_back({id, doc.bodies().at(id), nullptr, {}, {}, {}, true});
+    // A terrain whose mesh, record and tiles are already what the sources give is left
+    // alone: no edit and no history entry, as for other commands with nothing to change.
+    if (edit.changes.empty())
+        return result;
+    result.changed = true;
+    result.changes = doc.apply(std::move(edit), doc.revision());
+    return result;
 }
 void setSiteOrigin(Document &doc, SiteOrigin origin) {
     if (doc.site())

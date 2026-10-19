@@ -31,12 +31,13 @@ const std::vector<TerrainUnit> &terrainUnits();
 std::optional<TerrainUnit> terrainUnit(const QString &name);
 QString terrainUnitNames(); // "mm, cm, m, in, ft or usft"
 
-// Where an item comes from.
+// Where an item comes from. R095.c2: a model edge is (body, edge), `value` the edge ID.
 struct TerrainSourceRef {
-    enum class Kind : std::uint8_t { Handle, Entity, Line };
+    enum class Kind : std::uint8_t { Handle, Entity, Line, Edge };
     Kind kind{Kind::Line};
     std::uint64_t value{};
-    std::string text() const; // "handle 2F", "entity 12" or "line 7"
+    std::uint64_t body{};     // Kind::Edge only
+    std::string text() const; // "handle 2F", "entity 12", "line 7" or "body 4 edge 9"
     auto operator<=>(const TerrainSourceRef &) const = default;
 };
 struct TerrainSourcePolyline {

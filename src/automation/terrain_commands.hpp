@@ -17,18 +17,27 @@ namespace sketchy {
 // the CLI file path take the full 64 MiB source budget.
 inline constexpr int terrainDataCharacters = 22369624;
 bool isTerrainCommand(const QString &name);
-// A terrain.import refusal: the shared code plus the bounded import report.
+// A terrain.import refusal: the shared code plus the bounded import report. R095.c2's
+// commands (create_from_edges, set_parameters, regenerate) refuse with the same report shape
+// under the key "terrainReport".
 class TerrainImportError : public TerrainError {
   public:
-    TerrainImportError(std::string code, const std::string &message, QJsonObject report)
-        : TerrainError(std::move(code), message), report_(std::move(report)) {}
+    TerrainImportError(std::string code, const std::string &message, QJsonObject report,
+                       QString key = "importReport")
+        : TerrainError(std::move(code), message), report_(std::move(report)), key_(std::move(key)) {
+    }
     const QJsonObject &report() const { return report_; }
+    const QString &reportKey() const { return key_; }
 
   private:
     QJsonObject report_;
+    QString key_;
 };
 // `operation`, when given, receives the command's result record (terrain.import: the new
-// terrain, its tiles and the import report).
+// terrain, its tiles and the import report; R095.c2 terrain.create_from_edges,
+// terrain.set_parameters and terrain.regenerate: the terrain, its tiles, whether anything
+// changed and the bounded "terrainReport"). Regenerating a terrain that is already current
+// changes nothing and records no edit (the batch then has no committed changes).
 ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
                                    QJsonObject *operation = nullptr);
 // terrain.inspect_source with base64 `data`.
