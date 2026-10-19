@@ -10,10 +10,14 @@
 //                       modelling and terrain budgets (Cancel is the default);
 //   Create terrain from selection
 //                       terrain.create_from_edges on the selected edges, one "Create terrain"
-//                       edit; a refusal or notices show the bounded report.
+//                       edit; a refusal or notices show the bounded report. R095.h: when the
+//                       selection has a closed loop or spans more than one tag, a roles step
+//                       (TerrainSelectionRolesDialog) gives each tag a role first.
 #include "app/settled_dialog.hpp"
 #include "core/selection.hpp"
 #include "core/terrain.hpp"
+#include "automation/terrain_commands.hpp"
+#include "io/terrain_import.hpp"
 #include <QDialog>
 #include <QJsonObject>
 #include <QThreadPool>
@@ -28,6 +32,7 @@ class QLabel;
 class QPushButton;
 class QTreeWidget;
 namespace sketchy {
+class TerrainRoleTable;
 class Viewport;
 
 // The terrain a body belongs to: the body when it is a terrain, its terrain when it is a tile,
@@ -121,6 +126,56 @@ class TerrainSettingsDialog final : public Settled<QDialog> {
     QLabel *status_{};
     QTreeWidget *list_{};
     QPushButton *copy_{}, *apply_{};
+};
+
+struct TerrainSelectionDryRun;
+// R095.h: Create terrain from selection's roles step. Each tag in the selection is a row of the
+// shared role table (Automatic, Contour, Breakline, Boundary, Hole, Ignore; Automatic takes the
+// role from Z as the one-click path does). The roles are checked as the command checks them:
+// terrainTagRoleProblems names a Boundary that is not one closed loop, a Hole with open chains
+// or more than one Boundary tag before any work, then the command's own dry run
+// (parseTerrainEdgeRequest, runTerrainEdgeRequest on a worker, debounced, stale results
+// dropped) gives its refusals (nested holes, crossings) and notices. Create, the default, is
+// enabled for a dry run of the current roles that would create a terrain.
+class TerrainSelectionRolesDialog final : public Settled<QDialog> {
+  public:
+    TerrainSelectionRolesDialog(const Document &doc, const std::vector<TerrainEdgeRef> &edges,
+                                QWidget *parent);
+    ~TerrainSelectionRolesDialog() override;
+    // The terrain.create_from_edges command the roles stand for.
+    QJsonObject command() const;
+    bool checking() const;
+    bool canCreate() const;
+    // The problems named before any work (empty when none), and the status line's text.
+    QString problem() const { return problem_; }
+    QString status() const;
+    // The latest dry run's report (empty before the first one or with a problem).
+    QJsonObject report() const;
+    const std::vector<TerrainTagEdges> &tags() const { return tags_; }
+    TerrainRoleTable *roleTable() const { return table_; }
+    QTreeWidget *reportList() const { return list_; }
+
+  private:
+    void changed(int delayMs);
+    void start();
+    void finished(std::uint64_t generation, std::shared_ptr<TerrainSelectionDryRun> result);
+    void refresh();
+    std::map<Id, TerrainImportRole> chosen() const;
+
+    const Document &doc_;
+    std::vector<TerrainTagEdges> tags_;
+    QJsonObject command_;
+    std::optional<TerrainEdgeRequest> request_;
+    QThreadPool pool_;
+    QTimer rerun_;
+    bool running_{};
+    std::uint64_t generation_{};
+    std::shared_ptr<TerrainSelectionDryRun> dryRun_;
+    QString problem_;
+    TerrainRoleTable *table_{};
+    QLabel *status_{};
+    QTreeWidget *list_{};
+    QPushButton *create_{};
 };
 
 // The actions. Each returns true when the document changed; refusals are shown to the user

@@ -15,6 +15,15 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Roles for **Create terrain from selection** (R095.h, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095h)):
+  when the selected edges include a closed loop or lie under more than one tag, a roles step
+  lists each tag (Untagged included) with Automatic (contours and breaklines by Z, as before),
+  Contour, Breakline, Boundary, Hole or Ignore, in the same role table as File → Import terrain….
+  A boundary must be one closed loop and holes closed loops; problems are named by tag and count,
+  and the command's own dry run shows its refusals and notices, before Create is enabled. Create
+  is one undoable "Create terrain" edit and Regenerate keeps the boundary and holes. Other
+  selections still create a terrain in one click.
+
 - Terrain queries for the in-app assistant (R095.g, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095g)):
   the assistant can now call `site.describe`, `terrain.describe` and `terrain.elevation_at`,
   with descriptions that give units and say which coordinates are site and which are model

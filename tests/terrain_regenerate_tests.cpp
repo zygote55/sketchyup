@@ -2,11 +2,14 @@
 // sections 2, 3 and 5): regeneration from stored sources as one labelled edit, the tile-ID
 // rule, determinism, undo/redo and save/reopen, parameter validation, the paint notice,
 // refusals that change nothing, and terrains built from model edges (chaining, roles,
-// boundary and holes, edges in nested groups, tile-edge and lock refusals).
+// boundary and holes, edges in nested groups, tile-edge and lock refusals), and R095.h's roles
+// by tag for Create terrain from selection (the mapping to the command, validation, Ignore,
+// the one-click rule and Regenerate keeping the boundary and holes).
 #include "automation/commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/terrain_commands.hpp"
 #include "core/groups.hpp"
+#include "core/tags.hpp"
 #include "core/terrain.hpp"
 #include "io/document_io.hpp"
 #include "io/terrain_import.hpp"
@@ -639,6 +642,219 @@ void chaining() {
             check(polyline.points.size() == 5 && polyline.ref.body == left,
                   "the loop is named by its smallest edge");
 }
+
+// ---- R095.h: roles by tag for Create terrain from selection ---------------------------------
+std::vector<TerrainEdgeRef> refsOf(const Document &doc, std::initializer_list<Id> bodies) {
+    std::vector<TerrainEdgeRef> refs;
+    for (const auto body : bodies)
+        for (const auto &[id, edge] : doc.bodies().at(body)->topology.edges)
+            refs.push_back({body, id});
+    return refs;
+}
+QJsonObject dryRun(const Document &doc, const QJsonObject &command, TerrainImportResult *out = nullptr) {
+    const auto result = runTerrainEdgeRequest(parseTerrainEdgeRequest(doc, command));
+    if (out)
+        *out = result;
+    return result.report;
+}
+void tagRoles() {
+    Document doc;
+    const auto outer = polyline(doc, square(10, 0), true);
+    const auto middle = polyline(doc, square(7, 1), true);
+    const auto inner = polyline(doc, square(4, 2), true);
+    const auto boundary = polyline(doc, square(8.5, 0.5), true);
+    const auto pond = polyline(doc, square(1, 2, 0, -2.5), true);
+    const auto island = polyline(doc, square(0.5, 2, 0, -2.5), true);
+    const auto notes = polyline(doc, {{-9.5, 5, 5}, {9.5, 5, 5}}, false);
+    const auto ridge = polyline(doc, {{-2, 0, 2.5}, {0, 0.5, 2.8}, {2, 0, 2.6}}, false);
+    const auto siteTag = createTag(doc, "Site boundary");
+    const auto pondTag = createTag(doc, "Ponds");
+    const auto islandTag = createTag(doc, "Islands");
+    const auto notesTag = createTag(doc, "Notes");
+    const auto ridgeTag = createTag(doc, "Ridge");
+    assignTag(doc, boundary, siteTag);
+    assignTag(doc, pond, pondTag);
+    assignTag(doc, island, islandTag);
+    assignTag(doc, notes, notesTag);
+    // The ridge sits in a tagged group: an Untagged edge is listed under its group's tag.
+    const auto ridgeGroup = createGroup(doc, {ridge});
+    assignTag(doc, ridgeGroup, ridgeTag);
+    check(terrainEdgeTag(doc, ridge) == ridgeTag && terrainEdgeTag(doc, outer) == 0,
+          "an Untagged edge takes its nearest tagged ancestor's tag");
+    const auto all = refsOf(doc, {outer, middle, inner, boundary, pond, island, notes, ridge});
+    check(terrainSelectionNeedsRoles(doc, all), "closed loops and several tags need the roles step");
+
+    // Grouping: Untagged first, then by tag ID, with the command's chaining per tag.
+    const auto tags = terrainEdgesByTag(doc, all);
+    check(tags.size() == 6 && tags[0].tag == 0 && tags[1].tag == siteTag &&
+              tags[5].tag == ridgeTag,
+          "one group per tag, Untagged first");
+    check(tags[0].edges.size() == 12 && tags[0].chains == 3 && tags[0].closed == 3 &&
+              tags[0].constantZ == 3,
+          "the Untagged contours are three closed loops of constant Z");
+    check(tags[4].tag == notesTag && tags[4].open() == 1 && tags[5].varyingZ == 1,
+          "open chains and varying Z are counted");
+    check(terrainTagName(doc, 0) == "Untagged" && terrainTagName(doc, pondTag) == "Ponds",
+          "tag names");
+
+    // The role mapping reaches the command's lists.
+    std::map<Id, TerrainImportRole> roles{{siteTag, TerrainImportRole::Boundary},
+                                          {pondTag, TerrainImportRole::Hole},
+                                          {islandTag, TerrainImportRole::Ignore},
+                                          {notesTag, TerrainImportRole::Ignore},
+                                          {ridgeTag, TerrainImportRole::Contour}};
+    check(terrainTagRoleProblems(doc, tags, roles).empty(), "valid roles name no problem");
+    const auto command = terrainCreateFromEdgesCommand(terrainTagRoleSelection(tags, roles));
+    check(command["command"] == "terrain.create_from_edges" &&
+              command["edges"].toArray().size() == 12 &&
+              command["roles"].toObject()["contour"].toArray().size() == 2 &&
+              !command["roles"].toObject().contains("breakline") &&
+              command["boundary"].toArray().size() == 4 && command["holes"].toArray().size() == 1 &&
+              command["holes"].toArray()[0].toArray().size() == 4,
+          "Auto → edges, Contour → roles.contour, Boundary → boundary, each Hole tag → a holes "
+          "list");
+    for (const auto *key : {"edges", "boundary"})
+        for (const auto &edge : command[key].toArray())
+            check(edge.toObject()["body"] != QString::number(notes) &&
+                      edge.toObject()["body"] != QString::number(island),
+                  "Ignore drops the tag's edges");
+    // The dry run and the command agree.
+    TerrainImportResult preview;
+    dryRun(doc, command, &preview);
+    check(preview.ok, "the dry run of valid roles creates: " + preview.message);
+    const auto history = doc.history().total;
+    const auto operation = run(doc, command);
+    const Id terrain = operation["terrain"].toString().toULongLong();
+    check(doc.history().total == history + 1 &&
+              doc.history().entries.back().label == "Create terrain",
+          "the roles create one \"Create terrain\" edit");
+    check(preview.mesh.triangles.size() ==
+              std::size_t(operation["terrainReport"].toObject()["terrain"].toObject()["triangles"]
+                              .toDouble()),
+          "the dry run's mesh is the command's");
+    const auto &record = *doc.bodies().at(terrain)->terrain;
+    std::size_t boundaries = 0, holes = 0, breaklines = 0;
+    for (const auto &source : record.sources) {
+        boundaries += source.role == TerrainSourceRole::Boundary;
+        holes += source.role == TerrainSourceRole::Hole;
+        breaklines += source.role == TerrainSourceRole::Breakline;
+    }
+    check(boundaries == 1 && holes == 1 && breaklines == 1 &&
+              record.parameters.boundary == TerrainBoundaryMode::Boundary,
+          "the boundary and hole tags are stored as boundary and hole sources");
+    check(kind(operation["terrainReport"].toObject(), "notices", "contour-not-constant")["count"]
+                  .toInt() == 1,
+          "a forced contour of varying Z becomes a breakline with the command's notice");
+    auto inside = [&](Id t) {
+        return terrainElevationAt(doc, t, {{0, -2.5}, {5.5, 0}, {9.2, 0}});
+    };
+    auto found = inside(terrain);
+    check(!found[0].found && found[1].found && !found[2].found,
+          "the hole removes the triangles inside it; the boundary those outside it");
+
+    // Regenerate keeps the boundary and the hole.
+    const auto digest = terrainMeshDigest(doc, terrain);
+    {
+        const auto tileId = terrainTiles(doc, terrain).front();
+        const auto before = doc.bodies().at(tileId);
+        auto tile = std::make_shared<Body>(*before);
+        tile->surface.vertices.begin()->second.z += 0.5;
+        auto edited = std::make_shared<Body>(*doc.bodies().at(terrain));
+        edited->terrain->generator = "edited/terrain-v1";
+        doc.apply(
+            {"Edit tile", {{terrain, doc.bodies().at(terrain), edited}, {tileId, before, tile}}},
+            doc.revision());
+    }
+    check(terrainChangedSinceGenerated(doc, terrain), "the edited terrain is changed");
+    check(run(doc, regenerate(terrain))["changed"].toBool(), "Regenerate commits");
+    const auto &regenerated = *doc.bodies().at(terrain)->terrain;
+    std::size_t keptBoundaries = 0, keptHoles = 0;
+    for (const auto &source : regenerated.sources) {
+        keptBoundaries += source.role == TerrainSourceRole::Boundary;
+        keptHoles += source.role == TerrainSourceRole::Hole;
+    }
+    found = inside(terrain);
+    check(keptBoundaries == 1 && keptHoles == 1 &&
+              regenerated.parameters.boundary == TerrainBoundaryMode::Boundary &&
+              terrainMeshDigest(doc, terrain) == digest && !found[0].found && found[1].found &&
+              !found[2].found,
+          "Regenerate keeps the boundary and hole: the stored record rebuilds the same mesh");
+    doc.undo();
+    doc.undo();
+    doc.undo();
+    check(!isTerrain(doc, terrain), "Undo removes the terrain");
+
+    // Validation: what the roles step names, and the command refusing the same.
+    auto problems = [&](std::map<Id, TerrainImportRole> chosen) {
+        return terrainTagRoleProblems(doc, tags, chosen);
+    };
+    auto refusedWith = [&](std::map<Id, TerrainImportRole> chosen, const char *refusal) {
+        TerrainImportResult result;
+        const auto report = dryRun(
+            doc, terrainCreateFromEdgesCommand(terrainTagRoleSelection(tags, chosen)), &result);
+        return !result.ok && !kind(report, "refusals", refusal).isEmpty();
+    };
+    auto withIgnored = [&](std::map<Id, TerrainImportRole> chosen) {
+        chosen.emplace(notesTag, TerrainImportRole::Ignore);
+        chosen.emplace(islandTag, TerrainImportRole::Ignore);
+        return chosen;
+    };
+    auto open = withIgnored({{siteTag, TerrainImportRole::Boundary}});
+    open[notesTag] = TerrainImportRole::Boundary;
+    open[siteTag] = TerrainImportRole::Ignore;
+    auto named = problems(open);
+    check(named.size() == 1 &&
+              named[0] == "Boundary “Notes” has 1 open chain; a boundary is one closed loop.",
+          "an open boundary names the tag and the count: " + (named.empty() ? "" : named[0]));
+    check(refusedWith(open, "open-polygon"), "the command refuses the open boundary too");
+    named = problems(withIgnored({{0, TerrainImportRole::Boundary}}));
+    check(named.size() == 1 &&
+              named[0] == "Boundary “Untagged” has 3 closed loops; a boundary is one closed loop.",
+          "a boundary of several loops is named");
+    check(refusedWith(withIgnored({{0, TerrainImportRole::Boundary}}), "multiple-boundaries"),
+          "the command refuses several boundary loops too");
+    named = problems(withIgnored(
+        {{siteTag, TerrainImportRole::Boundary}, {pondTag, TerrainImportRole::Boundary}}));
+    check(!named.empty() && named[0] == "Only one tag can be the boundary; “Site boundary” and "
+                                        "“Ponds” both have that role.",
+          "two boundary tags are named");
+    auto hole = withIgnored({});
+    hole[notesTag] = TerrainImportRole::Hole;
+    named = problems(hole);
+    check(named.size() == 1 && named[0] == "Hole “Notes” has 1 open chain; holes are closed loops.",
+          "an open hole names the tag and the count");
+    std::map<Id, TerrainImportRole> none;
+    for (const auto &tag : tags)
+        none[tag.tag] = TerrainImportRole::Ignore;
+    named = problems(none);
+    check(named.size() == 1 && named[0] == "Every tag is ignored; give at least one tag a role.",
+          "ignoring every tag is named");
+    // Nested holes pass the step's own checks and are refused by the command's dry run.
+    auto nested = roles;
+    nested[islandTag] = TerrainImportRole::Hole;
+    check(problems(nested).empty() && refusedWith(nested, "invalid-polygon"),
+          "a hole inside another hole is refused by the command, as before");
+    // Auto on the notes line makes it a contour crossing the others: the command refuses.
+    auto crossing = roles;
+    crossing.erase(notesTag);
+    TerrainImportResult crossed;
+    dryRun(doc, terrainCreateFromEdgesCommand(terrainTagRoleSelection(tags, crossing)), &crossed);
+    check(!crossed.ok, "without Ignore the crossing line refuses");
+
+    // The one-click path: one tag and no closed loop needs no roles step.
+    check(!terrainSelectionNeedsRoles(doc, refsOf(doc, {notes})) &&
+              !terrainSelectionNeedsRoles(doc, refsOf(doc, {ridge})),
+          "one tag and no closed loop: no roles step");
+    check(terrainSelectionNeedsRoles(doc, refsOf(doc, {outer})),
+          "a closed loop in one tag: the roles step");
+    check(terrainSelectionNeedsRoles(doc, refsOf(doc, {notes, ridge})),
+          "two tags without loops: the roles step");
+    // Auto everywhere is exactly the one-click command's `edges`.
+    const auto automatic =
+        terrainCreateFromEdgesCommand(terrainTagRoleSelection(terrainEdgesByTag(doc, refsOf(doc, {ridge})), {}));
+    check(automatic.size() == 2 && automatic["edges"].toArray().size() == 2,
+          "Automatic roles give the one-click command");
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -654,6 +870,7 @@ int main(int argc, char **argv) {
         edgesBoundaryAndHole();
         edgesInGroupsAndRefusals();
         chaining();
+        tagRoles();
         std::cout << "terrain regenerate tests passed\n";
         return 0;
     } catch (const std::exception &error) {

@@ -12,7 +12,9 @@ coordinates) and R095.g (decision 10, the assistant surface); see "Implementatio
 the 250k budgets pass except progress and cancel for parse and triangulate (D-044, Minor); the
 owner restated the file-growth budget as the mesh chunk, which closed D-045; the one-tile replacement budget waits for R096; and
 the complete frame passes on the AMD discrete GPU (2026-10-19: p95 0.79–0.94 ms against 16.7 ms). R095.g then implemented the assistant surface
-(decision 10; see "Implementation notes (R095.g)"). Each section gives the
+(decision 10; see "Implementation notes (R095.g)"), and R095.h the roles step of Create terrain
+from selection (owner decision 12; see "Implementation notes (R095.h)"). The one R095 item left is
+D-044. Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
 [R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
@@ -697,10 +699,9 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: R095.h, a role picker for Create terrain from selection (approved by the
-owner on 2026-10-19: a tag-based roles step that reuses the import dialog's layer → role table,
-shown only when the selection has a closed loop or spans more than one tag); progress and cancel
-for the import's parse and triangulation (D-044). The assistant surface (decision 10) is R095.g;
+Left for later slices: progress and cancel for the import's parse and triangulation (D-044,
+Minor). The roles step of Create terrain from selection (owner decision 12) is R095.h; see
+"Implementation notes (R095.h)". The assistant surface (decision 10) is R095.g;
 see "Implementation notes (R095.g)". R095.f is the acceptance record; see
 [R095.f](../verification/R095f-terrain.md). Terrain display (the
 Terrain material, hidden seams and interior edges, contour lines, elevation shading),
@@ -727,6 +728,7 @@ point-file importers with `terrain.inspect_source` and `terrain.import` are R095
 9. **Export conversion in R095:** DXF export option "Write site coordinates" only; other exporters later. *Decided 2026-10-18: DXF only.*
 10. **Assistant visibility:** only `site.describe`, `terrain.describe` and `terrain.elevation_at`, after a corpus token measurement; MCP gets everything. *Decided 2026-10-18: yes. Implemented in R095.g (2026-10-19).*
 11. **Import target:** terrain import adds to the open document in one labelled edit, unlike the other importers. *Decided 2026-10-18: add to the open document.*
+12. **Roles for Create terrain from selection:** a roles step keyed by tag that reuses the import dialog's layer → role table (shared, not copied). Each tag in the selection gets a role: Automatic (the default: contour or breakline by Z, as before), Contour, Breakline, Boundary, Hole or Ignore. The step appears only when the selection has a closed loop or spans more than one tag; otherwise Create terrain from selection stays one click. *Decided 2026-10-19: yes. Implemented in R095.h; see "Implementation notes (R095.h)".*
 
 ## Implementation notes (R095.b)
 
@@ -1302,7 +1304,8 @@ actions, so the assistant's edit fence applies to both.
 - *Create terrain from selection:* the selected edges (curves select their edges) go to the
   command's `edges` list, so roles come from Z (contours and breaklines). The approved design
   gives no way to mark a boundary or holes from a selection, so none is offered here; the command
-  still takes them. On success the new terrain is selected; when the report has notices (for
+  still takes them. (R095.h later added a roles step by tag, owner decision 12; see
+  "Implementation notes (R095.h)".) On success the new terrain is selected; when the report has notices (for
   example remaining flat triangles) or on a refusal, the report opens with the R095.d tree and
   Copy report.
 - *Context menu:* the viewport had none. A right click without a drag (under 4 px) opens it, so
@@ -1588,6 +1591,93 @@ Modules: `assistantVisible` and `assistantDescription` in `src/automation/assist
   imported origin, `terrain.describe` the terrain, and `terrain.elevation_at` a tile
   vertex's exact Z and, off the terrain, `found: false` with a null elevation.
   `provider_release_corpus` and `provider_release_score` cover the v5 manifest.
+
+## Implementation notes (R095.h)
+
+R095.h implements owner decision 12: Create terrain from selection gains a roles step keyed by
+tag. Modules: `TerrainRoleTable` in `src/app/terrain_role_table.*` (the role table, factored out
+of the R095.d import dialog, which now uses it unchanged in behaviour);
+`TerrainSelectionRolesDialog` and `createTerrainFromSelectionInteractive` in
+`src/app/terrain_actions.*`; `terrainEdgeTag`, `terrainEdgesByTag`, `terrainSelectionNeedsRoles`,
+`terrainTagRoleSelection` and `terrainTagRoleProblems` in `src/io/terrain_import.*`; and
+`parseTerrainEdgeRequest`, `runTerrainEdgeRequest` and `terrainCreateFromEdgesCommand` in
+`src/automation/terrain_commands.*`, which split `terrain.create_from_edges` into its parse and
+run halves as R095.d split `terrain.import` (the command is now parse + run + `createTerrain`;
+its results and refusals are unchanged).
+
+**When it appears.** The selected edges chained together as the command chains `edges` contain a
+closed loop, or they lie under more than one tag (`terrainSelectionNeedsRoles`). Otherwise the
+action stays one click and sends `edges` as before. A selection the command would refuse (a
+locked or missing edge) skips the step, so the command's own refusal shows as before.
+
+**Choices where the decision was silent.**
+- *Which tag an edge has:* tags are on bodies, so an edge takes its body's tag, or, when the
+  body is Untagged, its nearest tagged ancestor's: contours drawn inside a group the user tagged
+  are listed under that tag. Untagged edges are a row named "Untagged" like any other; rows are
+  in ascending tag ID, so Untagged comes first.
+- *The table:* the import dialog's table, with "Tag" as its first column and "Tag roles" as its
+  name. Contents read "12 edges · 3 closed loops, 1 open chain", counted by chaining each tag's
+  edges alone with the command's own chaining (`terrainEdgeSources`). Automatic keeps the import
+  dialog's label and shows the inference ("Automatic: contour", "Automatic: breakline" or
+  "Automatic: contour or breakline by Z"). Ground points is not offered (edges are lines).
+- *Role mapping* (`terrainTagRoleSelection`): Automatic tags go to `edges` (role from Z),
+  Contour and Breakline to `roles.contour` and `roles.breakline`, Boundary to `boundary`, each
+  Hole tag to its own `holes` list (one or more loops, as the command allows), and Ignore drops
+  the tag's edges. With every tag Automatic the command is exactly the one-click command.
+- *A forced contour that is not constant Z:* the command keeps it as a breakline with the
+  located `contour-not-constant` notice (R095.c rule); it does not refuse. The step shows it in
+  its status count and report tree before Create, and the notices report follows the edit as
+  for any notice.
+- *Validation, inline before Create is enabled.* Two layers, both the command's own rules.
+  First, `terrainTagRoleProblems` names what the command would refuse, by tag and count, before
+  any work: "Boundary “Site” has 1 open chain; a boundary is one closed loop." (also for several
+  closed loops), "Hole “Ponds” has 2 open chains; holes are closed loops.", "Only one tag can be
+  the boundary; “A” and “B” both have that role." and "Every tag is ignored; give at least one
+  tag a role." The command refuses each of these too (`open-polygon`, `multiple-boundaries`,
+  "Choose at least one edge"), which the tests check. Then the command's own dry run
+  (`parseTerrainEdgeRequest` on the UI thread, `runTerrainEdgeRequest` on a worker, debounced,
+  stale results dropped, as Terrain settings) gives every other refusal, such as nested holes
+  (`invalid-polygon`) or crossings, located in the step's report tree. The status line reads
+  "Cannot create: …" or "Refused: nothing would change. …" in the failure colour, otherwise
+  "Ready: N triangles in K tiles · M notices", as in Terrain settings. Create is enabled only for
+  a successful dry run of the current roles. A refusal of the commit itself (the document cannot
+  change under the modal step, but the path is kept) opens the existing report dialog.
+- *Preview:* not offered. Highlighting a tag's edges would need a multi-edge highlight batch in
+  the viewport (hover highlights one entity), and the modal step covers the view; the Contents
+  column and the located report carry the information instead.
+- *Undo and Cancel:* Create sends one `terrain.create_from_edges`, one "Create terrain" history
+  entry; Undo removes the terrain. Cancel (and Escape) changes nothing. The step refuses to
+  commit if the document revision moved while it was open, as Terrain settings does.
+- *Keyboard and accessibility:* focus starts in the table on the first tag, whose rows follow the
+  list pattern: arrow keys move and extend the selection, and Enter moves to the Role combo (as
+  in the import dialog). In the closed combo Up and Down choose a role without opening a popup.
+  Tab runs table, Role, report, Cancel, Create. Create is the default button, so Enter from the
+  report or on Create creates; the combo keeps Enter, as Qt's combo boxes do. The combo's
+  accessible name follows the current row ("Role for Pond"), and the status line's accessible
+  name is its text. The dialog audit inventory's `terrain` group adds `terrain-create-roles`
+  (Create terrain is the default; Enter continues to the notices report).
+- *Regenerate:* the record stores the boundary and hole sources with Boundary mode, as any
+  terrain from edges, so Regenerate keeps them; tested.
+
+**Verification.** `terrain_regenerate_tests` (`tagRoles`): the tag of an edge in a tagged group,
+grouping and per-tag chain counts, the role mapping to the command's lists (Ignore dropping its
+edges), a dry run equal to the command, one "Create terrain" edit whose boundary removes the
+triangles outside it and whose hole removes those inside, the forced-contour notice, Regenerate
+of a changed terrain rebuilding the same mesh digest with the boundary and hole kept, each named
+problem with the command refusing the same, nested holes refused by the dry run, and the
+one-click rule (one tag and no loop; a loop; two tags). `terrain_desktop_tests`: the step appears
+for closed contours (focus on Role, Create the default, Enter creates) and is skipped for open
+lines in one tag (the crossing refusal, now from open lines, still shows its report); an open
+boundary set by keyboard shows the inline error with Create disabled, Enter inert and Cancel
+changing nothing; a boundary tag and a hole tag set by keyboard (Notes ignored) create the
+expected terrain in one edit, and Undo removes it. It passes offscreen at QT_SCALE_FACTOR 1, 1.5
+and 2. The test sends keys to the focused widget and opens no popup, so it runs the same on X11
+and Wayland.
+
+Deviations: the brief names the default "Auto"; the shared table's label "Automatic" is kept.
+The R095.e1 audit case `terrain-create-refused` and the desktop crossing test now use crossing
+open lines, because crossing closed squares open the roles step (where the refusal is shown
+inline) rather than the report.
 
 ## Appendix: experiments
 
