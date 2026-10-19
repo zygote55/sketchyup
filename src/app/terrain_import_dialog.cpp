@@ -2,6 +2,7 @@
 #include "app/accessible_names.hpp"
 #include "app/interface_preferences.hpp"
 #include "app/terrain_report_view.hpp"
+#include "app/terrain_role_table.hpp"
 #include "app/unit_display.hpp"
 #include "automation/terrain_commands.hpp"
 #include <QApplication>
@@ -441,36 +442,18 @@ void TerrainImportDialog::build() {
     pointsColumn->addWidget(sample_);
     column->addWidget(pointsBox_);
 
-    // Layer (or code) roles.
+    // Layer (or code) roles: the shared role table (R095.h).
     rolesHeading_ = heading("Layer roles");
     column->addWidget(rolesHeading_);
-    roles_ = new QTableWidget(0, 3);
-    roles_->setObjectName("terrainImportRoles");
-    roles_->setAccessibleName("Layer roles");
-    roles_->setHorizontalHeaderLabels({"Layer", "Contents", "Role"});
-    roles_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    roles_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    roles_->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    roles_->setTabKeyNavigation(false);
-    roles_->verticalHeader()->hide();
-    roles_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    roles_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    roles_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    roles_->setTextElideMode(Qt::ElideRight);
-    roles_->setWordWrap(false);
-    roles_->setMinimumHeight(110);
-    roles_->setMaximumHeight(200);
-    column->addWidget(roles_);
-    auto *roleRow = new QHBoxLayout;
-    roleRow->setSpacing(10);
-    roleRow->addWidget(caption("Role"));
-    role_ = new QComboBox;
-    role_->setObjectName("terrainImportRole");
-    role_->setAccessibleName("Role for the selected layers");
-    for (const auto &choice : roleChoices)
-        role_->addItem(choice.label, choice.code);
-    roleRow->addWidget(role_, 1);
-    column->addLayout(roleRow);
+    {
+        std::vector<TerrainRoleTable::Choice> choices;
+        for (const auto &choice : roleChoices)
+            choices.push_back({choice.code, choice.label});
+        roleTable_ = new TerrainRoleTable(
+            std::move(choices), {"terrainImportRoles", "terrainImportRole", "terrainImportFieldLabel"});
+    }
+    roleTable_->setHeadings("Layer", "Layer roles");
+    column->addWidget(roleTable_);
 
     // Site coordinates.
     column->addWidget(heading("Site coordinates"));
@@ -688,9 +671,8 @@ void TerrainImportDialog::build() {
     connect(format_, &QComboBox::currentIndexChanged, this, [this] {
         if (updating_)
             return;
-        roles_->setRowCount(0);
-        layerRoles_.clear(); // the roles of the other format do not apply
-        layerNames_.clear();
+        roleTable_->setRows({});
+        roleTable_->clearRoles(); // the roles of the other format do not apply
         dryRun_.reset();
         refreshUnits();
         refresh();
@@ -712,25 +694,12 @@ void TerrainImportDialog::build() {
     });
     connect(delimiter_, &QComboBox::currentIndexChanged, this, changed(0));
     connect(header_, &QComboBox::currentIndexChanged, this, changed(0));
-    connect(role_, &QComboBox::activated, this, [this] {
-        const auto code = role_->currentData().toString();
-        const auto rows = roles_->selectionModel()->selectedRows();
-        QList<int> chosen;
-        for (const auto &row : rows)
-            chosen << row.row();
-        if (chosen.isEmpty() && roles_->currentRow() >= 0)
-            chosen << roles_->currentRow();
-        for (const int row : chosen)
-            if (row >= 0 && size_t(row) < layerNames_.size()) {
-                if (code == "auto")
-                    layerRoles_.erase(layerNames_[size_t(row)]);
-                else
-                    layerRoles_[layerNames_[size_t(row)]] = code;
-            }
+    roleTable_->changed = [this] {
         // A boundary layer limits the terrain; without one, Boundary mode has nothing to use.
-        const bool hasBoundary = std::any_of(
-            layerRoles_.begin(), layerRoles_.end(),
-            [](const auto &entry) { return entry.second == "boundary"; });
+        const auto roles = roleTable_->roles();
+        const bool hasBoundary = std::any_of(roles.begin(), roles.end(), [](const auto &entry) {
+            return entry.second == "boundary";
+        });
         updating_ = true;
         if (hasBoundary)
             boundary_->setCurrentIndex(boundary_->findData("boundary"));
@@ -739,16 +708,7 @@ void TerrainImportDialog::build() {
         updating_ = false;
         refresh();
         schedule(0);
-    });
-    connect(roles_, &QTableWidget::currentCellChanged, this, [this] { refreshRoles(); });
-    connect(roles_, &QTableWidget::itemSelectionChanged, this, [this] {
-        const auto row = roles_->currentRow();
-        if (row < 0 || size_t(row) >= layerNames_.size())
-            return;
-        const auto found = layerRoles_.find(layerNames_[size_t(row)]);
-        role_->setCurrentIndex(role_->findData(
-            found == layerRoles_.end() ? QString("auto") : found->second));
-    });
+    };
     for (auto *field : {originE_, originN_, originZ_})
         connect(field, &QDoubleSpinBox::valueChanged, this, [this] {
             if (updating_)
@@ -782,7 +742,6 @@ void TerrainImportDialog::build() {
     reportList_->installEventFilter(new EnterChooses(this, [this] {
         chooseLocation(reportList_->currentItem());
     }));
-    roles_->installEventFilter(new EnterChooses(this, [this] { role_->setFocus(); }));
     connect(showReport_, &QPushButton::clicked, this, [this] {
         reportPanel_->setVisible(!reportPanel_->isVisible());
         refreshFooter();
@@ -871,9 +830,8 @@ QJsonObject TerrainImportDialog::command() const {
     if (!unit.isEmpty() && unit != "header")
         command["units"] = unit;
     QJsonObject roles;
-    for (const auto &[layer, role] : layerRoles_)
-        if (std::find(layerNames_.begin(), layerNames_.end(), layer) != layerNames_.end())
-            roles[layer] = role;
+    for (const auto &[layer, role] : roleTable_->roles())
+        roles[layer] = role;
     if (!roles.isEmpty())
         command["roles"] = roles;
     if (originEdited_ && !doc_.site())
@@ -908,7 +866,8 @@ QJsonObject TerrainImportDialog::command() const {
 }
 QString TerrainImportDialog::settingsProblem() const {
     const auto mode = boundary_->currentData().toString();
-    const bool hasBoundary = std::any_of(layerRoles_.begin(), layerRoles_.end(), [](const auto &entry) {
+    const auto roles = roleTable_->roles();
+    const bool hasBoundary = std::any_of(roles.begin(), roles.end(), [](const auto &entry) {
         return entry.second == "boundary";
     });
     if (mode == "maxEdgeLength" && !(maxEdge_->value() > 0))
@@ -1113,20 +1072,12 @@ void TerrainImportDialog::refreshSample() {
 }
 void TerrainImportDialog::refreshRoles() {
     rolesHeading_->setText(points() ? "Description code roles" : "Layer roles");
-    roles_->setAccessibleName(points() ? "Description code roles" : "Layer roles");
-    roles_->setHorizontalHeaderLabels({points() ? "Code" : "Layer", "Contents", "Role"});
+    roleTable_->setHeadings(points() ? "Code" : "Layer",
+                            points() ? "Description code roles" : "Layer roles");
     if (!dryRun_)
         return;
-    std::vector<QString> names;
-    for (const auto &layer : dryRun_->layers)
-        names.push_back(layer.name);
-    const auto current = roles_->currentRow();
-    if (names != layerNames_) {
-        layerNames_ = names;
-        roles_->setRowCount(int(names.size()));
-    }
-    for (size_t i = 0; i < dryRun_->layers.size(); ++i) {
-        const auto &layer = dryRun_->layers[i];
+    std::vector<TerrainRoleTable::Row> rows;
+    for (const auto &layer : dryRun_->layers) {
         QStringList contents;
         if (layer.polylines)
             contents << plural(double(layer.polylines), "polyline", "polylines") +
@@ -1139,33 +1090,11 @@ void TerrainImportDialog::refreshRoles() {
             : !layer.varyingZ                ? "contour"
             : !layer.constantZ               ? "breakline"
                                              : "contour or breakline by Z";
-        const auto found = layerRoles_.find(layer.name);
-        const auto role = found == layerRoles_.end() ? QString("Automatic: ") + automatic
-                                                : roleLabel(found->second);
-        const QString name = layer.name.isEmpty() ? QString("(no code)") : layer.name;
-        auto set = [&](int c, const QString &text) {
-            auto *item = roles_->item(int(i), c);
-            if (!item)
-                roles_->setItem(int(i), c, item = new QTableWidgetItem);
-            item->setText(text);
-        };
-        set(0, name);
-        set(1, contents.join(", "));
-        set(2, role);
+        rows.push_back({layer.name, layer.name.isEmpty() ? QString("(no code)") : layer.name,
+                        contents.join(", "), automatic,
+                        layer.name.isEmpty() ? QString("points with no code") : layer.name});
     }
-    if (current < 0 && roles_->rowCount() > 0) {
-        roles_->setCurrentCell(0, 0);
-    }
-    role_->setEnabled(roles_->rowCount() > 0);
-    const auto row = roles_->currentRow();
-    if (row >= 0 && size_t(row) < layerNames_.size()) {
-        const auto found = layerRoles_.find(layerNames_[size_t(row)]);
-        role_->setCurrentIndex(
-            role_->findData(found == layerRoles_.end() ? QString("auto") : found->second));
-        role_->setAccessibleName("Role for " +
-                                 (layerNames_[size_t(row)].isEmpty() ? QString("points with no code")
-                                                                     : layerNames_[size_t(row)]));
-    }
+    roleTable_->setRows(std::move(rows));
 }
 void TerrainImportDialog::refreshSite() {
     const auto &site = doc_.site();

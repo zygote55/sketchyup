@@ -1319,8 +1319,8 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
 #terrainRegenerate {background:$input;border:1px solid $warning;padding:3px 10px;}
 #terrainRegenerate:focus {border:2px solid $accent;padding:2px 9px;}
 #terrainDialogTitle {font-size:$sectionHeadingPx;font-weight:700;}
-#terrainDialogNote,#terrainBudgetCaption,#terrainSettingsStatus {color:$muted;}
-#terrainSettingsStatus[refused="true"] {color:$failure;font-weight:600;}
+#terrainDialogNote,#terrainBudgetCaption,#terrainSettingsStatus,#terrainSelectionStatus {color:$muted;}
+#terrainSettingsStatus[refused="true"],#terrainSelectionStatus[refused="true"] {color:$failure;font-weight:600;}
 QFrame#terrainDialogBanner {border:2px solid $failure;border-radius:8px;background:$failureSurface;}
 QFrame#terrainDialogBanner[tone="notice"] {border:1px solid $warningBorder;background:$warningSurface;}
 #terrainDialogBannerText {background:transparent;color:$ink;}

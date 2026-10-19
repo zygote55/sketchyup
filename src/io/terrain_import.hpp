@@ -143,4 +143,44 @@ struct TerrainEdgeSelection {
 TerrainSourceSet terrainEdgeSources(const Document &doc, const TerrainEdgeSelection &selection);
 std::map<QString, TerrainImportRole> terrainEdgeRoles();
 
+// ---- R095.h: roles by tag for Create terrain from selection --------------------------------
+
+// The tag an edge is listed under: its body's own tag, or, when the body is Untagged, the
+// nearest tagged ancestor's (the group a user tagged); 0 is Untagged.
+Id terrainEdgeTag(const Document &doc, Id body);
+// "Untagged" for 0, otherwise the tag's name.
+std::string terrainTagName(const Document &doc, Id tag);
+// The edges of one tag, in ascending (body, edge) order, with how the command chains them as
+// one list (terrainEdgeSources): chains, closed loops among them, and chains of constant and
+// varying Z.
+struct TerrainTagEdges {
+    Id tag{};
+    std::vector<TerrainEdgeRef> edges;
+    std::uint64_t chains{}, closed{}, constantZ{}, varyingZ{};
+    std::uint64_t open() const { return chains - closed; }
+};
+// The selection grouped by tag, in ascending tag ID (Untagged first). Refuses (TerrainError)
+// as terrainEdgeSources does.
+std::vector<TerrainTagEdges> terrainEdgesByTag(const Document &doc,
+                                               const std::vector<TerrainEdgeRef> &edges);
+// Whether the edges, chained together as the command chains `edges`, contain a closed loop.
+bool terrainEdgesHaveLoop(const Document &doc, const std::vector<TerrainEdgeRef> &edges);
+// Whether Create terrain from selection shows its roles step: a closed loop, or more than one
+// tag. Otherwise it stays one click (every edge takes its role from Z).
+bool terrainSelectionNeedsRoles(const Document &doc, const std::vector<TerrainEdgeRef> &edges);
+// Tag roles (absent: Auto) to the command's lists: Auto tags' edges go to `edges` (role from Z),
+// Contour and Breakline to the forced lists, Boundary to `boundary`, each Hole tag to its own
+// `holes` list (one or more loops), and Ignore drops the tag's edges. Ground is not a tag role
+// (std::invalid_argument).
+TerrainEdgeSelection terrainTagRoleSelection(const std::vector<TerrainTagEdges> &tags,
+                                             const std::map<Id, TerrainImportRole> &roles);
+// What the roles step names before any triangulation, in tag order: more than one Boundary
+// tag; a Boundary tag that is not exactly one closed loop; a Hole tag with open chains (each
+// names the tag and the count); every tag ignored. The command refuses each of these too
+// (open-polygon, multiple-boundaries, "Choose at least one edge"); nested holes and the other
+// geometric refusals come from the command's own dry run.
+std::vector<std::string> terrainTagRoleProblems(const Document &doc,
+                                                const std::vector<TerrainTagEdges> &tags,
+                                                const std::map<Id, TerrainImportRole> &roles);
+
 } // namespace sketchy

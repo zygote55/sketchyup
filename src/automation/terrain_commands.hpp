@@ -69,6 +69,22 @@ TerrainSourceRequest parseTerrainSourceRequest(const QByteArray &bytes, const QJ
                                                bool importing = true);
 QJsonObject applyTerrainImport(Document &doc, TerrainImportResult result,
                                const std::string &name = "Terrain");
+// R095.h: terrain.create_from_edges in two halves, as terrain.import above, so Create terrain
+// from selection's roles step checks the chosen roles with the command's own validation and
+// report. parseTerrainEdgeRequest checks the request and chains the edges on the document
+// (throwing TerrainError exactly as the command); runTerrainEdgeRequest reads no document (safe
+// on a worker) and gives the result and bounded report the command would: on a refusal
+// `ok` is false and `code`, `message` ("Terrain creation refused …") and `report` say why.
+struct TerrainEdgeRequest {
+    TerrainSourceSet set;
+    TerrainImportOptions options;
+    std::string name{"Terrain"};
+};
+TerrainEdgeRequest parseTerrainEdgeRequest(const Document &doc, const QJsonObject &command);
+TerrainImportResult runTerrainEdgeRequest(const TerrainEdgeRequest &request);
+// The terrain.create_from_edges fields for an edge selection: `edges` (always present),
+// `roles.contour` / `roles.breakline`, `boundary` and `holes` when non-empty.
+QJsonObject terrainCreateFromEdgesCommand(const TerrainEdgeSelection &selection);
 // Entries in the shared command catalogue format.
 QJsonArray terrainCommandSpecs();
 QJsonObject siteDescription(const Document &doc);

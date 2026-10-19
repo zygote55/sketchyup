@@ -1,6 +1,7 @@
 #include "app/terrain_actions.hpp"
 #include "app/accessible_names.hpp"
 #include "app/terrain_report_view.hpp"
+#include "app/terrain_role_table.hpp"
 #include "app/viewport.hpp"
 #include "automation/inspection.hpp"
 #include "io/terrain_import.hpp"
@@ -20,6 +21,7 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QStyle>
+#include <QTableWidget>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <cmath>
@@ -595,6 +597,223 @@ void TerrainSettingsDialog::refresh() {
                                            : status);
 }
 
+// ---- Create terrain from selection: the roles step (R095.h) --------------------------------
+struct TerrainSelectionDryRun {
+    QJsonObject command;
+    bool ok{};
+    QString message;
+    QJsonObject report;
+    std::size_t triangles{}, tiles{};
+};
+namespace {
+constexpr const char *tagRoleCodes[]{"auto", "contour", "breakline", "boundary", "hole", "ignore"};
+TerrainImportRole tagRole(const QString &code) {
+    return terrainImportRole(code).value_or(TerrainImportRole::Auto);
+}
+} // namespace
+
+TerrainSelectionRolesDialog::TerrainSelectionRolesDialog(const Document &doc,
+                                                         const std::vector<TerrainEdgeRef> &edges,
+                                                         QWidget *parent)
+    : Settled<QDialog>(parent), doc_(doc), tags_(terrainEdgesByTag(doc, edges)) {
+    pool_.setMaxThreadCount(1);
+    rerun_.setSingleShot(true);
+    connect(&rerun_, &QTimer::timeout, this, [this] { start(); });
+
+    setObjectName("terrainSelectionRolesDialog");
+    setWindowTitle("Create terrain");
+    setModal(true);
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(10);
+    layout->addWidget(title("Create terrain"));
+    layout->addWidget(text(QString("%1 in %2. Choose a role for each tag; Automatic takes contours "
+                                   "and breaklines from Z. The terrain is one undoable edit.")
+                               .arg(plural(edges.size(), "selected edge", "selected edges"),
+                                    plural(tags_.size(), "tag", "tags")),
+                           "terrainDialogNote"));
+    const QString labels[]{"Automatic", "Contour", "Breakline", "Boundary", "Hole", "Ignore"};
+    std::vector<TerrainRoleTable::Choice> choices;
+    for (std::size_t i = 0; i < std::size(tagRoleCodes); ++i)
+        choices.push_back({tagRoleCodes[i], labels[i]});
+    table_ = new TerrainRoleTable(std::move(choices), {"terrainSelectionRoles",
+                                                       "terrainSelectionRole",
+                                                       "terrainBudgetCaption"});
+    table_->setHeadings("Tag", "Tag roles");
+    std::vector<TerrainRoleTable::Row> rows;
+    for (const auto &tag : tags_) {
+        const auto name = QString::fromStdString(terrainTagName(doc, tag.tag));
+        QStringList shape;
+        if (tag.closed)
+            shape << plural(tag.closed, "closed loop", "closed loops");
+        if (tag.open())
+            shape << plural(tag.open(), "open chain", "open chains");
+        const QString automatic = !tag.varyingZ    ? "contour"
+                                  : !tag.constantZ ? "breakline"
+                                                   : "contour or breakline by Z";
+        rows.push_back({QString::number(tag.tag), name,
+                        plural(tag.edges.size(), "edge", "edges") +
+                            (shape.isEmpty() ? QString() : " · " + shape.join(", ")),
+                        automatic, name});
+    }
+    table_->setRows(std::move(rows));
+    layout->addWidget(table_);
+    status_ = text({}, "terrainSelectionStatus");
+    layout->addWidget(status_);
+    list_ = reportTree("terrainSelectionReport");
+    layout->addWidget(list_, 1);
+    auto *footer = new QHBoxLayout;
+    footer->addStretch(1);
+    auto *cancel = new QPushButton("Cancel");
+    cancel->setObjectName("terrainSelectionCancel");
+    cancel->setAutoDefault(false);
+    footer->addWidget(cancel);
+    create_ = new QPushButton("Create");
+    create_->setObjectName("terrainSelectionCreate");
+    create_->setAccessibleName("Create terrain");
+    create_->setProperty("accentFill", true);
+    create_->setAutoDefault(false);
+    create_->setDefault(true);
+    create_->setEnabled(false);
+    footer->addWidget(create_);
+    layout->addLayout(footer);
+
+    table_->changed = [this] { changed(0); };
+    connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+    connect(create_, &QPushButton::clicked, this, [this] {
+        if (canCreate())
+            accept();
+    });
+    nameInternalEditors(this);
+    // Focus starts in the table (first row): Enter moves to its Role, Tab runs Role, report,
+    // Cancel and Create (the default).
+    table_->table()->setFocus(Qt::OtherFocusReason);
+    resize(600, 520);
+    changed(0);
+}
+TerrainSelectionRolesDialog::~TerrainSelectionRolesDialog() {
+    rerun_.stop();
+    pool_.waitForDone();
+}
+std::map<Id, TerrainImportRole> TerrainSelectionRolesDialog::chosen() const {
+    std::map<Id, TerrainImportRole> roles;
+    for (const auto &[key, code] : table_->roles())
+        roles[Id(key.toULongLong())] = tagRole(code);
+    return roles;
+}
+QJsonObject TerrainSelectionRolesDialog::command() const { return command_; }
+bool TerrainSelectionRolesDialog::checking() const { return running_ || rerun_.isActive(); }
+bool TerrainSelectionRolesDialog::canCreate() const {
+    return problem_.isEmpty() && !checking() && dryRun_ && dryRun_->command == command_ &&
+           dryRun_->ok;
+}
+QJsonObject TerrainSelectionRolesDialog::report() const {
+    return dryRun_ && problem_.isEmpty() ? dryRun_->report : QJsonObject();
+}
+QString TerrainSelectionRolesDialog::status() const { return status_->text(); }
+void TerrainSelectionRolesDialog::changed(int delayMs) {
+    // The roles step names what it can before any work; the command's own checks follow.
+    problem_.clear();
+    request_.reset();
+    const auto roles = chosen();
+    QStringList problems;
+    for (const auto &problem : terrainTagRoleProblems(doc_, tags_, roles))
+        problems << QString::fromStdString(problem);
+    command_ = terrainCreateFromEdgesCommand(terrainTagRoleSelection(tags_, roles));
+    if (problems.isEmpty()) {
+        try {
+            request_ = parseTerrainEdgeRequest(doc_, command_);
+        } catch (const std::exception &error) {
+            problems << QString::fromUtf8(error.what());
+        }
+    }
+    problem_ = problems.join('\n');
+    if (problem_.isEmpty())
+        rerun_.start(delayMs);
+    else
+        rerun_.stop();
+    refresh();
+}
+void TerrainSelectionRolesDialog::start() {
+    if (running_) {
+        rerun_.start(50);
+        return;
+    }
+    if (!request_)
+        return;
+    running_ = true;
+    const auto generation = ++generation_;
+    QPointer<TerrainSelectionRolesDialog> guard(this);
+    // The worker owns a copy of the chained request and never reads the document.
+    pool_.start([request = *request_, command = command_, generation, guard] {
+        auto result = std::make_shared<TerrainSelectionDryRun>();
+        result->command = command;
+        try {
+            const auto run = runTerrainEdgeRequest(request);
+            result->ok = run.ok;
+            result->message = QString::fromStdString(run.message);
+            result->report = run.report;
+            result->triangles = run.mesh.triangles.size();
+            result->tiles = run.tiles;
+        } catch (const std::exception &error) {
+            result->message = QString::fromUtf8(error.what());
+        }
+        QMetaObject::invokeMethod(
+            qApp,
+            [guard, generation, result = std::move(result)]() mutable {
+                if (guard)
+                    guard->finished(generation, std::move(result));
+            },
+            Qt::QueuedConnection);
+    });
+    refresh();
+}
+void TerrainSelectionRolesDialog::finished(std::uint64_t generation,
+                                           std::shared_ptr<TerrainSelectionDryRun> result) {
+    running_ = false;
+    if (generation == generation_)
+        dryRun_ = std::move(result);
+    if (dryRun_ && dryRun_->command != command_ && problem_.isEmpty() && !rerun_.isActive())
+        rerun_.start(0);
+    refresh();
+}
+void TerrainSelectionRolesDialog::refresh() {
+    const bool current = dryRun_ && dryRun_->command == command_ && !checking();
+    QString status;
+    bool refused = false;
+    if (!problem_.isEmpty()) {
+        status = "Cannot create: " + problem_;
+        refused = true;
+    } else if (!current)
+        status = "Checking…";
+    else if (!dryRun_->ok) {
+        refused = true;
+        const auto first = firstRefusal(dryRun_->report["terrain"].toObject());
+        status = "Refused: nothing would change. " +
+                 (first.isEmpty() ? dryRun_->message : first + '.');
+    } else {
+        const auto notices = dryRun_->report["terrain"].toObject()["notices"].toArray().size();
+        status = QString("Ready: %1 in %2 · %3")
+                     .arg(plural(dryRun_->triangles, "triangle", "triangles"),
+                          plural(dryRun_->tiles, "tile", "tiles"),
+                          plural(std::size_t(notices), "notice", "notices"));
+    }
+    status_->setText(status);
+    status_->setAccessibleName(status);
+    status_->setProperty("refused", refused);
+    status_->style()->unpolish(status_);
+    status_->style()->polish(status_);
+    const QSignalBlocker block(list_);
+    list_->clear();
+    if (problem_.isEmpty() && dryRun_)
+        fillTerrainReport(list_, dryRun_->report["terrain"].toObject(), "m");
+    if (list_->topLevelItemCount())
+        list_->setCurrentItem(list_->topLevelItem(0));
+    create_->setEnabled(canCreate());
+    create_->setToolTip(create_->isEnabled() ? QString("Create the terrain with these roles")
+                                             : status);
+}
+
 // ---- Actions -------------------------------------------------------------------------------
 bool explodeTerrainInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain) {
     if (!isTerrain(doc, terrain))
@@ -660,9 +879,31 @@ bool createTerrainFromSelectionInteractive(QWidget *parent, Document &doc, Viewp
     const auto edges = selectedTerrainEdges(view.selectionState());
     if (edges.isEmpty())
         throw std::runtime_error("Select edges or curves to create a terrain from them");
+    QJsonObject command{{"command", "terrain.create_from_edges"}, {"edges", edges}};
+    // R095.h: a closed loop or more than one tag opens the roles step; otherwise it stays one
+    // click. A selection the command would refuse (a locked or missing edge) skips the step, so
+    // the command's refusal is shown as before.
+    std::vector<TerrainEdgeRef> refs;
+    for (const auto &edge : edges)
+        refs.push_back({Id(edge.toObject()["body"].toString().toULongLong()),
+                        Id(edge.toObject()["edge"].toString().toULongLong())});
+    bool roles = false;
+    try {
+        roles = terrainSelectionNeedsRoles(doc, refs);
+    } catch (const std::exception &) {
+    }
+    if (roles) {
+        TerrainSelectionRolesDialog step(doc, refs, parent);
+        const auto revision = doc.revision();
+        if (step.exec() != QDialog::Accepted)
+            return false;
+        if (doc.revision() != revision)
+            throw std::runtime_error("The model changed while the roles were open. Try again.");
+        command = step.command();
+    }
     QJsonObject operation;
     try {
-        operation = commitTerrain(view, {{"command", "terrain.create_from_edges"}, {"edges", edges}});
+        operation = commitTerrain(view, command);
     } catch (const std::exception &error) {
         const auto report = refusalReport(error);
         if (report.isEmpty())

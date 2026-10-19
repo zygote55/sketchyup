@@ -8,6 +8,7 @@
 #include <limits>
 #include <numeric>
 #include <set>
+#include <stdexcept>
 #include <tuple>
 
 namespace sketchy {
@@ -1447,6 +1448,133 @@ TerrainSourceSet terrainEdgeSources(const Document &doc, const TerrainEdgeSelect
                   {"polylines", double(set.polylines.size())},
                   {"sha256", ""}};
     return set;
+}
+
+
+// ---- R095.h: roles by tag ------------------------------------------------------------------
+Id terrainEdgeTag(const Document &doc, Id body) {
+    for (Id id = body; id; ) {
+        const auto found = doc.bodies().find(id);
+        if (found == doc.bodies().end())
+            return 0;
+        if (found->second->tag)
+            return found->second->tag;
+        id = found->second->parent;
+    }
+    return 0;
+}
+std::string terrainTagName(const Document &doc, Id tag) {
+    if (!tag)
+        return "Untagged";
+    const auto found = doc.tags().find(tag);
+    return found == doc.tags().end() ? "Tag " + std::to_string(tag) : found->second->name;
+}
+std::vector<TerrainTagEdges> terrainEdgesByTag(const Document &doc,
+                                               const std::vector<TerrainEdgeRef> &edges) {
+    std::map<Id, std::vector<TerrainEdgeRef>> byTag;
+    for (const auto &ref : edges)
+        byTag[terrainEdgeTag(doc, ref.body)].push_back(ref);
+    std::vector<TerrainTagEdges> tags;
+    for (auto &[tag, list] : byTag) {
+        std::sort(list.begin(), list.end());
+        TerrainEdgeSelection one;
+        one.edges = list;
+        const auto set = terrainEdgeSources(doc, one);
+        const auto &layer = set.layers.front(); // "edges"
+        tags.push_back({tag, std::move(list), layer.polylines, layer.closed, layer.constantZ,
+                        layer.varyingZ});
+    }
+    return tags;
+}
+bool terrainEdgesHaveLoop(const Document &doc, const std::vector<TerrainEdgeRef> &edges) {
+    TerrainEdgeSelection all;
+    all.edges = edges;
+    return terrainEdgeSources(doc, all).layers.front().closed > 0;
+}
+bool terrainSelectionNeedsRoles(const Document &doc, const std::vector<TerrainEdgeRef> &edges) {
+    if (edges.empty())
+        return false;
+    const auto tag = terrainEdgeTag(doc, edges.front().body);
+    for (const auto &ref : edges)
+        if (terrainEdgeTag(doc, ref.body) != tag)
+            return true;
+    return terrainEdgesHaveLoop(doc, edges);
+}
+TerrainEdgeSelection terrainTagRoleSelection(const std::vector<TerrainTagEdges> &tags,
+                                             const std::map<Id, TerrainImportRole> &roles) {
+    TerrainEdgeSelection selection;
+    auto append = [](std::vector<TerrainEdgeRef> &into, const std::vector<TerrainEdgeRef> &from) {
+        into.insert(into.end(), from.begin(), from.end());
+    };
+    for (const auto &tag : tags) {
+        const auto found = roles.find(tag.tag);
+        switch (found == roles.end() ? TerrainImportRole::Auto : found->second) {
+        case TerrainImportRole::Auto:
+            append(selection.edges, tag.edges);
+            break;
+        case TerrainImportRole::Contour:
+            append(selection.contours, tag.edges);
+            break;
+        case TerrainImportRole::Breakline:
+            append(selection.breaklines, tag.edges);
+            break;
+        case TerrainImportRole::Boundary:
+            append(selection.boundary, tag.edges);
+            break;
+        case TerrainImportRole::Hole:
+            selection.holes.push_back(tag.edges);
+            break;
+        case TerrainImportRole::Ignore:
+            break;
+        case TerrainImportRole::Ground:
+            throw std::invalid_argument("Ground points is not a role for model edges");
+        }
+    }
+    return selection;
+}
+std::vector<std::string> terrainTagRoleProblems(const Document &doc,
+                                                const std::vector<TerrainTagEdges> &tags,
+                                                const std::map<Id, TerrainImportRole> &roles) {
+    auto roleOf = [&](Id tag) {
+        const auto found = roles.find(tag);
+        return found == roles.end() ? TerrainImportRole::Auto : found->second;
+    };
+    auto quoted = [&](Id tag) { return "“" + terrainTagName(doc, tag) + "”"; };
+    auto counted = [](std::uint64_t n, const char *one, const char *many) {
+        return std::to_string(n) + ' ' + (n == 1 ? one : many);
+    };
+    std::vector<std::string> problems;
+    std::vector<Id> boundaries;
+    bool used = false;
+    for (const auto &tag : tags) {
+        const auto role = roleOf(tag.tag);
+        used |= role != TerrainImportRole::Ignore;
+        if (role == TerrainImportRole::Boundary) {
+            boundaries.push_back(tag.tag);
+            if (tag.open())
+                problems.push_back("Boundary " + quoted(tag.tag) + " has " +
+                                   counted(tag.open(), "open chain", "open chains") +
+                                   "; a boundary is one closed loop.");
+            else if (tag.closed != 1)
+                problems.push_back("Boundary " + quoted(tag.tag) + " has " +
+                                   counted(tag.closed, "closed loop", "closed loops") +
+                                   "; a boundary is one closed loop.");
+        } else if (role == TerrainImportRole::Hole && tag.open())
+            problems.push_back("Hole " + quoted(tag.tag) + " has " +
+                               counted(tag.open(), "open chain", "open chains") +
+                               "; holes are closed loops.");
+    }
+    if (boundaries.size() > 1) {
+        std::string names;
+        for (std::size_t i = 0; i < boundaries.size(); ++i)
+            names += (i ? (i + 1 == boundaries.size() ? " and " : ", ") : "") + quoted(boundaries[i]);
+        problems.insert(problems.begin(),
+                        "Only one tag can be the boundary; " + names +
+                            (boundaries.size() == 2 ? " both" : " all") + " have that role.");
+    }
+    if (!used)
+        problems.push_back("Every tag is ignored; give at least one tag a role.");
+    return problems;
 }
 
 } // namespace sketchy

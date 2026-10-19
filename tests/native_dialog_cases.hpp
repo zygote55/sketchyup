@@ -197,8 +197,11 @@ inline void writeImportSources(Context &context) {
 }
 // R095.e1: a small terrain made from three nested square contours (terrain.create_from_edges),
 // selected. `paint` gives one tile face its own colour, so Regenerate asks first. With
-// `crossing`, two crossing squares are selected as edges instead (Create terrain refuses).
-inline void terrainFixture(Context &context, bool paint, bool crossing = false) {
+// `crossing`, two crossing open lines in one tag are selected as edges instead (Create terrain
+// skips the R095.h roles step and refuses). With `select`, the contours' edges are selected
+// and no terrain is made (closed loops: Create terrain opens the roles step).
+inline void terrainFixture(Context &context, bool paint, bool crossing = false,
+                           bool select = false) {
     fresh(context);
     auto &window = context.window;
     auto &doc = window.document();
@@ -210,9 +213,16 @@ inline void terrainFixture(Context &context, bool paint, bool crossing = false) 
             body = doc.addWire(body, p[i], p[(i + 1) % p.size()]);
         return body;
     };
-    const auto bodies = crossing ? std::vector<Id>{wire(10, 0, 0), wire(10, 1, 5)}
-                                 : std::vector<Id>{wire(30, 10, 0), wire(20, 11, 0),
-                                                   wire(10, 12, 0)};
+    auto line = [&](const std::vector<Vec3> &p) {
+        Id body = 0;
+        for (std::size_t i = 0; i + 1 < p.size(); ++i)
+            body = doc.addWire(body, p[i], p[i + 1]);
+        return body;
+    };
+    const auto bodies =
+        crossing ? std::vector<Id>{line({{-10, 0, 0}, {0, 0.5, 0}, {10, 0, 0}}),
+                                   line({{0, -10, 1}, {0.5, 0, 1}, {0, 10, 1}})}
+                 : std::vector<Id>{wire(30, 10, 0), wire(20, 11, 0), wire(10, 12, 0)};
     SelectionSet edges;
     QJsonArray references;
     for (const auto body : bodies)
@@ -222,7 +232,7 @@ inline void terrainFixture(Context &context, bool paint, bool crossing = false) 
                 QJsonObject{{"body", QString::number(body)}, {"edge", QString::number(id)}});
         }
     window.viewport()->refresh();
-    if (crossing) {
+    if (crossing || select) {
         window.viewport()->selectEntities(edges);
         return;
     }
@@ -818,7 +828,27 @@ inline std::vector<Case> cases(Context &ctx) {
          "Create terrain from selection (palette)",
          [](Context &context) { terrainFixture(context, false, true); },
          viaPalette("Create terrain from selection"), named("terrainReportDialog"), Enter::Closes,
-         "Close", Return::Viewport, {}, {}, {}, "Crossing contours: nothing was changed."});
+         "Close", Return::Viewport, {}, {}, {}, "Crossing lines: nothing was changed."});
+    // R095.h: closed loops open the roles step first; Create (the default) creates with the
+    // roles shown, and the summit's flat-triangle notice follows in the report.
+    add({"terrain-create-roles",
+         "terrain",
+         "Create terrain from selection (roles step)",
+         "Create terrain from selection (palette)",
+         [](Context &context) { terrainFixture(context, false, false, true); },
+         viaPalette("Create terrain from selection"),
+         named("terrainSelectionRolesDialog"),
+         Enter::Next,
+         "Create terrain",
+         Return::Viewport,
+         named("terrainReportDialog"),
+         [](QWidget &dialog) {
+             auto *roles = dynamic_cast<TerrainSelectionRolesDialog *>(&dialog);
+             require(roles && QTest::qWaitFor([&] { return !roles->checking(); }, 20000),
+                     "The roles dry run settles");
+         },
+         {},
+         "Each tag gets a role; Create makes the terrain in one undoable edit."});
     // R095.e2: File > Site settings… without and with a site origin, and its Re-anchor… and
     // Set origin… dialogs (the action waits for a different origin; Set origin would edit).
     const auto siteFixture = [](Context &context) {

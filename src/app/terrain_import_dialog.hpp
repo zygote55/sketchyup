@@ -27,6 +27,7 @@ class QTreeWidget;
 class QTreeWidgetItem;
 class QWidget;
 namespace sketchy {
+class TerrainRoleTable;
 struct TerrainImportDryRun;
 // R095.d: File > Import terrain… (ADR 0168 "Decisions > Interaction design"). Settings on the
 // left (format, units, layer or code roles, point-file columns, site coordinates and
@@ -95,9 +96,6 @@ class TerrainImportDialog final : public Settled<QDialog> {
     std::uint64_t generation_{}, revision_{};
     std::shared_ptr<TerrainImportDryRun> dryRun_;
     QJsonObject operation_;
-    // Roles chosen per layer or code ("auto" when absent).
-    std::map<QString, QString> layerRoles_;
-    std::vector<QString> layerNames_;
     bool originEdited_{};
     bool unitsCleared_{}; // the user chose no units over the DXF's declared ones
     bool updating_{};
@@ -112,8 +110,7 @@ class TerrainImportDialog final : public Settled<QDialog> {
     std::vector<QComboBox *> columns_;
     QTableWidget *sample_{};
     QLabel *rolesHeading_{};
-    QTableWidget *roles_{};
-    QComboBox *role_{};
+    TerrainRoleTable *roleTable_{};
     QLabel *sourceExtents_{}, *documentOrigin_{}, *formula_{}, *localExtents_{};
     QWidget *originBox_{};
     QDoubleSpinBox *originE_{}, *originN_{}, *originZ_{};
