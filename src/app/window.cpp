@@ -447,6 +447,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     }));
     file->addAction(
         action("file.importTerrain", "Import terrain…", {}, [this] { importTerrainDialog(); }));
+    setupTerrainActions();
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
     file->addAction(
         action("file.saveAs", "Save as…", QKeySequence::SaveAs, [this] { save(true); }));
@@ -1298,6 +1299,18 @@ QLineEdit[parameterField="true"],QSpinBox[parameterField="true"] {font-family:'D
 #parameterStatusRebind {border:1px solid $warning;}
 #parameterStatusUndo QLabel {color:$ink;} #parameterStatusUndo QLabel#parameterStatusShortcut {color:$muted;font-family:'DejaVu Sans Mono';}
 #parameterStatusStrip QPushButton:focus {border:2px solid $accent;padding:6px 10px;}
+/* R095.e1: the Terrain section's amber "Changed since generated" chip and the terrain dialogs. */
+#terrainChangedChip {background:$warningSurface;border:1px solid $warningBorder;border-radius:6px;}
+#terrainChangedChip QLabel {background:transparent;color:$warning;font-weight:600;}
+#terrainRegenerate {background:$input;border:1px solid $warning;padding:3px 10px;}
+#terrainRegenerate:focus {border:2px solid $accent;padding:2px 9px;}
+#terrainDialogTitle {font-size:$sectionHeadingPx;font-weight:700;}
+#terrainDialogNote,#terrainBudgetCaption,#terrainSettingsStatus {color:$muted;}
+#terrainSettingsStatus[refused="true"] {color:$failure;font-weight:600;}
+QFrame#terrainDialogBanner {border:2px solid $failure;border-radius:8px;background:$failureSurface;}
+QFrame#terrainDialogBanner[tone="notice"] {border:1px solid $warningBorder;background:$warningSurface;}
+#terrainDialogBannerText {background:transparent;color:$ink;}
+#terrainExplodeFaces,#terrainExplodeTriangles {font-family:'DejaVu Sans Mono';}
 )");
     style.replace("$textPx", QString::number(interfaceExtent(12, textPercent)) + "px");
     style.replace("$sectionPx", QString::number(interfaceExtent(10, textPercent)) + "px");
@@ -1470,6 +1483,7 @@ void Window::sync() {
         sheetExport_->documentChanged();
     if (terrainImport_)
         terrainImport_->documentChanged();
+    syncTerrainActions();
     if (auto *exportSheets = findChild<QAction *>("file.exportSheets");
         exportSheets && workspace_ == Workspace::Model && !assistantFenced_)
         exportSheets->setEnabled(!doc_.drawingSheets().empty());

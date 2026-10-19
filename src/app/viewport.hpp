@@ -165,6 +165,16 @@ class Viewport : public QOpenGLWidget {
     void unlockContexts();
     void deleteSelection();
     void selectAll();
+    // R095.e1: commits one terrain command (terrain.explode, terrain.set_parameters,
+    // terrain.regenerate, terrain.create_from_edges) as one batch outside any component scope,
+    // then refreshes and reports the change. Throws the batch's refusal.
+    QJsonObject commitTerrainCommand(const QJsonObject &command);
+    // R095.e1 (ADR 0168 "Tools on terrain"): the terrain whose tile the current tool is hovering
+    // and refuses to edit, or 0. The cursor is then the not-allowed cursor.
+    Id refusedTerrain() const { return terrainRefused_; }
+    // The tool's name in the refusal message ("Push/pull does not edit terrain…"), or empty
+    // for a tool that may act on terrain (Select, Paint, camera tools, Intersect with it).
+    static QString terrainRefusingToolName(Tool tool);
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
@@ -337,6 +347,12 @@ class Viewport : public QOpenGLWidget {
     void changed();
     void sceneRecalled(qulonglong scene);
     void message(const QString &text);
+    // R095.e1: the hovered tile's terrain that the current tool refuses (0 when the pointer left
+    // it or the tool changed) and the status-bar text naming the tool.
+    void terrainToolRefused(qulonglong terrain, const QString &text);
+    // R095.e1: the viewport's context menu was asked for at `position` (a right click without
+    // a drag, the Menu key or Shift+F10).
+    void contextMenuRequested(const QPoint &position);
     // R094.e (ADR 0166 §5): a message's action (Show the driver, Select the locked placement,
     // close the definition), asked for at the control that showed it. `action` is a
     // ParameterMessageAction; `target` the driver or placement, `definition` the driver's.
@@ -355,6 +371,7 @@ class Viewport : public QOpenGLWidget {
     void wheelEvent(QWheelEvent *) override;
     void keyPressEvent(QKeyEvent *) override;
     void keyReleaseEvent(QKeyEvent *) override;
+    void contextMenuEvent(QContextMenuEvent *) override;
 
   private:
     // `historyLabel` (at most 512 UTF-8 bytes) names the History entry when not empty.
@@ -440,6 +457,11 @@ class Viewport : public QOpenGLWidget {
     void paintAssistantPreview(QPainter &painter);
     Selection selection_;
     std::optional<SelectedEntity> hover_, lastClickEntity_;
+    // R095.e1 tool hover over terrain (viewport_terrain.cpp).
+    Id terrainRefused_{};
+    QPointF rightPress_;
+    void updateTerrainHover(QPointF point);
+    void clearTerrainHover();
     SelectionSet boxBase_;
     QPointF selectionStart_, selectionEnd_, lastClickPosition_;
     bool selectionPressed_{}, selectingBox_{}, pickDirty_{true}, overlayDirty_{true};

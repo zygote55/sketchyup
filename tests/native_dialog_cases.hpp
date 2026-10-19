@@ -5,7 +5,10 @@
 #include "app/render_panel.hpp"
 #include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
+#include "app/terrain_actions.hpp"
 #include "app/terrain_import_dialog.hpp"
+#include "automation/commands.hpp"
+#include "core/terrain.hpp"
 #include "automation/extension_store.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
@@ -191,6 +194,58 @@ inline void writeImportSources(Context &context) {
     QFile existing(dir.filePath("existing.sketchyup"));
     require(existing.open(QIODevice::WriteOnly) && existing.write("placeholder") > 0,
             "Write existing-file fixture");
+}
+// R095.e1: a small terrain made from three nested square contours (terrain.create_from_edges),
+// selected. `paint` gives one tile face its own colour, so Regenerate asks first. With
+// `crossing`, two crossing squares are selected as edges instead (Create terrain refuses).
+inline void terrainFixture(Context &context, bool paint, bool crossing = false) {
+    fresh(context);
+    auto &window = context.window;
+    auto &doc = window.document();
+    auto wire = [&](double half, double z, double c) {
+        const std::vector<Vec3> p{{c - half, c - half, z}, {c + half, c - half, z},
+                                  {c + half, c + half, z}, {c - half, c + half, z}};
+        Id body = 0;
+        for (std::size_t i = 0; i < p.size(); ++i)
+            body = doc.addWire(body, p[i], p[(i + 1) % p.size()]);
+        return body;
+    };
+    const auto bodies = crossing ? std::vector<Id>{wire(10, 0, 0), wire(10, 1, 5)}
+                                 : std::vector<Id>{wire(30, 10, 0), wire(20, 11, 0),
+                                                   wire(10, 12, 0)};
+    SelectionSet edges;
+    QJsonArray references;
+    for (const auto body : bodies)
+        for (const auto &[id, edge] : doc.bodies().at(body)->topology.edges) {
+            edges.insert({body, SelectionKind::Edge, id});
+            references.append(
+                QJsonObject{{"body", QString::number(body)}, {"edge", QString::number(id)}});
+        }
+    window.viewport()->refresh();
+    if (crossing) {
+        window.viewport()->selectEntities(edges);
+        return;
+    }
+    const QJsonObject request{
+        {"apiVersion", 1},
+        {"documentId", QString::fromStdString(doc.identity())},
+        {"expectedRevision", QString::number(doc.revision())},
+        {"commands", QJsonArray{QJsonObject{{"command", "terrain.create_from_edges"},
+                                            {"edges", references}}}}};
+    const auto terrain = executeBatch(doc, request)["terrainOperations"]
+                             .toArray()[0]
+                             .toObject()["terrain"]
+                             .toString()
+                             .toULongLong();
+    if (paint) {
+        const auto tileId = terrainTiles(doc, terrain).front();
+        const auto before = doc.bodies().at(tileId);
+        auto tile = std::make_shared<Body>(*before);
+        tile->faceColors[tile->surface.faces.begin()->first] = {1, 0, 0};
+        doc.apply({"Paint", {{tileId, before, tile}}}, doc.revision());
+    }
+    window.viewport()->refresh();
+    window.viewport()->setSelection(terrain);
 }
 inline std::function<void(Context &)> viaPalette(const QString &label) {
     return [label](Context &context) { palette(context, label); };
@@ -730,6 +785,40 @@ inline std::vector<Case> cases(Context &ctx) {
          terrainSettles,
          {chooseFile("Import terrain", QDir(ctx.files).filePath("contours.dxf"))},
          "Import adds the terrain to the open model in one undoable edit."});
+    // R095.e1: the terrain actions on the selected terrain (command search; the Entity info
+    // Terrain section's buttons trigger the same actions).
+    const auto settingsSettle = [](QWidget &dialog) {
+        auto *settings = dynamic_cast<TerrainSettingsDialog *>(&dialog);
+        require(settings && QTest::qWaitFor([&] { return !settings->checking(); }, 20000),
+                "The terrain settings dry run settles");
+    };
+    add({"terrain-settings",
+         "terrain",
+         "Terrain settings (current settings)",
+         "Terrain settings… (palette)",
+         [](Context &context) { terrainFixture(context, false); },
+         viaPalette("Terrain settings…"),
+         named("terrainSettingsDialog"),
+         Enter::Disabled,
+         "Apply terrain settings",
+         Return::Viewport,
+         {},
+         settingsSettle,
+         {},
+         "Apply waits for a change; it rebuilds the terrain in one undoable edit."});
+    add({"terrain-explode", "terrain", "Explode terrain (confirmation)",
+         "Explode terrain… (palette)", [](Context &context) { terrainFixture(context, false); },
+         viaPalette("Explode terrain…"), named("terrainExplodeDialog"), Enter::Closes, "Cancel",
+         Return::Viewport, {}, {}, {}, "Cancel is the default."});
+    add({"terrain-regenerate-paint", "terrain", "Regenerate terrain (paint would be dropped)",
+         "Regenerate terrain (palette)", [](Context &context) { terrainFixture(context, true); },
+         viaPalette("Regenerate terrain"), named("terrainRegenerateDialog"), Enter::Closes,
+         "Cancel", Return::Viewport, {}, {}, {}, "Cancel is the default."});
+    add({"terrain-create-refused", "terrain", "Create terrain from selection (refusal report)",
+         "Create terrain from selection (palette)",
+         [](Context &context) { terrainFixture(context, false, true); },
+         viaPalette("Create terrain from selection"), named("terrainReportDialog"), Enter::Closes,
+         "Close", Return::Viewport, {}, {}, {}, "Crossing contours: nothing was changed."});
     add({"measured-export", "components", "Export measured PDF / SVG",
          "File > Export measured PDF/SVG… (palette)", fresh, viaPalette("Export measured PDF/SVG…"),
          named("measuredExportDialog"), Enter::Child, "Save", Return::Viewport,

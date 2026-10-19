@@ -3,6 +3,7 @@
 #include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/terrain_section.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/groups.hpp"
@@ -149,6 +150,9 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     info_ = new CollapsibleSection("Entity info", body);
     info_->setObjectName("entityInfoSection");
     stack->addWidget(info_);
+    // R095.e1: the Terrain section, under Entity info while a terrain is selected.
+    terrain_ = new TerrainSection(doc_, view_);
+    stack->addWidget(terrain_);
     parameters_ = new ComponentParametersSection(doc_, view_);
     stack->addWidget(parameters_);
     definition_ = new ComponentDefinitionSection(doc_, view_);
@@ -178,6 +182,7 @@ void EntityInfoPanel::refresh() {
     drivers_->refresh();
     if (!isVisible())
         return;
+    terrain_->refresh();
     const auto &selected = view_.selectionState().entities();
     if (selected.size() != 1) {
         entity_.reset();

@@ -1980,6 +1980,7 @@ void Viewport::setTool(Tool tool) {
     if (tool == Tool::Pie)
         curveSegments_ = std::max(2u, curveSegments_);
     emit toolChanged(int(tool));
+    clearTerrainHover();
     setCursor(tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
     if (tool == Tool::HostedPlacement) {
         try {
@@ -2780,6 +2781,7 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         e->modifiers().testFlag(Qt::AltModifier)) {
         dragging_ = true;
         dragButton_ = e->button();
+        rightPress_ = e->position();
         toolPressed_ = false;
         dragCommit_ = false;
         return;
@@ -2971,6 +2973,11 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
         directions_.clear();
         hoverReference_.reset();
     }
+    // R095.e1: a refusing tool over a terrain tile shows the not-allowed cursor and says why.
+    if (dragging_ || session_.active())
+        clearTerrainHover();
+    else
+        updateTerrainHover(e->position());
     update();
 }
 void Viewport::mouseReleaseEvent(QMouseEvent *e) {
@@ -2979,6 +2986,10 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     if (e->button() == dragButton_) {
         dragging_ = false;
         dragButton_ = Qt::NoButton;
+        // R095.e1: a right click without a drag opens the context menu.
+        if (e->button() == Qt::RightButton &&
+            (e->position() - rightPress_).manhattanLength() < 4)
+            emit contextMenuRequested(e->position().toPoint());
         return;
     }
     if (e->button() != Qt::LeftButton)

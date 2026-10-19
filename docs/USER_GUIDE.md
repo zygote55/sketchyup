@@ -439,6 +439,23 @@ Shift+Z to fit. **Show report** lists refusals, merges and notices; choose a loc
 it, and copy or save the report. A refused import changes nothing. Import is one undoable edit,
 and the first terrain also sets the model's site origin.
 
+**Working with a terrain.** Select a terrain to see its **Terrain** section in the Info tab:
+name, triangles and tiles, source file and digest, sources by role, elevation range, generator
+and the flat triangles the triangulation left. **Terrain settings…** changes the boundary mode,
+maximum edge length, flat-triangle flips and Steiner fill, shows the result of the change before
+you apply it, and applies it as one undoable edit. If a terrain's tiles no longer match the mesh
+generated from its sources, an amber **Changed since generated** chip offers **Regenerate**
+(one undoable edit; it asks first when paint on individual tiles would be lost). **Explode
+terrain…** shows what it does to the 100,000-face modelling budget and the 250,000-triangle
+terrain budget; Cancel is the default, and Explode is unavailable when the faces would not fit.
+To make a terrain from drawn contours, select their edges or curves, right-click in the view (or
+press the Menu key or Shift+F10) and choose **Create terrain from selection**; edges inside
+groups work too. Constant-height edges become contours and others breaklines; a refusal or any
+notices open the report. Modelling tools such as Push/pull, Offset and the drawing tools show a
+not-allowed cursor over a terrain, and the status bar offers **Explode terrain…**; Select,
+Paint, tags, hiding and locking, and moving the whole terrain work as usual. All terrain actions
+are also in command search (Ctrl+K).
+
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance
 is identified as raster content. Print at actual size to preserve the requested

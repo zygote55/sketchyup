@@ -994,6 +994,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   target_link_libraries(sketchyup_desktop PRIVATE PkgConfig::WaylandClient)
   # R094.e (ADR 0166 §§4, 5): the "has its own values" dialog and the §5 message table.
   target_sources(sketchyup_desktop PRIVATE src/app/parameter_messages.cpp src/app/parameters_scope_dialog.cpp)
+  # R095.e1 (ADR 0168): the Entity info Terrain section, terrain settings, Regenerate, Explode,
+  # Create terrain from selection and the tools' refusal over terrain.
+  target_sources(sketchyup_desktop PRIVATE src/app/terrain_report_view.cpp src/app/terrain_actions.cpp src/app/terrain_section.cpp src/app/viewport_terrain.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1246,6 +1249,13 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_include_directories(terrain_import_dialog_tests PRIVATE tests)
     add_test(NAME terrain_import_dialog COMMAND terrain_import_dialog_tests)
     set_tests_properties(terrain_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # R095.e1: the Entity info Terrain section, settings, Regenerate, Explode, create from
+    # selection and the tools' refusal over terrain (offscreen).
+    add_executable(terrain_desktop_tests tests/terrain_desktop_tests.cpp)
+    target_link_libraries(terrain_desktop_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(terrain_desktop_tests PRIVATE tests)
+    add_test(NAME terrain_desktop COMMAND terrain_desktop_tests)
+    set_tests_properties(terrain_desktop PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   install(TARGETS sketchyup RUNTIME DESTINATION bin)
   install(FILES docs/api/mcp-native-2026-07-28.json docs/api/inspection-desktop-v1.json DESTINATION share/doc/sketchyup/api)

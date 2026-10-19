@@ -4,7 +4,8 @@ Status: **Accepted (2026-10-18)** for the decisions below. Roadmap
 [R095](../PR_ROADMAP.md#r095) (M10, scope row [F03](../SCOPE.md)); shapes
 [R096](../PR_ROADMAP.md#r096). **R095.a (terrain core, persistence and site origin)
 is implemented**, and so are R095.b (triangulation), R095.c (importers), R095.c2 (terrain
-from edges, settings and Regenerate) and R095.d (the desktop import dialog); see
+from edges, settings and Regenerate), R095.d (the desktop import dialog) and R095.e1 (the
+Entity info Terrain section, terrain settings, Explode and the tools on terrain); see
 "Implementation status". Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
@@ -677,10 +678,12 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: the rest of the desktop (R095.e: Site settings, Entity info Terrain
-section, terrain display, tool cursors, Explode confirmation, site coordinates in the Measurements
-box, the origin marker and Create terrain from selection), DXF "Write site coordinates", and the
-assistant surface. File → Import terrain… is R095.d; see "Implementation notes (R095.d)". The DXF and
+Left for later slices: the rest of the desktop (R095.e2: terrain display with contour lines,
+elevation shading and hidden tile seams and interior edges, Site settings and Re-anchor, site
+coordinates in Entity info and the Measurements box, and the origin crosshair with View → Site
+origin), DXF "Write site coordinates" (R095.e3), and the assistant surface. The Entity info
+Terrain section, Terrain settings…, Regenerate, the Explode confirmation, the tool cursors and
+Create terrain from selection are R095.e1; see "Implementation notes (R095.e1)". File → Import terrain… is R095.d; see "Implementation notes (R095.d)". The DXF and
 point-file importers with `terrain.inspect_source` and `terrain.import` are R095.c; see
 "Implementation notes (R095.c)". `terrain.create_from_edges`, `terrain.set_parameters` and
 `terrain.regenerate` are R095.c2; see "Implementation notes (R095.c2)".
@@ -1217,6 +1220,98 @@ default-button checks on two states, and File → Import terrain… importing on
 undoable edit with the terrain selected. It passes at QT_SCALE_FACTOR 1, 1.5 and 2. The
 dialog audit inventory (`tests/native_dialog_cases.hpp`) adds the file chooser, a point file
 (Import disabled) and a DXF (Enter imports).
+
+## Implementation notes (R095.e1)
+
+R095.e1 adds the desktop surface for existing terrains. Modules: `src/app/terrain_section.*`
+(the Entity info section), `src/app/terrain_actions.*` (the dialogs and actions),
+`src/app/terrain_report_view.*` (the report tree and text, now shared with the import dialog),
+`src/app/viewport_terrain.cpp` (tool hover and the context-menu request), the actions in
+`src/app/window_terrain.cpp`, and `terrainExplodeBudget` in `src/core/terrain.*`.
+
+**One core path.** Every action runs its command through the batch API outside any component
+scope (`Viewport::commitTerrainCommand`): Terrain settings → `terrain.set_parameters` ("Terrain
+settings"), Regenerate → `terrain.regenerate` ("Regenerate terrain"), Explode →
+`terrain.explode` ("Explode terrain"), Create terrain from selection →
+`terrain.create_from_edges` ("Create terrain"), each one history entry. A refusal arrives as the
+batch error with `details.terrainReport` and changes nothing. The Explode confirmation reads
+`terrainExplodeBudget`, which `explodeTerrain` now uses for its own refusal, so the dialog and
+the command cannot disagree. The four actions are public window actions (command search),
+enabled for a selected terrain or selected edges; the section's buttons trigger the same
+actions, so the assistant's edit fence applies to both.
+
+**Choices where the design was silent.**
+- *When the section shows:* the single selected entity is a terrain, or the selection lies in
+  one terrain's tiles (inside the opened terrain). It sits under Entity info and is cached by
+  document, revision, terrain and display units.
+- *Source file:* the record stores the digest, unit and scale but not a file name; the name is
+  shown when the document's site provenance has the same SHA-256 (the import that set the
+  origin), otherwise only the digest (first 12 hex digits; the full digest in the tooltip). A
+  terrain from edges reads "Model edges (no source file)". Sources are counted by role; point
+  groups count their points ("25 spot points").
+- *Flat-area result:* not stored in the record, so it is recomputed from the mesh with the
+  adapter's own definition (three contour vertices at one elevation within 1e-9 m) and its
+  planar area. For a current mesh this is the triangulation's "remaining" count.
+- *Display (contour lines, shading):* left out. They have no viewport rendering until R095.e2,
+  and storing them needs a decision this slice cannot make (on the record, which changes the
+  frozen `terrain-v1` encoding, or as view or scene state); controls with no visible effect
+  would mislead. R095.e2 adds them with their rendering.
+- *Chip:* "⚠ Changed since generated" with Regenerate in the warning colours of the parameter
+  status strip; the section header's detail also reads "Changed". A tile's paint, material or
+  colour does not enter the mesh digest (counts, XYZ, indices), so painting never shows the chip;
+  a change of a tile's geometry does.
+- *Regenerate confirmation:* only when paint would be dropped (`terrainTilePaint`), listing the
+  face and tile counts; Cancel is the default, as for Explode.
+- *Terrain settings:* the boundary modes are labelled as in the import dialog except "Boundary
+  source" (a stored terrain has sources, not layers). Contradictory choices are named before any
+  work ("Cannot apply: …", the command's own validation). Every change re-runs
+  `runTerrainRegenerate` on a worker (debounced, stale results dropped, as in the import dialog)
+  with the paint notices; the footer reads "Ready: N triangles in K tiles · M notices" over the
+  report tree with Copy report. Apply is the default and is disabled while checking, on a
+  refusal, and when the choices equal the stored parameters (Regenerate is the action for a
+  terrain with its own settings, and a no-op batch would commit nothing).
+- *Explode confirmation:* "Modelling faces: X now + N = Y of 100,000" and "Terrain triangles:
+  T now − N = T′ of 250,000 (N freed)"; over the limit a failure banner explains it and Explode
+  is disabled.
+- *Create terrain from selection:* the selected edges (curves select their edges) go to the
+  command's `edges` list, so roles come from Z (contours and breaklines). The approved design
+  gives no way to mark a boundary or holes from a selection, so none is offered here; the command
+  still takes them. On success the new terrain is selected; when the report has notices (for
+  example remaining flat triangles) or on a refusal, the report opens with the R095.d tree and
+  Copy report.
+- *Context menu:* the viewport had none. A right click without a drag (under 4 px) opens it, so
+  right-drag still pans; the Menu key and Shift+F10 open it at the pointer or the view's
+  centre. It holds Create terrain from selection, enabled when the selection has edges.
+- *Tools on terrain:* the hover check runs in `Viewport::mouseMoveEvent` (the tool session has no
+  pointer path) and never changes the core rule. Push/pull, Offset, Follow Me, Solid tools and
+  Face orientation refuse any tile under the pointer. The drawing tools, Tape measure,
+  Protractor, Move, Rotate and Scale refuse only inside the opened terrain: from outside, a
+  click on a terrain draws in the active context or moves the whole terrain, which is allowed.
+  Select, Paint, the camera tools and Intersect (terrain as a reference) never refuse. The cursor
+  is Qt's forbidden cursor; the status bar shows the design's sentence and an "Explode
+  terrain…" button that opens the same confirmation. The refusal stays while the pointer leaves
+  the view (so the button can be reached) and clears when a tool hovers something else or the
+  tool changes, restoring the previous status text.
+
+**Verification.** `terrain_desktop_tests` (ctest `terrain_desktop`, offscreen): the section's
+fields for a terrain from edges and an imported one, its accessible names, the summit's two flat
+triangles (400 m²); paint keeps the digest and shows no chip, a tile geometry change shows it;
+Regenerate's paint confirmation (Cancel changes nothing), one "Regenerate terrain" edit, Undo
+bringing the chip back, and no confirmation without paint; Terrain settings cancel, the two
+invalid combinations, a valid change applied as one "Terrain settings" edit and undone; the
+Explode confirmation within budget (Enter cancels; Explode is one edit leaving a group) and
+over a test face limit (banner, Explode disabled); Create terrain from selection from the
+context menu (Menu key) with its notices report, a crossing-contour refusal located by edges
+that changes nothing, and edges in nested groups in world coordinates; the Push/pull cursor and
+status sentence over a tile, the status link opening Explode, Paint, Select and Move allowed
+from outside, and Move refused inside the opened terrain. It passes at QT_SCALE_FACTOR 1, 1.5
+and 2 and at 200 % interface text. The dialog audit inventory adds a `terrain` group: Terrain
+settings (Apply disabled until a change), Explode (Cancel default), Regenerate with paint
+(Cancel default) and the Create terrain refusal report (Close default).
+
+Deviation: the brief's "open-boundary refusal" from a selection cannot occur without a way to
+mark a boundary (see above); the desktop test uses crossing contours, which refuse with located
+pairs, and the open-boundary refusal stays covered by `terrain_regenerate_tests`.
 
 ## Appendix: experiments
 

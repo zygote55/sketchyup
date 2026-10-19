@@ -75,8 +75,20 @@ TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainReco
 // must be empty when the document already has a site origin.
 TerrainCreated importTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
                              std::optional<SiteOrigin> establish, std::string name = "Terrain");
+// The effect of Explode terrain on the two budgets (R095.e1's confirmation shows it): the
+// document's unique modelling faces now and the terrain's triangles that would join them,
+// against the 100,000-face modelling limit, and the document's terrain triangles that the
+// terrain would free, against TerrainLimits::triangles.
+struct TerrainExplodeBudget {
+    std::size_t modelFaces{}, terrainFaces{}, faceLimit{};
+    std::size_t documentTerrainTriangles{}, terrainLimit{};
+    std::size_t facesAfter() const { return modelFaces + terrainFaces; }
+    bool fits() const { return facesAfter() <= faceLimit; }
+};
+// Refuses (NOT_FOUND) a body that is not a terrain.
+TerrainExplodeBudget terrainExplodeBudget(const Document &doc, Id terrain);
 // The terrain becomes an ordinary group of its tiles and loses its record. Refuses
-// (LIMIT_EXCEEDED) when the faces would exceed the modelling limit.
+// (LIMIT_EXCEEDED) when the faces would exceed the modelling limit (terrainExplodeBudget).
 ChangeReport explodeTerrain(Document &doc, Id terrain);
 // R095.c2 regeneration. Paint that a new mesh cannot keep: tile faces with their own colour,
 // material or texture mapping, and tiles with their own material or colour.
