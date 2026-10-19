@@ -240,8 +240,12 @@
      "points": 0.358,
      "contours": 0.502
     },
-    "result": "time pass; progress and cancel missing",
-    "defect": "D-044"
+    "result": "pass; progress and cancel since the D-044 fix (2026-10-19)",
+    "defect": "D-044",
+    "cancelLatencyMaxMs": {
+     "points": 55.3,
+     "contours": 49.0
+    }
    },
    {
     "operation": "commit edit, tiles and validation",
@@ -584,7 +588,8 @@
    {
     "id": "D-044",
     "class": "Minor",
-    "title": "Terrain import parse and triangulation show no progress and cannot be cancelled"
+    "title": "Terrain import parse and triangulation show no progress and cannot be cancelled",
+    "status": "fixed 2026-10-19 (branch fix/d044-terrain-import-progress)"
    },
    {
     "id": "D-045",
@@ -606,7 +611,6 @@
  },
  "remaining": [
   "R095.g assistant surface (decision 10)",
-  "D-044",
   "one-tile replacement budget with R096"
  ],
  "ownerQuestions": [

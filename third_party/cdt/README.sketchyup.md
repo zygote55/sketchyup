@@ -11,6 +11,8 @@ sources, the tests, `extras`, the documentation or the visualizer. Builds use th
 copy in header-only mode (`CDT_USE_AS_COMPILED_LIBRARY` is never defined) and never fetch
 code. Only `src/geometry/terrain_triangulation.cpp` includes it
 ([ADR 0168](../../docs/decisions/0168-terrain-import-and-surfaces.md) section 3).
+That file defines `CDT_ENABLE_CALLBACK_HANDLER` before the include, which compiles in upstream's
+`ICallbackHandler` abort hook for cancellation (D-044); it changes no header and no result.
 
 Licences:
 

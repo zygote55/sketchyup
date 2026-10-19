@@ -25,6 +25,7 @@
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <set>
 using namespace sketchy;
 namespace fixture = sketchy::terrain_fixture;
@@ -1030,6 +1031,106 @@ void overLimitImport() {
     check(doc.revision() == revision && encodeContainer(doc) == before && doc.bodies().empty(),
           "the refusal changes nothing");
 }
+// D-044: progress and cancel through parse, prepare, triangulate and tile. With a
+// TerrainProgress the import is the same (mesh, record, report and tiles); the reports rise
+// through the four stages to the end of tiling; a cancel at any report either stops the parse
+// (TerrainCancelled) or returns a cancelled result that keeps nothing.
+void progressAndCancel() {
+    TerrainPointOptions xyz;
+    xyz.unit = *terrainUnit("m");
+    struct Case {
+        const char *name;
+        std::function<TerrainSourceSet(TerrainProgress *)> parse;
+        TerrainImportOptions options;
+    };
+    const std::vector<Case> cases{
+        {"terrain-contours-m.dxf",
+         [](TerrainProgress *progress) {
+             return parseDxfTerrain(fixture::terrainContoursMetres(), {}, progress);
+         },
+         siteOptions()},
+        {"terrain-utm.xyz",
+         [&](TerrainProgress *progress) {
+             return parseTerrainPoints(fixture::terrainXyz(true), xyz, progress);
+         },
+         {}},
+        {"terrain-invalid.dxf (refused)",
+         [](TerrainProgress *progress) {
+             return parseDxfTerrain(fixture::terrainInvalid(), {terrainUnit("m"), 0.05}, progress);
+         },
+         {}},
+    };
+    for (const auto &c : cases) {
+        const auto plain = runTerrainImport(c.parse(nullptr), c.options, std::nullopt);
+        std::vector<std::pair<int, double>> reports;
+        TerrainProgress progress({}, [&](TerrainStage stage, double fraction) {
+            reports.emplace_back(int(stage), fraction);
+        });
+        const auto set = c.parse(&progress);
+        const auto reported = runTerrainImport(set, c.options, std::nullopt, {}, &progress);
+        check(!reported.cancelled && reported.ok == plain.ok &&
+                  reported.mesh.vertices == plain.mesh.vertices &&
+                  reported.mesh.triangles == plain.mesh.triangles &&
+                  reported.record == plain.record && reported.report == plain.report &&
+                  reported.tiles == plain.tiles && reported.code == plain.code,
+              std::string(c.name) + ": progress does not change the import");
+        std::set<int> stages;
+        for (std::size_t i = 0; i < reports.size(); ++i) {
+            stages.insert(reports[i].first);
+            check(i == 0 || reports[i] > reports[i - 1], std::string(c.name) + ": progress rises");
+        }
+        check(!reports.empty() &&
+                  reports.back() == std::pair<int, double>{int(TerrainStage::Tile), 1.0},
+              std::string(c.name) + ": progress reaches the end of tiling");
+        // A refusal in preparation skips triangulation and tiling but still ends at 1.
+        check(plain.ok ? stages.size() == 4 : stages.size() >= 3,
+              std::string(c.name) + ": every stage reports");
+        std::size_t parseReports = 0;
+        while (parseReports < reports.size() &&
+               reports[parseReports].first == int(TerrainStage::Parse))
+            ++parseReports;
+        for (std::size_t n = 0; n < reports.size(); ++n) {
+            bool cancel = false;
+            std::size_t seen = 0;
+            TerrainProgress cancelling([&] { return cancel; },
+                                       [&](TerrainStage, double) { cancel = cancel || seen++ == n; });
+            std::optional<TerrainSourceSet> parsed;
+            try {
+                parsed = c.parse(&cancelling);
+            } catch (const TerrainCancelled &) {
+            }
+            check(parsed.has_value() == (n >= parseReports),
+                  std::string(c.name) + ": a cancel while parsing stops the parse");
+            if (!parsed)
+                continue;
+            const auto cancelled =
+                runTerrainImport(*parsed, c.options, std::nullopt, {}, &cancelling);
+            check(cancelled.cancelled && !cancelled.ok && cancelled.code == "CANCELLED" &&
+                      cancelled.mesh.vertices.empty() && cancelled.mesh.triangles.empty() &&
+                      cancelled.record == TerrainRecord{} && cancelled.report.isEmpty() &&
+                      cancelled.tiles == 0 && !cancelled.establish,
+                  std::string(c.name) + ": a cancel at report " + std::to_string(n) +
+                      " keeps nothing");
+            check(seen == n + 1, std::string(c.name) + ": the run stops where it saw the cancel");
+        }
+    }
+    // A cancelled import through the command path changes nothing.
+    Document doc;
+    const auto before = encodeContainer(doc);
+    TerrainProgress cancelled([] { return true; });
+    try {
+        importTerrainSource(doc, fixture::terrainContoursMetres(),
+                            importCommand(fixture::terrainContoursMetres(), "dxf",
+                                          {{"roles", siteRoles}}),
+                            &cancelled);
+        check(false, "a cancelled import does not finish");
+    } catch (const TerrainCancelled &) {
+    }
+    check(encodeContainer(doc) == before && doc.bodies().empty() && !doc.site(),
+          "a cancelled import changes nothing");
+    std::cout << "progress and cancel: every report of three fixtures\n";
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -1048,6 +1149,7 @@ int main(int argc, char **argv) {
         displayUnits();
         everyFixtureTwice();
         overLimitImport();
+        progressAndCancel();
         inspection();
         cli();
         timings(large);

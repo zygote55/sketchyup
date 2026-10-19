@@ -14,6 +14,7 @@
 //                       selection has a closed loop or spans more than one tag, a roles step
 //                       (TerrainSelectionRolesDialog) gives each tag a role first.
 #include "app/settled_dialog.hpp"
+#include "app/terrain_run.hpp"
 #include "core/selection.hpp"
 #include "core/terrain.hpp"
 #include "automation/terrain_commands.hpp"
@@ -31,6 +32,7 @@ class QFrame;
 class QLabel;
 class QPushButton;
 class QTreeWidget;
+class QProgressBar;
 namespace sketchy {
 class TerrainRoleTable;
 class Viewport;
@@ -154,12 +156,17 @@ class TerrainSelectionRolesDialog final : public Settled<QDialog> {
     const std::vector<TerrainTagEdges> &tags() const { return tags_; }
     TerrainRoleTable *roleTable() const { return table_; }
     QTreeWidget *reportList() const { return list_; }
+    // D-044: whether a dry run is on the worker, and its progress bar (shown only then).
+    bool running() const { return running_; }
+    QProgressBar *progressBar() const { return progress_; }
+    void done(int result) override;
 
   private:
     void changed(int delayMs);
     void start();
     void finished(std::uint64_t generation, std::shared_ptr<TerrainSelectionDryRun> result);
     void refresh();
+    void cancelRun();
     std::map<Id, TerrainImportRole> chosen() const;
 
     const Document &doc_;
@@ -168,13 +175,16 @@ class TerrainSelectionRolesDialog final : public Settled<QDialog> {
     std::optional<TerrainEdgeRequest> request_;
     QThreadPool pool_;
     QTimer rerun_;
-    bool running_{};
+    QTimer progressPoll_;
+    std::shared_ptr<TerrainRunControl> control_; // the running dry run's, while running_
+    bool running_{}, closed_{};
     std::uint64_t generation_{};
     std::shared_ptr<TerrainSelectionDryRun> dryRun_;
     QString problem_;
     TerrainRoleTable *table_{};
     QLabel *status_{};
     QTreeWidget *list_{};
+    QProgressBar *progress_{};
     QPushButton *create_{};
 };
 

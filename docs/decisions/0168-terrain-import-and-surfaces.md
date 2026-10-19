@@ -9,12 +9,14 @@ Entity info Terrain section, terrain settings, Explode and the tools on terrain)
 (terrain display, Site settings and site coordinates), R095.e3 (DXF export with site
 coordinates) and R095.g (decision 10, the assistant surface); see "Implementation status". **R095.f accepted them on 2026-10-19 with open gaps**
 ([R095.f record](../verification/R095f-terrain.md)): the Verify line and every check of §6 pass;
-the 250k budgets pass except progress and cancel for parse and triangulate (D-044, Minor); the
-owner restated the file-growth budget as the mesh chunk, which closed D-045; the one-tile replacement budget waits for R096; and
+the 250k budgets pass except progress and cancel for parse and triangulate (D-044, Minor, since
+fixed: see "Implementation notes (D-044)"); the owner restated the file-growth budget as the mesh chunk, which closed D-045; the one-tile replacement budget waits for R096; and
 the complete frame passes on the AMD discrete GPU (2026-10-19: p95 0.79–0.94 ms against 16.7 ms). R095.g then implemented the assistant surface
 (decision 10; see "Implementation notes (R095.g)"), and R095.h the roles step of Create terrain
-from selection (owner decision 12; see "Implementation notes (R095.h)"). The one R095 item left is
-D-044. Each section gives the
+from selection (owner decision 12; see "Implementation notes (R095.h)"). The D-044 fix
+(2026-10-19) adds progress and cancel to the import's parse and triangulation, so parse and
+triangulate now meets its whole budget; see "Implementation notes (D-044)". No R095 defect is
+open; the one-tile replacement budget waits for R096. Each section gives the
 options and trade-offs that were weighed; the owner chose the recommended option in
 every case (see "Decisions"). The interaction design is the owner-approved
 [R095 UX design (canvas; private to the owner)](https://claude.ai/artifact/Uhxtc3gzv7FDdMshM5FuXF).
@@ -699,8 +701,8 @@ does not triangulate.
   oversized-count seeds; `parser_fault_corpus_tests` adds a schema-29 container and the
   chunk decoder.
 
-Left for later slices: progress and cancel for the import's parse and triangulation (D-044,
-Minor). The roles step of Create terrain from selection (owner decision 12) is R095.h; see
+Progress and cancel for the import's parse and triangulation (D-044, Minor) are the D-044 fix;
+see "Implementation notes (D-044)". The roles step of Create terrain from selection (owner decision 12) is R095.h; see
 "Implementation notes (R095.h)". The assistant surface (decision 10) is R095.g;
 see "Implementation notes (R095.g)". R095.f is the acceptance record; see
 [R095.f](../verification/R095f-terrain.md). Terrain display (the
@@ -1678,6 +1680,104 @@ Deviations: the brief names the default "Auto"; the shared table's label "Automa
 The R095.e1 audit case `terrain-create-refused` and the desktop crossing test now use crossing
 open lines, because crossing closed squares open the roles step (where the refusal is shown
 inline) rather than the report.
+
+## Implementation notes (D-044)
+
+The D-044 fix (2026-10-19, branch `fix/d044-terrain-import-progress`) completes the §6 budget
+"Parse and triangulate: ≤ 3 s, with progress and cancel".
+
+**Mechanism.** `TerrainProgress` (`src/geometry/terrain_progress.hpp`, standard library only,
+header-only) is one run's progress and cancellation: a `std::function<bool()>` that says whether
+cancellation was requested (the `canceled` callback convention of `Inference::sync`) and a report
+callback with a stage and the stage's fraction. The stages are `parse`, `prepare`,
+`triangulate` and `tile`; `terrainOverallProgress` weights them 20, 10, 65 and 5 % after the
+measured 250k runs. The run calls `at(stage, fraction)` at phase and loop boundaries (loops
+check every 16,384 items, the DXF entity loop every 1,024); `at` reports only forward movement
+(at least 1/256 of a stage, a stage's start and its end), so progress is monotonic even when
+the dialog parses a DXF twice, and once cancellation has been requested it throws
+`TerrainCancelled` (latched). A `nullptr` TerrainProgress, the default everywhere, reports and
+checks nothing.
+
+- **Where it goes.** `parseDxfTerrain`, `parseTerrainPoints` (the SHA-256 is now hashed in
+  1 MiB pieces with a checkpoint between them; same value), `parseTerrainSourceRequest`,
+  `prepareTerrainSources`, `triangulateTerrain`, `tileTerrainTriangles`, `runTerrainImport`,
+  `importTerrainSource` and `runTerrainEdgeRequest` take an optional `TerrainProgress *`.
+  Parsing and preparation let `TerrainCancelled` propagate; `triangulateTerrain` returns a
+  result with `cancelled` (its "never throws" contract stands), and `runTerrainImport` and
+  `runTerrainEdgeRequest` return `cancelled` with code `CANCELLED`, an empty mesh, record and
+  report. Nothing of a cancelled run is kept. `runTerrainRegenerate` (Terrain settings,
+  Regenerate) is unchanged.
+- **CDT.** Vertex insertion is the one long phase (72–104 ms for 125,000 vertices on the
+  development host, measured in isolation). CDT 2.0.0 has an upstream abort hook,
+  `ICallbackHandler::isAbortCalculation`, polled per vertex in `insertVertices` and per
+  constraint in `insertEdges`, compiled in by `CDT_ENABLE_CALLBACK_HANDLER`. The adapter defines
+  that switch before it includes the headers (it is their only includer, so every use sees the
+  same definition); the vendored headers stay byte for byte unchanged. Every 256th poll is a
+  checkpoint with the phase's fraction. An abort is latched, because CDT asks again after it
+  stops (its capacity assertions do); the adapter then throws, so a half-built triangulation is
+  never used. Only the super-triangle erase (20–35 ms at 250k) and the sorts inside the
+  adapter run without a check.
+- **Determinism.** Checkpoints only read; an uncancelled run gives the same bits with or
+  without a TerrainProgress. With the switch on and no handler, CDT runs its old code; with a
+  handler, the same triangles (checked on 125,000 random points and 125,000 contour vertices).
+  Every pinned digest is unchanged: the metre, usft, UTM DXF and UTM XYZ mesh digests, the
+  adapter's hill and UTM-origin digests, and the generator identity `cdt-2.0.0/terrain-v1`.
+
+**Cancel latency** (`terrain_budget_benchmark --cancel 200`, Release, development host, 22
+CPUs): 200 runs per source cancelled from another thread at times spread over the dry run, time
+from the request until the run has returned:
+
+| Source (250k triangles) | Dry run with progress | Max | p95 | Median | Worst stage |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 125,000 points (249,970 triangles) | 353 ms | 55.3 ms | 48.4 ms | 13.9 ms | triangulate |
+| 416 contour rings (249,298 triangles) | 482 ms | 49.0 ms | 42.8 ms | 11.8 ms | triangulate (parse 45.2 ms) |
+
+The longest gaps are the super-triangle erase plus the neighbour build after CDT, and, for the
+DXF, the shared reader's tokenization, which has no checkpoint inside. Progress costs nothing
+measurable: the dry runs without cancellation are 375 and 523 ms (best of three), against 0.36
+and 0.50 s in R095.f.
+
+**Desktop.** `src/app/terrain_run.hpp` holds `TerrainRunControl`: atomics for the cancel
+request, the stage and the overall per-mille, shared between a dialog and its worker, and
+`terrainRunProgress`, the worker's TerrainProgress over it. File → Import terrain… and the roles
+step of Create terrain from selection:
+
+- show the stage in the status ("Checking: reading the source…", "preparing the sources…",
+  "triangulating…", "tiling…"; "Checking…" while debouncing) and a determinate `QProgressBar`
+  in the footer (`terrainImportProgress`, `terrainSelectionProgress`; accessible name "Checking
+  progress", no focus, shown only while a run is on the worker), polled every 50 ms. The import
+  dialog's preview placeholder names the stage too ("Checking the source: triangulating…").
+  A DXF's first run, which reads its header units, shows progress as well;
+- cancel the running dry run when a setting, a role or the document changes (the stale run
+  stops instead of finishing), and when the dialog closes by Cancel, Escape, the window's close
+  button or Import/Create (`done()`); a closed dialog starts no further run;
+- in the destructor, cancel and then `waitForDone()`, which now waits until the next
+  checkpoint. The generation and `QPointer` guards stay; a cancelled result is never shown.
+
+Status changes set label text only and never move the focus.
+
+**CLI.** `sketchyup-cli --import-terrain` prints one self-overwriting line,
+`Importing terrain: <stage>, N%`, on stderr when stderr is a terminal, and clears it before the
+result; otherwise it prints nothing new. No other long CLI operation prints progress, so there
+was no convention to follow. Stdout and the JSON output are unchanged.
+
+**Verification.** `terrain_triangulation_tests` (`progressAndCancel`): three inputs (a hill, the
+hill with Steiner fill and trimming, a grid with a boundary and hole whose corners need the
+first triangulation) give the same mesh and report with progress; reports rise from 0 to 1;
+a cancel at every report, and before the start, returns `cancelled` with nothing kept and stops
+at that checkpoint; a cancel during CDT vertex insertion stops there. `terrain_import_tests`
+(`progressAndCancel`): the metre DXF with boundary and hole, the UTM point file and the refused
+invalid DXF give the same mesh, record, report and tiles with progress, every stage reports,
+progress ends at the end of tiling, a cancel at every report either stops the parse or returns
+a cancelled result with nothing kept, and a cancelled `importTerrainSource` leaves the document
+unchanged. Both pass under the sanitize preset (ASan, LeakSanitizer and UBSan). The desktop
+suites hold a dry run at the start of triangulation through a test hook
+(`terrainRunTestHook`, `tests/terrain_run_hold.hpp`): `terrain_import_dialog_tests` checks the
+stage text, the bar (named, determinate, no focus), the preview placeholder and that the focus
+stays put; a changed setting cancels and restarts; Cancel and closing the window during a run
+close and destroy the dialog in about 1 ms with the document unchanged. `terrain_desktop_tests`
+does the same for the roles step (a changed role, then Cancel). Both pass offscreen at
+`QT_SCALE_FACTOR` 1 and 2; they send no real input and open no popup.
 
 ## Appendix: experiments
 

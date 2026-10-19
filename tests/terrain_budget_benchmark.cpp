@@ -1,6 +1,6 @@
 // R095.f (ADR 0168 section 6, "Budgets"): measures the 250,000-triangle terrain budgets.
 //
-//   terrain_budget_benchmark [--repeat N] [--frame]
+//   terrain_budget_benchmark [--repeat N] [--frame] [--cancel [TRIALS]]
 //
 // For two generated sources at the triangle limit (a random point file and a contour DXF) it
 // times, best of N (default 3), the import dry run as the dialog runs it (parse, preparation and
@@ -12,6 +12,12 @@
 // real_model_benchmark does for M9) with the default display and with contour lines and
 // elevation bands. Prints one JSON document. Build it Release; run the frame part under the
 // platform and renderer to be measured (for example xvfb-run with LIBGL_ALWAYS_SOFTWARE=1).
+//
+// D-044: --cancel measures the cancel latency of the same dry run instead (parse, prepare,
+// triangulate and tile with a TerrainProgress): it checks that a run with progress gives the
+// same mesh, then cancels TRIALS runs (default 100) at times spread evenly over the dry run,
+// from another thread, and reports the time from the cancel request until the run has
+// returned, overall and by the stage the run was in.
 #include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "automation/terrain_commands.hpp"
@@ -30,7 +36,10 @@
 #include <QTest>
 #include <QtEndian>
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
+#include <thread>
 #include <iostream>
 #include <malloc.h>
 #include <numbers>
@@ -230,6 +239,92 @@ Measured measure(const char *name, const QByteArray &bytes, const QJsonObject &c
     return {json, std::move(last)};
 }
 
+// D-044: cancel latency at the triangle limit.
+QJsonObject cancelLatency(const char *name, const QByteArray &bytes, const QJsonObject &command,
+                          int trials) {
+    using Clock = std::chrono::steady_clock;
+    auto ms = [](Clock::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
+    // The reference: without and with a TerrainProgress, the same mesh; the run's length.
+    auto plainRequest = parseTerrainSourceRequest(bytes, command);
+    const auto plain =
+        runTerrainImport(plainRequest.set, plainRequest.options, std::nullopt, plainRequest.provenance);
+    check(plain.ok, std::string(name) + " imports");
+    std::vector<std::pair<int, double>> reports;
+    TerrainProgress observed({}, [&](TerrainStage stage, double fraction) {
+        reports.emplace_back(int(stage), fraction);
+    });
+    const auto start = Clock::now();
+    auto request = parseTerrainSourceRequest(bytes, command, true, &observed);
+    const auto reported =
+        runTerrainImport(request.set, request.options, std::nullopt, request.provenance, &observed);
+    const double runMs = ms(Clock::now() - start);
+    check(reported.ok && reported.mesh.vertices == plain.mesh.vertices &&
+              reported.mesh.triangles == plain.mesh.triangles && reported.record == plain.record &&
+              reported.report == plain.report,
+          std::string(name) + ": progress does not change the result");
+    for (std::size_t i = 1; i < reports.size(); ++i)
+        check(reports[i] > reports[i - 1], std::string(name) + ": progress rises");
+    check(!reports.empty() && reports.back() == std::pair<int, double>{int(TerrainStage::Tile), 1.0},
+          std::string(name) + ": progress reaches the end");
+    request = {};
+    std::vector<double> latencies;
+    std::vector<double> worstByStage(terrainStageCount, 0);
+    int cancelled = 0;
+    for (int trial = 0; trial < trials; ++trial) {
+        const double at = runMs * (trial + 0.5) / trials;
+        std::atomic<bool> flag{false};
+        std::atomic<int> stage{-1};
+        Clock::time_point requested;
+        TerrainProgress progress([&] { return flag.load(std::memory_order_relaxed); },
+                                 [&](TerrainStage s, double) { stage.store(int(s)); });
+        const auto begin = Clock::now();
+        std::thread canceller([&] {
+            std::this_thread::sleep_until(begin + std::chrono::microseconds(qint64(at * 1000)));
+            requested = Clock::now();
+            flag.store(true);
+        });
+        bool stopped = false;
+        try {
+            auto cancelledRequest = parseTerrainSourceRequest(bytes, command, true, &progress);
+            const auto result = runTerrainImport(cancelledRequest.set, cancelledRequest.options,
+                                                 std::nullopt, cancelledRequest.provenance,
+                                                 &progress);
+            stopped = result.cancelled;
+            check(result.cancelled || result.ok, "a run finishes or is cancelled");
+            check(!result.cancelled ||
+                      (result.mesh.triangles.empty() && result.report.isEmpty()),
+                  "a cancelled run keeps nothing");
+        } catch (const TerrainCancelled &) {
+            stopped = true;
+        }
+        const auto end = Clock::now();
+        canceller.join();
+        if (!stopped)
+            continue; // finished before the request (the last trials of a fast run)
+        ++cancelled;
+        const double latency = ms(end - requested);
+        latencies.push_back(latency);
+        const int s = std::max(stage.load(), 0);
+        worstByStage[std::size_t(s)] = std::max(worstByStage[std::size_t(s)], latency);
+    }
+    check(!latencies.empty(), "some runs were cancelled");
+    QJsonObject byStage;
+    for (int s = 0; s < terrainStageCount; ++s)
+        byStage[terrainStageName(TerrainStage(s))] = worstByStage[std::size_t(s)];
+    QJsonObject json{{"source", name},
+                     {"triangles", double(plain.mesh.triangles.size())},
+                     {"dryRunWithProgressMs", runMs},
+                     {"progressReports", double(reports.size())},
+                     {"trials", trials},
+                     {"cancelled", cancelled},
+                     {"latencyMaxMs", *std::max_element(latencies.begin(), latencies.end())},
+                     {"latencyP95Ms", p95(latencies)},
+                     {"latencyMedianMs", median(latencies)},
+                     {"latencyMaxByStageMs", byStage}};
+    std::cerr << QJsonDocument(json).toJson(QJsonDocument::Compact).toStdString() << '\n';
+    return json;
+}
+
 class TimedViewport final : public Viewport {
   public:
     using Viewport::Viewport;
@@ -323,11 +418,16 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", settings.path().toUtf8());
     qputenv("XDG_DATA_HOME", settings.path().toUtf8());
     bool frame = false;
-    int repeat = 3;
+    int repeat = 3, cancelTrials = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--frame")
             frame = true;
+        else if (arg == "--cancel") {
+            cancelTrials = 100;
+            if (i + 1 < argc && std::atoi(argv[i + 1]) > 0)
+                cancelTrials = std::atoi(argv[++i]);
+        }
         else if (arg == "--repeat" && i + 1 < argc)
             repeat = std::max(1, std::atoi(argv[++i]));
     }
@@ -335,6 +435,26 @@ int main(int argc, char **argv) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
     QApplication app(argc, argv);
     try {
+        const QJsonObject pointsCommand{{"format", "points"},
+                                        {"units", "m"},
+                                        {"columns", "XYZ"},
+                                        {"delimiter", "whitespace"},
+                                        {"header", false}};
+        const QJsonObject contoursCommand{{"format", "dxf"}, {"units", "header"}};
+        if (cancelTrials) {
+            QJsonArray sources;
+            sources.append(cancelLatency("points", pointSource(125000), pointsCommand, cancelTrials));
+            sources.append(
+                cancelLatency("contours", contourSource(416, 300), contoursCommand, cancelTrials));
+            QJsonObject out{{"benchmark", "terrain_budget_benchmark --cancel"},
+#ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
+                            {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
+#endif
+                            {"cpus", int(::sysconf(_SC_NPROCESSORS_ONLN))},
+                            {"sources", sources}};
+            std::cout << QJsonDocument(out).toJson().toStdString();
+            return 0;
+        }
         QTemporaryDir files;
         check(files.isValid(), "temporary directory");
         QJsonArray sources;

@@ -83,7 +83,8 @@ std::string boundedText(const QJsonObject &command, const char *key, std::size_t
     return value;
 }
 using ParsedSource = TerrainSourceRequest;
-ParsedSource parseSource(const QByteArray &bytes, const QJsonObject &command, bool importing) {
+ParsedSource parseSource(const QByteArray &bytes, const QJsonObject &command, bool importing,
+                         TerrainProgress *progress = nullptr) {
     const std::initializer_list<const char *> common{
         "command",   "data",      "format",     "units",       "origin",        "crs",
         "sourceName", "roles",    "columns",    "delimiter",   "header",        "flatMode",
@@ -125,7 +126,7 @@ ParsedSource parseSource(const QByteArray &bytes, const QJsonObject &command, bo
             for (const auto *key : {"columns", "delimiter", "header"})
                 if (command.contains(key))
                     reject("INVALID_REQUEST", std::string(key) + " applies to point files only");
-            parsed.set = parseDxfTerrain(bytes, {unit, chord});
+            parsed.set = parseDxfTerrain(bytes, {unit, chord}, progress);
         } else {
             if (!unit)
                 reject("INVALID_REQUEST", "Point files have no units; choose " +
@@ -169,9 +170,11 @@ ParsedSource parseSource(const QByteArray &bytes, const QJsonObject &command, bo
                     reject("INVALID_REQUEST", "header is true or false");
                 points.header = command["header"].toBool();
             }
-            parsed.set = parseTerrainPoints(bytes, points);
+            parsed.set = parseTerrainPoints(bytes, points, progress);
         }
     } catch (const TerrainError &) {
+        throw;
+    } catch (const TerrainCancelled &) {
         throw;
     } catch (const std::bad_alloc &) {
         throw;
@@ -383,14 +386,16 @@ QJsonObject inspectTerrainCommand(const Document &doc, const QJsonObject &comman
     return inspectTerrainSource(doc, sourceData(command), command);
 }
 TerrainSourceRequest parseTerrainSourceRequest(const QByteArray &bytes,
-                                               const QJsonObject &command, bool importing) {
-    return parseSource(bytes, command, importing);
+                                               const QJsonObject &command, bool importing,
+                                               TerrainProgress *progress) {
+    return parseSource(bytes, command, importing, progress);
 }
-QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes,
-                                const QJsonObject &command) {
-    const auto parsed = parseSource(bytes, command, true);
+QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes, const QJsonObject &command,
+                                TerrainProgress *progress) {
+    const auto parsed = parseSource(bytes, command, true, progress);
     return applyTerrainImport(
-        doc, runTerrainImport(parsed.set, parsed.options, doc.site(), parsed.provenance),
+        doc,
+        runTerrainImport(parsed.set, parsed.options, doc.site(), parsed.provenance, progress),
         parsed.name);
 }
 QJsonObject applyTerrainImport(Document &doc, TerrainImportResult result,
@@ -453,9 +458,14 @@ TerrainEdgeRequest parseTerrainEdgeRequest(const Document &doc, const QJsonObjec
     request.set = terrainEdgeSources(doc, selection);
     return request;
 }
-TerrainImportResult runTerrainEdgeRequest(const TerrainEdgeRequest &request) {
+TerrainImportResult runTerrainEdgeRequest(const TerrainEdgeRequest &request,
+                                          TerrainProgress *progress) {
     // The terrain frame is the model frame: no site origin is used, set or required.
-    auto result = runTerrainImport(request.set, request.options, std::nullopt);
+    auto result = runTerrainImport(request.set, request.options, std::nullopt, {}, progress);
+    if (result.cancelled) {
+        result.message = "Terrain creation cancelled; nothing was changed";
+        return result;
+    }
     auto terrain = result.report["terrain"].toObject();
     terrain.remove("proposedOrigin");
     terrain.remove("origin");

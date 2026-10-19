@@ -376,7 +376,9 @@ DxfSource parseDxf(const QByteArray &bytes, DxfOptions options) {
 }
 // R095.c terrain mode (ADR 0168 section 1). Same tokenizer, budgets and unit rules as the
 // planar reader; coordinates stay in source units and elevations are kept.
-TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOptions &options) {
+TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOptions &options,
+                                 TerrainProgress *progress) {
+    terrainCheckpoint(progress, TerrainStage::Parse, 0);
     Reader reader;
     const auto prepared = prepare(
         reader, bytes,
@@ -425,9 +427,13 @@ TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOption
         require(std::abs(value) <= bound, "DXF coordinate is beyond 100,000 km");
         return value;
     };
+    terrainCheckpoint(progress, TerrainStage::Parse, .4);
     const auto entities = records(reader.sections.at("ENTITIES"));
+    terrainCheckpoint(progress, TerrainStage::Parse, .5);
     std::uint64_t ordinal = 0;
     for (size_t index = 0; index < entities.size(); ++index) {
+        if (progress && (index & 0x3ff) == 0)
+            progress->at(TerrainStage::Parse, .5 + .45 * double(index) / double(entities.size()));
         const auto &record = entities[index];
         const auto &t = record.tags;
         const auto &type = record.type;
@@ -587,8 +593,7 @@ TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOption
         ++(constant ? layer.constantZ : layer.varyingZ);
         set.polylines.push_back(std::move(polyline));
     }
-    set.sha256 =
-        QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+    set.sha256 = terrainSourceSha256(bytes, progress, .95, 1);
     set.report = {{"apiVersion", 1},
                   {"format", "dxf"},
                   {"mode", "terrain"},
