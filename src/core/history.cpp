@@ -7,7 +7,7 @@ HistoryPage Document::history(size_t offset, size_t limit) const {
     const auto base = !undo_.empty()   ? undo_.front().before
                       : !redo_.empty() ? redo_.back().before
                                        : state_;
-    HistoryPage result{total,          undo_.size(),        offset, historyBytes_,
+    HistoryPage result{total,          undo_.size(),        offset, historyBytes_ + terrainHistoryBytes_,
                        historyPruned_, base == savedState_, {}};
     const auto end = offset + std::min(limit, total - offset);
     for (auto i = offset; i < end; ++i) {

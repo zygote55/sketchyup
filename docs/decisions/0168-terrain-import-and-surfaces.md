@@ -622,6 +622,19 @@ does not triangulate.
   on every edit and load. Tile triangles, vertices and edges are counted only there
   (`DocumentTotals::terrainTriangles`); tiles still count as body records. Refusals name
   the count and the limit ("… terrain triangles would be 250,001 of 250,000").
+  **History (D-043).** Terrain has its own undo history budget,
+  `Document::terrainHistoryLimit` (512 MiB charged). The record, tile and lineage changes of
+  an edit that creates, changes or drops a terrain record are charged there
+  (`Edit::terrainBytes`), not against the 64 MiB `historyLimit`. The budget holds a
+  250,000-triangle terrain plus one regeneration's before and after. The worst
+  250,000-triangle terrain and record charge 190.7 MiB, so every terrain operation within the
+  document limit applies as one undoable edit. The oldest entries are dropped while either
+  budget is exceeded, and an edit over it would refuse `LIMIT_EXCEEDED`. Measured: a
+  249,218-triangle terrain is 97 MiB of heap, and its create entry adds none, because history
+  shares the tile bodies. A full regeneration with undo and redo holds 194 MiB (255 MiB
+  through `executeBatch`, which also keeps the erased tiles' lineage). Repeated regenerations
+  stay at 303 MiB, with about 540 MiB peak resident
+  ([R089.a D-043](../verification/R089a-defect-triage.md)).
 - **Generic tools refuse terrain tiles** with "Edit terrain with the terrain tools, or
   Explode it to ordinary geometry" (`UNSUPPORTED_TARGET`). The rule is enforced once in
   `Document::applyEdit`, next to the lock rule: a change to a tile's surface, topology,

@@ -82,6 +82,12 @@ their 1.2.0 schema.
   face tessellation: a large triangle face could send Clipper2's Delaunay triangulation into
   unbounded memory growth; triangle faces are now their own tessellation.
 
+- Fixed (D-043): a terrain over about 151,000 triangles could not be imported or created, and
+  Regenerate, Terrain settings and Explode failed above about 76,000, with "Edit exceeds the
+  64 MiB history budget". Terrain edits now have their own 512 MiB undo history budget, so
+  every terrain up to the 250,000-triangle document limit applies as one undoable edit. When
+  terrain edits fill that budget the oldest undo steps are dropped, as for other history.
+  Undo history for other edits is unchanged.
 - Fixed (D-042): faces larger than about 10 m (quads, L-shapes, faces with holes) and section
   caps of similar size could send face tessellation into unbounded memory growth, hanging an
   edit, a load or a render until the system killed SketchyUp. The vendored Clipper2

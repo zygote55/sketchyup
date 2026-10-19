@@ -70,6 +70,9 @@ struct TerrainLimits {
     static constexpr std::size_t generatorBytes = 64;
     static constexpr std::size_t unitBytes = 16;
 };
+// D-043: a terrain edit whose record and tile changes exceed Document::terrainHistoryLimit.
+inline constexpr const char *terrainHistoryMessage =
+    "The terrain edit is too large for its 512 MiB undo history budget";
 inline constexpr const char *terrainProtectedMessage =
     "Edit terrain with the terrain tools, or Explode it to ordinary geometry";
 // Refusals that carry one of the shared automation error codes
