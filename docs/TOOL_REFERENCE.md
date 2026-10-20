@@ -165,6 +165,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `terrain.edit_source` | Edit contour | `terrain`, `source`, `command` |
 | `terrain.add_source` | Add contour | `terrain`, `command` |
 | `terrain.remove_source` | Remove contour | `terrain`, `source`, `command` |
+| `terrain.sculpt` | Sculpt terrain | `terrain`, `mode`, `command` |
 | `terrain.set_display` | Terrain display | `terrain`, `command` |
 
 ## Bounded queries
