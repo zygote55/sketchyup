@@ -6,6 +6,7 @@
 #include "core/model.hpp"
 #include "core/selection.hpp"
 #include "core/terrain_display.hpp"
+#include "core/terrain_edit_mesh.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
@@ -602,6 +603,9 @@ class Viewport : public QOpenGLWidget {
     void paintSiteOrigin(QPainter &p);
     const TerrainView *terrainViewOfTile(Id tile) const;
     bool siteOriginVisible_{}, siteSettingsOpen_{};
+    // R096.a: the document whose terrain edit meshes this viewport's display uses; its entries
+    // in terrainEditMeshCache() are forgotten when the document is replaced or the viewport goes.
+    std::string terrainCacheIdentity_;
     // Registries hold their source records so raw keys are never reused.
     std::map<const Body *, std::pair<BodyPtr, std::weak_ptr<BodyGeometry>>> sharedGeometry_;
     std::map<PlacementKey, std::pair<BodyPtr, std::weak_ptr<BodyMesh>>> placementMeshes_;

@@ -326,6 +326,36 @@ int main(int argc, char **argv) {
             tree["documentId"] = "00000000000000000000000000000840";
             terrain = decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
         }
+        {
+            // R096.a: two tiles of one terrain with one key are refused at load.
+            auto tree = QJsonDocument::fromJson(encodeDocument(terrain)).object();
+            auto bodies = tree["bodies"].toArray();
+            QJsonValue key;
+            bool found = false;
+            for (qsizetype i = 0; i < bodies.size(); ++i) {
+                auto o = bodies[i].toObject();
+                if (!o.contains("terrainTile"))
+                    continue;
+                if (!found) {
+                    key = o["terrainTile"];
+                    found = true;
+                    continue;
+                }
+                o["terrainTile"] = key;
+                bodies[i] = o;
+                break;
+            }
+            check(found, "The terrain seed has two tiles");
+            tree["bodies"] = bodies;
+            bool refused = false;
+            try {
+                decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
+            } catch (const std::exception &error) {
+                refused = std::string(error.what()).find("two tiles with the key") !=
+                          std::string::npos;
+            }
+            check(refused, "Duplicate terrain tile keys are refused, naming the key");
+        }
         const auto terrainContainer = encodeContainer(terrain);
         results.append(exercise("native-container-terrain", terrainContainer,
                                 [](const auto &bytes, bool &parsed) {

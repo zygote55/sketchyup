@@ -474,14 +474,34 @@ TerrainSeamReport checkTerrainSeams(const std::vector<TerrainTilePtr> &tiles) {
             continue;
         const auto x0 = cellOf(std::min(pa.x, pb.x) - near), x1 = cellOf(std::max(pa.x, pb.x) + near),
                    y0 = cellOf(std::min(pa.y, pb.y) - near), y1 = cellOf(std::max(pa.y, pb.y) + near);
-        if ((x1 - x0 + 1) * (y1 - y0 + 1) > 4096)
-            continue; // A very long edge; checked against its neighbours only by its ends.
-        for (auto x = x0; x <= x1; ++x)
-            for (auto y = y0; y <= y1; ++y) {
-                const auto found = grid.find({x, y});
-                if (found == grid.end())
-                    continue;
-                for (const auto v : found->second) {
+        // The cells to search: the edge's box when it is small; for a long edge the cells along
+        // it (each step at most one cell, with its eight neighbours), or every boundary vertex
+        // when even that walk would be longer than the list.
+        std::vector<const std::vector<std::uint32_t> *> lists;
+        if ((x1 - x0 + 1) * (y1 - y0 + 1) <= 4096) {
+            for (auto x = x0; x <= x1; ++x)
+                for (auto y = y0; y <= y1; ++y)
+                    if (const auto found = grid.find({x, y}); found != grid.end())
+                        lists.push_back(&found->second);
+        } else if (length / cell < double(boundaryVertices.size())) {
+            const auto steps = std::size_t(std::ceil(length / cell)) + 1;
+            std::set<std::pair<std::int64_t, std::int64_t>> cells;
+            for (std::size_t step = 0; step <= steps; ++step) {
+                const double t = double(step) / double(steps);
+                const auto cx = cellOf(pa.x + (pb.x - pa.x) * t),
+                           cy = cellOf(pa.y + (pb.y - pa.y) * t);
+                for (auto dx = -1; dx <= 1; ++dx)
+                    for (auto dy = -1; dy <= 1; ++dy)
+                        cells.insert({cx + dx, cy + dy});
+            }
+            for (const auto &c : cells)
+                if (const auto found = grid.find(c); found != grid.end())
+                    lists.push_back(&found->second);
+        } else
+            lists.push_back(&boundaryVertices);
+        {
+            for (const auto *list : lists)
+                for (const auto v : *list) {
                     if (v == a || v == b)
                         continue;
                     const auto p = points[v];
@@ -610,14 +630,18 @@ TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string
         refuse("LIMIT_EXCEEDED",
                "The terrain's edit list is full (4,096 changes); use Reset edits, or Explode "
                "terrain to keep the surface as ordinary geometry");
-    if (terrainEditBytes(record.edits) + data->bytes() > TerrainLimits::editBytes)
+    // IDs come from the record's counter and are never reused; the last one is refused rather
+    // than wrapped.
+    const auto id = record.nextEditId;
+    if (id == std::numeric_limits<std::uint32_t>::max())
+        refuse("LIMIT_EXCEEDED", "The terrain has used every change ID; use Reset edits, or "
+                                 "Explode terrain to keep the surface as ordinary geometry");
+    auto entry = std::make_shared<TerrainEdit>(TerrainEdit{id, kindName, std::move(data)});
+    // The bound counts what validateTerrainRecord counts, so a refusal is LIMIT_EXCEEDED here.
+    if (terrainEditBytes(record.edits) + terrainEditEntryBytes(*entry) > TerrainLimits::editBytes)
         refuse("LIMIT_EXCEEDED",
                "The terrain's edit list would exceed 8 MiB; use Reset edits, or Explode terrain "
                "to keep the surface as ordinary geometry");
-    std::uint32_t id = 1;
-    for (const auto &entry : record.edits)
-        id = std::max(id, entry->id + 1);
-    auto entry = std::make_shared<TerrainEdit>(TerrainEdit{id, kindName, std::move(data)});
     const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
     const auto outcome = kind->apply(*mesh, *entry);
     if (!outcome.change)
@@ -625,6 +649,7 @@ TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string
                                                           : outcome.notice);
     const auto result = replaceTerrainRegion(*mesh, *outcome.change);
     record.edits.push_back(std::move(entry));
+    record.nextEditId = id + 1;
     record.generator = terrainEditGenerator;
     TerrainEditApplied applied;
     applied.edit = id;

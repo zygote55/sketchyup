@@ -263,6 +263,20 @@ void removeEdit() {
         doc.undo();
     }
     check(model(doc) == removed && doc.revision() == revision + 2, "refusals change nothing");
+    // IDs are never reused: removing the last change and adding another gives a new ID, and
+    // a reset keeps the counter.
+    const auto lastId = doc.bodies().at(terrain)->terrain->edits.back()->id;
+    run(doc, command("terrain.remove_edit", terrain, {{"edit", double(lastId)}}));
+    applyTerrainEdit(doc, terrain, "test.lift", kinds::lift(tilesOf(doc, terrain).front()->tileKey, .1),
+                     "Lift");
+    check(doc.bodies().at(terrain)->terrain->edits.back()->id == lastId + 1,
+          "a removed change's ID is not reused");
+    run(doc, command("terrain.reset_edits", terrain));
+    check(doc.bodies().at(terrain)->terrain->edits.empty() &&
+              doc.bodies().at(terrain)->terrain->nextEditId == lastId + 2,
+          "Reset edits keeps the ID counter");
+    for (std::size_t i = 0; i < 3; ++i)
+        doc.undo();
     // Removing the refinement leaves a later lift of a quadrant tile with no tile: it is skipped
     // with a located notice and kept in the list.
     Document quad;
@@ -367,6 +381,19 @@ void cancelDuringReplay() {
         ++cancels;
     }
     check(cancels > 0, "cancels were exercised");
+    // The base tiling reports its progress and is cancellable too.
+    {
+        bool requested = false, tileSeen = false;
+        TerrainProgress progress([&] { return requested; },
+                                 [&](TerrainStage stage, double fraction) {
+                                     if (stage == TerrainStage::Tile && fraction > 0 && fraction < 1) {
+                                         tileSeen = true;
+                                         requested = true;
+                                     }
+                                 });
+        const auto result = runTerrainReplay(full, &progress);
+        check(tileSeen && result.cancelled, "a cancel while tiling the base is honoured");
+    }
     check(model(doc) == before && doc.revision() == revision &&
               doc.history().entries.size() == entries,
           "cancel leaves revision, history and the document unchanged");

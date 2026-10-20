@@ -282,7 +282,8 @@ std::shared_ptr<const TerrainEditMesh> TerrainEditMeshCache::get(const Document 
     const auto grid = found->second->terrain->tiling;
     auto tiles = tileBodies(doc, terrain);
     std::lock_guard lock(mutex_);
-    auto &entry = entries_[terrain];
+    const auto key = std::pair{doc.identity(), terrain};
+    auto &entry = entries_[key];
     entry.used = ++clock_;
     if (!entry.mesh || entry.grid != grid) {
         auto mesh = std::make_shared<TerrainEditMesh>(grid);
@@ -337,7 +338,7 @@ std::shared_ptr<const TerrainEditMesh> TerrainEditMeshCache::get(const Document 
     while (entries_.size() > capacity_) {
         auto oldest = entries_.end();
         for (auto it = entries_.begin(); it != entries_.end(); ++it)
-            if (it->first != terrain &&
+            if (it->first != key &&
                 (oldest == entries_.end() || it->second.used < oldest->second.used))
                 oldest = it;
         if (oldest == entries_.end())
@@ -349,6 +350,17 @@ std::shared_ptr<const TerrainEditMesh> TerrainEditMeshCache::get(const Document 
 std::size_t TerrainEditMeshCache::size() const {
     std::lock_guard lock(mutex_);
     return entries_.size();
+}
+void TerrainEditMeshCache::prune(const Document &doc) {
+    std::lock_guard lock(mutex_);
+    std::erase_if(entries_, [&](const auto &item) {
+        return item.first.first == doc.identity() && !isTerrain(doc, item.first.second);
+    });
+}
+void TerrainEditMeshCache::forget(const std::string &documentIdentity) {
+    std::lock_guard lock(mutex_);
+    std::erase_if(entries_,
+                  [&](const auto &item) { return item.first.first == documentIdentity; });
 }
 void TerrainEditMeshCache::clear() {
     std::lock_guard lock(mutex_);

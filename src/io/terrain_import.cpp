@@ -1272,7 +1272,7 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
     // R096.a: the base tiling, then the replay of the edit list (ADR 0169 §2).
     QJsonObject edits{{"count", double(record.edits.size())}, {"applied", 0}, {"skipped", 0}};
     if (result.ok) {
-        const auto base = terrainTileSet(result.mesh);
+        const auto base = terrainTileSet(result.mesh, progress);
         auto replayed = replayTerrainEdits(base, record.edits, progress);
         std::size_t triangles = 0;
         for (const auto &tile : replayed.tiles.tiles)

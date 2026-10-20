@@ -123,7 +123,8 @@ inline constexpr std::int64_t terrainTileKeyLimit = std::int64_t(1) << 53; // |r
 // R096.a edit list (ADR 0169 §2, §7). An entry is immutable and shared between records (an
 // edit copies pointers). Its kind-specific parameters and resolved geometry are a
 // TerrainEditData of its kind; kinds are registered (core/terrain_edit.hpp) and encoded by
-// io/terrain_io. Entry IDs are unique within the list (1 + the largest when appended).
+// io/terrain_io. Entry IDs come from the record's `nextEditId` counter, so an ID is never reused,
+// not even after Remove change or Reset edits.
 struct TerrainEditData {
     virtual ~TerrainEditData() = default;
     virtual bool equals(const TerrainEditData &other) const = 0;
@@ -149,8 +150,10 @@ struct TerrainRecord {
     TerrainDisplay display;
     TerrainTileGrid tiling;              // R096.a: the stored tile grid.
     std::vector<TerrainEditPtr> edits;   // R096.a: the ordered edit list.
+    std::uint32_t nextEditId{1};         // R096.a: the next entry's ID (above every entry's).
     bool operator==(const TerrainRecord &other) const {
         if (!(sources == other.sources && parameters == other.parameters &&
+              nextEditId == other.nextEditId &&
               generator == other.generator && provenance == other.provenance &&
               meshDigest == other.meshDigest && display == other.display &&
               tiling == other.tiling && edits.size() == other.edits.size()))
@@ -203,8 +206,9 @@ std::size_t terrainRecordBytes(const TerrainRecord &record);
 // one of them holds. A part both share is charged nothing, so an edit that appends one entry
 // is charged that entry, not the whole record. With `before` empty it is the full record.
 std::size_t terrainRecordChangeBytes(const TerrainRecord *before, const TerrainRecord *after);
-// Sum of the edit entries' storage (the 8 MiB bound).
+// Sum of the edit entries' storage (the 8 MiB bound), and one entry's share of it.
 std::size_t terrainEditBytes(const std::vector<TerrainEditPtr> &edits);
+std::size_t terrainEditEntryBytes(const TerrainEdit &edit);
 // Document site origin (ADR 0168 §4): projected metres; the CRS is a label only.
 struct SiteProvenance {
     std::string source, sha256;

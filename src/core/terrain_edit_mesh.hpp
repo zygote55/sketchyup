@@ -124,7 +124,8 @@ class TerrainEditMesh {
 // lookup with the same tiles returns the cached mesh, and a lookup after an edit updates it
 // from the tiles the edit replaced rather than rebuilding it (in place when the cache holds the
 // only reference, otherwise on a copy, so a mesh a caller holds never changes). Entries are
-// keyed by terrain ID; another document's terrain with the same ID is an update like any other.
+// keyed by document identity and terrain ID, and served only for the same tile records (the entry
+// holds them, so their addresses cannot be reused).
 // Thread-safe; at most `capacity` terrains (least recently used first out). With `topology`
 // the topology is built before the mesh is returned, so concurrent readers never build it.
 class TerrainEditMeshCache {
@@ -136,6 +137,11 @@ class TerrainEditMeshCache {
     std::size_t builds() const { return builds_; }
     std::size_t updates() const { return updates_; }
     void clear();
+    // Drops the document's entries whose terrain no longer exists (the viewport calls it with
+    // its other display caches), and forgets every entry of a document (by identity) that was
+    // closed or replaced.
+    void prune(const Document &doc);
+    void forget(const std::string &documentIdentity);
 
   private:
     struct Entry {
@@ -146,7 +152,9 @@ class TerrainEditMeshCache {
     };
     mutable std::mutex mutex_;
     std::size_t capacity_;
-    std::map<Id, Entry> entries_;
+    // Keyed by document identity and terrain: a copy of a document (a preview) shares its
+    // identity and its tile records; another document never shares an entry.
+    std::map<std::pair<std::string, Id>, Entry> entries_;
     std::uint64_t clock_{};
     std::size_t builds_{}, updates_{};
 };

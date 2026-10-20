@@ -176,7 +176,7 @@ std::vector<TerrainEditPtr> decodeTerrainEdits(const QJsonValue &value) {
         edits.push_back(decodeTerrainEdit(entry));
         if (!ids.insert(edits.back()->id).second)
             throw std::runtime_error("Terrain edit ids must be unique");
-        bytes += edits.back()->data->bytes();
+        bytes += terrainEditEntryBytes(*edits.back());
         if (bytes > TerrainLimits::editBytes)
             throw std::runtime_error("Terrain edit list exceeds 8 MiB");
     }
@@ -239,6 +239,8 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
             {"tiling", QJsonObject{{"origin", QJsonArray{record.tiling.originX,
                                                          record.tiling.originY}},
                                    {"cell", record.tiling.cell}}}};
+    if (record.nextEditId > 1)
+        encoded["nextEdit"] = double(record.nextEditId);
     if (!record.edits.empty()) {
         QJsonArray edits;
         for (const auto &edit : record.edits)
@@ -272,6 +274,8 @@ TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy) {
         fields.append("display");
     if (!old && root.contains("edits"))
         fields.append("edits");
+    if (!old && root.contains("nextEdit"))
+        fields.append("nextEdit");
     exactFields(root, fields, "terrain record");
     TerrainRecord record;
     TerrainSources::Vector decodedSources;
@@ -346,6 +350,9 @@ TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy) {
     record.tiling = {number(origin[0]), number(origin[1]), number(tiling["cell"])};
     if (root.contains("edits"))
         record.edits = decodeTerrainEdits(root["edits"]);
+    // Written only above its default 1; must exceed every entry's ID (validateTerrainRecord).
+    if (root.contains("nextEdit"))
+        record.nextEditId = std::uint32_t(integer(root["nextEdit"], 2, 4294967295.0));
     validateTerrainRecord(record);
     return record;
 }

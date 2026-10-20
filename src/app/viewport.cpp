@@ -105,7 +105,11 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     });
     inferenceTimer->start();
 }
-Viewport::~Viewport() { cleanupGL(); }
+Viewport::~Viewport() {
+    if (!terrainCacheIdentity_.empty())
+        terrainEditMeshCache().forget(terrainCacheIdentity_);
+    cleanupGL();
+}
 void Viewport::cleanupGL() {
     disconnect(contextCleanup_);
     if (context() && gl_) {

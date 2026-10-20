@@ -17,6 +17,7 @@
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <limits>
 #include <random>
 #include <set>
 using namespace sketchy;
@@ -329,6 +330,37 @@ void formatRoundTrip() {
                   t.remove("tiling");
           }).empty(),
           "a record without tiling but keyed tiles mixes the forms and is refused");
+    {
+        // Two tiles of one terrain with the same key: refused at load, naming both.
+        auto root = tree;
+        auto bodies = root["bodies"].toArray();
+        QJsonValue firstKey;
+        bool found = false;
+        for (qsizetype i = 0; i < bodies.size(); ++i) {
+            auto o = bodies[i].toObject();
+            if (!o.contains("terrainTile"))
+                continue;
+            if (!found) {
+                firstKey = o["terrainTile"];
+                found = true;
+                continue;
+            }
+            o["terrainTile"] = firstKey;
+            bodies[i] = o;
+            break;
+        }
+        root["bodies"] = bodies;
+        const auto message = rejection(
+            [&] { decodeDocument(QJsonDocument(root).toJson(QJsonDocument::Compact)); });
+        check(message.find("two tiles with the key") != std::string::npos,
+              "duplicate tile keys are refused at load: " + message);
+    }
+    check(!mutate([](QJsonObject &t, QJsonObject &) {
+              if (!t.isEmpty())
+                  t["nextEdit"] = 2;
+          }).empty(),
+          "a next edit ID not above every entry's is refused");
+    check(terrainJson["nextEdit"] == 3, "the record stores the next edit ID");
     std::cout << "format round trip: " << encoded.size() << " bytes\n";
 }
 
@@ -577,7 +609,155 @@ void seamChecker() {
                                                std::make_shared<TerrainTileContent>(b)});
         check(report.cracks >= 1 && !report.ok(), "a T-junction between tiles is a crack");
     }
-    std::cout << "seam checker: sound tiling, Z mismatch, non-manifold and crack found\n";
+    {
+        // A crack in a boundary edge spanning far more cells than the grid's 4,096-cell box:
+        // many short boundary edges elsewhere make the cell small.
+        TerrainTileContent a, c;
+        a.key = {0, 0, {}, 0};
+        c.key = {0, 1, {}, 0};
+        a.vertices = {{0, 0, 0}, {1000, 0, 0}, {500, 500, 0}};
+        a.triangles = {{0, 1, 2}};
+        c.vertices = {{0, 0, 0}, {500, -500, 0}, {500, 0, 0}, {1000, 0, 0}};
+        c.triangles = {{0, 1, 2}, {2, 1, 3}};
+        auto fine = std::make_shared<TerrainTileContent>(*terrainTileSet(grid(40, 40, .01, {2000, 0, 0})).tiles.at(0));
+        fine->key = {0, 2, {}, 0};
+        const auto report = checkTerrainSeams({std::make_shared<TerrainTileContent>(a),
+                                               std::make_shared<TerrainTileContent>(c), fine});
+        check(report.cracks >= 1, "a crack in a very long boundary edge is found");
+    }
+    std::cout << "seam checker: sound tiling, Z mismatch, non-manifold and cracks found\n";
+}
+
+void clusterParts() {
+    // A dense cluster no 24 halvings separate: its cell splits into parts. The stored grid is
+    // the grid the buckets were built with (R096.a review: the cell was halved once more), so
+    // every triangle maps to its own tile's cell, and an edit there stays local.
+    TerrainMesh mesh;
+    auto add = [&](Vec3 a, Vec3 b, Vec3 c) {
+        const auto base = std::uint32_t(mesh.vertices.size());
+        mesh.vertices.insert(mesh.vertices.end(), {a, b, c});
+        mesh.triangles.push_back({base, base + 1, base + 2});
+    };
+    add({-900000, -900000, 0}, {-899000, -900000, 1}, {-899500, -899000, 2});
+    add({899000, 899000, 0}, {900000, 899000, 1}, {899500, 900000, 2});
+    const auto dense = grid(35, 35, .0014, {100.01, 200.01, 5});
+    const auto base = std::uint32_t(mesh.vertices.size());
+    mesh.vertices.insert(mesh.vertices.end(), dense.vertices.begin(), dense.vertices.end());
+    for (auto t : dense.triangles)
+        mesh.triangles.push_back({t[0] + base, t[1] + base, t[2] + base});
+    const auto tiling = tileTerrainTriangles(mesh);
+    bool parts = false;
+    for (const auto &key : tiling.keys)
+        parts = parts || key.part > 0;
+    check(parts, "the cluster splits into parts");
+    Document doc;
+    const auto created = createTerrain(doc, mesh, record(mesh));
+    const auto grid0 = doc.bodies().at(created.terrain)->terrain->tiling;
+    check(grid0.cell == tiling.cell, "the stored cell is the bucket cell");
+    for (const auto id : created.tiles) {
+        const auto content = terrainTileContent(*doc.bodies().at(id));
+        for (const auto &t : content->triangles) {
+            const auto a = content->vertices[t[0]], b = content->vertices[t[1]],
+                       c = content->vertices[t[2]];
+            const auto cell = terrainCellOf(grid0, (a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3);
+            check(cell && (*cell)[0] == content->key.row && (*cell)[1] == content->key.column,
+                  "every triangle maps to its own tile's cell");
+        }
+    }
+    // A split in the cluster rebuilds only tiles of its cell; the far triangles' tiles stay.
+    TerrainTileKey clusterKey;
+    for (const auto id : created.tiles)
+        if (doc.bodies().at(id)->tileKey.part > 0)
+            clusterKey = doc.bodies().at(id)->tileKey;
+    const auto before = tilesOf(doc, created.terrain);
+    const auto applied = applyTerrainEdit(doc, created.terrain, "test.split",
+                                          kinds::split(100.01 + .0014 * 17.3, 200.01 + .0014 * 11.6),
+                                          "Split");
+    for (const auto id : applied.tiles.added) {
+        const auto &key = doc.bodies().at(id)->tileKey;
+        check(key.row == clusterKey.row && key.column == clusterKey.column,
+              "the edit's tiles are in the cluster's cell");
+    }
+    for (const auto &tile : before)
+        if (tile->tileKey.row != clusterKey.row || tile->tileKey.column != clusterKey.column)
+            check(doc.bodies().at(tile->id) == tile, "tiles of other cells are untouched");
+    check(checkTerrainSeams(doc, created.terrain).ok(), "seams hold");
+    std::cout << "cluster parts: cell " << grid0.cell << ", " << created.tiles.size() << " tiles\n";
+}
+
+// A test-only entry whose storage is set by the test (the 8 MiB bound).
+struct Heavy final : TerrainEditData {
+    std::size_t size{};
+    bool equals(const TerrainEditData &other) const override {
+        const auto *o = dynamic_cast<const Heavy *>(&other);
+        return o && o->size == size;
+    }
+    std::size_t bytes() const override { return size; }
+};
+void editIdsAndBounds() {
+    registerTerrainEditKind({"test.heavy",
+                             [](const TerrainEditMesh &, const TerrainEdit &) {
+                                 return TerrainEditOutcome{TerrainRegionChange{}, {}};
+                             },
+                             {}});
+    Document doc;
+    const auto mesh = grid(40, 40);
+    const auto created = createTerrain(doc, mesh, record(mesh));
+    const auto key = doc.bodies().at(created.tiles.front())->tileKey;
+    applyTerrainEdit(doc, created.terrain, "test.lift", kinds::lift(key, 1), "Lift");
+    applyTerrainEdit(doc, created.terrain, "test.lift", kinds::lift(key, 1), "Lift");
+    const auto &record1 = *doc.bodies().at(created.terrain)->terrain;
+    check(record1.edits[1]->id == 2 && record1.nextEditId == 3, "IDs come from the counter");
+    // A borderline entry refuses with LIMIT_EXCEEDED, counting what validation counts.
+    auto heavy = std::make_shared<Heavy>();
+    const auto overhead = terrainEditBytes(record1.edits) +
+                          terrainEditEntryBytes(TerrainEdit{3, "test.heavy", nullptr});
+    heavy->size = TerrainLimits::editBytes - overhead + 1;
+    std::string code;
+    check(!rejection([&] { applyTerrainEdit(doc, created.terrain, "test.heavy", heavy, "Heavy"); },
+                     &code)
+                   .empty() &&
+              code == "LIMIT_EXCEEDED",
+          "an entry one byte over the bound is LIMIT_EXCEEDED");
+    heavy->size -= 1;
+    check(rejection([&] { applyTerrainEdit(doc, created.terrain, "test.heavy", heavy, "Heavy"); })
+              .empty(),
+          "an entry exactly at the bound is accepted");
+    doc.undo();
+    // The last ID is refused rather than wrapped.
+    auto body = std::make_shared<Body>(*doc.bodies().at(created.terrain));
+    body->terrain->nextEditId = std::numeric_limits<std::uint32_t>::max();
+    doc.apply({"Counter", {{created.terrain, doc.bodies().at(created.terrain), body}}},
+              doc.revision());
+    check(!rejection([&] {
+              applyTerrainEdit(doc, created.terrain, "test.lift", kinds::lift(key, 1), "Lift");
+          }, &code).empty() &&
+              code == "LIMIT_EXCEEDED",
+          "the last change ID refuses with LIMIT_EXCEEDED");
+    std::cout << "edit IDs and bounds: counter, 8 MiB bound and last ID\n";
+}
+
+void editMeshCache() {
+    // Entries are per document; deleted terrains are pruned and closed documents forgotten.
+    auto &cache = terrainEditMeshCache();
+    cache.clear();
+    Document a, b;
+    const auto meshA = grid(30, 30), meshB = grid(30, 30, 1, {0, 0, 50});
+    const auto ta = createTerrain(a, meshA, record(meshA)).terrain;
+    const auto tb = createTerrain(b, meshB, record(meshB)).terrain;
+    check(ta == tb, "both documents use the same terrain ID");
+    const std::vector<std::array<double, 2>> point{{10.5, 10.5}};
+    const auto za = terrainElevationAt(a, ta, point).at(0).elevation,
+               zb = terrainElevationAt(b, tb, point).at(0).elevation;
+    check(std::abs(zb - za - 50) < 1e-9 && cache.size() == 2,
+          "two documents with one terrain ID get their own entries");
+    check(terrainElevationAt(a, ta, point).at(0).elevation == za, "and keep them");
+    explodeTerrain(a, ta);
+    cache.prune(a);
+    check(cache.size() == 1, "a deleted terrain's entry is pruned");
+    cache.forget(b.identity());
+    check(cache.size() == 0, "a closed document's entries are forgotten");
+    std::cout << "edit mesh cache: per document, pruned and forgotten\n";
 }
 
 void historyCharge() {
@@ -680,6 +860,9 @@ int main() {
         {"local replacement", localReplacement},
         {"topology and split", topologyAndSplit},
         {"seam checker", seamChecker},
+        {"cluster parts", clusterParts},
+        {"edit IDs and bounds", editIdsAndBounds},
+        {"edit mesh cache", editMeshCache},
         {"history charge", historyCharge},
         {"regenerate ID rule", regenerateIdRule},
         {"elevation index", elevationIndex},
