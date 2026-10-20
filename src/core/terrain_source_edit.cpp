@@ -313,6 +313,15 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
                      old->points.empty() ? TerrainVec2{} : v2(old->points.front()), old->id);
         problems.refuse("Contour edit");
     }
+    // R096.e: an imprint's lines change only with the drape.
+    if (old && state.isDrapeSource(old->id)) {
+        Problems problems;
+        problems.add("drape-source",
+                     "This source is a line draped on the terrain; remove the drape with "
+                     "terrain.remove_edit.",
+                     old->points.empty() ? TerrainVec2{} : v2(old->points.front()), old->id);
+        problems.refuse("Contour edit");
+    }
     // Elevation-only: the same plan positions in order and the same segments (a role change
     // between spot points and a polyline adds or drops segments, so it re-triangulates).
     if (old && next && old->points.size() == next->points.size() &&

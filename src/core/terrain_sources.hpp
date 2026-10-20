@@ -115,6 +115,10 @@ class TerrainSourceState {
     // A ray's ends also count as vertex uses, so a source edit never removes one.
     void markPadSource(std::uint32_t id) { padSources_.insert(id); }
     bool isPadSource(std::uint32_t id) const { return padSources_.contains(id); }
+    // R096.e: an imprint's lines (and the runs a later sculpt or stamp splits off them) are the
+    // drape's own; source edits naming them are refused (terrain.remove_edit removes the drape).
+    void markDrapeSource(std::uint32_t id) { drapeSources_.insert(id); }
+    bool isDrapeSource(std::uint32_t id) const { return drapeSources_.contains(id); }
 
   private:
     struct Uses {
@@ -148,7 +152,7 @@ class TerrainSourceState {
         std::array<double, 4> box{};
     };
     std::vector<PadRayGroup> padRayGroups_;
-    std::unordered_set<std::uint32_t> padSources_;
+    std::unordered_set<std::uint32_t> padSources_, drapeSources_;
     void usePosition(const Vec3 &p, int sign);
     std::size_t padRayCount_{};
 };

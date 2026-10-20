@@ -2,6 +2,7 @@
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_sources.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
@@ -311,6 +312,9 @@ TerrainTilesApplied applyTerrainTiles(Document &doc, Id terrain, TerrainRecord r
     std::optional<MaterialSides> fallback;
     TerrainTilesApplied applied;
     Edit edit{std::move(label), {}};
+    // R096.e: the paint regions before and after (an edit appends entries, so the regions before
+    // are the first ones after).
+    const TerrainPaintRegions regionsBefore(*found->second->terrain), regionsAfter(record);
     std::set<TerrainTileKey> replaced(result.replaced.begin(), result.replaced.end()), kept;
     std::map<TerrainTileKey, BodyPtr> finalTiles = byKey;
     for (const auto &key : replaced)
@@ -351,6 +355,7 @@ TerrainTilesApplied applyTerrainTiles(Document &doc, Id terrain, TerrainRecord r
                 fallback = defaultTileMaterials(doc, current, createdMaterial);
             body->materials = *fallback;
         }
+        paintTerrainTile(*body, regionsAfter);
         finalTiles[content->key] = body;
         created.push_back(std::move(body));
     }
@@ -359,11 +364,40 @@ TerrainTilesApplied applyTerrainTiles(Document &doc, Id terrain, TerrainRecord r
             continue;
         const auto &old = byKey.at(key);
         for (const auto &[face, record] : old->surface.faces)
-            if (old->faceColors.contains(face) || old->faceMaterials.contains(face) ||
-                old->faceTextureMappings.contains(face))
+            if ((old->faceColors.contains(face) || old->faceMaterials.contains(face) ||
+                 old->faceTextureMappings.contains(face)) &&
+                !terrainFacePaintDerived(*old, face, regionsBefore))
                 ++applied.paintDropped.faces;
         applied.removed.push_back(old->id);
         edit.changes.push_back({old->id, old, nullptr, {}, {}, {}, true});
+    }
+    // R096.e: new paint regions repaint the faces of the tiles this edit keeps.
+    if (regionsAfter.size() > regionsBefore.size()) {
+        std::set<Id> made;
+        for (const auto &body : created)
+            made.insert(body->id);
+        for (auto &[key, body] : finalTiles) {
+            if (made.contains(body->id) || body->surface.vertices.empty())
+                continue;
+            std::array<double, 4> box{body->surface.vertices.begin()->second.x,
+                                      body->surface.vertices.begin()->second.y,
+                                      body->surface.vertices.begin()->second.x,
+                                      body->surface.vertices.begin()->second.y};
+            for (const auto &[id, p] : body->surface.vertices) {
+                box[0] = std::min(box[0], p.x);
+                box[1] = std::min(box[1], p.y);
+                box[2] = std::max(box[2], p.x);
+                box[3] = std::max(box[3], p.y);
+            }
+            if (!regionsAfter.meets(box, regionsBefore.size()))
+                continue;
+            auto painted = std::make_shared<Body>(*body);
+            if (!paintTerrainTile(*painted, regionsAfter, regionsBefore.size()))
+                continue;
+            applied.repainted.push_back(body->id);
+            edit.changes.push_back({body->id, body, painted, {}, {}, {}, true});
+            body = std::move(painted);
+        }
     }
     std::vector<const Body *> ordered;
     ordered.reserve(finalTiles.size());
@@ -537,13 +571,15 @@ TerrainSeamReport checkTerrainSeams(const Document &doc, Id terrain) {
 // ---- Edit kinds -----------------------------------------------------------------------------
 namespace {
 std::vector<TerrainEditKind> &kinds() {
-    // R096.c: the source edits are built in; R096.b: sculpt and smooth; R096.d: stamp; R096.e
-    // adds drape here.
+    // R096.c: the source edits are built in; R096.b: sculpt and smooth; R096.d: stamp; R096.e:
+    // drape.
     static std::vector<TerrainEditKind> registered = [] {
         auto list = terrainSourceEditKinds();
         for (auto &kind : terrainSculptKinds())
             list.push_back(std::move(kind));
         for (auto &kind : terrainStampKinds())
+            list.push_back(std::move(kind));
+        for (auto &kind : terrainDrapeKinds())
             list.push_back(std::move(kind));
         return list;
     }();

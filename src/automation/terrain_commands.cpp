@@ -6,6 +6,10 @@
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
+#include "core/component_validation.hpp"
+#include "core/groups.hpp"
+#include "core/material_records.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sources.hpp"
 #include "io/terrain_import.hpp"
@@ -1423,6 +1427,455 @@ QJsonObject stampTerrain(Document &doc, const QJsonObject &command, ChangeReport
     validateStamp(*data);
     return applyStamp(doc, terrain, std::move(data), command["command"].toString(), changes);
 }
+
+// ---- R096.e: terrain.drape ---------------------------------------------------------------------
+// Edges ({body, edge}, chained as terrain.create_from_edges chains them) and faces ({body, face},
+// every loop) in any context, read in world coordinates and projected to the terrain frame's
+// plan. Imprint (the default of decision 5) records a `drape` entry; overlay makes ordinary
+// geometry in a new group and changes no terrain record.
+struct DrapeInput {
+    std::shared_ptr<TerrainDrapeData> data;
+    std::vector<bool> edgeLines;                                   // per line: from edges
+    std::vector<std::vector<std::vector<std::array<double, 2>>>> faces; // per face: its loops
+    std::vector<MaterialSides> faceMaterials;                      // per face: its sides
+    std::uint64_t verticalFaces{}, unpainted{}, edges{}, faceCount{};
+    TerrainPolylineCleaning cleaning;
+};
+constexpr qsizetype terrainDrapeFaceLimit = 1024;
+// A plan polyline in the terrain frame, cleaned (zero-length segments and spikes, as the importer
+// cleans) with a closed polyline's closing repeat dropped; empty when nothing with length is left.
+std::vector<std::array<double, 2>> drapePlan(const std::vector<Vec3> &model, bool closed,
+                                             const Transform &toLocal,
+                                             TerrainPolylineCleaning &cleaning) {
+    std::vector<TerrainVec3> line;
+    for (const auto &p : model) {
+        const auto local = toLocal.point(p);
+        line.push_back({local.x + 0.0, local.y + 0.0, 0});
+    }
+    while (closed && line.size() > 1 && std::abs(line.back().x - line.front().x) <= 1e-7 &&
+           std::abs(line.back().y - line.front().y) <= 1e-7)
+        line.pop_back();
+    cleanTerrainPolyline(line, closed, cleaning);
+    std::vector<std::array<double, 2>> plan;
+    for (const auto &p : line)
+        plan.push_back({p.x, p.y});
+    if (plan.size() < (closed ? 3u : 2u))
+        plan.clear();
+    return plan;
+}
+DrapeInput drapeInput(const Document &doc, const QJsonObject &command, const Transform &toLocal,
+                      bool paintRegions) {
+    DrapeInput input;
+    input.data = std::make_shared<TerrainDrapeData>();
+    auto &data = *input.data;
+    const bool hasEdges = command.contains("edges"), hasFaces = command.contains("faces");
+    if (!hasEdges && !hasFaces)
+        reject("INVALID_REQUEST", "Give edges, faces or both to drape");
+    if (hasEdges) {
+        TerrainEdgeSelection selection;
+        selection.edges = edgeList(command["edges"], "edges");
+        input.edges = selection.edges.size();
+        if (!selection.edges.empty()) {
+            const auto set = terrainEdgeSources(doc, selection);
+            for (const auto &polyline : set.polylines) {
+                std::vector<Vec3> model;
+                for (const auto &p : polyline.points)
+                    model.push_back({p.x, p.y, p.z});
+                auto plan = drapePlan(model, polyline.closed, toLocal, input.cleaning);
+                if (plan.empty())
+                    continue; // a vertical edge has no plan length
+                data.lines.push_back({std::move(plan), polyline.closed});
+                input.edgeLines.push_back(true);
+            }
+        }
+    }
+    if (hasFaces) {
+        if (!command["faces"].isArray())
+            reject("INVALID_REQUEST", "faces is a list of {body, face}");
+        const auto list = command["faces"].toArray();
+        if (list.size() > terrainDrapeFaceLimit)
+            reject("LIMIT_EXCEEDED", "Drape at most 1,024 faces at once");
+        std::set<std::pair<Id, Id>> seen;
+        for (const auto &value : list) {
+            const auto object = value.toObject();
+            if (!value.isObject() || object.size() != 2 || !object.contains("body") ||
+                !object.contains("face"))
+                reject("INVALID_REQUEST", "A face is {body, face}");
+            const auto bodyId = identity(object["body"]), faceId = identity(object["face"]);
+            const auto found = doc.bodies().find(bodyId);
+            if (found == doc.bodies().end())
+                reject("NOT_FOUND", "Body " + std::to_string(bodyId) + " does not exist");
+            const auto &body = *found->second;
+            if (body.terrainTile || body.kind == BodyKind::Terrain)
+                reject("UNSUPPORTED_TARGET", terrainProtectedMessage);
+            const auto face = body.surface.faces.find(faceId);
+            if (face == body.surface.faces.end())
+                reject("NOT_FOUND", "Face " + std::to_string(faceId) + " of body " +
+                                        std::to_string(bodyId) + " does not exist");
+            if (!seen.insert({bodyId, faceId}).second)
+                reject("INVALID_REQUEST", "Face " + std::to_string(faceId) + " of body " +
+                                              std::to_string(bodyId) + " is given more than once");
+            ++input.faceCount;
+            const auto world = doc.worldTransform(bodyId);
+            std::vector<std::vector<std::array<double, 2>>> loops;
+            for (const auto &loop : face->second.loops) {
+                std::vector<Vec3> model;
+                for (const auto vertex : loop) {
+                    const auto p = body.surface.vertices.find(vertex);
+                    if (p == body.surface.vertices.end())
+                        reject("INVALID_REQUEST", "A face loop names a missing vertex");
+                    model.push_back(world.point(p->second));
+                }
+                auto plan = drapePlan(model, true, toLocal, input.cleaning);
+                if (!plan.empty())
+                    loops.push_back(std::move(plan));
+            }
+            if (loops.empty()) {
+                ++input.verticalFaces; // a vertical face has no plan area
+                continue;
+            }
+            for (const auto &loop : loops) {
+                data.lines.push_back({loop, true});
+                input.edgeLines.push_back(false);
+            }
+            const auto sides = faceMaterials(body, faceId);
+            input.faces.push_back(loops);
+            input.faceMaterials.push_back(sides);
+            if (paintRegions) {
+                const Id material = sides.front ? sides.front : sides.back;
+                if (material)
+                    data.paint.push_back({loops, material});
+                else
+                    ++input.unpainted;
+            }
+        }
+    }
+    if (data.lines.empty())
+        reject("INVALID_REQUEST", "The edges and faces have no length in plan (vertical edges and "
+                                  "faces cannot be draped)");
+    std::size_t points = 0;
+    for (const auto &line : data.lines)
+        points += line.points.size();
+    if (data.lines.size() > terrainDrapeLines || points > terrainDrapePoints)
+        reject("LIMIT_EXCEEDED", "A drape has at most 4,096 lines and 20,000 points (this one: " +
+                                     std::to_string(data.lines.size()) + " lines, " +
+                                     std::to_string(points) + " points); drape fewer at a time");
+    return input;
+}
+// A paint loop whose outline crosses one horizontal band too often is refused with the band
+// located, as sculpt regions and pad footprints are.
+void checkPaintBands(const TerrainDrapeData &data, const TerrainRecord &record,
+                     const Transform &world) {
+    std::size_t sum = terrainPaintBandEdges(record);
+    for (const auto &region : data.paint)
+        for (const auto &loop : region.loops) {
+            const auto bands = terrainSculptRegionBands(loop);
+            sum += bands.edges;
+            if (bands.edges <= terrainSculptBandEdges && sum <= terrainDrapePaintBandEdges)
+                continue;
+            double minX = loop[0][0], maxX = minX;
+            for (const auto &p : loop) {
+                minX = std::min(minX, p[0]);
+                maxX = std::max(maxX, p[0]);
+            }
+            const auto at = world.point(
+                {(minX + maxX) / 2, bands.low + (double(bands.busiest) + 0.5) * bands.height, 0});
+            const std::string message =
+                bands.edges > terrainSculptBandEdges
+                    ? "A painted face's outline has " + std::to_string(bands.edges) +
+                          " edges in one horizontal band (at most 512); simplify it"
+                    : "The terrain's paint regions would be too complex to paint (over 4,096 "
+                      "edges in their busiest bands in all); paint fewer or simpler faces";
+            TerrainReport report;
+            report.locate(TerrainReport::Severity::Refusal, "limit-exceeded", message,
+                          {"paint", {}, std::array<double, 2>{at.x, at.y}});
+            throw TerrainImportError("LIMIT_EXCEEDED", message, sourceEditReport(report, {}),
+                                     "terrainReport");
+        }
+}
+QJsonObject drapeEnvelope(const TerrainDrapePlan &plan, const DrapeInput &input,
+                          const Transform &world) {
+    QJsonObject envelope{{"lines", double(input.data->lines.size())},
+                         {"runs", double(plan.resolved->runs.size())},
+                         {"points", double(plan.points)},
+                         {"intersections", double(plan.intersections)},
+                         {"crossings", double(plan.crossings)},
+                         {"snapped", double(plan.snapped)},
+                         {"verticesInserted", double(plan.inserted)},
+                         {"trianglesSplit", double(plan.change.removed.size())},
+                         {"trianglesAdded", double(plan.change.added.size())},
+                         {"sourcesSplit", double(plan.splitSegments)},
+                         {"clipped", double(plan.clipped)}};
+    if (plan.clipped) {
+        const auto at = world.point({plan.clippedAt.x, plan.clippedAt.y, 0});
+        envelope["clippedAt"] = QJsonArray{at.x, at.y};
+    }
+    return envelope;
+}
+void drapeNotices(TerrainReport &report, const TerrainDrapePlan &plan, const DrapeInput &input,
+                  const Transform &world) {
+    if (plan.clipped) {
+        const auto at = world.point({plan.clippedAt.x, plan.clippedAt.y, 0});
+        const char *message = "Parts of the lines outside the terrain's outline or in a hole were "
+                              "clipped.";
+        report.add(TerrainReport::Severity::Notice, "drape-clipped", plan.clipped, message);
+        report.locate(TerrainReport::Severity::Notice, "drape-clipped", message,
+                      {"drape", {}, std::array<double, 2>{at.x, at.y},
+                       std::to_string(plan.clipped) + " parts clipped"},
+                      false);
+    }
+    if (input.verticalFaces)
+        report.add(TerrainReport::Severity::Notice, "vertical-faces", input.verticalFaces,
+                   "Vertical faces have no area in plan and were not draped.");
+    if (input.cleaning.zeroLength)
+        report.add(TerrainReport::Severity::Notice, "zero-length-segments",
+                   input.cleaning.zeroLength,
+                   "Segments with no length in plan (vertical edges, repeated points) were "
+                   "dropped.");
+    if (input.cleaning.spikes)
+        report.add(TerrainReport::Severity::Notice, "collinear-spikes", input.cleaning.spikes,
+                   "Points where a line doubles back on itself in plan were removed.");
+}
+QJsonObject drapeImprint(Document &doc, Id terrain, const QJsonObject &command,
+                         DrapeInput input, ChangeReport &changes) {
+    const auto world = doc.worldTransform(terrain);
+    const auto &record = *doc.bodies().at(terrain)->terrain;
+    if (!input.data->paint.empty())
+        checkPaintBands(*input.data, record, world);
+    try {
+        validateTerrainDrapeData(*input.data);
+    } catch (const std::invalid_argument &error) {
+        reject("INVALID_REQUEST", error.what());
+    }
+    TerrainReport report;
+    const auto refused = [&](const TerrainEditRefused &error) {
+        addProblems(report, error.problems(), world);
+        throw TerrainImportError(error.code(), error.what(), sourceEditReport(report, {}),
+                                 "terrainReport");
+    };
+    TerrainDrapePlan plan;
+    try {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto state = terrainSourceState(record);
+        const TerrainEdit entry{record.nextEditId, terrainDrapeKind, input.data};
+        plan = planTerrainDrape({*mesh, *state, record.parameters}, entry);
+    } catch (const TerrainEditRefused &error) {
+        refused(error);
+    }
+    {
+        const auto &first = plan.resolved->runs.front().front();
+        const auto at = world.point(first);
+        refuseOverTerrainLimit(doc,
+                               std::ptrdiff_t(plan.change.added.size()) -
+                                   std::ptrdiff_t(plan.change.removed.size()),
+                               {at.x, at.y}, "Drape on terrain");
+    }
+    // The dry run is the kind's own outcome for this entry on the same mesh and sources, so the
+    // commit uses it rather than planning again.
+    TerrainEditApplied applied;
+    try {
+        const TerrainEditOutcome outcome{plan.change, {}, plan.resolved};
+        applied = applyTerrainEdit(doc, terrain, terrainDrapeKind, plan.resolved,
+                                   "Drape on terrain", &outcome);
+    } catch (const TerrainEditRefused &error) {
+        refused(error);
+    }
+    changes = std::move(applied.tiles.changes);
+    drapeNotices(report, plan, input, world);
+    if (input.unpainted)
+        report.add(TerrainReport::Severity::Notice, "paint-without-material", input.unpainted,
+                   "Faces without a material were imprinted but paint no region.");
+    if (applied.tiles.paintDropped.faces)
+        report.add(TerrainReport::Severity::Notice, "face-paint-dropped",
+                   applied.tiles.paintDropped.faces,
+                   "Per-face paint on the rebuilt tiles cannot follow the new mesh and was "
+                   "removed; the tiles' own material is kept.");
+    auto envelope = drapeEnvelope(plan, input, world);
+    envelope["edit"] = double(applied.edit);
+    envelope["mode"] = "imprint";
+    envelope["paintRegions"] = double(input.data->paint.size());
+    envelope["tilesReplaced"] = double(applied.tiles.removed.size());
+    envelope["tilesAdded"] = double(applied.tiles.added.size());
+    envelope["tilesRepainted"] = double(applied.tiles.repainted.size());
+    return {{"command", command["command"]},
+            {"terrain", QString::number(terrain)},
+            {"mode", "imprint"},
+            {"edit", double(applied.edit)},
+            {"changed", true},
+            {"tiles", QJsonObject{{"removed", idList(applied.tiles.removed)},
+                                  {"added", idList(applied.tiles.added)},
+                                  {"repainted", idList(applied.tiles.repainted)}}},
+            {"terrainReport", sourceEditReport(report, envelope)}};
+}
+QJsonObject drapeOverlay(Document &doc, Id terrain, const QJsonObject &command, DrapeInput input,
+                         double lift, Id context, ChangeReport &changes) {
+    const auto world = doc.worldTransform(terrain);
+    const auto &record = *doc.bodies().at(terrain)->terrain;
+    try {
+        validateTerrainDrapeData(*input.data);
+    } catch (const std::invalid_argument &error) {
+        reject("INVALID_REQUEST", error.what());
+    }
+    TerrainReport report;
+    const auto refused = [&](const TerrainEditRefused &error) {
+        addProblems(report, error.problems(), world);
+        throw TerrainImportError(error.code(), error.what(), sourceEditReport(report, {}),
+                                 "terrainReport");
+    };
+    const auto budget = terrainExplodeBudget(doc, terrain);
+    const std::size_t room =
+        budget.faceLimit > budget.modelFaces ? budget.faceLimit - budget.modelFaces : 0;
+    // Lift is model metres up; in the terrain frame (level, maybe scaled) it is this much Z.
+    const double liftLocal = world.inverse().vector({0, 0, lift}).z;
+    TerrainDrapePlan plan;
+    TerrainDrapeOverlay overlay;
+    try {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto state = terrainSourceState(record);
+        const TerrainEdit entry{record.nextEditId, terrainDrapeKind, input.data};
+        plan = planTerrainDrape({*mesh, *state, record.parameters}, entry, true);
+        overlay = terrainDrapeOverlay(*mesh, plan, input.edgeLines, input.faces, liftLocal,
+                                      std::min<std::size_t>(room, 100000));
+    } catch (const TerrainEditRefused &error) {
+        if (std::any_of(error.problems().begin(), error.problems().end(),
+                        [](const auto &problem) { return problem.kind == "limit-exceeded"; }) &&
+            room < 100000)
+            report.add(TerrainReport::Severity::Notice, "face-limit", budget.modelFaces,
+                       "The document has " + groupedCount(budget.modelFaces) + " of " +
+                           groupedCount(budget.faceLimit) + " faces.");
+        refused(error);
+    }
+    if (overlay.faces.empty() && overlay.edges.empty())
+        reject("INVALID_REQUEST", "Nothing to overlay: the faces cover no terrain triangle and "
+                                  "no edge lies on the terrain");
+    // The group, in the active context, holds the geometry in the terrain's frame.
+    const Transform contextWorld = context ? doc.worldTransform(context) : Transform{};
+    auto group = std::make_shared<Body>();
+    group->id = doc.nextId();
+    group->name = "Drape";
+    group->kind = BodyKind::Group;
+    group->parent = context;
+    group->transform = contextWorld.inverse() * world;
+    auto body = std::make_shared<Body>();
+    body->id = group->id + 1;
+    body->name = "Draped geometry";
+    body->parent = group->id;
+    std::unordered_map<TerrainPositionKey, Id, TerrainPositionHash> vertices;
+    auto vertex = [&](const Vec3 &p) {
+        const auto [it, fresh] = vertices.try_emplace(TerrainPositionKey::of(p), Id{});
+        if (fresh) {
+            it->second = body->surface.nextId++;
+            body->surface.vertices.emplace(it->second, p);
+        }
+        return it->second;
+    };
+    std::set<std::pair<Id, Id>> faceEdges;
+    for (const auto &face : overlay.faces) {
+        std::vector<std::vector<Id>> loops;
+        for (const auto &loop : face.loops) {
+            loops.emplace_back();
+            for (const auto &p : loop)
+                loops.back().push_back(vertex(p));
+            for (std::size_t i = 0; i < loops.back().size(); ++i) {
+                const auto a = loops.back()[i], b = loops.back()[(i + 1) % loops.back().size()];
+                faceEdges.insert({std::min(a, b), std::max(a, b)});
+            }
+        }
+        const Id id = body->surface.nextId++;
+        body->surface.faces.emplace(id, Face{id, std::move(loops)});
+        const auto &sides = input.faceMaterials[face.face];
+        if (sides != MaterialSides{})
+            body->faceMaterials[id] = sides;
+    }
+    std::set<std::pair<Id, Id>> wires;
+    for (const auto &[a, b] : overlay.edges) {
+        const auto ia = vertex(a), ib = vertex(b);
+        const std::pair edge{std::min(ia, ib), std::max(ia, ib)};
+        if (ia == ib || faceEdges.contains(edge) || !wires.insert(edge).second)
+            continue;
+        body->surface.wires.push_back({ia, ib});
+    }
+    try {
+        body->topology = Topology::rebuild(body->surface, {});
+    } catch (const std::exception &error) {
+        reject("INVALID_REQUEST", std::string("The draped geometry is not valid: ") + error.what());
+    }
+    Edit edit{"Drape on terrain", {}};
+    edit.changes.push_back({group->id, nullptr, group});
+    edit.changes.push_back({body->id, nullptr, body});
+    const auto faces = body->surface.faces.size(), edgeCount = body->topology.edges.size();
+    changes = doc.apply(std::move(edit), doc.revision());
+    drapeNotices(report, plan, input, world);
+    auto envelope = drapeEnvelope(plan, input, world);
+    envelope["mode"] = "overlay";
+    envelope["lift"] = lift;
+    envelope["faces"] = double(faces);
+    envelope["edges"] = double(edgeCount);
+    return {{"command", command["command"]},
+            {"terrain", QString::number(terrain)},
+            {"mode", "overlay"},
+            {"group", QString::number(group->id)},
+            {"body", QString::number(body->id)},
+            {"faces", double(faces)},
+            {"edges", double(edgeCount)},
+            {"changed", true},
+            {"terrainReport", sourceEditReport(report, envelope)}};
+}
+QJsonObject drapeTerrain(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+    onlyFields(command, {"command", "terrain", "edges", "faces", "mode", "paintRegions", "lift",
+                         "context"});
+    const auto terrain = identity(command["terrain"]);
+    if (!isTerrain(doc, terrain))
+        reject("NOT_FOUND", "Terrain body does not exist");
+    const auto mode = command["mode"].toString();
+    if (!command["mode"].isString() || (mode != "imprint" && mode != "overlay"))
+        reject("INVALID_REQUEST", "mode is imprint or overlay");
+    const bool overlay = mode == "overlay";
+    bool paintRegions = false;
+    if (command.contains("paintRegions")) {
+        if (overlay)
+            reject("INVALID_REQUEST", "paintRegions applies to imprint");
+        if (!command["paintRegions"].isBool())
+            reject("INVALID_REQUEST", "paintRegions is true or false");
+        paintRegions = command["paintRegions"].toBool();
+    }
+    double lift = terrainDrapeLiftDefault;
+    if (command.contains("lift")) {
+        if (!overlay)
+            reject("INVALID_REQUEST", "lift applies to overlay");
+        const auto value = command["lift"];
+        if (!value.isDouble() || !std::isfinite(value.toDouble()) || value.toDouble() < 0 ||
+            value.toDouble() > terrainDrapeLiftMax)
+            reject("INVALID_REQUEST", "lift is 0 to 1,000 m");
+        lift = value.toDouble();
+    }
+    Id context = 0;
+    if (command.contains("context")) {
+        if (!overlay)
+            reject("INVALID_REQUEST", "context applies to overlay (the group's parent)");
+        if (command["context"].toString() != "0") {
+            context = identity(command["context"]);
+            const auto found = doc.bodies().find(context);
+            if (found == doc.bodies().end())
+                reject("NOT_FOUND", "The context does not exist");
+            if (found->second->kind != BodyKind::Group)
+                reject("UNSUPPORTED_TARGET", "The context is a group (or 0 for the model)");
+            if (persistentlyLocked(doc, context))
+                reject("INVALID_OPERATION", "Cannot edit a locked entity or its contents");
+            if (componentBound(doc, context))
+                reject("UNSUPPORTED_TARGET", "Open the component's own context to add geometry "
+                                             "to a component; overlay adds to a group or the "
+                                             "model");
+        }
+    }
+    if (!overlay)
+        requireUnlockedTerrain(doc, terrain);
+    requireLevelTerrain(doc, terrain);
+    const auto toLocal = doc.worldTransform(terrain).inverse();
+    auto input = drapeInput(doc, command, toLocal, paintRegions);
+    return overlay ? drapeOverlay(doc, terrain, command, std::move(input), lift, context, changes)
+                   : drapeImprint(doc, terrain, command, std::move(input), changes);
+}
 } // namespace
 TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command) {
     const auto name = command["command"].toString();
@@ -1533,7 +1986,7 @@ bool isTerrainCommand(const QString &name) {
            name == "terrain.remove_edit" || name == "terrain.edit_source" ||
            name == "terrain.add_source" || name == "terrain.remove_source" ||
            name == "terrain.sculpt" || name == "terrain.stamp_pad" ||
-           name == "terrain.update_edit";
+           name == "terrain.update_edit" || name == "terrain.drape";
 }
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command) {
@@ -1685,6 +2138,13 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
     if (name == "terrain.sculpt") {
         ChangeReport changes;
         auto record = sculptTerrain(doc, command, changes);
+        if (operation)
+            *operation = std::move(record);
+        return changes;
+    }
+    if (name == "terrain.drape") {
+        ChangeReport changes;
+        auto record = drapeTerrain(doc, command, changes);
         if (operation)
             *operation = std::move(record);
         return changes;
@@ -2120,6 +2580,46 @@ QJsonArray terrainCommandSpecs() {
                                     {"description", "mode width: the band's plan width in "
                                                     "metres"}}}},
              {"terrain", "footprint"}),
+        spec("terrain.drape", "Drape on terrain",
+             {{"terrain", terrainId},
+              {"edges", QJsonObject{{"type", "array"},
+                                    {"maxItems", int(terrainEdgeLimit)},
+                                    {"items", edgeSchema},
+                                    {"description", "Model edges and curves {body, edge} in any "
+                                                    "context, projected vertically; chained as "
+                                                    "terrain.create_from_edges chains them"}}},
+              {"faces", QJsonObject{{"type", "array"},
+                                    {"maxItems", int(terrainDrapeFaceLimit)},
+                                    {"items", QJsonObject{{"type", "object"},
+                                                          {"properties",
+                                                           QJsonObject{{"body", idSchema},
+                                                                       {"face", idSchema}}},
+                                                          {"required", QJsonArray{"body", "face"}},
+                                                          {"additionalProperties", false}}},
+                                    {"description", "Model faces {body, face} in any context; "
+                                                    "every loop is draped"}}},
+              {"mode", QJsonObject{{"type", "string"},
+                                   {"enum", QJsonArray{"imprint", "overlay"}},
+                                   {"description", "imprint: split the terrain's triangles along "
+                                                   "the lines (shape unchanged) and keep them as "
+                                                   "breaklines; overlay: ordinary geometry in a "
+                                                   "new group, terrain unchanged"}}},
+              {"paintRegions", QJsonObject{{"type", "boolean"},
+                                           {"description", "imprint: paint the terrain inside "
+                                                           "each face with the face's material, "
+                                                           "on every rebuild too"}}},
+              {"lift", QJsonObject{{"type", "number"},
+                                   {"minimum", 0},
+                                   {"maximum", terrainDrapeLiftMax},
+                                   {"description", "overlay: metres above the surface; default "
+                                                   "0.01"}}},
+              {"context", QJsonObject{{"type", "string"},
+                                      {"pattern", "^(0|[1-9][0-9]*)$"},
+                                      {"maxLength", 20},
+                                      {"description", "overlay: the group the new group goes in "
+                                                      "(the active context); 0 or omitted for "
+                                                      "the model"}}}},
+             {"terrain", "mode"}),
         spec("terrain.update_edit", "Edit terrain change",
              {{"terrain", terrainId},
               {"edit", QJsonObject{{"type", "integer"},
@@ -2242,6 +2742,42 @@ QJsonObject currentSourcesJson(const TerrainRecord &record) {
 }
 } // namespace
 namespace {
+// R096.e: the paint regions (imprints with region paint), with their material and extent in model
+// coordinates; at most 200 listed.
+QJsonObject paintRegionsJson(const TerrainRecord &record, const Transform &world) {
+    QJsonArray entries;
+    std::size_t count = 0;
+    for (const auto &edit : record.edits) {
+        if (edit->kind != terrainDrapeKind)
+            continue;
+        const auto &data = dynamic_cast<const TerrainDrapeData &>(*edit->data);
+        for (const auto &region : data.paint) {
+            ++count;
+            if (entries.size() >= 200)
+                continue;
+            std::array<double, 4> box{std::numeric_limits<double>::infinity(),
+                                      std::numeric_limits<double>::infinity(),
+                                      -std::numeric_limits<double>::infinity(),
+                                      -std::numeric_limits<double>::infinity()};
+            for (const auto &loop : region.loops)
+                for (const auto &p : loop) {
+                    box[0] = std::min(box[0], p[0]);
+                    box[1] = std::min(box[1], p[1]);
+                    box[2] = std::max(box[2], p[0]);
+                    box[3] = std::max(box[3], p[1]);
+                }
+            entries.append(QJsonObject{{"edit", double(edit->id)},
+                                       {"material", QString::number(region.material)},
+                                       {"loops", double(region.loops.size())},
+                                       {"extent", modelBox(world, box)},
+                                       {"applied", data.resolved()}});
+        }
+    }
+    return {{"count", double(count)},
+            {"space", "model"},
+            {"entries", entries},
+            {"entriesOmitted", double(count - std::size_t(entries.size()))}};
+}
 // R096.d: the pads (stamp entries) with their elevation and extent, in model coordinates; at
 // most 200 listed.
 QJsonObject padsJson(const TerrainRecord &record, const Transform &world) {
@@ -2304,6 +2840,7 @@ QJsonObject terrainDescription(const Document &doc, Id terrain) {
         {"edits", terrainEditsJson(record)},
         {"currentSources", currentSourcesJson(record)},
         {"pads", padsJson(record, world)},
+        {"paintRegions", paintRegionsJson(record, world)},
         {"meshDigest", QString::fromStdString(record.meshDigest)},
         {"currentDigest", QString::fromStdString(digest)},
         {"changedSinceGenerated", digest != record.meshDigest},

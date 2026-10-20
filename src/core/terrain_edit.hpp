@@ -63,7 +63,11 @@ void applyTerrainRegion(TerrainEditMesh &mesh, const TerrainRegionResult &result
 
 struct TerrainTilesApplied {
     std::vector<Id> removed, added; // tile bodies
-    TerrainPaint paintDropped;     // per-face paint on replaced tiles; tiles' own paint is kept
+    // R096.e: kept tiles whose faces a new paint region repainted (same body ID, new paint).
+    std::vector<Id> repainted;
+    // Per-face paint on replaced tiles; tiles' own paint is kept. R096.e: paint the record's
+    // paint regions give a face again is not counted.
+    TerrainPaint paintDropped;
     ChangeReport changes;
 };
 // Commits `result` and `record` (meshDigest is computed here, over the tiles in key order) as
@@ -71,6 +75,9 @@ struct TerrainTilesApplied {
 // its ID); otherwise it takes a new ID from the document allocator in key order, the material
 // sides and colour of the replaced tile with its key (or of the first replaced tile of its
 // cell, else the terrain's shared tile material) and per-face paint is dropped (counted).
+// R096.e: every new tile is painted by the record's paint regions (TerrainPaintRegions), and when
+// the record gains regions (an imprint with region paint, appended last) the faces of kept tiles
+// inside them are repainted too.
 // Refuses NOT_FOUND, a locked terrain (INVALID_OPERATION), the document terrain limit
 // (LIMIT_EXCEEDED) and the history budget.
 TerrainTilesApplied applyTerrainTiles(Document &doc, Id terrain, TerrainRecord record,
