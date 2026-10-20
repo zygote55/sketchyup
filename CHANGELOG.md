@@ -15,6 +15,19 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Building-pad stamp (R096.d, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096d)):
+  a new `terrain.stamp_pad` command (automation sessions and MCP; hidden from the in-app
+  assistant) flattens a footprint (a horizontal face, the lowest horizontal face of a group or
+  component, a closed edge loop or a polygon) to a pad elevation and grades the ground around it
+  by cut and fill slopes to where they meet the ground (default 1:2, up to 100 m) or by a band of
+  fixed width. The pad, its slopes and the daylight line are one undoable edit ("Stamp pad")
+  recorded in the terrain's edit list, so Regenerate reproduces it; grading rays that cross at
+  tight corners are dropped and reported. Pads are protected: sculpt and smooth leave them, and
+  contour edits and other stamps that would enter one are refused with its location.
+  `terrain.update_edit` changes a pad's elevation, slopes or mode, or re-reads its footprint from
+  its source body (Restamp), replaying the later edits ("Edit terrain change"); `terrain.describe`
+  lists the pads with their elevation and extent.
+
 - Sculpt and smooth (R096.b, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096b)):
   a new `terrain.sculpt` command (automation sessions and MCP; hidden from the in-app
   assistant) raises, lowers or smooths a terrain inside a brush stroke (1 to 256 points, a

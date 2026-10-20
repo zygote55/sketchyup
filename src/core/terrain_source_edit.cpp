@@ -1,5 +1,6 @@
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
+#include "core/terrain_mesh_view.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -15,7 +16,6 @@ constexpr double localBound = 1e6;
 constexpr double xyTolerance = 1e-7;
 
 TerrainVec2 v2(const Vec3 &p) { return {p.x, p.y}; }
-TerrainVec2 v2(const std::array<double, 2> &p) { return {p[0], p[1]}; }
 int orient(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c) { return terrainOrientation(a, b, c); }
 TerrainPlanKey keyOf(const Vec3 &p) { return TerrainPlanKey::of(p.x, p.y); }
 const char *roleText(TerrainSourceRole role) {
@@ -34,10 +34,6 @@ const char *roleText(TerrainSourceRole role) {
     return "source";
 }
 
-// Closed plan geometry with the adapter's exact orientation.
-bool inTriangle(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c, TerrainVec2 p) {
-    return orient(a, b, p) >= 0 && orient(b, c, p) >= 0 && orient(c, a, p) >= 0;
-}
 bool segmentsMeet(TerrainVec2 p, TerrainVec2 q, TerrainVec2 a, TerrainVec2 b) {
     const int o1 = orient(p, q, a), o2 = orient(p, q, b), o3 = orient(a, b, p),
               o4 = orient(a, b, q);
@@ -73,34 +69,6 @@ bool strictlyInside(TerrainVec2 p, TerrainVec2 q, TerrainVec2 v) {
     return std::min(p.x, q.x) <= v.x && v.x <= std::max(p.x, q.x) && std::min(p.y, q.y) <= v.y &&
            v.y <= std::max(p.y, q.y);
 }
-// Closed point-in-polygon by winding number (exact), and the polygon's closed region meeting a
-// segment.
-bool inPolygon(const TerrainPlanPolygon &polygon, TerrainVec2 q) {
-    const std::size_t n = polygon.size();
-    int winding = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-        const auto a = v2(polygon[i]), b = v2(polygon[(i + 1) % n]);
-        const int o = orient(a, b, q);
-        if (o == 0 && std::min(a.x, b.x) <= q.x && q.x <= std::max(a.x, b.x) &&
-            std::min(a.y, b.y) <= q.y && q.y <= std::max(a.y, b.y))
-            return true;
-        if (a.y <= q.y) {
-            if (b.y > q.y && o > 0)
-                ++winding;
-        } else if (b.y <= q.y && o < 0)
-            --winding;
-    }
-    return winding != 0;
-}
-bool polygonMeetsSegment(const TerrainPlanPolygon &polygon, TerrainVec2 p, TerrainVec2 q) {
-    if (inPolygon(polygon, p) || inPolygon(polygon, q))
-        return true;
-    for (std::size_t i = 0; i < polygon.size(); ++i)
-        if (segmentsMeet(p, q, v2(polygon[i]), v2(polygon[(i + 1) % polygon.size()])))
-            return true;
-    return false;
-}
-
 // ---- Problems -------------------------------------------------------------------------------
 class Problems {
   public:
@@ -155,132 +123,7 @@ constexpr const char *insidePad = "inside-pad";
 constexpr const char *padMessage = "A building pad protects this area; remove its stamp first.";
 constexpr const char *conflictKind = "conflicting-duplicate";
 
-// ---- The mesh, by exact position ------------------------------------------------------------
-class View {
-  public:
-    explicit View(const TerrainEditMesh &mesh) : mesh_(mesh) {}
-    const TerrainEditMesh &mesh() const { return mesh_; }
-    Corners corners(const TerrainTriangleRef &ref) const {
-        const auto &content = *tile(ref.tile).content;
-        const auto &t = content.triangles[ref.triangle];
-        return {content.vertices[t[0]], content.vertices[t[1]], content.vertices[t[2]]};
-    }
-    const std::vector<TerrainTriangleRef> &at(const Vec3 &p) const {
-        const auto key = TerrainPositionKey::of(p);
-        auto found = incident_.find(key);
-        if (found == incident_.end())
-            found = incident_.emplace(key, mesh_.trianglesAt(p)).first;
-        return found->second;
-    }
-    // The triangles with both corners: one or two (an edge), none when it is not an edge.
-    std::vector<TerrainTriangleRef> edge(const Vec3 &a, const Vec3 &b) const {
-        const auto &l = at(a), &r = at(b);
-        std::vector<TerrainTriangleRef> shared;
-        std::set_intersection(l.begin(), l.end(), r.begin(), r.end(), std::back_inserter(shared));
-        return shared;
-    }
-    bool boundaryEdge(const Vec3 &a, const Vec3 &b) const { return edge(a, b).size() == 1; }
-    bool boundaryVertex(const Vec3 &p) const {
-        for (const auto &ref : at(p)) {
-            const auto c = corners(ref);
-            for (int i = 0; i < 3; ++i)
-                if (c[std::size_t(i)] == p && (boundaryEdge(p, c[std::size_t((i + 1) % 3)]) ||
-                                               boundaryEdge(p, c[std::size_t((i + 2) % 3)])))
-                    return true;
-        }
-        return false;
-    }
-    std::optional<TerrainTriangleRef> across(const TerrainTriangleRef &from, const Vec3 &a,
-                                             const Vec3 &b) const {
-        for (const auto &ref : edge(a, b))
-            if (!(ref == from))
-                return ref;
-        return std::nullopt;
-    }
-    // Triangles whose closed region contains (x, y), in reference order.
-    std::vector<TerrainTriangleRef> containing(TerrainVec2 p) const {
-        std::vector<TerrainTriangleRef> result;
-        for (const auto *tile : mesh_.tilesAt(p.x, p.y, 0)) {
-            const auto &content = *tile->content;
-            for (std::uint32_t t = 0; t < content.triangles.size(); ++t) {
-                const auto &tri = content.triangles[t];
-                const auto a = v2(content.vertices[tri[0]]), b = v2(content.vertices[tri[1]]),
-                           c = v2(content.vertices[tri[2]]);
-                if (p.x < std::min({a.x, b.x, c.x}) || p.x > std::max({a.x, b.x, c.x}) ||
-                    p.y < std::min({a.y, b.y, c.y}) || p.y > std::max({a.y, b.y, c.y}))
-                    continue;
-                if (inTriangle(a, b, c, p))
-                    result.push_back({content.key, t});
-            }
-        }
-        std::sort(result.begin(), result.end());
-        return result;
-    }
-    // Triangles whose closed region meets the closed segment, in reference order. The tiles come
-    // from the grid index along the segment (a box of at most one cell per step), and a triangle
-    // wholly more than 1e-6 m to one side of the segment's line is skipped before the exact test.
-    std::vector<TerrainTriangleRef> touching(TerrainVec2 p, TerrainVec2 q) const {
-        const double cell = mesh_.grid().cell > 0 ? mesh_.grid().cell : 1.0;
-        const double dx = q.x - p.x, dy = q.y - p.y;
-        const double length = std::hypot(dx, dy);
-        const auto steps = std::size_t(std::clamp(std::ceil(length / cell), 1.0, 1e6));
-        std::vector<const TerrainEditMesh::Tile *> tiles;
-        for (std::size_t i = 0; i < steps; ++i) {
-            const double t0 = double(i) / double(steps), t1 = double(i + 1) / double(steps);
-            const double x0 = p.x + dx * t0, y0 = p.y + dy * t0;
-            const double x1 = i + 1 == steps ? q.x : p.x + dx * t1,
-                         y1 = i + 1 == steps ? q.y : p.y + dy * t1;
-            for (const auto *tile : mesh_.tilesIn(std::min(x0, x1), std::min(y0, y1),
-                                                  std::max(x0, x1), std::max(y0, y1), 1e-6))
-                tiles.push_back(tile);
-        }
-        std::sort(tiles.begin(), tiles.end(), [](const auto *a, const auto *b) {
-            return a->content->key < b->content->key;
-        });
-        tiles.erase(std::unique(tiles.begin(), tiles.end()), tiles.end());
-        const double minX = std::min(p.x, q.x), maxX = std::max(p.x, q.x),
-                     minY = std::min(p.y, q.y), maxY = std::max(p.y, q.y);
-        const double margin = 1e-6 * (std::abs(dx) + std::abs(dy));
-        std::vector<TerrainTriangleRef> result;
-        for (const auto *tile : tiles) {
-            const auto &content = *tile->content;
-            for (std::uint32_t t = 0; t < content.triangles.size(); ++t) {
-                const auto &tri = content.triangles[t];
-                const auto a = v2(content.vertices[tri[0]]), b = v2(content.vertices[tri[1]]),
-                           c = v2(content.vertices[tri[2]]);
-                if (maxX < std::min({a.x, b.x, c.x}) || minX > std::max({a.x, b.x, c.x}) ||
-                    maxY < std::min({a.y, b.y, c.y}) || minY > std::max({a.y, b.y, c.y}))
-                    continue;
-                const auto side = [&](TerrainVec2 v) { return dx * (v.y - p.y) - dy * (v.x - p.x); };
-                const double sa = side(a), sb = side(b), sc = side(c);
-                if ((sa > margin && sb > margin && sc > margin) ||
-                    (sa < -margin && sb < -margin && sc < -margin))
-                    continue;
-                if (inTriangle(a, b, c, p) || inTriangle(a, b, c, q) || segmentsMeet(p, q, a, b) ||
-                    segmentsMeet(p, q, b, c) || segmentsMeet(p, q, c, a))
-                    result.push_back({content.key, t});
-            }
-        }
-        std::sort(result.begin(), result.end());
-        return result;
-    }
-
-  private:
-    const TerrainEditMesh::Tile &tile(const TerrainTileKey &key) const {
-        if (last_ && last_->content->key == key)
-            return *last_;
-        const auto *found = mesh_.tile(key);
-        if (!found)
-            throw std::logic_error("A terrain triangle names a missing tile");
-        last_ = found;
-        return *found;
-    }
-    const TerrainEditMesh &mesh_;
-    mutable const TerrainEditMesh::Tile *last_{};
-    mutable std::unordered_map<TerrainPositionKey, std::vector<TerrainTriangleRef>,
-                               TerrainPositionHash>
-        incident_;
-};
+using View = TerrainMeshView;
 
 TerrainTriangulationOptions adapterOptions(const TerrainParameters &parameters) {
     TerrainTriangulationOptions options;
@@ -333,26 +176,19 @@ struct After {
     }
 };
 
-void checkProtected(const TerrainSourceState &state, const std::vector<Vec3> &points,
+// R096.d: through the pad index (each region's banded polygon and box tree), so a long edit
+// against many large pads does not test every pad edge for every point.
+void checkProtected(const TerrainPadIndex &pads, const std::vector<Vec3> &points,
                     const std::vector<std::array<Vec3, 2>> &segments, Problems &problems,
                     std::uint64_t source) {
-    for (const auto &region : state.protectedRegions) {
-        if (region.polygon.size() < 3)
-            continue;
-        for (const auto &p : points)
-            if (inPolygon(region.polygon, v2(p)))
-                problems.add(insidePad, padMessage, v2(p), source, region.edit);
-        for (const auto &[a, b] : segments)
-            if (polygonMeetsSegment(region.polygon, v2(a), v2(b)))
-                problems.add(insidePad, padMessage,
-                             {(a.x + b.x) / 2, (a.y + b.y) / 2}, source, region.edit);
-    }
-}
-bool protectedAt(const TerrainSourceState &state, TerrainVec2 p) {
-    for (const auto &region : state.protectedRegions)
-        if (region.polygon.size() >= 3 && inPolygon(region.polygon, p))
-            return true;
-    return false;
+    if (pads.empty())
+        return;
+    for (const auto &p : points)
+        if (const auto edit = pads.covers(p.x, p.y))
+            problems.add(insidePad, padMessage, v2(p), source, edit);
+    for (const auto &[a, b] : segments)
+        if (const auto edit = pads.meetsSegment(v2(a), v2(b)))
+            problems.add(insidePad, padMessage, {(a.x + b.x) / 2, (a.y + b.y) / 2}, source, edit);
 }
 
 // ---- Elevation only -------------------------------------------------------------------------
@@ -389,7 +225,8 @@ TerrainSourceEditPlan planElevation(const TerrainEditContext &context, const Ter
         std::vector<Vec3> moved;
         for (const auto &[key, lift] : lifts)
             moved.push_back(lift.first);
-        checkProtected(context.sources, moved, {}, problems, next.id);
+        checkProtected(TerrainPadIndex(context.sources.protectedRegions), moved, {}, problems,
+                       next.id);
     }
     problems.check("Contour edit");
     // The flip region: the triangles incident to the lifted vertices, and to every vertex of the
@@ -464,8 +301,18 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
                                             const TerrainSource *old, const TerrainSource *next) {
     const SourceView before(old), after(next);
     const auto &state = context.sources;
+    const TerrainPadIndex pads(state.protectedRegions);
     const After now{state, before, after};
     const std::uint64_t sourceId = next ? next->id : old ? old->id : 0;
+    // R096.d: a pad's outline and daylight line change only with the pad.
+    if (old && state.isPadSource(old->id)) {
+        Problems problems;
+        problems.add("pad-source",
+                     "This source is a building pad's outline or daylight line; change the pad "
+                     "with terrain.update_edit or remove it with terrain.remove_edit.",
+                     old->points.empty() ? TerrainVec2{} : v2(old->points.front()), old->id);
+        problems.refuse("Contour edit");
+    }
     // Elevation-only: the same plan positions in order and the same segments (a role change
     // between spot points and a polyline adds or drops segments, so it re-triangulates).
     if (old && next && old->points.size() == next->points.size() &&
@@ -638,7 +485,7 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
             points.push_back(p);
         auto segments = addedSegments;
         segments.insert(segments.end(), removedSegments.begin(), removedSegments.end());
-        checkProtected(state, points, segments, problems, sourceId);
+        checkProtected(pads, points, segments, problems, sourceId);
     }
     problems.check("Contour edit");
     // ---- The cavity ----
@@ -668,8 +515,8 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
                 const auto n = view.corners(*next);
                 if (terrainInCircle(v2(n[0]), v2(n[1]), v2(n[2]), v2(q)) <= 0)
                     continue;
-                if (protectedAt(state, {(n[0].x + n[1].x + n[2].x) / 3,
-                                        (n[0].y + n[1].y + n[2].y) / 3}))
+                if (!pads.empty() && pads.covers((n[0].x + n[1].x + n[2].x) / 3,
+                                                 (n[0].y + n[1].y + n[2].y) / 3))
                     continue;
                 grow(*next, v2(q));
                 queue.push_back(*next);

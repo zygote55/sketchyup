@@ -93,7 +93,8 @@ TerrainImportResult runTerrainEdgeRequest(const TerrainEdgeRequest &request,
 // `roles.contour` / `roles.breakline`, `boundary` and `holes` when non-empty.
 QJsonObject terrainCreateFromEdgesCommand(const TerrainEdgeSelection &selection);
 // R096.a: terrain.regenerate, terrain.set_parameters, terrain.reset_edits and
-// terrain.remove_edit in three parts, so a desktop worker can replay with progress and cancel
+// terrain.remove_edit (R096.d: and terrain.update_edit, which replaces a pad's entry by its
+// changed parameters or a Restamp, "Edit terrain change") in three parts, so a desktop worker can replay with progress and cancel
 // (ADR 0169 §2). parseTerrainReplayRequest checks the command on the document (throwing
 // TerrainError exactly as the command: NOT_FOUND for a missing terrain or change,
 // INVALID_REQUEST for no edits to reset, INVALID_OPERATION when locked or, with edits, not
@@ -111,6 +112,8 @@ struct TerrainReplayRequest {
     TerrainParameters parameters;
     std::size_t otherTriangles{};
     TerrainReport notices;
+    // R096.d terrain.update_edit: the changed entry, which must apply (else the run is refused).
+    std::uint32_t required{};
 };
 TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command);
 TerrainImportResult runTerrainReplay(const TerrainReplayRequest &request,

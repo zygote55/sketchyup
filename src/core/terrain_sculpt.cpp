@@ -37,54 +37,15 @@ double segmentDistance(double x, double y, const Plan2 &a, const Plan2 &b) {
 int orient(const Plan2 &a, const Plan2 &b, double x, double y) {
     return terrainOrientation({a[0], a[1]}, {b[0], b[1]}, {x, y});
 }
-// Closed point-in-polygon by nonzero winding with the adapter's exact orientation.
-bool inPolygon(const std::vector<Plan2> &polygon, double x, double y) {
-    const std::size_t n = polygon.size();
-    int winding = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-        const auto &a = polygon[i], &b = polygon[(i + 1) % n];
-        const int o = orient(a, b, x, y);
-        if (o == 0 && std::min(a[0], b[0]) <= x && x <= std::max(a[0], b[0]) &&
-            std::min(a[1], b[1]) <= y && y <= std::max(a[1], b[1]))
-            return true;
-        if (a[1] <= y) {
-            if (b[1] > y && o > 0)
-                ++winding;
-        } else if (b[1] <= y && o < 0)
-            --winding;
-    }
-    return winding != 0;
-}
-// Pads (decision 6): on or inside a protected polygon.
-// Pads (decision 6): on or inside a protected polygon. The polygons' boxes are computed once per
-// plan, not per vertex.
+// Pads (decision 6): on or inside a protected polygon, or exactly at a protected point (R096.d:
+// a pad's outline vertices). The pad index is built once per plan, not per vertex.
 class Pads {
   public:
-    explicit Pads(const TerrainSourceState &state) {
-        for (const auto &region : state.protectedRegions) {
-            const auto &polygon = region.polygon;
-            if (polygon.size() < 3)
-                continue;
-            std::array<double, 4> box{polygon[0][0], polygon[0][1], polygon[0][0], polygon[0][1]};
-            for (const auto &p : polygon) {
-                box[0] = std::min(box[0], p[0]);
-                box[1] = std::min(box[1], p[1]);
-                box[2] = std::max(box[2], p[0]);
-                box[3] = std::max(box[3], p[1]);
-            }
-            pads_.push_back({box, &polygon});
-        }
-    }
-    bool covers(double x, double y) const {
-        for (const auto &[box, polygon] : pads_)
-            if (x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3] &&
-                inPolygon(*polygon, x, y))
-                return true;
-        return false;
-    }
+    explicit Pads(const TerrainSourceState &state) : index_(state.protectedRegions) {}
+    bool covers(double x, double y) const { return !index_.empty() && index_.covers(x, y); }
 
   private:
-    std::vector<std::pair<std::array<double, 4>, const std::vector<Plan2> *>> pads_;
+    TerrainPadIndex index_;
 };
 void checkPoints(const std::vector<Plan2> &points, const char *what) {
     for (const auto &p : points)
@@ -441,18 +402,17 @@ std::optional<std::uint32_t> terrainSplitSourceId(std::uint32_t edit, std::uint3
 }
 
 // ---- Clipping (decision 2) ------------------------------------------------------------------
-TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit,
+TerrainSculptClip planTerrainSourceClip(const TerrainSourceState &state, std::uint32_t edit,
+                                        const std::vector<std::pair<std::uint32_t, std::uint32_t>> &pieces,
+                                        const TerrainSourceClipRule &rule,
                                         TerrainProgress *progress) {
-    const auto &data = dataOf(edit);
-    const TerrainSculptInfluence influence(data);
-    const auto &box = influence.bounds();
-    const Pads pads(state);
+    const auto &box = rule.box;
     TerrainSculptClip clip;
     // Recorded pieces belong to this entry's block (validateTerrainRecord refuses others in a
     // file); one that does not is refused here too rather than used.
-    for (const auto &[parent, id] : data.pieces) {
-        const auto high = terrainSplitSourceId(edit.id, 0),
-                   low = terrainSplitSourceId(edit.id, terrainSculptPiecesPerEdit - 1);
+    for (const auto &[parent, id] : pieces) {
+        const auto high = terrainSplitSourceId(edit, 0),
+                   low = terrainSplitSourceId(edit, terrainSculptPiecesPerEdit - 1);
         if (!high || id > *high || id < *low) {
             clip.refusal = "A recorded source line piece id is not this change's";
             return clip;
@@ -461,32 +421,31 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
     // Ids of further runs: a parent's runs first take the ids the entry recorded for that parent
     // at its commit (in order), so a piece keeps its id while its parent splits the same way,
     // whatever happens to other sources; any further run takes the next ordinal of the entry's
-    // block that no recorded id uses.
+    // block (from rule.firstOrdinal) that no recorded id uses.
     std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> recorded;
     std::unordered_set<std::uint32_t> reserved;
-    for (const auto &[parent, id] : data.pieces) {
+    for (const auto &[parent, id] : pieces) {
         recorded[parent].push_back(id);
         reserved.insert(id);
     }
-    std::uint32_t ordinal = 0;
+    std::uint32_t ordinal = rule.firstOrdinal;
     auto fresh = [&]() -> std::optional<std::uint32_t> {
         for (;;) {
-            const auto id = terrainSplitSourceId(edit.id, ordinal++);
+            const auto id = terrainSplitSourceId(edit, ordinal++);
             if (!id || !reserved.contains(*id))
                 return id;
         }
     };
     std::set<std::uint32_t> taken;
     auto clipped = [&](const Vec3 &p) {
-        return p.x >= box[0] && p.x <= box[2] && p.y >= box[1] && p.y <= box[3] &&
-               influence.weight(p.x, p.y) > 0 && !pads.covers(p.x, p.y);
+        return p.x >= box[0] && p.x <= box[2] && p.y >= box[1] && p.y <= box[3] && rule.vertex(p);
     };
     std::size_t scanned = 0;
     for (const auto *source : state.sources()) {
         if (!lineRole(source->role) && source->role != TerrainSourceRole::Points)
             continue;
         const auto &points = source->points;
-        std::vector<bool> keep;
+        std::vector<bool> keep, cut;
         for (std::size_t i = 0; i < points.size(); ++i) {
             if (++scanned % 4096 == 0)
                 terrainCheckpoint(progress, TerrainStage::Replay, 0); // cancellation only
@@ -496,6 +455,21 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
                 keep[i] = false;
             }
         }
+        // R096.d: a line segment the rule cuts (both ends kept) splits the line there.
+        if (rule.segment && lineRole(source->role))
+            for (std::size_t i = 0; i + 1 < points.size(); ++i) {
+                const auto &a = points[i], &b = points[i + 1];
+                if (std::max(a.x, b.x) < box[0] || std::min(a.x, b.x) > box[2] ||
+                    std::max(a.y, b.y) < box[1] || std::min(a.y, b.y) > box[3])
+                    continue;
+                if ((!keep.empty() && (!keep[i] || !keep[i + 1])) || !rule.segment(a, b))
+                    continue;
+                if (cut.empty())
+                    cut.assign(points.size(), false);
+                cut[i] = true;
+                if (keep.empty())
+                    keep.assign(points.size(), true);
+            }
         if (keep.empty())
             continue;
         const bool closed = closedLine(*source);
@@ -509,8 +483,8 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
             clip.sources.push_back(std::move(entry));
             continue;
         }
-        // The runs of kept vertices, in point order; a ring is walked from its first clipped
-        // vertex, so a run never wraps.
+        // The runs of kept vertices, in point order; a ring is walked from its first break (a
+        // clipped vertex, or the end of a cut segment), so a run never wraps.
         std::vector<std::vector<Vec3>> runs(1);
         auto visit = [&](std::size_t i) {
             if (keep[i])
@@ -518,16 +492,35 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
             else if (!runs.back().empty())
                 runs.emplace_back();
         };
+        auto split = [&](std::size_t segment) {
+            if (!cut.empty() && cut[segment] && !runs.back().empty())
+                runs.emplace_back();
+        };
         if (closed) {
             const std::size_t m = points.size() - 1;
             std::size_t first = 0;
-            while (keep[first])
+            while (keep[first] && (cut.empty() || !cut[first]))
                 ++first;
-            for (std::size_t j = 1; j < m; ++j)
-                visit((first + j) % m);
+            if (!keep[first]) {
+                for (std::size_t j = 1; j < m; ++j) {
+                    if (j > 1)
+                        split((first + j - 1) % m);
+                    visit((first + j) % m);
+                }
+            } else {
+                // A cut segment from `first`: the ring opens there.
+                for (std::size_t j = 1; j <= m; ++j) {
+                    if (j > 1)
+                        split((first + j - 1) % m);
+                    visit((first + j) % m);
+                }
+            }
         } else
-            for (std::size_t i = 0; i < points.size(); ++i)
+            for (std::size_t i = 0; i < points.size(); ++i) {
+                if (i)
+                    split(i - 1);
                 visit(i);
+            }
         for (auto &run : runs) {
             if (run.size() < 2)
                 continue; // a single vertex is no line
@@ -547,12 +540,11 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
                                     : fresh();
                 ++clip.pieces;
                 if (!id) {
-                    clip.refusal = edit.id > terrainSculptSplitEdits
+                    clip.refusal = edit > terrainSculptSplitEdits
                                        ? "The terrain has used too many change IDs to split "
                                          "source lines; Explode terrain keeps the surface as "
                                          "ordinary geometry"
-                                       : "This change would split source lines into more than "
-                                         "4,096 pieces; sculpt or smooth in smaller strokes";
+                                       : rule.tooManyPieces;
                     return clip;
                 }
                 if (state.find(*id) || !taken.insert(*id).second) {
@@ -570,6 +562,20 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
         clip.sources.push_back(std::move(entry));
     }
     return clip;
+}
+TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit,
+                                        TerrainProgress *progress) {
+    const auto &data = dataOf(edit);
+    const TerrainSculptInfluence influence(data);
+    const Pads pads(state);
+    TerrainSourceClipRule rule;
+    rule.box = influence.bounds();
+    rule.vertex = [&](const Vec3 &p) {
+        return influence.weight(p.x, p.y) > 0 && !pads.covers(p.x, p.y);
+    };
+    rule.tooManyPieces = "This change would split source lines into more than 4,096 pieces; "
+                         "sculpt or smooth in smaller strokes";
+    return planTerrainSourceClip(state, edit.id, data.pieces, rule, progress);
 }
 void applyTerrainSculptClip(TerrainSourceState &state, const TerrainSculptClip &clip) {
     if (!clip.refusal.empty())

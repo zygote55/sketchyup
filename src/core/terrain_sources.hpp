@@ -8,7 +8,9 @@
 // have a vertex there and the contour and breakline segments between two positions, so the
 // edit core asks about a cavity's vertices and edges without scanning every source.
 #include "core/terrain_records.hpp"
+#include "core/terrain_plan_index.hpp"
 #include "geometry/terrain_triangulation.hpp"
+#include <functional>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -16,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 namespace sketchy {
 class Document;
@@ -34,11 +37,42 @@ struct TerrainPlanKey {
 struct TerrainPlanHash {
     std::size_t operator()(const TerrainPlanKey &key) const;
 };
-// A plan polygon an entry protects (R096.d's pads), with the entry that made it.
+// A plan polygon an entry protects (R096.d's pads), with the entry that made it. R096.d: a pad
+// also protects its outline's own vertices exactly (`points`): the edge-ray starts lie on the
+// footprint's edges only up to rounding. The index is built once, when the entry's effect is
+// applied, and shared by every copy of the state.
 struct TerrainProtectedRegion {
     std::uint32_t edit{};
     std::vector<std::array<double, 2>> polygon;
+    std::vector<std::array<double, 2>> points;
+    std::shared_ptr<const TerrainPolygonIndex> index; // of `polygon`
+    std::shared_ptr<const std::vector<TerrainPlanKey>> keys; // `points`, sorted
+    std::array<double, 4> box{}; // of the polygon and the points
 };
+// The protected regions of a state, indexed by their boxes (built per plan; a region's own index
+// is shared). Queries are closed: on a polygon's edge, or exactly at a protected point, counts.
+class TerrainPadIndex {
+  public:
+    explicit TerrainPadIndex(const std::vector<TerrainProtectedRegion> &regions);
+    bool empty() const { return tree_.empty(); }
+    // The entry of a region covering the point, or 0.
+    std::uint32_t covers(double x, double y) const;
+    // The entry of a region whose closed polygon meets the closed segment (or that holds one of
+    // its ends as a protected point), or 0.
+    std::uint32_t meetsSegment(TerrainVec2 a, TerrainVec2 b) const;
+    // The regions whose box, widened by `slack`, meets the box (callback; false stops).
+    void inBox(const std::array<double, 4> &box, double slack,
+               const std::function<bool(const TerrainProtectedRegion &)> &callback) const;
+
+  private:
+    const std::vector<TerrainProtectedRegion> &regions_;
+    std::vector<std::uint32_t> used_; // regions with a polygon or points
+    TerrainBoxTree tree_;
+};
+// A region of `polygon` and `points` with its index, for TerrainSourceState::protectedRegions.
+TerrainProtectedRegion terrainProtectedRegion(std::uint32_t edit,
+                                              std::vector<std::array<double, 2>> polygon,
+                                              std::vector<std::array<double, 2>> points = {});
 class TerrainSourceState {
   public:
     TerrainSourceState() = default;
@@ -68,6 +102,19 @@ class TerrainSourceState {
     std::uint32_t contourUses(TerrainPlanKey at) const;
     std::uint32_t segmentUses(TerrainPlanKey a, TerrainPlanKey b) const;
     std::vector<TerrainProtectedRegion> protectedRegions;
+    // R096.d: the rays of applied pads. They are constraint segments of the mesh (counted by
+    // segmentUses, so later cavities keep them and never grow across them) but not sources. A
+    // newer pad whose widened daylight polygon meets a ray supersedes it: `dropPadRays` removes
+    // the rays in `box` that `meets` marks, and returns how many.
+    void addPadRay(std::uint32_t edit, const Vec3 &a, const Vec3 &b);
+    std::size_t dropPadRays(const std::array<double, 4> &box,
+                            const std::function<bool(const Vec3 &, const Vec3 &)> &meets);
+    std::size_t padRays() const { return padRayCount_; }
+    // R096.d: a pad's outline and daylight line are sources only its own entry changes; source
+    // edits naming them are refused (terrain.update_edit and terrain.remove_edit change the pad).
+    // A ray's ends also count as vertex uses, so a source edit never removes one.
+    void markPadSource(std::uint32_t id) { padSources_.insert(id); }
+    bool isPadSource(std::uint32_t id) const { return padSources_.contains(id); }
 
   private:
     struct Uses {
@@ -87,6 +134,23 @@ class TerrainSourceState {
     std::unordered_map<SegmentKey, std::uint32_t, SegmentHash> segments_;
     std::uint32_t maxBaseId_{};
     std::size_t vertices_{};
+    struct PadRay {
+        std::uint32_t edit{};
+        Vec3 a, b;
+        bool alive{};
+    };
+    std::vector<PadRay> padRays_;
+    // The rays of each pad (a run of padRays_) with their box, so a newer pad tests only the
+    // pads its box meets.
+    struct PadRayGroup {
+        std::uint32_t edit{};
+        std::size_t first{}, count{}, alive{};
+        std::array<double, 4> box{};
+    };
+    std::vector<PadRayGroup> padRayGroups_;
+    std::unordered_set<std::uint32_t> padSources_;
+    void usePosition(const Vec3 &p, int sign);
+    std::size_t padRayCount_{};
 };
 // The polyline segments of a source by exact plan position (contours and breaklines; a source
 // whose last point repeats its first is closed), zero-length ones left out, each once.

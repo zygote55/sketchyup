@@ -7,6 +7,7 @@
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
@@ -398,6 +399,42 @@ int main(int argc, char **argv) {
                 publishRejected("terrain-edits",
                                 QJsonDocument(QJsonArray{nine}).toJson(QJsonDocument::Compact),
                                 "smooth-nine-iterations");
+            }
+            // R096.d: a resolved daylight pad (rays, a dropped count and a recorded piece), an
+            // unresolved fixed-width pad with its source body, and a pad whose ray starts run
+            // backwards, which the decoder refuses.
+            {
+                auto pad = std::make_shared<TerrainStampData>();
+                pad->footprint = {{0, 0}, {4, 0}, {4, 3}, {0, 3}};
+                pad->elevation = 12.5;
+                pad->cutSlope = 0.5;
+                pad->fillSlope = 0.4;
+                pad->maxDistance = 100;
+                pad->outline = {{0, 0}, {2, 0}, {4, 0}, {4, 3}, {0, 3}};
+                pad->rays = {{0, {-1, -1, 12}}, {1, {2, -1.5, 11.9}}, {2, {5, -1, 12.1}},
+                             {3, {5, 4, 12.5}}, {4, {0, 3, 12.5}}};
+                pad->dropped = 2;
+                pad->pieces = {{9, 4294967293u}};
+                auto band = std::make_shared<TerrainStampData>();
+                band->footprint = {{10, 10}, {14, 10}, {12, 13}};
+                band->elevation = -3;
+                band->mode = TerrainStampMode::Width;
+                band->width = 2.5;
+                band->sourceBody = 42;
+                band->sourceFace = 7;
+                QJsonArray pads{encodeTerrainEdit({1, terrainStampKind, pad}),
+                                encodeTerrainEdit({2, terrainStampKind, band})};
+                publish("terrain-edits", QJsonDocument(pads).toJson(QJsonDocument::Compact),
+                        "stamp-pads");
+                auto backwards = pads[0].toObject();
+                auto rays = backwards["rays"].toArray();
+                const QJsonValue first = rays[0];
+                rays[0] = rays[2];
+                rays[2] = first;
+                backwards["rays"] = rays;
+                publishRejected("terrain-edits",
+                                QJsonDocument(QJsonArray{backwards}).toJson(QJsonDocument::Compact),
+                                "stamp-rays-backwards");
             }
         }
         // R095.c: terrain sources, the generated fixtures (ADR 0168 section 6). The invalid

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <tuple>
@@ -172,6 +173,67 @@ void TerrainSourceState::clipPoints(std::uint32_t id, const std::vector<bool> &k
     }
     slot = std::make_shared<const TerrainSource>(std::move(next));
 }
+void TerrainSourceState::usePosition(const Vec3 &p, int sign) {
+    const auto key = TerrainPlanKey::of(p.x, p.y);
+    if (sign > 0) {
+        ++positions_[key].all;
+        return;
+    }
+    const auto found = positions_.find(key);
+    if (found != positions_.end() && !--found->second.all)
+        positions_.erase(found);
+}
+void TerrainSourceState::addPadRay(std::uint32_t edit, const Vec3 &a, const Vec3 &b) {
+    auto ka = TerrainPlanKey::of(a.x, a.y), kb = TerrainPlanKey::of(b.x, b.y);
+    if (ka == kb)
+        return;
+    if (kb < ka)
+        std::swap(ka, kb);
+    ++segments_[{ka, kb}];
+    usePosition(a, 1);
+    usePosition(b, 1);
+    if (padRayGroups_.empty() || padRayGroups_.back().edit != edit ||
+        padRayGroups_.back().first + padRayGroups_.back().count != padRays_.size())
+        padRayGroups_.push_back({edit, padRays_.size(), 0, 0,
+                                 {std::min(a.x, b.x), std::min(a.y, b.y), std::max(a.x, b.x),
+                                  std::max(a.y, b.y)}});
+    auto &group = padRayGroups_.back();
+    ++group.count;
+    ++group.alive;
+    group.box = {std::min({group.box[0], a.x, b.x}), std::min({group.box[1], a.y, b.y}),
+                 std::max({group.box[2], a.x, b.x}), std::max({group.box[3], a.y, b.y})};
+    padRays_.push_back({edit, a, b, true});
+    ++padRayCount_;
+}
+std::size_t TerrainSourceState::dropPadRays(
+    const std::array<double, 4> &box, const std::function<bool(const Vec3 &, const Vec3 &)> &meets) {
+    std::size_t dropped = 0;
+    for (auto &group : padRayGroups_) {
+        if (!group.alive || group.box[2] < box[0] || group.box[0] > box[2] ||
+            group.box[3] < box[1] || group.box[1] > box[3])
+            continue;
+        for (std::size_t r = group.first; r < group.first + group.count; ++r) {
+            auto &ray = padRays_[r];
+            if (!ray.alive || std::max(ray.a.x, ray.b.x) < box[0] ||
+                std::min(ray.a.x, ray.b.x) > box[2] || std::max(ray.a.y, ray.b.y) < box[1] ||
+                std::min(ray.a.y, ray.b.y) > box[3] || !meets(ray.a, ray.b))
+                continue;
+            ray.alive = false;
+            --padRayCount_;
+            --group.alive;
+            ++dropped;
+            usePosition(ray.a, -1);
+            usePosition(ray.b, -1);
+            auto ka = TerrainPlanKey::of(ray.a.x, ray.a.y), kb = TerrainPlanKey::of(ray.b.x, ray.b.y);
+            if (kb < ka)
+                std::swap(ka, kb);
+            const auto found = segments_.find({ka, kb});
+            if (found != segments_.end() && !--found->second)
+                segments_.erase(found);
+        }
+    }
+    return dropped;
+}
 std::uint32_t TerrainSourceState::vertexUses(TerrainPlanKey at) const {
     const auto found = positions_.find(at);
     return found == positions_.end() ? 0 : found->second.all;
@@ -195,9 +257,107 @@ void applyTerrainSourceEffect(TerrainSourceState &state, const TerrainEditKind &
     } catch (const std::invalid_argument &) {
         // An entry that does not fit the state changes nothing (the replay skips it too).
     }
+    std::vector<std::array<double, 2>> points;
+    if (kind.protectedPoints)
+        points = kind.protectedPoints(edit);
     if (kind.protects)
-        for (auto &polygon : kind.protects(edit))
-            state.protectedRegions.push_back({edit.id, std::move(polygon)});
+        for (auto &polygon : kind.protects(edit)) {
+            state.protectedRegions.push_back(
+                terrainProtectedRegion(edit.id, std::move(polygon), std::move(points)));
+            points.clear();
+        }
+    if (!points.empty())
+        state.protectedRegions.push_back(terrainProtectedRegion(edit.id, {}, std::move(points)));
+}
+
+// ---- Protected regions (R096.d) --------------------------------------------------------------
+TerrainProtectedRegion terrainProtectedRegion(std::uint32_t edit,
+                                              std::vector<std::array<double, 2>> polygon,
+                                              std::vector<std::array<double, 2>> points) {
+    TerrainProtectedRegion region;
+    region.edit = edit;
+    region.box = {std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(),
+                  -std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
+    auto extend = [&](const std::array<double, 2> &p) {
+        region.box[0] = std::min(region.box[0], p[0]);
+        region.box[1] = std::min(region.box[1], p[1]);
+        region.box[2] = std::max(region.box[2], p[0]);
+        region.box[3] = std::max(region.box[3], p[1]);
+    };
+    // A polygon of fewer than three corners protects nothing (as before R096.d).
+    if (polygon.size() >= 3) {
+        for (const auto &p : polygon)
+            extend(p);
+        region.index = std::make_shared<const TerrainPolygonIndex>(polygon);
+    }
+    if (!points.empty()) {
+        std::vector<TerrainPlanKey> keys;
+        keys.reserve(points.size());
+        for (const auto &p : points) {
+            extend(p);
+            keys.push_back(TerrainPlanKey::of(p[0], p[1]));
+        }
+        std::sort(keys.begin(), keys.end());
+        keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+        region.keys = std::make_shared<const std::vector<TerrainPlanKey>>(std::move(keys));
+    }
+    region.polygon = std::move(polygon);
+    region.points = std::move(points);
+    return region;
+}
+TerrainPadIndex::TerrainPadIndex(const std::vector<TerrainProtectedRegion> &regions)
+    : regions_(regions) {
+    std::vector<TerrainBoxTree::Box> boxes;
+    for (std::uint32_t i = 0; i < regions.size(); ++i)
+        if (regions[i].index || regions[i].keys) {
+            used_.push_back(i);
+            boxes.push_back(regions[i].box);
+        }
+    tree_ = TerrainBoxTree(std::move(boxes));
+}
+void TerrainPadIndex::inBox(const std::array<double, 4> &box, double slack,
+                            const std::function<bool(const TerrainProtectedRegion &)> &callback) const {
+    // The regions in list order, so a caller that reports the first one is deterministic.
+    std::vector<std::uint32_t> found;
+    tree_.visit({box[0] - slack, box[1] - slack, box[2] + slack, box[3] + slack},
+                [&](std::uint32_t i) {
+                    found.push_back(used_[i]);
+                    return true;
+                });
+    std::sort(found.begin(), found.end());
+    for (const auto i : found)
+        if (!callback(regions_[i]))
+            return;
+}
+namespace {
+bool holdsPoint(const TerrainProtectedRegion &region, double x, double y) {
+    return region.keys &&
+           std::binary_search(region.keys->begin(), region.keys->end(), TerrainPlanKey::of(x, y));
+}
+} // namespace
+std::uint32_t TerrainPadIndex::covers(double x, double y) const {
+    std::uint32_t edit = 0;
+    inBox({x, y, x, y}, 0, [&](const TerrainProtectedRegion &region) {
+        if ((region.index && region.index->contains(x, y)) || holdsPoint(region, x, y))
+            edit = region.edit;
+        return !edit;
+    });
+    return edit;
+}
+std::uint32_t TerrainPadIndex::meetsSegment(TerrainVec2 a, TerrainVec2 b) const {
+    std::uint32_t edit = 0;
+    const std::array<double, 4> box{std::min(a.x, b.x), std::min(a.y, b.y), std::max(a.x, b.x),
+                                    std::max(a.y, b.y)};
+    inBox(box, 0, [&](const TerrainProtectedRegion &region) {
+        // The protected points lie on the polygon's edges up to rounding; a segment through one
+        // of them that misses the polygon touches the pad outline, a current source, which the
+        // adapter refuses as a crossing.
+        if ((region.index && region.index->segmentNear(a, b, 0)) || holdsPoint(region, a.x, a.y) ||
+            holdsPoint(region, b.x, b.y))
+            edit = region.edit;
+        return !edit;
+    });
+    return edit;
 }
 
 namespace {

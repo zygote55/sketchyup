@@ -135,11 +135,15 @@ void validateTerrainParameters(const TerrainParameters &parameters,
 // locating each skipped entry ("edit N (kind)" and why), and the triangle budget is checked on
 // the replayed tiles. With `progress` it reports Triangulate, Tile and Replay and a cancelled
 // run returns `cancelled` (code CANCELLED) with nothing kept.
+// R096.d: with `required` (an entry ID), that entry must apply: if the replay skips it, the run
+// is refused with its located problems ("Edit terrain change refused"), as terrain.update_edit
+// needs.
 TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
                                          const TerrainParameters &parameters,
                                          std::size_t otherTerrainTriangles,
                                          TerrainReport notices = {},
-                                         TerrainProgress *progress = nullptr);
+                                         TerrainProgress *progress = nullptr,
+                                         std::uint32_t required = 0);
 
 // Model edges picked for terrain.create_from_edges. An edge is (body, edge ID). `edges` take
 // their role from Z (constant: contour; varying: breakline); `contours` and `breaklines`

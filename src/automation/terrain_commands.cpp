@@ -1,9 +1,11 @@
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
+#include "core/document_limits.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sources.hpp"
 #include "io/terrain_import.hpp"
@@ -626,6 +628,24 @@ void addProblems(TerrainReport &report, const std::vector<TerrainEditProblem> &p
         }
     }
 }
+// R096.d: an edit that would pass the document's terrain triangle limit is refused before the
+// commit, located at the change, with the counts and the remedies.
+void refuseOverTerrainLimit(const Document &doc, std::ptrdiff_t added, std::array<double, 2> at,
+                            const std::string &what) {
+    const auto total = doc.materializedTotals().terrainTriangles;
+    if (added <= 0 || total + std::size_t(added) <= TerrainLimits::triangles)
+        return;
+    const std::string message =
+        what + " refused; nothing was changed. The document's terrains have " +
+        groupedCount(total) + " of " + groupedCount(TerrainLimits::triangles) +
+        " triangles and this change needs " + groupedCount(std::size_t(added)) +
+        " more. Make the change smaller, raise the maximum edge length in Terrain settings, or "
+        "Explode terrain to keep the surface as ordinary geometry.";
+    TerrainReport report;
+    report.locate(TerrainReport::Severity::Refusal, "triangle-budget", message, {"edit", {}, at});
+    throw TerrainImportError("LIMIT_EXCEEDED", message.substr(0, 256),
+                             sourceEditReport(report, {}), "terrainReport");
+}
 QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeReport &changes) {
     auto parsed = parseSourceEdit(doc, command);
     const auto &record = *doc.bodies().at(parsed.terrain)->terrain;
@@ -676,6 +696,16 @@ QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeR
                 refused(error);
             }
         }
+    }
+    {
+        const auto &first = !plan.change.added.empty() ? plan.change.added.front()[0]
+                            : !parsed.data->points.empty() ? parsed.data->points.front()
+                                                           : Vec3{};
+        const auto at = parsed.world.point(first);
+        refuseOverTerrainLimit(doc,
+                               std::ptrdiff_t(plan.change.added.size()) -
+                                   std::ptrdiff_t(plan.change.removed.size()),
+                               {at.x, at.y}, "Contour edit");
     }
     TerrainEditApplied applied;
     try {
@@ -924,6 +954,475 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
                                   {"added", idList(applied.tiles.added)}}},
             {"terrainReport", sourceEditReport(report, envelope)}};
 }
+
+// ---- R096.d: terrain.stamp_pad ----------------------------------------------------------------
+// The footprint in model coordinates: a horizontal face, the lowest horizontal face of a group or
+// component (or of a geometry body), a closed edge loop, or an explicit polygon. Its plan (the
+// terrain frame's x and y) is cleaned and made counter-clockwise from its smallest point; its
+// model Z (when every point has one, within 1e-6 m) is the default pad elevation.
+struct Footprint {
+    std::vector<std::array<double, 2>> plan; // terrain frame
+    std::optional<double> z;                 // model Z
+    Id body{}, face{};                       // the source, for Restamp
+};
+constexpr double horizontalTolerance = 1e-6;
+// A face's outer loop in model coordinates, or empty when it has holes or is not horizontal.
+std::vector<Vec3> horizontalFace(const Document &doc, const Body &body, const Face &face) {
+    if (face.loops.size() != 1 || face.loops.front().size() < 3)
+        return {};
+    const auto world = doc.worldTransform(body.id);
+    std::vector<Vec3> points;
+    double low = std::numeric_limits<double>::infinity(), high = -low;
+    for (const auto vertex : face.loops.front()) {
+        const auto found = body.surface.vertices.find(vertex);
+        if (found == body.surface.vertices.end())
+            return {};
+        const auto p = world.point(found->second);
+        low = std::min(low, p.z);
+        high = std::max(high, p.z);
+        points.push_back(p);
+    }
+    if (high - low > horizontalTolerance)
+        return {};
+    return points;
+}
+bool descendsFrom(const Document &doc, Id body, Id ancestor) {
+    for (Id at = body; at;) {
+        if (at == ancestor)
+            return true;
+        const auto found = doc.bodies().find(at);
+        if (found == doc.bodies().end())
+            return false;
+        at = found->second->parent;
+    }
+    return false;
+}
+Footprint footprintOf(const Document &doc, const QJsonValue &value, const Transform &toLocal) {
+    if (!value.isObject())
+        reject("INVALID_REQUEST", "footprint is {body, face}, {body}, {edges} or {polygon}");
+    const auto object = value.toObject();
+    Footprint result;
+    std::vector<Vec3> model;
+    bool hasZ = true;
+    auto bodyOf = [&](Id id) -> const Body & {
+        const auto found = doc.bodies().find(id);
+        if (found == doc.bodies().end())
+            reject("NOT_FOUND", "The footprint body does not exist");
+        if (found->second->terrainTile || found->second->kind == BodyKind::Terrain)
+            reject("UNSUPPORTED_TARGET", "A terrain cannot be a pad footprint");
+        return *found->second;
+    };
+    if (object.contains("polygon")) {
+        if (object.size() != 1)
+            reject("INVALID_REQUEST", "footprint {polygon} has no other fields");
+        const auto list = object["polygon"].toArray();
+        if (!object["polygon"].isArray() || list.size() < 3)
+            reject("INVALID_REQUEST", "polygon is a list of at least 3 model points [x, y] or [x, y, z]");
+        if (std::size_t(list.size()) > terrainStampFootprintPoints + 1)
+            reject("LIMIT_EXCEEDED", "A pad footprint has at most 20,000 points");
+        for (const auto &entry : list) {
+            const auto xyz = entry.toArray();
+            if (!entry.isArray() || xyz.size() < 2 || xyz.size() > 3)
+                reject("INVALID_REQUEST", "A footprint point is [x, y] or [x, y, z] in model metres");
+            hasZ = hasZ && xyz.size() == 3;
+            model.push_back({coordinate(xyz[0]), coordinate(xyz[1]),
+                             xyz.size() == 3 ? coordinate(xyz[2]) : 0.0});
+        }
+    } else if (object.contains("edges")) {
+        if (object.size() != 1)
+            reject("INVALID_REQUEST", "footprint {edges} has no other fields");
+        TerrainEdgeSelection selection;
+        selection.edges = edgeList(object["edges"], "edges");
+        if (selection.edges.empty())
+            reject("INVALID_REQUEST", "Choose the edges of one closed loop");
+        const auto set = terrainEdgeSources(doc, selection);
+        if (set.polylines.size() != 1 || !set.polylines.front().closed)
+            reject("INVALID_REQUEST", "The footprint edges must form one closed loop");
+        for (const auto &p : set.polylines.front().points)
+            model.push_back({p.x, p.y, p.z});
+        if (model.size() > terrainStampFootprintPoints + 1)
+            reject("LIMIT_EXCEEDED", "A pad footprint has at most 20,000 points");
+    } else if (object.contains("body")) {
+        if (object.size() > 2 || (object.size() == 2 && !object.contains("face")))
+            reject("INVALID_REQUEST", "footprint is {body, face} or {body}");
+        const auto &body = bodyOf(identity(object["body"]));
+        result.body = body.id;
+        if (object.contains("face")) {
+            result.face = identity(object["face"]);
+            const auto face = body.surface.faces.find(result.face);
+            if (face == body.surface.faces.end())
+                reject("NOT_FOUND", "The footprint face does not exist");
+            model = horizontalFace(doc, body, face->second);
+            if (model.empty())
+                reject("INVALID_REQUEST",
+                       "The footprint face must be horizontal and have no holes");
+        } else {
+            // The lowest horizontal face (without holes) of the body or of the geometry inside the
+            // group or component; ties go to the smaller body and face ID.
+            double best = std::numeric_limits<double>::infinity();
+            for (const auto &[id, candidate] : doc.bodies()) {
+                if (candidate->kind != BodyKind::Geometry || candidate->terrainTile ||
+                    !descendsFrom(doc, id, body.id))
+                    continue;
+                for (const auto &[faceId, face] : candidate->surface.faces) {
+                    auto points = horizontalFace(doc, *candidate, face);
+                    if (points.empty() || !(points.front().z < best))
+                        continue;
+                    best = points.front().z;
+                    model = std::move(points);
+                }
+            }
+            if (model.empty())
+                reject("INVALID_REQUEST",
+                       "The footprint body has no horizontal face without holes to stamp");
+        }
+    } else
+        reject("INVALID_REQUEST", "footprint is {body, face}, {body}, {edges} or {polygon}");
+    // Plan points in the terrain frame, cleaned and canonical (counter-clockwise from the
+    // smallest), with the closing repeat dropped.
+    std::vector<TerrainVec3> line;
+    double low = std::numeric_limits<double>::infinity(), high = -low;
+    for (const auto &p : model) {
+        const auto local = toLocal.point(p);
+        line.push_back({local.x + 0.0, local.y + 0.0, 0});
+        low = std::min(low, p.z);
+        high = std::max(high, p.z);
+    }
+    while (line.size() > 1 && std::abs(line.back().x - line.front().x) <= 1e-7 &&
+           std::abs(line.back().y - line.front().y) <= 1e-7)
+        line.pop_back();
+    TerrainPolylineCleaning cleaning;
+    cleanTerrainPolyline(line, true, cleaning);
+    if (line.size() < 3)
+        reject("INVALID_REQUEST", "The footprint encloses no area after removing repeated points");
+    canonicalTerrainPolyline(line, true);
+    if (line.size() > terrainStampFootprintPoints)
+        reject("LIMIT_EXCEEDED", "A pad footprint has at most 20,000 points");
+    for (const auto &p : line)
+        result.plan.push_back({p.x, p.y});
+    if (hasZ && high - low <= horizontalTolerance)
+        result.z = model.front().z;
+    return result;
+}
+// A footprint whose outline crosses one horizontal band too often is refused with the band
+// located, as sculpt regions are (ADR 0169, R096.b notes).
+void checkFootprintBands(const std::vector<std::array<double, 2>> &plan, const Transform &world) {
+    const auto bands = terrainSculptRegionBands(plan);
+    if (bands.edges <= terrainSculptBandEdges)
+        return;
+    double minX = plan[0][0], maxX = minX;
+    for (const auto &p : plan) {
+        minX = std::min(minX, p[0]);
+        maxX = std::max(maxX, p[0]);
+    }
+    const auto at =
+        world.point({(minX + maxX) / 2, bands.low + (double(bands.busiest) + 0.5) * bands.height, 0});
+    const std::string message = "The footprint's outline has " + std::to_string(bands.edges) +
+                                " edges in one horizontal band (at most 512); simplify it";
+    TerrainReport report;
+    report.locate(TerrainReport::Severity::Refusal, "limit-exceeded", message,
+                  {"footprint", {}, std::array<double, 2>{at.x, at.y}});
+    throw TerrainImportError("LIMIT_EXCEEDED", message, sourceEditReport(report, {}),
+                             "terrainReport");
+}
+// Stamps and sculpts store plan metres and slopes as given, so the terrain's frame must keep
+// metres (a level terrain may be moved or turned, not scaled).
+void requireUnscaledTerrain(const Transform &world, const char *what) {
+    const auto &m = world.m;
+    const double sx = std::hypot(m[0], m[1]), sy = std::hypot(m[4], m[5]);
+    if (std::abs(sx - 1) > 1e-12 || std::abs(sy - 1) > 1e-12 ||
+        std::abs(m[0] * m[4] + m[1] * m[5]) > 1e-12 || std::abs(m[10] - 1) > 1e-12)
+        reject("INVALID_OPERATION", what);
+}
+// The grading fields of stamp_pad and update_edit into `data` (mode switches reset the other
+// mode's fields; omitted fields keep `data`'s values, or the defaults when the mode changes).
+void gradingFields(const QJsonObject &command, TerrainStampData &data, bool update) {
+    if (command.contains("mode")) {
+        const auto mode = command["mode"].toString();
+        if (!command["mode"].isString() || (mode != "daylight" && mode != "width"))
+            reject("INVALID_REQUEST", "mode is daylight or width");
+        const auto next = mode == "width" ? TerrainStampMode::Width : TerrainStampMode::Daylight;
+        if (next != data.mode || !update) {
+            data.mode = next;
+            data.cutSlope = data.fillSlope = data.maxDistance = data.width = 0;
+        }
+    }
+    if (data.mode == TerrainStampMode::Daylight) {
+        if (command.contains("width"))
+            reject("INVALID_REQUEST", "width applies to mode width; daylight has slopes");
+        if (data.cutSlope == 0)
+            data.cutSlope = 0.5;
+        if (data.fillSlope == 0)
+            data.fillSlope = 0.5;
+        if (data.maxDistance == 0)
+            data.maxDistance = 100;
+        if (command.contains("cutSlope"))
+            data.cutSlope = finiteNumber(command, "cutSlope", "cutSlope is 0.01 to 100 (rise over run)");
+        if (command.contains("fillSlope"))
+            data.fillSlope =
+                finiteNumber(command, "fillSlope", "fillSlope is 0.01 to 100 (rise over run)");
+        if (command.contains("maxDistance"))
+            data.maxDistance =
+                finiteNumber(command, "maxDistance", "maxDistance is above 0 and at most 1,000 m");
+    } else {
+        for (const char *key : {"cutSlope", "fillSlope", "maxDistance"})
+            if (command.contains(key))
+                reject("INVALID_REQUEST", "Slopes and maxDistance apply to mode daylight");
+        if (command.contains("width"))
+            data.width = finiteNumber(command, "width", "width is 0.01 to 1,000 m");
+        if (data.width == 0)
+            reject("INVALID_REQUEST", "mode width needs a width in metres (0.01 to 1,000)");
+    }
+}
+void validateStamp(const TerrainStampData &data) {
+    try {
+        validateTerrainStampData(data);
+    } catch (const std::invalid_argument &error) {
+        reject("INVALID_REQUEST", error.what());
+    }
+}
+QJsonArray modelBox(const Transform &world, const std::array<double, 4> &box) {
+    double minX = std::numeric_limits<double>::infinity(), minY = minX, maxX = -minX, maxY = -minX;
+    for (const double x : {box[0], box[2]})
+        for (const double y : {box[1], box[3]}) {
+            const auto p = world.point({x, y, 0});
+            minX = std::min(minX, p.x);
+            minY = std::min(minY, p.y);
+            maxX = std::max(maxX, p.x);
+            maxY = std::max(maxY, p.y);
+        }
+    return {minX, minY, maxX, maxY};
+}
+// A pad as terrain.describe and terrain.stamp_pad report it, in model coordinates: its
+// elevation, the plan boxes of its outline and of its whole extent (to the daylight line), and its
+// rays.
+QJsonObject padJson(const Transform &world, std::uint32_t edit, const TerrainStampData &data) {
+    std::array<double, 4> outline{std::numeric_limits<double>::infinity(),
+                                  std::numeric_limits<double>::infinity(),
+                                  -std::numeric_limits<double>::infinity(),
+                                  -std::numeric_limits<double>::infinity()};
+    for (const auto &p : data.resolved() ? data.outline : data.footprint) {
+        outline[0] = std::min(outline[0], p[0]);
+        outline[1] = std::min(outline[1], p[1]);
+        outline[2] = std::max(outline[2], p[0]);
+        outline[3] = std::max(outline[3], p[1]);
+    }
+    QJsonObject pad{{"edit", double(edit)},
+                    {"elevation", world.point({0, 0, data.elevation}).z},
+                    {"mode", terrainStampModeName(data.mode)},
+                    {"outline", modelBox(world, outline)},
+                    {"applied", data.resolved()}};
+    if (data.mode == TerrainStampMode::Daylight) {
+        pad["cutSlope"] = data.cutSlope;
+        pad["fillSlope"] = data.fillSlope;
+        pad["maxDistance"] = data.maxDistance;
+    } else
+        pad["width"] = data.width;
+    if (data.resolved()) {
+        pad["extent"] = modelBox(world, terrainStampBounds(data));
+        pad["rays"] = double(data.rays.size());
+        pad["raysDropped"] = double(data.dropped);
+    }
+    if (data.sourceBody)
+        pad["sourceBody"] = QString::number(data.sourceBody);
+    return pad;
+}
+// The stamp's dry run (refusals with a located report in model coordinates), then ONE labelled
+// "Stamp pad" edit, and the bounded report.
+QJsonObject applyStamp(Document &doc, Id terrain, std::shared_ptr<TerrainStampData> data,
+                       const QString &name, ChangeReport &changes) {
+    const auto world = doc.worldTransform(terrain);
+    TerrainReport report;
+    const auto refused = [&](const TerrainEditRefused &error) {
+        addProblems(report, error.problems(), world);
+        throw TerrainImportError(error.code(), error.what(), sourceEditReport(report, {}),
+                                 "terrainReport");
+    };
+    const auto &record = *doc.bodies().at(terrain)->terrain;
+    TerrainStampPlan plan;
+    try {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto state = terrainSourceState(record);
+        const TerrainEdit entry{record.nextEditId, terrainStampKind, data};
+        plan = planTerrainStamp({*mesh, *state, record.parameters}, entry);
+    } catch (const TerrainEditRefused &error) {
+        refused(error);
+    }
+    {
+        const auto &p = data->footprint.front();
+        const auto at = world.point({p[0], p[1], 0});
+        refuseOverTerrainLimit(doc,
+                               std::ptrdiff_t(plan.addedTriangles) -
+                                   std::ptrdiff_t(plan.cavityTriangles),
+                               {at.x, at.y}, "Stamp pad");
+    }
+    // The dry run is the kind's own outcome for this entry on the same mesh and sources, so the
+    // commit uses it rather than planning again.
+    TerrainEditApplied applied;
+    try {
+        const TerrainEditOutcome outcome{std::move(plan.change), {}, plan.resolved};
+        applied = applyTerrainEdit(doc, terrain, terrainStampKind, plan.resolved, "Stamp pad",
+                                   &outcome);
+    } catch (const TerrainEditRefused &error) {
+        refused(error);
+    }
+    changes = std::move(applied.tiles.changes);
+    const auto &stored =
+        dynamic_cast<const TerrainStampData &>(*doc.bodies().at(terrain)->terrain->edits.back()->data);
+    if (plan.clip.vertices || plan.clip.pieces || plan.clip.removed)
+        report.add(TerrainReport::Severity::Notice, "sources-clipped", plan.clip.vertices,
+                   "Source contour, breakline and spot-point vertices under the pad and its "
+                   "slopes are graded ground now and were clipped from the current sources.");
+    if (plan.dropped) {
+        const auto at = world.point({plan.droppedAt.x, plan.droppedAt.y, 0});
+        report.locate(TerrainReport::Severity::Notice, "daylight-repaired",
+                      "Grading rays that crossed others (tight or re-entrant corners) were "
+                      "dropped; the daylight line keeps its outer boundary.",
+                      {"pad", {}, std::array<double, 2>{at.x, at.y},
+                       std::to_string(plan.dropped) + " rays dropped"},
+                      false);
+        report.add(TerrainReport::Severity::Notice, "daylight-repaired", plan.dropped,
+                   "Grading rays that crossed others (tight or re-entrant corners) were "
+                   "dropped; the daylight line keeps its outer boundary.");
+    }
+    if (applied.tiles.paintDropped.faces)
+        report.add(TerrainReport::Severity::Notice, "face-paint-dropped",
+                   applied.tiles.paintDropped.faces,
+                   "Per-face paint on the rebuilt tiles cannot follow the new mesh and was "
+                   "removed; the tiles' own material is kept.");
+    if (plan.flatRemaining)
+        report.add(TerrainReport::Severity::Notice, "flat-triangles", plan.flatRemaining,
+                   "Flat triangles remain around the pad (three vertices of one contour "
+                   "elevation); add spot heights or a breakline to resolve them.");
+    const double elevation = world.point({0, 0, stored.elevation}).z;
+    const QJsonObject envelope{
+        {"edit", double(applied.edit)},
+        {"mode", terrainStampModeName(stored.mode)},
+        {"elevation", elevation},
+        {"rays", QJsonObject{{"count", double(stored.rays.size())},
+                             {"cut", double(plan.cut)},
+                             {"fill", double(plan.fill)},
+                             {"touching", double(plan.touching)},
+                             {"dropped", double(plan.dropped)}}},
+        {"outlinePoints", double(stored.outline.size())},
+        {"daylightPoints", double(terrainStampRing(stored).size())},
+        {"cavity", QJsonObject{{"removed", double(plan.cavityTriangles)},
+                               {"added", double(plan.addedTriangles)},
+                               {"verticesRemoved", double(plan.removedVertices)}}},
+        {"tilesReplaced", double(applied.tiles.removed.size())},
+        {"tilesAdded", double(applied.tiles.added.size())},
+        {"sourcesClipped", QJsonObject{{"sources", double(plan.clip.sources.size())},
+                                       {"vertices", double(plan.clip.vertices)},
+                                       {"pieces", double(plan.clip.pieces)},
+                                       {"removed", double(plan.clip.removed)}}}};
+    return {{"command", name},
+            {"terrain", QString::number(terrain)},
+            {"edit", double(applied.edit)},
+            {"changed", true},
+            {"pad", padJson(world, applied.edit, stored)},
+            {"tiles", QJsonObject{{"removed", idList(applied.tiles.removed)},
+                                  {"added", idList(applied.tiles.added)}}},
+            {"terrainReport", sourceEditReport(report, envelope)}};
+}
+std::uint32_t editIdOf(const QJsonValue &value) {
+    if (!value.isDouble() || value.toDouble() != std::floor(value.toDouble()) ||
+        value.toDouble() < 1 || value.toDouble() > 4294967295.0)
+        reject("INVALID_REQUEST", "edit is the integer ID of a recorded terrain change");
+    return std::uint32_t(value.toDouble());
+}
+// terrain.update_edit: the pad's entry with its new parameters (or its footprint re-read from its
+// source body, Restamp) and no resolved geometry, in place in `record` with the same ID. Returns
+// the ID.
+std::uint32_t updatedStamp(const Document &doc, Id terrain, const QJsonObject &command,
+                           TerrainRecord &record) {
+    const auto id = editIdOf(command["edit"]);
+    auto &edits = record.edits;
+    const auto found = std::find_if(edits.begin(), edits.end(),
+                                    [&](const TerrainEditPtr &edit) { return edit->id == id; });
+    if (found == edits.end())
+        reject("NOT_FOUND", "The terrain has no change " + std::to_string(id));
+    if ((*found)->kind != terrainStampKind)
+        reject("INVALID_REQUEST", "Only pads (stamp changes) can be updated; this change is a " +
+                                      (*found)->kind);
+    const auto &old = dynamic_cast<const TerrainStampData &>(*(*found)->data);
+    requireLevelTerrain(doc, terrain);
+    const auto world = doc.worldTransform(terrain);
+    requireUnscaledTerrain(world, "Updating a pad needs a terrain at its original scale");
+    const auto toLocal = world.inverse();
+    bool restamp = false;
+    if (command.contains("restamp")) {
+        if (!command["restamp"].isBool())
+            reject("INVALID_REQUEST", "restamp is true or false");
+        restamp = command["restamp"].toBool();
+    }
+    if (!restamp && !command.contains("elevation") && !command.contains("mode") &&
+        !command.contains("cutSlope") && !command.contains("fillSlope") &&
+        !command.contains("maxDistance") && !command.contains("width"))
+        reject("INVALID_REQUEST", "Give restamp, elevation, mode, slopes, maxDistance or width");
+    auto data = std::make_shared<TerrainStampData>(old);
+    // The new parameters stand alone: the resolved geometry is recomputed by the replay (the
+    // recorded pieces stay, so split source lines keep their ids).
+    data->outline.clear();
+    data->rays.clear();
+    data->dropped = 0;
+    if (restamp) {
+        if (!old.sourceBody)
+            reject("INVALID_REQUEST", "This pad's footprint was edges or a polygon; it has no "
+                                      "source body to restamp");
+        if (!doc.bodies().contains(old.sourceBody))
+            reject("NOT_FOUND", "The pad's source body no longer exists");
+        QJsonObject source{{"body", QString::number(old.sourceBody)}};
+        const auto &body = *doc.bodies().at(old.sourceBody);
+        if (old.sourceFace) {
+            const auto face = body.surface.faces.find(old.sourceFace);
+            if (face != body.surface.faces.end() &&
+                !horizontalFace(doc, body, face->second).empty())
+                source["face"] = QString::number(old.sourceFace);
+        }
+        const auto footprint = footprintOf(doc, source, toLocal);
+        checkFootprintBands(footprint.plan, world);
+        data->footprint = footprint.plan;
+        data->sourceFace = footprint.face;
+    }
+    if (command.contains("elevation"))
+        data->elevation = toLocal.point({0, 0, coordinate(command["elevation"])}).z + 0.0;
+    gradingFields(command, *data, true);
+    validateStamp(*data);
+    *found = std::make_shared<const TerrainEdit>(TerrainEdit{id, terrainStampKind, data});
+    return id;
+}
+QJsonObject stampTerrain(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+    onlyFields(command, {"command", "terrain", "footprint", "elevation", "mode", "cutSlope",
+                         "fillSlope", "maxDistance", "width"});
+    const auto terrain = identity(command["terrain"]);
+    if (!isTerrain(doc, terrain))
+        reject("NOT_FOUND", "Terrain body does not exist");
+    requireUnlockedTerrain(doc, terrain);
+    requireLevelTerrain(doc, terrain);
+    const auto world = doc.worldTransform(terrain);
+    requireUnscaledTerrain(world, "Stamping a pad needs a terrain at its original scale");
+    const auto toLocal = world.inverse();
+    if (!command.contains("footprint"))
+        reject("INVALID_REQUEST", "Give the footprint: {body, face}, {body}, {edges} or {polygon}");
+    const auto footprint = footprintOf(doc, command["footprint"], toLocal);
+    checkFootprintBands(footprint.plan, world);
+    auto data = std::make_shared<TerrainStampData>();
+    data->footprint = footprint.plan;
+    data->sourceBody = footprint.body;
+    data->sourceFace = footprint.face;
+    double elevation = 0;
+    if (command.contains("elevation"))
+        elevation = coordinate(command["elevation"]);
+    else if (footprint.z)
+        elevation = *footprint.z;
+    else
+        reject("INVALID_REQUEST", "Give the pad elevation (model Z): the footprint has no single "
+                                  "height");
+    data->elevation = toLocal.point({0, 0, elevation}).z + 0.0;
+    gradingFields(command, *data, false);
+    validateStamp(*data);
+    return applyStamp(doc, terrain, std::move(data), command["command"].toString(), changes);
+}
 } // namespace
 TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command) {
     const auto name = command["command"].toString();
@@ -942,6 +1441,10 @@ TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonO
     } else if (name == "terrain.remove_edit") {
         onlyFields(command, {"command", "terrain", "edit"});
         request.label = "Remove terrain change";
+    } else if (name == "terrain.update_edit") {
+        onlyFields(command, {"command", "terrain", "edit", "restamp", "elevation", "mode",
+                             "cutSlope", "fillSlope", "maxDistance", "width"});
+        request.label = "Edit terrain change";
     } else
         reject("INVALID_REQUEST", "Not a terrain replay command");
     const auto terrain = identity(command["terrain"]);
@@ -958,6 +1461,8 @@ TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonO
         if (request.record.edits.empty())
             reject("INVALID_REQUEST", "The terrain has no edits to reset");
         request.record.edits.clear();
+    } else if (name == "terrain.update_edit") {
+        request.required = updatedStamp(doc, terrain, command, request.record);
     } else if (name == "terrain.remove_edit") {
         const auto value = command["edit"];
         if (!value.isDouble() || value.toDouble() != std::floor(value.toDouble()) ||
@@ -991,7 +1496,7 @@ TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonO
 TerrainImportResult runTerrainReplay(const TerrainReplayRequest &request,
                                      TerrainProgress *progress) {
     return runTerrainRegenerate(request.record, request.parameters, request.otherTriangles,
-                                request.notices, progress);
+                                request.notices, progress, request.required);
 }
 QJsonObject applyTerrainReplay(Document &doc, const TerrainReplayRequest &request,
                                TerrainImportResult result, ChangeReport *changes) {
@@ -1027,7 +1532,8 @@ bool isTerrainCommand(const QString &name) {
            name == "terrain.set_display" || name == "terrain.reset_edits" ||
            name == "terrain.remove_edit" || name == "terrain.edit_source" ||
            name == "terrain.add_source" || name == "terrain.remove_source" ||
-           name == "terrain.sculpt";
+           name == "terrain.sculpt" || name == "terrain.stamp_pad" ||
+           name == "terrain.update_edit";
 }
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command) {
@@ -1183,9 +1689,16 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
             *operation = std::move(record);
         return changes;
     }
+    if (name == "terrain.stamp_pad") {
+        ChangeReport changes;
+        auto record = stampTerrain(doc, command, changes);
+        if (operation)
+            *operation = std::move(record);
+        return changes;
+    }
     if (name == "terrain.create_from_edges" || name == "terrain.set_parameters" ||
         name == "terrain.regenerate" || name == "terrain.reset_edits" ||
-        name == "terrain.remove_edit") {
+        name == "terrain.remove_edit" || name == "terrain.update_edit") {
         ChangeReport changes;
         QJsonObject record;
         if (name == "terrain.create_from_edges")
@@ -1554,6 +2067,84 @@ QJsonArray terrainCommandSpecs() {
                                          {"maximum", terrainSmoothIterationsMax},
                                          {"description", "smooth: default 1"}}}},
              {"terrain", "mode"}),
+        // R096.d (ADR 0169 §4.3): one footprint form; daylight slopes or a fixed width.
+        spec("terrain.stamp_pad", "Stamp pad",
+             {{"terrain", terrainId},
+              {"footprint",
+               QJsonObject{
+                   {"type", "object"},
+                   {"description",
+                    "{body, face}: a horizontal face; {body}: the lowest horizontal face of a "
+                    "group, component or body; {edges}: model edges of one closed loop; "
+                    "{polygon}: model points [x, y] or [x, y, z] (at most 20,000, simple, no "
+                    "holes)"},
+                   {"properties",
+                    QJsonObject{{"body", idSchema},
+                                {"face", idSchema},
+                                {"edges", QJsonObject{{"type", "array"},
+                                                      {"maxItems", int(terrainEdgeLimit)},
+                                                      {"items", edgeSchema}}},
+                                {"polygon",
+                                 QJsonObject{{"type", "array"},
+                                             {"minItems", 3},
+                                             {"maxItems", int(terrainStampFootprintPoints) + 1},
+                                             {"items", QJsonObject{{"type", "array"},
+                                                                   {"items", coordinateSchema},
+                                                                   {"minItems", 2},
+                                                                   {"maxItems", 3}}}}}}},
+                   {"additionalProperties", false}}},
+              {"elevation", metres("Pad elevation (model Z, metres); default the footprint's own "
+                                   "height")},
+              {"mode", QJsonObject{{"type", "string"},
+                                   {"enum", QJsonArray{"daylight", "width"}},
+                                   {"description", "daylight (default): cut and fill slopes to "
+                                                   "the ground; width: a band of fixed width"}}},
+              {"cutSlope", QJsonObject{{"type", "number"},
+                                       {"minimum", terrainStampSlopeMin},
+                                       {"maximum", terrainStampSlopeMax},
+                                       {"description", "Rise over run where the pad is below the "
+                                                       "ground; default 0.5 (1:2)"}}},
+              {"fillSlope", QJsonObject{{"type", "number"},
+                                        {"minimum", terrainStampSlopeMin},
+                                        {"maximum", terrainStampSlopeMax},
+                                        {"description", "Rise over run where the pad is above the "
+                                                        "ground; default 0.5 (1:2)"}}},
+              {"maxDistance", QJsonObject{{"type", "number"},
+                                          {"exclusiveMinimum", 0},
+                                          {"maximum", terrainStampDistanceMax},
+                                          {"description", "Plan metres a grading ray may run "
+                                                          "before it daylights; default 100"}}},
+              {"width", QJsonObject{{"type", "number"},
+                                    {"minimum", terrainStampWidthMin},
+                                    {"maximum", terrainStampDistanceMax},
+                                    {"description", "mode width: the band's plan width in "
+                                                    "metres"}}}},
+             {"terrain", "footprint"}),
+        spec("terrain.update_edit", "Edit terrain change",
+             {{"terrain", terrainId},
+              {"edit", QJsonObject{{"type", "integer"},
+                                   {"minimum", 1},
+                                   {"maximum", 4294967295.0},
+                                   {"description", "ID of a recorded pad (stamp) change; the "
+                                                   "list is replayed"}}},
+              {"restamp", QJsonObject{{"type", "boolean"},
+                                      {"description", "Re-read the footprint from the pad's "
+                                                      "source body"}}},
+              {"elevation", metres("New pad elevation (model Z, metres)")},
+              {"mode", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"daylight", "width"}}}},
+              {"cutSlope", QJsonObject{{"type", "number"},
+                                       {"minimum", terrainStampSlopeMin},
+                                       {"maximum", terrainStampSlopeMax}}},
+              {"fillSlope", QJsonObject{{"type", "number"},
+                                        {"minimum", terrainStampSlopeMin},
+                                        {"maximum", terrainStampSlopeMax}}},
+              {"maxDistance", QJsonObject{{"type", "number"},
+                                          {"exclusiveMinimum", 0},
+                                          {"maximum", terrainStampDistanceMax}}},
+              {"width", QJsonObject{{"type", "number"},
+                                    {"minimum", terrainStampWidthMin},
+                                    {"maximum", terrainStampDistanceMax}}}},
+             {"terrain", "edit"}),
         spec("terrain.set_display", "Terrain display",
              {{"terrain", terrainId},
               {"contours", QJsonObject{{"type", "boolean"},
@@ -1650,6 +2241,26 @@ QJsonObject currentSourcesJson(const TerrainRecord &record) {
             {"entriesOmitted", double(sources.size() - std::size_t(listed.size()))}};
 }
 } // namespace
+namespace {
+// R096.d: the pads (stamp entries) with their elevation and extent, in model coordinates; at
+// most 200 listed.
+QJsonObject padsJson(const TerrainRecord &record, const Transform &world) {
+    QJsonArray entries;
+    std::size_t count = 0;
+    for (const auto &edit : record.edits) {
+        if (edit->kind != terrainStampKind)
+            continue;
+        ++count;
+        if (entries.size() < 200)
+            entries.append(padJson(world, edit->id,
+                                   dynamic_cast<const TerrainStampData &>(*edit->data)));
+    }
+    return {{"count", double(count)},
+            {"space", "model"},
+            {"entries", entries},
+            {"entriesOmitted", double(count - std::size_t(entries.size()))}};
+}
+} // namespace
 QJsonObject terrainDescription(const Document &doc, Id terrain) {
     if (!isTerrain(doc, terrain))
         reject("NOT_FOUND", "Terrain body does not exist");
@@ -1692,6 +2303,7 @@ QJsonObject terrainDescription(const Document &doc, Id terrain) {
                                 {"roles", roles}}},
         {"edits", terrainEditsJson(record)},
         {"currentSources", currentSourcesJson(record)},
+        {"pads", padsJson(record, world)},
         {"meshDigest", QString::fromStdString(record.meshDigest)},
         {"currentDigest", QString::fromStdString(digest)},
         {"changedSinceGenerated", digest != record.meshDigest},

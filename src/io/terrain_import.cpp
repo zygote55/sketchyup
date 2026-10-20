@@ -1,5 +1,6 @@
 #include "io/terrain_import.hpp"
 #include "core/terrain_sources.hpp"
+#include "core/terrain_source_edit.hpp"
 #include <QJsonArray>
 #include <unordered_set>
 #include <QJsonDocument>
@@ -1191,7 +1192,7 @@ namespace {
 TerrainImportResult regenerateDryRun(const TerrainRecord &record,
                                      const TerrainParameters &parameters,
                                      std::size_t otherTerrainTriangles, TerrainReport report,
-                                     TerrainProgress *progress) {
+                                     TerrainProgress *progress, std::uint32_t required) {
     validateTerrainParameters(parameters, record.sources);
     TerrainImportResult result;
     QJsonObject counts, roles;
@@ -1224,6 +1225,7 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
                    "The sources gave no terrain triangles.");
     // R096.a: the base tiling, then the replay of the edit list (ADR 0169 §2).
     QJsonObject edits{{"count", double(record.edits.size())}, {"applied", 0}, {"skipped", 0}};
+    std::vector<TerrainEditPtr> replayedEdits;
     if (result.ok) {
         const auto base = terrainTileSet(result.mesh, progress);
         auto replayed =
@@ -1240,6 +1242,35 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
                            {},
                            std::nullopt,
                            terrainQuote(skip.notice)});
+        // R096.d: an entry the command requires (terrain.update_edit) must apply.
+        for (const auto &skip : replayed.skipped) {
+            if (!required || skip.edit != required)
+                continue;
+            result.ok = false;
+            const std::string reference = "edit " + std::to_string(skip.edit);
+            bool located = false;
+            try {
+                if (skip.error)
+                    std::rethrow_exception(skip.error);
+            } catch (const TerrainEditRefused &error) {
+                for (const auto &problem : error.problems()) {
+                    report.add(Severity::Refusal, problem.kind, problem.count, problem.message);
+                    for (const auto &location : problem.locations)
+                        report.locate(Severity::Refusal, problem.kind, problem.message,
+                                      {reference,
+                                       location.sourceB ? "change " + std::to_string(location.sourceB)
+                                                        : std::string(),
+                                       std::array<double, 2>{location.xy.x, location.xy.y}},
+                                      false);
+                    located = true;
+                }
+            } catch (...) {
+            }
+            if (!located)
+                report.locate(Severity::Refusal, "edit-refused",
+                              "The changed entry does not apply.",
+                              {reference, {}, std::nullopt, terrainQuote(skip.notice)});
+        }
         edits["applied"] = double(replayed.applied);
         edits["skipped"] = double(replayed.skipped.size());
         if (!record.edits.empty()) {
@@ -1262,10 +1293,25 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
             stage.vertices = positions.size();
             result.tiles = replayed.tiles.tiles.size();
         }
+        // R096.d: entries whose kind recomputed their resolved geometry (a pad's daylight line
+        // on a changed base) or cleared it (skipped) are stored as replayed.
+        if (!record.edits.empty()) {
+            replayedEdits = std::move(replayed.edits);
+            if (terrainEditBytes(replayedEdits) > TerrainLimits::editBytes) {
+                report.locate(Severity::Refusal, "limit-exceeded",
+                              "The replayed edit list would exceed 8 MiB.",
+                              {"edits", {}, std::nullopt,
+                               "use Reset edits, or Explode terrain to keep the surface as "
+                               "ordinary geometry"});
+                result.ok = false;
+            }
+        }
         if (result.ok)
             result.tileSet = std::move(replayed.tiles);
     }
     result.record = record;
+    if (!replayedEdits.empty())
+        result.record.edits = std::move(replayedEdits);
     result.record.parameters = parameters;
     result.record.generator = terrainGenerator;
     const QString outcome = !result.ok            ? "refused"
@@ -1291,7 +1337,8 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
                      {"sources", double(record.sources.size())}};
     result.report["terrain"] = report.json(envelope, TerrainReportBounds::reportBytes - 512);
     if (!result.ok)
-        refusalOutcome(result.report["terrain"].toObject(), "Terrain regenerate", result.code,
+        refusalOutcome(result.report["terrain"].toObject(),
+                       required ? "Edit terrain change" : "Terrain regenerate", result.code,
                        result.message);
     terrainCheckpoint(progress, TerrainStage::Replay, 1);
     return result;
@@ -1301,10 +1348,10 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
 TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
                                          const TerrainParameters &parameters,
                                          std::size_t otherTerrainTriangles, TerrainReport report,
-                                         TerrainProgress *progress) {
+                                         TerrainProgress *progress, std::uint32_t required) {
     try {
         return regenerateDryRun(record, parameters, otherTerrainTriangles, std::move(report),
-                                progress);
+                                progress, required);
     } catch (const TerrainCancelled &) {
         TerrainImportResult cancelled;
         cancelled.cancelled = true;
