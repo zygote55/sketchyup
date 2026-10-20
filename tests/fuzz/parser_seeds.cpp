@@ -428,7 +428,9 @@ int main(int argc, char **argv) {
                         "stamp-pads");
                 auto backwards = pads[0].toObject();
                 auto rays = backwards["rays"].toArray();
-                std::swap(rays[0], rays[2]);
+                const QJsonValue first = rays[0];
+                rays[0] = rays[2];
+                rays[2] = first;
                 backwards["rays"] = rays;
                 publishRejected("terrain-edits",
                                 QJsonDocument(QJsonArray{backwards}).toJson(QJsonDocument::Compact),
