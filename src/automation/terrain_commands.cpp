@@ -649,6 +649,14 @@ QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeR
             parsed.data->points = plan.resolved;
             report.add(TerrainReport::Severity::Notice, "merged-duplicates", moved,
                        "Vertices within 1e-7 m of existing ones were merged into them.");
+            // The commit plans the resolved points, which can give another cavity: report that.
+            next.points = parsed.data->points;
+            try {
+                plan = planTerrainSourceEdit({*mesh, *parsed.state, record.parameters},
+                                             parsed.before, &next);
+            } catch (const TerrainEditRefused &error) {
+                refused(error);
+            }
         }
     }
     TerrainEditApplied applied;

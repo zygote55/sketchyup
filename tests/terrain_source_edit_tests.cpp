@@ -432,12 +432,10 @@ void baseConsistency() {
     checkC1(doc, terrain, "imported");
     checkC2(doc, terrain, cache, "imported");
     {
+        // The DXF holds -0.0000 coordinates; JSON keeps no sign of zero, so the import stores
+        // +0.0 and a reopened terrain regenerates to the same mesh (C7).
         auto reopened = decodeDocument(encodeDocument(doc));
         checkC7(reopened, terrain, "imported (reopened)");
-        QJsonObject probe{{"z", -0.0}};
-        const auto text = QJsonDocument(probe).toJson(QJsonDocument::Compact);
-        const auto back = QJsonDocument::fromJson(text).object()["z"].toDouble();
-        std::cout << "json -0.0: " << text.toStdString() << " back signbit " << std::signbit(back) << "\n";
     }
     const auto description = terrainDescription(doc, terrain);
     const auto current = description["currentSources"].toObject();
@@ -845,6 +843,21 @@ void pointsTerrain() {
             ["source"]
                 .toDouble());
     check(second == first + 1, "ids follow the entries");
+    // An entry that turns the two spot points into a breakline (the command keeps a spot set's
+    // role, a file may not): the segment is inserted, not just lifted, so C1 holds.
+    {
+        const auto spotState = stateOf(doc, terrain);
+        const auto *spots = spotState->find(first);
+        auto data = std::make_shared<TerrainSourceEditData>();
+        data->source = first;
+        data->role = TerrainSourceRole::Breakline;
+        data->points = spots->points;
+        data->before = {-1e5, -1e5, 1e5, 1e5};
+        applyTerrainEdit(doc, terrain, terrainEditSourceKind, data, "Edit contour");
+        checkC1(doc, terrain, "spot points to a breakline");
+        checkC7(doc, terrain, "spot points to a breakline");
+        doc.undo();
+    }
     // remove_edit of the first entry replays the breakline alone; reset clears both; a later add
     // never reuses an id.
     run(doc, command("terrain.remove_edit", terrain, {{"edit", 1}}));

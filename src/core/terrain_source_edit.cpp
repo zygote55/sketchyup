@@ -424,7 +424,10 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
     const auto &state = context.sources;
     const After now{state, before, after};
     const std::uint64_t sourceId = next ? next->id : old ? old->id : 0;
-    if (old && next && old->points.size() == next->points.size()) {
+    // Elevation-only: the same plan positions in order and the same segments (a role change
+    // between spot points and a polyline adds or drops segments, so it re-triangulates).
+    if (old && next && old->points.size() == next->points.size() &&
+        before.segments == after.segments) {
         bool sameXy = true;
         for (std::size_t i = 0; i < old->points.size() && sameXy; ++i)
             sameXy = keyOf(old->points[i]) == keyOf(next->points[i]);

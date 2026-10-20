@@ -603,32 +603,30 @@ TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
             skip("Unknown terrain edit kind");
             continue;
         }
-        struct After {
-            const TerrainEditKind &kind;
-            const TerrainEdit &edit;
-            std::optional<TerrainSourceState> &state;
-            ~After() {
-                if (state)
-                    applyTerrainSourceEffect(*state, kind, edit);
+        // One entry; its effect on the current sources is applied after it, applied or skipped.
+        const auto replayEntry = [&] {
+            // A refusal of the change is the entry no longer applying, like an empty outcome.
+            try {
+                const auto outcome =
+                    applyKind(*kind, mesh, state ? &*state : nullptr, parameters, edit);
+                if (!outcome.change) {
+                    skip(outcome.notice.empty() ? "The change no longer applies" : outcome.notice);
+                    return;
+                }
+                const auto region = replaceTerrainRegion(mesh, *outcome.change);
+                if (!region.trianglesAfter) {
+                    skip("The change would leave the terrain without triangles");
+                    return;
+                }
+                applyTerrainRegion(mesh, region);
+                ++result.applied;
+            } catch (const TerrainError &error) {
+                skip(error.what());
             }
-        } after{*kind, edit, state};
-        // A refusal of the change is the entry no longer applying, like an empty outcome.
-        try {
-            const auto outcome = applyKind(*kind, mesh, state ? &*state : nullptr, parameters, edit);
-            if (!outcome.change) {
-                skip(outcome.notice.empty() ? "The change no longer applies" : outcome.notice);
-                continue;
-            }
-            const auto region = replaceTerrainRegion(mesh, *outcome.change);
-            if (!region.trianglesAfter) {
-                skip("The change would leave the terrain without triangles");
-                continue;
-            }
-            applyTerrainRegion(mesh, region);
-            ++result.applied;
-        } catch (const TerrainError &error) {
-            skip(error.what());
-        }
+        };
+        replayEntry();
+        if (state)
+            applyTerrainSourceEffect(*state, *kind, edit);
     }
     for (const auto *tile : mesh.tiles())
         result.tiles.tiles.push_back(tile->content);

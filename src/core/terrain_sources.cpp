@@ -160,8 +160,10 @@ void applyTerrainSourceEffect(TerrainSourceState &state, const TerrainEditKind &
 
 namespace {
 struct CachedState {
+    // The base sources and the entries are held, so their addresses stay unique while cached.
+    TerrainSources sources;
     const void *block{};
-    std::vector<TerrainEditPtr> edits; // held, so their addresses stay unique
+    std::vector<TerrainEditPtr> edits;
     std::shared_ptr<TerrainSourceState> state;
     std::uint64_t used{};
 };
@@ -213,7 +215,7 @@ std::shared_ptr<const TerrainSourceState> terrainSourceState(const TerrainRecord
                                        [](const auto &a, const auto &b) { return a.used < b.used; });
         stateCache.erase(oldest);
     }
-    stateCache.push_back({record.sources.block(), record.edits, state, ++stateClock});
+    stateCache.push_back({record.sources, record.sources.block(), record.edits, state, ++stateClock});
     return state;
 }
 void clearTerrainSourceStateCache() {
