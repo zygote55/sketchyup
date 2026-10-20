@@ -92,7 +92,7 @@ describes one call of the cavity API, in the layout documented in
 a disc choosing the cavity (the base triangles whose centroid lies in it), a stride choosing kept
 constraints among its interior edges, and new contours, breaklines and points. Its targets build
 with the triangulation's (`terrain_triangulation_fuzzers`): `terrain_cavity_fuzz_seeds DIR`
-writes the seeds (re-triangulated cavities and three refusal kinds) and
+writes the seeds (re-triangulated cavities and four refusals of three kinds) and
 `parser_fuzz_terrain_cavity` runs with the same options. Every byte string is a valid input. The
 harness triangulates the base, cuts the cavity out and re-triangulates it three times: twice as
 given, requiring identical bits, and once with the kept vertices in reverse order, requiring the

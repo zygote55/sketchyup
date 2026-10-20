@@ -34,8 +34,11 @@ int main(int argc, char **argv) {
             c.breaklines = {TerrainBreakline{{{2.5, 2.25, 2.5}, {3.5, 3.6, 3.5}}, false, 7}};
             c.points = {{{3.25, 2.75, 3}, 8}};
             seeds["grid-breakline"] = c;
-            c.stride = 3;
-            seeds["grid-breakline-constraints"] = c;
+            c.stride = 3; // the breakline now crosses a kept constraint
+            seeds["refused-crossing-kept"] = c;
+            c.breaklines.clear();
+            c.points = {{{3.3, 2.6, 3}, 8}};
+            seeds["grid-constraints-point"] = c;
         }
         {
             fuzz::CavityCase c; // a closed contour inside, contour vertices flat around it

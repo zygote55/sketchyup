@@ -1403,7 +1403,13 @@ elevations, no line at a level, a locked terrain) are located and change nothing
 `terrain_triangulation_tests` adds the cavity API (insertion, merge, canonical order, the refusal
 kinds, flats in the cavity and the elevation-only flip) and 3,000 generated cavities through the
 new `terrain-cavity` harness; `command_tests` covers the three commands; the parser fuzz seeds and
-`parser_fault_corpus_tests` cover the source-edit codecs. The fuzz run is recorded below.
+`parser_fault_corpus_tests` cover the source-edit codecs.
+
+Fuzzing (libFuzzer, clang 23 with ASan and UBSan, the documented options, 2026-10-20):
+`parser_fuzz_terrain_cavity` ran 271,021 inputs in 300 s from the nine generated seeds (6,131
+coverage points, 508 MB peak) and `parser_fuzz_terrain_edits`, now with the production source
+edits in its seeds, ran 196,342 inputs in 180 s (871 coverage points, 572 MB peak), both with no
+failure.
 
 ## Sources
 
