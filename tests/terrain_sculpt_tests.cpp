@@ -1148,6 +1148,16 @@ void padProtection() {
     // Over the east side of the innermost rings (x = 13 m is ring 0 on the axis).
     pad->polygon = {{c.x + 11, c.y - 3}, {c.x + 17, c.y - 3}, {c.x + 17, c.y + 3}, {c.x + 11, c.y + 3}};
     applyTerrainEdit(doc, terrain, "test.protect", pad, "Protect");
+    {
+        // Pads away from the brush, and a degenerate one, change nothing (the pad boxes are
+        // computed once per plan; R096.d's pads come through the same hook).
+        auto far = std::make_shared<Protect>();
+        far->polygon = {{c.x - 40, c.y - 40}, {c.x - 30, c.y - 40}, {c.x - 30, c.y - 30}};
+        applyTerrainEdit(doc, terrain, "test.protect", far, "Protect");
+        auto line = std::make_shared<Protect>();
+        line->polygon = {{c.x + 10, c.y}, {c.x + 20, c.y}};
+        applyTerrainEdit(doc, terrain, "test.protect", line, "Protect");
+    }
     const auto vertices = positions(doc, terrain);
     const auto sourcesBefore = *stateOf(doc, terrain);
     const auto operation =
@@ -1366,6 +1376,164 @@ void assistantSurface() {
     std::cout << "assistant: terrain.sculpt hidden, the edit listed\n";
 }
 
+
+// Review fixes (R096.b). A comb whose outline crosses one horizontal band 20,000 times is refused
+// quickly with LIMIT_EXCEEDED and its band located (the command, the decoder and the validator);
+// a comb at the bound (512 edges a band) is accepted and its inside test reads one band.
+std::vector<std::array<double, 2>> comb(double x0, double y0, double width, double height,
+                                        int teeth) {
+    // Teeth upward from a base strip: 4 corners a tooth.
+    std::vector<std::array<double, 2>> points;
+    const double step = width / teeth;
+    for (int i = 0; i < teeth; ++i) {
+        const double x = x0 + step * i;
+        points.push_back({x, y0});
+        points.push_back({x, y0 + height});
+        points.push_back({x + step / 2, y0 + height});
+        points.push_back({x + step / 2, y0 + height * 0.01});
+    }
+    points.push_back({x0 + width, y0 + height * 0.01});
+    points.push_back({x0 + width, y0 - height * 0.05});
+    points.push_back({x0, y0 - height * 0.05});
+    return points;
+}
+void hostileRegion() {
+    Document doc;
+    const auto terrain = importPoints(doc);
+    const auto c = centre(doc, terrain);
+    const auto hostile = comb(c.x - 150, c.y - 100, 300, 200, 4999);
+    check(hostile.size() == 19999 && terrainSculptRegionBands(hostile).edges > 9000,
+          "the comb crosses each band thousands of times");
+    QJsonObject fields{{"mode", "smooth"},
+                       {"region", planPoints(doc, terrain, hostile)},
+                       {"falloffWidth", 5}};
+    const auto started = std::chrono::steady_clock::now();
+    const auto refused = refusal([&] { direct(doc, sculptCommand(terrain, fields)); });
+    const double seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    check(refused.code == "LIMIT_EXCEEDED" && !refused.report.isEmpty() &&
+              refused.message.find("horizontal band") != std::string::npos,
+          "a comb region is refused with LIMIT_EXCEEDED and a located report");
+    check(seconds < 5, "the comb is refused quickly");
+    checkUnchanged(doc, "a comb region", [&] { direct(doc, sculptCommand(terrain, fields)); },
+                   "LIMIT_EXCEEDED");
+    TerrainSculptData data;
+    data.region = hostile;
+    data.width = 5;
+    data.strength = 0.5;
+    data.iterations = 1;
+    check(refusal([&] { validateTerrainSculptData(terrainSmoothKind, data); }).code == "other",
+          "the validator refuses the comb");
+    auto encoded = encodeTerrainEdit({1, terrainSmoothKind, std::make_shared<TerrainSculptData>(data)});
+    check(refusal([&] { (void)decodeTerrainEdit(encoded); }).code == "other",
+          "the decoder refuses the comb");
+    // At the bound: 128 teeth (513 corners) give at most 512 edges a band; accepted, and the
+    // inside test agrees with brute force.
+    auto bounded = comb(c.x - 150, c.y - 100, 300, 200, 128);
+    const auto bands = terrainSculptRegionBands(bounded);
+    check(bands.edges <= terrainSculptBandEdges && bands.edges >= 256,
+          "a 128-tooth comb is at the band bound");
+    data.region = bounded;
+    validateTerrainSculptData(terrainSmoothKind, data);
+    const TerrainSculptInfluence influence(data);
+    std::mt19937_64 random(7);
+    std::uniform_real_distribution<double> x(c.x - 160, c.x + 160), y(c.y - 120, c.y + 120);
+    for (int i = 0; i < 2000; ++i) {
+        const double px = x(random), py = y(random);
+        int winding = 0;
+        for (std::size_t k = 0; k < bounded.size(); ++k) {
+            const auto &a = bounded[k], &b = bounded[(k + 1) % bounded.size()];
+            const int o = terrainOrientation({a[0], a[1]}, {b[0], b[1]}, {px, py});
+            if (a[1] <= py) {
+                if (b[1] > py && o > 0)
+                    ++winding;
+            } else if (b[1] <= py && o < 0)
+                --winding;
+        }
+        check(influence.inside(px, py) == (winding != 0), "the bounded comb's inside test");
+    }
+    const auto applied = run(doc, sculptCommand(terrain, {{"mode", "smooth"},
+                                                          {"region", planPoints(doc, terrain, bounded)},
+                                                          {"falloffWidth", 5}}));
+    check(applied["verticesMoved"].toDouble() > 100, "the bounded comb smooths");
+    checkC6(doc, terrain, "comb");
+    checkC7(doc, terrain, "comb");
+    std::cout << "hostile region: 19,999-corner comb refused in " << seconds << " s; a "
+              << bands.edges << "-edge band comb accepted\n";
+}
+
+// A long entry can be cancelled part-way: the sculpt plan checks the replay's progress.
+void cancelInsideEntry() {
+    Document doc;
+    const auto terrain = importPoints(doc);
+    const auto c = centre(doc, terrain);
+    auto data = std::make_shared<TerrainSculptData>();
+    data->path = {{c.x, c.y}};
+    data->radius = 400;
+    data->strength = 0.5;
+    data->iterations = 2;
+    const TerrainEdit entry{1, terrainSmoothKind, data};
+    const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+    const auto state = stateOf(doc, terrain);
+    TerrainProgress progress([] { return true; });
+    bool cancelled = false;
+    try {
+        (void)planTerrainSculpt({*mesh, *state, recordOf(doc, terrain).parameters, &progress}, entry);
+    } catch (const TerrainCancelled &) {
+        cancelled = true;
+    }
+    check(cancelled, "a cancelled replay stops inside a sculpt entry");
+    const auto plan = planTerrainSculpt({*mesh, *state, recordOf(doc, terrain).parameters}, entry);
+    check(plan.change.lifted.size() > 1000, "without cancellation the entry plans");
+    std::cout << "cancel: inside a " << plan.change.lifted.size() << "-vertex smooth\n";
+}
+
+// The area check is exact: a bow-tie (zero signed area, not on one line) is a region; corners on
+// one line are not, whatever the platform's long double.
+void exactArea() {
+    TerrainSculptData bow;
+    bow.region = {{0, 0}, {2, 2}, {2, 0}, {0, 2}};
+    bow.amount = 1;
+    validateTerrainSculptData(terrainSculptKind, bow);
+    check(TerrainSculptInfluence(bow).inside(0.5, 1) && TerrainSculptInfluence(bow).inside(1.5, 1),
+          "a bow-tie region holds both lobes");
+    TerrainSculptData line = bow;
+    line.region = {{0, 0}, {1e5, 1}, {3e5, 3}, {2e5, 2}};
+    check(refusal([&] { validateTerrainSculptData(terrainSculptKind, line); }).code == "other",
+          "corners on one line are refused");
+    line.region[3] = {2e5, std::nextafter(2.0, 3.0)};
+    validateTerrainSculptData(terrainSculptKind, line);
+    std::cout << "exact area: bow-tie accepted, collinear refused, one ulp off the line accepted\n";
+}
+
+// Recorded pieces must come from their own entry's block: a document whose sculpt names another
+// entry's id is refused on load, and the hook refuses such data rather than using it.
+void pieceBlock() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    run(doc, sculptCommand(terrain, {{"mode", "raise"},
+                                     {"path", planPoints(doc, terrain, relPlan(doc, terrain, {{-20, 0}, {20, 0}}))},
+                                     {"radius", 3},
+                                     {"amount", 0.4}}));
+    const auto &pieces = lastSculpt(doc, terrain).pieces;
+    check(!pieces.empty() && pieces.front().second == *terrainSplitSourceId(1, 0),
+          "the sculpt records its first piece");
+    auto bytes = encodeDocument(doc);
+    const auto own = QByteArray::number(qulonglong(*terrainSplitSourceId(1, 0)));
+    const auto other = QByteArray::number(qulonglong(*terrainSplitSourceId(2, 0)));
+    check(bytes.count(own) == 1, "the piece id appears once in the document");
+    bytes.replace(own, other);
+    const auto load = refusal([&] { (void)decodeDocument(bytes); });
+    check(load.code != "" && load.message.find("own block") != std::string::npos,
+          "a piece id from another entry's block is refused on load (" + load.message + ")");
+    auto crafted = std::make_shared<TerrainSculptData>(lastSculpt(doc, terrain));
+    crafted->pieces.front().second = *terrainSplitSourceId(2, 0);
+    doc.undo();
+    const auto clip = planTerrainSculptClip(*stateOf(doc, terrain), {1, terrainSculptKind, crafted});
+    check(!clip.refusal.empty(), "the hook refuses a piece from another block");
+    std::cout << "piece block: refused on load and in the hook\n";
+}
+
 constexpr const char *sequenceDigest =
     "81f5fd22dd04f88758cab9f151e265520e4323d407fdf1f12f8a10b05283b688";
 // A scripted sequence: raise, region smooth, a contour edit of an untouched ring, a lower, a
@@ -1458,6 +1626,8 @@ int main(int argc, char **argv) {
         {"sampling", sampling},         {"refusals", refusals},
         {"pad protection", padProtection}, {"pieces", pieces},
         {"codec", codec},               {"assistant surface", assistantSurface},
+        {"hostile region", hostileRegion}, {"cancel inside entry", cancelInsideEntry},
+        {"exact area", exactArea},      {"piece block", pieceBlock},
         {"sequence", sequence}};
     int failed = 0;
     for (const auto &[name, test] : tests) {

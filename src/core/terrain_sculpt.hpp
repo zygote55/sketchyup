@@ -75,8 +75,9 @@ struct TerrainSculptData final : TerrainEditData {
 };
 // The fields an entry of `kind` must hold (std::invalid_argument otherwise): exactly one scope;
 // a brush of 1 to 256 finite points within the 1e6 m local bound and a radius of 0.01 to 1,000;
-// a region of 3 to 20,000 such points with a nonzero area, no repeated closing point and a width
-// of 0 to 1,000; for sculpt an amount with 0 < |amount| <= 1,000 and no smooth fields; for smooth
+// a region of 3 to 20,000 such points, not all on one line (exact orientation), no point
+// repeating the one before it, at most terrainSculptBandEdges edges in a band and a width of 0
+// to 1,000; recorded pieces with ids from the split range; for sculpt an amount with 0 < |amount| <= 1,000 and no smooth fields; for smooth
 // a strength in (0, 1], 1 to 8 iterations and no amount.
 void validateTerrainSculptData(const std::string &kind, const TerrainSculptData &data);
 
@@ -104,12 +105,33 @@ class TerrainSculptInfluence {
     std::vector<Segment> segments_;
     std::array<double, 4> box_{};
     double reach_{}; // radius or width
-    // Region: horizontal bands of edges for the winding test, and a grid of edges for distances.
+    // Region: horizontal bands of edges for the winding test (at most terrainSculptBandEdges
+    // edges a band for a valid region), and a bounding-volume tree of edges for distances.
+    struct Node {
+        double minX, minY, maxX, maxY;
+        std::uint32_t first, count; // a leaf's edges in order_ (count 0: an inner node)
+        std::uint32_t left, right;
+    };
     double bandLow_{}, bandHeight_{};
     std::vector<std::vector<std::uint32_t>> bands_;
-    double cell_{}, originX_{}, originY_{};
-    std::vector<std::pair<std::uint64_t, std::uint32_t>> cells_; // (cell, edge), sorted
+    std::vector<Node> nodes_;
+    std::vector<std::uint32_t> order_;
+    std::uint32_t build(std::uint32_t first, std::uint32_t count);
 };
+// A region's horizontal bands (ADR 0169, R096.b notes): min(4,096, corners) bands of equal height
+// over its Y range, each listing the edges whose Y range meets it. A position's winding test reads
+// only its band, so the busiest band bounds the work per vertex; a region whose busiest band holds
+// more than terrainSculptBandEdges edges (an outline crossing one horizontal line hundreds of
+// times, such as a comb) is refused with LIMIT_EXCEEDED, located at that band.
+inline constexpr std::size_t terrainSculptBandEdges = 512;
+struct TerrainSculptBands {
+    std::size_t count{};          // bands
+    double low{}, height{};       // the first band's lower Y and the band height
+    std::size_t busiest{}, edges{}; // the busiest band and its edge count
+};
+TerrainSculptBands terrainSculptRegionBands(const std::vector<std::array<double, 2>> &region);
+// The band of a Y (clamped to the bands): monotone in Y.
+std::size_t terrainSculptBandOf(const TerrainSculptBands &bands, double y);
 // The plan box of an entry's influence (TerrainEditKind::bounds).
 std::array<double, 4> terrainSculptBounds(const TerrainSculptData &data);
 
@@ -134,7 +156,9 @@ struct TerrainSculptClip {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> resolved; // (parent, piece id) made
     std::string refusal;         // non-empty when the entry may not split this much
 };
-TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit);
+// With `progress` (a replay), cancellation is checked part-way through the scan.
+TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit,
+                                        TerrainProgress *progress = nullptr);
 // Applies a clip (the kind's `sources` hook): nothing when it is refused.
 void applyTerrainSculptClip(TerrainSourceState &state, const TerrainSculptClip &clip);
 

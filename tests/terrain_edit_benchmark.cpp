@@ -515,6 +515,78 @@ QJsonObject measureSculpts(Document &doc, Id terrain, int samples, int replayEnt
                                                {"coreCommitMs", stats(nineCommit)},
                                                {"displayUpdateMs", stats(nineDisplay)}};
     }
+    // Hostile regions (review of R096.b): a comb whose outline crosses each horizontal band
+    // thousands of times is refused before any work; a comb at the band bound (at most 512 edges
+    // a band) over most of the terrain previews in bounded time.
+    {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        double minX = 1e300, minY = 1e300, maxX = -1e300, maxY = -1e300;
+        for (const auto *tile : mesh->tiles()) {
+            minX = std::min(minX, tile->minX);
+            minY = std::min(minY, tile->minY);
+            maxX = std::max(maxX, tile->maxX);
+            maxY = std::max(maxY, tile->maxY);
+        }
+        auto comb = [&](int teeth) {
+            const double x0 = minX + (maxX - minX) * 0.1, y0 = minY + (maxY - minY) * 0.1;
+            const double width = (maxX - minX) * 0.8, height = (maxY - minY) * 0.8;
+            QJsonArray points;
+            std::vector<std::array<double, 2>> local;
+            const double step = width / teeth;
+            for (int i = 0; i < teeth; ++i) {
+                const double x = x0 + step * i;
+                local.push_back({x, y0});
+                local.push_back({x, y0 + height});
+                local.push_back({x + step / 2, y0 + height});
+                local.push_back({x + step / 2, y0 + height * 0.01});
+            }
+            local.push_back({x0 + width, y0 + height * 0.01});
+            local.push_back({x0 + width, y0 - height * 0.05});
+            local.push_back({x0, y0 - height * 0.05});
+            for (const auto &p : local) {
+                const auto m = world.point({p[0], p[1], 0});
+                points.append(QJsonArray{m.x, m.y});
+            }
+            return std::pair{local, points};
+        };
+        const auto [hostile, hostilePoints] = comb(4999);
+        const QJsonObject refused{{"command", "terrain.sculpt"},
+                                  {"terrain", QString::number(terrain)},
+                                  {"mode", "smooth"},
+                                  {"region", hostilePoints},
+                                  {"falloffWidth", 5}};
+        std::string code;
+        timer.restart();
+        try {
+            QJsonObject operation;
+            executeTerrainCommand(doc, refused, &operation);
+        } catch (const TerrainError &error) {
+            code = error.code();
+        }
+        const double refusalMs = ms(timer);
+        check(code == "LIMIT_EXCEEDED", "the hostile comb is refused");
+        const auto [bounded, boundedPoints] = comb(128);
+        auto data = std::make_shared<TerrainSculptData>();
+        data->region = bounded;
+        data->width = 5;
+        data->amount = 0.01;
+        std::vector<double> times;
+        TerrainEditPreview candidate;
+        for (int i = 0; i < 5; ++i) {
+            timer.restart();
+            candidate = previewTerrainEdit(doc, terrain, terrainSculptKind, data);
+            times.push_back(ms(timer));
+        }
+        result["hostileRegion"] = QJsonObject{
+            {"refusedCorners", double(hostile.size())},
+            {"refusedBandEdges", double(terrainSculptRegionBands(hostile).edges)},
+            {"refusalMs", refusalMs},
+            {"boundedCorners", double(bounded.size())},
+            {"boundedBandEdges", double(terrainSculptRegionBands(bounded).edges)},
+            {"boundedVerticesMoved", double(candidate.liftedVertices)},
+            {"boundedTilesTouched", double(candidate.region.replaced.size())},
+            {"boundedPreviewMs", stats(times)}};
+    }
     while (doc.canUndo() && !doc.bodies().at(terrain)->terrain->edits.empty())
         doc.undo();
     // A replaying Regenerate of sculpt entries (half raise, half three-iteration smooth).

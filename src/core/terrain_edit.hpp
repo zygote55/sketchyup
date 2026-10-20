@@ -106,6 +106,9 @@ struct TerrainEditContext {
     const TerrainEditMesh &mesh;
     const TerrainSourceState &sources;
     const TerrainParameters &parameters;
+    // R096.b: a replay's progress, so a long entry can be cancelled part-way (checkpoints only
+    // read; the result is the same without one).
+    TerrainProgress *progress = nullptr;
 };
 // A plan polygon (terrain frame, counter-clockwise or not, closing edge implied).
 using TerrainPlanPolygon = std::vector<std::array<double, 2>>;

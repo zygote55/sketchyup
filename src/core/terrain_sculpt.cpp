@@ -56,25 +56,36 @@ bool inPolygon(const std::vector<Plan2> &polygon, double x, double y) {
     return winding != 0;
 }
 // Pads (decision 6): on or inside a protected polygon.
-bool protectedAt(const TerrainSourceState &state, double x, double y) {
-    for (const auto &region : state.protectedRegions) {
-        const auto &polygon = region.polygon;
-        if (polygon.size() < 3)
-            continue;
-        double minX = polygon[0][0], minY = polygon[0][1], maxX = minX, maxY = minY;
-        for (const auto &p : polygon) {
-            minX = std::min(minX, p[0]);
-            minY = std::min(minY, p[1]);
-            maxX = std::max(maxX, p[0]);
-            maxY = std::max(maxY, p[1]);
+// Pads (decision 6): on or inside a protected polygon. The polygons' boxes are computed once per
+// plan, not per vertex.
+class Pads {
+  public:
+    explicit Pads(const TerrainSourceState &state) {
+        for (const auto &region : state.protectedRegions) {
+            const auto &polygon = region.polygon;
+            if (polygon.size() < 3)
+                continue;
+            std::array<double, 4> box{polygon[0][0], polygon[0][1], polygon[0][0], polygon[0][1]};
+            for (const auto &p : polygon) {
+                box[0] = std::min(box[0], p[0]);
+                box[1] = std::min(box[1], p[1]);
+                box[2] = std::max(box[2], p[0]);
+                box[3] = std::max(box[3], p[1]);
+            }
+            pads_.push_back({box, &polygon});
         }
-        if (x < minX || x > maxX || y < minY || y > maxY)
-            continue;
-        if (inPolygon(polygon, x, y))
-            return true;
     }
-    return false;
-}
+    bool covers(double x, double y) const {
+        for (const auto &[box, polygon] : pads_)
+            if (x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3] &&
+                inPolygon(*polygon, x, y))
+                return true;
+        return false;
+    }
+
+  private:
+    std::vector<std::pair<std::array<double, 4>, const std::vector<Plan2> *>> pads_;
+};
 void checkPoints(const std::vector<Plan2> &points, const char *what) {
     for (const auto &p : points)
         if (!std::isfinite(p[0]) || !std::isfinite(p[1]) || std::abs(p[0]) > localBound ||
@@ -82,10 +93,6 @@ void checkPoints(const std::vector<Plan2> &points, const char *what) {
             throw std::invalid_argument(std::string(what) +
                                         " points are finite and within 1,000 km of the terrain "
                                         "origin");
-}
-std::uint64_t cellKey(std::int64_t cx, std::int64_t cy) {
-    return (std::uint64_t(std::uint32_t(std::int32_t(cx))) << 32) |
-           std::uint64_t(std::uint32_t(std::int32_t(cy)));
 }
 bool lexLess(const Vec3 &a, const Vec3 &b) { return std::tie(a.x, a.y, a.z) < std::tie(b.x, b.y, b.z); }
 bool lineRole(TerrainSourceRole role) {
@@ -160,15 +167,19 @@ void validateTerrainSculptData(const std::string &kind, const TerrainSculptData 
         if (n < 3 || n > terrainSculptRegionPoints)
             throw std::invalid_argument("A region has 3 to 20,000 points");
         checkPoints(data.region, "Region");
-        long double area = 0;
-        for (std::size_t i = 0; i < n; ++i) {
-            const auto &a = data.region[i], &b = data.region[(i + 1) % n];
-            if (a == b)
+        for (std::size_t i = 0; i < n; ++i)
+            if (data.region[i] == data.region[(i + 1) % n])
                 throw std::invalid_argument("A region repeats a point; give each corner once");
-            area += (long double)a[0] * b[1] - (long double)b[0] * a[1];
-        }
-        if (area == 0)
-            throw std::invalid_argument("A region encloses no area");
+        // Some corner off the line of the first edge (the adapter's exact orientation, so the
+        // answer is the same on every platform).
+        bool area = false;
+        for (std::size_t k = 2; k < n && !area; ++k)
+            area = orient(data.region[0], data.region[1], data.region[k][0], data.region[k][1]) != 0;
+        if (!area)
+            throw std::invalid_argument("A region encloses no area (its corners are on one line)");
+        if (terrainSculptRegionBands(data.region).edges > terrainSculptBandEdges)
+            throw std::invalid_argument("A region's outline crosses one horizontal band more than "
+                                        "512 times; split it into simpler regions");
         if (!std::isfinite(data.width) || data.width < 0 || data.width > terrainSculptWidthMax)
             throw std::invalid_argument("The falloff width is 0 to 1,000 m");
         if (data.radius != 0)
@@ -219,6 +230,46 @@ std::array<double, 4> terrainSculptBounds(const TerrainSculptData &data) {
 }
 
 // ---- Influence ------------------------------------------------------------------------------
+TerrainSculptBands terrainSculptRegionBands(const std::vector<Plan2> &region) {
+    TerrainSculptBands bands;
+    const std::size_t n = region.size();
+    if (n < 3)
+        return bands;
+    double low = region[0][1], high = low;
+    for (const auto &p : region) {
+        low = std::min(low, p[1]);
+        high = std::max(high, p[1]);
+    }
+    bands.count = std::min<std::size_t>(4096, n);
+    bands.low = low;
+    bands.height = (high - low) / double(bands.count);
+    if (!(bands.height > 0)) {
+        bands.count = 1;
+        bands.height = 1;
+    }
+    // Edges per band by a difference array: no band list is built for a hostile region.
+    std::vector<std::int64_t> delta(bands.count + 1, 0);
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto &a = region[i], &b = region[(i + 1) % n];
+        const auto lo = terrainSculptBandOf(bands, std::min(a[1], b[1])),
+                   hi = terrainSculptBandOf(bands, std::max(a[1], b[1]));
+        ++delta[lo];
+        --delta[hi + 1];
+    }
+    std::int64_t running = 0;
+    for (std::size_t band = 0; band < bands.count; ++band) {
+        running += delta[band];
+        if (std::size_t(running) > bands.edges) {
+            bands.edges = std::size_t(running);
+            bands.busiest = band;
+        }
+    }
+    return bands;
+}
+std::size_t terrainSculptBandOf(const TerrainSculptBands &bands, double y) {
+    const double t = std::floor((y - bands.low) / bands.height);
+    return std::size_t(std::clamp(t, 0.0, double(bands.count - 1)));
+}
 TerrainSculptInfluence::TerrainSculptInfluence(const TerrainSculptData &data) : data_(data) {
     box_ = terrainSculptBounds(data);
     reach_ = data.brush() ? data.radius : data.width;
@@ -244,71 +295,67 @@ TerrainSculptInfluence::TerrainSculptInfluence(const TerrainSculptData &data) : 
     for (std::size_t i = 0; i < n; ++i)
         addSegment(polygon[i], polygon[(i + 1) % n]);
     // Bands for the winding test: every edge is listed in the bands its Y range meets, so a
-    // position's band holds every edge that can count for it. The band of a Y is monotone.
-    double low = polygon[0][1], high = low;
-    for (const auto &p : polygon) {
-        low = std::min(low, p[1]);
-        high = std::max(high, p[1]);
+    // position's band holds every edge that can count for it (the band of a Y is monotone). A
+    // valid region has at most terrainSculptBandEdges edges a band; an unvalidated one over it
+    // gets one band (correct, not bounded).
+    auto bands = terrainSculptRegionBands(polygon);
+    if (bands.edges > terrainSculptBandEdges) {
+        bands.count = 1;
+        bands.height = std::numeric_limits<double>::infinity();
     }
-    std::size_t bands = std::min<std::size_t>(4096, n);
-    bandLow_ = low;
-    for (;;) {
-        bandHeight_ = (high - low) / double(bands);
-        if (!(bandHeight_ > 0)) {
-            bands = 1;
-            bandHeight_ = 1;
-        }
-        std::size_t entries = 0;
-        auto bandOf = [&](double y) {
-            const double t = std::floor((y - bandLow_) / bandHeight_);
-            return std::size_t(std::clamp(t, 0.0, double(bands - 1)));
-        };
-        for (const auto &s : segments_)
-            entries += bandOf(s.maxY) - bandOf(s.minY) + 1;
-        if (entries <= 16 * n || bands == 1) {
-            bands_.assign(bands, {});
-            for (std::uint32_t e = 0; e < segments_.size(); ++e)
-                for (auto b = bandOf(segments_[e].minY); b <= bandOf(segments_[e].maxY); ++b)
-                    bands_[b].push_back(e);
-            break;
-        }
-        bands = std::max<std::size_t>(1, bands / 2);
+    bandLow_ = bands.low;
+    bandHeight_ = bands.height;
+    bands_.assign(bands.count, {});
+    for (std::uint32_t e = 0; e < n; ++e) {
+        const auto &a = polygon[e], &b = polygon[(e + 1) % n];
+        const auto lo = terrainSculptBandOf(bands, std::min(a[1], b[1])),
+                   hi = terrainSculptBandOf(bands, std::max(a[1], b[1]));
+        for (auto band = lo; band <= hi; ++band)
+            bands_[band].push_back(e);
     }
     if (!(reach_ > 0))
         return;
-    // A grid of edges for the distance outside: cells at least the falloff width, so a query
-    // reads at most 3 x 3 cells. Each edge is listed in every cell it passes through (its box's
-    // cells when few, otherwise samples at most half a cell apart with their neighbours).
-    double perimeter = 0;
-    for (const auto &s : segments_)
-        perimeter += planLength(s.b[0] - s.a[0], s.b[1] - s.a[1]);
-    cell_ = std::max(reach_, perimeter / double(n));
-    originX_ = box_[0];
-    originY_ = box_[1];
-    auto cx = [&](double x) { return std::int64_t(std::floor((x - originX_) / cell_)); };
-    auto cy = [&](double y) { return std::int64_t(std::floor((y - originY_) / cell_)); };
-    for (std::uint32_t e = 0; e < segments_.size(); ++e) {
-        const auto &s = segments_[e];
-        const auto x0 = cx(s.minX), x1 = cx(s.maxX), y0 = cy(s.minY), y1 = cy(s.maxY);
-        if ((x1 - x0 + 1) * (y1 - y0 + 1) <= 9) {
-            for (auto x = x0; x <= x1; ++x)
-                for (auto y = y0; y <= y1; ++y)
-                    cells_.push_back({cellKey(x, y), e});
-            continue;
-        }
-        const double length = planLength(s.b[0] - s.a[0], s.b[1] - s.a[1]);
-        const auto steps = std::size_t(std::ceil(length / (cell_ / 2))) + 1;
-        for (std::size_t k = 0; k <= steps; ++k) {
-            const double t = double(k) / double(steps);
-            const auto px = cx(s.a[0] + (s.b[0] - s.a[0]) * t),
-                       py = cy(s.a[1] + (s.b[1] - s.a[1]) * t);
-            for (int dx = -1; dx <= 1; ++dx)
-                for (int dy = -1; dy <= 1; ++dy)
-                    cells_.push_back({cellKey(px + dx, py + dy), e});
-        }
+    // A bounding-volume tree of the edges for the distance outside: a nearest-edge search with
+    // pruning reads a few leaves near the position, whatever the region's shape.
+    order_.resize(segments_.size());
+    for (std::uint32_t e = 0; e < order_.size(); ++e)
+        order_[e] = e;
+    nodes_.reserve(2 * segments_.size() / 4 + 2);
+    build(0, std::uint32_t(segments_.size()));
+}
+std::uint32_t TerrainSculptInfluence::build(std::uint32_t first, std::uint32_t count) {
+    const auto index = std::uint32_t(nodes_.size());
+    nodes_.push_back({});
+    Node node{std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(),
+              -std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(),
+              first, count, 0, 0};
+    for (std::uint32_t i = first; i < first + count; ++i) {
+        const auto &s = segments_[order_[i]];
+        node.minX = std::min(node.minX, s.minX);
+        node.minY = std::min(node.minY, s.minY);
+        node.maxX = std::max(node.maxX, s.maxX);
+        node.maxY = std::max(node.maxY, s.maxY);
     }
-    std::sort(cells_.begin(), cells_.end());
-    cells_.erase(std::unique(cells_.begin(), cells_.end()), cells_.end());
+    if (count > 4) {
+        // Split at the median centre along the longer side (ties by edge index). The tree only
+        // orders the search; the distance is the minimum over the edges either way.
+        const bool alongX = node.maxX - node.minX >= node.maxY - node.minY;
+        auto centre = [&](std::uint32_t e) {
+            const auto &s = segments_[e];
+            return alongX ? s.a[0] + s.b[0] : s.a[1] + s.b[1];
+        };
+        const auto half = count / 2;
+        std::nth_element(order_.begin() + first, order_.begin() + first + half,
+                         order_.begin() + first + count, [&](std::uint32_t a, std::uint32_t b) {
+                             const double ca = centre(a), cb = centre(b);
+                             return ca < cb || (ca == cb && a < b);
+                         });
+        node.count = 0;
+        node.left = build(first, half);
+        node.right = build(first + half, count - half);
+    }
+    nodes_[index] = node;
+    return index;
 }
 bool TerrainSculptInfluence::inside(double x, double y) const {
     if (data_.brush() || bands_.empty())
@@ -316,9 +363,7 @@ bool TerrainSculptInfluence::inside(double x, double y) const {
     const auto &polygon = data_.region;
     const std::size_t n = polygon.size();
     const double t = std::floor((y - bandLow_) / bandHeight_);
-    if (t < 0 || t >= double(bands_.size()) + 1)
-        return false; // below or above every edge
-    const auto band = std::size_t(std::min(t, double(bands_.size() - 1)));
+    const auto band = std::size_t(std::clamp(t, 0.0, double(bands_.size() - 1)));
     int winding = 0;
     for (const auto e : bands_[band]) {
         const auto &a = polygon[e], &b = polygon[(e + 1) % n];
@@ -337,31 +382,43 @@ bool TerrainSculptInfluence::inside(double x, double y) const {
 }
 double TerrainSculptInfluence::distance(double x, double y) const {
     double best = std::numeric_limits<double>::infinity();
-    // A segment whose box, widened by the reach, does not hold the position is farther than
-    // the reach: skipping it never changes a distance below the reach.
-    auto consider = [&](const Segment &s) {
-        if (x < s.minX - reach_ || x > s.maxX + reach_ || y < s.minY - reach_ ||
-            y > s.maxY + reach_)
-            return;
-        best = std::min(best, segmentDistance(x, y, s.a, s.b));
-    };
-    if (data_.brush() || cells_.empty()) {
-        for (const auto &s : segments_)
-            consider(s);
+    if (nodes_.empty()) {
+        // A brush (at most 255 segments): a segment whose box, widened by the reach, does not
+        // hold the position is farther than the reach, so skipping it never changes a distance
+        // below the reach.
+        for (const auto &s : segments_) {
+            if (x < s.minX - reach_ || x > s.maxX + reach_ || y < s.minY - reach_ ||
+                y > s.maxY + reach_)
+                continue;
+            best = std::min(best, segmentDistance(x, y, s.a, s.b));
+        }
         return best;
     }
-    const auto x0 = std::int64_t(std::floor((x - reach_ - originX_) / cell_)),
-               x1 = std::int64_t(std::floor((x + reach_ - originX_) / cell_)),
-               y0 = std::int64_t(std::floor((y - reach_ - originY_) / cell_)),
-               y1 = std::int64_t(std::floor((y + reach_ - originY_) / cell_));
-    for (auto cx = x0; cx <= x1; ++cx)
-        for (auto cy = y0; cy <= y1; ++cy) {
-            const auto key = cellKey(cx, cy);
-            auto it = std::lower_bound(cells_.begin(), cells_.end(),
-                                       std::pair<std::uint64_t, std::uint32_t>{key, 0});
-            for (; it != cells_.end() && it->first == key; ++it)
-                consider(segments_[it->second]);
+    // A node is skipped only when its box is clearly farther (beyond rounding) than both the best
+    // distance so far and the reach, so every edge that could give the minimum below the reach,
+    // to the last bit, is measured: the result does not depend on the tree's shape.
+    auto beyond = [](double lowerBound, double limit) {
+        return lowerBound > limit * (1 + 1e-9) + 1e-12;
+    };
+    std::uint32_t stack[64];
+    std::size_t depth = 0;
+    stack[depth++] = 0;
+    while (depth) {
+        const auto &node = nodes_[stack[--depth]];
+        const double dx = std::max({node.minX - x, 0.0, x - node.maxX}),
+                     dy = std::max({node.minY - y, 0.0, y - node.maxY});
+        if (beyond(planLength(dx, dy), std::min(best, reach_)))
+            continue;
+        if (node.count) {
+            for (std::uint32_t i = node.first; i < node.first + node.count; ++i) {
+                const auto &s = segments_[order_[i]];
+                best = std::min(best, segmentDistance(x, y, s.a, s.b));
+            }
+            continue;
         }
+        stack[depth++] = node.right;
+        stack[depth++] = node.left;
+    }
     return best;
 }
 double TerrainSculptInfluence::weight(double x, double y) const {
@@ -384,11 +441,23 @@ std::optional<std::uint32_t> terrainSplitSourceId(std::uint32_t edit, std::uint3
 }
 
 // ---- Clipping (decision 2) ------------------------------------------------------------------
-TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit) {
+TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit,
+                                        TerrainProgress *progress) {
     const auto &data = dataOf(edit);
     const TerrainSculptInfluence influence(data);
     const auto &box = influence.bounds();
+    const Pads pads(state);
     TerrainSculptClip clip;
+    // Recorded pieces belong to this entry's block (validateTerrainRecord refuses others in a
+    // file); one that does not is refused here too rather than used.
+    for (const auto &[parent, id] : data.pieces) {
+        const auto high = terrainSplitSourceId(edit.id, 0),
+                   low = terrainSplitSourceId(edit.id, terrainSculptPiecesPerEdit - 1);
+        if (!high || id > *high || id < *low) {
+            clip.refusal = "A recorded source line piece id is not this change's";
+            return clip;
+        }
+    }
     // Ids of further runs: a parent's runs first take the ids the entry recorded for that parent
     // at its commit (in order), so a piece keeps its id while its parent splits the same way,
     // whatever happens to other sources; any further run takes the next ordinal of the entry's
@@ -410,19 +479,23 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
     std::set<std::uint32_t> taken;
     auto clipped = [&](const Vec3 &p) {
         return p.x >= box[0] && p.x <= box[2] && p.y >= box[1] && p.y <= box[3] &&
-               influence.weight(p.x, p.y) > 0 && !protectedAt(state, p.x, p.y);
+               influence.weight(p.x, p.y) > 0 && !pads.covers(p.x, p.y);
     };
+    std::size_t scanned = 0;
     for (const auto *source : state.sources()) {
         if (!lineRole(source->role) && source->role != TerrainSourceRole::Points)
             continue;
         const auto &points = source->points;
         std::vector<bool> keep;
-        for (std::size_t i = 0; i < points.size(); ++i)
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            if (++scanned % 4096 == 0)
+                terrainCheckpoint(progress, TerrainStage::Replay, 0); // cancellation only
             if (clipped(points[i])) {
                 if (keep.empty())
                     keep.assign(points.size(), true);
                 keep[i] = false;
             }
+        }
         if (keep.empty())
             continue;
         const bool closed = closedLine(*source);
@@ -522,8 +595,9 @@ TerrainSculptPlan planTerrainSculpt(const TerrainEditContext &context, const Ter
     const auto &mesh = context.mesh;
     const TerrainSculptInfluence influence(data);
     const auto &box = influence.bounds();
+    const Pads pads(context.sources);
     TerrainSculptPlan plan;
-    plan.clip = planTerrainSculptClip(context.sources, edit);
+    plan.clip = planTerrainSculptClip(context.sources, edit, context.progress);
     if (!plan.clip.refusal.empty()) {
         plan.refusal = plan.clip.refusal;
         plan.refusalCode = "LIMIT_EXCEEDED";
@@ -536,8 +610,11 @@ TerrainSculptPlan planTerrainSculpt(const TerrainEditContext &context, const Ter
     };
     std::vector<Moving> moving;
     std::unordered_set<TerrainPlanKey, TerrainPlanHash> seen;
+    std::size_t scanned = 0;
     for (const auto *tile : mesh.tilesIn(box[0], box[1], box[2], box[3], 0))
         for (const auto &p : tile->content->vertices) {
+            if (++scanned % 4096 == 0)
+                terrainCheckpoint(context.progress, TerrainStage::Replay, 0); // cancellation only
             if (p.x < box[0] || p.x > box[2] || p.y < box[1] || p.y > box[3])
                 continue;
             if (!seen.insert(TerrainPlanKey::of(p.x, p.y)).second)
@@ -546,7 +623,7 @@ TerrainSculptPlan planTerrainSculpt(const TerrainEditContext &context, const Ter
             if (!(w > 0))
                 continue;
             ++plan.influenced;
-            if (protectedAt(context.sources, p.x, p.y)) {
+            if (pads.covers(p.x, p.y)) {
                 ++plan.protectedVertices;
                 continue;
             }
@@ -577,6 +654,8 @@ TerrainSculptPlan planTerrainSculpt(const TerrainEditContext &context, const Ter
         std::vector<std::vector<std::pair<std::uint32_t, double>>> ring(n);
         std::vector<Vec3> around;
         for (std::size_t i = 0; i < n; ++i) {
+            if ((i + 1) % 4096 == 0)
+                terrainCheckpoint(context.progress, TerrainStage::Replay, 0);
             const auto &p = moving[i].p;
             around.clear();
             for (const auto &ref : mesh.trianglesAt(p)) {
@@ -605,6 +684,7 @@ TerrainSculptPlan planTerrainSculpt(const TerrainEditContext &context, const Ter
         }
         std::vector<double> next = z;
         for (int iteration = 0; iteration < data.iterations; ++iteration) {
+            terrainCheckpoint(context.progress, TerrainStage::Replay, 0);
             for (std::size_t i = 0; i < n; ++i) {
                 if (ring[i].empty())
                     continue;

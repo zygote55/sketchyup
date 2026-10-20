@@ -836,6 +836,28 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
             data->iterations = int(iterations);
         }
     }
+    // A region whose outline crosses one horizontal band too often is refused with its band
+    // located (ADR 0169, R096.b notes): it would make every vertex's inside test long.
+    if (!data->brush() && data->region.size() >= 3) {
+        const auto bands = terrainSculptRegionBands(data->region);
+        if (bands.edges > terrainSculptBandEdges) {
+            double minX = data->region[0][0], maxX = minX;
+            for (const auto &p : data->region) {
+                minX = std::min(minX, p[0]);
+                maxX = std::max(maxX, p[0]);
+            }
+            const auto at = world.point(
+                {(minX + maxX) / 2, bands.low + (double(bands.busiest) + 0.5) * bands.height, 0});
+            const std::string message =
+                "The region's outline has " + std::to_string(bands.edges) +
+                " edges in one horizontal band (at most 512); split it into simpler regions";
+            TerrainReport report;
+            report.locate(TerrainReport::Severity::Refusal, "limit-exceeded", message,
+                          {"region", {}, std::array<double, 2>{at.x, at.y}});
+            throw TerrainImportError("LIMIT_EXCEEDED", message, sourceEditReport(report, {}),
+                                     "terrainReport");
+        }
+    }
     try {
         validateTerrainSculptData(kind, *data);
     } catch (const std::invalid_argument &error) {

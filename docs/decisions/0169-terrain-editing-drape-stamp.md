@@ -1464,8 +1464,9 @@ type: a brush `{path, radius}` or a region `{region, falloffWidth}`, the `fallof
 ([ADR 0108 addendum](0108-public-native-format.md#schema-29-terrain-and-site-origin-r095a)). An
 entry stores its parameters, not the vertices it moved: replay recomputes them on the mesh before
 it, as for every kind. Bounds: a path of 1 to 256 points, a radius of 0.01 to 1,000 m, a region of
-3 to 20,000 corners with a nonzero area, a width of 0 to 1,000 m, a strength in (0, 1] and 1 to 8
-iterations, as §4.1 gives them; the amount is a choice where the ADR is open: non-zero and at most
+3 to 20,000 corners, a width of 0 to 1,000 m, a strength in (0, 1] and 1 to 8
+iterations, as §4.1 gives them (a region's corners not all on one line, by exact orientation,
+and at most 512 edges in a band); the amount is a choice where the ADR is open: non-zero and at most
 1,000 m either way.
 
 **Weights.** `TerrainSculptInfluence::weight(x, y)` is the one definition of the weight, used by the
@@ -1479,9 +1480,11 @@ enters replay. f is `1 − t²(3 − 2t)` (smooth), `1 − t` (linear) or 1 (con
 and zero at t ≥ 1: a vertex exactly at the radius or the width does not move (tested on a 1 m grid
 for each falloff, and for a region's outline, which is inside). A region is the nonzero-winding
 interior with the adapter's exact orientation, closed. Its edges are indexed twice: horizontal bands
-for the winding test and a grid of cells at least the falloff width for the distance outside, so a
-20,000-corner region costs a few edge tests per vertex (tested against brute force on a
-20,000-corner star).
+for the winding test (min(4,096, corners) bands; a vertex reads its band only) and a
+bounding-volume tree for the distance outside (a nearest-edge search that skips a node only when
+it is clearly, beyond rounding, farther than both the best distance and the width, so the result
+does not depend on the tree), tested against brute force on a 20,000-corner star. A region whose
+busiest band holds more than 512 edges is refused (see the review fixes below).
 
 **Raise and smooth.** The moving vertices are those of the tiles in the influence box with a
 weight above zero, each position once, in (x, y) order. Raise lifts each to z + amount × w; a
@@ -1570,6 +1573,36 @@ unchanged: a one-tile `test.lift` commit p95 42.0 and 64.3 ms; a contour edit co
 replaying Regenerate of 1,000 lifts 1.10 s on the point terrain when the benchmark runs it alone
 (1.64 s after the other sections in the same process) and 0.99 s on the contours.
 
+**Review fixes.** An independent review of the pull request found no blocker; these follow it.
+- *Hostile regions.* A comb of 19,999 corners crossed every horizontal band about 15,000 times,
+  so each vertex's inside test read nearly every edge, and the distance grid's cells grew to the
+  comb's height: on a large terrain a replay would have hung. Now the busiest band (of min(4,096,
+  corners)) may hold at most 512 edges, counted without building the bands, and the validator,
+  the decoder and the command refuse anything more (`LIMIT_EXCEEDED`, the command's report
+  located at the busiest band). The distance outside uses a bounding-volume tree instead of the
+  grid. Measured on the 250k terrains (the same benchmark, `hostileRegion`): the 19,999-corner
+  comb is refused in 2.3–2.4 ms; a 128-tooth comb at the bound (515 corners, 385 edges in its
+  busiest band) over 80 % of the terrain previews in 336 ms (points, 85,928 vertices moved,
+  210 tiles) and 495 ms (contours, 113,080 vertices, 2,655 tiles), at most a band's edges a vertex.
+- *Cancel inside an entry.* `TerrainEditContext` carries the replay's progress, and the sculpt
+  plan checks for cancellation every 4,096 vertices it scans and every smoothing iteration, so a
+  Regenerate, Terrain settings or Remove change is cancelled part-way through a long entry
+  (tested: a cancelled plan throws `TerrainCancelled` inside a 12,000-vertex smooth).
+- *Exact area.* A region's corners must not all lie on one line, by the adapter's exact
+  orientation, in place of a `long double` area that is 80-bit on x86 Linux but 64-bit elsewhere.
+  A bow-tie (zero signed area) is a valid nonzero-winding region.
+- *Pieces from their own block.* A recorded piece whose id is not in its entry's block is refused
+  when a document loads (`validateTerrainRecord`) and by the hook.
+- *Pads.* The protected polygons' boxes are computed once per plan, not per vertex.
+- Not done: the command still plans a sculpt twice (its dry run for the report, then
+  `applyTerrainEdit`). The dry run is the preview's cost (at most 4.1 ms above); R096.f's preview
+  path can pass the previewed plan to the commit.
+
+Re-measured after the fixes (same command, same host): a one-tile sculpt commit p95 41.5 and
+67.3 ms in the core, 54.0 and 88.9 ms with the command and the display update (points and
+contours); the preview p95 3.9 and 2.6 ms; nine tiles commit p95 118.6 and 104.7 ms; 1,000 sculpts
+replay in 1.66 and 1.40 s.
+
 **Verification.** `terrain_sculpt_tests` (ctest `terrain_sculpt`, dev and sanitize presets) on the
 R095-style 40-ring contour hill, the 12,000-point terrain and a 40 × 40 m gridded point terrain:
 - the weight function (falloff values and edges, sampling, reversal, the region indexes against
@@ -1587,7 +1620,11 @@ R095-style 40-ring contour hill, the 12,000-point terrain and a 40 × 40 m gridd
   change is removed), the codec and its refusals, the assistant's request (no `terrain.sculpt`
   tool; the sculpt listed in `terrain.describe`), and a scripted sequence of four sculpts and a
   contour edit with the checks after each, Undo and Redo of all, reopen, Reset edits and a pinned
-  replay digest (`81f5fd22…3b688`, the same in Debug and Release builds).
+  replay digest (`81f5fd22…3b688`, the same in Debug and Release builds);
+- the review fixes: the hostile comb refused quickly by the command (located), the validator and
+  the decoder, a comb at the bound accepted with its inside test equal to brute force, a
+  cancellation inside an entry, the bow-tie and collinear regions, a piece from another block
+  refused on load and by the hook, and pads off the brush and a degenerate pad changing nothing.
 
 `command_tests` covers the command, and the parser fuzz seeds (a brush sculpt with a recorded
 piece, a region smooth, and a rejected smooth of nine iterations) and `parser_fault_corpus_tests`

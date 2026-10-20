@@ -570,9 +570,9 @@ bool readsSources(const TerrainEditKind *kind) {
 }
 TerrainEditOutcome applyKind(const TerrainEditKind &kind, const TerrainEditMesh &mesh,
                              const TerrainSourceState *state, const TerrainParameters &parameters,
-                             const TerrainEdit &edit) {
+                             const TerrainEdit &edit, TerrainProgress *progress = nullptr) {
     if (kind.applyInContext)
-        return kind.applyInContext({mesh, *state, parameters}, edit);
+        return kind.applyInContext({mesh, *state, parameters, progress}, edit);
     return kind.apply(mesh, edit);
 }
 } // namespace
@@ -615,7 +615,7 @@ TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
             // A refusal of the change is the entry no longer applying, like an empty outcome.
             try {
                 const auto outcome =
-                    applyKind(*kind, mesh, state ? &*state : nullptr, parameters, edit);
+                    applyKind(*kind, mesh, state ? &*state : nullptr, parameters, edit, progress);
                 if (!outcome.change) {
                     skip(outcome.notice.empty() ? "The change no longer applies" : outcome.notice);
                     return;

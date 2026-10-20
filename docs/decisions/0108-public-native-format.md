@@ -454,14 +454,15 @@ these fields after `id` and `kind` (a reader refuses others):
 - `path` is a brush stroke of 1 to 256 plan points `[x, y]` in the terrain frame, finite and
   within ±1e6; `radius` is 0.01 to 1,000.
 - `region` is a closed polygon of 3 to 20,000 such points (the closing edge implied, no point
-  repeating the one before it, a nonzero area); `falloffWidth` is 0 to 1,000.
+  repeating the one before it, not all on one line, and at most 512 edges meeting any of its
+  min(4,096, corners) equal horizontal bands); `falloffWidth` is 0 to 1,000.
 - `falloff` is `smooth`, `linear` or `constant`.
 - `amount` is a non-zero height of at most 1,000 in magnitude; `strength` is above 0 and at most
   1; `iterations` is an integer 1 to 8.
 
 - `pieces` (written when not empty) is a list of 1 to 4,096 pairs `[source, piece]`: the
   further runs of the source lines the entry split when it was made, in order, `source` the line's
-  id and `piece` a distinct id of at least 3,221,225,472 (2^32 − 2^30).
+  id and `piece` a distinct id from the entry's own block (below), which a reader checks.
 
 An entry stores its parameters and, as resolved geometry, its pieces' ids: the vertices it moves
 and the source vertices it clips from the current sources are derived from the mesh and the
