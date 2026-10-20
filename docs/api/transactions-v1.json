@@ -9779,6 +9779,187 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Stamp pad",
+                                    "properties": {
+                                        "command": {
+                                            "const": "terrain.stamp_pad"
+                                        },
+                                        "cutSlope": {
+                                            "description": "Rise over run where the pad is below the ground; default 0.5 (1:2)",
+                                            "maximum": 100,
+                                            "minimum": 0.01,
+                                            "type": "number"
+                                        },
+                                        "elevation": {
+                                            "description": "Pad elevation (model Z, metres); default the footprint's own height",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        },
+                                        "fillSlope": {
+                                            "description": "Rise over run where the pad is above the ground; default 0.5 (1:2)",
+                                            "maximum": 100,
+                                            "minimum": 0.01,
+                                            "type": "number"
+                                        },
+                                        "footprint": {
+                                            "additionalProperties": false,
+                                            "description": "{body, face}: a horizontal face; {body}: the lowest horizontal face of a group, component or body; {edges}: model edges of one closed loop; {polygon}: model points [x, y] or [x, y, z] (at most 20,000, simple, no holes)",
+                                            "properties": {
+                                                "body": {
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "edges": {
+                                                    "items": {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "body": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            },
+                                                            "edge": {
+                                                                "maxLength": 20,
+                                                                "pattern": "^[1-9][0-9]*$",
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "body",
+                                                            "edge"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "maxItems": 100000,
+                                                    "type": "array"
+                                                },
+                                                "face": {
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "polygon": {
+                                                    "items": {
+                                                        "items": {
+                                                            "maximum": 100000000,
+                                                            "minimum": -100000000,
+                                                            "type": "number"
+                                                        },
+                                                        "maxItems": 3,
+                                                        "minItems": 2,
+                                                        "type": "array"
+                                                    },
+                                                    "maxItems": 20001,
+                                                    "minItems": 3,
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "maxDistance": {
+                                            "description": "Plan metres a grading ray may run before it daylights; default 100",
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 1000,
+                                            "type": "number"
+                                        },
+                                        "mode": {
+                                            "description": "daylight (default): cut and fill slopes to the ground; width: a band of fixed width",
+                                            "enum": [
+                                                "daylight",
+                                                "width"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "terrain": {
+                                            "description": "Terrain body",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "width": {
+                                            "description": "mode width: the band's plan width in metres",
+                                            "maximum": 1000,
+                                            "minimum": 0.01,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "terrain",
+                                        "footprint",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Edit terrain change",
+                                    "properties": {
+                                        "command": {
+                                            "const": "terrain.update_edit"
+                                        },
+                                        "cutSlope": {
+                                            "maximum": 100,
+                                            "minimum": 0.01,
+                                            "type": "number"
+                                        },
+                                        "edit": {
+                                            "description": "ID of a recorded pad (stamp) change; the list is replayed",
+                                            "maximum": 4294967295,
+                                            "minimum": 1,
+                                            "type": "integer"
+                                        },
+                                        "elevation": {
+                                            "description": "New pad elevation (model Z, metres)",
+                                            "maximum": 100000000,
+                                            "minimum": -100000000,
+                                            "type": "number"
+                                        },
+                                        "fillSlope": {
+                                            "maximum": 100,
+                                            "minimum": 0.01,
+                                            "type": "number"
+                                        },
+                                        "maxDistance": {
+                                            "exclusiveMinimum": 0,
+                                            "maximum": 1000,
+                                            "type": "number"
+                                        },
+                                        "mode": {
+                                            "enum": [
+                                                "daylight",
+                                                "width"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "restamp": {
+                                            "description": "Re-read the footprint from the pad's source body",
+                                            "type": "boolean"
+                                        },
+                                        "terrain": {
+                                            "description": "Terrain body",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "width": {
+                                            "maximum": 1000,
+                                            "minimum": 0.01,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "terrain",
+                                        "edit",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Terrain display",
                                     "properties": {
                                         "command": {
