@@ -8,6 +8,7 @@
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
+#include "core/terrain_source_edit.hpp"
 #include "fuzz/parameter_expression_harness.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
@@ -399,6 +400,18 @@ int main(int argc, char **argv) {
             QJsonArray list;
             for (const auto &edit : edited.bodies().at(terrainId)->terrain->edits)
                 list.append(encodeTerrainEdit(*edit));
+            // R096.c: the production source edits join the mutated list.
+            {
+                auto added = std::make_shared<TerrainSourceEditData>();
+                added->source = 101;
+                added->role = TerrainSourceRole::Breakline;
+                added->points = {{1, 2, 3}, {4, 5, 6}, {7, 5, 6.5}};
+                auto removed = std::make_shared<TerrainSourceEditData>();
+                removed->source = 2;
+                removed->before = {-1, -1, 1, 1};
+                list.append(encodeTerrainEdit({10, terrainAddSourceKind, added}));
+                list.append(encodeTerrainEdit({11, terrainRemoveSourceKind, removed}));
+            }
             results.append(exercise("terrain-edits", QJsonDocument(list).toJson(QJsonDocument::Compact),
                                     [](const auto &bytes, bool &parsed) {
                                         const auto json = QJsonDocument::fromJson(bytes);

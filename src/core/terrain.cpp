@@ -1,4 +1,5 @@
 #include "core/terrain.hpp"
+#include "core/terrain_source_edit.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
 #include "core/terrain_edit.hpp"
@@ -77,7 +78,9 @@ void validateTerrainRecord(const TerrainRecord &record) {
         throw std::runtime_error("Terrain record has too many sources");
     std::size_t points = 0;
     std::set<std::uint32_t> ids;
+    std::uint32_t maxBaseId = 0;
     for (const auto &source : record.sources) {
+        maxBaseId = std::max(maxBaseId, source.id);
         if (!source.id || !ids.insert(source.id).second)
             throw std::runtime_error("Terrain source ids must be unique and not zero");
         if (!boundedText(source.reference, TerrainLimits::referenceBytes))
@@ -132,6 +135,14 @@ void validateTerrainRecord(const TerrainRecord &record) {
         if (edit->kind.empty() || !boundedText(edit->kind, TerrainLimits::editKindBytes) ||
             !findTerrainEditKind(edit->kind))
             throw std::runtime_error("Unknown terrain edit kind");
+        // R096.c: an added source's id is the largest base id plus the entry's id, so a file
+        // cannot claim an id a later entry will take.
+        if (edit->kind == terrainAddSourceKind) {
+            const auto *data = dynamic_cast<const TerrainSourceEditData *>(edit->data.get());
+            if (!data || std::uint64_t(data->source) != std::uint64_t(maxBaseId) + edit->id)
+                throw std::runtime_error("An added terrain source's id must be the largest base "
+                                         "source id plus its change's id");
+        }
     }
     if (terrainEditBytes(record.edits) > TerrainLimits::editBytes)
         throw std::runtime_error("Terrain edit list exceeds 8 MiB");

@@ -1162,6 +1162,17 @@ int main(int argc, char **argv) {
         // R096.a: the edit list commands (the fixture has one test-only edit).
         parameterCase("terrain.reset_edits", {{"terrain", "1"}});
         parameterCase("terrain.remove_edit", {{"terrain", "1"}, {"edit", 1}});
+        // R096.c: source edits on the same fixture (a spot-point source over one triangle).
+        parameterCase("terrain.edit_source",
+                      {{"terrain", "1"},
+                       {"source", 1},
+                       {"points", QJsonArray{QJsonArray{0, 0, -3}, QJsonArray{2, 0, -3},
+                                             QJsonArray{2, 2, -1.5}, QJsonArray{0, 2, -3}}}});
+        parameterCase("terrain.add_source",
+                      {{"terrain", "1"},
+                       {"role", "points"},
+                       {"points", QJsonArray{QJsonArray{1.5, 0.5, -2.5}}}});
+        parameterCase("terrain.remove_source", {{"terrain", "1"}, {"source", 1}});
         // R095.e2: display settings (contours, interval, shading); the fixture is set below.
         parameterCase("terrain.set_display", {{"terrain", "1"},
                                               {"contours", true},
@@ -1371,7 +1382,10 @@ int main(int argc, char **argv) {
             if (command["command"] == "terrain.set_parameters" ||
                 command["command"] == "terrain.regenerate" ||
                 command["command"] == "terrain.reset_edits" ||
-                command["command"] == "terrain.remove_edit") {
+                command["command"] == "terrain.remove_edit" ||
+                command["command"] == "terrain.edit_source" ||
+                command["command"] == "terrain.add_source" ||
+                command["command"] == "terrain.remove_source") {
                 // Stored points whose mesh is not the hand-made one, so both commit.
                 TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}}, {{0, 1, 2}}};
                 TerrainRecord record;

@@ -1,4 +1,6 @@
 #include "core/terrain_edit.hpp"
+#include "core/terrain_source_edit.hpp"
+#include "core/terrain_sources.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
 #include <algorithm>
@@ -533,13 +535,14 @@ TerrainSeamReport checkTerrainSeams(const Document &doc, Id terrain) {
 // ---- Edit kinds -----------------------------------------------------------------------------
 namespace {
 std::vector<TerrainEditKind> &kinds() {
-    // R096.a defines no production kind; R096.b–e add theirs here.
-    static std::vector<TerrainEditKind> registered;
+    // R096.c: the source edits are built in; R096.b, d and e add theirs here.
+    static std::vector<TerrainEditKind> registered = terrainSourceEditKinds();
     return registered;
 }
 } // namespace
 void registerTerrainEditKind(TerrainEditKind kind) {
-    if (kind.name.empty() || kind.name.size() > TerrainLimits::editKindBytes || !kind.apply)
+    if (kind.name.empty() || kind.name.size() > TerrainLimits::editKindBytes ||
+        (!kind.apply && !kind.applyInContext))
         throw std::invalid_argument("Invalid terrain edit kind");
     for (auto &existing : kinds())
         if (existing.name == kind.name) {
@@ -554,9 +557,22 @@ const TerrainEditKind *findTerrainEditKind(const std::string &name) {
             return &kind;
     return nullptr;
 }
+namespace {
+bool readsSources(const TerrainEditKind *kind) {
+    return kind && (kind->applyInContext || kind->sources || kind->protects);
+}
+TerrainEditOutcome applyKind(const TerrainEditKind &kind, const TerrainEditMesh &mesh,
+                             const TerrainSourceState *state, const TerrainParameters &parameters,
+                             const TerrainEdit &edit) {
+    if (kind.applyInContext)
+        return kind.applyInContext({mesh, *state, parameters}, edit);
+    return kind.apply(mesh, edit);
+}
+} // namespace
 TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
                                        const std::vector<TerrainEditPtr> &edits,
-                                       TerrainProgress *progress) {
+                                       TerrainProgress *progress, const TerrainSources &sources,
+                                       const TerrainParameters &parameters) {
     terrainCheckpoint(progress, TerrainStage::Replay, 0);
     TerrainReplayResult result;
     result.tiles.grid = base.grid;
@@ -568,6 +584,14 @@ TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
     TerrainEditMesh mesh(base.grid);
     for (const auto &tile : base.tiles)
         mesh.insertTile(tile);
+    // R096.c: the current sources, derived as the record's are (every entry's effect in order,
+    // applied or skipped), only when some entry reads or changes them.
+    std::optional<TerrainSourceState> state;
+    for (const auto &edit : edits)
+        if (readsSources(findTerrainEditKind(edit->kind))) {
+            state.emplace(sources);
+            break;
+        }
     for (std::size_t i = 0; i < edits.size(); ++i) {
         terrainCheckpoint(progress, TerrainStage::Replay, double(i) / double(edits.size()));
         const auto &edit = *edits[i];
@@ -579,23 +603,30 @@ TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
             skip("Unknown terrain edit kind");
             continue;
         }
-        // A refusal of the change is the entry no longer applying, like an empty outcome.
-        try {
-            const auto outcome = kind->apply(mesh, edit);
-            if (!outcome.change) {
-                skip(outcome.notice.empty() ? "The change no longer applies" : outcome.notice);
-                continue;
+        // One entry; its effect on the current sources is applied after it, applied or skipped.
+        const auto replayEntry = [&] {
+            // A refusal of the change is the entry no longer applying, like an empty outcome.
+            try {
+                const auto outcome =
+                    applyKind(*kind, mesh, state ? &*state : nullptr, parameters, edit);
+                if (!outcome.change) {
+                    skip(outcome.notice.empty() ? "The change no longer applies" : outcome.notice);
+                    return;
+                }
+                const auto region = replaceTerrainRegion(mesh, *outcome.change);
+                if (!region.trianglesAfter) {
+                    skip("The change would leave the terrain without triangles");
+                    return;
+                }
+                applyTerrainRegion(mesh, region);
+                ++result.applied;
+            } catch (const TerrainError &error) {
+                skip(error.what());
             }
-            const auto region = replaceTerrainRegion(mesh, *outcome.change);
-            if (!region.trianglesAfter) {
-                skip("The change would leave the terrain without triangles");
-                continue;
-            }
-            applyTerrainRegion(mesh, region);
-            ++result.applied;
-        } catch (const TerrainError &error) {
-            skip(error.what());
-        }
+        };
+        replayEntry();
+        if (state)
+            applyTerrainSourceEffect(*state, *kind, edit);
     }
     for (const auto *tile : mesh.tiles())
         result.tiles.tiles.push_back(tile->content);
@@ -611,9 +642,16 @@ void requireLevelTerrain(const Document &doc, Id terrain) {
         refuse("INVALID_OPERATION",
                "Terrain edits need a level terrain; this terrain is rotated off the vertical");
 }
-TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string &kindName,
-                                    std::shared_ptr<const TerrainEditData> data,
-                                    std::string label) {
+namespace {
+struct Computed {
+    std::uint32_t id{};
+    TerrainRecord record;
+    TerrainRegionResult region;
+    std::size_t removed{}, added{}, lifted{};
+};
+// Everything applyTerrainEdit does before the commit; previewTerrainEdit stops here.
+Computed computeTerrainEdit(const Document &doc, Id terrain, const std::string &kindName,
+                            std::shared_ptr<const TerrainEditData> data) {
     const auto found = doc.bodies().find(terrain);
     if (found == doc.bodies().end() || found->second->kind != BodyKind::Terrain ||
         !found->second->terrain)
@@ -643,17 +681,45 @@ TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string
                "The terrain's edit list would exceed 8 MiB; use Reset edits, or Explode terrain "
                "to keep the surface as ordinary geometry");
     const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
-    const auto outcome = kind->apply(*mesh, *entry);
+    std::shared_ptr<const TerrainSourceState> state;
+    if (readsSources(kind))
+        state = terrainSourceState(record);
+    const auto outcome = applyKind(*kind, *mesh, state.get(), record.parameters, *entry);
     if (!outcome.change)
         refuse("INVALID_REQUEST", outcome.notice.empty() ? "The terrain edit does not apply here"
                                                           : outcome.notice);
-    const auto result = replaceTerrainRegion(*mesh, *outcome.change);
+    Computed computed;
+    computed.region = replaceTerrainRegion(*mesh, *outcome.change);
+    computed.lifted = outcome.change->lifted.size();
+    computed.removed = outcome.change->removed.size();
+    computed.added = outcome.change->added.size();
+    computed.id = id;
     record.edits.push_back(std::move(entry));
     record.nextEditId = id + 1;
     record.generator = terrainEditGenerator;
+    computed.record = std::move(record);
+    return computed;
+}
+} // namespace
+TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string &kindName,
+                                    std::shared_ptr<const TerrainEditData> data,
+                                    std::string label) {
+    auto computed = computeTerrainEdit(doc, terrain, kindName, std::move(data));
     TerrainEditApplied applied;
-    applied.edit = id;
-    applied.tiles = applyTerrainTiles(doc, terrain, std::move(record), result, std::move(label));
+    applied.edit = computed.id;
+    applied.tiles = applyTerrainTiles(doc, terrain, std::move(computed.record), computed.region,
+                                      std::move(label));
     return applied;
+}
+TerrainEditPreview previewTerrainEdit(const Document &doc, Id terrain, const std::string &kindName,
+                                      std::shared_ptr<const TerrainEditData> data) {
+    auto computed = computeTerrainEdit(doc, terrain, kindName, std::move(data));
+    TerrainEditPreview preview;
+    preview.edit = computed.id;
+    preview.region = std::move(computed.region);
+    preview.removedTriangles = computed.removed;
+    preview.addedTriangles = computed.added;
+    preview.liftedVertices = computed.lifted;
+    return preview;
 }
 } // namespace sketchy

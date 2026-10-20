@@ -74,6 +74,9 @@ class TerrainEditMesh {
     std::vector<const Tile *> cellTiles(std::int64_t row, std::int64_t column) const;
     // Tiles whose plan bounding box, widened by `slack`, contains (x, y); in key order.
     std::vector<const Tile *> tilesAt(double x, double y, double slack) const;
+    // R096.c: tiles whose plan bounding box, widened by `slack`, overlaps the box; in key order.
+    std::vector<const Tile *> tilesIn(double minX, double minY, double maxX, double maxY,
+                                      double slack) const;
 
     // ---- Topology (built on first use) ----
     // The triangles at an exact position, in TerrainTriangleRef order; empty when no vertex is

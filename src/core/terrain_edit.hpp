@@ -98,16 +98,37 @@ struct TerrainEditOutcome {
     std::optional<TerrainRegionChange> change;
     std::string notice; // why it was skipped (located), when change is empty
 };
+// R096.c: what a kind may read besides the mesh: the current sources and protected regions
+// before the entry (core/terrain_sources.hpp, derived from the base sources and the entries
+// before it), and the terrain's parameters (the flat-triangle rule).
+class TerrainSourceState;
+struct TerrainEditContext {
+    const TerrainEditMesh &mesh;
+    const TerrainSourceState &sources;
+    const TerrainParameters &parameters;
+};
+// A plan polygon (terrain frame, counter-clockwise or not, closing edge implied).
+using TerrainPlanPolygon = std::vector<std::array<double, 2>>;
 struct TerrainEditKind {
     std::string name;
     std::function<TerrainEditOutcome(const TerrainEditMesh &, const TerrainEdit &)> apply;
     // Plan bounding box of the entry's influence (terrain frame): minX, minY, maxX, maxY.
     std::function<std::array<double, 4>(const TerrainEdit &)> bounds;
+    // R096.c: a kind that reads the current sources applies through this instead of `apply`.
+    std::function<TerrainEditOutcome(const TerrainEditContext &, const TerrainEdit &)>
+        applyInContext;
+    // R096.c: the entry's effect on the current sources (source edits). It reads no mesh, so
+    // the current sources of a record are derived without triangulating (ADR 0169 §2); it runs
+    // for every entry in order, applied or skipped, in replay and in the derivation alike.
+    std::function<void(TerrainSourceState &, const TerrainEdit &)> sources;
+    // R096.c, for R096.d: the plan polygons the entry protects (pads, ADR 0169 decision 6).
+    // Later source edits whose geometry enters one are refused ("inside-pad").
+    std::function<std::vector<TerrainPlanPolygon>(const TerrainEdit &)> protects;
 };
-// The kinds R096 defines (R096.a: none; R096.b–e add sculpt, smooth, the source edits, stamp
-// and drape) plus any registered by tests. Registration is for tests and the benchmark
-// (terrain_edit_benchmark's test-only operation); it is not thread-safe and must happen before
-// any terrain work.
+// The kinds R096 defines (R096.a: none; R096.c: editSource, addSource and removeSource; R096.b,
+// d and e add sculpt, smooth, stamp and drape) plus any registered by tests. Registration is for
+// tests and the benchmark (terrain_edit_benchmark's test-only operation); it is not thread-safe
+// and must happen before any terrain work.
 void registerTerrainEditKind(TerrainEditKind kind);
 const TerrainEditKind *findTerrainEditKind(const std::string &name);
 
@@ -123,6 +144,17 @@ struct TerrainEditApplied {
 TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string &kind,
                                     std::shared_ptr<const TerrainEditData> data,
                                     std::string label);
+// R096.c (ADR 0169 §5, the terrain preview path): the candidate of the same edit, computed on
+// the cached edit mesh exactly as applyTerrainEdit computes it, with nothing validated or
+// committed. Committing the same data gives these tiles bit for bit (tested). Refuses as
+// applyTerrainEdit does before its commit.
+struct TerrainEditPreview {
+    std::uint32_t edit{};           // the ID the entry would take
+    TerrainRegionResult region;     // the touched tiles' candidates, key order
+    std::size_t removedTriangles{}, addedTriangles{}, liftedVertices{};
+};
+TerrainEditPreview previewTerrainEdit(const Document &doc, Id terrain, const std::string &kind,
+                                      std::shared_ptr<const TerrainEditData> data);
 // ---- Replay (ADR 0169 §2) -------------------------------------------------------------------
 // Regenerate, Terrain settings, Reset edits and Remove change rebuild the terrain as the CDT of
 // its base sources followed by a replay of its edit list. Each entry replays against the mesh
@@ -141,9 +173,14 @@ struct TerrainReplayResult {
     std::size_t applied{};
     std::vector<TerrainReplaySkip> skipped;
 };
+// R096.c: kinds that read the current sources see them derived from `sources` (the base
+// sources) and the entries before them, with `parameters` (the replay's, which Terrain settings
+// may have changed).
 TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
                                        const std::vector<TerrainEditPtr> &edits,
-                                       TerrainProgress *progress = nullptr);
+                                       TerrainProgress *progress = nullptr,
+                                       const TerrainSources &sources = {},
+                                       const TerrainParameters &parameters = {});
 
 // Refuses (INVALID_OPERATION) a terrain whose frame is not level: edits are vertical in the
 // terrain frame, and "terrains are created level" (ADR 0169 §3).

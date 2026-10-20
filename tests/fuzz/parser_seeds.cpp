@@ -6,6 +6,7 @@
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
+#include "core/terrain_source_edit.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
 #include "io/stl_export.hpp"
@@ -346,6 +347,33 @@ int main(int argc, char **argv) {
             }
             publishRejected("terrain-edits", QJsonDocument(tooMany).toJson(QJsonDocument::Compact),
                             "oversized-count");
+            // R096.c: the production source edits (editSource, addSource, removeSource), and an
+            // added "contour" at two elevations, which the decoder refuses.
+            {
+                auto added = std::make_shared<TerrainSourceEditData>();
+                added->source = 101;
+                added->role = TerrainSourceRole::Breakline;
+                added->points = {{1, 2, 3}, {4, 5, 6}, {7, 5, 6.5}};
+                auto edited = std::make_shared<TerrainSourceEditData>();
+                edited->source = 1;
+                edited->role = TerrainSourceRole::Contour;
+                edited->points = {{0, 0, 10}, {2, 0, 10}, {2, 2, 10}, {0, 0, 10}};
+                edited->before = {0, 0, 2, 2};
+                auto removed = std::make_shared<TerrainSourceEditData>();
+                removed->source = 2;
+                removed->before = {-1, -1, 1, 1};
+                QJsonArray sources{
+                    encodeTerrainEdit({1, terrainAddSourceKind, added}),
+                    encodeTerrainEdit({2, terrainEditSourceKind, edited}),
+                    encodeTerrainEdit({3, terrainRemoveSourceKind, removed})};
+                publish("terrain-edits", QJsonDocument(sources).toJson(QJsonDocument::Compact),
+                        "source-edits");
+                auto twoLevels = sources[1].toObject();
+                twoLevels["points"] = QJsonArray{QJsonArray{0, 0, 10}, QJsonArray{2, 0, 11}};
+                publishRejected("terrain-edits",
+                                QJsonDocument(QJsonArray{twoLevels}).toJson(QJsonDocument::Compact),
+                                "contour-two-elevations");
+            }
         }
         // R095.c: terrain sources, the generated fixtures (ADR 0168 section 6). The invalid
         // fixture parses and its import is refused, which the harness checks too.

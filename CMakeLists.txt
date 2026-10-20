@@ -41,9 +41,11 @@ add_library(clipper2 ${SKETCHYUP_LIBRARY_TYPE}
   third_party/clipper2/src/clipper.rectclip.cpp
   third_party/clipper2/src/clipper.triangulation.cpp)
 target_include_directories(clipper2 PUBLIC third_party/clipper2/include)
-add_library(sketchyup_core src/geometry/measured_view.cpp src/core/camera_motion.cpp src/core/reference_images.cpp src/core/reference_image.cpp src/core/text_source.cpp src/core/terrain.cpp src/core/terrain_edit.cpp src/core/terrain_edit_mesh.cpp src/core/terrain_display.cpp src/core/annotation_records.cpp src/core/annotations.cpp src/core/annotation_anchors.cpp src/core/section_records.cpp src/core/sections.cpp src/geometry/section.cpp src/core/scene_records.cpp src/core/scenes.cpp src/core/drawing_sheet_records.cpp src/core/drawing_item_records.cpp src/core/drawing_item_lineage.cpp src/core/drawing_sheets.cpp src/core/face_textures.cpp src/core/texture_mapping.cpp src/core/hosted_components.cpp src/core/host_regeneration.cpp src/core/component_glue.cpp src/geometry/hosted_opening.cpp src/core/component_placement.cpp src/geometry/diagnostics.cpp src/core/shading_normals.cpp src/core/edge_appearance.cpp src/core/face_orientation.cpp src/geometry/orientation.cpp src/geometry/solid_operations.cpp src/core/solid_boolean.cpp src/geometry/boolean.cpp src/core/intersection_edit.cpp src/core/profile_sweep.cpp src/core/prepared_edit.cpp src/core/history.cpp src/core/entity_measure.cpp src/geometry/solid.cpp src/geometry/intersection.cpp src/core/tags.cpp src/core/asset_records.cpp src/core/assets.cpp src/core/material_records.cpp src/core/materials.cpp src/core/tag_records.cpp src/core/components.cpp src/core/component_records.cpp src/core/component_parameter_records.cpp src/core/component_parameters.cpp src/core/component_regeneration.cpp src/core/consolidation.cpp src/core/appearance.cpp src/core/geometry_subset.cpp src/core/groups.cpp src/core/transform_selection.cpp src/core/copy_array.cpp src/core/selection.cpp src/core/model.cpp src/core/document_limits.cpp src/core/transform.cpp src/geometry/surface.cpp src/geometry/arrangement.cpp src/geometry/topology.cpp src/geometry/planar.cpp src/geometry/offset.cpp src/geometry/sweep.cpp src/geometry/cleanup.cpp src/geometry/push_pull.cpp src/geometry/drawing.cpp src/geometry/curves.cpp src/geometry/inference.cpp src/geometry/constraints.cpp src/geometry/guides.cpp)
+add_library(sketchyup_core src/geometry/measured_view.cpp src/core/camera_motion.cpp src/core/reference_images.cpp src/core/reference_image.cpp src/core/text_source.cpp src/core/terrain.cpp src/core/terrain_edit.cpp src/core/terrain_edit_mesh.cpp src/core/terrain_display.cpp src/core/terrain_sources.cpp src/core/terrain_source_edit.cpp src/core/annotation_records.cpp src/core/annotations.cpp src/core/annotation_anchors.cpp src/core/section_records.cpp src/core/sections.cpp src/geometry/section.cpp src/core/scene_records.cpp src/core/scenes.cpp src/core/drawing_sheet_records.cpp src/core/drawing_item_records.cpp src/core/drawing_item_lineage.cpp src/core/drawing_sheets.cpp src/core/face_textures.cpp src/core/texture_mapping.cpp src/core/hosted_components.cpp src/core/host_regeneration.cpp src/core/component_glue.cpp src/geometry/hosted_opening.cpp src/core/component_placement.cpp src/geometry/diagnostics.cpp src/core/shading_normals.cpp src/core/edge_appearance.cpp src/core/face_orientation.cpp src/geometry/orientation.cpp src/geometry/solid_operations.cpp src/core/solid_boolean.cpp src/geometry/boolean.cpp src/core/intersection_edit.cpp src/core/profile_sweep.cpp src/core/prepared_edit.cpp src/core/history.cpp src/core/entity_measure.cpp src/geometry/solid.cpp src/geometry/intersection.cpp src/core/tags.cpp src/core/asset_records.cpp src/core/assets.cpp src/core/material_records.cpp src/core/materials.cpp src/core/tag_records.cpp src/core/components.cpp src/core/component_records.cpp src/core/component_parameter_records.cpp src/core/component_parameters.cpp src/core/component_regeneration.cpp src/core/consolidation.cpp src/core/appearance.cpp src/core/geometry_subset.cpp src/core/groups.cpp src/core/transform_selection.cpp src/core/copy_array.cpp src/core/selection.cpp src/core/model.cpp src/core/document_limits.cpp src/core/transform.cpp src/geometry/surface.cpp src/geometry/arrangement.cpp src/geometry/topology.cpp src/geometry/planar.cpp src/geometry/offset.cpp src/geometry/sweep.cpp src/geometry/cleanup.cpp src/geometry/push_pull.cpp src/geometry/drawing.cpp src/geometry/curves.cpp src/geometry/inference.cpp src/geometry/constraints.cpp src/geometry/guides.cpp)
 target_include_directories(sketchyup_core PUBLIC src)
 target_link_libraries(sketchyup_core PRIVATE clipper2 sketchyup_manifold)
+# R096.c: contour edits re-triangulate cavities through the terrain adapter (ADR 0169 §3).
+target_link_libraries(sketchyup_core PUBLIC sketchyup_terrain_triangulation)
 target_compile_options(sketchyup_core PRIVATE -Wall -Wextra -Wpedantic)
 add_library(sketchyup_solar src/solar/solar.cpp)
 target_include_directories(sketchyup_solar PUBLIC src)
@@ -84,6 +86,7 @@ endif()
 # and drives geometry with the same deterministic binary64 rules.
 target_link_libraries(sketchyup_core PUBLIC sketchyup_parameter_expression)
 set_source_files_properties(src/core/component_parameters.cpp src/core/component_regeneration.cpp
+                            src/core/terrain_sources.cpp src/core/terrain_source_edit.cpp
                             PROPERTIES COMPILE_OPTIONS "-ffp-contract=off;-fno-fast-math")
 # Opt-in R082.ff scaling harness. The production limits apply at the default scale;
 # a private core copy with raised limits measures placement growth past them.
@@ -93,7 +96,7 @@ get_target_property(sketchyup_core_sources sketchyup_core SOURCES)
 add_library(sketchyup_core_benchmark_limits STATIC EXCLUDE_FROM_ALL ${sketchyup_core_sources})
 target_include_directories(sketchyup_core_benchmark_limits PUBLIC src)
 target_compile_definitions(sketchyup_core_benchmark_limits PUBLIC SKETCHYUP_BENCHMARK_LIMIT_SCALE=8)
-target_link_libraries(sketchyup_core_benchmark_limits PRIVATE clipper2 sketchyup_manifold PUBLIC sketchyup_solar sketchyup_parameter_expression)
+target_link_libraries(sketchyup_core_benchmark_limits PRIVATE clipper2 sketchyup_manifold PUBLIC sketchyup_solar sketchyup_parameter_expression sketchyup_terrain_triangulation)
 add_executable(component_placement_scaling_raised_limits EXCLUDE_FROM_ALL tests/component_placement_scaling.cpp)
 target_link_libraries(component_placement_scaling_raised_limits PRIVATE sketchyup_core_benchmark_limits)
 include(CTest)
@@ -507,6 +510,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_include_directories(terrain_replay_tests PRIVATE tests)
     add_test(NAME terrain_replay COMMAND terrain_replay_tests)
     set_tests_properties(terrain_replay PROPERTIES TIMEOUT 900)
+    # R096.c: cavity re-triangulation and contour edit (ADR 0169 §3, §4.2, §6).
+    add_executable(terrain_source_edit_tests tests/terrain_source_edit_tests.cpp)
+    target_link_libraries(terrain_source_edit_tests PRIVATE sketchyup_io)
+    target_include_directories(terrain_source_edit_tests PRIVATE tests)
+    add_test(NAME terrain_source_edit COMMAND terrain_source_edit_tests)
+    set_tests_properties(terrain_source_edit PROPERTIES TIMEOUT 900)
     # R096.a: the one-tile edit budget (ADR 0169 §9; manual, build Release).
     add_executable(terrain_edit_benchmark EXCLUDE_FROM_ALL tests/terrain_edit_benchmark.cpp)
     target_link_libraries(terrain_edit_benchmark PRIVATE sketchyup_io)

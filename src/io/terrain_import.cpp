@@ -1,4 +1,5 @@
 #include "io/terrain_import.hpp"
+#include "core/terrain_sources.hpp"
 #include <QJsonArray>
 #include <unordered_set>
 #include <QJsonDocument>
@@ -47,76 +48,16 @@ struct Line {
 // vertex where the polyline doubles back exactly along itself, which the adapter's exact
 // constraint check would refuse as an overlap).
 void clean(Line &line, std::uint64_t &zeroLength, std::uint64_t &spikes) {
-    std::vector<TerrainVec3> out;
-    out.reserve(line.points.size());
-    auto spike = [](const TerrainVec3 &a, const TerrainVec3 &b, const TerrainVec3 &c) {
-        if (orient(a, b, c) != 0)
-            return false;
-        const double dot = (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y);
-        return dot < 0;
-    };
-    for (const auto &p : line.points) {
-        if (!out.empty() && duplicate(out.back(), p)) {
-            ++zeroLength;
-            continue;
-        }
-        out.push_back(p);
-        while (out.size() >= 3 && spike(out[out.size() - 3], out[out.size() - 2], out.back())) {
-            out.erase(out.end() - 2);
-            ++spikes;
-            if (duplicate(out[out.size() - 2], out.back())) {
-                out.pop_back();
-                ++zeroLength;
-            }
-        }
-    }
-    if (line.closed) {
-        bool changed = true;
-        while (changed && out.size() >= 2) {
-            changed = false;
-            if (duplicate(out.back(), out.front())) {
-                out.pop_back();
-                ++zeroLength;
-                changed = true;
-                continue;
-            }
-            if (out.size() >= 3) {
-                const auto n = out.size();
-                if (spike(out[n - 2], out[n - 1], out[0])) {
-                    out.pop_back();
-                    ++spikes;
-                    changed = true;
-                } else if (spike(out[n - 1], out[0], out[1])) {
-                    out.erase(out.begin());
-                    ++spikes;
-                    changed = true;
-                }
-            }
-        }
-    }
-    line.points = std::move(out);
+    // R096.c: shared with the source edits (core/terrain_sources.hpp).
+    TerrainPolylineCleaning counts;
+    cleanTerrainPolyline(line.points, line.closed, counts);
+    zeroLength += counts.zeroLength;
+    spikes += counts.spikes;
 }
 
 // Rings start at their lexicographically smallest vertex and run counter-clockwise; open
-// polylines start at their smaller endpoint.
-void canonical(Line &line) {
-    auto &p = line.points;
-    if (p.size() < 2)
-        return;
-    if (!line.closed) {
-        if (lexLess(p.back(), p.front()))
-            std::reverse(p.begin(), p.end());
-        return;
-    }
-    std::rotate(p.begin(), std::min_element(p.begin(), p.end(), lexLess), p.end());
-    long double area = 0;
-    for (std::size_t i = 0; i < p.size(); ++i) {
-        const auto &a = p[i], &b = p[(i + 1) % p.size()];
-        area += (long double)a.x * b.y - (long double)b.x * a.y;
-    }
-    if (area < 0)
-        std::reverse(p.begin() + 1, p.end());
-}
+// polylines start at their smaller endpoint (core/terrain_sources.hpp, shared with source edits).
+void canonical(Line &line) { canonicalTerrainPolyline(line.points, line.closed); }
 bool sequenceLess(const Line &a, const Line &b) {
     const auto order = std::lexicographical_compare(a.points.begin(), a.points.end(),
                                                     b.points.begin(), b.points.end(), lexLess);
@@ -821,6 +762,18 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
                        std::nullopt,
                        std::to_string(prepared.sources.size()) + " sources, " +
                            std::to_string(vertices) + " vertices"});
+    // R096.c: a stored -0.0 would not survive the record's JSON (it reads back as +0.0), and the
+    // mesh triangulated from it would then differ in its bits from the one Regenerate builds after
+    // a reopen (C7). Source coordinates are stored as +0.0 instead; the value is the same.
+    for (auto &source : prepared.sources) {
+        bool negativeZero = false;
+        for (const auto &p : source.points)
+            negativeZero = negativeZero || (p.x == 0 && std::signbit(p.x)) ||
+                           (p.y == 0 && std::signbit(p.y)) || (p.z == 0 && std::signbit(p.z));
+        if (negativeZero)
+            for (auto &p : source.points)
+                p = {p.x + 0.0, p.y + 0.0, p.z + 0.0};
+    }
     prepared.ok = !report.refused();
     return prepared;
 }
@@ -1273,7 +1226,8 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
     QJsonObject edits{{"count", double(record.edits.size())}, {"applied", 0}, {"skipped", 0}};
     if (result.ok) {
         const auto base = terrainTileSet(result.mesh, progress);
-        auto replayed = replayTerrainEdits(base, record.edits, progress);
+        auto replayed =
+            replayTerrainEdits(base, record.edits, progress, record.sources, parameters);
         std::size_t triangles = 0;
         for (const auto &tile : replayed.tiles.tiles)
             triangles += tile->triangles.size();

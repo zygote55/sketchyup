@@ -64,6 +64,28 @@ bool assistantVisible(const QString &name) {
            !name.startsWith(QStringLiteral("site.")) &&
            !name.startsWith(QStringLiteral("terrain."));
 }
+// R096.c: what the assistant reads of a query result. terrain.describe keeps the shape R095.g
+// measured: its `currentSources` (R096.c; up to 200 entries naming source ids no assistant tool
+// takes) is dropped here, while MCP and sessions keep it. A nested inspection of a draft
+// (transaction.inspect {request}) is filtered the same way, wherever its envelope carries it.
+QJsonObject assistantResult(const QJsonObject &request, QJsonObject result) {
+    const auto nested = request.value("request").toObject();
+    if (request.value("query") != QStringLiteral("terrain.describe") &&
+        nested.value("query") != QStringLiteral("terrain.describe"))
+        return result;
+    const auto strip = [](QJsonObject envelope) {
+        auto data = envelope.value("data").toObject();
+        if (data.contains("currentSources")) {
+            data.remove("currentSources");
+            envelope["data"] = data;
+        }
+        return envelope;
+    };
+    result = strip(result);
+    if (result.value("result").isObject())
+        result["result"] = strip(result.value("result").toObject());
+    return result;
+}
 // Tool descriptions the assistant sees where the shared catalogue has none (inspection
 // queries carry only their schema). They state units and coordinate spaces (R095.g).
 QString assistantDescription(const QString &name) {
@@ -298,7 +320,8 @@ AssistantTask::AssistantTask(AssistantBackend backend, Options options, Now now)
             fail("INVALID_REQUEST", "Context must inspect the bound document revision");
         if (size(request) > inspectionRequestBytes)
             fail("LIMIT_EXCEEDED", "Context query exceeds inspection bound");
-        selected.append(QJsonObject{{"request", request}, {"result", backend_.call(request)}});
+        selected.append(QJsonObject{{"request", request},
+                                    {"result", assistantResult(request, backend_.call(request))}});
         if (size(selected) > limit.contextBytes)
             fail("LIMIT_EXCEEDED", "Initial context exceeds its byte budget");
     }
@@ -592,7 +615,7 @@ QJsonObject AssistantTask::execute(const AssistantToolCall &call) {
         };
         authorize(args.value("commands").toArray());
     }
-    const auto result = backend_.call(args);
+    const auto result = assistantResult(args, backend_.call(args));
     if (call.name == "transaction.begin") {
         draft_ = result["transactionId"].toString();
         draftState_ = {};
