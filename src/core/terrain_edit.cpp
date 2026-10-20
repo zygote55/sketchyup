@@ -1,6 +1,7 @@
 #include "core/terrain_edit.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include "core/terrain_sources.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
@@ -536,11 +537,13 @@ TerrainSeamReport checkTerrainSeams(const Document &doc, Id terrain) {
 // ---- Edit kinds -----------------------------------------------------------------------------
 namespace {
 std::vector<TerrainEditKind> &kinds() {
-    // R096.c: the source edits are built in; R096.b: sculpt and smooth; R096.d and e add
-    // theirs here.
+    // R096.c: the source edits are built in; R096.b: sculpt and smooth; R096.d: stamp; R096.e
+    // adds drape here.
     static std::vector<TerrainEditKind> registered = [] {
         auto list = terrainSourceEditKinds();
         for (auto &kind : terrainSculptKinds())
+            list.push_back(std::move(kind));
+        for (auto &kind : terrainStampKinds())
             list.push_back(std::move(kind));
         return list;
     }();
@@ -566,7 +569,15 @@ const TerrainEditKind *findTerrainEditKind(const std::string &name) {
 }
 namespace {
 bool readsSources(const TerrainEditKind *kind) {
-    return kind && (kind->applyInContext || kind->sources || kind->protects);
+    return kind && (kind->applyInContext || kind->sources || kind->protects ||
+                    kind->protectedPoints);
+}
+// R096.d: the entry with the data its kind recomputed (or cleared), or the entry itself when the
+// data stands, so a list that did not change keeps its pointers.
+TerrainEditPtr withData(const TerrainEditPtr &edit, const std::shared_ptr<const TerrainEditData> &data) {
+    if (!data || data == edit->data || (edit->data && data->equals(*edit->data)))
+        return edit;
+    return std::make_shared<const TerrainEdit>(TerrainEdit{edit->id, edit->kind, data});
 }
 TerrainEditOutcome applyKind(const TerrainEditKind &kind, const TerrainEditMesh &mesh,
                              const TerrainSourceState *state, const TerrainParameters &parameters,
@@ -588,6 +599,7 @@ TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
         terrainCheckpoint(progress, TerrainStage::Replay, 1);
         return result;
     }
+    result.edits.reserve(edits.size());
     TerrainEditMesh mesh(base.grid);
     for (const auto &tile : base.tiles)
         mesh.insertTile(tile);
@@ -603,11 +615,16 @@ TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
         terrainCheckpoint(progress, TerrainStage::Replay, double(i) / double(edits.size()));
         const auto &edit = *edits[i];
         const auto *kind = findTerrainEditKind(edit.kind);
+        // R096.d: the entry as replayed (its kind may recompute or clear its resolved geometry).
+        auto entry = edits[i];
         auto skip = [&](std::string notice) {
             result.skipped.push_back({edit.id, edit.kind, std::move(notice)});
+            if (kind && kind->unresolved)
+                entry = withData(edits[i], kind->unresolved(edit));
         };
         if (!kind) {
             skip("Unknown terrain edit kind");
+            result.edits.push_back(entry);
             continue;
         }
         // One entry; its effect on the current sources is applied after it, applied or skipped.
@@ -626,14 +643,17 @@ TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
                     return;
                 }
                 applyTerrainRegion(mesh, region);
+                entry = withData(edits[i], outcome.data);
                 ++result.applied;
             } catch (const TerrainError &error) {
                 skip(error.what());
+                result.skipped.back().error = std::current_exception();
             }
         };
         replayEntry();
         if (state)
-            applyTerrainSourceEffect(*state, *kind, edit);
+            applyTerrainSourceEffect(*state, *kind, *entry);
+        result.edits.push_back(entry);
     }
     for (const auto *tile : mesh.tiles())
         result.tiles.tiles.push_back(tile->content);
@@ -695,6 +715,15 @@ Computed computeTerrainEdit(const Document &doc, Id terrain, const std::string &
     if (!outcome.change)
         refuse("INVALID_REQUEST", outcome.notice.empty() ? "The terrain edit does not apply here"
                                                           : outcome.notice);
+    // R096.d: the entry is stored with the resolved geometry its kind computed, which counts
+    // against the list's bound too.
+    if (outcome.data && !outcome.data->equals(*entry->data)) {
+        entry = std::make_shared<TerrainEdit>(TerrainEdit{id, kindName, outcome.data});
+        if (terrainEditBytes(record.edits) + terrainEditEntryBytes(*entry) > TerrainLimits::editBytes)
+            refuse("LIMIT_EXCEEDED",
+                   "The terrain's edit list would exceed 8 MiB; use Reset edits, or Explode "
+                   "terrain to keep the surface as ordinary geometry");
+    }
     Computed computed;
     computed.region = replaceTerrainRegion(*mesh, *outcome.change);
     computed.lifted = outcome.change->lifted.size();

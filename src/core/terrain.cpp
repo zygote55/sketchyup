@@ -1,6 +1,7 @@
 #include "core/terrain.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
 #include "core/terrain_edit.hpp"
@@ -160,6 +161,25 @@ void validateTerrainRecord(const TerrainRecord &record) {
                 if (!high || id > *high || id < *low)
                     throw std::runtime_error("A terrain sculpt's pieces take ids from its own "
                                              "block (ADR 0108, R096.b)");
+        }
+    // R096.d: a pad's fields, and its recorded pieces from its own block (ordinals 0 and 1 name
+    // its outline and daylight line, so pieces start below them).
+    for (const auto &edit : record.edits)
+        if (edit->kind == terrainStampKind) {
+            const auto *data = dynamic_cast<const TerrainStampData *>(edit->data.get());
+            if (!data)
+                throw std::runtime_error("Invalid terrain stamp entry");
+            try {
+                validateTerrainStampData(*data);
+            } catch (const std::invalid_argument &error) {
+                throw std::runtime_error(error.what());
+            }
+            const auto high = terrainSplitSourceId(edit->id, 2),
+                       low = terrainSplitSourceId(edit->id, terrainSculptPiecesPerEdit - 1);
+            for (const auto &[parent, id] : data->pieces)
+                if (!high || id > *high || id < *low)
+                    throw std::runtime_error("A terrain stamp's pieces take ids from its own "
+                                             "block (ADR 0108, R096.d)");
         }
     if (terrainEditBytes(record.edits) > TerrainLimits::editBytes)
         throw std::runtime_error("Terrain edit list exceeds 8 MiB");

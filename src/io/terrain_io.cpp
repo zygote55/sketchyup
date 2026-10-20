@@ -3,6 +3,7 @@
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "io/native_limits.hpp"
 #include <QJsonArray>
@@ -284,6 +285,141 @@ std::vector<TerrainEditCodec> builtinCodecs() {
                  return data;
              }});
     }
+    // R096.d stamp (ADR 0169 §4.3, §7): the parameters {footprint, elevation, mode, cutSlope,
+    // fillSlope, maxDistance | width, sourceBody?, sourceFace?} and, when the pad applied, its
+    // resolved geometry {outline, rays [[start, x, y, z]], dropped?, pieces?}. Plan points are
+    // [x, y] in the terrain frame; body and face IDs are decimal strings.
+    list.push_back(
+        {terrainStampKind,
+         [](const TerrainEditData &data) {
+             const auto &stamp = dynamic_cast<const TerrainStampData &>(data);
+             auto plan = [](const std::vector<std::array<double, 2>> &points) {
+                 QJsonArray list;
+                 for (const auto &p : points)
+                     list.append(QJsonArray{p[0], p[1]});
+                 return list;
+             };
+             QJsonObject object{{"footprint", plan(stamp.footprint)},
+                                {"elevation", stamp.elevation},
+                                {"mode", terrainStampModeName(stamp.mode)}};
+             if (stamp.mode == TerrainStampMode::Daylight) {
+                 object["cutSlope"] = stamp.cutSlope;
+                 object["fillSlope"] = stamp.fillSlope;
+                 object["maxDistance"] = stamp.maxDistance;
+             } else
+                 object["width"] = stamp.width;
+             if (stamp.sourceBody)
+                 object["sourceBody"] = QString::number(stamp.sourceBody);
+             if (stamp.sourceFace)
+                 object["sourceFace"] = QString::number(stamp.sourceFace);
+             if (stamp.resolved()) {
+                 object["outline"] = plan(stamp.outline);
+                 QJsonArray rays;
+                 for (const auto &ray : stamp.rays)
+                     rays.append(QJsonArray{double(ray.start), ray.daylight.x, ray.daylight.y,
+                                            ray.daylight.z});
+                 object["rays"] = rays;
+                 if (stamp.dropped)
+                     object["dropped"] = double(stamp.dropped);
+                 if (!stamp.pieces.empty()) {
+                     QJsonArray pieces;
+                     for (const auto &[parent, id] : stamp.pieces)
+                         pieces.append(QJsonArray{double(parent), double(id)});
+                     object["pieces"] = pieces;
+                 }
+             }
+             return object;
+         },
+         [](const QJsonObject &entry) -> std::shared_ptr<const TerrainEditData> {
+             auto data = std::make_shared<TerrainStampData>();
+             const auto mode = text(entry["mode"]);
+             if (mode != "daylight" && mode != "width")
+                 throw std::runtime_error("A terrain stamp's mode is daylight or width");
+             data->mode = mode == "width" ? TerrainStampMode::Width : TerrainStampMode::Daylight;
+             QStringList fields{"footprint", "elevation", "mode"};
+             if (data->mode == TerrainStampMode::Daylight)
+                 fields << "cutSlope" << "fillSlope" << "maxDistance";
+             else
+                 fields << "width";
+             for (const char *optional : {"sourceBody", "sourceFace", "dropped", "pieces"})
+                 if (entry.contains(optional))
+                     fields << optional;
+             const bool resolved = entry.contains("outline") || entry.contains("rays");
+             if (resolved)
+                 fields << "outline" << "rays";
+             exactFields(entry, fields, "terrain stamp");
+             auto plan = [](const QJsonValue &value, std::size_t limit,
+                            std::vector<std::array<double, 2>> &out) {
+                 const auto points = array(value);
+                 if (std::size_t(points.size()) > limit)
+                     throw std::runtime_error("A terrain stamp has too many points");
+                 out.reserve(std::size_t(points.size()));
+                 for (const auto &p : points) {
+                     const auto xy = array(p);
+                     if (xy.size() != 2)
+                         throw std::runtime_error("A terrain stamp point is [x, y]");
+                     out.push_back({number(xy[0]), number(xy[1])});
+                 }
+             };
+             plan(entry["footprint"], terrainStampFootprintPoints, data->footprint);
+             data->elevation = number(entry["elevation"]);
+             if (data->mode == TerrainStampMode::Daylight) {
+                 data->cutSlope = number(entry["cutSlope"]);
+                 data->fillSlope = number(entry["fillSlope"]);
+                 data->maxDistance = number(entry["maxDistance"]);
+             } else
+                 data->width = number(entry["width"]);
+             auto id = [](const QJsonValue &value) {
+                 bool ok = false;
+                 const auto text = value.toString();
+                 const auto parsed = text.toULongLong(&ok);
+                 if (!value.isString() || !ok || !parsed || QString::number(parsed) != text)
+                     throw std::runtime_error("A terrain stamp's source is a stable ID");
+                 return Id(parsed);
+             };
+             if (entry.contains("sourceBody"))
+                 data->sourceBody = id(entry["sourceBody"]);
+             if (entry.contains("sourceFace"))
+                 data->sourceFace = id(entry["sourceFace"]);
+             if (resolved) {
+                 plan(entry["outline"], terrainStampOutlinePoints, data->outline);
+                 if (data->outline.empty())
+                     throw std::runtime_error("A resolved terrain stamp has an outline");
+                 const auto rays = array(entry["rays"]);
+                 if (std::size_t(rays.size()) > terrainStampRays)
+                     throw std::runtime_error("A terrain stamp has too many rays");
+                 data->rays.reserve(std::size_t(rays.size()));
+                 for (const auto &value : rays) {
+                     const auto ray = array(value);
+                     if (ray.size() != 4)
+                         throw std::runtime_error("A terrain stamp ray is [start, x, y, z]");
+                     data->rays.push_back(
+                         {std::uint32_t(integer(ray[0], 0, double(terrainStampOutlinePoints))),
+                          {number(ray[1]), number(ray[2]), number(ray[3])}});
+                 }
+             }
+             if (entry.contains("dropped"))
+                 data->dropped =
+                     std::uint32_t(integer(entry["dropped"], 1, double(terrainStampRays) * 4));
+             if (entry.contains("pieces")) {
+                 const auto pieces = array(entry["pieces"]);
+                 if (pieces.isEmpty() || std::size_t(pieces.size()) > terrainSculptPiecesPerEdit)
+                     throw std::runtime_error("A terrain stamp records 1 to 4,096 pieces");
+                 for (const auto &value : pieces) {
+                     const auto pair = array(value);
+                     if (pair.size() != 2)
+                         throw std::runtime_error("A terrain stamp piece is [source, id]");
+                     data->pieces.push_back({std::uint32_t(integer(pair[0], 1, 4294967295.0)),
+                                             std::uint32_t(integer(pair[1], 1, 4294967295.0))});
+                 }
+             }
+             try {
+                 validateTerrainStampData(*data);
+             } catch (const std::invalid_argument &error) {
+                 throw std::runtime_error(error.what());
+             }
+             return data;
+         }});
     return list;
 }
 } // namespace

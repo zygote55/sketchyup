@@ -13,6 +13,7 @@
 // The replay engine (R096.a part 2) runs the same steps on an in-memory mesh.
 #include "core/terrain.hpp"
 #include "core/terrain_edit_mesh.hpp"
+#include <exception>
 #include <functional>
 #include <optional>
 #include <string>
@@ -97,6 +98,10 @@ TerrainSeamReport checkTerrainSeams(const Document &doc, Id terrain);
 struct TerrainEditOutcome {
     std::optional<TerrainRegionChange> change;
     std::string notice; // why it was skipped (located), when change is empty
+    // R096.d: the entry's data with its resolved geometry recomputed against this mesh (a pad's
+    // daylight line), or null when the recorded data stands. An entry whose recomputed data
+    // differs is stored with it (the incremental edit and the replay alike).
+    std::shared_ptr<const TerrainEditData> data = nullptr;
 };
 // R096.c: what a kind may read besides the mesh: the current sources and protected regions
 // before the entry (core/terrain_sources.hpp, derived from the base sources and the entries
@@ -129,10 +134,14 @@ struct TerrainEditKind {
     std::function<std::vector<TerrainPlanPolygon>(const TerrainEdit &)> protects;
     // R096.d: exact plan positions the entry protects besides its polygons (a pad's outline
     // vertices: the edge-ray starts lie on the footprint's edges only up to rounding).
-    std::function<std::vector<std::array<double, 2>>(const TerrainEdit &)> protectedPoints;
+    std::function<std::vector<std::array<double, 2>>(const TerrainEdit &)> protectedPoints = {};
+    // R096.d: the entry's data when a replay skips it (its resolved geometry cleared, so the
+    // derived current sources and protected regions leave its effect out), or null when the
+    // recorded data stands.
+    std::function<std::shared_ptr<const TerrainEditData>(const TerrainEdit &)> unresolved = {};
 };
 // The kinds R096 defines (R096.a: none; R096.c: editSource, addSource and removeSource; R096.b:
-// sculpt and smooth; R096.d and e add stamp and drape) plus any registered by tests. Registration is for
+// sculpt and smooth; R096.d: stamp; R096.e adds drape) plus any registered by tests. Registration is for
 // tests and the benchmark (terrain_edit_benchmark's test-only operation); it is not thread-safe
 // and must happen before any terrain work.
 void registerTerrainEditKind(TerrainEditKind kind);
@@ -173,11 +182,17 @@ TerrainEditPreview previewTerrainEdit(const Document &doc, Id terrain, const std
 struct TerrainReplaySkip {
     std::uint32_t edit{};
     std::string kind, notice;
+    // R096.d: the refusal that skipped it (a TerrainEditRefused carries located problems), so a
+    // command that requires the entry to apply can report it.
+    std::exception_ptr error = nullptr;
 };
 struct TerrainReplayResult {
     TerrainTileSet tiles;            // key order
     std::size_t applied{};
     std::vector<TerrainReplaySkip> skipped;
+    // R096.d: the list as replayed: an entry whose kind recomputed its resolved geometry (or
+    // cleared it when skipped) is a new entry with the same id; every other is the same pointer.
+    std::vector<TerrainEditPtr> edits;
 };
 // R096.c: kinds that read the current sources see them derived from `sources` (the base
 // sources) and the entries before them, with `parameters` (the replay's, which Terrain settings
