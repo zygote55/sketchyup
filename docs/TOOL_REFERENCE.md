@@ -160,6 +160,11 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `terrain.create_from_edges` | Create terrain | `edges`, `command` |
 | `terrain.set_parameters` | Terrain settings | `terrain`, `command` |
 | `terrain.regenerate` | Regenerate terrain | `terrain`, `command` |
+| `terrain.reset_edits` | Reset terrain edits | `terrain`, `command` |
+| `terrain.remove_edit` | Remove terrain change | `terrain`, `edit`, `command` |
+| `terrain.edit_source` | Edit contour | `terrain`, `source`, `command` |
+| `terrain.add_source` | Add contour | `terrain`, `command` |
+| `terrain.remove_source` | Remove contour | `terrain`, `source`, `command` |
 | `terrain.set_display` | Terrain display | `terrain`, `command` |
 
 ## Bounded queries

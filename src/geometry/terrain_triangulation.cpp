@@ -303,7 +303,9 @@ class VertexStore {
 // ---------------------------------------------------------------------------------------
 // Constraint segments.
 // ---------------------------------------------------------------------------------------
-enum SegmentKind : unsigned char { DataSegment = 1, RegionSegment = 2 };
+// R096.c: CavitySegment marks a cavity boundary edge, shared with the surrounding mesh, so it
+// is never split (a vertex touching it is refused like a touch on a data segment).
+enum SegmentKind : unsigned char { DataSegment = 1, RegionSegment = 2, CavitySegment = 4 };
 struct Segment {
     u32 a, b;
     unsigned char kind;
@@ -720,6 +722,211 @@ class Elevation {
 } // namespace
 
 namespace {
+// The flat-triangle flip of step 10, shared with the cavity and the elevation-only path.
+// Returns false when a flip found a broken neighbourhood (the caller refuses).
+bool flipFlats(Mesh &mesh, const Surface &surface, const std::vector<u64> &fixedKeys,
+               double flatTol, const Steps &step, double from, double to,
+               TerrainTriangulationReport &report) {
+    // A flip is applied when it keeps every constraint (constraint edges are never flipped),
+    // the quadrilateral is strictly convex, and it leaves fewer flat triangles in the pair.
+    // Each flip lowers the flat count, so the loop ends; the queue order is fixed.
+    std::vector<u32> queue;
+    std::vector<char> queued(mesh.v.size(), 0);
+    for (u32 t = 0; t < mesh.v.size(); ++t)
+        if (isFlat(surface, mesh.v[t], flatTol)) {
+            queue.push_back(t);
+            queued[t] = 1;
+        }
+    for (std::size_t head = 0; head < queue.size(); ++head) {
+        step.every(head, queue.size(), from, to);
+        const u32 t = queue[head];
+        queued[t] = 0;
+        if (!isFlat(surface, mesh.v[t], flatTol))
+            continue;
+        for (u32 slot = 0; slot < 3; ++slot) {
+            const u32 n = mesh.nb[t][slot];
+            if (n == kNone ||
+                sortedContains(fixedKeys, edgeKey(mesh.v[t][slot], mesh.v[t][(slot + 1) % 3])))
+                continue;
+            bool flipped = false;
+            if (!flipEdge(mesh, surface, t, slot, flatTol, true, flipped)) {
+                return false;
+            }
+            if (!flipped)
+                continue;
+            ++report.flipsApplied;
+            std::vector<u32> touched{t, n};
+            for (u32 w : {t, n})
+                for (u32 i = 0; i < 3; ++i)
+                    if (mesh.nb[w][i] != kNone)
+                        touched.push_back(mesh.nb[w][i]);
+            for (u32 w : touched)
+                if (!queued[w] && isFlat(surface, mesh.v[w], flatTol)) {
+                    queued[w] = 1;
+                    queue.push_back(w);
+                }
+            break;
+        }
+    }
+    return true;
+}
+
+// Step 4 of the pipeline, shared with the cavity: crossing, touching and overlapping
+// constraint segments, with exact predicates. Returns false when the segments are too long and
+// dense to check (a limit-exceeded problem is added); the caller then refuses.
+bool findCrossings(std::vector<Segment> &segments, VertexStore &store, std::size_t total,
+                   const Steps &step, Problems &problems, TerrainTriangulationReport &report) {
+    const auto &flags = store.flags;
+    // Exact predicates throughout. A vertex strictly inside a segment is a touch: allowed only
+    // on a region segment, which is split there. Two segments with no common endpoint that
+    // properly cross are an error. Segments sharing an endpoint cannot properly cross; if they
+    // overlap, an endpoint of one lies inside the other, which is a touch.
+    std::vector<std::vector<u32>> splits(segments.size());
+    if (!segments.empty()) {
+        Grid grid(store.xy, flags, std::max(segments.size(), total));
+        const auto cellCount = std::size_t(grid.cells());
+        CellLists vertexCells;
+        vertexCells.start.assign(cellCount + 1, 0);
+        for (u32 v = 0; v < total; ++v)
+            if (!(flags[v] & Dropped))
+                ++vertexCells.start[std::size_t(grid.cell(store.xy[v])) + 1];
+        for (std::size_t c = 0; c < cellCount; ++c)
+            vertexCells.start[c + 1] += vertexCells.start[c];
+        vertexCells.items.resize(vertexCells.start[cellCount]);
+        {
+            std::vector<u32> fill(cellCount, 0);
+            for (u32 v = 0; v < total; ++v)
+                if (!(flags[v] & Dropped)) {
+                    const auto c = std::size_t(grid.cell(store.xy[v]));
+                    vertexCells.items[vertexCells.start[c] + fill[c]++] = v;
+                }
+        }
+        step(.16);
+        CellLists segmentCells;
+        segmentCells.start.assign(cellCount + 1, 0);
+        std::size_t entries = 0;
+        for (const auto &s : segments)
+            grid.raster(store.xy[s.a], store.xy[s.b], [&](int c) {
+                ++segmentCells.start[std::size_t(c) + 1];
+                ++entries;
+            });
+        if (entries > kMaxGridEntries) {
+            problems.add(TerrainProblemKind::LimitExceeded);
+            problems.detail(
+                TerrainProblemKind::LimitExceeded,
+                format(
+                    "The constraint segments are too long and dense to check (%llu cell entries).",
+                    entries));
+            return false;
+        }
+        for (std::size_t c = 0; c < cellCount; ++c)
+            segmentCells.start[c + 1] += segmentCells.start[c];
+        segmentCells.items.resize(entries);
+        {
+            std::vector<u32> fill(cellCount, 0);
+            for (u32 i = 0; i < segments.size(); ++i)
+                grid.raster(store.xy[segments[i].a], store.xy[segments[i].b], [&](int c) {
+                    segmentCells
+                        .items[segmentCells.start[std::size_t(c)] + fill[std::size_t(c)]++] = i;
+                });
+        }
+        step(.17);
+        // Vertices inside segments.
+        std::vector<std::pair<u32, u32>> touches; // (segment, vertex)
+        for (u32 i = 0; i < segments.size(); ++i) {
+            step.every(i, segments.size(), .17, .20);
+            const Pt &a = store.xy[segments[i].a];
+            const Pt &b = store.xy[segments[i].b];
+            grid.raster(a, b, [&](int c) {
+                for (u32 k = vertexCells.start[std::size_t(c)];
+                     k < vertexCells.start[std::size_t(c) + 1]; ++k) {
+                    const u32 v = vertexCells.items[k];
+                    if (v != segments[i].a && v != segments[i].b && inBox(a, b, store.xy[v]) &&
+                        orientSign(a, b, store.xy[v]) == 0)
+                        touches.emplace_back(i, v);
+                }
+            });
+        }
+        std::sort(touches.begin(), touches.end());
+        touches.erase(std::unique(touches.begin(), touches.end()), touches.end());
+        for (const auto &[i, v] : touches) {
+            if (segments[i].kind & RegionSegment)
+                splits[i].push_back(v);
+            else
+                problems.add(TerrainProblemKind::CrossingConstraints, store.xy[v],
+                             segments[i].source, store.source(v));
+        }
+        // Segment pairs that properly cross.
+        std::vector<u64> pairs;
+        for (std::size_t c = 0; c < cellCount && pairs.size() <= kMaxCrossingPairs; ++c) {
+            step.every(c, cellCount, .20, .24);
+            for (u32 x = segmentCells.start[c]; x < segmentCells.start[c + 1]; ++x) {
+                const auto &s = segments[segmentCells.items[x]];
+                const Pt &a = store.xy[s.a], &b = store.xy[s.b];
+                for (u32 y = x + 1; y < segmentCells.start[c + 1]; ++y) {
+                    const auto &r = segments[segmentCells.items[y]];
+                    if (r.a == s.a || r.a == s.b || r.b == s.a || r.b == s.b)
+                        continue;
+                    const Pt &c0 = store.xy[r.a], &d0 = store.xy[r.b];
+                    if (std::max(a.x, b.x) < std::min(c0.x, d0.x) ||
+                        std::max(c0.x, d0.x) < std::min(a.x, b.x) ||
+                        std::max(a.y, b.y) < std::min(c0.y, d0.y) ||
+                        std::max(c0.y, d0.y) < std::min(a.y, b.y))
+                        continue;
+                    const int o1 = orientSign(a, b, c0), o2 = orientSign(a, b, d0);
+                    if (o1 * o2 >= 0)
+                        continue;
+                    if (orientSign(c0, d0, a) * orientSign(c0, d0, b) >= 0)
+                        continue;
+                    pairs.push_back(u64(segmentCells.items[x]) << 32 | segmentCells.items[y]);
+                }
+            }
+        }
+        std::sort(pairs.begin(), pairs.end());
+        pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+        for (u64 pair : pairs) {
+            const auto &s = segments[pair >> 32];
+            const auto &r = segments[pair & 0xffffffffu];
+            const Pt &a = store.xy[s.a], &b = store.xy[s.b], &c0 = store.xy[r.a],
+                     &d0 = store.xy[r.b];
+            const double u = orientValue(c0, d0, a), w = orientValue(c0, d0, b);
+            const double t = (u - w) != 0 ? u / (u - w) : 0.5;
+            problems.add(TerrainProblemKind::CrossingConstraints,
+                         Pt{a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)}, s.source, r.source);
+        }
+        if (pairs.size() > kMaxCrossingPairs)
+            problems.detail(TerrainProblemKind::CrossingConstraints,
+                            "More than 1000000 constraint segment pairs cross, touch or overlap; "
+                            "counting stopped.");
+        // Split region segments at the vertices that touch them.
+        std::vector<Segment> pieces;
+        pieces.reserve(segments.size());
+        for (u32 i = 0; i < segments.size(); ++i) {
+            if (splits[i].empty()) {
+                pieces.push_back(segments[i]);
+                continue;
+            }
+            const Pt a = store.xy[segments[i].a];
+            auto &list = splits[i];
+            std::sort(list.begin(), list.end(), [&](u32 l, u32 r) {
+                const double dl = std::hypot(store.xy[l].x - a.x, store.xy[l].y - a.y);
+                const double dr = std::hypot(store.xy[r].x - a.x, store.xy[r].y - a.y);
+                return dl != dr ? dl < dr : l < r;
+            });
+            u32 previous = segments[i].a;
+            for (u32 v : list) {
+                pieces.push_back({previous, v, segments[i].kind, segments[i].source});
+                previous = v;
+            }
+            pieces.push_back({previous, segments[i].b, segments[i].kind, segments[i].source});
+        }
+        segments = std::move(pieces);
+        dedupe(segments, store.xy, problems, report);
+    }
+
+    return true;
+}
+
 TerrainTriangulationResult triangulate(const TerrainTriangulationInput &input,
                                        const TerrainTriangulationOptions &options,
                                        const Steps step) {
@@ -978,152 +1185,8 @@ TerrainTriangulationResult triangulate(const TerrainTriangulationInput &input,
     step(.15);
 
     // ---- 4. Crossing, touching and overlapping constraints -----------------------------------
-    // Exact predicates throughout. A vertex strictly inside a segment is a touch: allowed only
-    // on a region segment, which is split there. Two segments with no common endpoint that
-    // properly cross are an error. Segments sharing an endpoint cannot properly cross; if they
-    // overlap, an endpoint of one lies inside the other, which is a touch.
-    std::vector<std::vector<u32>> splits(segments.size());
-    if (!segments.empty()) {
-        Grid grid(store.xy, flags, std::max(segments.size(), total));
-        const auto cellCount = std::size_t(grid.cells());
-        CellLists vertexCells;
-        vertexCells.start.assign(cellCount + 1, 0);
-        for (u32 v = 0; v < total; ++v)
-            if (!(flags[v] & Dropped))
-                ++vertexCells.start[std::size_t(grid.cell(store.xy[v])) + 1];
-        for (std::size_t c = 0; c < cellCount; ++c)
-            vertexCells.start[c + 1] += vertexCells.start[c];
-        vertexCells.items.resize(vertexCells.start[cellCount]);
-        {
-            std::vector<u32> fill(cellCount, 0);
-            for (u32 v = 0; v < total; ++v)
-                if (!(flags[v] & Dropped)) {
-                    const auto c = std::size_t(grid.cell(store.xy[v]));
-                    vertexCells.items[vertexCells.start[c] + fill[c]++] = v;
-                }
-        }
-        step(.16);
-        CellLists segmentCells;
-        segmentCells.start.assign(cellCount + 1, 0);
-        std::size_t entries = 0;
-        for (const auto &s : segments)
-            grid.raster(store.xy[s.a], store.xy[s.b], [&](int c) {
-                ++segmentCells.start[std::size_t(c) + 1];
-                ++entries;
-            });
-        if (entries > kMaxGridEntries) {
-            problems.add(TerrainProblemKind::LimitExceeded);
-            problems.detail(
-                TerrainProblemKind::LimitExceeded,
-                format(
-                    "The constraint segments are too long and dense to check (%llu cell entries).",
-                    entries));
-            return refuse();
-        }
-        for (std::size_t c = 0; c < cellCount; ++c)
-            segmentCells.start[c + 1] += segmentCells.start[c];
-        segmentCells.items.resize(entries);
-        {
-            std::vector<u32> fill(cellCount, 0);
-            for (u32 i = 0; i < segments.size(); ++i)
-                grid.raster(store.xy[segments[i].a], store.xy[segments[i].b], [&](int c) {
-                    segmentCells
-                        .items[segmentCells.start[std::size_t(c)] + fill[std::size_t(c)]++] = i;
-                });
-        }
-        step(.17);
-        // Vertices inside segments.
-        std::vector<std::pair<u32, u32>> touches; // (segment, vertex)
-        for (u32 i = 0; i < segments.size(); ++i) {
-            step.every(i, segments.size(), .17, .20);
-            const Pt &a = store.xy[segments[i].a];
-            const Pt &b = store.xy[segments[i].b];
-            grid.raster(a, b, [&](int c) {
-                for (u32 k = vertexCells.start[std::size_t(c)];
-                     k < vertexCells.start[std::size_t(c) + 1]; ++k) {
-                    const u32 v = vertexCells.items[k];
-                    if (v != segments[i].a && v != segments[i].b && inBox(a, b, store.xy[v]) &&
-                        orientSign(a, b, store.xy[v]) == 0)
-                        touches.emplace_back(i, v);
-                }
-            });
-        }
-        std::sort(touches.begin(), touches.end());
-        touches.erase(std::unique(touches.begin(), touches.end()), touches.end());
-        for (const auto &[i, v] : touches) {
-            if (segments[i].kind & RegionSegment)
-                splits[i].push_back(v);
-            else
-                problems.add(TerrainProblemKind::CrossingConstraints, store.xy[v],
-                             segments[i].source, store.source(v));
-        }
-        // Segment pairs that properly cross.
-        std::vector<u64> pairs;
-        for (std::size_t c = 0; c < cellCount && pairs.size() <= kMaxCrossingPairs; ++c) {
-            step.every(c, cellCount, .20, .24);
-            for (u32 x = segmentCells.start[c]; x < segmentCells.start[c + 1]; ++x) {
-                const auto &s = segments[segmentCells.items[x]];
-                const Pt &a = store.xy[s.a], &b = store.xy[s.b];
-                for (u32 y = x + 1; y < segmentCells.start[c + 1]; ++y) {
-                    const auto &r = segments[segmentCells.items[y]];
-                    if (r.a == s.a || r.a == s.b || r.b == s.a || r.b == s.b)
-                        continue;
-                    const Pt &c0 = store.xy[r.a], &d0 = store.xy[r.b];
-                    if (std::max(a.x, b.x) < std::min(c0.x, d0.x) ||
-                        std::max(c0.x, d0.x) < std::min(a.x, b.x) ||
-                        std::max(a.y, b.y) < std::min(c0.y, d0.y) ||
-                        std::max(c0.y, d0.y) < std::min(a.y, b.y))
-                        continue;
-                    const int o1 = orientSign(a, b, c0), o2 = orientSign(a, b, d0);
-                    if (o1 * o2 >= 0)
-                        continue;
-                    if (orientSign(c0, d0, a) * orientSign(c0, d0, b) >= 0)
-                        continue;
-                    pairs.push_back(u64(segmentCells.items[x]) << 32 | segmentCells.items[y]);
-                }
-            }
-        }
-        std::sort(pairs.begin(), pairs.end());
-        pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
-        for (u64 pair : pairs) {
-            const auto &s = segments[pair >> 32];
-            const auto &r = segments[pair & 0xffffffffu];
-            const Pt &a = store.xy[s.a], &b = store.xy[s.b], &c0 = store.xy[r.a],
-                     &d0 = store.xy[r.b];
-            const double u = orientValue(c0, d0, a), w = orientValue(c0, d0, b);
-            const double t = (u - w) != 0 ? u / (u - w) : 0.5;
-            problems.add(TerrainProblemKind::CrossingConstraints,
-                         Pt{a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)}, s.source, r.source);
-        }
-        if (pairs.size() > kMaxCrossingPairs)
-            problems.detail(TerrainProblemKind::CrossingConstraints,
-                            "More than 1000000 constraint segment pairs cross, touch or overlap; "
-                            "counting stopped.");
-        // Split region segments at the vertices that touch them.
-        std::vector<Segment> pieces;
-        pieces.reserve(segments.size());
-        for (u32 i = 0; i < segments.size(); ++i) {
-            if (splits[i].empty()) {
-                pieces.push_back(segments[i]);
-                continue;
-            }
-            const Pt a = store.xy[segments[i].a];
-            auto &list = splits[i];
-            std::sort(list.begin(), list.end(), [&](u32 l, u32 r) {
-                const double dl = std::hypot(store.xy[l].x - a.x, store.xy[l].y - a.y);
-                const double dr = std::hypot(store.xy[r].x - a.x, store.xy[r].y - a.y);
-                return dl != dr ? dl < dr : l < r;
-            });
-            u32 previous = segments[i].a;
-            for (u32 v : list) {
-                pieces.push_back({previous, v, segments[i].kind, segments[i].source});
-                previous = v;
-            }
-            pieces.push_back({previous, segments[i].b, segments[i].kind, segments[i].source});
-        }
-        segments = std::move(pieces);
-        dedupe(segments, store.xy, problems, report);
-    }
+    if (!findCrossings(segments, store, total, step, problems, report))
+        return refuse();
 
     step(.25);
     // ---- 5. Enough points ---------------------------------------------------------------------
@@ -1378,47 +1441,9 @@ TerrainTriangulationResult triangulate(const TerrainTriangulationInput &input,
     for (const auto &t : mesh.v)
         report.flatTrianglesInitial += isFlat(surface, t, flatTol);
     if (options.flatMode == TerrainFlatMode::Flip && report.flatTrianglesInitial) {
-        // A flip is applied when it keeps every constraint (constraint edges are never flipped),
-        // the quadrilateral is strictly convex, and it leaves fewer flat triangles in the pair.
-        // Each flip lowers the flat count, so the loop ends; the queue order is fixed.
-        std::vector<u32> queue;
-        std::vector<char> queued(mesh.v.size(), 0);
-        for (u32 t = 0; t < mesh.v.size(); ++t)
-            if (isFlat(surface, mesh.v[t], flatTol)) {
-                queue.push_back(t);
-                queued[t] = 1;
-            }
-        for (std::size_t head = 0; head < queue.size(); ++head) {
-            step.every(head, queue.size(), .88, .94);
-            const u32 t = queue[head];
-            queued[t] = 0;
-            if (!isFlat(surface, mesh.v[t], flatTol))
-                continue;
-            for (u32 slot = 0; slot < 3; ++slot) {
-                const u32 n = mesh.nb[t][slot];
-                if (n == kNone ||
-                    sortedContains(fixedKeys, edgeKey(mesh.v[t][slot], mesh.v[t][(slot + 1) % 3])))
-                    continue;
-                bool flipped = false;
-                if (!flipEdge(mesh, surface, t, slot, flatTol, true, flipped)) {
-                    problems.add(TerrainProblemKind::TriangulationFailed);
-                    return refuse();
-                }
-                if (!flipped)
-                    continue;
-                ++report.flipsApplied;
-                std::vector<u32> touched{t, n};
-                for (u32 w : {t, n})
-                    for (u32 i = 0; i < 3; ++i)
-                        if (mesh.nb[w][i] != kNone)
-                            touched.push_back(mesh.nb[w][i]);
-                for (u32 w : touched)
-                    if (!queued[w] && isFlat(surface, mesh.v[w], flatTol)) {
-                        queued[w] = 1;
-                        queue.push_back(w);
-                    }
-                break;
-            }
+        if (!flipFlats(mesh, surface, fixedKeys, flatTol, step, .88, .94, report)) {
+            problems.add(TerrainProblemKind::TriangulationFailed);
+            return refuse();
         }
     }
     if (options.steinerFill) {
@@ -1554,6 +1579,466 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
         cancelled.cancelled = true;
         return cancelled;
     }
+}
+
+int terrainInCircle(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c, TerrainVec2 d) {
+    const double v = predicates::incircle<double>(a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y);
+    return (v > 0) - (v < 0);
+}
+
+namespace {
+// ---------------------------------------------------------------------------------------
+// R096.c cavity and flat-flip entry points.
+// ---------------------------------------------------------------------------------------
+u64 directedKey(u32 a, u32 b) { return u64(a) << 32 | b; }
+
+// Positions ranked by (x, y): the canonical order the CDT and the flat pass see.
+std::vector<u32> rankByPosition(const std::vector<Pt> &xy) {
+    std::vector<u32> order(xy.size());
+    for (u32 i = 0; i < order.size(); ++i)
+        order[i] = i;
+    std::sort(order.begin(), order.end(), [&](u32 l, u32 r) {
+        return xy[l].x != xy[r].x ? xy[l].x < xy[r].x : xy[l].y != xy[r].y ? xy[l].y < xy[r].y : l < r;
+    });
+    return order;
+}
+Tri rotated(Tri t) {
+    std::rotate(t.begin(), std::min_element(t.begin(), t.end()), t.end());
+    return t;
+}
+void flatStatistics(const Mesh &mesh, const Surface &surface, double flatTol,
+                    TerrainTriangulationReport &report) {
+    for (const auto &t : mesh.v)
+        if (isFlat(surface, t, flatTol)) {
+            ++report.flatTrianglesRemaining;
+            report.flatAreaRemaining += planArea(surface, t);
+            if (report.flatLocations.size() < terrainMaxLocationsPerKind)
+                report.flatLocations.push_back(
+                    {(surface.xy[t[0]].x + surface.xy[t[1]].x + surface.xy[t[2]].x) / 3,
+                     (surface.xy[t[0]].y + surface.xy[t[1]].y + surface.xy[t[2]].y) / 3});
+        }
+}
+
+TerrainCavityResult cavity(const TerrainCavityInput &input,
+                           const TerrainTriangulationOptions &options) {
+    TerrainCavityResult result;
+    auto &report = result.report;
+    Problems problems;
+    const auto &limits = options.limits;
+    const Steps step{nullptr};
+    const auto refuse = [&]() -> TerrainCavityResult {
+        report.refusals = problems.finish();
+        result.vertices.clear();
+        result.triangles.clear();
+        result.placed.clear();
+        result.ok = false;
+        return std::move(result);
+    };
+    const auto invalid = [&](const char *detail, Pt where = {}) {
+        problems.add(TerrainProblemKind::InvalidPolygon, where);
+        problems.detail(TerrainProblemKind::InvalidPolygon, detail);
+        return refuse();
+    };
+    const auto fail = [&](const char *detail) {
+        problems.add(TerrainProblemKind::TriangulationFailed);
+        problems.detail(TerrainProblemKind::TriangulationFailed, detail);
+        return refuse();
+    };
+
+    // ---- 1. Numbers and sizes ------------------------------------------------------------
+    const std::size_t fixedCount = input.vertices.size();
+    std::size_t added = input.points.size();
+    for (const auto &c : input.contours)
+        added += c.points.size();
+    for (const auto &b : input.breaklines)
+        added += b.points.size();
+    const std::size_t raw = fixedCount + added;
+    report.rawVertexCount = raw;
+    if (raw > limits.maxRawVertices || raw > limits.maxVertices ||
+        input.boundary.size() + input.constraints.size() > limits.maxRawVertices) {
+        problems.add(TerrainProblemKind::LimitExceeded);
+        problems.detail(TerrainProblemKind::LimitExceeded,
+                        format("%llu cavity vertices; the limit is %llu.", raw,
+                               std::min(limits.maxRawVertices, limits.maxVertices)));
+        return refuse();
+    }
+    {
+        const auto check = [&](double x, double y, double z, u64 source) {
+            for (double v : {x, y, z})
+                if (!std::isfinite(v)) {
+                    problems.add(TerrainProblemKind::NonFinite,
+                                 Pt{std::isfinite(x) ? x : 0, std::isfinite(y) ? y : 0}, source);
+                    return;
+                }
+            if (std::abs(x) > limits.maxCoordinate || std::abs(y) > limits.maxCoordinate ||
+                std::abs(z) > limits.maxCoordinate)
+                problems.add(TerrainProblemKind::ExtentExceeded, Pt{x, y}, source);
+        };
+        for (const auto &v : input.vertices)
+            check(v.position.x, v.position.y, v.position.z, v.sourceId);
+        for (const auto &c : input.contours)
+            for (const auto &p : c.points)
+                check(p.x, p.y, c.z, c.sourceId);
+        for (const auto &b : input.breaklines)
+            for (const auto &p : b.points)
+                check(p.x, p.y, p.z, b.sourceId);
+        for (const auto &p : input.points)
+            check(p.position.x, p.position.y, p.position.z, p.sourceId);
+        if (problems.has(TerrainProblemKind::ExtentExceeded))
+            problems.detail(TerrainProblemKind::ExtentExceeded,
+                            format("%llu coordinate(s) are beyond +/-%llu m; convert to the "
+                                   "terrain's local frame first.",
+                                   problems.count(TerrainProblemKind::ExtentExceeded),
+                                   (unsigned long long)limits.maxCoordinate));
+        if (problems.any())
+            return refuse();
+    }
+
+    // ---- 2. The cavity's structure --------------------------------------------------------
+    if (input.boundary.empty())
+        return invalid("The cavity has no boundary.");
+    std::vector<u64> boundaryKeys;
+    boundaryKeys.reserve(input.boundary.size());
+    for (const auto &[a, b] : input.boundary) {
+        if (a >= fixedCount || b >= fixedCount || a == b)
+            return invalid("A cavity boundary edge names a vertex that does not exist.");
+        boundaryKeys.push_back(directedKey(a, b));
+    }
+    std::sort(boundaryKeys.begin(), boundaryKeys.end());
+    if (std::adjacent_find(boundaryKeys.begin(), boundaryKeys.end()) != boundaryKeys.end())
+        return invalid("A cavity boundary edge is given twice.");
+    {
+        std::vector<long long> degree(fixedCount, 0);
+        for (const auto &[a, b] : input.boundary) {
+            if (std::binary_search(boundaryKeys.begin(), boundaryKeys.end(), directedKey(b, a)))
+                return invalid("A cavity boundary edge is given in both directions.");
+            ++degree[a];
+            --degree[b];
+        }
+        for (u32 v = 0; v < fixedCount; ++v)
+            if (degree[v] != 0)
+                return invalid("The cavity boundary is not closed.",
+                               Pt{input.vertices[v].position.x, input.vertices[v].position.y});
+    }
+    for (const auto &[a, b] : input.constraints)
+        if (a >= fixedCount || b >= fixedCount || a == b)
+            return invalid("A cavity constraint names a vertex that does not exist.");
+
+    // ---- 3. Vertices and segments ---------------------------------------------------------
+    VertexStore store(options.xyTolerance, 0.0);
+    std::vector<Segment> segments;
+    segments.reserve(input.boundary.size() + input.constraints.size() + added);
+    for (u32 v = 0; v < fixedCount; ++v) {
+        const auto &p = input.vertices[v];
+        const auto stored = store.add(p.position.x, p.position.y, p.position.z, true, p.contour,
+                                      p.sourceId);
+        if (stored.merged)
+            return invalid("Two kept cavity vertices share an x and y.",
+                           Pt{p.position.x, p.position.y});
+    }
+    for (const auto &[a, b] : input.boundary)
+        segments.push_back({a, b, CavitySegment, store.source(a)});
+    for (const auto &[a, b] : input.constraints)
+        segments.push_back({a, b, DataSegment, store.source(a)});
+    const auto addVertex = [&](double x, double y, double z, bool contour, u64 source) {
+        const auto stored = store.add(x, y, z, true, contour, source);
+        if (stored.merged)
+            ++report.mergedDuplicates;
+        if (stored.conflict)
+            problems.add(TerrainProblemKind::ConflictingDuplicate, Pt{x, y},
+                         store.source(stored.other), source);
+        result.placed.push_back(stored.id);
+        return stored.id;
+    };
+    const auto addPolyline = [&](const std::vector<u32> &ids, bool closed, u64 source) {
+        const std::size_t count = ids.size();
+        const std::size_t last = closed && count > 2 ? count : count - (count ? 1 : 0);
+        for (std::size_t i = 0; i < last; ++i) {
+            const u32 a = ids[i], b = ids[(i + 1) % count];
+            if (a == b)
+                ++report.droppedZeroLengthSegments;
+            else
+                segments.push_back({a, b, DataSegment, source});
+        }
+    };
+    for (const auto &c : input.contours) {
+        std::vector<u32> ids;
+        for (const auto &p : c.points)
+            ids.push_back(addVertex(p.x, p.y, c.z, true, c.sourceId));
+        addPolyline(ids, c.closed, c.sourceId);
+    }
+    for (const auto &b : input.breaklines) {
+        std::vector<u32> ids;
+        for (const auto &p : b.points)
+            ids.push_back(addVertex(p.x, p.y, p.z, false, b.sourceId));
+        addPolyline(ids, b.closed, b.sourceId);
+    }
+    for (const auto &p : input.points)
+        addVertex(p.position.x, p.position.y, p.position.z, false, p.sourceId);
+    const std::size_t total = store.xy.size();
+    report.uniqueVertexCount = total;
+    dedupe(segments, store.xy, problems, report);
+    if (problems.any())
+        return refuse();
+
+    // ---- 4. Crossing, touching and overlapping constraints --------------------------------
+    if (!findCrossings(segments, store, total, step, problems, report))
+        return refuse();
+    if (problems.any())
+        return refuse();
+    report.constraintEdges = segments.size();
+
+    // ---- 5. Constrained Delaunay, canonical by position -----------------------------------
+    const auto order = rankByPosition(store.xy);
+    std::vector<u32> rank(total);
+    std::vector<Pt> sorted(total);
+    for (u32 i = 0; i < total; ++i) {
+        rank[order[i]] = i;
+        sorted[i] = store.xy[order[i]];
+    }
+    std::vector<std::pair<u32, u32>> edges;
+    edges.reserve(segments.size());
+    for (const auto &s : segments) {
+        const u32 a = rank[s.a], b = rank[s.b];
+        edges.emplace_back(std::min(a, b), std::max(a, b));
+    }
+    std::sort(edges.begin(), edges.end());
+    Mesh mesh;
+    {
+        CdtTriangulation tri(CDT::VertexInsertionOrder::Auto,
+                             CDT::IntersectingConstraintEdges::NotAllowed, 0.0);
+        try {
+            runCdt(sorted, edges, tri);
+        } catch (const CDT::IntersectingConstraintsError &) {
+            problems.add(TerrainProblemKind::CrossingConstraints);
+            problems.detail(TerrainProblemKind::CrossingConstraints,
+                            "The triangulation library found crossing constraint segments.");
+            return refuse();
+        } catch (const CDT::Error &) {
+            return fail("The triangulation library failed.");
+        }
+        bool intact = tri.fixedEdges.size() == edges.size();
+        for (const auto &e : edges)
+            intact = intact && tri.fixedEdges.count(
+                                   CDT::Edge(CDT::VertInd(e.first), CDT::VertInd(e.second))) != 0;
+        if (!intact || tri.vertices.size() != total)
+            return fail("The triangulation library split a constraint.");
+        mesh = meshFrom(tri);
+    }
+    for (auto &t : mesh.v)
+        for (auto &v : t)
+            v = order[v]; // back to store indices
+    if (!buildNeighbors(mesh))
+        return fail("The triangulation is not edge-manifold.");
+
+    // ---- 6. The triangles inside the cavity -----------------------------------------------
+    std::vector<u64> boundaryEdges; // undirected
+    boundaryEdges.reserve(boundaryKeys.size());
+    for (const auto key : boundaryKeys)
+        boundaryEdges.push_back(edgeKey(u32(key >> 32), u32(key & 0xffffffffu)));
+    std::sort(boundaryEdges.begin(), boundaryEdges.end());
+    const std::size_t count = mesh.v.size();
+    std::vector<signed char> side(count, 0); // 1 inside, -1 across a boundary edge
+    std::vector<u32> queue;
+    std::size_t found = 0;
+    for (u32 t = 0; t < count; ++t)
+        for (u32 i = 0; i < 3; ++i) {
+            const u32 a = mesh.v[t][i], b = mesh.v[t][(i + 1) % 3];
+            const bool forward =
+                std::binary_search(boundaryKeys.begin(), boundaryKeys.end(), directedKey(a, b));
+            const bool backward =
+                std::binary_search(boundaryKeys.begin(), boundaryKeys.end(), directedKey(b, a));
+            if (forward) {
+                ++found;
+                if (side[t] < 0)
+                    return invalid("The cavity boundary is inconsistently oriented.",
+                                   store.xy[a]);
+                if (side[t] == 0)
+                    queue.push_back(t);
+                side[t] = 1;
+            } else if (backward) {
+                if (side[t] > 0)
+                    return invalid("The cavity boundary is inconsistently oriented.",
+                                   store.xy[a]);
+                side[t] = -1;
+            }
+        }
+    if (found != boundaryKeys.size())
+        return invalid("The cavity boundary does not enclose a region.");
+    for (std::size_t head = 0; head < queue.size(); ++head) {
+        const u32 t = queue[head];
+        for (u32 i = 0; i < 3; ++i) {
+            const u32 n = mesh.nb[t][i];
+            if (sortedContains(boundaryEdges, edgeKey(mesh.v[t][i], mesh.v[t][(i + 1) % 3])))
+                continue;
+            // Reaching the convex hull through a non-boundary edge: the loops are open to the
+            // outside (a clockwise loop with nothing around it).
+            if (n == kNone || side[n] < 0)
+                return invalid("The cavity boundary does not enclose a region.");
+            if (side[n] == 0) {
+                side[n] = 1;
+                queue.push_back(n);
+            }
+        }
+    }
+    Mesh kept;
+    for (u32 t = 0; t < count; ++t)
+        if (side[t] > 0)
+            kept.v.push_back(mesh.v[t]);
+    {
+        std::vector<char> used(total, 0);
+        for (const auto &t : kept.v)
+            for (const u32 v : t)
+                used[v] = 1;
+        for (u32 v = 0; v < total; ++v)
+            if (!used[v])
+                return invalid(v < fixedCount ? "A kept vertex lies outside the cavity."
+                                              : "New geometry lies outside the cavity.",
+                               store.xy[v]);
+    }
+    {
+        // Every constraint and new segment must be an edge of the cavity's triangles: a segment
+        // between two boundary vertices that runs outside the cavity is not.
+        std::vector<u64> keptEdges;
+        keptEdges.reserve(kept.v.size() * 3);
+        for (const auto &t : kept.v)
+            for (u32 i = 0; i < 3; ++i)
+                keptEdges.push_back(edgeKey(t[i], t[(i + 1) % 3]));
+        std::sort(keptEdges.begin(), keptEdges.end());
+        for (const auto &segment : segments)
+            if (!sortedContains(keptEdges, edgeKey(segment.a, segment.b)))
+                return invalid("New geometry lies outside the cavity.",
+                               Pt{(store.xy[segment.a].x + store.xy[segment.b].x) / 2,
+                                  (store.xy[segment.a].y + store.xy[segment.b].y) / 2});
+    }
+    if (kept.v.size() > limits.maxTriangles) {
+        problems.add(TerrainProblemKind::TriangleBudget);
+        problems.detail(TerrainProblemKind::TriangleBudget,
+                        format("The cavity has %llu triangles; the limit is %llu.", kept.v.size(),
+                               limits.maxTriangles));
+        return refuse();
+    }
+    if (!buildNeighbors(kept))
+        return fail("The cavity triangulation is not edge-manifold.");
+
+    // ---- 7. Flat triangles, inside the cavity only ----------------------------------------
+    Surface surface;
+    surface.xy = store.xy;
+    surface.z = store.z;
+    surface.contour.reserve(total);
+    for (u32 v = 0; v < total; ++v)
+        surface.contour.push_back((store.flags[v] & OnContour) ? 1 : 0);
+    std::vector<u64> fixedKeys;
+    fixedKeys.reserve(segments.size());
+    for (const auto &s : segments)
+        fixedKeys.push_back(edgeKey(s.a, s.b));
+    std::sort(fixedKeys.begin(), fixedKeys.end());
+    const double flatTol = options.flatTolerance;
+    for (const auto &t : kept.v)
+        report.flatTrianglesInitial += isFlat(surface, t, flatTol);
+    if (options.flatMode == TerrainFlatMode::Flip && report.flatTrianglesInitial &&
+        !flipFlats(kept, surface, fixedKeys, flatTol, step, 0, 0, report))
+        return fail("A flip found a broken neighbourhood.");
+    flatStatistics(kept, surface, flatTol, report);
+
+    // ---- 8. Output -------------------------------------------------------------------------
+    result.vertices.reserve(total);
+    for (u32 v = 0; v < total; ++v)
+        result.vertices.push_back({store.xy[v].x, store.xy[v].y, store.z[v]});
+    result.triangles.reserve(kept.v.size());
+    for (const auto &t : kept.v)
+        result.triangles.push_back(rotated(t));
+    std::sort(result.triangles.begin(), result.triangles.end());
+    report.vertexCount = result.vertices.size();
+    report.triangleCount = result.triangles.size();
+    result.ok = true;
+    return result;
+}
+
+TerrainFlipResult flip(const TerrainFlipInput &input, const TerrainTriangulationOptions &options) {
+    TerrainFlipResult result;
+    auto &report = result.report;
+    Problems problems;
+    const auto fail = [&](TerrainProblemKind kind, const char *detail) {
+        problems.add(kind);
+        problems.detail(kind, detail);
+        report.refusals = problems.finish();
+        result.triangles.clear();
+        result.ok = false;
+        return std::move(result);
+    };
+    const std::size_t n = input.vertices.size();
+    if (n > options.limits.maxRawVertices || input.triangles.size() > options.limits.maxTriangles)
+        return fail(TerrainProblemKind::LimitExceeded, "The flip region is too large.");
+    std::vector<Pt> xy;
+    xy.reserve(n);
+    for (const auto &v : input.vertices) {
+        if (!std::isfinite(v.position.x) || !std::isfinite(v.position.y) ||
+            !std::isfinite(v.position.z))
+            return fail(TerrainProblemKind::NonFinite, "A flip vertex is not finite.");
+        xy.push_back({v.position.x, v.position.y});
+    }
+    const auto order = rankByPosition(xy);
+    std::vector<u32> rank(n);
+    Surface surface;
+    for (u32 i = 0; i < n; ++i) {
+        rank[order[i]] = i;
+        const auto &v = input.vertices[order[i]];
+        if (i && xy[order[i]].x == xy[order[i - 1]].x && xy[order[i]].y == xy[order[i - 1]].y)
+            return fail(TerrainProblemKind::InvalidPolygon, "Two flip vertices share an x and y.");
+        surface.xy.push_back(xy[order[i]]);
+        surface.z.push_back(v.position.z);
+        surface.contour.push_back(v.contour ? 1 : 0);
+    }
+    Mesh mesh;
+    mesh.v.reserve(input.triangles.size());
+    for (const auto &t : input.triangles) {
+        if (t[0] >= n || t[1] >= n || t[2] >= n)
+            return fail(TerrainProblemKind::InvalidPolygon, "A flip triangle names a vertex "
+                                                            "that does not exist.");
+        const Tri r{rank[t[0]], rank[t[1]], rank[t[2]]};
+        if (orientSign(surface.xy[r[0]], surface.xy[r[1]], surface.xy[r[2]]) <= 0)
+            return fail(TerrainProblemKind::InvalidPolygon,
+                        "A flip triangle is not counter-clockwise.");
+        mesh.v.push_back(rotated(r));
+    }
+    std::sort(mesh.v.begin(), mesh.v.end());
+    if (!buildNeighbors(mesh))
+        return fail(TerrainProblemKind::InvalidPolygon, "The flip triangles are not edge-manifold.");
+    std::vector<u64> fixedKeys;
+    for (const auto &[a, b] : input.constraints) {
+        if (a >= n || b >= n)
+            return fail(TerrainProblemKind::InvalidPolygon,
+                        "A flip constraint names a vertex that does not exist.");
+        fixedKeys.push_back(edgeKey(rank[a], rank[b]));
+    }
+    std::sort(fixedKeys.begin(), fixedKeys.end());
+    const double flatTol = options.flatTolerance;
+    for (const auto &t : mesh.v)
+        report.flatTrianglesInitial += isFlat(surface, t, flatTol);
+    if (options.flatMode == TerrainFlatMode::Flip && report.flatTrianglesInitial &&
+        !flipFlats(mesh, surface, fixedKeys, flatTol, Steps{nullptr}, 0, 0, report))
+        return fail(TerrainProblemKind::TriangulationFailed, "A flip found a broken "
+                                                             "neighbourhood.");
+    flatStatistics(mesh, surface, flatTol, report);
+    result.triangles.reserve(mesh.v.size());
+    for (const auto &t : mesh.v)
+        result.triangles.push_back(rotated(Tri{order[t[0]], order[t[1]], order[t[2]]}));
+    std::sort(result.triangles.begin(), result.triangles.end());
+    report.vertexCount = n;
+    report.triangleCount = result.triangles.size();
+    result.ok = true;
+    return result;
+}
+} // namespace
+
+TerrainCavityResult retriangulateTerrainCavity(const TerrainCavityInput &input,
+                                               const TerrainTriangulationOptions &options) {
+    return cavity(input, options);
+}
+TerrainFlipResult flipTerrainFlatTriangles(const TerrainFlipInput &input,
+                                           const TerrainTriangulationOptions &options) {
+    return flip(input, options);
 }
 
 } // namespace sketchy

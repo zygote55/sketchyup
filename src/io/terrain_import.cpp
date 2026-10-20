@@ -1,5 +1,7 @@
 #include "io/terrain_import.hpp"
+#include "core/terrain_sources.hpp"
 #include <QJsonArray>
+#include <unordered_set>
 #include <QJsonDocument>
 #include <QLocale>
 #include <algorithm>
@@ -46,76 +48,16 @@ struct Line {
 // vertex where the polyline doubles back exactly along itself, which the adapter's exact
 // constraint check would refuse as an overlap).
 void clean(Line &line, std::uint64_t &zeroLength, std::uint64_t &spikes) {
-    std::vector<TerrainVec3> out;
-    out.reserve(line.points.size());
-    auto spike = [](const TerrainVec3 &a, const TerrainVec3 &b, const TerrainVec3 &c) {
-        if (orient(a, b, c) != 0)
-            return false;
-        const double dot = (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y);
-        return dot < 0;
-    };
-    for (const auto &p : line.points) {
-        if (!out.empty() && duplicate(out.back(), p)) {
-            ++zeroLength;
-            continue;
-        }
-        out.push_back(p);
-        while (out.size() >= 3 && spike(out[out.size() - 3], out[out.size() - 2], out.back())) {
-            out.erase(out.end() - 2);
-            ++spikes;
-            if (duplicate(out[out.size() - 2], out.back())) {
-                out.pop_back();
-                ++zeroLength;
-            }
-        }
-    }
-    if (line.closed) {
-        bool changed = true;
-        while (changed && out.size() >= 2) {
-            changed = false;
-            if (duplicate(out.back(), out.front())) {
-                out.pop_back();
-                ++zeroLength;
-                changed = true;
-                continue;
-            }
-            if (out.size() >= 3) {
-                const auto n = out.size();
-                if (spike(out[n - 2], out[n - 1], out[0])) {
-                    out.pop_back();
-                    ++spikes;
-                    changed = true;
-                } else if (spike(out[n - 1], out[0], out[1])) {
-                    out.erase(out.begin());
-                    ++spikes;
-                    changed = true;
-                }
-            }
-        }
-    }
-    line.points = std::move(out);
+    // R096.c: shared with the source edits (core/terrain_sources.hpp).
+    TerrainPolylineCleaning counts;
+    cleanTerrainPolyline(line.points, line.closed, counts);
+    zeroLength += counts.zeroLength;
+    spikes += counts.spikes;
 }
 
 // Rings start at their lexicographically smallest vertex and run counter-clockwise; open
-// polylines start at their smaller endpoint.
-void canonical(Line &line) {
-    auto &p = line.points;
-    if (p.size() < 2)
-        return;
-    if (!line.closed) {
-        if (lexLess(p.back(), p.front()))
-            std::reverse(p.begin(), p.end());
-        return;
-    }
-    std::rotate(p.begin(), std::min_element(p.begin(), p.end(), lexLess), p.end());
-    long double area = 0;
-    for (std::size_t i = 0; i < p.size(); ++i) {
-        const auto &a = p[i], &b = p[(i + 1) % p.size()];
-        area += (long double)a.x * b.y - (long double)b.x * a.y;
-    }
-    if (area < 0)
-        std::reverse(p.begin() + 1, p.end());
-}
+// polylines start at their smaller endpoint (core/terrain_sources.hpp, shared with source edits).
+void canonical(Line &line) { canonicalTerrainPolyline(line.points, line.closed); }
 bool sequenceLess(const Line &a, const Line &b) {
     const auto order = std::lexicographical_compare(a.points.begin(), a.points.end(),
                                                     b.points.begin(), b.points.end(), lexLess);
@@ -820,6 +762,18 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
                        std::nullopt,
                        std::to_string(prepared.sources.size()) + " sources, " +
                            std::to_string(vertices) + " vertices"});
+    // R096.c: a stored -0.0 would not survive the record's JSON (it reads back as +0.0), and the
+    // mesh triangulated from it would then differ in its bits from the one Regenerate builds after
+    // a reopen (C7). Source coordinates are stored as +0.0 instead; the value is the same.
+    for (auto &source : prepared.sources) {
+        bool negativeZero = false;
+        for (const auto &p : source.points)
+            negativeZero = negativeZero || (p.x == 0 && std::signbit(p.x)) ||
+                           (p.y == 0 && std::signbit(p.y)) || (p.z == 0 && std::signbit(p.z));
+        if (negativeZero)
+            for (auto &p : source.points)
+                p = {p.x + 0.0, p.y + 0.0, p.z + 0.0};
+    }
     prepared.ok = !report.refused();
     return prepared;
 }
@@ -1233,9 +1187,11 @@ void validateTerrainParameters(const TerrainParameters &parameters,
                            "Max edge length mode needs a positive maxEdgeLength");
 }
 
-TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
-                                         const TerrainParameters &parameters,
-                                         std::size_t otherTerrainTriangles, TerrainReport report) {
+namespace {
+TerrainImportResult regenerateDryRun(const TerrainRecord &record,
+                                     const TerrainParameters &parameters,
+                                     std::size_t otherTerrainTriangles, TerrainReport report,
+                                     TerrainProgress *progress) {
     validateTerrainParameters(parameters, record.sources);
     TerrainImportResult result;
     QJsonObject counts, roles;
@@ -1255,15 +1211,60 @@ TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
         return id && id <= record.sources.size() ? record.sources[id - 1].reference : std::string();
     };
     auto local = [](const TerrainVec2 &xy) { return std::array<double, 2>{xy.x, xy.y}; };
+    // With edits the budget is checked on the replayed tiles below, not on the base mesh.
     auto stage = triangulateSources(record.sources, terrainTriangulationOptions(parameters),
                                     parameters.boundary == TerrainBoundaryMode::Boundary,
-                                    otherTerrainTriangles, report, counts, reference, local);
+                                    record.edits.empty() ? otherTerrainTriangles : 0, report,
+                                    counts, reference, local, progress);
     result.mesh = std::move(stage.mesh);
     result.tiles = stage.tiles;
     result.ok = !report.refused() && !result.mesh.triangles.empty();
     if (!result.ok && !report.refused())
         report.add(Severity::Refusal, "triangulation-failed", 1,
                    "The sources gave no terrain triangles.");
+    // R096.a: the base tiling, then the replay of the edit list (ADR 0169 §2).
+    QJsonObject edits{{"count", double(record.edits.size())}, {"applied", 0}, {"skipped", 0}};
+    if (result.ok) {
+        const auto base = terrainTileSet(result.mesh, progress);
+        auto replayed =
+            replayTerrainEdits(base, record.edits, progress, record.sources, parameters);
+        std::size_t triangles = 0;
+        for (const auto &tile : replayed.tiles.tiles)
+            triangles += tile->triangles.size();
+        for (const auto &skip : replayed.skipped)
+            report.locate(Severity::Notice, "edit-skipped",
+                          "Recorded terrain changes that no longer apply were skipped and kept "
+                          "in the list.",
+                          {"edit " + std::to_string(skip.edit) + " (" + terrainQuote(skip.kind) +
+                               ")",
+                           {},
+                           std::nullopt,
+                           terrainQuote(skip.notice)});
+        edits["applied"] = double(replayed.applied);
+        edits["skipped"] = double(replayed.skipped.size());
+        if (!record.edits.empty()) {
+            if (otherTerrainTriangles + triangles > TerrainLimits::triangles) {
+                report.locate(Severity::Refusal, "triangle-budget",
+                              "The document's terrains would exceed the terrain triangle limit.",
+                              {"document",
+                               {},
+                               std::nullopt,
+                               "terrain triangles would be " +
+                                   std::to_string(otherTerrainTriangles + triangles) + " of " +
+                                   std::to_string(TerrainLimits::triangles)});
+                result.ok = false;
+            }
+            std::unordered_set<TerrainPositionKey, TerrainPositionHash> positions;
+            for (const auto &tile : replayed.tiles.tiles)
+                for (const auto &p : tile->vertices)
+                    positions.insert(TerrainPositionKey::of(p));
+            stage.triangles = triangles;
+            stage.vertices = positions.size();
+            result.tiles = replayed.tiles.tiles.size();
+        }
+        if (result.ok)
+            result.tileSet = std::move(replayed.tiles);
+    }
     result.record = record;
     result.record.parameters = parameters;
     result.record.generator = terrainGenerator;
@@ -1280,7 +1281,8 @@ TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
                          {"vertices", double(stage.vertices)},
                          {"tiles", double(result.tiles)},
                          {"generator", terrainGenerator},
-                         {"parameters", parametersJson(parameters)}};
+                         {"parameters", parametersJson(parameters)},
+                         {"edits", edits}};
     result.report = {{"apiVersion", 1},
                      {"format", "terrain-record"},
                      {"units", "m"},
@@ -1291,7 +1293,25 @@ TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
     if (!result.ok)
         refusalOutcome(result.report["terrain"].toObject(), "Terrain regenerate", result.code,
                        result.message);
+    terrainCheckpoint(progress, TerrainStage::Replay, 1);
     return result;
+}
+} // namespace
+
+TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
+                                         const TerrainParameters &parameters,
+                                         std::size_t otherTerrainTriangles, TerrainReport report,
+                                         TerrainProgress *progress) {
+    try {
+        return regenerateDryRun(record, parameters, otherTerrainTriangles, std::move(report),
+                                progress);
+    } catch (const TerrainCancelled &) {
+        TerrainImportResult cancelled;
+        cancelled.cancelled = true;
+        cancelled.code = "CANCELLED";
+        cancelled.message = "Terrain regeneration cancelled; nothing was changed";
+        return cancelled;
+    }
 }
 
 std::map<QString, TerrainImportRole> terrainEdgeRoles() {

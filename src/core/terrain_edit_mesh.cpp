@@ -165,6 +165,37 @@ std::vector<const TerrainEditMesh::Tile *> TerrainEditMesh::tilesAt(double x, do
     return result;
 }
 
+std::vector<const TerrainEditMesh::Tile *>
+TerrainEditMesh::tilesIn(double minX, double minY, double maxX, double maxY, double slack) const {
+    std::vector<std::uint32_t> candidates = wide_;
+    const auto low = cellOf(minX - slack, minY - slack), high = cellOf(maxX + slack, maxY + slack);
+    // A box over many cells scans the slots instead of the cells.
+    constexpr std::int64_t cellScan = 4096;
+    if (low && high && (high->first - low->first + 1) <= cellScan &&
+        (high->second - low->second + 1) <= cellScan &&
+        (high->first - low->first + 1) * (high->second - low->second + 1) <= cellScan) {
+        for (auto row = low->first; row <= high->first; ++row)
+            for (auto column = low->second; column <= high->second; ++column)
+                if (const auto found = cells_.find({row, column}); found != cells_.end())
+                    candidates.insert(candidates.end(), found->second.begin(), found->second.end());
+    } else {
+        for (const auto &[key, slot] : keys_)
+            candidates.push_back(slot);
+    }
+    std::vector<const Tile *> result;
+    for (const auto slot : candidates) {
+        const auto &t = slots_[slot].tile;
+        if (maxX < t.minX - slack || minX > t.maxX + slack || maxY < t.minY - slack ||
+            minY > t.maxY + slack)
+            continue;
+        result.push_back(&t);
+    }
+    std::sort(result.begin(), result.end(),
+              [](const Tile *a, const Tile *b) { return a->content->key < b->content->key; });
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
 void TerrainEditMesh::link(std::uint32_t slot) const {
     auto &s = slots_[slot];
     const auto &content = *s.tile.content;

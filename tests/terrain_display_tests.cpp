@@ -170,9 +170,12 @@ void cacheKey() {
                              .terrain;
     TerrainContourCache cache;
     const auto first = cache.get(doc, terrain);
-    check(cache.generations() == 1 && cache.digests() == 1, "First lookup generates");
-    check(cache.get(doc, terrain) == first && cache.generations() == 1 && cache.digests() == 1,
-          "The same tiles and interval reuse the contours without a digest");
+    const auto tiles = cache.tileGenerations();
+    check(cache.generations() == 1 && tiles == terrainTiles(doc, terrain).size(),
+          "First lookup generates every tile");
+    check(cache.get(doc, terrain) == first && cache.generations() == 1 &&
+              cache.tileGenerations() == tiles,
+          "The same tiles and interval reuse the contours");
     // The interval is part of the key.
     auto display = doc.bodies().at(terrain)->terrain->display;
     display.contourInterval = .5;
@@ -180,11 +183,14 @@ void cacheKey() {
     const auto finer = cache.get(doc, terrain);
     check(finer != first && cache.generations() == 2 && finer->interval == .5,
           "A new interval regenerates");
-    // Paint replaces a tile record but not the mesh: the digest is recomputed, the contours kept.
+    // Paint replaces a tile record but not the mesh: the tile's contours and the terrain's are
+    // kept (R096.a: compared per tile by mesh).
     const auto tile = terrainTiles(doc, terrain).front();
+    const auto generated = cache.tileGenerations();
     doc.paint(tile, {.9f, .1f, .1f});
-    check(cache.get(doc, terrain) == finer && cache.generations() == 2 && cache.digests() == 2,
-          "Same digest, same contours");
+    check(cache.get(doc, terrain) == finer && cache.generations() == 2 &&
+              cache.tileGenerations() == generated,
+          "Same mesh, same contours");
     // Moving the terrain up changes the site elevation of its frame: a new key.
     const auto before = doc.bodies().at(terrain);
     auto moved = std::make_shared<Body>(*before);

@@ -21,12 +21,14 @@ and one with bad values) plus a rejected DXF version and a rejected two-column p
 `parser_fault_corpus_tests` mutates a slice of the contour DXF and a PNEZD file 512 times each.
 One more covers the R096.a terrain edit list decoder (`terrain-edits`;
 [ADR 0169 §7](decisions/0169-terrain-editing-drape-stamp.md#7-persistence)): its input is the
-JSON `edits` array of a terrain record. R096.a defines no production edit kind, so the harness
-registers the test-only kinds of `tests/terrain_edit_test_kinds.hpp` (`test.lift`,
-`test.split`, `test.refine`). An accepted list has 1 to 4,096 entries with unique ids within the 8 MiB bound and
-re-encodes to a list that decodes to equal entries. Its seeds are a lift and a split as applied to
-the schema-29 seed terrain and a rejected list one entry over the bound; `parser_fault_corpus_tests`
-mutates the valid list 512 times.
+JSON `edits` array of a terrain record. The harness decodes the production kinds (R096.c:
+`editSource`, `addSource`, `removeSource`) and registers the test-only kinds of
+`tests/terrain_edit_test_kinds.hpp` (`test.lift`, `test.split`, `test.refine`). An accepted list
+has 1 to 4,096 entries with unique ids within the 8 MiB bound and re-encodes to a list that
+decodes to equal entries. Its seeds are a lift and a split as applied to the schema-29 seed
+terrain, the three source edits, a rejected list one entry over the bound and a rejected contour
+at two elevations; `parser_fault_corpus_tests` mutates the valid list (with two source edits)
+512 times.
 Existing deterministic parser-fault and transaction tests remain required.
 
 Configure a separate build and generate valid, deterministic seeds:
@@ -83,6 +85,24 @@ counter-clockwise, edge-manifold triangles with no unused vertex and within the 
 budget, and that a refusal returns no mesh and lists bounded counts, locations and messages.
 The in-ctest `terrain_triangulation_tests` run the same harness over generated inputs and
 seed mutations in the `dev` and `sanitize` presets.
+
+A `terrain-cavity` input (R096.c; [ADR 0169 §3](decisions/0169-terrain-editing-drape-stamp.md#local-re-triangulation-cavity-api))
+describes one call of the cavity API, in the layout documented in
+`tests/fuzz/terrain_cavity_harness.hpp`: a base point set on the same sixteenth-of-a-metre grid,
+a disc choosing the cavity (the base triangles whose centroid lies in it), a stride choosing kept
+constraints among its interior edges, and new contours, breaklines and points. Its targets build
+with the triangulation's (`terrain_triangulation_fuzzers`): `terrain_cavity_fuzz_seeds DIR`
+writes the seeds (re-triangulated cavities and four refusals of three kinds) and
+`parser_fuzz_terrain_cavity` runs with the same options. Every byte string is a valid input. The
+harness triangulates the base, cuts the cavity out and re-triangulates it three times: twice as
+given, requiring identical bits, and once with the kept vertices in reverse order, requiring the
+same triangles by position (the input is canonicalised). An accepted result must keep the kept
+vertices bit for bit, have sorted counter-clockwise triangles with no directed edge twice, keep
+every boundary edge in its direction with no other open edge, keep the cavity's area, contain
+every kept constraint and new segment as an edge and use every vertex; a refusal returns no mesh
+and lists bounded counts, locations and messages, and never `triangulation-failed`.
+`terrain_triangulation_tests` run the same harness over 3,000 generated cavities and seed
+mutations.
 
 The harness caps generated inputs at 1 MiB. This is a campaign bound; the
 production file limits remain covered by separate boundary tests. Expected

@@ -16,8 +16,10 @@
 
 namespace sketchy {
 
-enum class TerrainStage : std::uint8_t { Parse, Prepare, Triangulate, Tile };
-inline constexpr int terrainStageCount = 4;
+// R096.a: Replay runs after Tile in Regenerate, Terrain settings and the edit-list commands
+// (ADR 0169 §2); an import never replays.
+enum class TerrainStage : std::uint8_t { Parse, Prepare, Triangulate, Tile, Replay };
+inline constexpr int terrainStageCount = 5;
 inline const char *terrainStageName(TerrainStage stage) {
     switch (stage) {
     case TerrainStage::Parse:
@@ -28,13 +30,23 @@ inline const char *terrainStageName(TerrainStage stage) {
         return "triangulate";
     case TerrainStage::Tile:
         return "tile";
+    case TerrainStage::Replay:
+        return "replay";
     }
     return "tile";
 }
 // The whole run's fraction for a stage's fraction. The weights follow the measured 250,000-
 // triangle runs (R095.f): parse 0-20 %, prepare 20-30 %, triangulate 30-95 %, tile 95-100 %.
 inline double terrainOverallProgress(TerrainStage stage, double fraction) {
-    constexpr double start[terrainStageCount + 1]{0, .20, .30, .95, 1};
+    constexpr double start[terrainStageCount + 1]{0, .20, .30, .95, 1, 1};
+    const auto i = std::size_t(stage);
+    return start[i] + (start[i + 1] - start[i]) * std::clamp(fraction, 0.0, 1.0);
+}
+
+// R096.a: the same for a replaying run (Regenerate, Terrain settings, Reset edits, Remove
+// change): triangulate 0-40 %, tile 40-45 %, replay 45-100 %.
+inline double terrainReplayProgress(TerrainStage stage, double fraction) {
+    constexpr double start[terrainStageCount + 1]{0, 0, 0, .40, .45, 1};
     const auto i = std::size_t(stage);
     return start[i] + (start[i + 1] - start[i]) * std::clamp(fraction, 0.0, 1.0);
 }

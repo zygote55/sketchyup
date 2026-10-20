@@ -15,6 +15,29 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Contour edit (R096.c, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096c)):
+  new `terrain.edit_source`, `terrain.add_source` and `terrain.remove_source` commands
+  (automation sessions and MCP; hidden from the in-app assistant) move, reshape, re-elevate, add
+  and remove a terrain's contours, breaklines and spot points, change a contour to a breakline
+  and back, and promote the surface's contour line at an elevation to a source contour. Only the
+  triangles around the change are re-triangulated; a change of elevation alone moves the
+  vertices without re-triangulating. Each is one undoable edit recorded in the terrain's edit
+  list, so Regenerate reproduces it. Edits that would cross another contour or breakline, leave
+  the terrain's outline, enter a hole or put two elevations at one point are refused with their
+  locations, and change nothing. `terrain.describe` lists the current sources with their ids.
+  Imported source coordinates of −0.0 are stored as 0.0, so a terrain saved and reopened
+  regenerates to the same mesh.
+
+- Terrain edit core, part 2 (R096.a, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#part-2)):
+  Regenerate and Terrain settings rebuild a terrain from its sources and then replay its list of
+  edits, so a Regenerate after edits changes nothing. New `terrain.reset_edits` and
+  `terrain.remove_edit` commands (automation sessions and MCP; hidden from the in-app assistant)
+  empty the list or remove one change and rebuild, as one undoable edit each; a change that no
+  longer applies is skipped, reported and kept. `terrain.describe` lists a terrain's edits. A
+  replay reports its progress and can be cancelled without changing anything. After an edit the
+  viewport recomputes shading normals and contour lines only for the tiles the edit touched.
+  No edit operation exists yet (they follow in R096.b–e), so existing terrains behave as before.
+
 - Terrain edit core, part 1 (R096.a, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096a)):
   the groundwork for terrain editing, with no new command yet. Terrains now store their tile
   grid, a key for each tile and an id for each source, and can hold a list of edits; an edit

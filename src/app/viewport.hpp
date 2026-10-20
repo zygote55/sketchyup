@@ -577,7 +577,10 @@ class Viewport : public QOpenGLWidget {
         float alpha{1};
         std::uint64_t presentationRevision{}, meshPass{};
         // R095.e2: a terrain tile's surface display and elevation-band shading when built.
-        std::shared_ptr<const TerrainSurfaceDisplay> terrainSurface;
+        // R096.a: the tile's own surface (pointer-identical while no edit touches it or its
+        // seam ring) and the terrain's elevation range, which band colours depend on.
+        std::shared_ptr<const TerrainTileSurface> terrainSurface;
+        std::array<double, 2> terrainRange{};
         bool terrainBands{};
     };
     std::map<Id, std::unique_ptr<BodyCache>> bodyCaches_;
@@ -586,7 +589,7 @@ class Viewport : public QOpenGLWidget {
     struct TerrainView {
         BodyPtr record;
         std::vector<BodyPtr> tiles;
-        std::shared_ptr<const TerrainSurfaceDisplay> surface;
+        std::shared_ptr<const TerrainTileSurfaces> surface;
         std::shared_ptr<const TerrainContours> contours;
         Transform world;
         bool hidden{}, dark{};
@@ -594,6 +597,7 @@ class Viewport : public QOpenGLWidget {
     };
     std::map<Id, std::unique_ptr<TerrainView>> terrainViews_;
     TerrainContourCache contourCache_;
+    TerrainSurfaceCache surfaceCache_; // R096.a: per-tile surfaces, updated after edits
     void syncTerrainViews();
     void drawTerrainContours();
     void paintSiteOrigin(QPainter &p);
