@@ -6,7 +6,8 @@ owner approval. Roadmap [R096](../PR_ROADMAP.md#r096) (M10, scope row
 R096.a (the edit core) is implemented in two stacked parts; see "Implementation notes
 (R096.a)". R096.c (cavity re-triangulation and contour edit) is implemented; see
 "Implementation notes (R096.c)". R096.b (sculpt and smooth) is implemented; see
-"Implementation notes (R096.b)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
+"Implementation notes (R096.b)". R096.d (building-pad stamp) is implemented; see
+"Implementation notes (R096.d)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
 interaction design (§8, "Decisions the UX design must make") still needs the owner's
 approval, and R096.f waits for it.
 
@@ -1631,6 +1632,221 @@ piece, a region smooth, and a rejected smooth of nine iterations) and `parser_fa
 cover the two codecs. `parser_fuzz_terrain_edits` (libFuzzer, clang with ASan and UBSan, the
 documented options, 2026-10-20) ran 349,176 inputs in 301 s from the generated seeds (1,179
 coverage points, 587 MB peak) with no failure.
+
+## Implementation notes (R096.d)
+
+Modules: `src/core/terrain_stamp.*` (the kind `stamp`, the daylight and fixed-width solvers, the
+self-intersection repair, the cavity, check C3), `src/core/terrain_plan_index.*` (a banded,
+tree-indexed plan polygon shared by pads, the daylight polygon and the clipping), the pad index
+and pad rays in `src/core/terrain_sources.*`, the general clip `planTerrainSourceClip` in
+`src/core/terrain_sculpt.*`, `TerrainMeshView` (R096.c's view of the edit mesh, moved to
+`src/core/terrain_mesh_view.hpp`), the codec in `src/io/terrain_io.cpp`, and `terrain.stamp_pad`,
+`terrain.update_edit` and the `pads` of `terrain.describe` in `src/automation/terrain_commands.cpp`.
+`terrain_stamp.cpp` and `terrain_plan_index.cpp` are compiled with `-ffp-contract=off` like the
+other replayed code.
+
+**The kind** (§4.3, §7; [ADR 0108 addendum](0108-public-native-format.md#schema-29-terrain-and-site-origin-r095a)).
+An entry holds its parameters in the terrain frame (the footprint, counter-clockwise from its
+lexicographically smallest corner; the pad elevation; daylight with cut and fill slopes and a
+maximum distance, or a fixed width; the source body and face for Restamp) and its resolved
+geometry: the outline as the mesh holds it (the footprint with the edge rays' start points), the
+rays in order with their daylight points, the count of dropped rays and the ids of split source
+lines. Unlike R096.b's and R096.c's kinds, the resolved geometry depends on the mesh, so it is
+recomputed whenever the entry applies: `TerrainEditOutcome` gains the entry's recomputed data,
+which both the incremental edit and the replay store (an unchanged result keeps the entry's
+pointer, so Regenerate after edits stays a no-op), and the kind's `unresolved` hook clears it
+when a replay skips the entry. The mesh-free derivation of the current sources and the pads
+then reads exactly what the mesh holds: a skipped pad neither clips nor protects.
+`runTerrainRegenerate` stores the replayed entries in the record it returns and refuses a list
+that would grow past 8 MiB. Bounds: a footprint of 3 to 20,000 points with at most 512 edges in
+a horizontal band (as R096.b's regions; a comb is refused before any work), slopes 0.01 to 100,
+a distance above 0 and at most 1,000 m, a width of 0.01 to 1,000 m, at most 32,768 rays.
+
+**Rays.** From each outline vertex: at a convex corner a fan from one edge normal through the
+bisector to the other, each half cut into steps of at most 15° by normalized interpolation (no
+trigonometry, so no C library's last bit enters replay; the step count bounds the largest step);
+a corner turning less than about 0.06° gets one bisector ray, so two rays never leave one point
+in almost one direction; at a concave corner one bisector ray (the normals' sum, or the edge
+directions' difference where they nearly oppose). Along each edge, rays along its normal at a
+spacing no larger than the smallest longest side of the triangles the edge touches, and at least
+0.01 m. The ray count is checked before any walk.
+
+**The daylight solver.** A ray is walked through the edit mesh one stored cell at a time: the
+triangles of each newly reached tile give the intervals of t in which the ray lies in them
+(closed, widened by about 1e-10 m) with the triangle's plane along the ray, processed in
+(t0, t1, triangle) order. The ground at the start decides fill (pad above, grade h − fill · t),
+cut (pad below, h + cut · t) or touching; the crossing is solved exactly on the first triangle
+whose interval ends past it, as h ∓ s · t = g0 + g1 · t. A gap in the intervals before the
+crossing is the ray leaving the terrain (refused at the exit point), and no crossing within the
+maximum distance is refused at its end (`daylight-distance`). A ray shorter than 0.1 mm meets
+the ground at the pad edge: its daylight point is its start at h (the ground there moves by at
+most slope × 0.1 mm). Fixed width puts the daylight point at the width, at the ground's height
+there. Each step and each triangle tested count against a work bound (2^26), so a pad high above
+flat ground with a long maximum distance is refused rather than walked for long.
+
+**Self-intersection repair.** The outline pieces, the rays with length and the daylight line's
+edges must not meet except at shared ends (exact predicates; identical segments, a daylight edge
+along the outline where the pad meets the ground, are one constraint). Pairs are found through a
+uniform grid each segment is walked through (Amanatides–Woo, both neighbours at a corner), with
+outline pieces never paired with each other; the work is bounded (2^25). For each crossing, the
+rays of the shortest run around the outline that holds the crossing elements are dropped (for a
+ray crossing the outline, that ray), and the check repeats, at most 64 rounds. The daylight
+points left keep the outer boundary; the report gives the count and the first dropped point
+(`daylight-repaired`). A daylight point within 1e-6 m of the one before it is dropped too (a fan
+over a very short reach would only add slivers). The daylight polygon must then run
+counter-clockwise around the footprint.
+
+**The mesh result.** The daylight polygon widened by 1e-6 m (`terrainStampSlack`) decides what
+the pad replaces: a flood from the footprint collects every triangle meeting it (memoised
+point classification, the polygon's tree for edges), and every vertex in it is removed, so the
+pad interior is a flat CDT of the outline at exactly h and no kept vertex lies within 1e-6 m of a
+new one. An outline or hole edge the polygon reaches, or a removed vertex on one, is the pad
+leaving the terrain (`outside-outline`). Each inserted vertex adds its Bowyer–Watson cavity, as
+in R096.c, never across a kept constraint, the outline or a pad; the cavity is bounded by
+R096.c's 65,536 triangles. `retriangulateTerrainCavity` gets the kept vertices, the cavity
+boundary, the kept constraints (current source segments the widened polygon does not meet), the
+outline as a closed breakline at h, every ray as a two-point breakline and the daylight line as a
+closed breakline; a new point the adapter would merge into another is refused, so the stored
+geometry is exactly the mesh's (C1, C3). Pad vertices are breakline vertices, not contour
+vertices, so the flat-triangle rule leaves the pad alone.
+
+**Current sources.** The `sources` hook clips every contour, breakline and spot-point vertex in
+the widened polygon and cuts every line segment that meets it (R096.b's clip, generalised as
+`planTerrainSourceClip`: a rule marks vertices and, now, segments between kept vertices, and a
+ring opens at its first break), then adds the outline and the daylight line as closed breaklines
+with the first two ids of the entry's block (`terrainSplitSourceId` ordinals 0 and 1); further
+runs of split lines take recorded ids first, then ordinals from 2. The rays are not sources, but
+they are constraint segments of the mesh: the state counts them in `segmentUses`, so later
+cavities (stamps and contour edits) keep them and Bowyer–Watson never crosses them; a newer pad
+whose widened polygon meets a ray drops it from the state (`dropPadRays`), as its cavity drops it
+from the mesh.
+
+**Overlaps and protection** (decision 6). `protects` gives the footprint and the new hook
+`protectedPoints` the outline's vertices, which lie on the footprint's edges only up to
+rounding; a protected region keeps its polygon index (bands and a box tree) and its points, and
+`TerrainPadIndex` finds regions by a box tree, so sculpt, smooth, contour edits and stamps test a
+point or segment against a few pad edges rather than every pad. R096.b's and R096.c's pad tests
+(`Pads`, `checkProtected` and the Bowyer–Watson guard) now use it. A stamp whose widened daylight
+polygon meets another pad's footprint, outline points or edges is refused (`inside-pad`, located,
+naming the other change); one that meets only the other pad's slopes applies, and the newer slope
+wins there. Removing a pad's entry lifts its protection (tested: the replayed sculpt moves the
+area).
+
+**Check C3** (`checkTerrainPadConsistency`). For every applied pad: every mesh vertex on or
+inside its footprint, or at an outline vertex, has Z bit-equal to h; every outline edge is a mesh
+edge; and along every unsuperseded ray with length, the ray is a mesh edge, the daylight point a
+mesh vertex with its stored Z, and |h − z| / run equals the fill slope (z below h) or the cut
+slope within 1e-9 relative (daylight), or the run equals the width within 1e-9 relative. A ray is
+superseded by a later applied pad whose widened polygon meets it (the rule that drops it), or by
+any later entry of another kind whose plan box meets the ray's (a choice where the ADR is open: a
+sculpt may move a daylight point, a contour edit may re-triangulate next to a ray). The tests add
+`terrain.elevation_at` inside each pad (the pad elevation within 1e-9 m).
+
+**Commands** (§8). `terrain.stamp_pad {terrain, footprint: {body, face} | {body} | {edges} |
+{polygon}, elevation?, mode?, cutSlope?, fillSlope?, maxDistance?, width?}` ("Stamp pad"): a
+horizontal face without holes; the lowest such face of a body or of the geometry in a group or
+component (ties to the smaller IDs); one closed loop of model edges, chained as
+`terrain.create_from_edges` does; or model points. The footprint is projected to plan in the
+terrain frame, cleaned and made canonical; its own height (when every point has one within 1e-6
+m) is the default elevation. Defaults: daylight, slopes 0.5 (1:2), 100 m. The terrain must be
+level and unscaled, as for sculpts. The command's dry run gives the located refusal report; its
+outcome is then committed as is (`applyTerrainEdit` takes a planned outcome), so a stamp is
+planned once. The report (`format: "terrain-edit"`) counts the rays (cut, fill, touching,
+dropped), the cavity, the tiles and the clipped sources, with notices `sources-clipped`,
+`daylight-repaired`, `face-paint-dropped` and `flat-triangles`, and the result carries the pad
+(elevation, outline and extent boxes in model coordinates).
+`terrain.update_edit {terrain, edit, restamp?, elevation?, mode?, cutSlope?, fillSlope?,
+maxDistance?, width?}` ("Edit terrain change") replaces a pad's entry, keeping its ID and place,
+by its new parameters or, with `restamp`, its footprint re-read from its source body (the source
+face when it is still there and horizontal, else the body's lowest face), and replays the list
+through R096.a's replay request (progress and cancel included). The changed entry must apply:
+`runTerrainRegenerate` takes the required entry and refuses the run with that entry's located
+problems; later entries that no longer apply are skipped with notices as for Remove change. A
+change that is not a pad, a pad from edges or a polygon (no source body), a missing source body,
+and an update naming nothing are refused. `terrain.describe` adds `pads {count, space: "model",
+entries: [{edit, elevation, mode, slopes or width, outline, extent, rays, raysDropped,
+sourceBody?, applied}] (at most 200), entriesOmitted}`. The in-app assistant gets no tool
+(decision 9): `assistantVisible` hides `terrain.` commands, and `assistantResult` drops `pads`
+from `terrain.describe` as it drops `currentSources`, so the assistant's schemas,
+`assistant_tool_surface_tests` and corpus v5 are unchanged.
+
+**Choices where the ADR is open.** (1) `terrain.update_edit` always replays from the base, also
+for the last entry, as Remove change does: the mesh before an entry is not kept, and replay
+equals incremental. The cheap revision right after placement is the desktop's amend (§4.3,
+R096.f); `Document::amendLast` refuses a replacement that touches other tiles than the original
+edit, so R096.f needs a terrain-aware amend. (2) Restamp keeps the stored elevation unless one is
+given (the pad offset is a desktop setting). (3) The entry remembers the source face as well as
+the body, so Restamp of a face footprint re-reads that face. (4) Rays are constraint segments
+but not sources (sources would need an id per ray). (5) The 0.1 mm touch rule, the 1e-6 m slack
+and the work bounds above.
+
+**Measured** (`terrain_edit_benchmark --edits 1 --replay 0 --cancel 0 --source-edits 0
+--sculpts 0 --stamps 100 --stamp-replay 40`, Release, GCC, the development host with 22 CPUs).
+The two terrains are those of
+`terrain_budget_benchmark` built from 2 % fewer points or rings (244,970 and 244,498 triangles,
+256 and 3,108 tiles): stamps add triangles (a one-tile pad about 100 to 150), and at the
+document's 250,000-triangle limit every stamp is refused with `LIMIT_EXCEEDED` naming the count,
+which the first run showed. A one-tile sample is a square pad a quarter of a tile across in the
+middle of one of the 64 largest tiles, 0.2 m above the ground there; samples whose touched tiles
+hold more than 2,048 triangles (2 of 100 on each terrain) are left out of the budget rows. The
+contour terrain's ground falls 0.55 a metre, steeper than the default 1:2 fill, so its pads grade
+at 1:1. Display = the per-tile surface and contour caches, without GPU upload or drawing.
+
+| Terrain | One-tile pad: rays, cavity triangles (p95) | Preview p95 (max) | Commit p95: core / command / command + display (max) | Larger pad (a tile across, 9 tiles): preview / command p95 | 64-vertex footprint: preview / command p95 | Update of the first pad (replay) / replaying Regenerate |
+| --- | --- | --- | --- | --- | --- | --- |
+| 122,500 points (244,970 triangles) | 100; 192 | 5.0 (14.3) ms | 56.4 / 54.1 / 65.5 ms (72.2) | 15.8 / 116.0 ms | 8.8 / 55.6 ms | 0.79 s / 0.75 s (15 pads) |
+| 408 contour rings (244,498 triangles) | 72; 273 | 4.0 (34.9) ms | 63.2 / 62.1 / 80.7 ms (82.1) | 12.1 / 89.3 ms | 8.7 / 64.9 ms | 0.87 s / 0.82 s (27 pads) |
+
+A one-tile pad commits within decision 10's 100 ms at p95: 54–63 ms through the command and
+66–81 ms with the display update. As for the other kinds, most of it is the whole-terrain digest;
+the plan (rays, walk, repair, cavity and adapter) is the preview's 3–5 ms, and the command plans
+once. A pad a whole tile across touches nine tiles and commits in 89–116 ms p95, reported as the
+nine-tile sculpt is. The 64-vertex footprint of §9 previews in at most 8.8 ms. Changing an
+earlier pad replays the list (0.8–0.9 s with the base CDT); a replaying Regenerate of the pads is a
+no-op and C1, C3 and C6 hold after it. Hostile inputs: a 20,000-point circle a third of a tile
+across is refused (its pad would pass the triangle limit) in 0.24 s and 2.3 s, and a comb of 8,000
+corners is refused by the band bound in 2 ms. An earlier run on the same host while the machine
+was busy measured the contour terrain's command and display at 108 ms p95; the figures above are
+a repeat on the quiet machine.
+
+**Verification.** `terrain_stamp_tests` (ctest `terrain_stamp`, dev and sanitize presets) on the
+40-ring contour hill, the 12,000-point terrain and gridded point terrains: square pads on the hill (the preview equals the commit; C1, C2, C3, C5, C6
+and C7; Undo, Redo, save and reopen; `terrain.describe`'s pad); an L-shaped pad on the point
+terrain with cut and fill and the concave corner's bisector (and the same stamp on a second
+document, identical); a pad over a tile corner of a 120 × 120 m grid (four tiles replaced) and a
+fixed-width pad (every run equals the width); the footprint forms (a face at its own height, an
+edge loop, a group's lowest face, remembered for Restamp); protection (a raise and a smooth over a
+pad leave it, with `verticesProtected`; a breakline across it, a spot point on it and removing its
+outline source are refused as `inside-pad` and change nothing; removing the pad lifts it);
+overlaps (a pad whose slopes enter another refused with its location, one entering only the
+slopes applied, the older pad's rays superseded); refusals (a ray leaving the terrain, no
+daylight within the distance, off the terrain, a self-crossing and a pinched footprint, each
+bound and field rule, a missing body or terrain, 20,001 points, a locked terrain), each changing
+nothing; `terrain.update_edit` (elevation, slopes, mode and Restamp of a non-last pad, each one
+"Edit terrain change" with C1, C2, C3, C5, C6 and C7, Undo, Redo and reopen; a sculpt, a missing
+change, an empty update, slopes for a fixed-width pad, an update whose rays find no daylight with
+its located refusal, a polygon pad and a lost source body refused); the repair (a 4 m notch: 40 of
+140 rays dropped, reported and located); the codec and its refusals; the assistant (no stamp tool,
+no `pads`); a cancellation inside an entry; hostile inputs (a 20,000-point circle, a comb, 4,000
+sharp teeth past the ray bound); and a scripted sequence of two pads, a sculpt and an update with
+the checks after each, Undo and Redo of all, reopen, Remove change and Reset edits, its replay
+digest pinned (`04bc036f…98ffc2`, the same in Debug and Release builds). `command_tests` covers
+the two commands, and the parser fuzz seeds (a resolved daylight pad, an unresolved fixed-width
+pad, and a rejected pad whose rays run backwards) and `parser_fault_corpus_tests` cover the codec.
+The R096.b and R096.c suites pass unchanged, with their pinned digests, on the shared pad index
+and clip.
+
+**Review fixes.** An internal review before the pull request found no partial mutation on a
+refusal; these follow it. Bowyer–Watson walks count every visited triangle against R096.c's
+touched-triangle bound. A polygon index halves its bands while they would list more than 32 entries
+a corner (a zigzag daylight line listed each edge in thousands of bands). The edge-spacing pass
+counts the triangles it scans against the walk's bound. The crossing search sizes its cell so the
+walks list about five cells a segment, counts its pairs before testing any (so a refusal does not
+depend on hash order), tests them cell by cell instead of collecting them, and allows a shared
+corner only between neighbouring footprint edges (a footprint pinched at one corner is refused).
+`dropPadRays` skips pads whose box misses, the other-pads check tests only points and edges in each
+pad's box, the repair runs at most 16 rounds, and C3's grade test allows the rounding of the stored
+daylight point.
 
 ## Sources
 

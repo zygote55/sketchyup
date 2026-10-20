@@ -1305,7 +1305,7 @@ void hostile() {
 // A scripted sequence on the contour hill: two pads, a sculpt beside one, a contour edit, an
 // update and a removal, with every check after each, Undo and Redo of all, reopen, and a pinned
 // replay digest.
-constexpr const char *sequenceDigest = "";
+constexpr const char *sequenceDigest = "04bc036f6fa69e67e6a5d9c489c4e3e44fb8709fc12ff9bed318d6613098ffc2";
 void sequence() {
     Document doc;
     const auto terrain = importRings(doc);

@@ -643,8 +643,9 @@ QJsonObject measureSculpts(Document &doc, Id terrain, int samples, int replayEnt
 // reported apart). Then a larger pad (a whole cell across), the 64-vertex footprint of §9 (a
 // circle half a cell across), a 20,000-point circle and a refused comb, a pad parameter change
 // replaying the list (terrain.update_edit of the first of P pads), and a replaying Regenerate
-// of P pad entries (one per tile, default 200).
-QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntries) {
+// of P pad entries (one per tile, default 40, placed while the terrain stays 3,000 triangles under
+// the document limit).
+QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntries, double slope) {
     QElapsedTimer timer;
     const auto world = doc.worldTransform(terrain);
     const auto grid = doc.bodies().at(terrain)->terrain->tiling;
@@ -673,7 +674,7 @@ QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntr
             data->footprint.push_back({cx + radius * std::cos(t), cy + radius * std::sin(t)});
         }
         data->elevation = ground(cx, cy) + lift;
-        data->cutSlope = data->fillSlope = 0.5;
+        data->cutSlope = data->fillSlope = slope;
         data->maxDistance = 100;
         return data;
     };
@@ -698,7 +699,9 @@ QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntr
         return QJsonObject{{"command", "terrain.stamp_pad"},
                            {"terrain", QString::number(terrain)},
                            {"footprint", QJsonObject{{"polygon", polygon}}},
-                           {"elevation", world.point({0, 0, data.elevation}).z}};
+                           {"elevation", world.point({0, 0, data.elevation}).z},
+                           {"cutSlope", slope},
+                           {"fillSlope", slope}};
     };
     TerrainSurfaceCache surfaces;
     TerrainContourCache contours;
@@ -743,6 +746,7 @@ QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntr
                                .toObject()["count"]
                                .toDouble());
         }
+        check(doc.bodies().at(terrain)->terrain->edits.size() == 1, "the sample pad committed");
         QElapsedTimer update;
         update.start();
         (void)surfaces.get(doc, terrain);
@@ -850,7 +854,11 @@ QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntr
     if (replayEntries > 0) {
         std::uint32_t first = 0;
         std::size_t placed = 0;
-        for (std::size_t i = 0; i < bySize.size() && placed < std::size_t(replayEntries); ++i) {
+        // Pads add triangles: placing stops 3,000 below the document limit, so the update and
+        // the replay stay within it.
+        for (std::size_t i = 0; i < bySize.size() && placed < std::size_t(replayEntries) &&
+                                terrainTriangleCount(doc, terrain) + 3000 < TerrainLimits::triangles;
+             ++i) {
             const auto &key = bySize[i].second;
             try {
                 applyTerrainEdit(doc, terrain, terrainStampKind, pad(key, side(key) / 8, 4, 0.2),
@@ -905,7 +913,7 @@ QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntr
 
 QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject &command,
                     int edits, int replayEntries, int cancelTrials, int sourceEdits, int sculpts,
-                    int sculptReplay, int stamps, int stampReplay) {
+                    int sculptReplay) {
     Document doc;
     auto request = parseTerrainSourceRequest(bytes, command);
     auto result = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
@@ -917,8 +925,7 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
         sourceEdits > 0 ? measureSourceEdits(doc, terrain, sourceEdits) : QJsonObject{};
     const auto sculptResult =
         sculpts > 0 ? measureSculpts(doc, terrain, sculpts, sculptReplay) : QJsonObject{};
-    const auto stampResult =
-        stamps > 0 ? measureStamps(doc, terrain, stamps, stampReplay) : QJsonObject{};
+
     {
         auto display = doc.bodies().at(terrain)->terrain->display;
         display.contours = true;
@@ -1083,15 +1090,38 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
                                     {"undone", double(undone)}}},
             {"seamCheckMs", seamTime},
             {"sourceEdits", sourceEditResult},
-            {"sculpts", sculptResult},
-            {"stamps", stampResult}};
+            {"sculpts", sculptResult}};
+}
+// R096.d: stamps add triangles (a pad's outline and daylight points), and the two terrains above
+// are at the document's 250,000-triangle limit, so the stamps are measured on the same terrains
+// built from 2 % fewer points or rings (about 245,000 triangles), leaving room for the pads.
+QJsonObject measureStampTerrain(const char *name, const QByteArray &bytes,
+                                const QJsonObject &command, int stamps, int stampReplay,
+                                double slope) {
+    Document doc;
+    auto request = parseTerrainSourceRequest(bytes, command);
+    auto result = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
+    check(result.ok, std::string(name) + " imports: " + result.message);
+    const auto applied = applyTerrainImport(doc, std::move(result), request.name);
+    const Id terrain = applied["terrain"].toString().toULongLong();
+    {
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        display.contours = true;
+        setTerrainDisplay(doc, terrain, display);
+    }
+    auto measured = measureStamps(doc, terrain, stamps, stampReplay, slope);
+    measured["name"] = name;
+    measured["triangles"] = double(terrainTriangleCount(doc, terrain));
+    measured["tiles"] = double(terrainTiles(doc, terrain).size());
+    measured["slope"] = slope;
+    return measured;
 }
 } // namespace
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     int edits = 200, replay = 1000, cancel = 20, sourceEdits = 100, sculpts = 100,
-        sculptReplay = 1000, stamps = 100, stampReplay = 200;
+        sculptReplay = 1000, stamps = 100, stampReplay = 40;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--edits" && i + 1 < argc)
@@ -1120,18 +1150,32 @@ int main(int argc, char **argv) {
                                  {"columns", "XYZ"},
                                  {"delimiter", "whitespace"},
                                  {"header", false}},
-                                edits, replay, cancel, sourceEdits, sculpts, sculptReplay, stamps,
-                                stampReplay));
+                                edits, replay, cancel, sourceEdits, sculpts, sculptReplay));
         terrains.append(measure("contours", contourSource(416, 300),
                                 {{"format", "dxf"}, {"units", "header"}}, edits, replay,
-                                cancel, sourceEdits, sculpts, sculptReplay, stamps, stampReplay));
+                                cancel, sourceEdits, sculpts, sculptReplay));
+        QJsonArray stampTerrains;
+        if (stamps > 0) {
+            stampTerrains.append(measureStampTerrain("points", pointSource(122500),
+                                                     {{"format", "points"},
+                                                      {"units", "m"},
+                                                      {"columns", "XYZ"},
+                                                      {"delimiter", "whitespace"},
+                                                      {"header", false}},
+                                                     stamps, stampReplay, 0.5));
+            // Its ground falls 0.55 a metre, so the pads grade at 1:1.
+            stampTerrains.append(measureStampTerrain("contours", contourSource(408, 300),
+                                                     {{"format", "dxf"}, {"units", "header"}},
+                                                     stamps, stampReplay, 1.0));
+        }
         QJsonObject out{{"benchmark", "terrain_edit_benchmark"},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                         {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
 #endif
                         {"cpus", int(::sysconf(_SC_NPROCESSORS_ONLN))},
                         {"budgetMs", 100},
-                        {"terrains", terrains}};
+                        {"terrains", terrains},
+                        {"stamps", stampTerrains}};
         std::cout << QJsonDocument(out).toJson().toStdString();
     } catch (const std::exception &error) {
         std::cerr << "terrain_edit_benchmark: " << error.what() << '\n';
