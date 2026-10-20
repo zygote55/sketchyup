@@ -423,8 +423,12 @@ QJsonObject measureSculpts(Document &doc, Id terrain, int samples, int replayEnt
             smooth->strength = 0.5;
             smooth->iterations = 3;
             timer.restart();
-            (void)previewTerrainEdit(doc, terrain, terrainSmoothKind, smooth);
-            smoothPreview.push_back(ms(timer));
+            try {
+                (void)previewTerrainEdit(doc, terrain, terrainSmoothKind, smooth);
+                smoothPreview.push_back(ms(timer));
+            } catch (const TerrainError &) {
+                // Smoothing a patch that is already smooth moves nothing and is refused.
+            }
         }
         if (i % 2 == 0) {
             timer.restart();

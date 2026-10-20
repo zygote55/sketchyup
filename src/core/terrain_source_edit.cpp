@@ -844,7 +844,8 @@ void validateTerrainSourceEditData(const std::string &kind, const TerrainSourceE
 }
 std::uint32_t terrainAddedSourceId(std::uint32_t maxBaseId, std::uint32_t edit) {
     const std::uint64_t id = std::uint64_t(maxBaseId) + edit;
-    if (!edit || id > std::numeric_limits<std::uint32_t>::max())
+    // R096.b: below the ids of split source lines (terrainSplitSourceIdFloor).
+    if (!edit || id >= terrainSplitSourceIdFloor)
         throw TerrainError("LIMIT_EXCEEDED", "The terrain has used every source id; use Reset "
                                              "edits, or Explode terrain to keep the surface as "
                                              "ordinary geometry");

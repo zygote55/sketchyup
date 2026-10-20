@@ -217,6 +217,12 @@ std::vector<TerrainEditCodec> builtinCodecs() {
                      object["strength"] = edit.strength;
                      object["iterations"] = edit.iterations;
                  }
+                 if (!edit.pieces.empty()) {
+                     QJsonArray pieces;
+                     for (const auto &[parent, id] : edit.pieces)
+                         pieces.append(QJsonArray{double(parent), double(id)});
+                     object["pieces"] = pieces;
+                 }
                  return object;
              },
              [kind, sculpt](const QJsonObject &entry) -> std::shared_ptr<const TerrainEditData> {
@@ -227,6 +233,8 @@ std::vector<TerrainEditCodec> builtinCodecs() {
                      fields << "amount";
                  else
                      fields << "strength" << "iterations";
+                 if (entry.contains("pieces"))
+                     fields << "pieces";
                  exactFields(entry, fields, "terrain sculpt");
                  auto data = std::make_shared<TerrainSculptData>();
                  const auto falloff = terrainFalloffOf(text(entry["falloff"]));
@@ -253,6 +261,20 @@ std::vector<TerrainEditCodec> builtinCodecs() {
                      data->strength = number(entry["strength"]);
                      data->iterations =
                          int(integer(entry["iterations"], 1, terrainSmoothIterationsMax));
+                 }
+                 if (entry.contains("pieces")) {
+                     const auto pieces = array(entry["pieces"]);
+                     if (pieces.isEmpty() ||
+                         std::size_t(pieces.size()) > terrainSculptPiecesPerEdit)
+                         throw std::runtime_error("A terrain sculpt records 1 to 4,096 pieces");
+                     for (const auto &value : pieces) {
+                         const auto pair = array(value);
+                         if (pair.size() != 2)
+                             throw std::runtime_error("A terrain sculpt piece is [source, id]");
+                         data->pieces.push_back(
+                             {std::uint32_t(integer(pair[0], 1, 4294967295.0)),
+                              std::uint32_t(integer(pair[1], 1, 4294967295.0))});
+                     }
                  }
                  try {
                      validateTerrainSculptData(kind, *data);

@@ -767,10 +767,13 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
     const std::string kind = raise ? terrainSculptKind : terrainSmoothKind;
     const auto world = doc.worldTransform(terrain);
     const auto toLocal = world.inverse();
+    // Radius, width and amount are model metres and are stored as they are, so the terrain's
+    // frame must keep metres (a level terrain may be moved or turned, not scaled).
     const auto &m = world.m;
     const double sx = std::hypot(m[0], m[1]), sy = std::hypot(m[4], m[5]);
-    if (!(sx > 0) || std::abs(sx - sy) > 1e-9 * sx || std::abs(m[0] * m[4] + m[1] * m[5]) > 1e-9 * sx * sy)
-        reject("INVALID_OPERATION", "Sculpting needs a terrain scaled evenly in plan");
+    if (std::abs(sx - 1) > 1e-12 || std::abs(sy - 1) > 1e-12 ||
+        std::abs(m[0] * m[4] + m[1] * m[5]) > 1e-12 || std::abs(m[10] - 1) > 1e-12)
+        reject("INVALID_OPERATION", "Sculpting needs a terrain at its original scale");
     const bool hasPath = command.contains("path"), hasRegion = command.contains("region");
     if (hasPath == hasRegion)
         reject("INVALID_REQUEST", "Give a brush path or a region, not both");
@@ -788,7 +791,7 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
             reject("INVALID_REQUEST", "A brush needs its radius (0.01 to 1,000 m)");
         data->path = localPlan(command["path"], toLocal, terrainSculptPathPoints,
                                "path is a list of 1 to 256 model points [x, y]");
-        data->radius = finiteNumber(command, "radius", "The brush radius is 0.01 to 1,000 m") / sx;
+        data->radius = finiteNumber(command, "radius", "The brush radius is 0.01 to 1,000 m");
     } else {
         if (command.contains("radius"))
             reject("INVALID_REQUEST", "radius applies to a brush; a region has a falloffWidth");
@@ -807,7 +810,7 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
         data->region = std::move(corners);
         data->width = command.contains("falloffWidth")
                           ? finiteNumber(command, "falloffWidth",
-                                         "The falloff width is 0 to 1,000 m") / sx
+                                         "The falloff width is 0 to 1,000 m")
                           : 0;
     }
     if (raise) {
@@ -815,7 +818,7 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
             reject("INVALID_REQUEST", "strength and iterations apply to mode smooth");
         if (!command.contains("amount"))
             reject("INVALID_REQUEST", "mode raise needs an amount in metres (negative lowers)");
-        data->amount = finiteNumber(command, "amount", "The amount is a height in metres") / m[10];
+        data->amount = finiteNumber(command, "amount", "The amount is a height in metres");
     } else {
         if (command.contains("amount"))
             reject("INVALID_REQUEST", "amount applies to mode raise");
@@ -847,6 +850,9 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
         const TerrainEdit entry{record.nextEditId, kind, data};
         plan = planTerrainSculpt({*mesh, *state, record.parameters}, entry);
     }
+    // The pieces of split lines and their ids are resolved geometry: recorded in the entry, so a
+    // piece keeps its id on replay while its line splits the same way.
+    data->pieces = plan.clip.resolved;
     TerrainReport report;
     if (!plan.refusal.empty()) {
         const auto &first = data->brush() ? data->path.front() : data->region.front();

@@ -83,6 +83,9 @@ void validateTerrainRecord(const TerrainRecord &record) {
         maxBaseId = std::max(maxBaseId, source.id);
         if (!source.id || !ids.insert(source.id).second)
             throw std::runtime_error("Terrain source ids must be unique and not zero");
+        // R096.b: the ids from terrainSplitSourceIdFloor up name the pieces of split lines.
+        if (source.id >= terrainSplitSourceIdFloor)
+            throw std::runtime_error("Terrain source ids are below 3,221,225,472");
         if (!boundedText(source.reference, TerrainLimits::referenceBytes))
             throw std::runtime_error("Invalid terrain source reference");
         const std::size_t minimum =

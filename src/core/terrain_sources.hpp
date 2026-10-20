@@ -21,6 +21,9 @@ namespace sketchy {
 class Document;
 struct TerrainEdit;
 struct TerrainEditKind;
+// R096.b: source ids at or above this are the further runs of lines a sculpt split
+// (terrainSplitSourceId); base and added source ids stay below it.
+inline constexpr std::uint32_t terrainSplitSourceIdFloor = 3221225472u; // 2^32 - 2^30
 // An exact plan position.
 struct TerrainPlanKey {
     std::uint64_t x{}, y{};

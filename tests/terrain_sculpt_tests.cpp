@@ -670,7 +670,9 @@ void weights() {
         in += expected;
         if (!expected && best < star.width) {
             ++near;
-            check(index.weight(px, py) == terrainFalloff(star.falloff, best / star.width),
+            // Within an ulp or two: this file is not built with -ffp-contract=off.
+            check(std::abs(index.weight(px, py) - terrainFalloff(star.falloff, best / star.width)) <=
+                      1e-14,
                   "the edge grid finds the nearest edge");
         }
         if (!expected && !(best < star.width))
@@ -1221,7 +1223,41 @@ void pieces() {
     check(recordOf(doc, terrain).edits.back()->id == 3 &&
               stateOf(doc, terrain)->find(*terrainSplitSourceId(3, 0)) != nullptr,
           "a later sculpt's pieces take its own ids");
-    std::cout << "pieces: edited by id, skipped after Remove change, ids not reused\n";
+    // Recorded piece ids are stable: removing an earlier change that makes the sculpt split one
+    // more ring does not renumber the pieces of the others, so a later edit of a piece still
+    // finds its geometry.
+    {
+        Document other;
+        const auto t = importRings(other);
+        auto rings = contours(*stateOf(other, t));
+        run(other, command("terrain.remove_source", t, {{"source", double(rings.at(105.0)->id)}}));
+        const auto stroke = sculptCommand(t, {{"mode", "raise"},
+                                              {"path", planPoints(other, t, relPlan(other, t, {{-30, 0}, {30, 0}}))},
+                                              {"radius", 3},
+                                              {"amount", 0.3}});
+        run(other, stroke);
+        const auto &recorded = lastSculpt(other, t).pieces;
+        check(!recorded.empty(), "the sculpt records its pieces");
+        const auto parent = rings.at(103.5)->id;
+        std::uint32_t pieceId = 0;
+        for (const auto &[from, piece] : recorded)
+            if (from == parent)
+                pieceId = piece;
+        check(pieceId != 0, "ring 3 was split");
+        const double level = stateOf(other, t)->find(pieceId)->points.front().z;
+        run(other, command("terrain.edit_source", t,
+                           {{"source", double(pieceId)},
+                            {"elevation", toModel(other, t, {0, 0, level + 0.1}).z}}));
+        const auto replayed = run(other, command("terrain.remove_edit", t, {{"edit", 1}}));
+        check(replayed["terrainReport"].toObject()["terrain"].toObject()["edits"].toObject()["skipped"] == 0,
+              "with ring 0 back, the edit of ring 3's piece still applies");
+        const auto *edited = stateOf(other, t)->find(pieceId);
+        check(edited && edited->points.front().z == level + 0.1,
+              "ring 3's piece keeps its id and its edit");
+        checkC1(other, t, "stable pieces");
+        checkC7(other, t, "stable pieces");
+    }
+    std::cout << "pieces: edited by id, skipped after Remove change, ids not reused, ids stable\n";
 }
 
 // The format: the codec round trip and its refusals.

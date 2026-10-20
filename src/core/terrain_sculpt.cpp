@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <set>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -133,10 +134,11 @@ bool TerrainSculptData::equals(const TerrainEditData &other) const {
     const auto *o = dynamic_cast<const TerrainSculptData *>(&other);
     return o && o->path == path && o->radius == radius && o->region == region &&
            o->width == width && o->falloff == falloff && o->amount == amount &&
-           o->strength == strength && o->iterations == iterations;
+           o->strength == strength && o->iterations == iterations && o->pieces == pieces;
 }
 std::size_t TerrainSculptData::bytes() const {
-    return sizeof(TerrainSculptData) + (path.size() + region.size()) * sizeof(Plan2);
+    return sizeof(TerrainSculptData) + (path.size() + region.size()) * sizeof(Plan2) +
+           pieces.size() * sizeof(pieces[0]);
 }
 void validateTerrainSculptData(const std::string &kind, const TerrainSculptData &data) {
     const bool sculpt = kind == terrainSculptKind;
@@ -171,6 +173,15 @@ void validateTerrainSculptData(const std::string &kind, const TerrainSculptData 
             throw std::invalid_argument("The falloff width is 0 to 1,000 m");
         if (data.radius != 0)
             throw std::invalid_argument("A region has a falloff width, not a radius");
+    }
+    if (data.pieces.size() > terrainSculptPiecesPerEdit)
+        throw std::invalid_argument("A sculpt records at most 4,096 source line pieces");
+    {
+        std::set<std::uint32_t> ids;
+        for (const auto &[parent, id] : data.pieces)
+            if (!parent || id < terrainSplitSourceIdFloor || !ids.insert(id).second)
+                throw std::invalid_argument("A sculpt's source line pieces name a source and "
+                                            "distinct piece ids from 3,221,225,472 up");
     }
     if (data.falloff != TerrainFalloff::Smooth && data.falloff != TerrainFalloff::Linear &&
         data.falloff != TerrainFalloff::Constant)
@@ -378,7 +389,25 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
     const TerrainSculptInfluence influence(data);
     const auto &box = influence.bounds();
     TerrainSculptClip clip;
-    std::uint32_t piece = 0;
+    // Ids of further runs: a parent's runs first take the ids the entry recorded for that parent
+    // at its commit (in order), so a piece keeps its id while its parent splits the same way,
+    // whatever happens to other sources; any further run takes the next ordinal of the entry's
+    // block that no recorded id uses.
+    std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> recorded;
+    std::unordered_set<std::uint32_t> reserved;
+    for (const auto &[parent, id] : data.pieces) {
+        recorded[parent].push_back(id);
+        reserved.insert(id);
+    }
+    std::uint32_t ordinal = 0;
+    auto fresh = [&]() -> std::optional<std::uint32_t> {
+        for (;;) {
+            const auto id = terrainSplitSourceId(edit.id, ordinal++);
+            if (!id || !reserved.contains(*id))
+                return id;
+        }
+    };
+    std::set<std::uint32_t> taken;
     auto clipped = [&](const Vec3 &p) {
         return p.x >= box[0] && p.x <= box[2] && p.y >= box[1] && p.y <= box[3] &&
                influence.weight(p.x, p.y) > 0 && !protectedAt(state, p.x, p.y);
@@ -438,7 +467,11 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
             if (entry.pieces.empty())
                 next.id = source->id;
             else {
-                const auto id = terrainSplitSourceId(edit.id, piece++);
+                const auto further = entry.pieces.size() - 1;
+                const auto found = recorded.find(source->id);
+                const auto id = found != recorded.end() && further < found->second.size()
+                                    ? std::optional<std::uint32_t>(found->second[further])
+                                    : fresh();
                 ++clip.pieces;
                 if (!id) {
                     clip.refusal = edit.id > terrainSculptSplitEdits
@@ -449,12 +482,13 @@ TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const T
                                          "4,096 pieces; sculpt or smooth in smaller strokes";
                     return clip;
                 }
-                if (state.find(*id)) {
+                if (state.find(*id) || !taken.insert(*id).second) {
                     clip.refusal = "A source line piece would take the id " +
                                    std::to_string(*id) + ", which a source already has";
                     return clip;
                 }
                 next.id = *id;
+                clip.resolved.push_back({source->id, *id});
             }
             entry.pieces.push_back(std::move(next));
         }

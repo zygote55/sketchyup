@@ -65,6 +65,10 @@ struct TerrainSculptData final : TerrainEditData {
     double amount{};
     double strength{};
     int iterations{};
+    // The further runs of source lines it split at its commit, as (parent source id, piece id)
+    // in the order they were made (resolved geometry, ADR 0169 §2): on replay a parent's runs take
+    // its recorded ids first, so piece ids stay stable when other sources change.
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> pieces;
     bool brush() const { return !path.empty(); }
     bool equals(const TerrainEditData &other) const override;
     std::size_t bytes() const override;
@@ -109,9 +113,10 @@ class TerrainSculptInfluence {
 // The plan box of an entry's influence (TerrainEditKind::bounds).
 std::array<double, 4> terrainSculptBounds(const TerrainSculptData &data);
 
-// The id of the `piece`th further run an entry splits off (0-based, in the order the entry
-// clips): 4,294,967,295 - (edit - 1) * 4,096 - piece, above every id an added source can take
-// in practice. Empty past terrainSculptPiecesPerEdit pieces or terrainSculptSplitEdits edits.
+// The id of the `piece`th further run an entry splits off (0-based ordinal of the entry's
+// block): 4,294,967,295 - (edit - 1) * 4,096 - piece, at or above terrainSplitSourceIdFloor,
+// which base and added source ids stay below. Empty past terrainSculptPiecesPerEdit pieces or
+// terrainSculptSplitEdits edits.
 std::optional<std::uint32_t> terrainSplitSourceId(std::uint32_t edit, std::uint32_t piece);
 
 // What an entry clips from the current sources (decision 2), computed without the mesh.
@@ -126,6 +131,7 @@ struct TerrainSculptClip {
     std::uint64_t vertices{};    // source vertices clipped
     std::uint64_t pieces{};      // further runs (new source ids)
     std::uint64_t removed{};     // sources left with nothing
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> resolved; // (parent, piece id) made
     std::string refusal;         // non-empty when the entry may not split this much
 };
 TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit);
