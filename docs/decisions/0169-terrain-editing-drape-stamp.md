@@ -3,7 +3,7 @@
 Status: **Accepted (2026-10-19)** for the decisions below; the UX design is pending
 owner approval. Roadmap [R096](../PR_ROADMAP.md#r096) (M10, scope row
 [F03](../SCOPE.md)); builds on [ADR 0168](0168-terrain-import-and-surfaces.md) (R095).
-R096.a (the edit core) is being implemented in two stacked parts; see "Implementation notes
+R096.a (the edit core) is implemented in two stacked parts; see "Implementation notes
 (R096.a)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
 interaction design (§8, "Decisions the UX design must make") still needs the owner's
 approval, and R096.f waits for it.
@@ -1152,6 +1152,117 @@ a very long boundary edge. `parser_fault_corpus_tests` and the `terrain-edits` f
 the edit-list decoder (see
 [PARSER_FUZZING.md](../PARSER_FUZZING.md)). The R095 suites pass unchanged except the generator
 pin.
+
+### Part 2
+
+Modules: `replayTerrainEdits` in `src/core/terrain_edit.*`, `runTerrainRegenerate` in
+`src/io/terrain_import.*`, the replay requests and commands in `src/automation/terrain_commands.*`,
+the per-tile caches in `src/core/terrain_display.*`, their use in `src/app/viewport*.cpp`, and
+`TerrainStage::Replay` in `src/geometry/terrain_progress.hpp`.
+
+**Replay engine.** `replayTerrainEdits(base, edits, progress)` builds an edit mesh from the base
+tiles and runs every entry through the same kind, `replaceTerrainRegion` and leaf rules as the
+incremental edit, then returns the tiles in key order. Replay equals incremental: a replay of the
+list a terrain was edited with gives the same keys, names and meshes, so Regenerate after edits is
+a no-op (C7: no edit, no history entry, the same IDs and digest; tested before and after save and
+reopen). An entry that no longer applies (the kind returns nothing, or its change is refused, or it
+would leave no triangle) is skipped with its reason and kept in the list. `runTerrainRegenerate`
+triangulates the base sources, tiles the mesh (`terrainTileSet`), replays the list, checks the
+document triangle limit on the replayed tiles, and returns the tiles (`tileSet`). The report's
+terrain object gains `edits {count, applied, skipped}` and an `edit-skipped` notice locating each
+skipped entry as "edit N (kind)" with its reason. `regenerateTerrain` applies the tile set with the
+generalised tile-ID rule, so only the tiles that differ change.
+
+**Commands.** `terrain.regenerate` and `terrain.set_parameters` replay the list. New:
+`terrain.reset_edits {terrain}` ("Reset terrain edits") empties the list and rebuilds the base;
+`terrain.remove_edit {terrain, edit}` ("Remove terrain change") removes one entry by its integer ID
+and replays the others. Both follow Regenerate's rules exactly (tile IDs, the paint notices, the
+report), as §2 describes ("Reset edits is Regenerate with the list emptied"). Both keep the
+record's edit-ID counter, so a later change never takes a removed change's ID. Removing the last
+entry also replays rather than restoring the state before it: the result is the same by replay ==
+incremental, and there is one code path. Refusals: a missing terrain or change is `NOT_FOUND`; a
+reset with no edits and a non-integer `edit` are `INVALID_REQUEST`; a locked terrain is
+`INVALID_OPERATION`, and so is a terrain that is not level when edits remain. Each refusal changes
+nothing. The commands are in the catalogue with dry run and revision checks, MCP exposes them, and
+`assistantVisible` hides them (decision 9; the tool-surface baseline is unchanged). The API schemas
+and the tool reference are regenerated. `terrain.describe` reports `edits {count, bytes, space:
+"terrain", entries: [{id, kind, bounds?}] (at most 200), entriesOmitted}`. The assistant's
+description of `terrain.describe` is not changed yet: no production edit kind exists, and the clause
+of decision 9 belongs with the first one (R096.b). That keeps the pinned baseline.
+
+**Progress and cancel.** The four replaying commands split, like the import, into
+`parseTerrainReplayRequest` (on the document), `runTerrainReplay` (reads no document, so a desktop
+worker can run it) and `applyTerrainReplay` (one labelled edit). `runTerrainReplay` takes a
+`TerrainProgress`: it reports Triangulate and Tile (the base tiling included) through the D-044 checkpoints (the CDT abort hook
+included) and the new `TerrainStage::Replay` once per entry. `terrainReplayProgress` weights them
+40 %, 5 % and 55 %, and the desktop stage text is "replaying the edits". A cancelled run returns
+`cancelled` with code `CANCELLED` and nothing kept. `applyTerrainReplay` refuses a cancelled or
+failed run, and also a request whose terrain record changed since it was made (`INVALID_OPERATION`).
+The batch commands run the three parts in sequence without progress. Desktop wiring of Regenerate
+and Terrain settings to a worker with a progress bar is left to R096.f, which adds the Edits list.
+No production terrain has edits before R096.b, so those dialogs replay nothing until then.
+
+**Per-tile display.** `TerrainSurfaceCache` keeps a `TerrainTileSurface` (normals and outer edges)
+per tile and computes it from the edit mesh's incidence. After an edit it recomputes only the
+rebuilt tiles and the tiles that share a position with them (the seam ring). A tile whose record
+changed but whose mesh did not (paint) keeps its surface. Every other tile keeps its object, and the
+viewport's per-body cache compares that pointer, plus the elevation range for band shading, so it
+re-tessellates only those tiles. `terrainSurfaceDisplay` (the whole-terrain form the tests use)
+now sums each position's normals in tile-key order, as the per-tile form does, and the two are
+bit-equal (tested before and after an edit). For a terrain never edited this is the R095 order.
+`TerrainContourCache` keeps segments per tile, by record or by mesh, and assembles the terrain's
+segments in key order. Only rebuilt tiles are regenerated. The 500,000-segment bound applies to the
+sum of the per-tile estimates, which are whole numbers and so exact. When every tile is reused the
+previous contours are returned. The R095 cache test now counts tile generations instead of digests;
+its digest counter is gone.
+
+**Choices where the ADR is open.** Names and paint follow part 1's rules, so a user-renamed tile
+can differ between a replay and the incremental result (names are not in the digest; C7 compares
+IDs, records and digests). Desktop progress UI is deferred as above. The replay bound "≤ 3 s at 250k
+with 1,000 entries" is measured below.
+
+**Measured** (`terrain_edit_benchmark --edits 100 --replay 1000 --cancel 20`, Release, same host;
+display = `TerrainSurfaceCache` and `TerrainContourCache` with 1 m contour lines, without GPU upload
+or drawing):
+
+| Terrain | One-tile commit p50 / p95 | Display update p50 / p95 | Commit + display p95 (max) | Replaying Regenerate, 1,000 entries | Cancel latency p50 / p95 / max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 125,000 points (256 tiles) | 38.0 / 41.1 ms | 8.9 / 10.6 ms | 50.2 ms (62.9) | 1.12 s (request 7 ms, CDT and replay 827 ms, apply 290 ms) | 7.7 / 34.7 / 51.2 ms |
+| 416 contour rings (3,169 tiles) | 56.3 / 61.5 ms | 17.6 / 19.7 ms | 80.7 ms (96.3) | 1.02 s (13, 705, 303 ms) | 11.6 / 26.4 / 43.2 ms |
+
+The one-tile edit from release to committed state is within the 100 ms of decision 10 at p95
+(50–81 ms) before the GPU upload and the frame. R095.f measured a complete frame at 250k at p95
+0.79–0.94 ms on the AMD GPU, but re-uploading the contour batch (all segments; the GPU batches stay
+per terrain) and the rebuilt tiles is not measured here and belongs to R096.f's
+input-to-frame row. The commit is dominated by the whole-terrain SHA-256: 27 ms and 41 ms here,
+after appending its 7.5 MB input in bulk instead of byte by byte, which saved 4–5 ms. A replaying
+Regenerate with 1,000 entries takes 1.0–1.1 s against the proposed 3 s, and a cancel stops it
+within 52 ms. The cold display build (first draw) is 211–335 ms, once per terrain.
+
+**Verification (part 2).** `terrain_replay_tests` (ctest `terrain_replay`, dev and sanitize
+presets), on terrains imported from a generated 12,000-point file, so the base sources reproduce
+the base mesh:
+- replay == incremental for 12 edits (lifts, splits, and a refinement that splits a cell into
+  quadrants), with the same keys, names and meshes. Regenerate is then a no-op: in the core, through
+  the batch, and after reopen. Two documents with the same edits are identical.
+- `terrain.reset_edits` returns the base digest and tiles, keeps the untouched tiles' bodies, and
+  undoes (tiles pointer-identical) and redoes. A reset with no edits refuses.
+- `terrain.remove_edit` of a middle entry equals never having made it (same tiles and digest), the
+  other entries keep their IDs, and undo and redo work. Unknown, malformed and locked requests refuse
+  and change nothing. Removing a refinement skips a later lift of a quadrant tile, reports it and
+  keeps it.
+- `terrain.set_parameters` replays, and `terrain.describe` lists the edits.
+- Progress moves forward to 1 and does not change the result. A cancel at each replay checkpoint
+  returns `CANCELLED`, is not applied, and leaves revision, history and the document unchanged. A
+  stale request is refused.
+- After a one-tile edit, 8 of 30 tile surfaces are recomputed, the others are pointer-identical,
+  and everything is bit-equal to the whole-terrain surface. One tile's contours are generated, and
+  the assembled contours equal the whole-terrain ones.
+
+`command_tests` covers the two new commands, and the R095 desktop and display suites pass.
+The edit-list decoder was fuzzed with libFuzzer (clang, ASan and UBSan, the documented options):
+`parser_fuzz_terrain_edits` ran 45,407 inputs in 180 s from the generated seeds (522 coverage
+points, 581 MB peak) with no failure; `parser_fuzz_seeds` generates its two seeds.
 
 ## Sources
 

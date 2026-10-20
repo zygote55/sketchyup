@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <map>
 #include <utility>
@@ -18,14 +19,26 @@ namespace {
     throw TerrainError(code, message);
 }
 [[noreturn]] void protectedTarget() { refuse("UNSUPPORTED_TARGET", terrainProtectedMessage); }
+// Little-endian; on a little-endian host the bytes are appended as they are (R096.a: the
+// digest's input at 250k triangles is about 7.5 MB, built on every edit).
 void u32(std::string &out, std::uint32_t value) {
-    for (int i = 0; i < 4; ++i)
-        out.push_back(char((value >> (8 * i)) & 0xFF));
+    if constexpr (std::endian::native == std::endian::little) {
+        char bytes[4];
+        std::memcpy(bytes, &value, 4);
+        out.append(bytes, 4);
+    } else
+        for (int i = 0; i < 4; ++i)
+            out.push_back(char((value >> (8 * i)) & 0xFF));
 }
 void f64(std::string &out, double value) {
     const auto bits = std::bit_cast<std::uint64_t>(value);
-    for (int i = 0; i < 8; ++i)
-        out.push_back(char((bits >> (8 * i)) & 0xFF));
+    if constexpr (std::endian::native == std::endian::little) {
+        char bytes[8];
+        std::memcpy(bytes, &bits, 8);
+        out.append(bytes, 8);
+    } else
+        for (int i = 0; i < 8; ++i)
+            out.push_back(char((bits >> (8 * i)) & 0xFF));
 }
 bool boundedText(const std::string &text, std::size_t bytes) {
     return text.size() <= bytes &&

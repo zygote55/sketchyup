@@ -10,6 +10,7 @@
 // The middle step reads only stored records, so Regenerate and terrain.set_parameters
 // (R095.c2) rebuild the same input from a TerrainRecord.
 #include "core/terrain.hpp"
+#include "core/terrain_edit.hpp"
 #include "geometry/terrain_triangulation.hpp"
 #include "io/terrain_source.hpp"
 #include <QJsonObject>
@@ -85,6 +86,9 @@ struct TerrainImportResult {
     TerrainOriginMetres origin, proposed;
     QString originSource;
     std::size_t tiles{};
+    // R096.a: runTerrainRegenerate's tiles after the replay of the record's edit list (the
+    // base tiling when the list is empty); regenerateTerrain applies them.
+    std::optional<TerrainTileSet> tileSet;
     // The source report with a bounded "terrain" object; at most 64 KiB in all.
     QJsonObject report;
 };
@@ -126,10 +130,16 @@ void validateTerrainParameters(const TerrainParameters &parameters,
 // report has the import's shape: {"apiVersion", "format": "terrain-record", "units": "m",
 // "metresPerUnit": 1, "terrain": {...}} with XY in the terrain's local metres; `notices` are
 // added to it (the paint notice). Refusals set `code` and `message` and change nothing.
+// R096.a: the base mesh is tiled and the record's edit list replayed on it (`tileSet`); the
+// report's terrain object gains `edits {count, applied, skipped}` and an `edit-skipped` notice
+// locating each skipped entry ("edit N (kind)" and why), and the triangle budget is checked on
+// the replayed tiles. With `progress` it reports Triangulate, Tile and Replay and a cancelled
+// run returns `cancelled` (code CANCELLED) with nothing kept.
 TerrainImportResult runTerrainRegenerate(const TerrainRecord &record,
                                          const TerrainParameters &parameters,
                                          std::size_t otherTerrainTriangles,
-                                         TerrainReport notices = {});
+                                         TerrainReport notices = {},
+                                         TerrainProgress *progress = nullptr);
 
 // Model edges picked for terrain.create_from_edges. An edge is (body, edge ID). `edges` take
 // their role from Z (constant: contour; varying: breakline); `contours` and `breaklines`

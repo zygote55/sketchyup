@@ -15,6 +15,16 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain edit core, part 2 (R096.a, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#part-2)):
+  Regenerate and Terrain settings rebuild a terrain from its sources and then replay its list of
+  edits, so a Regenerate after edits changes nothing. New `terrain.reset_edits` and
+  `terrain.remove_edit` commands (automation sessions and MCP; hidden from the in-app assistant)
+  empty the list or remove one change and rebuild, as one undoable edit each; a change that no
+  longer applies is skipped, reported and kept. `terrain.describe` lists a terrain's edits. A
+  replay reports its progress and can be cancelled without changing anything. After an edit the
+  viewport recomputes shading normals and contour lines only for the tiles the edit touched.
+  No edit operation exists yet (they follow in R096.b–e), so existing terrains behave as before.
+
 - Terrain edit core, part 1 (R096.a, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096a)):
   the groundwork for terrain editing, with no new command yet. Terrains now store their tile
   grid, a key for each tile and an id for each source, and can hold a list of edits; an edit
