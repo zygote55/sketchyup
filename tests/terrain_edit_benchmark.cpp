@@ -161,13 +161,14 @@ QJsonObject measureSourceEdits(Document &doc, Id terrain, int samples) {
             preview.push_back(ms(timer));
             cavity = std::max(cavity, candidate.removedTriangles);
             if (i < samples / 4) {
+                // Each spot point adds two triangles to a terrain at the document limit, so each
+                // commit is undone before the next.
                 timer.restart();
                 applyTerrainEdit(doc, terrain, terrainAddSourceKind, data, "Add contour");
                 commit.push_back(ms(timer));
+                doc.undo();
             }
         }
-        for (std::size_t i = 0; i < commit.size(); ++i)
-            doc.undo();
         result["addSpotPoint"] = QJsonObject{{"previewMs", stats(preview)},
                                              {"commitMs", stats(commit)},
                                              {"largestCavity", double(cavity)}};
@@ -287,6 +288,14 @@ QJsonObject measureSourceEdits(Document &doc, Id terrain, int samples) {
         }
         ++committed;
     }
+    // C1 and C6 after the commits, at 250k triangles.
+    const auto sources = checkTerrainSourceConsistency(doc, terrain);
+    const auto seams = checkTerrainSeams(doc, terrain);
+    check(sources.ok() && seams.ok(), "C1 and C6 hold after the contour edits");
+    result["consistency"] = QJsonObject{{"sources", double(sources.sources)},
+                                        {"vertices", double(sources.vertices)},
+                                        {"segments", double(sources.segments)},
+                                        {"seamsOk", seams.ok()}};
     for (int i = 0; i < committed; ++i)
         doc.undo();
     result["commit"] = QJsonObject{{"coreMs", stats(core)},

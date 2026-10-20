@@ -842,6 +842,57 @@ void pointsTerrain() {
     std::cout << "points terrain: ids " << first << ", " << second << ", " << third << "\n";
 }
 
+// A gridded spot-point terrain (a 1 m grid, co-circular everywhere, ADR 0169 §9): a breakline,
+// a spot point and a removal keep distant terrain (C5), seams (C6) and Regenerate (C7), and the
+// same edits on a second document give identical tiles despite the ties.
+QByteArray gridSource(int n) {
+    QByteArray file;
+    for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; ++i)
+            file += QByteArray::number(i) + ' ' + QByteArray::number(j) + ' ' +
+                    QByteArray::number(50 + 0.01 * i + 0.02 * j, 'f', 3) + '\n';
+    return file;
+}
+Id importGrid(Document &doc, int n = 120) {
+    const QJsonObject options{{"format", "points"}, {"units", "m"}, {"columns", "XYZ"},
+                              {"delimiter", "whitespace"}, {"header", false}};
+    return importTerrainSource(doc, gridSource(n), options)["terrain"].toString().toULongLong();
+}
+void griddedTerrain() {
+    auto edit = [](Document &doc, Id terrain) {
+        run(doc, command("terrain.add_source", terrain,
+                         {{"role", "breakline"},
+                          {"points", modelPoints(doc, terrain,
+                                                 rel(doc, terrain, {{-20.5, -10.25, 51.5},
+                                                                    {-5.25, 3.5, 51.2},
+                                                                    {10.75, 4.25, 51.0}}))}}));
+        run(doc, command("terrain.add_source", terrain,
+                         {{"role", "points"},
+                          {"points", modelPoints(doc, terrain, rel(doc, terrain, {{30.25, -30.75, 49}}))}}));
+    };
+    Document doc;
+    const auto terrain = importGrid(doc);
+    const auto snap = snapshot(doc, terrain);
+    const auto before = model(doc);
+    edit(doc, terrain);
+    const auto replaced = checkC5(doc, terrain, snap, "grid");
+    checkC1(doc, terrain, "grid");
+    checkC6(doc, terrain, "grid");
+    checkC7(doc, terrain, "grid");
+    auto reopened = decodeDocument(encodeDocument(doc));
+    checkC7(reopened, terrain, "grid (reopened)");
+    Document other;
+    const auto copy = importGrid(other);
+    edit(other, copy);
+    check(model(other) == model(doc), "the same edits on a co-circular grid give identical "
+                                      "documents");
+    doc.undo();
+    doc.undo();
+    check(model(doc) == before, "two undos restore the grid");
+    std::cout << "grid: " << terrainTriangleCount(other, copy) << " triangles, " << replaced
+              << " tiles replaced\n";
+}
+
 // The pad rule: a test-only kind that protects a polygon stands in for R096.d's stamp.
 struct Protect final : TerrainEditData {
     TerrainPlanPolygon polygon;
@@ -889,6 +940,8 @@ void padRule() {
     std::cout << "pad rule: refused inside, applied outside\n";
 }
 
+constexpr const char *sequenceDigest =
+    "42754c782da8528ae207045eec9b98b27e6bdfc3857b917e5be73afabd10cf1e";
 // A scripted sequence of every kind, then Regenerate, Undo all, reopen.
 void sequence() {
     Document doc;
@@ -918,6 +971,12 @@ void sequence() {
                      {{"level", toModel(doc, terrain, {0, 0, 103.75}).z}}));
     run(doc, command("terrain.remove_source", terrain, {{"source", double(rings.at(100.5)->id)}}));
     checkAll(doc, terrain, cache, "sequence");
+    // The replay digest of this fixture and sequence, pinned (ADR 0169 §9, determinism): a
+    // change to the cavity, the flip or the tiling that alters replay output must update it
+    // and bump the generator's edit part.
+    const auto digest = recordOf(doc, terrain).meshDigest;
+    std::cout << "sequence digest " << digest << "\n";
+    check(digest == sequenceDigest, "the sequence's mesh digest is pinned: " + digest);
     auto reopened = decodeDocument(encodeDocument(doc));
     checkC7(reopened, terrain, "sequence (reopened)");
     std::size_t undone = 0;
@@ -937,7 +996,8 @@ int main(int argc, char **argv) {
         {"base consistency", baseConsistency}, {"move vertex", moveVertex},
         {"elevation only", elevationOnly},     {"add and remove", addAndRemove},
         {"refusals", refusals},                {"fixture outline and hole", fixtureOutlineAndHole},
-        {"points terrain", pointsTerrain},     {"pad rule", padRule},
+        {"points terrain", pointsTerrain},     {"gridded terrain", griddedTerrain},
+        {"pad rule", padRule},
         {"sequence", sequence}};
     int failed = 0;
     for (const auto &[name, test] : tests) {

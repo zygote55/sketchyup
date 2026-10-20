@@ -10408,6 +10408,207 @@
     },
     {
       "category": "Site and terrain",
+      "label": "Edit contour",
+      "name": "terrain.edit_source",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Edit contour",
+        "properties": {
+          "command": {
+            "const": "terrain.edit_source"
+          },
+          "elevation": {
+            "description": "A contour's new elevation (model Z, metres)",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "type": "number"
+          },
+          "points": {
+            "description": "Model points [x, y, z] (or [x, y] for a contour with an elevation); a closed polyline repeats its first point",
+            "items": {
+              "items": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 2,
+              "type": "array"
+            },
+            "maxItems": 20000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "role": {
+            "description": "Change a contour to a breakline or back",
+            "enum": [
+              "contour",
+              "breakline"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "description": "ID of a current terrain source (terrain.describe lists them under currentSources)",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "terrain": {
+            "description": "Terrain body",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terrain",
+          "source",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative site, terrain, document and limit validation"
+    },
+    {
+      "category": "Site and terrain",
+      "label": "Add contour",
+      "name": "terrain.add_source",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Add contour",
+        "properties": {
+          "at": {
+            "description": "Model [x, y] choosing the nearest contour line when several lie at the level",
+            "items": {
+              "maximum": 100000000,
+              "minimum": -100000000,
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "command": {
+            "const": "terrain.add_source"
+          },
+          "edges": {
+            "description": "Model edges chained into one polyline (or spot points), as terrain.create_from_edges",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "maxLength": 20,
+                  "pattern": "^[1-9][0-9]*$",
+                  "type": "string"
+                },
+                "edge": {
+                  "maxLength": 20,
+                  "pattern": "^[1-9][0-9]*$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "body",
+                "edge"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100000,
+            "type": "array"
+          },
+          "elevation": {
+            "description": "A contour's elevation when points have no Z (model Z)",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "type": "number"
+          },
+          "level": {
+            "description": "Promote the display contour at this model Z to a source contour",
+            "maximum": 100000000,
+            "minimum": -100000000,
+            "type": "number"
+          },
+          "points": {
+            "description": "Model points [x, y, z] (or [x, y] for a contour with an elevation); a closed polyline repeats its first point",
+            "items": {
+              "items": {
+                "maximum": 100000000,
+                "minimum": -100000000,
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 2,
+              "type": "array"
+            },
+            "maxItems": 20000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "role": {
+            "description": "Required with points or edges; level adds a contour",
+            "enum": [
+              "contour",
+              "breakline",
+              "points"
+            ],
+            "type": "string"
+          },
+          "terrain": {
+            "description": "Terrain body",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terrain",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative site, terrain, document and limit validation"
+    },
+    {
+      "category": "Site and terrain",
+      "label": "Remove contour",
+      "name": "terrain.remove_source",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Remove contour",
+        "properties": {
+          "command": {
+            "const": "terrain.remove_source"
+          },
+          "source": {
+            "description": "ID of a current terrain source (terrain.describe lists them under currentSources)",
+            "maximum": 4294967295,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "terrain": {
+            "description": "Terrain body",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terrain",
+          "source",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative site, terrain, document and limit validation"
+    },
+    {
+      "category": "Site and terrain",
       "label": "Terrain display",
       "name": "terrain.set_display",
       "parameters": {
@@ -25481,6 +25682,186 @@
                 {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
+                  "description": "Edit contour",
+                  "properties": {
+                    "command": {
+                      "const": "terrain.edit_source"
+                    },
+                    "elevation": {
+                      "description": "A contour's new elevation (model Z, metres)",
+                      "maximum": 100000000,
+                      "minimum": -100000000,
+                      "type": "number"
+                    },
+                    "points": {
+                      "description": "Model points [x, y, z] (or [x, y] for a contour with an elevation); a closed polyline repeats its first point",
+                      "items": {
+                        "items": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 2,
+                        "type": "array"
+                      },
+                      "maxItems": 20000,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "role": {
+                      "description": "Change a contour to a breakline or back",
+                      "enum": [
+                        "contour",
+                        "breakline"
+                      ],
+                      "type": "string"
+                    },
+                    "source": {
+                      "description": "ID of a current terrain source (terrain.describe lists them under currentSources)",
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "source",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Add contour",
+                  "properties": {
+                    "at": {
+                      "description": "Model [x, y] choosing the nearest contour line when several lie at the level",
+                      "items": {
+                        "maximum": 100000000,
+                        "minimum": -100000000,
+                        "type": "number"
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "command": {
+                      "const": "terrain.add_source"
+                    },
+                    "edges": {
+                      "description": "Model edges chained into one polyline (or spot points), as terrain.create_from_edges",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "body": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                          },
+                          "edge": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "body",
+                          "edge"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 100000,
+                      "type": "array"
+                    },
+                    "elevation": {
+                      "description": "A contour's elevation when points have no Z (model Z)",
+                      "maximum": 100000000,
+                      "minimum": -100000000,
+                      "type": "number"
+                    },
+                    "level": {
+                      "description": "Promote the display contour at this model Z to a source contour",
+                      "maximum": 100000000,
+                      "minimum": -100000000,
+                      "type": "number"
+                    },
+                    "points": {
+                      "description": "Model points [x, y, z] (or [x, y] for a contour with an elevation); a closed polyline repeats its first point",
+                      "items": {
+                        "items": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 2,
+                        "type": "array"
+                      },
+                      "maxItems": 20000,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "role": {
+                      "description": "Required with points or edges; level adds a contour",
+                      "enum": [
+                        "contour",
+                        "breakline",
+                        "points"
+                      ],
+                      "type": "string"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Remove contour",
+                  "properties": {
+                    "command": {
+                      "const": "terrain.remove_source"
+                    },
+                    "source": {
+                      "description": "ID of a current terrain source (terrain.describe lists them under currentSources)",
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "source",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
                   "description": "Terrain display",
                   "properties": {
                     "command": {
@@ -37785,6 +38166,186 @@
                   "required": [
                     "terrain",
                     "edit",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Edit contour",
+                  "properties": {
+                    "command": {
+                      "const": "terrain.edit_source"
+                    },
+                    "elevation": {
+                      "description": "A contour's new elevation (model Z, metres)",
+                      "maximum": 100000000,
+                      "minimum": -100000000,
+                      "type": "number"
+                    },
+                    "points": {
+                      "description": "Model points [x, y, z] (or [x, y] for a contour with an elevation); a closed polyline repeats its first point",
+                      "items": {
+                        "items": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 2,
+                        "type": "array"
+                      },
+                      "maxItems": 20000,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "role": {
+                      "description": "Change a contour to a breakline or back",
+                      "enum": [
+                        "contour",
+                        "breakline"
+                      ],
+                      "type": "string"
+                    },
+                    "source": {
+                      "description": "ID of a current terrain source (terrain.describe lists them under currentSources)",
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "source",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Add contour",
+                  "properties": {
+                    "at": {
+                      "description": "Model [x, y] choosing the nearest contour line when several lie at the level",
+                      "items": {
+                        "maximum": 100000000,
+                        "minimum": -100000000,
+                        "type": "number"
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "command": {
+                      "const": "terrain.add_source"
+                    },
+                    "edges": {
+                      "description": "Model edges chained into one polyline (or spot points), as terrain.create_from_edges",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "body": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                          },
+                          "edge": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "body",
+                          "edge"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 100000,
+                      "type": "array"
+                    },
+                    "elevation": {
+                      "description": "A contour's elevation when points have no Z (model Z)",
+                      "maximum": 100000000,
+                      "minimum": -100000000,
+                      "type": "number"
+                    },
+                    "level": {
+                      "description": "Promote the display contour at this model Z to a source contour",
+                      "maximum": 100000000,
+                      "minimum": -100000000,
+                      "type": "number"
+                    },
+                    "points": {
+                      "description": "Model points [x, y, z] (or [x, y] for a contour with an elevation); a closed polyline repeats its first point",
+                      "items": {
+                        "items": {
+                          "maximum": 100000000,
+                          "minimum": -100000000,
+                          "type": "number"
+                        },
+                        "maxItems": 3,
+                        "minItems": 2,
+                        "type": "array"
+                      },
+                      "maxItems": 20000,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "role": {
+                      "description": "Required with points or edges; level adds a contour",
+                      "enum": [
+                        "contour",
+                        "breakline",
+                        "points"
+                      ],
+                      "type": "string"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Remove contour",
+                  "properties": {
+                    "command": {
+                      "const": "terrain.remove_source"
+                    },
+                    "source": {
+                      "description": "ID of a current terrain source (terrain.describe lists them under currentSources)",
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "terrain": {
+                      "description": "Terrain body",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "terrain",
+                    "source",
                     "command"
                   ],
                   "type": "object"

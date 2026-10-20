@@ -403,7 +403,8 @@ feature.
   optional `nextEdit` (an integer 2 to 2^32 − 1, written when above its default 1) is the id the
   next entry takes, so ids are never reused; it must exceed every entry's id. R096.a defines
   no kind (its test-only kinds are not part of the format); R096.b–e add `sculpt`, `smooth`,
-  `editSource`, `addSource`, `removeSource`, `stamp` and `drape` with their fields.
+  `editSource`, `addSource`, `removeSource`, `stamp` and `drape` with their fields (R096.c's
+  three are in the addendum below).
 - A tile marker is `terrainTile: {key: [row, column, path, part]}` in place of `true`:
   `row` and `column` integers within ±2^53 (negative outside the original extent), `path` a
   string of at most 24 quadrant digits `0`–`3`, `part` an integer 0–9,999.
@@ -420,6 +421,29 @@ order, which is a storage order only. A development document written before this
 are derived from the stored mesh, and the document is saved in the new form. That loader branch
 is removable before the F03 release. A terrain mixing the two forms is refused. See
 [ADR 0169](0169-terrain-editing-drape-stamp.md#implementation-notes-r096a).
+
+**Schema 29 addendum: source edits (R096.c).** 2026-10-20. The first production edit kinds of
+the `edits` list ([ADR 0169](0169-terrain-editing-drape-stamp.md#implementation-notes-r096c)).
+Each entry's fields after `id` and `kind` are exactly these (a reader refuses others):
+
+- `editSource {source, role, points, before}`, `addSource {source, role, points}` and
+  `removeSource {source, before}`.
+- `source` is a source id, an integer 1 to 2^32 − 1. This build gives an added source the
+  largest base source id plus the entry's own id, so it is above every base id and, because
+  entry ids are never reused, never reused either. An entry naming a source that does not exist
+  at its place in the list (or adding one whose id is in use) changes nothing and is skipped on
+  replay with a notice.
+- `role` is `contour`, `breakline` or `points`.
+- `points` is a list of `[x, y, z]` in the terrain frame, finite and within ±1e6: 2 to 20,000
+  points for a contour or breakline (one elevation for a contour; a closed polyline repeats its
+  first point and has at least 4), 1 to 20,000 for points. They are the resolved geometry,
+  exactly as the mesh holds them.
+- `before` is the plan box `[minX, minY, maxX, maxY]` of the geometry the entry replaced or
+  removed (finite, minimum first). It is for listing the edit; replay reads the replaced geometry
+  from the current sources.
+
+The base sources never change; the current sources are derived from them and the list. Source
+coordinates are stored as +0.0 where an import produced −0.0, since JSON keeps no sign of zero.
 
 **The `terrain-mesh` chunk.** It follows the asset chunks, at most once and only with
 `terrain-v1`: `{kind: "terrain-mesh", encoding: "f64-u32-le-v1", offset, bytes,
