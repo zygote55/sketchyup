@@ -1834,7 +1834,9 @@ digest pinned (`04bc036f…98ffc2`, the same in Debug and Release builds). `comm
 the two commands, and the parser fuzz seeds (a resolved daylight pad, an unresolved fixed-width
 pad, and a rejected pad whose rays run backwards) and `parser_fault_corpus_tests` cover the codec.
 The R096.b and R096.c suites pass unchanged, with their pinned digests, on the shared pad index
-and clip.
+and clip. `parser_fuzz_terrain_edits` (libFuzzer, clang 23 with ASan and UBSan, the documented
+options, 2026-10-20), now with the pads in its seeds, ran 259,620 inputs in 301 s (1,679 coverage
+points, 622 MB peak) with no failure.
 
 **Review fixes.** An internal review before the pull request found no partial mutation on a
 refusal; these follow it. Bowyer–Watson walks count every visited triangle against R096.c's
