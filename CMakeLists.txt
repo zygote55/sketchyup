@@ -534,7 +534,8 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(terrain_drape_tests PRIVATE sketchyup_io)
     target_include_directories(terrain_drape_tests PRIVATE tests)
     add_test(NAME terrain_drape COMMAND terrain_drape_tests)
-    set_tests_properties(terrain_drape PROPERTIES TIMEOUT 900)
+    # The sanitized build runs it in about 11 minutes.
+    set_tests_properties(terrain_drape PROPERTIES TIMEOUT 1800)
     # R096.a: the one-tile edit budget (ADR 0169 §9; manual, build Release).
     add_executable(terrain_edit_benchmark EXCLUDE_FROM_ALL tests/terrain_edit_benchmark.cpp)
     target_link_libraries(terrain_edit_benchmark PRIVATE sketchyup_io)

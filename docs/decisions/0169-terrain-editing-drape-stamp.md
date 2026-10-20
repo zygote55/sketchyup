@@ -2053,7 +2053,7 @@ long line. Hostile inputs (`terrain_drape_tests`, Debug): a 300 × 300 grid of l
 crossings among themselves) is refused by the crossing bound in 0.2 s, a 10,000-segment zigzag
 across the terrain by the touched-triangle bound in 0.1 s, 20,000 points within 2 micrometres
 (one point) in 0.2 s, and a serpentine of 1,170 rows through 120 grid vertices each by the point
-bound in 3.9 s; a crafted record whose split segment one source passes 10,000 times derives in
+bound in 3.1 s (the split stops once its parts pass twice the run-point bound); a crafted record whose split segment one source passes 10,000 times derives in
 15 ms with the drape's effect left out.
 
 **Verification.** `terrain_drape_tests` (ctest `terrain_drape`, dev and sanitize presets) on the

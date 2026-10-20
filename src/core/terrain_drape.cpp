@@ -927,8 +927,10 @@ TerrainDrapePlan planTerrainDrape(const TerrainEditContext &context, const Terra
             for (const auto &loc : part)
                 if (along.empty() || keyOf(along.back().p) != keyOf(loc.p))
                     along.push_back(loc);
+            // Every split part holds its two ends, so the runs' points are at most half of this:
+            // past twice the bound the drape cannot fit, and is refused before more splitting.
             points += part.size();
-            if (points > 4 * terrainDrapeResolvedPoints)
+            if (points > 2 * terrainDrapeResolvedPoints)
                 problems.refuse(limitKind,
                                 "The draped lines would gain more than " +
                                     std::to_string(terrainDrapeResolvedPoints) +
