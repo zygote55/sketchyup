@@ -1,11 +1,13 @@
 #include "automation/extension.hpp"
 #include "component_parameter_fixture.hpp"
 #include "terrain_import_fixtures.hpp"
+#include "terrain_edit_test_kinds.hpp"
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
+#include "core/terrain_edit.hpp"
 #include "fuzz/parameter_expression_harness.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
@@ -20,11 +22,13 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <functional>
 #include <iostream>
 #include <new>
+#include <set>
 using namespace sketchy;
 namespace {
 class CorpusFailure : public std::runtime_error {
@@ -322,6 +326,36 @@ int main(int argc, char **argv) {
             tree["documentId"] = "00000000000000000000000000000840";
             terrain = decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
         }
+        {
+            // R096.a: two tiles of one terrain with one key are refused at load.
+            auto tree = QJsonDocument::fromJson(encodeDocument(terrain)).object();
+            auto bodies = tree["bodies"].toArray();
+            QJsonValue key;
+            bool found = false;
+            for (qsizetype i = 0; i < bodies.size(); ++i) {
+                auto o = bodies[i].toObject();
+                if (!o.contains("terrainTile"))
+                    continue;
+                if (!found) {
+                    key = o["terrainTile"];
+                    found = true;
+                    continue;
+                }
+                o["terrainTile"] = key;
+                bodies[i] = o;
+                break;
+            }
+            check(found, "The terrain seed has two tiles");
+            tree["bodies"] = bodies;
+            bool refused = false;
+            try {
+                decodeDocument(QJsonDocument(tree).toJson(QJsonDocument::Compact));
+            } catch (const std::exception &error) {
+                refused = std::string(error.what()).find("two tiles with the key") !=
+                          std::string::npos;
+            }
+            check(refused, "Duplicate terrain tile keys are refused, naming the key");
+        }
         const auto terrainContainer = encodeContainer(terrain);
         results.append(exercise("native-container-terrain", terrainContainer,
                                 [](const auto &bytes, bool &parsed) {
@@ -349,6 +383,37 @@ int main(int argc, char **argv) {
                                     check(triangles <= 250000,
                                           "Accepted terrain exceeds the document limit");
                                 }));
+        // R096.a: the terrain edit list decoder, with the test-only kinds R096.a has.
+        {
+            terrain_test_kinds::registerKinds();
+            Id terrainId = 0;
+            for (const auto &[id, body] : terrain.bodies())
+                if (body->terrain)
+                    terrainId = id;
+            Document edited = terrain;
+            const auto tile = edited.bodies().at(terrainTiles(edited, terrainId).front());
+            applyTerrainEdit(edited, terrainId, "test.lift",
+                             terrain_test_kinds::lift(tile->tileKey, .5), "Lift");
+            applyTerrainEdit(edited, terrainId, "test.split", terrain_test_kinds::split(7.3, 9.1),
+                             "Split");
+            QJsonArray list;
+            for (const auto &edit : edited.bodies().at(terrainId)->terrain->edits)
+                list.append(encodeTerrainEdit(*edit));
+            results.append(exercise("terrain-edits", QJsonDocument(list).toJson(QJsonDocument::Compact),
+                                    [](const auto &bytes, bool &parsed) {
+                                        const auto json = QJsonDocument::fromJson(bytes);
+                                        if (!json.isArray())
+                                            throw std::runtime_error("not a list");
+                                        const auto edits = decodeTerrainEdits(json.array());
+                                        parsed = true;
+                                        check(!edits.empty() && edits.size() <= 4096,
+                                              "Accepted terrain edits exceed their bound");
+                                        std::set<std::uint32_t> ids;
+                                        for (const auto &edit : edits)
+                                            check(edit->id && ids.insert(edit->id).second,
+                                                  "Accepted terrain edit ids repeat");
+                                    }));
+        }
         const auto glb = exportGlb(RenderSnapshot::capture(source)).glb;
         const auto glbPath = temporary.filePath("mutated.glb");
         results.append(exercise("glb", glb, [&](const auto &bytes, bool &parsed) {
@@ -497,8 +562,8 @@ int main(int argc, char **argv) {
               "Corpus never mutates its parameter model");
         check(encodeContainer(terrain) == terrainContainer,
               "Corpus never mutates its terrain model");
-        check(results.size() == 23,
-              "Corpus covers fourteen formats plus the four schema-27, four schema-28 and one "
+        check(results.size() == 24,
+              "Corpus covers fifteen formats plus the four schema-27, four schema-28 and one "
               "schema-29 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},

@@ -409,6 +409,10 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies, const Edit *edit,
                           const ComponentDefinitions &definitions,
                           const std::map<Id, BodyPtr> *baseline = nullptr) {
     DocumentTotals totals;
+    // R096.a: a terrain's tiles have distinct keys (the edit mesh, the elevation index and the
+    // digest identify tiles by key). Terrain operations build key-unique tile sets, and generic
+    // edits cannot change a key, so the full scan (load and the full oracle) checks it.
+    std::map<Id, std::map<TerrainTileKey, Id>> tileKeys;
     for (const auto &[id, b] : bodies) {
         addTotals(totals, b);
         if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
@@ -416,6 +420,17 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies, const Edit *edit,
         checkTerrainParent(*b, b->parent && bodies.contains(b->parent)
                                    ? bodies.at(b->parent).get()
                                    : nullptr);
+        if (b->terrainTile) {
+            const auto [found, inserted] = tileKeys[b->parent].emplace(b->tileKey, id);
+            if (!inserted) {
+                const auto &key = b->tileKey;
+                throw std::runtime_error(
+                    "Terrain " + std::to_string(b->parent) + " has two tiles with the key [" +
+                    std::to_string(key.row) + ", " + std::to_string(key.column) + ", \"" +
+                    key.path + "\", " + std::to_string(key.part) + "]: tiles " +
+                    std::to_string(found->second) + " and " + std::to_string(id));
+            }
+        }
         const auto world = worldTransformIn(bodies, id);
         // worldTransformIn still validates every candidate parent chain. World
         // bounds need another scan only when this record or an ancestor changed.
@@ -1643,7 +1658,18 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             reportFaceTextureMappingChanges(before, *change.after, changes.faces);
             change.edgeAppearancesResolved = true;
         }
-        charged += sizeof(Change) + bytes(change.before) + bytes(change.after);
+        // R096.a structural sharing (ADR 0169 §2): a terrain record change is charged its own
+        // fields and only the shared parts (source block, edit entries) one side holds alone.
+        const auto *recordBefore =
+            change.before && change.before->terrain ? &*change.before->terrain : nullptr;
+        const auto *recordAfter =
+            change.after && change.after->terrain ? &*change.after->terrain : nullptr;
+        if (recordBefore && recordAfter)
+            charged += sizeof(Change) + bytes(change.before) + bytes(change.after) -
+                       terrainRecordBytes(*recordBefore) - terrainRecordBytes(*recordAfter) +
+                       terrainRecordChangeBytes(recordBefore, recordAfter);
+        else
+            charged += sizeof(Change) + bytes(change.before) + bytes(change.after);
         const std::map<Id, Curve> noCurves;
         changes.curves = compareCurves(change.before ? change.before->curves : noCurves,
                                        change.after ? change.after->curves : noCurves);

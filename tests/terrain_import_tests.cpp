@@ -200,7 +200,7 @@ void metresFixture() {
     const Id id = operation["terrain"].toString().toULongLong();
     check(isTerrain(doc, id) && operation["siteEstablished"].toBool(), "terrain.import");
     const auto &record = *doc.bodies().at(id)->terrain;
-    check(record.generator == "cdt-2.0.0/terrain-v1" &&
+    check(record.generator == "cdt-2.0.0/terrain-v1+edit-v1" &&
               record.parameters.boundary == TerrainBoundaryMode::Boundary &&
               record.provenance.units == "m" && record.provenance.metresPerUnit == 1 &&
               record.provenance.sha256 == set.sha256.toStdString(),

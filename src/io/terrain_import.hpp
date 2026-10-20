@@ -106,7 +106,8 @@ TerrainImportResult runTerrainImport(const TerrainSourceSet &set,
 // proposed origin, the conversion and the bounded report including the triangulation dry run.
 QJsonObject terrainSourceInspection(const TerrainSourceSet &set, const TerrainImportResult &dryRun);
 
-inline constexpr const char *terrainGenerator = "cdt-2.0.0/terrain-v1";
+// R096.a: the edit part names the replay algorithms (ADR 0169 §2); bumped with them.
+inline constexpr const char *terrainGenerator = "cdt-2.0.0/terrain-v1+edit-v1";
 
 // ---- R095.c2: regenerate, set_parameters and create_from_edges ----------------------------
 

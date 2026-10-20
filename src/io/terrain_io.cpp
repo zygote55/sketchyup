@@ -1,11 +1,13 @@
 #include "io/terrain_io.hpp"
 #include "core/document_limits.hpp"
 #include "core/terrain.hpp"
+#include "core/terrain_edit.hpp"
 #include "io/native_limits.hpp"
 #include <QJsonArray>
 #include <QtEndian>
 #include <cmath>
 #include <cstring>
+#include <set>
 #include <stdexcept>
 namespace sketchy {
 static_assert(NativeLimits::terrainMeshBytes == terrainMeshChunkLimit);
@@ -93,6 +95,23 @@ TerrainShading shading(const QJsonValue &value) {
             return candidate;
     throw std::runtime_error("Unknown terrain shading");
 }
+// A JSON integer in [low, high] (doubles hold every integer up to 2^53 exactly).
+double integer(const QJsonValue &value, double low, double high) {
+    const auto v = number(value);
+    if (v != std::floor(v) || v < low || v > high)
+        throw std::runtime_error("Expected an integer in range");
+    return v;
+}
+std::vector<TerrainEditCodec> &codecs() {
+    static std::vector<TerrainEditCodec> registered;
+    return registered;
+}
+const TerrainEditCodec *codecOf(const std::string &kind) {
+    for (const auto &codec : codecs())
+        if (codec.kind == kind)
+            return &codec;
+    return nullptr;
+}
 void append32(QByteArray &out, std::uint32_t value) {
     char bytes[4];
     qToLittleEndian<quint32>(value, bytes);
@@ -104,6 +123,95 @@ void append64(QByteArray &out, std::uint64_t value) {
     out.append(bytes, 8);
 }
 } // namespace
+void registerTerrainEditCodec(TerrainEditCodec codec) {
+    if (codec.kind.empty() || !codec.encode || !codec.decode)
+        throw std::invalid_argument("Invalid terrain edit codec");
+    for (auto &existing : codecs())
+        if (existing.kind == codec.kind) {
+            existing = std::move(codec);
+            return;
+        }
+    codecs().push_back(std::move(codec));
+}
+QJsonObject encodeTerrainEdit(const TerrainEdit &edit) {
+    const auto *codec = codecOf(edit.kind);
+    if (!codec || !edit.data)
+        throw std::runtime_error("Unknown terrain edit kind");
+    auto object = codec->encode(*edit.data);
+    if (object.contains("id") || object.contains("kind"))
+        throw std::runtime_error("A terrain edit codec wrote a reserved field");
+    object["id"] = double(edit.id);
+    object["kind"] = QString::fromStdString(edit.kind);
+    return object;
+}
+TerrainEditPtr decodeTerrainEdit(const QJsonValue &value) {
+    auto entry = object(value);
+    auto edit = std::make_shared<TerrainEdit>();
+    edit->id = std::uint32_t(integer(entry["id"], 1, 4294967295.0));
+    edit->kind = text(entry["kind"]);
+    if (edit->kind.size() > TerrainLimits::editKindBytes)
+        throw std::runtime_error("Unknown terrain edit kind");
+    const auto *codec = codecOf(edit->kind);
+    if (!codec || !findTerrainEditKind(edit->kind))
+        throw std::runtime_error("Unknown terrain edit kind");
+    entry.remove("id");
+    entry.remove("kind");
+    edit->data = codec->decode(entry);
+    if (!edit->data)
+        throw std::runtime_error("Invalid terrain edit");
+    return edit;
+}
+std::vector<TerrainEditPtr> decodeTerrainEdits(const QJsonValue &value) {
+    const auto list = array(value);
+    // The count is checked before any entry is decoded.
+    if (list.isEmpty())
+        throw std::runtime_error("An empty terrain edit list is written as no list");
+    if (std::size_t(list.size()) > TerrainLimits::edits)
+        throw std::runtime_error("Terrain edit list exceeds 4,096 entries");
+    std::vector<TerrainEditPtr> edits;
+    edits.reserve(std::size_t(list.size()));
+    std::size_t bytes = 0;
+    std::set<std::uint32_t> ids;
+    for (const auto &entry : list) {
+        edits.push_back(decodeTerrainEdit(entry));
+        if (!ids.insert(edits.back()->id).second)
+            throw std::runtime_error("Terrain edit ids must be unique");
+        bytes += terrainEditEntryBytes(*edits.back());
+        if (bytes > TerrainLimits::editBytes)
+            throw std::runtime_error("Terrain edit list exceeds 8 MiB");
+    }
+    return edits;
+}
+QJsonObject encodeTerrainTileMarker(const TerrainTileKey &key) {
+    return {{"key", QJsonArray{double(key.row), double(key.column), QString::fromStdString(key.path),
+                               double(key.part)}}};
+}
+TerrainTileKey decodeTerrainTileMarker(const QJsonValue &value, bool *legacy) {
+    if (value == QJsonValue(true)) {
+        if (!legacy)
+            throw std::runtime_error("A terrain tile marker needs its key");
+        *legacy = true;
+        return {};
+    }
+    const auto marker = object(value);
+    exactFields(marker, {"key"}, "terrain tile marker");
+    const auto key = array(marker["key"]);
+    if (key.size() != 4)
+        throw std::runtime_error("A terrain tile key is [row, column, path, part]");
+    const double limit = double(terrainTileKeyLimit);
+    TerrainTileKey result;
+    result.row = std::int64_t(integer(key[0], -limit, limit));
+    result.column = std::int64_t(integer(key[1], -limit, limit));
+    result.path = text(key[2]);
+    if (result.path.size() > terrainTileMaxDepth ||
+        std::any_of(result.path.begin(), result.path.end(),
+                    [](char c) { return c < '0' || c > '3'; }))
+        throw std::runtime_error("Invalid terrain tile key path");
+    result.part = std::uint32_t(integer(key[3], 0, 9999));
+    if (legacy)
+        *legacy = false;
+    return result;
+}
 QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
     validateTerrainRecord(record);
     QJsonArray sources;
@@ -111,7 +219,8 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
         QJsonArray points;
         for (const auto point : source.points)
             points.append(QJsonArray{point.x, point.y, point.z});
-        sources.append(QJsonObject{{"role", roleName(source.role)},
+        sources.append(QJsonObject{{"id", double(source.id)},
+                                   {"role", roleName(source.role)},
                                    {"reference", QString::fromStdString(source.reference)},
                                    {"points", points}});
     }
@@ -126,7 +235,18 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
              QJsonObject{{"sha256", QString::fromStdString(record.provenance.sha256)},
                          {"units", QString::fromStdString(record.provenance.units)},
                          {"metresPerUnit", record.provenance.metresPerUnit}}},
-            {"meshDigest", QString::fromStdString(record.meshDigest)}};
+            {"meshDigest", QString::fromStdString(record.meshDigest)},
+            {"tiling", QJsonObject{{"origin", QJsonArray{record.tiling.originX,
+                                                         record.tiling.originY}},
+                                   {"cell", record.tiling.cell}}}};
+    if (record.nextEditId > 1)
+        encoded["nextEdit"] = double(record.nextEditId);
+    if (!record.edits.empty()) {
+        QJsonArray edits;
+        for (const auto &edit : record.edits)
+            edits.append(encodeTerrainEdit(*edit));
+        encoded["edits"] = edits;
+    }
     // R095.e2 display settings: optional, each field written only when it differs from its
     // default, and the object only when one does, so default records encode as before.
     const TerrainDisplay defaults;
@@ -141,23 +261,37 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
         encoded["display"] = display;
     return encoded;
 }
-TerrainRecord decodeTerrainRecord(const QJsonValue &value) {
+TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy) {
     const auto root = object(value);
-    exactFields(root,
-                root.contains("display")
-                    ? QStringList{"sources", "parameters", "generator", "provenance", "meshDigest",
-                                  "display"}
-                    : QStringList{"sources", "parameters", "generator", "provenance", "meshDigest"},
-                "terrain record");
+    // R096.a: `tiling` is required; its absence marks the R095 development form.
+    const bool old = !root.contains("tiling");
+    if (old && !legacy)
+        throw std::runtime_error("Missing field in terrain record");
+    QStringList fields{"sources", "parameters", "generator", "provenance", "meshDigest"};
+    if (!old)
+        fields.append("tiling");
+    if (root.contains("display"))
+        fields.append("display");
+    if (!old && root.contains("edits"))
+        fields.append("edits");
+    if (!old && root.contains("nextEdit"))
+        fields.append("nextEdit");
+    exactFields(root, fields, "terrain record");
     TerrainRecord record;
+    TerrainSources::Vector decodedSources;
     const auto sources = array(root["sources"]);
     if (size_t(sources.size()) > TerrainLimits::sources)
         throw std::runtime_error("Terrain record has too many sources");
     size_t points = 0;
     for (const auto &entry : sources) {
         const auto source = object(entry);
-        exactFields(source, {"role", "reference", "points"}, "terrain source");
+        if (old)
+            exactFields(source, {"role", "reference", "points"}, "terrain source");
+        else
+            exactFields(source, {"id", "role", "reference", "points"}, "terrain source");
         TerrainSource decoded;
+        if (!old)
+            decoded.id = std::uint32_t(integer(source["id"], 1, 4294967295.0));
         decoded.role = role(source["role"]);
         decoded.reference = text(source["reference"]);
         const auto values = array(source["points"]);
@@ -171,8 +305,9 @@ TerrainRecord decodeTerrainRecord(const QJsonValue &value) {
                 throw std::runtime_error("Terrain source point requires three coordinates");
             decoded.points.push_back({number(xyz[0]), number(xyz[1]), number(xyz[2])});
         }
-        record.sources.push_back(std::move(decoded));
+        decodedSources.push_back(std::move(decoded));
     }
+    record.sources = std::move(decodedSources);
     const auto parameters = object(root["parameters"]);
     exactFields(parameters, {"boundary", "maxEdgeLength", "flipFlatTriangles", "steinerFill"},
                 "terrain parameters");
@@ -201,6 +336,23 @@ TerrainRecord decodeTerrainRecord(const QJsonValue &value) {
         if (display.contains("shading"))
             record.display.shading = shading(display["shading"]);
     }
+    if (old) {
+        *legacy = true;
+        return record; // Derived and validated by the document decoder.
+    }
+    if (legacy)
+        *legacy = false;
+    const auto tiling = object(root["tiling"]);
+    exactFields(tiling, {"origin", "cell"}, "terrain tiling");
+    const auto origin = array(tiling["origin"]);
+    if (origin.size() != 2)
+        throw std::runtime_error("A terrain tiling origin is [x, y]");
+    record.tiling = {number(origin[0]), number(origin[1]), number(tiling["cell"])};
+    if (root.contains("edits"))
+        record.edits = decodeTerrainEdits(root["edits"]);
+    // Written only above its default 1; must exceed every entry's ID (validateTerrainRecord).
+    if (root.contains("nextEdit"))
+        record.nextEditId = std::uint32_t(integer(root["nextEdit"], 2, 4294967295.0));
     validateTerrainRecord(record);
     return record;
 }

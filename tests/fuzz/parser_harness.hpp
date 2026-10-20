@@ -7,6 +7,8 @@
 #include "io/stl_source.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
+#include "../terrain_edit_test_kinds.hpp"
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QtEndian>
 #include "parameter_expression_harness.hpp"
@@ -24,7 +26,7 @@ inline constexpr size_t inputLimit = 1024 * 1024;
 inline constexpr const char *formats[] = {
     "native-json", "native-container", "glb",       "stl-binary", "stl-ascii",           "obj",
     "dxf",         "template",         "component", "extension",  "parameter-expression",
-    "terrain-mesh", "terrain-dxf",     "terrain-points"};
+    "terrain-mesh", "terrain-dxf",     "terrain-points", "terrain-edits"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -122,6 +124,27 @@ inline void terrainSourceInvariants(const TerrainSourceSet &set) {
                 require(index < result.mesh.vertices.size(), "terrain index in range");
     }
 }
+// R096.a: an accepted terrain edit list (with the test-only kinds, the only ones R096.a has)
+// is within its bounds, has unique ids and re-encodes to a list that decodes to the same.
+inline void terrainEditsInvariants(const std::vector<TerrainEditPtr> &edits) {
+    require(!edits.empty() && edits.size() <= TerrainLimits::edits, "terrain edits bounded");
+    require(terrainEditBytes(edits) <= TerrainLimits::editBytes + edits.size() * 256,
+            "terrain edit data bounded");
+    QJsonArray encoded;
+    for (const auto &edit : edits)
+        encoded.append(encodeTerrainEdit(*edit));
+    const auto again = decodeTerrainEdits(encoded);
+    require(again.size() == edits.size(), "terrain edits re-decode");
+    for (std::size_t i = 0; i < edits.size(); ++i)
+        require(*again[i] == *edits[i], "terrain edits round-trip");
+}
+inline void registerTerrainTestKinds() {
+    static const bool registered = [] {
+        terrain_test_kinds::registerKinds();
+        return true;
+    }();
+    (void)registered;
+}
 inline void roundtrip(const Document &document) {
     const auto encoded = encodeContainer(document);
     require(encodeContainer(decodeContainer(encoded)) == encoded,
@@ -202,6 +225,14 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             const auto result = parseTerrainPoints(bytes, options);
             accepted = true;
             terrainSourceInvariants(result);
+        } else if (format == "terrain-edits") {
+            registerTerrainTestKinds();
+            const auto json = QJsonDocument::fromJson(bytes);
+            if (!json.isArray())
+                return false;
+            const auto edits = decodeTerrainEdits(json.array());
+            accepted = true;
+            terrainEditsInvariants(edits);
         } else if (format == "terrain-mesh") {
             const auto tiles = decodeTerrainMesh(bytes);
             accepted = true;

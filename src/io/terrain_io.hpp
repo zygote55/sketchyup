@@ -11,9 +11,32 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <functional>
+#include <string>
 namespace sketchy {
+// The record (ADR 0108 schema 29 with the R095.e2 and R096.a addenda). R096.a: each source
+// has `id`; the record has `tiling` {origin: [x, y], cell} and, when not empty, `edits`.
 QJsonObject encodeTerrainRecord(const TerrainRecord &record);
-TerrainRecord decodeTerrainRecord(const QJsonValue &value);
+// With `legacy`, a record in the R095 development form (no source ids, no tiling, no edits) is
+// accepted unvalidated and *legacy set: the document decoder derives the ids and the tiling
+// (deriveLegacyTerrain) and then validates it. Without `legacy` that form is refused.
+TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy = nullptr);
+// R096.a edit entries: {id, kind, ...the kind's fields}. The kind's codec writes and reads its
+// own fields; R096.a registers none in production (tests register theirs).
+struct TerrainEditCodec {
+    std::string kind;
+    std::function<QJsonObject(const TerrainEditData &)> encode;
+    // Must check every bound before allocating; throws std::runtime_error on invalid input.
+    std::function<std::shared_ptr<const TerrainEditData>(const QJsonObject &)> decode;
+};
+void registerTerrainEditCodec(TerrainEditCodec codec);
+QJsonObject encodeTerrainEdit(const TerrainEdit &edit);
+TerrainEditPtr decodeTerrainEdit(const QJsonValue &value);
+// The edit list decoder alone (the `edits` array), for the parser fuzz target.
+std::vector<TerrainEditPtr> decodeTerrainEdits(const QJsonValue &value);
+// R096.a tile markers: {key: [row, column, path, part]} (`true` is the R095 form; *legacy).
+QJsonObject encodeTerrainTileMarker(const TerrainTileKey &key);
+TerrainTileKey decodeTerrainTileMarker(const QJsonValue &value, bool *legacy = nullptr);
 QJsonValue encodeSiteOrigin(const std::optional<SiteOrigin> &origin);
 std::optional<SiteOrigin> decodeSiteOrigin(const QJsonValue &value);
 // terrain-mesh chunk, little-endian:

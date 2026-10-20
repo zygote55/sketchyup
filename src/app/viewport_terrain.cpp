@@ -136,6 +136,13 @@ void Viewport::syncTerrainViews() {
     stats_.contourSegments = 0;
     std::erase_if(terrainViews_, [&](const auto &item) { return !isTerrain(doc_, item.first); });
     contourCache_.prune(doc_);
+    // R096.a: the shared edit mesh cache drops deleted terrains and a replaced document.
+    if (terrainCacheIdentity_ != doc_.identity()) {
+        if (!terrainCacheIdentity_.empty())
+            terrainEditMeshCache().forget(terrainCacheIdentity_);
+        terrainCacheIdentity_ = doc_.identity();
+    }
+    terrainEditMeshCache().prune(doc_);
     if (terrainViews_.empty() && !doc_.materializedTotals().terrainTriangles &&
         std::none_of(doc_.bodies().begin(), doc_.bodies().end(),
                      [](const auto &item) { return item.second->kind == BodyKind::Terrain; }))

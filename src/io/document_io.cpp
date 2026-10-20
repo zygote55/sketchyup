@@ -19,6 +19,7 @@
 #include "io/terrain_io.hpp"
 #include "io/text_source_io.hpp"
 #include "core/terrain.hpp"
+#include "core/terrain_edit.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -372,7 +373,7 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
         if (body->terrain)
             record["terrain"] = encodeTerrainRecord(*body->terrain);
         if (body->terrainTile) {
-            record["terrainTile"] = true;
+            record["terrainTile"] = encodeTerrainTileMarker(body->tileKey);
             for (const auto *key : {"vertices", "faces", "edges"})
                 record[key] = QJsonArray{};
             record["edgeAppearances"] = QJsonObject{};
@@ -505,7 +506,10 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
         throw std::runtime_error("Document exceeds its JSON storage limit");
     return bytes;
 }
-std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
+// R096.a: `legacy` collects the terrains and tiles in the R095 development form (no source ids,
+// no tiling, `terrainTile: true`); without it that form is refused.
+std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
+                                   std::set<Id> *legacy = nullptr) {
     auto records = array(value);
     checkLimits({0, size_t(records.size())}, LimitClass::Placement, "Document load",
                 "stored body records");
@@ -544,11 +548,17 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version) {
         if (o.contains("referenceImage"))
             b->referenceImage = decodeReferenceImage(object(o["referenceImage"]));
         if (o.contains("textSource")) b->textSource = decodeTextSource(object(o["textSource"]));
-        if (o.contains("terrain"))
-            b->terrain = decodeTerrainRecord(o["terrain"]);
+        if (o.contains("terrain")) {
+            bool old = false;
+            b->terrain = decodeTerrainRecord(o["terrain"], legacy ? &old : nullptr);
+            if (old)
+                legacy->insert(b->id);
+        }
         if (o.contains("terrainTile")) {
-            if (o["terrainTile"] != QJsonValue(true))
-                throw std::runtime_error("A terrain tile marker must be true");
+            bool old = false;
+            b->tileKey = decodeTerrainTileMarker(o["terrainTile"], legacy ? &old : nullptr);
+            if (old)
+                legacy->insert(b->id);
             b->terrainTile = true;
             for (const auto *key : {"vertices", "faces", "wires", "edges"})
                 if (!array(o[key]).isEmpty())
@@ -838,6 +848,81 @@ void restoreTerrainTiles(std::map<Id, BodyPtr> &bodies, const QByteArray &mesh) 
         body->edgeAppearances = built.edgeAppearances;
     }
 }
+// R096.a (ADR 0169 §7): a development document written by an R095 build (no source ids, no
+// tiling, tiles marked `true`) loads with what it lacks derived: source ids 1..n in their
+// canonical stored order, and the creation tiling of the stored mesh (tileTerrainTriangles over
+// the tiles in ID order, whose buckets keep each tile's triangle order). A tile takes the key of
+// the derived tile with exactly its triangles; a tile that matches none (a mesh changed behind
+// its record) takes the cell of its first triangle's centroid and the next free part there.
+// The form is all or nothing per terrain. Saving writes the new form. One loader branch,
+// removable before the F03 release.
+void deriveLegacyTerrain(std::map<Id, BodyPtr> &bodies, const std::set<Id> &legacy) {
+    if (legacy.empty())
+        return;
+    std::map<Id, std::vector<Id>> tilesOf;
+    for (const auto &[id, body] : bodies)
+        if (body->terrainTile)
+            tilesOf[body->parent].push_back(id);
+    for (const auto &[id, body] : bodies) {
+        if (!body->terrain)
+            continue;
+        const bool old = legacy.contains(id);
+        for (const auto tile : tilesOf[id])
+            if (legacy.contains(tile) != old)
+                throw std::runtime_error("A terrain mixes the R095 and R096 forms");
+        if (!old)
+            continue;
+        auto terrain = std::const_pointer_cast<Body>(body);
+        auto &record = *terrain->terrain;
+        assignTerrainSourceIds(record);
+        // The creation tiling of the stored mesh.
+        TerrainMesh mesh;
+        std::vector<std::pair<std::size_t, std::size_t>> ranges; // triangles of each tile
+        for (const auto tile : tilesOf[id]) {
+            const auto part = terrainTileMesh(*bodies.at(tile));
+            const auto base = std::uint32_t(mesh.vertices.size());
+            const auto first = mesh.triangles.size();
+            mesh.vertices.insert(mesh.vertices.end(), part.vertices.begin(), part.vertices.end());
+            for (const auto &t : part.triangles)
+                mesh.triangles.push_back({t[0] + base, t[1] + base, t[2] + base});
+            ranges.push_back({first, mesh.triangles.size()});
+        }
+        if (mesh.triangles.empty())
+            throw std::runtime_error("A terrain needs at least one tile");
+        const auto tiling = tileTerrainTriangles(mesh);
+        record.tiling = {tiling.originX, tiling.originY, tiling.cell};
+        std::map<std::vector<std::uint32_t>, TerrainTileKey> derived;
+        for (std::size_t t = 0; t < tiling.tiles.size(); ++t)
+            derived[tiling.tiles[t]] = tiling.keys[t];
+        std::set<TerrainTileKey> used;
+        std::vector<std::pair<Id, std::size_t>> unmatched;
+        for (std::size_t i = 0; i < tilesOf[id].size(); ++i) {
+            std::vector<std::uint32_t> triangles;
+            for (auto t = ranges[i].first; t < ranges[i].second; ++t)
+                triangles.push_back(std::uint32_t(t));
+            auto tile = std::const_pointer_cast<Body>(bodies.at(tilesOf[id][i]));
+            const auto found = derived.find(triangles);
+            if (found != derived.end() && used.insert(found->second).second)
+                tile->tileKey = found->second;
+            else
+                unmatched.push_back({tile->id, ranges[i].first});
+        }
+        for (const auto &[tileId, first] : unmatched) {
+            const auto &t = mesh.triangles[first];
+            const auto a = mesh.vertices[t[0]], b = mesh.vertices[t[1]], c = mesh.vertices[t[2]];
+            const auto cell = terrainCellOf(record.tiling, (a.x + b.x + c.x) / 3,
+                                            (a.y + b.y + c.y) / 3);
+            if (!cell)
+                throw std::runtime_error("Invalid terrain tile grid");
+            TerrainTileKey key{(*cell)[0], (*cell)[1], {}, 0};
+            while (used.contains(key))
+                ++key.part;
+            used.insert(key);
+            std::const_pointer_cast<Body>(bodies.at(tileId))->tileKey = key;
+        }
+        validateTerrainRecord(record);
+    }
+}
 } // namespace
 Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsizetype inputBytes,
                                                   const AssetPayloads &payloads,
@@ -900,7 +985,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
         throw std::runtime_error("Packaged model exceeds the 32 MiB JSON limit");
-    auto bodies = decodeBodies(root["bodies"], root["version"].toInt());
+    std::set<Id> legacyTerrain;
+    auto bodies = decodeBodies(root["bodies"], root["version"].toInt(), &legacyTerrain);
     ComponentDefinitions definitions;
     ComponentInstances instances;
     std::map<Id, std::map<Id, std::pair<Id, Id>>> floors;
@@ -1140,6 +1226,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             mesh = *decoded;
         }
         restoreTerrainTiles(bodies, mesh);
+        deriveLegacyTerrain(bodies, legacyTerrain);
     } else
         for (const auto &[id, body] : bodies)
             if (body->terrainTile || body->terrain)
