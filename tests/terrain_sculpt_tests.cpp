@@ -1313,6 +1313,18 @@ void codec() {
     bad = json;
     bad["path"] = QJsonArray{QJsonArray{1, 2, 3}};
     refuses(bad, "a path point with Z");
+    // Recorded pieces round-trip; a piece id below the split range is refused.
+    brush.pieces = {{12, 4294967295u}, {12, 4294967294u}, {40, 4294967293u}};
+    auto withPieces = std::make_shared<TerrainSculptData>(brush);
+    const auto piecesJson = encodeTerrainEdit({1, terrainSculptKind, withPieces});
+    check(piecesJson["pieces"].toArray().size() == 3 &&
+              *decodeTerrainEdit(piecesJson) == TerrainEdit{1, terrainSculptKind, withPieces},
+          "recorded pieces round-trip");
+    bad = piecesJson;
+    bad["pieces"] = QJsonArray{QJsonArray{12, 7}};
+    refuses(bad, "a piece id below the split range");
+    bad["pieces"] = QJsonArray{};
+    refuses(bad, "an empty pieces list");
     std::cout << "codec: round trips and refusals\n";
 }
 

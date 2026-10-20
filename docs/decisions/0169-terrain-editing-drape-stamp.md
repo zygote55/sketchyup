@@ -5,7 +5,8 @@ owner approval. Roadmap [R096](../PR_ROADMAP.md#r096) (M10, scope row
 [F03](../SCOPE.md)); builds on [ADR 0168](0168-terrain-import-and-surfaces.md) (R095).
 R096.a (the edit core) is implemented in two stacked parts; see "Implementation notes
 (R096.a)". R096.c (cavity re-triangulation and contour edit) is implemented; see
-"Implementation notes (R096.c)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
+"Implementation notes (R096.c)". R096.b (sculpt and smooth) is implemented; see
+"Implementation notes (R096.b)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
 interaction design (§8, "Decisions the UX design must make") still needs the owner's
 approval, and R096.f waits for it.
 
@@ -1448,6 +1449,151 @@ Fuzzing (libFuzzer, clang 23 with ASan and UBSan, the documented options, 2026-1
 coverage points, 508 MB peak) and `parser_fuzz_terrain_edits`, now with the production source
 edits in its seeds, ran 196,342 inputs in 180 s (871 coverage points, 572 MB peak), both with no
 failure.
+
+## Implementation notes (R096.b)
+
+Modules: `src/core/terrain_sculpt.*` (the kinds `sculpt` and `smooth`, the weight function, the
+source clipping), `TerrainSourceState::clipPoints` in `src/core/terrain_sources.*`, the codecs in
+`src/io/terrain_io.cpp` and `terrain.sculpt` in `src/automation/terrain_commands.cpp`. The kinds
+are built in next to R096.c's, and `terrain_sculpt.cpp` is compiled with `-ffp-contract=off` like
+the other replayed code.
+
+**The kinds** (§4.1, §7). `sculpt` (raise; a negative amount lowers) and `smooth` share one entry
+type: a brush `{path, radius}` or a region `{region, falloffWidth}`, the `falloff`, and `amount` or
+`strength` and `iterations`, all in the terrain frame
+([ADR 0108 addendum](0108-public-native-format.md#schema-29-terrain-and-site-origin-r095a)). An
+entry stores its parameters, not the vertices it moved: replay recomputes them on the mesh before
+it, as for every kind. Bounds: a path of 1 to 256 points, a radius of 0.01 to 1,000 m, a region of
+3 to 20,000 corners with a nonzero area, a width of 0 to 1,000 m, a strength in (0, 1] and 1 to 8
+iterations, as §4.1 gives them; the amount is a choice where the ADR is open: non-zero and at most
+1,000 m either way.
+
+**Weights.** `TerrainSculptInfluence::weight(x, y)` is the one definition of the weight, used by the
+mesh change, by the source clipping and by previews, so they agree bit for bit. For a brush, d is the
+plan distance to the nearest segment of the path; each segment is measured from its
+lexicographically smaller end, and a projection outside the segment uses the end point exactly, so
+a reversed path or one with repeated samples gives the same bits, and collinear resampling agrees
+within 1e-12 (tested: a 256-sample stroke and a two-point stroke give surfaces within 1e-9 m, here
+identical). Lengths use the correctly rounded `sqrt`, not `hypot`, so no C library's last bit
+enters replay. f is `1 − t²(3 − 2t)` (smooth), `1 − t` (linear) or 1 (constant), with t = d / r,
+and zero at t ≥ 1: a vertex exactly at the radius or the width does not move (tested on a 1 m grid
+for each falloff, and for a region's outline, which is inside). A region is the nonzero-winding
+interior with the adapter's exact orientation, closed. Its edges are indexed twice: horizontal bands
+for the winding test and a grid of cells at least the falloff width for the distance outside, so a
+20,000-corner region costs a few edge tests per vertex (tested against brute force on a
+20,000-corner star).
+
+**Raise and smooth.** The moving vertices are those of the tiles in the influence box with a
+weight above zero, each position once, in (x, y) order. Raise lifts each to z + amount × w; a
+stroke is swept, so 256 samples along one line move no vertex more than the amount. Smooth runs
+Jacobi iterations over them: the mean is the plan inverse-distance (1/d) weighted mean of the one
+ring, summed in (x, y) order; neighbours without weight are read and never written (tested against
+an independent long-double computation). Only Z changes (`TerrainRegionChange::lifted`); the plan
+triangulation is unchanged (tested), and the flat-triangle flip does not run (§4.1). A change that
+moves no vertex is refused ("reaches no terrain vertex", "moves no terrain vertex", or "on a pad")
+with a located report, and on replay is skipped with that notice.
+
+**Pads** (decision 6). Vertices on or inside a polygon of the `protects` hook (R096.c) weigh zero;
+they are neither moved nor clipped. Pads arrive with R096.d, so the tests use a test-only kind with
+`protects` (as R096.c's pad rule test does), with a codec so the documents reopen. Removing the pad's
+entry lifts the protection: the replayed sculpt moves those vertices too (tested).
+
+**Contours** (decision 2). A kind's `sources` hook clips the current sources without the mesh: every
+contour, breakline and spot-point vertex with a weight above zero and no pad over it is edited ground
+now. The clipped set contains every source vertex the change moves, since a moved vertex has a
+weight and no pad; it can contain a few the change leaves where they were (a smooth that finds a
+vertex already at its mean), which is harmless for C1. So C1 holds for the remaining sources. Choices
+where the ADR is open:
+- *Lines.* A contour or breakline keeps its id for its first remaining run (in point order; a ring
+  from its first clipped vertex, so a closed ring becomes an open run); each further run is a new
+  source of the same role and reference; runs of one vertex are dropped.
+- *Ids of further runs.* They come from a block per entry, 2^32 − 1 − (entry − 1) × 4,096 − n, so
+  they are never reused, like added sources' ids. The command records each further run's (line,
+  id) in the entry (`pieces`, resolved geometry): on replay a line's runs take its recorded ids
+  first, so a piece keeps its id, and a later edit that names it still finds it, when an earlier
+  change is removed and the sculpt now splits other lines too (tested). Base and added ids stay
+  below the block range (3,221,225,472; the record check refuses a base id above it). An entry
+  that would split more than 4,096 runs, or whose id is past 2^18 (262,144 changes in a terrain's
+  life), and that must split a line is refused with `LIMIT_EXCEEDED`.
+- *Spot points* lose the clipped points (`clipPoints` updates the index for the dropped positions
+  only, so a large point source is not re-indexed). Boundary and hole sources are not clipped: they
+  define the outline, whose plan never changes; their stored Z is the import's (§4.1: "the outer
+  boundary may move in Z").
+
+The command reports the clipped vertices, the sources touched, the further pieces and the
+sources left empty, and `terrain.describe` lists the pieces with the other current sources.
+
+**Command** (§8). `terrain.sculpt {terrain, mode: raise|smooth, path | region, radius?, falloff?,
+falloffWidth?, amount?, strength?, iterations?}`, labelled "Sculpt terrain" or "Smooth terrain",
+one edit through the batch API with its dry run, MCP and sessions. Defaults: falloff smooth, width
+0, strength 0.5, one iteration. A region may repeat its first point at the end. Fields of the other
+mode or scope, a missing radius or amount and every bound are refused (`INVALID_REQUEST`, or
+`LIMIT_EXCEEDED` for the point counts) and change nothing (tested one by one, also through the
+batch). Inputs are model metres stored as they are, so a terrain whose frame is scaled is refused
+(`INVALID_OPERATION`); terrains are created unscaled, and a moved or turned terrain is fine. The
+bounded terrain report (`format: "terrain-edit"`) carries `verticesMoved`, `verticesInfluenced`,
+`verticesProtected`, `tilesTouched`, `tilesAdded` and `sourcesClipped {sources, vertices, pieces,
+removed}`, with notices `sources-clipped`, `pad-protected` and `face-paint-dropped`. The in-app
+assistant gets no tool (decision 9): `assistantVisible` hides `terrain.` commands, the assistant's
+schemas, `assistant_tool_surface_tests` and corpus v5 are unchanged, and `terrain.describe` needs
+no filtering since its shape did not change (its `edits` entries now name `sculpt` and `smooth`).
+Decision 9's clause about `edits` in the assistant's `terrain.describe` description stays deferred,
+because adding it would change the pinned tool surface.
+
+**Measured** (`terrain_edit_benchmark --edits 100 --replay 1000 --cancel 20 --source-edits 100
+--sculpts 100 --sculpt-replay 1000`, Release, GCC, the development host with 22 CPUs, the two 250k
+terrains). A one-tile sample is a three-point stroke through the middle of one of the 64 largest
+tiles, its radius a quarter of the tile's smaller side, raising 0.01 m; samples whose touched tiles
+hold more than 2,048 triangles in all (4 of 100 on the point terrain, where a stroke near a seam
+touches two large tiles) are left out of the budget rows. The nine-tile brush is a click at a
+tile's middle with a radius of 1.1 cells. Display = the per-tile surface and contour caches, without
+GPU upload or drawing.
+
+| Terrain | One-tile: vertices, touched triangles (p95) | Preview p95 (max): raise / smooth ×3 | Commit p95: core / command / command + display (max) | Nine tiles: vertices, triangles; preview / commit / display p95 | Replaying Regenerate, 1,000 sculpts |
+| --- | --- | --- | --- | --- | ---: |
+| 125,000 points (256 tiles) | 229; 2,021 | 3.8 (4.1) / 0.7 ms | 38.7 / 40.1 / 48.6 ms (54.0) | 2,025; 9,484; 6.6 / 101.1 / 27.8 ms | 1.55 s |
+| 416 contour rings (3,169 tiles) | 177; 926 | 2.6 (4.0) / 1.1 ms | 65.9 / 65.2 / 85.0 ms (89.8) | 1,509; 6,246; 5.0 / 103.3 / 33.4 ms | 1.35 s |
+
+The one-tile commit holds decision 10's 100 ms at p95 (39–66 ms in the core, 49–85 ms with the
+command and the display update); as before, most of it is the whole-terrain digest. The preview
+computation is at most 4.1 ms, small enough for the UI thread as §5 plans. A brush over nine tiles
+previews in 5–7 ms and commits in about 100 ms p95 (rebuilding and validating nine tiles of up to
+9,500 triangles); with its display update it is about 130 ms, which R096.f's input-to-frame row
+measures with the frame. A replaying Regenerate of 1,000 sculpt and smooth entries takes 1.35–1.55 s
+against the proposed 3 s; each entry clips the current sources twice (in the change and in the
+derivation), a linear scan of the source vertices that is a small part of it. After the commits C1
+holds over the contours' 960 current sources (119,071 vertices, the rings now split around the
+strokes) and C6 at 250k. One earlier run on the same host, while the machine was swapping, measured
+the contour terrain's one-tile command and display at 139.5 ms p95; a repeat on the quiet machine
+gave the figures above, and a sculpt-only run gave 69.7 ms. The R096.a and R096.c rows are
+unchanged: a one-tile `test.lift` commit p95 42.0 and 64.3 ms; a contour edit commit 61.4 ms; a
+replaying Regenerate of 1,000 lifts 1.10 s on the point terrain when the benchmark runs it alone
+(1.64 s after the other sections in the same process) and 0.99 s on the contours.
+
+**Verification.** `terrain_sculpt_tests` (ctest `terrain_sculpt`, dev and sanitize presets) on the
+R095-style 40-ring contour hill, the 12,000-point terrain and a 40 × 40 m gridded point terrain:
+- the weight function (falloff values and edges, sampling, reversal, the region indexes against
+  brute force);
+- a raise along a stroke over the hill: every vertex moves by exactly amount × w, the plan is
+  kept, the crossed rings are clipped into runs with split ids, the preview equals the commit, the
+  report counts the vertices and tiles, and C1, C2, C5, C6 and C7 hold, also after Undo
+  (tiles pointer-identical), Redo, save and reopen and on a second document (identical);
+- a region smooth with a falloff width (Jacobi against a long-double reference, the neighbours
+  outside unchanged, spot points clipped) and a wide smooth over seven tiles (C5, C6, C7);
+- the falloff edges on the grid, sampling (dense, reversed and repeated strokes), the refusals
+  (each bound, every wrong field combination, an empty brush with its located report, a missing or
+  locked terrain, the batch), pads, the pieces (edited by id, skipped with a notice after the sculpt
+  is removed, C1 with the skipped entry left out, ids never reused and stable when an earlier
+  change is removed), the codec and its refusals, the assistant's request (no `terrain.sculpt`
+  tool; the sculpt listed in `terrain.describe`), and a scripted sequence of four sculpts and a
+  contour edit with the checks after each, Undo and Redo of all, reopen, Reset edits and a pinned
+  replay digest (`81f5fd22…3b688`, the same in Debug and Release builds).
+
+`command_tests` covers the command, and the parser fuzz seeds (a brush sculpt with a recorded
+piece, a region smooth, and a rejected smooth of nine iterations) and `parser_fault_corpus_tests`
+cover the two codecs. `parser_fuzz_terrain_edits` (libFuzzer, clang with ASan and UBSan, the
+documented options, 2026-10-20) ran 349,176 inputs in 301 s from the generated seeds (1,179
+coverage points, 587 MB peak) with no failure.
 
 ## Sources
 

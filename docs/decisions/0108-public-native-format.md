@@ -448,8 +448,9 @@ coordinates are stored as +0.0 where an import produced −0.0, since JSON keeps
 ([ADR 0169](0169-terrain-editing-drape-stamp.md#implementation-notes-r096b)), each with exactly
 these fields after `id` and `kind` (a reader refuses others):
 
-- `sculpt {path, radius, falloff, amount}` or `sculpt {region, falloffWidth, falloff, amount}`;
-  `smooth` has the same scope fields with `strength` and `iterations` in place of `amount`.
+- `sculpt {path, radius, falloff, amount, pieces?}` or
+  `sculpt {region, falloffWidth, falloff, amount, pieces?}`; `smooth` has the same scope fields
+  with `strength` and `iterations` in place of `amount`.
 - `path` is a brush stroke of 1 to 256 plan points `[x, y]` in the terrain frame, finite and
   within ±1e6; `radius` is 0.01 to 1,000.
 - `region` is a closed polygon of 3 to 20,000 such points (the closing edge implied, no point
@@ -458,11 +459,17 @@ these fields after `id` and `kind` (a reader refuses others):
 - `amount` is a non-zero height of at most 1,000 in magnitude; `strength` is above 0 and at most
   1; `iterations` is an integer 1 to 8.
 
-An entry stores only its parameters: the vertices it moves and the source vertices it clips from
-the current sources are derived from the mesh and the current sources at its place in the list.
-A source line a sculpt splits keeps its id for its first remaining run; each further run takes
-the id 2^32 − 1 − (entry id − 1) × 4,096 − n for its n-th further run (0-based), so these ids are
-never reused either.
+- `pieces` (written when not empty) is a list of 1 to 4,096 pairs `[source, piece]`: the
+  further runs of the source lines the entry split when it was made, in order, `source` the line's
+  id and `piece` a distinct id of at least 3,221,225,472 (2^32 − 2^30).
+
+An entry stores its parameters and, as resolved geometry, its pieces' ids: the vertices it moves
+and the source vertices it clips from the current sources are derived from the mesh and the
+current sources at its place in the list. A source line a sculpt splits keeps its id for its
+first remaining run; each further run takes the ids recorded for that line in order, and any run
+beyond them the next unrecorded id of the entry's block, 2^32 − 1 − (entry id − 1) × 4,096 − n
+(n = 0 to 4,095; entries up to 2^18), so these ids are never reused either. Base and added source
+ids stay below 3,221,225,472 (a reader refuses a base id at or above it).
 
 **The `terrain-mesh` chunk.** It follows the asset chunks, at most once and only with
 `terrain-v1`: `{kind: "terrain-mesh", encoding: "f64-u32-le-v1", offset, bytes,

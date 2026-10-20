@@ -383,6 +383,7 @@ int main(int argc, char **argv) {
                 brush->radius = 3.5;
                 brush->falloff = TerrainFalloff::Linear;
                 brush->amount = -0.75;
+                brush->pieces = {{3, 4294967295u}};
                 auto region = std::make_shared<TerrainSculptData>();
                 region->region = {{0, 0}, {10, 0}, {10, 8}, {4, 12}, {0, 8}};
                 region->width = 2;
