@@ -682,7 +682,7 @@ Regenerate.
 
 | ID | Check |
 | --- | --- |
-| C1 | Every **current** source contour and breakline lies on the surface. Each vertex is a mesh vertex with Z exactly its stored value (bit-equal; contours at their one elevation), and each segment is a mesh edge. |
+| C1 | Every **current** source contour and breakline lies on the surface. Each vertex is a mesh vertex with Z exactly its stored value (bit-equal; contours at their one elevation), and each segment is a mesh edge. C1 covers the base sources and the entries that applied: an entry a replay skipped (its `edit-skipped` notice names it) is left out, since the mesh does not hold its change (amended with R096.c). |
 | C2 | Display contour lines at a current source contour's elevation pass through that contour within 1e-9 m, and display contours reflect the edited surface with no stale tiles (per-tile cache keys). |
 | C3 | For every pad not removed, every mesh vertex on or inside its outline has Z bit-equal to the pad elevation. `terrain.elevation_at` inside it returns the pad elevation within 1e-9 m. Its outline edges are mesh edges. Along every unsuperseded ray, the grade |z_pad − z_daylight| / run equals the fill slope where the pad is above the ground and the cut slope where it is below, within 1e-9 relative, and the daylight point lies on the surface within 1e-9 m. |
 | C4 | Imprint changes no elevation: `terrain.elevation_at` at 10,000 random points in the region is unchanged within 1e-9 m. |
@@ -1303,7 +1303,8 @@ edit and its replay see the same sources. They are cached by base block and entr
 record that extends a cached one by entries is derived from it in place, so a preview, its commit
 and the next preview do not rebuild the index (19 ms cold at 250k). Source ids: an added source
 takes the largest base id plus its entry's id, so ids are never reused (entry ids are not), even
-after Reset edits.
+after Reset edits; the record check refuses an `addSource` entry whose id breaks this rule, so a
+file cannot claim an id a later entry will take.
 
 **Re-triangulation** (`planTerrainSourceEdit`). Elevation-only (same plan positions in order): the
 changed vertices are lifted and `flipTerrainFlatTriangles` runs over their incident triangles (all
@@ -1315,15 +1316,32 @@ inserted, merging with an existing vertex of the same Z, or replacing a plain (n
 at its position. The cavity is every triangle touching a removed or lifted vertex, a removed
 segment's edge (when no other source keeps it), an inserted vertex or a new segment (closed
 exact tests), plus each inserted vertex's Bowyer–Watson cavity (exact in-circle), never across a
-current constraint, the outline or a protected region. An edit that changes no triangle (a spot
-point removed from the outline) changes only the record.
+current constraint, the outline or a protected region. A plain vertex (one no current source
+holds, such as a Steiner point or a vertex an earlier edit left, and not on the outline) lying
+exactly on a new segment is removed with the cavity rather than refused as a touch. An edit that
+changes no triangle (a spot point removed from the outline) changes only the record.
+
+**Cavity bound.** The cavity is bounded while it is collected: an edit whose cavity would pass
+65,536 triangles (`terrainSourceEditCavityTriangles`) is refused with `LIMIT_EXCEEDED`, located at
+the geometry that crossed the bound, with "split it into smaller changes"; on replay such an entry
+is skipped as soon. A second bound beside it counts the triangles found touching the new geometry,
+once per vertex and segment (16 × 65,536): a zigzag of long, nearly parallel segments keeps its
+cavity small while every segment rescans it, and is refused the same way. Segments find their
+triangles through the grid index, a box of at most one cell per step along the segment, with a
+cheap side-of-line test before the exact one. Measured (Release, the 250k point terrain): a
+11,601-point serpentine breakline with a 54,865-triangle cavity previews in 0.62 s; the worst
+case, a 20,000-point zigzag whose every segment spans the terrain, is refused in 0.82 s (3.0 s
+with the cavity bound alone; before either bound and the grid walk it scanned every triangle in
+each segment's box, about 5e9 orientation tests). The bound allows any
+realistic reshape: a 290-vertex ring move is 1,171 triangles, and a 2,000 m breakline about 2,000.
 
 **Validation.** Crossings, touches, conflicting duplicates and the adapter's limits come from the
 cavity call: every current contour and breakline segment is a mesh edge (C1), so any segment a new
 segment could cross is an edge of a triangle it touches, which is in the cavity. The outline rule
 (decision 6) is checked before: a new vertex must lie in a triangle and not on an outline or hole
-edge, and a new segment must not meet an outline or hole edge except at its own ends
-(`outside-outline`). The pad rule checks the new, removed and lifted geometry against every
+edge, and a new segment must not meet an outline or hole edge except at its own ends, nor run
+along one (a collinear overlap, including a segment equal to an outline edge), nor have its middle
+off the terrain (between two outline points across a notch or a hole) (`outside-outline`). The pad rule checks the new, removed and lifted geometry against every
 protected polygon (`inside-pad`; tested with a test-only kind until R096.d). Cleaning is the
 importer's (`cleanTerrainPolyline`, `canonicalTerrainPolyline`, moved to core and shared).
 Refusals are `TerrainEditRefused` with the import's report kinds and locations; the commands
@@ -1342,7 +1360,18 @@ The command dry-runs the plan, stores the resolved geometry (a vertex merged wit
 stored where the mesh holds it) and commits; the result names the source, the entry, the tiles and
 the cavity, with notices for cleaning, merges, remaining flat triangles and dropped face paint.
 `terrain.describe` adds `currentSources {count, vertices, roles, entries (id, role, reference,
-points; at most 200), entriesOmitted}`; its `edits` entries carry their boxes from the kinds.
+points; at most 200), entriesOmitted}` for MCP and sessions; its `edits` entries carry their boxes
+from the kinds. The in-app assistant reads `terrain.describe` without `currentSources`
+(`assistantResult` drops it from its results and its initial context): it names ids no
+assistant tool takes, and the result stays the size R095.g measured. The assistant's schemas,
+`assistant_tool_surface_tests` and corpus v5's `toolsSha256` are unchanged.
+
+**Large point sets.** An entry stores the whole new geometry, about 24 bytes a point, at most
+20,000 points; at that rate about 28 edits of a 12,000-point set fill the list's 8 MiB. Editing a
+source of more than 20,000 points (one imported point file) is refused with `LIMIT_EXCEEDED`:
+"This point source has N points; changes are limited to 20,000 points per source. Split it with
+Explode terrain or re-import it in parts." Spot points can still be added, and the set removed.
+Storing per-point changes instead of the whole set is a logged follow-up.
 
 **Promotion.** `terrain.add_source {level, at?}` promotes the surface's contour line at a model
 elevation: the plane cuts each triangle with a vertex at the level counted as above (as the
@@ -1350,7 +1379,10 @@ display contours do), crossing points are interpolated in canonical endpoint ord
 the level is the vertex itself), and the segments chain into lines. With several lines `at` picks
 the nearest, otherwise the request is refused; an open line's ends on the outline are dropped
 unless they are mesh vertices, so the contour stays inside the outline. The promoted contour then
-goes through the ordinary add.
+goes through the ordinary add. A display contour that crosses a breakline (or another contour) is
+refused: where it crosses, its point lies on the breakline, which the crossing rule refuses as a
+touch. The refusal says so ("The contour line at this level crosses a breakline or another
+contour, which a source contour may not touch"); splitting the breakline there is not offered.
 
 **Previews** (§5). `previewTerrainEdit` computes exactly what `applyTerrainEdit` would, on the
 cached edit mesh and current sources, without validating or committing; a test checks that the
@@ -1360,13 +1392,13 @@ committed tiles equal the preview bit for bit. The desktop path is R096.f's.
 held −0.0 (a DXF `-0.0000`) regenerated after save and reopen to a mesh whose digest differed
 (C7 failed). Import now stores such coordinates as +0.0 (the same value); no pinned digest changed.
 
-**Choices where the ADR is open.** (1) A source entry skipped on replay (only possible after
-Terrain settings move the outline from under it) still counts in the current sources, as every
-derivation applies every entry; C1 then fails for its source until the entry is removed, and the
-replay's `edit-skipped` notice names it. (2) A point source above 20,000 points (an imported point
-file) cannot be edited in place, as an entry holds at most 20,000 points; spot points can be added
-and the set removed. (3) The assistant's `terrain.describe` description is unchanged (pinned
-baseline; decision 9's clause about `edits` stays with the first assistant-facing change).
+**Choices where the ADR is open.** (1) A source entry skipped on replay (after Terrain settings
+move the outline from under it, or after removing an earlier entry it depended on) still counts in
+the derived current sources, as every derivation applies every entry; C1 as amended leaves it out
+(`checkTerrainSourceConsistency(doc, terrain, skipped)` takes the skipped ids), and the replay's
+`edit-skipped` notice names it. (2) Large point sets: see above. (3) The assistant's
+`terrain.describe` description and results are unchanged (pinned baseline; decision 9's clause
+about `edits` stays with the first assistant-facing change).
 
 **Measured** (`terrain_edit_benchmark --edits 100 --replay 1000 --cancel 20 --source-edits 100`,
 Release, GCC, the development host with 22 CPUs, the two 250k terrains):
@@ -1403,7 +1435,13 @@ elevations, no line at a level, a locked terrain) are located and change nothing
 `terrain_triangulation_tests` adds the cavity API (insertion, merge, canonical order, the refusal
 kinds, flats in the cavity and the elevation-only flip) and 3,000 generated cavities through the
 new `terrain-cavity` harness; `command_tests` covers the three commands; the parser fuzz seeds and
-`parser_fault_corpus_tests` cover the source-edit codecs.
+`parser_fault_corpus_tests` cover the source-edit codecs. Review fixes add: the cavity bound on a
+79,202-triangle grid and the work bound on a 20,000-point zigzag (each refused, located, quickly);
+the assistant's `terrain.describe` without `currentSources` (context and tool result) while the
+shared inspection keeps it; a 21,000-point source refused with `LIMIT_EXCEEDED`; an `addSource` id
+off the rule refused at record check; a breakline through a plain vertex (C1, C6, C7); a breakline
+along the outline refused; a promotion across a breakline refused with its message; and C1 with a
+skipped entry left out.
 
 Fuzzing (libFuzzer, clang 23 with ASan and UBSan, the documented options, 2026-10-20):
 `parser_fuzz_terrain_cavity` ran 271,021 inputs in 300 s from the nine generated seeds (6,131

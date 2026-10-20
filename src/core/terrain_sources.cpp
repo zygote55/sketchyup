@@ -308,12 +308,23 @@ void canonicalTerrainPolyline(std::vector<TerrainVec3> &p, bool closed) {
 }
 
 // ---- C1 ------------------------------------------------------------------------------------
-TerrainSourceConsistency checkTerrainSourceConsistency(const Document &doc, Id terrain) {
+TerrainSourceConsistency checkTerrainSourceConsistency(const Document &doc, Id terrain,
+                                                       const std::vector<std::uint32_t> &skipped) {
     if (!isTerrain(doc, terrain))
         throw TerrainError("NOT_FOUND", "Terrain body does not exist");
     TerrainSourceConsistency report;
     const auto &record = *doc.bodies().at(terrain)->terrain;
-    const auto state = terrainSourceState(record);
+    std::shared_ptr<const TerrainSourceState> state;
+    if (skipped.empty())
+        state = terrainSourceState(record);
+    else {
+        auto applied = std::make_shared<TerrainSourceState>(record.sources);
+        for (const auto &edit : record.edits)
+            if (std::find(skipped.begin(), skipped.end(), edit->id) == skipped.end())
+                if (const auto *kind = findTerrainEditKind(edit->kind))
+                    applyTerrainSourceEffect(*applied, *kind, *edit);
+        state = std::move(applied);
+    }
     const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
     auto problem = [&](std::string text) {
         if (report.problems.size() < 32)

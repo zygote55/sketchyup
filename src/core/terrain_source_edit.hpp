@@ -37,6 +37,14 @@ inline constexpr const char *terrainAddSourceKind = "addSource";
 inline constexpr const char *terrainRemoveSourceKind = "removeSource";
 // Points per entry (ADR 0169 §7: the adapter's polygon bound).
 inline constexpr std::size_t terrainSourceEditPoints = 20000;
+// Triangles one source edit may re-triangulate (its cavity), checked while the cavity is
+// collected; past it the edit is refused (LIMIT_EXCEEDED, "split it") and skipped on replay.
+// Chosen by measurement (ADR 0169, R096.c notes).
+inline constexpr std::size_t terrainSourceEditCavityTriangles = 65536;
+// The work bound beside it: triangles found touching the new geometry, counted once per vertex
+// and segment that touches them. A zigzag of long, nearly parallel segments keeps its cavity
+// small while every segment rescans it; this refuses it the same way.
+inline constexpr std::size_t terrainSourceEditTouchedTriangles = 16 * terrainSourceEditCavityTriangles;
 
 struct TerrainSourceEditData final : TerrainEditData {
     std::uint32_t source{};                             // the source's id

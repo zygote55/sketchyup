@@ -117,5 +117,9 @@ struct TerrainSourceConsistency {
     std::vector<std::string> problems;
     bool ok() const { return !missingVertices && !missingSegments; }
 };
-TerrainSourceConsistency checkTerrainSourceConsistency(const Document &doc, Id terrain);
+// C1 covers the base sources and the entries that applied: the entries a replay skipped
+// (`skipped`, by id, from its edit-skipped notices) are left out of the derivation, since the
+// mesh does not hold their change.
+TerrainSourceConsistency checkTerrainSourceConsistency(const Document &doc, Id terrain,
+                                                       const std::vector<std::uint32_t> &skipped = {});
 } // namespace sketchy

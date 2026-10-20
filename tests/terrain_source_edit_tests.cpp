@@ -3,6 +3,7 @@
 // terrain.remove_source as edit kinds that replay exactly; validation and located refusals; the
 // elevation-only path; stable source ids; and checks C1, C2, C5, C6 and C7 after the edits, after
 // Undo and Redo, after save and reopen and after Regenerate.
+#include "automation/assistant.hpp"
 #include "automation/commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/terrain_commands.hpp"
@@ -14,6 +15,7 @@
 #include "core/terrain_sources.hpp"
 #include "io/document_io.hpp"
 #include "io/terrain_io.hpp"
+#include "terrain_edit_test_kinds.hpp"
 #include "terrain_import_fixtures.hpp"
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -1023,6 +1025,221 @@ void sequence() {
     check(model(doc) == start, "undoing the sequence restores the original encoding");
     std::cout << "sequence: " << undone << " edits undone to the original\n";
 }
+
+// ---- Review fixes ------------------------------------------------------------------------
+// The cavity bound and the work bound beside it: a serpentine over a 200 x 200 m grid (about
+// 79,000 triangles) would re-triangulate more than 65,536 of them; a zigzag of long, nearly
+// parallel segments keeps its cavity small while every segment rescans it. Both are refused
+// while the cavity is collected, quickly, and change nothing.
+void cavityBounds() {
+    {
+        Document doc;
+        const auto terrain = importGrid(doc, 200);
+        std::vector<Vec3> points;
+        const double rowLength = 190, gap = 0.7;
+        for (double d = 0; d <= 271 * rowLength; d += 5) {
+            const int row = int(d / rowLength);
+            const double along = d - rowLength * row, x = row % 2 ? rowLength - along : along;
+            points.push_back({-95.37 + x, -95.13 + gap * row + along * 1e-4, 50.5});
+        }
+        const auto revision = doc.revision();
+        const auto start = std::chrono::steady_clock::now();
+        const auto r = refusal([&] {
+            direct(doc, command("terrain.add_source", terrain,
+                                {{"role", "breakline"},
+                                 {"points", modelPoints(doc, terrain, rel(doc, terrain, points))}}));
+        });
+        const double seconds =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        check(r.code == "LIMIT_EXCEEDED" && r.message.find("limit-exceeded") != std::string::npos,
+              "a cavity over the bound is refused: " + r.message);
+        const auto located = r.report["terrain"].toObject()["refusals"].toArray().at(0).toObject();
+        check(located["message"].toString().contains("more than 65536 triangles") &&
+                  located["message"].toString().contains("split it") &&
+                  !located["locations"].toArray().isEmpty(),
+              "the refusal is located and says to split the change");
+        check(doc.revision() == revision, "the refused cavity changes nothing");
+        std::cout << "cavity bound: " << terrainTriangleCount(doc, terrain)
+                  << "-triangle grid, refused in " << seconds << " s\n";
+    }
+    {
+        Document doc;
+        const auto terrain = importPoints(doc);
+        std::vector<Vec3> zigzag;
+        for (int i = 0; i < 20000; ++i)
+            zigzag.push_back({i % 2 ? 190.37 : -190.71, -140.13 + 0.0137 * i, 125});
+        const auto start = std::chrono::steady_clock::now();
+        const auto r = refusal([&] {
+            direct(doc, command("terrain.add_source", terrain,
+                                {{"role", "breakline"},
+                                 {"points", modelPoints(doc, terrain, rel(doc, terrain, zigzag))}}));
+        });
+        const double seconds =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        check(r.code == "LIMIT_EXCEEDED" && r.message.find("limit-exceeded") != std::string::npos,
+              "a 20,000-point zigzag is refused by the work bound: " + r.message);
+        check(r.report["terrain"].toObject()["refusals"].toArray().at(0).toObject()["message"]
+                  .toString()
+                  .contains("touch over"),
+              "the zigzag is refused by the work bound, not the cavity bound");
+        std::cout << "work bound: a 20,000-point zigzag refused in " << seconds << " s\n";
+    }
+}
+
+// The in-app assistant reads terrain.describe as R095.g measured it: no currentSources (MCP and
+// sessions keep it).
+void assistantDescribe() {
+    Document doc;
+    const auto terrain = importRings(doc, 6, 24);
+    const auto documentId = QString::fromStdString(doc.identity());
+    const auto revision = QString::number(doc.revision());
+    const QJsonObject query{{"apiVersion", 1},
+                            {"documentId", documentId},
+                            {"expectedRevision", revision},
+                            {"query", "terrain.describe"},
+                            {"body", QString::number(terrain)}};
+    check(inspectDocument(doc, query)["data"].toObject().contains("currentSources"),
+          "the shared inspection (MCP, sessions) reports currentSources");
+    AssistantTask::Options options;
+    options.prompt = "Describe the terrain.";
+    options.provider = "fixture";
+    options.model = "fixture";
+    options.context = QJsonArray{query};
+    AssistantTask task(AssistantBackend{[&](const QJsonObject &request) {
+                                            return inspectDocument(doc, request);
+                                        },
+                                        [&] {
+                                            return QJsonObject{{"documentId", documentId},
+                                                               {"revision", revision}};
+                                        }},
+                       options);
+    auto pending = task.nextRequest();
+    check(bool(pending), "the assistant asks the provider");
+    const auto context = QJsonDocument(*pending).toJson(QJsonDocument::Compact);
+    check(context.contains("\"triangles\"") && !context.contains("currentSources"),
+          "the assistant's context has terrain.describe without currentSources");
+    AssistantReply reply;
+    QJsonObject args = query;
+    reply.calls.push_back({"1", "terrain.describe", args});
+    check(task.accept(pending->value("attemptId").toString(), reply), "the tool call is accepted");
+    pending = task.nextRequest();
+    check(bool(pending), "the assistant answers the tool call");
+    const auto message = pending->value("messages").toArray().last().toObject();
+    const auto data = message["data"].toObject()["data"].toObject();
+    check(!message["isError"].toBool() && data["body"] == QString::number(terrain) &&
+              !data.contains("currentSources"),
+          "the assistant's terrain.describe result has no currentSources");
+    std::cout << "assistant: terrain.describe without currentSources\n";
+}
+
+// A point source over 20,000 points is refused with LIMIT_EXCEEDED and says why.
+void largePointSource() {
+    Document doc;
+    const auto terrain = importPoints(doc, 21000);
+    std::uint32_t id = 0;
+    for (const auto *source : stateOf(doc, terrain)->sources())
+        if (source->role == TerrainSourceRole::Points)
+            id = source->id;
+    const auto r = refusal([&] {
+        direct(doc, command("terrain.edit_source", terrain,
+                            {{"source", double(id)},
+                             {"points", modelPoints(doc, terrain, rel(doc, terrain, {{0.5, 0.5, 120}}))}}));
+    });
+    check(r.code == "LIMIT_EXCEEDED" && r.message.find("has 21000 points") != std::string::npos &&
+              r.message.find("Explode terrain") != std::string::npos,
+          "a large point source is LIMIT_EXCEEDED with its count: " + r.message);
+    std::cout << "large point source: " << r.message << "\n";
+}
+
+// Minor fixes: an added source's id follows its entry; a plain vertex on a new segment is
+// removed; a segment along the outline is refused; a promotion across a breakline says so; C1
+// leaves out skipped entries.
+void minorFixes() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    // An added id must be the largest base id plus the entry's id.
+    run(doc, command("terrain.add_source", terrain,
+                     {{"role", "points"},
+                      {"points", modelPoints(doc, terrain, rel(doc, terrain, {{0.25, 25.5, 101.8}}))}}));
+    {
+        auto record = recordOf(doc, terrain);
+        validateTerrainRecord(record);
+        const auto &entry = *record.edits.front();
+        auto data = std::make_shared<TerrainSourceEditData>(
+            dynamic_cast<const TerrainSourceEditData &>(*entry.data));
+        data->source += 1;
+        record.edits.front() = std::make_shared<TerrainEdit>(TerrainEdit{entry.id, entry.kind, data});
+        check(refusal([&] { validateTerrainRecord(record); }).code == "other",
+              "an added source claiming another id is refused at record check");
+    }
+    doc.undo();
+    // A plain vertex (from the test-only split) exactly on a new breakline is removed with the
+    // cavity instead of refused as a touch.
+    terrain_test_kinds::registerKinds();
+    const auto c = centre(doc, terrain);
+    const Vec3 split{c.x + 0.137, c.y + 23.61, 0};
+    applyTerrainEdit(doc, terrain, "test.split", terrain_test_kinds::split(split.x, split.y),
+                     "Split");
+    check(stateOf(doc, terrain)->vertexUses(TerrainPlanKey::of(split.x, split.y)) == 0,
+          "the split vertex is not a source vertex");
+    run(doc, command("terrain.add_source", terrain,
+                     {{"role", "breakline"},
+                      {"points", modelPoints(doc, terrain,
+                                             {{split.x - 0.4, split.y, 102.1},
+                                              {split.x + 0.4, split.y, 102.2}})}}));
+    checkC1(doc, terrain, "breakline through a plain vertex");
+    checkC6(doc, terrain, "breakline through a plain vertex");
+    checkC7(doc, terrain, "breakline through a plain vertex");
+    doc.undo();
+    doc.undo();
+    // A breakline along an outline edge (two consecutive vertices of the outer ring) is refused.
+    {
+        const auto outer = contours(*stateOf(doc, terrain)).begin()->second;
+        const auto u = outer->points[3], w = outer->points[4];
+        const auto r = refusal([&] {
+            direct(doc, command("terrain.add_source", terrain,
+                                {{"role", "breakline"}, {"points", modelPoints(doc, terrain, {u, w})}}));
+        });
+        check(r.message.find("outside-outline") != std::string::npos,
+              "a breakline along the outline is refused: " + r.message);
+    }
+    // Promotion of a display contour that crosses a breakline.
+    run(doc, command("terrain.add_source", terrain,
+                     {{"role", "breakline"},
+                      {"points", modelPoints(doc, terrain, rel(doc, terrain, {{0.21, 16.5, 103.9},
+                                                                              {0.23, 18.5, 103.6}}))}}));
+    {
+        const auto r = refusal([&] {
+            direct(doc, command("terrain.add_source", terrain,
+                                {{"level", toModel(doc, terrain, {0, 0, 103.75}).z}}));
+        });
+        check(r.code == "INVALID_REQUEST" && r.message.find("crosses a breakline") != std::string::npos,
+              "a promotion across a breakline says so: " + r.message);
+    }
+    doc.undo();
+    // Skipped entries: remove the ring at 103.0, add a breakline across where it was, then remove
+    // the first change; the replay skips the breakline, which C1 leaves out.
+    const auto ring = contours(*stateOf(doc, terrain)).at(103.0);
+    run(doc, command("terrain.remove_source", terrain, {{"source", double(ring->id)}}));
+    const auto added = run(doc, command("terrain.add_source", terrain,
+                                        {{"role", "breakline"},
+                                         {"points", modelPoints(doc, terrain,
+                                                                rel(doc, terrain, {{0.31, 20.5, 103.4},
+                                                                                   {0.33, 23.5, 103.2}}))}}));
+    const auto first = recordOf(doc, terrain).edits.front()->id;
+    const auto second = std::uint32_t(added["edit"].toDouble());
+    const auto removal = run(doc, command("terrain.remove_edit", terrain, {{"edit", double(first)}}));
+    const auto notices =
+        QJsonDocument(removal["terrainReport"].toObject()).toJson(QJsonDocument::Compact);
+    check(notices.contains("edit-skipped") &&
+              notices.contains(QByteArray("edit ") + QByteArray::number(second)),
+          "the replay skips the breakline and names it");
+    check(!checkTerrainSourceConsistency(doc, terrain).ok(),
+          "the skipped breakline's source is not on the mesh");
+    check(checkTerrainSourceConsistency(doc, terrain, {second}).ok(),
+          "C1 holds for the base sources and the applied entries");
+    std::cout << "minor fixes: id rule, plain vertex, outline edge, promotion message, skipped C1\n";
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -1033,7 +1250,9 @@ int main(int argc, char **argv) {
         {"elevation only", elevationOnly},     {"add and remove", addAndRemove},
         {"refusals", refusals},                {"fixture outline and hole", fixtureOutlineAndHole},
         {"points terrain", pointsTerrain},     {"gridded terrain", griddedTerrain},
-        {"pad rule", padRule},
+        {"pad rule", padRule},                 {"cavity bounds", cavityBounds},
+        {"assistant describe", assistantDescribe}, {"large point source", largePointSource},
+        {"minor fixes", minorFixes},
         {"sequence", sequence}};
     int failed = 0;
     for (const auto &[name, test] : tests) {

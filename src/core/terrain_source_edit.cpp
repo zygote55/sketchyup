@@ -57,6 +57,22 @@ TerrainVec2 crossingPoint(TerrainVec2 p, TerrainVec2 q, TerrainVec2 a, TerrainVe
     const double t = ((a.x - p.x) * (b.y - a.y) - (a.y - p.y) * (b.x - a.x)) / d;
     return {p.x + t * (q.x - p.x), p.y + t * (q.y - p.y)};
 }
+// Whether two collinear segments share more than a point (exact).
+bool overlapAlong(TerrainVec2 p, TerrainVec2 q, TerrainVec2 a, TerrainVec2 b) {
+    if (orient(p, q, a) != 0 || orient(p, q, b) != 0)
+        return false;
+    const bool alongX = std::abs(q.x - p.x) >= std::abs(q.y - p.y);
+    const auto lo = [&](TerrainVec2 u, TerrainVec2 v) { return alongX ? std::min(u.x, v.x) : std::min(u.y, v.y); };
+    const auto hi = [&](TerrainVec2 u, TerrainVec2 v) { return alongX ? std::max(u.x, v.x) : std::max(u.y, v.y); };
+    return std::max(lo(p, q), lo(a, b)) < std::min(hi(p, q), hi(a, b));
+}
+// Strictly between the ends of a segment it is collinear with.
+bool strictlyInside(TerrainVec2 p, TerrainVec2 q, TerrainVec2 v) {
+    if (orient(p, q, v) != 0 || (v.x == p.x && v.y == p.y) || (v.x == q.x && v.y == q.y))
+        return false;
+    return std::min(p.x, q.x) <= v.x && v.x <= std::max(p.x, q.x) && std::min(p.y, q.y) <= v.y &&
+           v.y <= std::max(p.y, q.y);
+}
 // Closed point-in-polygon by winding number (exact), and the polygon's closed region meeting a
 // segment.
 bool inPolygon(const TerrainPlanPolygon &polygon, TerrainVec2 q) {
@@ -200,12 +216,33 @@ class View {
         std::sort(result.begin(), result.end());
         return result;
     }
-    // Triangles whose closed region meets the closed segment, in reference order.
+    // Triangles whose closed region meets the closed segment, in reference order. The tiles come
+    // from the grid index along the segment (a box of at most one cell per step), and a triangle
+    // wholly more than 1e-6 m to one side of the segment's line is skipped before the exact test.
     std::vector<TerrainTriangleRef> touching(TerrainVec2 p, TerrainVec2 q) const {
-        std::vector<TerrainTriangleRef> result;
+        const double cell = mesh_.grid().cell > 0 ? mesh_.grid().cell : 1.0;
+        const double dx = q.x - p.x, dy = q.y - p.y;
+        const double length = std::hypot(dx, dy);
+        const auto steps = std::size_t(std::clamp(std::ceil(length / cell), 1.0, 1e6));
+        std::vector<const TerrainEditMesh::Tile *> tiles;
+        for (std::size_t i = 0; i < steps; ++i) {
+            const double t0 = double(i) / double(steps), t1 = double(i + 1) / double(steps);
+            const double x0 = p.x + dx * t0, y0 = p.y + dy * t0;
+            const double x1 = i + 1 == steps ? q.x : p.x + dx * t1,
+                         y1 = i + 1 == steps ? q.y : p.y + dy * t1;
+            for (const auto *tile : mesh_.tilesIn(std::min(x0, x1), std::min(y0, y1),
+                                                  std::max(x0, x1), std::max(y0, y1), 1e-6))
+                tiles.push_back(tile);
+        }
+        std::sort(tiles.begin(), tiles.end(), [](const auto *a, const auto *b) {
+            return a->content->key < b->content->key;
+        });
+        tiles.erase(std::unique(tiles.begin(), tiles.end()), tiles.end());
         const double minX = std::min(p.x, q.x), maxX = std::max(p.x, q.x),
                      minY = std::min(p.y, q.y), maxY = std::max(p.y, q.y);
-        for (const auto *tile : mesh_.tilesIn(minX, minY, maxX, maxY, 0)) {
+        const double margin = 1e-6 * (std::abs(dx) + std::abs(dy));
+        std::vector<TerrainTriangleRef> result;
+        for (const auto *tile : tiles) {
             const auto &content = *tile->content;
             for (std::uint32_t t = 0; t < content.triangles.size(); ++t) {
                 const auto &tri = content.triangles[t];
@@ -213,6 +250,11 @@ class View {
                            c = v2(content.vertices[tri[2]]);
                 if (maxX < std::min({a.x, b.x, c.x}) || minX > std::max({a.x, b.x, c.x}) ||
                     maxY < std::min({a.y, b.y, c.y}) || minY > std::max({a.y, b.y, c.y}))
+                    continue;
+                const auto side = [&](TerrainVec2 v) { return dx * (v.y - p.y) - dy * (v.x - p.x); };
+                const double sa = side(a), sb = side(b), sc = side(c);
+                if ((sa > margin && sb > margin && sc > margin) ||
+                    (sa < -margin && sb < -margin && sc < -margin))
                     continue;
                 if (inTriangle(a, b, c, p) || inTriangle(a, b, c, q) || segmentsMeet(p, q, a, b) ||
                     segmentsMeet(p, q, b, c) || segmentsMeet(p, q, c, a))
@@ -468,6 +510,31 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
         removed.emplace(key, p);
     }
     std::set<TerrainTriangleRef> cavity;
+    // The cavity is bounded while it is collected, so an edit that would re-triangulate much of
+    // the terrain is refused early (and skipped early on replay).
+    const auto grow = [&](const TerrainTriangleRef &ref, TerrainVec2 where) {
+        if (cavity.insert(ref).second && cavity.size() > terrainSourceEditCavityTriangles) {
+            problems.add("limit-exceeded",
+                         "The change would re-triangulate more than " +
+                             std::to_string(terrainSourceEditCavityTriangles) +
+                             " triangles; split it into smaller changes.",
+                         where, sourceId);
+            problems.refuse("Contour edit");
+        }
+    };
+    std::size_t touched = 0;
+    const auto touch = [&](std::size_t count, TerrainVec2 where) {
+        touched += count;
+        if (touched > terrainSourceEditTouchedTriangles) {
+            problems.add("limit-exceeded",
+                         "The change would re-triangulate too much of the terrain (its segments "
+                         "touch over " +
+                             std::to_string(terrainSourceEditTouchedTriangles) +
+                             " triangles in all); split it into smaller changes.",
+                         where, sourceId);
+            problems.refuse("Contour edit");
+        }
+    };
     std::map<TerrainPlanKey, std::vector<TerrainTriangleRef>> containing; // inserted vertices
     for (const auto &[key, q] : after.at) {
         if (before.has(key) && !inserted.contains(key))
@@ -508,8 +575,10 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
             }
         }
         inserted.emplace(key, q);
-        containing.emplace(key, tris);
-        cavity.insert(tris.begin(), tris.end());
+        touch(tris.size(), v2(q));
+        for (const auto &ref : tris)
+            grow(ref, v2(q));
+        containing.emplace(key, std::move(tris));
     }
     // ---- Segments ----
     std::vector<std::array<Vec3, 2>> addedSegments, removedSegments;
@@ -523,26 +592,38 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
         if (now.constraint(keyOf(a), keyOf(b)))
             continue; // another source keeps the segment
         for (const auto &ref : view.edge(a, b))
-            cavity.insert(ref);
+            grow(ref, v2(a));
     }
     for (const auto &[a, b] : addedSegments) {
         const auto tris = view.touching(v2(a), v2(b));
+        touch(tris.size(), v2(a));
         // Between two points of the outline a segment may run outside it without crossing an
         // outline edge (across a notch or a hole): its midpoint is then on no triangle.
         const TerrainVec2 middle{a.x + (b.x - a.x) / 2, a.y + (b.y - a.y) / 2};
         if (tris.empty() || view.containing(middle).empty())
             problems.add(outsideOutline, outsideMessage, middle, sourceId);
+        const auto ka = keyOf(a), kb = keyOf(b);
         for (const auto &ref : tris) {
-            cavity.insert(ref);
+            grow(ref, v2(a));
             const auto c = view.corners(ref);
             for (int i = 0; i < 3; ++i) {
                 const auto &u = c[std::size_t(i)], &w = c[std::size_t((i + 1) % 3)];
-                const auto ku = keyOf(u), kw = keyOf(w), ka = keyOf(a), kb = keyOf(b);
-                if (ku == ka || ku == kb || kw == ka || kw == kb)
+                const auto ku = keyOf(u), kw = keyOf(w);
+                // A plain vertex (no current source's, not on the outline) exactly on the new
+                // segment is removed with the cavity rather than refused as a touch.
+                if (strictlyInside(v2(a), v2(b), v2(u)) && !now.uses(ku) && !removed.contains(ku) &&
+                    !lifted.contains(ku) && !view.boundaryVertex(u))
+                    removed.emplace(ku, u);
+                const bool shared = ku == ka || ku == kb || kw == ka || kw == kb;
+                if (!view.boundaryEdge(u, w))
                     continue;
-                if (segmentsMeet(v2(a), v2(b), v2(u), v2(w)) && view.boundaryEdge(u, w))
+                // The outline rule (§3): a new segment must not meet an outline or hole edge
+                // except at its own ends, and must not run along one.
+                if (shared ? overlapAlong(v2(a), v2(b), v2(u), v2(w))
+                           : segmentsMeet(v2(a), v2(b), v2(u), v2(w)))
                     problems.add(outsideOutline, outsideMessage,
-                                 crossingPoint(v2(a), v2(b), v2(u), v2(w)), sourceId);
+                                 shared ? middle : crossingPoint(v2(a), v2(b), v2(u), v2(w)),
+                                 sourceId);
             }
         }
     }
@@ -563,13 +644,12 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
     // ---- The cavity ----
     for (const auto &[key, p] : removed)
         for (const auto &ref : view.at(p))
-            cavity.insert(ref);
+            grow(ref, v2(p));
     for (const auto &[key, p] : lifted)
         for (const auto &ref : view.at(p))
-            cavity.insert(ref);
+            grow(ref, v2(p));
     // Bowyer–Watson: from each inserted vertex's triangles, across edges that are not
     // constraints, the outline or a protected region, to triangles whose circumcircle holds it.
-    const auto limit = TerrainLimits::triangles;
     for (const auto &[key, start] : containing) {
         const auto q = inserted.at(key);
         std::set<TerrainTriangleRef> visited(start.begin(), start.end());
@@ -591,11 +671,9 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
                 if (protectedAt(state, {(n[0].x + n[1].x + n[2].x) / 3,
                                         (n[0].y + n[1].y + n[2].y) / 3}))
                     continue;
-                cavity.insert(*next);
+                grow(*next, v2(q));
                 queue.push_back(*next);
             }
-            if (cavity.size() > limit)
-                break;
         }
     }
     if (cavity.empty()) {
@@ -604,12 +682,6 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
         if (next)
             plan.resolved = next->points;
         return plan;
-    }
-    if (cavity.size() > limit) {
-        problems.add("limit-exceeded", "The edit would re-triangulate too much of the terrain.",
-                     v2(inserted.empty() ? removed.begin()->second : inserted.begin()->second),
-                     sourceId);
-        problems.refuse("Contour edit");
     }
     // ---- The adapter's input ----
     auto position = [&](Vec3 p) {

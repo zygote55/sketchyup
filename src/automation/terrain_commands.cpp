@@ -372,8 +372,9 @@ TerrainSourceRole roleOf(const QJsonValue &value, bool points) {
 }
 // Model points [x, y] or [x, y, z] to the terrain frame; a missing z stays NaN for the caller.
 std::vector<Vec3> localPoints(const QJsonValue &value, const Transform &toLocal) {
-    if (!value.isArray() || value.toArray().isEmpty() ||
-        std::size_t(value.toArray().size()) > terrainSourceEditPoints)
+    if (value.isArray() && std::size_t(value.toArray().size()) > terrainSourceEditPoints)
+        reject("LIMIT_EXCEEDED", "A source edit has at most 20,000 points; split the change");
+    if (!value.isArray() || value.toArray().isEmpty())
         reject("INVALID_REQUEST", "points is a list of 1 to 20,000 model points [x, y] or [x, y, z]");
     std::vector<Vec3> points;
     for (const auto &entry : value.toArray()) {
@@ -490,6 +491,12 @@ SourceEditCommand parseSourceEdit(const Document &doc, const QJsonObject &comman
     }
     if (parsed.kind == terrainEditSourceKind) {
         const auto &old = *parsed.before;
+        // An entry stores the whole new geometry (about 24 bytes a point), at most 20,000 points.
+        if (old.points.size() > terrainSourceEditPoints)
+            reject("LIMIT_EXCEEDED",
+                   "This point source has " + std::to_string(old.points.size()) +
+                       " points; changes are limited to 20,000 points per source. Split it with "
+                       "Explode terrain or re-import it in parts.");
         if (!command.contains("points") && !command.contains("elevation") &&
             !command.contains("role"))
             reject("INVALID_REQUEST", "Give points, elevation or role to change");
@@ -624,8 +631,18 @@ QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeR
     TerrainReport report;
     const auto refused = [&](const TerrainEditRefused &error) {
         addProblems(report, error.problems(), parsed.world);
-        throw TerrainImportError(error.code(), error.what(),
-                                 sourceEditReport(report, {}), "terrainReport");
+        std::string message = error.what();
+        // A display contour crossing a breakline meets it at the crossing point, which the
+        // crossing rule refuses (ADR 0169, R096.c notes).
+        if (parsed.promoted &&
+            std::any_of(error.problems().begin(), error.problems().end(),
+                        [](const auto &problem) { return problem.kind == "crossing-constraints"; }))
+            message = ("The contour line at this level crosses a breakline or another contour, "
+                       "which a source contour may not touch; " +
+                       message)
+                          .substr(0, 256);
+        throw TerrainImportError(error.code(), message, sourceEditReport(report, {}),
+                                 "terrainReport");
     };
     // The dry run: validation with a located report, and the resolved geometry (new vertices
     // that merge into existing ones are stored where the mesh holds them, so C1 holds exactly).

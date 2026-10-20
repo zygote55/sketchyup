@@ -428,11 +428,10 @@ Each entry's fields after `id` and `kind` are exactly these (a reader refuses ot
 
 - `editSource {source, role, points, before}`, `addSource {source, role, points}` and
   `removeSource {source, before}`.
-- `source` is a source id, an integer 1 to 2^32 − 1. This build gives an added source the
-  largest base source id plus the entry's own id, so it is above every base id and, because
-  entry ids are never reused, never reused either. An entry naming a source that does not exist
-  at its place in the list (or adding one whose id is in use) changes nothing and is skipped on
-  replay with a notice.
+- `source` is a source id, an integer 1 to 2^32 − 1. An added source's id must be the largest
+  base source id plus the entry's own id (a reader refuses another), so it is above every base id
+  and, because entry ids are never reused, never reused either. An entry naming a source that does
+  not exist at its place in the list changes nothing and is skipped on replay with a notice.
 - `role` is `contour`, `breakline` or `points`.
 - `points` is a list of `[x, y, z]` in the terrain frame, finite and within ±1e6: 2 to 20,000
   points for a contour or breakline (one elevation for a contour; a closed polyline repeats its

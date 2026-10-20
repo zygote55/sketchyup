@@ -202,6 +202,48 @@ QJsonObject measureSourceEdits(Document &doc, Id terrain, int samples) {
                                      {"previewMs", stats(times)}});
         }
         result["addBreakline"] = lines;
+        // The cavity bound (terrainSourceEditCavityTriangles): a serpentine breakline whose cavity
+        // stays just under it, and the worst case it guards against, a 20,000-point zigzag whose
+        // every segment spans the terrain, refused while its cavity is collected.
+        {
+            auto serpentine = std::make_shared<TerrainSourceEditData>();
+            serpentine->source = terrainAddedSourceId(state->maxBaseId(),
+                                                      doc.bodies().at(terrain)->terrain->nextEditId);
+            serpentine->role = TerrainSourceRole::Breakline;
+            const double rowLength = 900, rowGap = 14.3, length = 58000;
+            for (double d = 0; d <= length; d += 5) {
+                const int row = int(d / rowLength);
+                const double along = d - rowLength * row, x = row % 2 ? rowLength - along : along;
+                serpentine->points.push_back({grid.originX + 40.37 + x,
+                                              grid.originY + 20.71 + rowGap * row + along * 1e-4,
+                                              1855 + d * 1e-5});
+            }
+            QElapsedTimer bound;
+            bound.start();
+            const auto near = previewTerrainEdit(doc, terrain, terrainAddSourceKind, serpentine);
+            const double nearMs = ms(bound);
+            auto zigzag = std::make_shared<TerrainSourceEditData>(*serpentine);
+            zigzag->points.clear();
+            for (int i = 0; i < int(terrainSourceEditPoints); ++i)
+                zigzag->points.push_back({grid.originX + (i % 2 ? 960.37 : 20.71),
+                                          grid.originY + 15.13 + 0.0481 * i, 1855});
+            bound.restart();
+            std::string code;
+            try {
+                (void)previewTerrainEdit(doc, terrain, terrainAddSourceKind, zigzag);
+            } catch (const TerrainError &error) {
+                code = error.code();
+            }
+            const double zigzagMs = ms(bound);
+            check(code == "LIMIT_EXCEEDED", "the zigzag breakline is refused by the cavity bound");
+            result["cavityBound"] =
+                QJsonObject{{"bound", double(terrainSourceEditCavityTriangles)},
+                            {"nearBoundPoints", double(serpentine->points.size())},
+                            {"nearBoundCavity", double(near.removedTriangles)},
+                            {"nearBoundPreviewMs", nearMs},
+                            {"zigzagPoints", double(zigzag->points.size())},
+                            {"zigzagRefusalMs", zigzagMs}};
+        }
         return result;
     }
     // Preview: runs of moved vertices on rings across the terrain.
