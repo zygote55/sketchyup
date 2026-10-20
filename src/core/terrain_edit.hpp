@@ -127,6 +127,9 @@ struct TerrainEditKind {
     // R096.c, for R096.d: the plan polygons the entry protects (pads, ADR 0169 decision 6).
     // Later source edits whose geometry enters one are refused ("inside-pad").
     std::function<std::vector<TerrainPlanPolygon>(const TerrainEdit &)> protects;
+    // R096.d: exact plan positions the entry protects besides its polygons (a pad's outline
+    // vertices: the edge-ray starts lie on the footprint's edges only up to rounding).
+    std::function<std::vector<std::array<double, 2>>(const TerrainEdit &)> protectedPoints;
 };
 // The kinds R096 defines (R096.a: none; R096.c: editSource, addSource and removeSource; R096.b:
 // sculpt and smooth; R096.d and e add stamp and drape) plus any registered by tests. Registration is for

@@ -8,7 +8,9 @@
 // have a vertex there and the contour and breakline segments between two positions, so the
 // edit core asks about a cavity's vertices and edges without scanning every source.
 #include "core/terrain_records.hpp"
+#include "core/terrain_plan_index.hpp"
 #include "geometry/terrain_triangulation.hpp"
+#include <functional>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -34,11 +36,42 @@ struct TerrainPlanKey {
 struct TerrainPlanHash {
     std::size_t operator()(const TerrainPlanKey &key) const;
 };
-// A plan polygon an entry protects (R096.d's pads), with the entry that made it.
+// A plan polygon an entry protects (R096.d's pads), with the entry that made it. R096.d: a pad
+// also protects its outline's own vertices exactly (`points`): the edge-ray starts lie on the
+// footprint's edges only up to rounding. The index is built once, when the entry's effect is
+// applied, and shared by every copy of the state.
 struct TerrainProtectedRegion {
     std::uint32_t edit{};
     std::vector<std::array<double, 2>> polygon;
+    std::vector<std::array<double, 2>> points;
+    std::shared_ptr<const TerrainPolygonIndex> index; // of `polygon`
+    std::shared_ptr<const std::vector<TerrainPlanKey>> keys; // `points`, sorted
+    std::array<double, 4> box{}; // of the polygon and the points
 };
+// The protected regions of a state, indexed by their boxes (built per plan; a region's own index
+// is shared). Queries are closed: on a polygon's edge, or exactly at a protected point, counts.
+class TerrainPadIndex {
+  public:
+    explicit TerrainPadIndex(const std::vector<TerrainProtectedRegion> &regions);
+    bool empty() const { return tree_.empty(); }
+    // The entry of a region covering the point, or 0.
+    std::uint32_t covers(double x, double y) const;
+    // The entry of a region whose closed polygon meets the closed segment (or that holds one of
+    // its ends as a protected point), or 0.
+    std::uint32_t meetsSegment(TerrainVec2 a, TerrainVec2 b) const;
+    // The regions whose box, widened by `slack`, meets the box (callback; false stops).
+    void inBox(const std::array<double, 4> &box, double slack,
+               const std::function<bool(const TerrainProtectedRegion &)> &callback) const;
+
+  private:
+    const std::vector<TerrainProtectedRegion> &regions_;
+    std::vector<std::uint32_t> used_; // regions with a polygon or points
+    TerrainBoxTree tree_;
+};
+// A region of `polygon` and `points` with its index, for TerrainSourceState::protectedRegions.
+TerrainProtectedRegion terrainProtectedRegion(std::uint32_t edit,
+                                              std::vector<std::array<double, 2>> polygon,
+                                              std::vector<std::array<double, 2>> points = {});
 class TerrainSourceState {
   public:
     TerrainSourceState() = default;

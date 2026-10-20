@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <tuple>
@@ -195,9 +196,107 @@ void applyTerrainSourceEffect(TerrainSourceState &state, const TerrainEditKind &
     } catch (const std::invalid_argument &) {
         // An entry that does not fit the state changes nothing (the replay skips it too).
     }
+    std::vector<std::array<double, 2>> points;
+    if (kind.protectedPoints)
+        points = kind.protectedPoints(edit);
     if (kind.protects)
-        for (auto &polygon : kind.protects(edit))
-            state.protectedRegions.push_back({edit.id, std::move(polygon)});
+        for (auto &polygon : kind.protects(edit)) {
+            state.protectedRegions.push_back(
+                terrainProtectedRegion(edit.id, std::move(polygon), std::move(points)));
+            points.clear();
+        }
+    if (!points.empty())
+        state.protectedRegions.push_back(terrainProtectedRegion(edit.id, {}, std::move(points)));
+}
+
+// ---- Protected regions (R096.d) --------------------------------------------------------------
+TerrainProtectedRegion terrainProtectedRegion(std::uint32_t edit,
+                                              std::vector<std::array<double, 2>> polygon,
+                                              std::vector<std::array<double, 2>> points) {
+    TerrainProtectedRegion region;
+    region.edit = edit;
+    region.box = {std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(),
+                  -std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
+    auto extend = [&](const std::array<double, 2> &p) {
+        region.box[0] = std::min(region.box[0], p[0]);
+        region.box[1] = std::min(region.box[1], p[1]);
+        region.box[2] = std::max(region.box[2], p[0]);
+        region.box[3] = std::max(region.box[3], p[1]);
+    };
+    // A polygon of fewer than three corners protects nothing (as before R096.d).
+    if (polygon.size() >= 3) {
+        for (const auto &p : polygon)
+            extend(p);
+        region.index = std::make_shared<const TerrainPolygonIndex>(polygon);
+    }
+    if (!points.empty()) {
+        std::vector<TerrainPlanKey> keys;
+        keys.reserve(points.size());
+        for (const auto &p : points) {
+            extend(p);
+            keys.push_back(TerrainPlanKey::of(p[0], p[1]));
+        }
+        std::sort(keys.begin(), keys.end());
+        keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+        region.keys = std::make_shared<const std::vector<TerrainPlanKey>>(std::move(keys));
+    }
+    region.polygon = std::move(polygon);
+    region.points = std::move(points);
+    return region;
+}
+TerrainPadIndex::TerrainPadIndex(const std::vector<TerrainProtectedRegion> &regions)
+    : regions_(regions) {
+    std::vector<TerrainBoxTree::Box> boxes;
+    for (std::uint32_t i = 0; i < regions.size(); ++i)
+        if (regions[i].index || regions[i].keys) {
+            used_.push_back(i);
+            boxes.push_back(regions[i].box);
+        }
+    tree_ = TerrainBoxTree(std::move(boxes));
+}
+void TerrainPadIndex::inBox(const std::array<double, 4> &box, double slack,
+                            const std::function<bool(const TerrainProtectedRegion &)> &callback) const {
+    // The regions in list order, so a caller that reports the first one is deterministic.
+    std::vector<std::uint32_t> found;
+    tree_.visit({box[0] - slack, box[1] - slack, box[2] + slack, box[3] + slack},
+                [&](std::uint32_t i) {
+                    found.push_back(used_[i]);
+                    return true;
+                });
+    std::sort(found.begin(), found.end());
+    for (const auto i : found)
+        if (!callback(regions_[i]))
+            return;
+}
+namespace {
+bool holdsPoint(const TerrainProtectedRegion &region, double x, double y) {
+    return region.keys &&
+           std::binary_search(region.keys->begin(), region.keys->end(), TerrainPlanKey::of(x, y));
+}
+} // namespace
+std::uint32_t TerrainPadIndex::covers(double x, double y) const {
+    std::uint32_t edit = 0;
+    inBox({x, y, x, y}, 0, [&](const TerrainProtectedRegion &region) {
+        if ((region.index && region.index->contains(x, y)) || holdsPoint(region, x, y))
+            edit = region.edit;
+        return !edit;
+    });
+    return edit;
+}
+std::uint32_t TerrainPadIndex::meetsSegment(TerrainVec2 a, TerrainVec2 b) const {
+    std::uint32_t edit = 0;
+    const std::array<double, 4> box{std::min(a.x, b.x), std::min(a.y, b.y), std::max(a.x, b.x),
+                                    std::max(a.y, b.y)};
+    inBox(box, 0, [&](const TerrainProtectedRegion &region) {
+        // The protected points lie on the polygon's edges up to rounding; a segment through one
+        // of them that misses the polygon touches the pad outline, a current source, which the
+        // adapter refuses as a crossing.
+        if ((region.index && region.index->segmentNear(a, b, 0)) || holdsPoint(region, a.x, a.y) ||
+            holdsPoint(region, b.x, b.y))
+            edit = region.edit;
+        return !edit;
+    });
+    return edit;
 }
 
 namespace {

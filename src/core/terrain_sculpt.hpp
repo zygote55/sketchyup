@@ -27,6 +27,7 @@
 #include "core/terrain_sources.hpp"
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -156,6 +157,23 @@ struct TerrainSculptClip {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> resolved; // (parent, piece id) made
     std::string refusal;         // non-empty when the entry may not split this much
 };
+// R096.d: the clip of the current sources by any rule (a sculpt's weight, a stamp's daylight
+// polygon). Every contour, breakline and spot-point vertex in `box` that `vertex` marks is
+// clipped, and every contour or breakline segment between two kept vertices that `segment` (when
+// set) marks is cut, so the line splits there. A line keeps its id for its first run; further runs
+// take the entry's recorded `pieces` for that line first, then fresh ids of the entry's block from
+// ordinal `firstOrdinal` on (terrainSplitSourceId). Boundary and hole sources are never clipped.
+struct TerrainSourceClipRule {
+    std::array<double, 4> box{};
+    std::function<bool(const Vec3 &)> vertex;
+    std::function<bool(const Vec3 &, const Vec3 &)> segment;
+    std::uint32_t firstOrdinal{};
+    std::string tooManyPieces{"This change would split source lines into more than 4,096 pieces"};
+};
+TerrainSculptClip planTerrainSourceClip(const TerrainSourceState &state, std::uint32_t edit,
+                                        const std::vector<std::pair<std::uint32_t, std::uint32_t>> &pieces,
+                                        const TerrainSourceClipRule &rule,
+                                        TerrainProgress *progress = nullptr);
 // With `progress` (a replay), cancellation is checked part-way through the scan.
 TerrainSculptClip planTerrainSculptClip(const TerrainSourceState &state, const TerrainEdit &edit,
                                         TerrainProgress *progress = nullptr);

@@ -15,7 +15,6 @@ constexpr double localBound = 1e6;
 constexpr double xyTolerance = 1e-7;
 
 TerrainVec2 v2(const Vec3 &p) { return {p.x, p.y}; }
-TerrainVec2 v2(const std::array<double, 2> &p) { return {p[0], p[1]}; }
 int orient(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c) { return terrainOrientation(a, b, c); }
 TerrainPlanKey keyOf(const Vec3 &p) { return TerrainPlanKey::of(p.x, p.y); }
 const char *roleText(TerrainSourceRole role) {
@@ -73,34 +72,6 @@ bool strictlyInside(TerrainVec2 p, TerrainVec2 q, TerrainVec2 v) {
     return std::min(p.x, q.x) <= v.x && v.x <= std::max(p.x, q.x) && std::min(p.y, q.y) <= v.y &&
            v.y <= std::max(p.y, q.y);
 }
-// Closed point-in-polygon by winding number (exact), and the polygon's closed region meeting a
-// segment.
-bool inPolygon(const TerrainPlanPolygon &polygon, TerrainVec2 q) {
-    const std::size_t n = polygon.size();
-    int winding = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-        const auto a = v2(polygon[i]), b = v2(polygon[(i + 1) % n]);
-        const int o = orient(a, b, q);
-        if (o == 0 && std::min(a.x, b.x) <= q.x && q.x <= std::max(a.x, b.x) &&
-            std::min(a.y, b.y) <= q.y && q.y <= std::max(a.y, b.y))
-            return true;
-        if (a.y <= q.y) {
-            if (b.y > q.y && o > 0)
-                ++winding;
-        } else if (b.y <= q.y && o < 0)
-            --winding;
-    }
-    return winding != 0;
-}
-bool polygonMeetsSegment(const TerrainPlanPolygon &polygon, TerrainVec2 p, TerrainVec2 q) {
-    if (inPolygon(polygon, p) || inPolygon(polygon, q))
-        return true;
-    for (std::size_t i = 0; i < polygon.size(); ++i)
-        if (segmentsMeet(p, q, v2(polygon[i]), v2(polygon[(i + 1) % polygon.size()])))
-            return true;
-    return false;
-}
-
 // ---- Problems -------------------------------------------------------------------------------
 class Problems {
   public:
@@ -333,26 +304,19 @@ struct After {
     }
 };
 
-void checkProtected(const TerrainSourceState &state, const std::vector<Vec3> &points,
+// R096.d: through the pad index (each region's banded polygon and box tree), so a long edit
+// against many large pads does not test every pad edge for every point.
+void checkProtected(const TerrainPadIndex &pads, const std::vector<Vec3> &points,
                     const std::vector<std::array<Vec3, 2>> &segments, Problems &problems,
                     std::uint64_t source) {
-    for (const auto &region : state.protectedRegions) {
-        if (region.polygon.size() < 3)
-            continue;
-        for (const auto &p : points)
-            if (inPolygon(region.polygon, v2(p)))
-                problems.add(insidePad, padMessage, v2(p), source, region.edit);
-        for (const auto &[a, b] : segments)
-            if (polygonMeetsSegment(region.polygon, v2(a), v2(b)))
-                problems.add(insidePad, padMessage,
-                             {(a.x + b.x) / 2, (a.y + b.y) / 2}, source, region.edit);
-    }
-}
-bool protectedAt(const TerrainSourceState &state, TerrainVec2 p) {
-    for (const auto &region : state.protectedRegions)
-        if (region.polygon.size() >= 3 && inPolygon(region.polygon, p))
-            return true;
-    return false;
+    if (pads.empty())
+        return;
+    for (const auto &p : points)
+        if (const auto edit = pads.covers(p.x, p.y))
+            problems.add(insidePad, padMessage, v2(p), source, edit);
+    for (const auto &[a, b] : segments)
+        if (const auto edit = pads.meetsSegment(v2(a), v2(b)))
+            problems.add(insidePad, padMessage, {(a.x + b.x) / 2, (a.y + b.y) / 2}, source, edit);
 }
 
 // ---- Elevation only -------------------------------------------------------------------------
@@ -389,7 +353,8 @@ TerrainSourceEditPlan planElevation(const TerrainEditContext &context, const Ter
         std::vector<Vec3> moved;
         for (const auto &[key, lift] : lifts)
             moved.push_back(lift.first);
-        checkProtected(context.sources, moved, {}, problems, next.id);
+        checkProtected(TerrainPadIndex(context.sources.protectedRegions), moved, {}, problems,
+                       next.id);
     }
     problems.check("Contour edit");
     // The flip region: the triangles incident to the lifted vertices, and to every vertex of the
@@ -464,6 +429,7 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
                                             const TerrainSource *old, const TerrainSource *next) {
     const SourceView before(old), after(next);
     const auto &state = context.sources;
+    const TerrainPadIndex pads(state.protectedRegions);
     const After now{state, before, after};
     const std::uint64_t sourceId = next ? next->id : old ? old->id : 0;
     // Elevation-only: the same plan positions in order and the same segments (a role change
@@ -638,7 +604,7 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
             points.push_back(p);
         auto segments = addedSegments;
         segments.insert(segments.end(), removedSegments.begin(), removedSegments.end());
-        checkProtected(state, points, segments, problems, sourceId);
+        checkProtected(pads, points, segments, problems, sourceId);
     }
     problems.check("Contour edit");
     // ---- The cavity ----
@@ -668,8 +634,8 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
                 const auto n = view.corners(*next);
                 if (terrainInCircle(v2(n[0]), v2(n[1]), v2(n[2]), v2(q)) <= 0)
                     continue;
-                if (protectedAt(state, {(n[0].x + n[1].x + n[2].x) / 3,
-                                        (n[0].y + n[1].y + n[2].y) / 3}))
+                if (!pads.empty() && pads.covers((n[0].x + n[1].x + n[2].x) / 3,
+                                                 (n[0].y + n[1].y + n[2].y) / 3))
                     continue;
                 grow(*next, v2(q));
                 queue.push_back(*next);
