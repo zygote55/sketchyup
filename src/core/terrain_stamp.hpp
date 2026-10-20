@@ -15,7 +15,8 @@
 // - Rays run outward in plan: from each outline vertex along its outward normal, a fan at no more
 //   than 15° spacing around a convex corner (both edge normals included), one bisector ray at a
 //   concave corner, and from points along each edge at a spacing no larger than the smallest
-//   longest side of the triangles the edge touches (at least 0.01 m).
+//   longest side of the triangles each quarter-cell stretch of the edge touches (at least
+//   0.01 m; every stretch starts with a ray).
 // - Daylight mode: along a ray the grade is z = h - fill * t while the pad is above the ground at
 //   the start and z = h + cut * t while it is below; the ray is walked through the edit mesh and
 //   the first crossing with the ground is solved exactly on each triangle's plane. A ray shorter

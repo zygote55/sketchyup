@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 namespace sketchy {
 class Document;
@@ -109,6 +110,11 @@ class TerrainSourceState {
     std::size_t dropPadRays(const std::array<double, 4> &box,
                             const std::function<bool(const Vec3 &, const Vec3 &)> &meets);
     std::size_t padRays() const { return padRayCount_; }
+    // R096.d: a pad's outline and daylight line are sources only its own entry changes; source
+    // edits naming them are refused (terrain.update_edit and terrain.remove_edit change the pad).
+    // A ray's ends also count as vertex uses, so a source edit never removes one.
+    void markPadSource(std::uint32_t id) { padSources_.insert(id); }
+    bool isPadSource(std::uint32_t id) const { return padSources_.contains(id); }
 
   private:
     struct Uses {
@@ -142,6 +148,8 @@ class TerrainSourceState {
         std::array<double, 4> box{};
     };
     std::vector<PadRayGroup> padRayGroups_;
+    std::unordered_set<std::uint32_t> padSources_;
+    void usePosition(const Vec3 &p, int sign);
     std::size_t padRayCount_{};
 };
 // The polyline segments of a source by exact plan position (contours and breaklines; a source

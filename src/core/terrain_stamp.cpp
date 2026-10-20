@@ -209,6 +209,15 @@ void validateTerrainStampData(const TerrainStampData &data) {
             fail("Daylight points are finite and within the local bound");
     }
     checkPieces();
+    // The daylight line bounds the work of everything that classifies points against it (the
+    // clipping in the derivation of the current sources included), as the footprint does.
+    std::vector<Plan2> ring;
+    for (const auto &p : terrainStampRing(data))
+        ring.push_back({p.x, p.y});
+    if (ring.size() < 3)
+        fail("A pad's daylight line has at least three distinct points");
+    if (terrainSculptRegionBands(ring).edges > terrainSculptBandEdges)
+        fail("A pad's daylight line crosses one horizontal band more than 512 times");
 }
 std::vector<Vec3> terrainStampRing(const TerrainStampData &data) {
     std::vector<Vec3> ring;
@@ -257,9 +266,9 @@ TerrainVec2 normalize(TerrainVec2 v) {
     const double length = planLength(v.x, v.y);
     return {v.x / length, v.y / length};
 }
-// The rays and the outline of a counter-clockwise footprint, before any walk. Edge spacing is
-// `spacing[i]` for edge i (from point i to point i + 1).
-void layRays(const std::vector<Plan2> &footprint, const std::vector<double> &spacing,
+// The rays and the outline of a counter-clockwise footprint, before any walk. `starts[i]` are
+// the interior ray starts of edge i (from point i to point i + 1) as increasing fractions of it.
+void layRays(const std::vector<Plan2> &footprint, const std::vector<std::vector<double>> &starts,
              std::vector<Plan2> &outline, std::vector<Ray> &rays, std::size_t &count,
              bool countOnly) {
     const std::size_t n = footprint.size();
@@ -315,12 +324,7 @@ void layRays(const std::vector<Plan2> &footprint, const std::vector<double> &spa
             add(start, s, nout); // straight
         // Interior points of edge i.
         const auto &b = footprint[(i + 1) % n];
-        const double length = planLength(b[0] - p[0], b[1] - p[1]);
-        const double step = std::max(spacing[i], terrainStampSpacingMin);
-        const double pieces = std::ceil(length / step);
-        const auto segments = std::size_t(std::clamp(pieces, 1.0, 1e9));
-        for (std::size_t j = 1; j < segments; ++j) {
-            const double f = double(j) / double(segments);
+        for (const double f : starts[i]) {
             const Plan2 q{clean(p[0] + (b[0] - p[0]) * f), clean(p[1] + (b[1] - p[1]) * f)};
             const auto index = std::uint32_t(countOnly ? 0 : outline.size());
             if (!countOnly)
@@ -708,7 +712,8 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector
         return collinear && sameSide;
     };
     // Tested cell by cell; a pair sharing several cells is found once (sorted, unique).
-    for (const auto &[cellKey, cellList] : grid)
+    for (const auto &[cellKey, cellList] : grid) {
+        terrainCheckpoint(progress, TerrainStage::Replay, 0); // cancellation only
         for (std::size_t x = 0; x < cellList.size(); ++x)
             for (std::size_t y = x + 1; y < cellList.size(); ++y) {
                 const auto i = std::min(cellList[x], cellList[y]),
@@ -716,6 +721,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector
                 if (crossing(i, j))
                     result.push_back({i, j});
             }
+    }
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
@@ -765,20 +771,23 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
         problems.check();
     }
     std::uint64_t walkWork = 0;
-    // ---- Edge spacing: the smallest longest side of the triangles an edge touches ----
-    std::vector<double> spacing(n, std::numeric_limits<double>::infinity());
+    // ---- Edge spacing: along each stretch of an edge (a quarter cell long), no larger than the
+    // smallest longest side of the triangles that stretch touches, so one sliver makes rays dense
+    // only where it is ----
+    std::vector<std::vector<double>> starts(n);
+    std::size_t interior = 0;
     for (std::size_t i = 0; i < n; ++i) {
         if ((i & 255) == 0)
             terrainCheckpoint(progress, TerrainStage::Replay, 0);
+        const auto a = v2(footprint[i]), b = v2(footprint[(i + 1) % n]);
+        const double length = planDistance(a, b);
         // An edge no longer than the smallest spacing has no interior rays at any spacing.
-        if (planDistance(v2(footprint[i]), v2(footprint[(i + 1) % n])) <= terrainStampSpacingMin)
+        if (length <= terrainStampSpacingMin)
             continue;
+        const double cell = mesh.grid().cell > 0 ? mesh.grid().cell : 1.0;
         // The triangles the query scans (its tiles along the edge) count against the walk's bound.
         {
-            const auto a = v2(footprint[i]), b = v2(footprint[(i + 1) % n]);
-            const double cell = mesh.grid().cell > 0 ? mesh.grid().cell : 1.0;
-            const auto steps =
-                std::size_t(std::clamp(std::ceil(planDistance(a, b) / cell), 1.0, 1e6));
+            const auto steps = std::size_t(std::clamp(std::ceil(length / cell), 1.0, 1e6));
             std::unordered_set<const void *> tiles;
             std::uint64_t triangles = steps;
             for (std::size_t k = 0; k < steps; ++k) {
@@ -797,26 +806,58 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
                                 "simpler or smaller footprint.",
                                 a);
         }
-        for (const auto &ref : view.touching(v2(footprint[i]), v2(footprint[(i + 1) % n]))) {
+        const auto chunks = std::size_t(
+            std::clamp(std::ceil(length / std::max(cell / 4, terrainStampSpacingMin)), 1.0,
+                       double(terrainStampRays) + 1));
+        std::vector<double> size(chunks, std::numeric_limits<double>::infinity());
+        const double dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy;
+        for (const auto &ref : view.touching(a, b)) {
             const auto c = view.corners(ref);
-            double longest = 0;
-            for (int k = 0; k < 3; ++k)
-                longest = std::max(longest, planDistance(v2(c[std::size_t(k)]),
-                                                         v2(c[std::size_t((k + 1) % 3)])));
-            spacing[i] = std::min(spacing[i], longest);
+            double longest = 0, lo = 1, hi = 0;
+            for (int k = 0; k < 3; ++k) {
+                const auto &p = c[std::size_t(k)];
+                longest = std::max(longest, planDistance(v2(p), v2(c[std::size_t((k + 1) % 3)])));
+                const double u = ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2;
+                lo = std::min(lo, u);
+                hi = std::max(hi, u);
+            }
+            // The stretches the triangle's projection on the edge covers.
+            const auto first = std::size_t(std::clamp(std::floor(lo * double(chunks)), 0.0,
+                                                      double(chunks - 1)));
+            const auto last = std::size_t(std::clamp(std::floor(hi * double(chunks)), 0.0,
+                                                     double(chunks - 1)));
+            for (auto k = first; k <= last; ++k)
+                size[k] = std::min(size[k], longest);
         }
+        const double chunk = length / double(chunks);
+        for (std::size_t k = 0; k < chunks; ++k) {
+            if (k)
+                starts[i].push_back(double(k) / double(chunks));
+            const double step = std::max(std::isfinite(size[k]) ? size[k] : chunk,
+                                         terrainStampSpacingMin);
+            const auto pieces = std::size_t(
+                std::clamp(std::ceil(chunk / step), 1.0, double(terrainStampRays) + 1));
+            for (std::size_t j = 1; j < pieces; ++j)
+                starts[i].push_back((double(k) + double(j) / double(pieces)) / double(chunks));
+            if (interior + starts[i].size() > terrainStampRays)
+                problems.refuse(limitKind,
+                                "The footprint needs more than 32,768 grading rays at this "
+                                "terrain's triangle size; use a simpler or smaller footprint.",
+                                a);
+        }
+        interior += starts[i].size();
     }
     // ---- Rays ----
     std::vector<Plan2> outline;
     std::vector<Ray> rays;
     std::size_t count = 0;
-    layRays(footprint, spacing, outline, rays, count, true);
+    layRays(footprint, starts, outline, rays, count, true);
     if (count > terrainStampRays)
         problems.refuse(limitKind,
                         "The footprint needs more than 32,768 grading rays at this terrain's "
                         "triangle size; use a simpler or smaller footprint.",
                         v2(footprint.front()));
-    layRays(footprint, spacing, outline, rays, count, false);
+    layRays(footprint, starts, outline, rays, count, false);
     plan.rays = rays.size();
     Walker walker(mesh, walkWork, progress);
     for (std::size_t i = 0; i < rays.size(); ++i) {
@@ -932,6 +973,23 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
                         "The daylight line does not enclose the pad; use a simpler footprint or "
                         "gentler slopes.",
                         v2(footprint.front()));
+    // A daylight line crossing one horizontal band more than 512 times (ground corrugated across
+    // the rays) is refused, as a footprint is: everything that classifies points against it,
+    // the derivation of the current sources included, reads at most one band of edges.
+    if (const auto bands = terrainSculptRegionBands(ringPlan); bands.edges > terrainSculptBandEdges) {
+        double x = ringPlan.front()[0];
+        for (const auto &p : ringPlan)
+            if (terrainSculptBandOf(bands, p[1]) == bands.busiest) {
+                x = p[0];
+                break;
+            }
+        problems.refuse(limitKind,
+                        "The daylight line crosses one horizontal band " +
+                            std::to_string(bands.edges) +
+                            " times (at most 512): the ground is too irregular here; use fixed "
+                            "width, steeper slopes or a smaller maximum distance.",
+                        {x, bands.low + (double(bands.busiest) + 0.5) * bands.height});
+    }
     const TerrainPolygonIndex polygon(ringPlan);
     if (!polygon.contains(footprint.front()[0], footprint.front()[1]))
         problems.refuse("daylight-repair",
@@ -1322,8 +1380,10 @@ void applyStampSources(TerrainSourceState &state, const TerrainEdit &edit) {
     line.points = ring;
     line.points.push_back(line.points.front());
     for (auto *source : {&pad, &line})
-        if (!state.find(source->id))
+        if (!state.find(source->id)) {
+            state.markPadSource(source->id);
             state.add(std::move(*source));
+        }
 }
 } // namespace
 std::vector<TerrainEditKind> terrainStampKinds() {

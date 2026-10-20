@@ -304,6 +304,15 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
     const TerrainPadIndex pads(state.protectedRegions);
     const After now{state, before, after};
     const std::uint64_t sourceId = next ? next->id : old ? old->id : 0;
+    // R096.d: a pad's outline and daylight line change only with the pad.
+    if (old && state.isPadSource(old->id)) {
+        Problems problems;
+        problems.add("pad-source",
+                     "This source is a building pad's outline or daylight line; change the pad "
+                     "with terrain.update_edit or remove it with terrain.remove_edit.",
+                     old->points.empty() ? TerrainVec2{} : v2(old->points.front()), old->id);
+        problems.refuse("Contour edit");
+    }
     // Elevation-only: the same plan positions in order and the same segments (a role change
     // between spot points and a polyline adds or drops segments, so it re-triangulates).
     if (old && next && old->points.size() == next->points.size() &&

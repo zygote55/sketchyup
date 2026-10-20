@@ -1362,6 +1362,205 @@ void sequence() {
     check(recordOf(doc, terrain).edits.empty(), "Reset edits empties the list");
     std::cout << "sequence: " << steps << " changes undone, redone, reopened, removed and reset\n";
 }
+
+// Review fixes (PR #389). A pad's outline and daylight line change only with the pad: removing or
+// editing them is refused with a location (and a stored entry that tries is skipped), and the
+// rays' ends count as vertex uses, so no source edit removes them.
+void padSources() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    const auto c = centre(doc, terrain);
+    const double h = groundAt(doc, terrain, c.x + 40, c.y) + 0.6;
+    run(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, square(c.x + 40, c.y, 5))},
+                                    {"elevation", toModel(doc, terrain, {0, 0, h}).z}}));
+    const auto pad = recordOf(doc, terrain).edits.back()->id;
+    const auto outlineId = *terrainStampOutlineSource(pad), daylightId = *terrainStampDaylightSource(pad);
+    for (const auto id : {outlineId, daylightId}) {
+        const auto remove = [&] { direct(doc, command("terrain.remove_source", terrain, {{"source", double(id)}})); };
+        checkUnchanged(doc, "removing a pad source", remove, "INVALID_REQUEST");
+        const auto r = refusal(remove);
+        const auto refusals = r.report["terrain"].toObject()["refusals"].toArray();
+        check(!refusals.isEmpty() && refusals.at(0).toObject()["kind"] == "pad-source" &&
+                  !refusals.at(0).toObject()["locations"].toArray().isEmpty(),
+              "removing a pad source is refused as pad-source, located");
+        check(r.message.find("pad-source") != std::string::npos, "the refusal names pad-source");
+    }
+    const auto *line = stateOf(doc, terrain)->find(daylightId);
+    check(line != nullptr, "the daylight line is a current source");
+    auto lifted = line->points;
+    for (auto &p : lifted)
+        p.z += 0.5;
+    checkUnchanged(doc, "lifting a pad's daylight line", [&] {
+        direct(doc, command("terrain.edit_source", terrain,
+                            {{"source", double(daylightId)}, {"points", modelPoints(doc, terrain, lifted)}}));
+    }, "INVALID_REQUEST");
+    checkUnchanged(doc, "re-elevating a pad's outline", [&] {
+        direct(doc, command("terrain.edit_source", terrain, {{"source", double(outlineId)},
+                                                             {"elevation", toModel(doc, terrain, {0, 0, h + 1}).z}}));
+    }, "INVALID_REQUEST");
+    // A stored entry that edits the pad's own source does not apply (the kind refuses it).
+    {
+        auto data = std::make_shared<TerrainSourceEditData>();
+        data->source = daylightId;
+        const auto revision = doc.revision();
+        check(refusal([&] { applyTerrainEdit(doc, terrain, terrainRemoveSourceKind, data, "Remove"); }).code ==
+                  "INVALID_REQUEST",
+              "an entry removing a pad source does not apply");
+        check(doc.revision() == revision, "and changes nothing");
+    }
+    // The rays' ends are vertex uses.
+    const auto state = stateOf(doc, terrain);
+    std::size_t checked = 0;
+    for (const auto &ray : lastStamp(doc, terrain).rays) {
+        const auto &st = lastStamp(doc, terrain).outline[ray.start];
+        if (ray.daylight.x == st[0] && ray.daylight.y == st[1])
+            continue;
+        check(state->vertexUses(TerrainPlanKey::of(ray.daylight.x, ray.daylight.y)) >= 2 &&
+                  state->vertexUses(TerrainPlanKey::of(st[0], st[1])) >= 2,
+              "a ray's ends count as vertex uses besides the pad's sources");
+        ++checked;
+    }
+    check(checked > 0, "rays with length were checked");
+    checkC3(doc, terrain, "pad sources");
+    std::cout << "pad sources: removal and edits refused, " << checked << " rays guarded\n";
+}
+
+// A crafted file whose pad's daylight line zigzags across every horizontal band is refused when
+// it loads (the derivation of the current sources reads at most 512 edges a band), quickly.
+void hostileRing() {
+    auto data = std::make_shared<TerrainStampData>();
+    data->footprint = {{0, 0}, {100, 0}, {100, 100}, {0, 100}};
+    data->elevation = 10;
+    data->cutSlope = data->fillSlope = 0.5;
+    data->maxDistance = 1000;
+    data->outline = data->footprint;
+    // 32,768 rays from the four corners whose daylight points zigzag between y = -900 and
+    // y = 900 to the left of the pad: every band holds thousands of the line's edges.
+    const int rays = 32768;
+    for (int i = 0; i < rays; ++i) {
+        const double x = -200 - 600.0 * i / rays, y = i % 2 ? 900 : -900;
+        data->rays.push_back({std::uint32_t(std::min(3, i * 4 / rays)), {x, y, 10}});
+    }
+    const auto json = encodeTerrainEdit({1, terrainStampKind, data});
+    const auto start = std::chrono::steady_clock::now();
+    bool refused = false;
+    try {
+        (void)decodeTerrainEdit(json);
+    } catch (const std::exception &error) {
+        refused = std::string(error.what()).find("512") != std::string::npos;
+    }
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    std::cout << "hostile ring: refused " << refused << " in " << seconds << " s\n";
+    check(refused, "a zigzag daylight line is refused on load");
+    check(seconds < 20, "the refusal is quick");
+    check(refusal([&] { validateTerrainStampData(*data); }).code == "other",
+          "and by the validator");
+}
+
+// A pad that would pass the document's terrain triangle limit is refused before the commit with
+// a located report naming the counts.
+void triangleLimit() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    // A second terrain of a plain grid fills the document to within about 2,000 triangles.
+    {
+        const auto own = terrainTriangleCount(doc, terrain);
+        const std::uint32_t columns = 483, rows = std::uint32_t((TerrainLimits::triangles - own - 2000) / 2 / 482);
+        TerrainMesh mesh;
+        for (std::uint32_t j = 0; j <= rows; ++j)
+            for (std::uint32_t i = 0; i < columns; ++i)
+                mesh.vertices.push_back({5000.0 + i, double(j), 0.01 * i});
+        for (std::uint32_t j = 0; j < rows; ++j)
+            for (std::uint32_t i = 0; i + 1 < columns; ++i) {
+                const auto v = j * columns + i;
+                mesh.triangles.push_back({v, v + 1, v + columns + 1});
+                mesh.triangles.push_back({v, v + columns + 1, v + columns});
+            }
+        TerrainRecord record;
+        record.generator = "test/terrain-v1";
+        createTerrain(doc, mesh, record);
+    }
+    const auto c = centre(doc, terrain);
+    std::vector<std::array<double, 2>> circle;
+    for (int i = 0; i < 3000; ++i) {
+        const double t = 2 * std::numbers::pi * i / 3000;
+        circle.push_back({c.x + 40 + 6 * std::cos(t), c.y + 6 * std::sin(t)});
+    }
+    const auto stamp = [&] {
+        direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, circle)},
+                                           {"elevation", toModel(doc, terrain, {0, 0, groundAt(doc, terrain, c.x + 40, c.y)}).z}}));
+    };
+    checkUnchanged(doc, "a pad past the triangle limit", stamp, "LIMIT_EXCEEDED");
+    const auto r = refusal(stamp);
+    const auto refusals = r.report["terrain"].toObject()["refusals"].toArray();
+    check(!refusals.isEmpty() && refusals.at(0).toObject()["kind"] == "triangle-budget" &&
+              !refusals.at(0).toObject()["locations"].toArray().isEmpty() &&
+              r.message.find("250,000") != std::string::npos,
+          "the limit refusal is located and names the counts");
+    std::cout << "triangle limit: " << r.message.substr(0, 160) << "\n";
+}
+
+// A cancellation at each checkpoint of a stamp's plan stops it there (the crossing search's per
+// cell checkpoint included).
+void cancelEverywhere() {
+    Document doc;
+    const auto terrain = importRings(doc, 12, 48);
+    const auto c = centre(doc, terrain);
+    auto data = std::make_shared<TerrainStampData>();
+    data->footprint = square(c.x + 20, c.y, 3);
+    data->elevation = groundAt(doc, terrain, c.x + 20, c.y) + 0.5;
+    data->cutSlope = data->fillSlope = 0.5;
+    data->maxDistance = 100;
+    const TerrainEdit entry{1, terrainStampKind, data};
+    const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+    const auto state = stateOf(doc, terrain);
+    int calls = 0;
+    TerrainProgress counting([&] {
+        ++calls;
+        return false;
+    });
+    (void)planTerrainStamp({*mesh, *state, recordOf(doc, terrain).parameters, &counting}, entry);
+    check(calls > 4, "the plan has checkpoints");
+    for (int at = 1; at <= calls; ++at) {
+        int seen = 0;
+        TerrainProgress progress([&] { return ++seen >= at; });
+        bool cancelled = false;
+        try {
+            (void)planTerrainStamp({*mesh, *state, recordOf(doc, terrain).parameters, &progress}, entry);
+        } catch (const TerrainCancelled &) {
+            cancelled = true;
+        }
+        check(cancelled && seen == at, "a cancellation at each checkpoint stops the plan there");
+    }
+    std::cout << "cancel: each of " << calls << " checkpoints stops the plan\n";
+}
+
+// Ray spacing is local: a cluster of points making tiny triangles near one end of a long edge
+// makes its rays dense there only.
+void localSpacing() {
+    Document doc;
+    const auto terrain = importGrid(doc, 60);
+    const auto c = centre(doc, terrain);
+    const double x0 = std::floor(c.x) - 15, y0 = std::floor(c.y) - 10;
+    // Three spot points 4 cm apart inside one grid cell, near the pad's lower edge.
+    run(doc, command("terrain.add_source", terrain,
+                     {{"role", "points"},
+                      {"points", modelPoints(doc, terrain, {{x0 + 2.31, y0 + 0.42, 50.3}, {x0 + 2.35, y0 + 0.42, 50.3},
+                                                            {x0 + 2.33, y0 + 0.45, 50.3}})}}));
+    const double h = groundAt(doc, terrain, c.x, c.y) + 0.2;
+    run(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, {{x0, y0 + 0.43}, {x0 + 30, y0 + 0.43},
+                                                                                  {x0 + 30, y0 + 20}, {x0, y0 + 20}})},
+                                    {"elevation", toModel(doc, terrain, {0, 0, h}).z}}));
+    const auto &stamp = lastStamp(doc, terrain);
+    std::size_t lower = 0;
+    for (const auto &p : stamp.outline)
+        lower += std::abs(p[1] - (y0 + 0.43)) < 1e-6;
+    std::cout << "local spacing: " << lower << " ray starts along the 30 m edge\n";
+    check(lower > 30, "the edge near the tiny triangles has dense rays");
+    check(lower < 300, "but only near them (30 m at their 4 cm would be 750)");
+    checkC3(doc, terrain, "local spacing");
+    checkC6(doc, terrain, "local spacing");
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -1374,7 +1573,10 @@ int main(int argc, char **argv) {
         {"refusals", refusals},     {"update edit", updateEdit},
         {"repair", repair},         {"codec", codec},
         {"assistant surface", assistantSurface}, {"cancel inside entry", cancelInsideEntry},
-        {"hostile", hostile},       {"sequence", sequence}};
+        {"hostile", hostile},       {"sequence", sequence},
+        {"pad sources", padSources}, {"hostile ring", hostileRing},
+        {"triangle limit", triangleLimit}, {"cancel everywhere", cancelEverywhere},
+        {"local spacing", localSpacing}};
     int failed = 0;
     for (const auto &[name, test] : tests) {
         if (argc > 1 && std::string(argv[1]) != name)

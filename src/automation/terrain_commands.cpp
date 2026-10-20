@@ -1,5 +1,6 @@
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
+#include "core/document_limits.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
@@ -627,6 +628,24 @@ void addProblems(TerrainReport &report, const std::vector<TerrainEditProblem> &p
         }
     }
 }
+// R096.d: an edit that would pass the document's terrain triangle limit is refused before the
+// commit, located at the change, with the counts and the remedies.
+void refuseOverTerrainLimit(const Document &doc, std::ptrdiff_t added, std::array<double, 2> at,
+                            const std::string &what) {
+    const auto total = doc.materializedTotals().terrainTriangles;
+    if (added <= 0 || total + std::size_t(added) <= TerrainLimits::triangles)
+        return;
+    const std::string message =
+        what + " refused; nothing was changed. The document's terrains have " +
+        groupedCount(total) + " of " + groupedCount(TerrainLimits::triangles) +
+        " triangles and this change needs " + groupedCount(std::size_t(added)) +
+        " more. Make the change smaller, raise the maximum edge length in Terrain settings, or "
+        "Explode terrain to keep the surface as ordinary geometry.";
+    TerrainReport report;
+    report.locate(TerrainReport::Severity::Refusal, "triangle-budget", message, {"edit", {}, at});
+    throw TerrainImportError("LIMIT_EXCEEDED", message.substr(0, 256),
+                             sourceEditReport(report, {}), "terrainReport");
+}
 QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeReport &changes) {
     auto parsed = parseSourceEdit(doc, command);
     const auto &record = *doc.bodies().at(parsed.terrain)->terrain;
@@ -677,6 +696,16 @@ QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeR
                 refused(error);
             }
         }
+    }
+    {
+        const auto &first = !plan.change.added.empty() ? plan.change.added.front()[0]
+                            : !parsed.data->points.empty() ? parsed.data->points.front()
+                                                           : Vec3{};
+        const auto at = parsed.world.point(first);
+        refuseOverTerrainLimit(doc,
+                               std::ptrdiff_t(plan.change.added.size()) -
+                                   std::ptrdiff_t(plan.change.removed.size()),
+                               {at.x, at.y}, "Contour edit");
     }
     TerrainEditApplied applied;
     try {
@@ -1218,6 +1247,14 @@ QJsonObject applyStamp(Document &doc, Id terrain, std::shared_ptr<TerrainStampDa
         plan = planTerrainStamp({*mesh, *state, record.parameters}, entry);
     } catch (const TerrainEditRefused &error) {
         refused(error);
+    }
+    {
+        const auto &p = data->footprint.front();
+        const auto at = world.point({p[0], p[1], 0});
+        refuseOverTerrainLimit(doc,
+                               std::ptrdiff_t(plan.addedTriangles) -
+                                   std::ptrdiff_t(plan.cavityTriangles),
+                               {at.x, at.y}, "Stamp pad");
     }
     // The dry run is the kind's own outcome for this entry on the same mesh and sources, so the
     // commit uses it rather than planning again.

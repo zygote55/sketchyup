@@ -1668,8 +1668,9 @@ trigonometry, so no C library's last bit enters replay; the step count bounds th
 a corner turning less than about 0.06° gets one bisector ray, so two rays never leave one point
 in almost one direction; at a concave corner one bisector ray (the normals' sum, or the edge
 directions' difference where they nearly oppose). Along each edge, rays along its normal at a
-spacing no larger than the smallest longest side of the triangles the edge touches, and at least
-0.01 m. The ray count is checked before any walk.
+spacing no larger than the smallest longest side of the triangles each quarter-cell stretch of the
+edge touches (each stretch starts with a ray), and at least 0.01 m. The ray count is checked before
+any walk.
 
 **The daylight solver.** A ray is walked through the edit mesh one stored cell at a time: the
 triangles of each newly reached tile give the intervals of t in which the ray lies in them
@@ -1794,15 +1795,15 @@ at 1:1. Display = the per-tile surface and contour caches, without GPU upload or
 
 | Terrain | One-tile pad: rays, cavity triangles (p95) | Preview p95 (max) | Commit p95: core / command / command + display (max) | Larger pad (a tile across, 9 tiles): preview / command p95 | 64-vertex footprint: preview / command p95 | Update of the first pad (replay) / replaying Regenerate |
 | --- | --- | --- | --- | --- | --- | --- |
-| 122,500 points (244,970 triangles) | 100; 192 | 5.0 (14.3) ms | 56.4 / 54.1 / 65.5 ms (72.2) | 15.8 / 116.0 ms | 8.8 / 55.6 ms | 0.79 s / 0.75 s (15 pads) |
-| 408 contour rings (244,498 triangles) | 72; 273 | 4.0 (34.9) ms | 63.2 / 62.1 / 80.7 ms (82.1) | 12.1 / 89.3 ms | 8.7 / 64.9 ms | 0.87 s / 0.82 s (27 pads) |
+| 122,500 points (244,970 triangles) | 96; 191 | 3.8 (13.2) ms | 46.0 / 45.7 / 56.3 ms (58.4) | 12.9 / 101.2 ms | 7.9 / 53.2 ms | 0.72 s / 0.70 s (15 pads) |
+| 408 contour rings (244,498 triangles) | 72; 274 | 3.8 (30.6) ms | 57.3 / 58.2 / 75.7 ms (79.3) | 12.3 / 91.8 ms | 9.1 / 67.4 ms | 0.88 s / 0.88 s (27 pads) |
 
-A one-tile pad commits within decision 10's 100 ms at p95: 54–63 ms through the command and
-66–81 ms with the display update. As for the other kinds, most of it is the whole-terrain digest;
-the plan (rays, walk, repair, cavity and adapter) is the preview's 3–5 ms, and the command plans
-once. A pad a whole tile across touches nine tiles and commits in 89–116 ms p95, reported as the
-nine-tile sculpt is. The 64-vertex footprint of §9 previews in at most 8.8 ms. Changing an
-earlier pad replays the list (0.8–0.9 s with the base CDT); a replaying Regenerate of the pads is a
+A one-tile pad commits within decision 10's 100 ms at p95: 46–58 ms through the command and
+56–76 ms with the display update (re-measured after the review fixes below). As for the other kinds, most of it is the whole-terrain digest;
+the plan (rays, walk, repair, cavity and adapter) is the preview's about 4 ms, and the command
+plans once. A pad a whole tile across touches nine tiles and commits in 92–101 ms p95, reported as
+the nine-tile sculpt is. The 64-vertex footprint of §9 previews in at most 9.1 ms. Changing an
+earlier pad replays the list (0.7–0.9 s with the base CDT); a replaying Regenerate of the pads is a
 no-op and C1, C3 and C6 hold after it. Hostile inputs: a 20,000-point circle a third of a tile
 across is refused (its pad would pass the triangle limit) in 0.24 s and 2.3 s, and a comb of 8,000
 corners is refused by the band bound in 2 ms. An earlier run on the same host while the machine
@@ -1849,6 +1850,38 @@ corner only between neighbouring footprint edges (a footprint pinched at one cor
 `dropPadRays` skips pads whose box misses, the other-pads check tests only points and edges in each
 pad's box, the repair runs at most 16 rounds, and C3's grade test allows the rounding of the stored
 daylight point.
+
+**Review fixes (PR #389).** An independent review found no blocker; these follow it, each with a
+regression test in `terrain_stamp_tests`.
+- *A pad's own sources.* The outline and daylight line (the entry's block ordinals 0 and 1) are
+  marked in the derived state, and `terrain.edit_source` or `terrain.remove_source` naming one is
+  refused (`pad-source`, located, pointing to `terrain.update_edit` and `terrain.remove_edit`); a
+  stored entry that tries does not apply (it is skipped on replay). The rays' ends also count as
+  vertex uses, so no source edit removes them. Removing or lifting the daylight line would
+  otherwise have removed the slopes while C3's box rule counted every ray superseded; with the
+  refusal no edit of the pad's own sources can supersede its rays (`pad sources`).
+- *Hostile files.* A resolved pad's daylight line, like its footprint, may cross a horizontal band
+  at most 512 times: the validator and the decoder refuse more, and the solver refuses such a line
+  (corrugated ground across the rays) with its band located, so the mesh-free derivation of the
+  current sources reads at most a band of edges a vertex. A crafted pad with a 32,768-point zigzag
+  line is refused on load in 3 ms (`hostile ring`).
+- *The triangle limit.* A stamp or contour edit that would pass the document's 250,000 terrain
+  triangles is refused before the commit (`triangle-budget`, `LIMIT_EXCEEDED`, located at the
+  change), naming the count and what the change needs, with the remedies (`triangle limit`).
+- *Cancellation.* The crossing search checks for cancellation once per grid cell; a cancellation at
+  each of a plan's checkpoints stops it there (`cancel everywhere`).
+- *Local ray spacing.* The spacing along an edge is chosen per stretch a quarter cell long (the
+  smallest longest side of the triangles that stretch touches; each stretch starts with a ray),
+  so a sliver makes rays dense only where it is: a 30 m edge past a 4 cm cluster of points gets 146
+  starts rather than about 750 (`local spacing`).
+
+**For R096.f (tracker).** Typing a new elevation or slope right after a stamp must amend that
+stamp (UX §15.4). `Document::amendLast` refuses a replacement that changes other bodies than the
+original edit or creates another number of them, which a re-stamp usually does (other tiles), so
+R096.f needs a terrain-aware amend: undo the stamp's own edit and re-run `terrain.stamp_pad` on
+the state before it as one replacement, allowed to replace a different set of the same terrain's
+tiles. Until then the desktop can revise the last pad through `terrain.update_edit`, which replays
+the list.
 
 ## Sources
 
