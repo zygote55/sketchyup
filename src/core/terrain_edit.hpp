@@ -27,6 +27,9 @@ inline constexpr const char *terrainEditGenerator = "cdt-2.0.0/terrain-v1+edit-v
 struct TerrainTileSet {
     TerrainTileGrid grid;
     std::vector<TerrainTilePtr> tiles;
+    // R096.e: the region paint of each tile (paintTerrainTileSet: per triangle, empty when none),
+    // or empty when not computed (the tiles are then painted as they are applied).
+    std::vector<std::vector<Id>> paint;
 };
 TerrainTileSet terrainTileSet(const TerrainMesh &mesh, TerrainProgress *progress = nullptr);
 // The key name of a tile created by an edit (a tile that replaces one with the same key keeps

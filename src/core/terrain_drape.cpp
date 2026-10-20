@@ -1319,12 +1319,14 @@ class TerrainPaintLoop {
     const Box &box() const { return box_; }
     // Whether a rightward ray from (x, y) crosses the loop an odd number of times (half-open in Y,
     // exact side test).
-    bool odd(double x, double y) const {
+    bool odd(double x, double y, std::uint64_t *work = nullptr) const {
         if (points_.size() < 3 || y < box_[1] || y > box_[3] || x > box_[2])
             return false;
         const auto band = terrainSculptBandOf(bands_, y);
         bool parity = false;
         const std::size_t n = points_.size();
+        if (work)
+            *work += offsets_[band + 1] - offsets_[band];
         for (auto k = offsets_[band]; k < offsets_[band + 1]; ++k) {
             const auto &a = points_[edges_[k]], &b = points_[(edges_[k] + 1) % n];
             if ((a[1] > y) == (b[1] > y))
@@ -1635,7 +1637,7 @@ void applyDrapeSources(TerrainSourceState &state, const TerrainEdit &edit) {
         line.role = TerrainSourceRole::Breakline;
         line.reference = "drape " + std::to_string(edit.id);
         line.points = data.runs[i];
-        state.markDrapeSource(*id);
+        state.markDrapeSource(*id, edit.id);
         state.add(std::move(line));
     }
 }
@@ -1685,17 +1687,7 @@ TerrainPaintRegions::TerrainPaintRegions(const TerrainRecord &record) {
     }
 }
 Id TerrainPaintRegions::materialAt(double x, double y, std::size_t first) const {
-    for (std::size_t i = regions_.size(); i-- > first;) {
-        const auto &region = regions_[i];
-        if (x < region.box[0] || x > region.box[2] || y < region.box[1] || y > region.box[3])
-            continue;
-        bool parity = false;
-        for (const auto &loop : region.loops)
-            parity = parity != loop->odd(x, y);
-        if (parity)
-            return region.material;
-    }
-    return 0;
+    return materialAt(x, y, candidates({x, y, x, y}, first));
 }
 std::vector<std::size_t> TerrainPaintRegions::candidates(const std::array<double, 4> &box,
                                                          std::size_t first) const {
@@ -1709,17 +1701,33 @@ std::vector<std::size_t> TerrainPaintRegions::candidates(const std::array<double
 }
 Id TerrainPaintRegions::materialAt(double x, double y,
                                    const std::vector<std::size_t> &candidates) const {
+    // The work of one paint pass is charged (a region tested, the band edges it reads), with a
+    // cancellation checkpoint every 4,096 tests and a located refusal past its bound.
+    if (++calls_ % 4096 == 0)
+        terrainCheckpoint(progress_, TerrainStage::Replay, 0);
+    Id result = 0;
     for (std::size_t k = candidates.size(); k-- > 0;) {
         const auto &region = regions_[candidates[k]];
+        ++work_;
         if (x < region.box[0] || x > region.box[2] || y < region.box[1] || y > region.box[3])
             continue;
         bool parity = false;
         for (const auto &loop : region.loops)
-            parity = parity != loop->odd(x, y);
-        if (parity)
-            return region.material;
+            parity = parity != loop->odd(x, y, &work_);
+        if (parity) {
+            result = region.material;
+            break;
+        }
     }
-    return 0;
+    if (work_ > terrainDrapePaintWork) {
+        const std::string message =
+            "Painting the terrain's regions would take too much work (over " +
+            std::to_string(terrainDrapePaintWork) +
+            " region and edge tests); remove some painted drapes or simplify their faces.";
+        throw TerrainEditRefused("LIMIT_EXCEEDED", message,
+                                 {{"limit-exceeded", message, 1, {{{x, y}, 0, 0}}}});
+    }
+    return result;
 }
 bool TerrainPaintRegions::meets(const std::array<double, 4> &box, std::size_t first) const {
     for (std::size_t i = first; i < regions_.size(); ++i) {
@@ -1737,6 +1745,59 @@ std::array<double, 2> faceCentroid(const Body &tile, const Face &face) {
     return {(a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3};
 }
 } // namespace
+std::vector<Id> terrainTileRegionPaint(const TerrainTileContent &tile,
+                                       const TerrainPaintRegions &regions, std::size_t first) {
+    if (regions.size() <= first || tile.vertices.empty())
+        return {};
+    auto box = emptyBox();
+    for (const auto &p : tile.vertices)
+        extend(box, p.x, p.y);
+    const auto candidates = regions.candidates(box, first);
+    if (candidates.empty())
+        return {};
+    std::vector<Id> materials(tile.triangles.size(), 0);
+    bool any = false;
+    for (std::size_t t = 0; t < tile.triangles.size(); ++t) {
+        const auto &a = tile.vertices[tile.triangles[t][0]], &b = tile.vertices[tile.triangles[t][1]],
+                   &c = tile.vertices[tile.triangles[t][2]];
+        // The centroid as faceCentroid computes it from the tile body.
+        materials[t] = regions.materialAt((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, candidates);
+        any = any || materials[t];
+    }
+    if (!any)
+        materials.clear();
+    return materials;
+}
+void paintTerrainTileSet(TerrainTileSet &set, const TerrainRecord &record, TerrainProgress *progress) {
+    set.paint.clear();
+    TerrainPaintRegions regions(record);
+    if (regions.empty())
+        return;
+    regions.budget(progress);
+    set.paint.reserve(set.tiles.size());
+    for (const auto &tile : set.tiles)
+        set.paint.push_back(terrainTileRegionPaint(*tile, regions));
+}
+bool applyTerrainTilePaint(Body &tile, const std::vector<Id> &materials) {
+    bool changed = false;
+    std::size_t t = 0;
+    for (const auto &[id, face] : tile.surface.faces) {
+        if (t >= materials.size())
+            break;
+        const auto material = materials[t++];
+        if (!material)
+            continue;
+        const MaterialSides sides{material, material};
+        if (sides == tile.materials) {
+            changed = tile.faceMaterials.erase(id) > 0 || changed;
+            continue;
+        }
+        auto &entry = tile.faceMaterials[id];
+        changed = changed || entry != sides;
+        entry = sides;
+    }
+    return changed;
+}
 bool paintTerrainTile(Body &tile, const TerrainPaintRegions &regions, std::size_t first) {
     if (regions.size() <= first || tile.surface.vertices.empty())
         return false;

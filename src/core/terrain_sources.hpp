@@ -113,12 +113,22 @@ class TerrainSourceState {
     // R096.d: a pad's outline and daylight line are sources only its own entry changes; source
     // edits naming them are refused (terrain.update_edit and terrain.remove_edit change the pad).
     // A ray's ends also count as vertex uses, so a source edit never removes one.
-    void markPadSource(std::uint32_t id) { padSources_.insert(id); }
+    void markPadSource(std::uint32_t id, std::uint32_t edit) { padSources_[id] = edit; }
     bool isPadSource(std::uint32_t id) const { return padSources_.contains(id); }
+    // R096.e: the pad (change id) whose line a source is, or 0.
+    std::uint32_t padSourceOwner(std::uint32_t id) const {
+        const auto found = padSources_.find(id);
+        return found == padSources_.end() ? 0 : found->second;
+    }
     // R096.e: an imprint's lines (and the runs a later sculpt or stamp splits off them) are the
     // drape's own; source edits naming them are refused (terrain.remove_edit removes the drape).
-    void markDrapeSource(std::uint32_t id) { drapeSources_.insert(id); }
+    void markDrapeSource(std::uint32_t id, std::uint32_t edit) { drapeSources_[id] = edit; }
     bool isDrapeSource(std::uint32_t id) const { return drapeSources_.contains(id); }
+    // The drape (change id) whose line a source is, or 0.
+    std::uint32_t drapeSourceOwner(std::uint32_t id) const {
+        const auto found = drapeSources_.find(id);
+        return found == drapeSources_.end() ? 0 : found->second;
+    }
 
   private:
     struct Uses {
@@ -152,7 +162,7 @@ class TerrainSourceState {
         std::array<double, 4> box{};
     };
     std::vector<PadRayGroup> padRayGroups_;
-    std::unordered_set<std::uint32_t> padSources_, drapeSources_;
+    std::unordered_map<std::uint32_t, std::uint32_t> padSources_, drapeSources_; // id -> change
     void usePosition(const Vec3 &p, int sign);
     std::size_t padRayCount_{};
 };

@@ -132,6 +132,25 @@ size_t bytes(const BodyPtr &b) {
     }
     return n;
 }
+// R096.e: the per-face paint part of bytes(b).
+size_t paintBytes(const Body &b) {
+    return b.faceColors.size() * (sizeof(Id) + sizeof(std::array<float, 3>) + 64) +
+           b.faceMaterials.size() * (sizeof(Id) + sizeof(MaterialSides) + 64) +
+           b.faceTextureMappings.size() * (sizeof(Id) + sizeof(TextureMappingSides) + 64);
+}
+// R096.e: a terrain tile change that changes its paint and nothing else (same mesh, topology,
+// appearance, key, frame and owner).
+bool paintOnlyTileChange(const BodyPtr &before, const BodyPtr &after) {
+    if (!before || !after || before == after || !before->terrainTile || !after->terrainTile)
+        return false;
+    const auto &a = *before, &b = *after;
+    return a.id == b.id && a.parent == b.parent && a.tileKey == b.tileKey &&
+           a.transform == b.transform && a.name == b.name && a.color == b.color &&
+           a.materials == b.materials && a.kind == b.kind && a.hidden == b.hidden &&
+           a.locked == b.locked && a.tag == b.tag && a.properties == b.properties &&
+           a.edgeAppearances == b.edgeAppearances && a.surface == b.surface &&
+           a.topology == b.topology && a.curves == b.curves && a.guides == b.guides;
+}
 // A chain longer than 128 records is rejected, so a step count detects every
 // cycle as well: a cycle never reaches a missing record and fails at step 129
 // with the same message a visited set would give at its first repeat.
@@ -1668,6 +1687,13 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             charged += sizeof(Change) + bytes(change.before) + bytes(change.after) -
                        terrainRecordBytes(*recordBefore) - terrainRecordBytes(*recordAfter) +
                        terrainRecordChangeBytes(recordBefore, recordAfter);
+        else if (paintOnlyTileChange(change.before, change.after))
+            // R096.e: a terrain tile whose paint alone changed (region paint repainting the
+            // tiles a draped face covers). History holds one copy of its mesh at a time (the
+            // before copy while the edit is done, the after copy while it is undone), so it is
+            // charged once, with the larger paint of the two.
+            charged += sizeof(Change) + bytes(change.before) - paintBytes(*change.before) +
+                       std::max(paintBytes(*change.before), paintBytes(*change.after));
         else
             charged += sizeof(Change) + bytes(change.before) + bytes(change.after);
         const std::map<Id, Curve> noCurves;

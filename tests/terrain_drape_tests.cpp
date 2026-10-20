@@ -1148,6 +1148,21 @@ void refusals() {
         doc.undo();
         doc.undo();
     }
+    // A face of a locked body is refused, as a locked body's edges are (terrain.create_from_edges).
+    {
+        const auto slab = doc.addFace({modelLine(doc, terrain, {{c.x - 3, c.y - 3}, {c.x + 3, c.y - 3}, {c.x + 3, c.y + 3}, {c.x - 3, c.y + 3}})}, "Slab");
+        auto locked = std::make_shared<Body>(*doc.bodies().at(slab));
+        locked->locked = true;
+        doc.apply({"Lock", {{slab, doc.bodies().at(slab), locked}}}, doc.revision());
+        refuses("a locked body's face", {{"faces", facesOf(doc, slab)}}, "INVALID_OPERATION");
+        auto lockedLine = std::make_shared<Body>(*doc.bodies().at(line));
+        lockedLine->locked = true;
+        doc.apply({"Lock", {{line, doc.bodies().at(line), lockedLine}}}, doc.revision());
+        refuses("a locked body's edges", {{"edges", edges}}, "INVALID_OPERATION");
+        doc.undo();
+        doc.undo();
+        doc.undo();
+    }
     // Too many points.
     {
         std::vector<std::array<double, 2>> zig;
@@ -1459,6 +1474,134 @@ void hostileFile() {
     std::cout << "hostile file: crafted drape and source edit left out\n";
 }
 
+// Review fixes (PR #390). Re-elevating a contour a drape crossed is refused naming the drape's
+// change, located; removing it is allowed and leaves the crossing points where the drape put them.
+void crossedContour() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    const auto c = centre(doc, terrain);
+    const auto line = addPolyline(doc, modelLine(doc, terrain, {{c.x - 70, c.y + 3.3}, {c.x + 70, c.y + 5.1}}));
+    run(doc, drapeCommand(terrain, {{"edges", edgesOf(doc, line)}}));
+    const auto drapeId = recordOf(doc, terrain).edits.back()->id;
+    const auto state = stateOf(doc, terrain);
+    std::set<TerrainPlanKey> crossing;
+    for (const auto &run : lastDrape(doc, terrain).runs)
+        for (const auto &p : run)
+            crossing.insert(TerrainPlanKey::of(p.x, p.y));
+    const TerrainSource *crossed = nullptr;
+    for (const auto *source : state->sources())
+        if (source->role == TerrainSourceRole::Contour)
+            for (const auto &p : source->points)
+                if (!crossed && crossing.contains(TerrainPlanKey::of(p.x, p.y)))
+                    crossed = source;
+    check(crossed, "the drape crossed a contour");
+    const auto id = crossed->id;
+    const double z = toModel(doc, terrain, {0, 0, crossed->points.front().z}).z;
+    const auto edit = [&] {
+        direct(doc, command("terrain.edit_source", terrain, {{"source", double(id)}, {"elevation", z + 0.3}}));
+    };
+    checkUnchanged(doc, "re-elevating a contour a drape crossed", edit, "INVALID_REQUEST");
+    const auto r = refusal(edit);
+    const auto refusals = r.report["terrain"].toObject()["refusals"].toArray();
+    const auto problem = refusals.at(0).toObject();
+    const auto message = problem["message"].toString().toStdString();
+    check(problem["kind"] == "crossed-by-change" && !problem["locations"].toArray().isEmpty() &&
+              message.find("Drape (change #" + std::to_string(drapeId) + ")") != std::string::npos &&
+              message.find("terrain.remove_edit") != std::string::npos,
+          "the refusal names the drape's change and is located: " + message);
+    // Removing the contour keeps the crossing points (vertices of the drape's lines).
+    run(doc, command("terrain.remove_source", terrain, {{"source", double(id)}}));
+    checkC1(doc, terrain, "crossed contour removed");
+    checkC6(doc, terrain, "crossed contour removed");
+    checkC7(doc, terrain, "crossed contour removed");
+    std::cout << "crossed contour: re-elevation refused naming change " << drapeId
+              << ", removal keeps the crossing points\n";
+}
+
+// Review fixes (PR #390). A tile whose paint alone changes is charged one copy of its mesh (the
+// history holds one copy at a time), about half a rebuilt tile's charge.
+void paintHistory() {
+    Document doc;
+    const auto terrain = importPoints(doc);
+    terrain_test_kinds::registerKinds();
+    const auto tileId = terrainTiles(doc, terrain).front();
+    const auto key = doc.bodies().at(tileId)->tileKey;
+    const auto material = createMaterial(doc, "Gravel", {0.6f, 0.55f, 0.5f});
+    auto charge = [&] { return doc.historyBytes() + doc.terrainHistoryBytes(); };
+    const auto before = charge();
+    auto painted = std::make_shared<Body>(*doc.bodies().at(tileId));
+    for (const auto &[face, record] : painted->surface.faces)
+        painted->faceMaterials[face] = {material, material};
+    doc.apply({"Paint tile", {{tileId, doc.bodies().at(tileId), painted}}}, doc.revision());
+    const double paint = double(charge() - before);
+    // The same tile rebuilt, on a second document (an undone edit's bytes stay charged to redo).
+    Document second;
+    const auto other = importPoints(second);
+    const auto otherBefore = second.historyBytes() + second.terrainHistoryBytes();
+    applyTerrainEdit(second, other, "test.lift", terrain_test_kinds::lift(key, 0.5), "Lift");
+    const double rebuild = double(second.historyBytes() + second.terrainHistoryBytes() - otherBefore);
+    std::cout << "paint history: paint-only " << paint << " bytes, rebuild " << rebuild << " bytes\n";
+    check(paint < 0.7 * rebuild && paint > 0.3 * rebuild,
+          "a paint-only tile change is charged one copy of the tile");
+}
+
+// Review fixes (PR #390). Paint work is bounded per pass: a crafted record of 640 thin frames,
+// each around the whole terrain, makes Regenerate refuse with a located limit rather than test
+// every face against every frame; the pass checks for cancellation.
+void paintWork() {
+    Document doc;
+    const auto terrain = importPoints(doc, 30000);
+    const auto c = centre(doc, terrain);
+    const auto material = createMaterial(doc, "Gravel", {0.6f, 0.55f, 0.5f});
+    auto data = std::make_shared<TerrainDrapeData>();
+    data->lines.push_back({{{c.x - 1, c.y}, {c.x + 1, c.y}}, false});
+    data->runs.push_back({{c.x - 1, c.y, 120}, {c.x + 1, c.y, 120}});
+    auto rect = [](double x0, double y0, double x1, double y1) {
+        return std::vector<std::array<double, 2>>{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}};
+    };
+    for (int k = 0; k < 640; ++k) { // 640 frames of two rectangles: 3,840 busiest-band edges
+        const double e = 1 + 0.001 * k;
+        data->paint.push_back({{rect(c.x - 210 + e, c.y - 160 + e, c.x + 210 - e, c.y + 160 - e),
+                                rect(c.x - 210 + e + 0.0004, c.y - 160 + e + 0.0004,
+                                     c.x + 210 - e - 0.0004, c.y + 160 - e - 0.0004)},
+                               material});
+    }
+    validateTerrainDrapeData(*data);
+    auto record = recordOf(doc, terrain);
+    record.edits.push_back(std::make_shared<TerrainEdit>(TerrainEdit{record.nextEditId, terrainDrapeKind, data}));
+    ++record.nextEditId;
+    auto body = std::make_shared<Body>(*doc.bodies().at(terrain));
+    body->terrain = record;
+    doc.apply({"Crafted", {{terrain, doc.bodies().at(terrain), body}}}, doc.revision());
+    // Regenerate: refused, located, in bounded time, changing nothing.
+    const auto revision = doc.revision();
+    const auto start = std::chrono::steady_clock::now();
+    const auto request = parseTerrainReplayRequest(doc, command("terrain.regenerate", terrain));
+    auto result = runTerrainReplay(request);
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    bool located = false;
+    for (const auto &value : result.report["terrain"].toObject()["refusals"].toArray())
+        located = located || (value.toObject()["kind"] == "limit-exceeded" &&
+                              !value.toObject()["locations"].toArray().isEmpty());
+    std::cout << "paint work: Regenerate " << (result.ok ? "applied" : result.code) << " in " << seconds << " s\n";
+    check(!result.ok && result.code == "LIMIT_EXCEEDED" && located, "the paint pass is refused, located");
+    check(seconds < 60 && doc.revision() == revision, "quickly, and nothing changed");
+    // The pass checks for cancellation.
+    TerrainTileSet set;
+    set.grid = record.tiling;
+    for (const auto id : terrainTiles(doc, terrain))
+        set.tiles.push_back(terrainTileContent(*doc.bodies().at(id)));
+    TerrainProgress progress([] { return true; });
+    bool cancelled = false;
+    try {
+        paintTerrainTileSet(set, record, &progress);
+    } catch (const TerrainCancelled &) {
+        cancelled = true;
+    }
+    check(cancelled, "a cancelled replay stops in the paint pass");
+    std::cout << "paint work: bounded and cancellable\n";
+}
+
 // A cell over the triangle limit: an imprint that would pass the document's 250,000 terrain
 // triangles is refused, located, naming the counts.
 void triangleLimit() {
@@ -1572,6 +1715,8 @@ int main(int argc, char **argv) {
         {"refusals", refusals},         {"codec", codec},
         {"assistant surface", assistantSurface}, {"cancel everywhere", cancelEverywhere},
         {"hostile", hostile},           {"hostile file", hostileFile},
+        {"crossed contour", crossedContour}, {"paint history", paintHistory},
+        {"paint work", paintWork},
         {"triangle limit", triangleLimit},
         {"sequence", sequence}};
     int failed = 0;

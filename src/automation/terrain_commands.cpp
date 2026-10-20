@@ -1515,6 +1515,12 @@ DrapeInput drapeInput(const Document &doc, const QJsonObject &command, const Tra
             if (!seen.insert({bodyId, faceId}).second)
                 reject("INVALID_REQUEST", "Face " + std::to_string(faceId) + " of body " +
                                               std::to_string(bodyId) + " is given more than once");
+            // As terrain.create_from_edges (and this command's edges) refuse a locked body's
+            // edges, a locked body's faces are refused too.
+            if (persistentlyLocked(doc, bodyId))
+                reject("INVALID_OPERATION", "Cannot use faces of a locked entity (body " +
+                                                std::to_string(bodyId) + " face " +
+                                                std::to_string(faceId) + ")");
             ++input.faceCount;
             const auto world = doc.worldTransform(bodyId);
             std::vector<std::vector<std::array<double, 2>>> loops;

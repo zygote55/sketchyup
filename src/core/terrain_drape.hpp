@@ -64,6 +64,9 @@ inline constexpr std::size_t terrainDrapePaintBandEdges = 4096;
 inline constexpr double terrainDrapeSnap = 1e-7;     // to a mesh vertex or another line's point
 inline constexpr double terrainDrapeEdgeSnap = 1e-9; // onto a mesh edge
 inline constexpr double terrainDrapeLiftDefault = 0.01, terrainDrapeLiftMax = 1000;
+// Paint work in one pass (a tile rebuild, a commit, a Regenerate): regions tested plus the band
+// edges they read; past it the pass is refused with its location.
+inline constexpr std::uint64_t terrainDrapePaintWork = std::uint64_t(1) << 27;
 // Overlay: faces it may create, and triangles it may classify.
 inline constexpr std::uint64_t terrainDrapeOverlayWork = std::uint64_t(1) << 22;
 
@@ -166,8 +169,13 @@ class TerrainPaintRegions {
     bool meets(const std::array<double, 4> &box, std::size_t first = 0) const;
     // The regions from `first` on whose boxes meet the box, in list order (a tile's candidates).
     std::vector<std::size_t> candidates(const std::array<double, 4> &box, std::size_t first = 0) const;
-    // The material of the last of `candidates` holding (x, y), or 0.
+    // The material of the last of `candidates` holding (x, y), or 0. Charges the pass's work
+    // (terrainDrapePaintWork; TerrainEditRefused "limit-exceeded", located, past it) and checks
+    // the pass's progress for cancellation (TerrainCancelled).
     Id materialAt(double x, double y, const std::vector<std::size_t> &candidates) const;
+    // A progress to check for cancellation during the pass (a replay's).
+    void budget(TerrainProgress *progress) { progress_ = progress; }
+    std::uint64_t work() const { return work_; }
 
   private:
     struct Region {
@@ -176,11 +184,23 @@ class TerrainPaintRegions {
         std::array<double, 4> box{};
     };
     std::vector<Region> regions_;
+    mutable std::uint64_t work_{}, calls_{};
+    TerrainProgress *progress_{};
 };
 // Paints a tile body's faces by their centroids from the regions (from `first` on): a face inside
 // a region takes its material on both sides (no per-face entry when that equals the tile's own
 // materials); other faces are left as they are. Returns whether the body changed.
 bool paintTerrainTile(Body &tile, const TerrainPaintRegions &regions, std::size_t first = 0);
+// The same for a tile's content: the material of each triangle (0 for none), empty when no
+// triangle is painted; and its application to the tile body built from that content (face j is
+// triangle j, as makeTerrainTile numbers them).
+std::vector<Id> terrainTileRegionPaint(const TerrainTileContent &tile,
+                                       const TerrainPaintRegions &regions, std::size_t first = 0);
+bool applyTerrainTilePaint(Body &tile, const std::vector<Id> &materials);
+// The paint of every tile of a replayed set (TerrainTileSet::paint), computed by the replay run
+// with its progress (cancellation) and the paint work bound, so applying it does no region tests.
+void paintTerrainTileSet(TerrainTileSet &set, const TerrainRecord &record,
+                         TerrainProgress *progress = nullptr);
 // The tile's faces with paint of their own, which a rebuild drops: per-face colour, texture or
 // material, except a material that is exactly what the regions give the face (the region
 // holding its centroid, on both sides), which the rebuild paints again.

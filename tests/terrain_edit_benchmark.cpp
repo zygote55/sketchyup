@@ -36,7 +36,8 @@
 // JSON document. Build it Release.
 //
 // - R096.d: pad stamps (terrain.stamp_pad, terrain.update_edit); see measureStamps.
-// - R096.e: drapes (terrain.drape); see measureDrapes.
+// - R096.e: drapes (terrain.drape); see measureDrapes, and measureWholePaint for a painted face
+//   over a whole terrain (commit, history charge and resident growth).
 //
 //   terrain_edit_benchmark [--edits N] [--replay M] [--cancel TRIALS] [--source-edits K]
 //                          [--sculpts J] [--sculpt-replay S] [--stamps T] [--stamp-replay P]
@@ -58,6 +59,7 @@
 #include <QJsonDocument>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <atomic>
 #include <numbers>
@@ -1209,6 +1211,99 @@ QJsonObject measureDrapes(Document &doc, Id terrain, int samples, int replayEntr
     return result;
 }
 
+// R096.e: a painted face over a whole terrain (its box inset 3 %): its outline splits a ring of
+// triangles and every tile inside is repainted. Measured on terrains built 4 % smaller (about
+// 240,000 triangles), since the outline adds about 5,700 triangles.
+QJsonObject measureWholePaint(const char *name, const QByteArray &bytes, const QJsonObject &command) {
+    Document doc;
+    auto request = parseTerrainSourceRequest(bytes, command);
+    auto imported = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
+    check(imported.ok, std::string(name) + " imports: " + imported.message);
+    const auto applied = applyTerrainImport(doc, std::move(imported), request.name);
+    const Id terrain = applied["terrain"].toString().toULongLong();
+    const auto world = doc.worldTransform(terrain);
+    const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+    QElapsedTimer timer;
+    Id material = 0;
+    {
+        Edit edit{"Material", {}};
+        material = doc.nextMaterialId();
+        edit.materials.push_back({material, nullptr,
+                                  std::make_shared<MaterialRecord>(MaterialRecord{material, "Gravel", {0.6f, 0.5f, 0.4f}, 1, 0})});
+        doc.apply(std::move(edit), doc.revision());
+    }
+    QJsonObject result;
+        // A painted face over the whole terrain (its box inset 3 %): the tiles inside it are
+        // repainted, and the history charge of that is reported with the commit.
+        {
+            double minX = 1e300, minY = 1e300, maxX = -1e300, maxY = -1e300;
+            for (const auto *t : mesh->tiles()) {
+                minX = std::min(minX, t->minX);
+                minY = std::min(minY, t->minY);
+                maxX = std::max(maxX, t->maxX);
+                maxY = std::max(maxY, t->maxY);
+            }
+            const double ix = (maxX - minX) * 0.03, iy = (maxY - minY) * 0.03;
+            const std::vector<Vec3> loop{world.point({minX + ix, minY + iy, 60}),
+                                         world.point({maxX - ix, minY + iy, 60}),
+                                         world.point({maxX - ix, maxY - iy, 60}),
+                                         world.point({minX + ix, maxY - iy, 60})};
+            const auto face = doc.addFace({loop}, "Whole terrain face");
+            auto painted = std::make_shared<Body>(*doc.bodies().at(face));
+            painted->materials = {material, material};
+            doc.apply({"Paint", {{face, doc.bodies().at(face), painted}}}, doc.revision());
+            const QJsonArray whole{QJsonObject{
+                {"body", QString::number(face)},
+                {"face", QString::number(doc.bodies().at(face)->surface.faces.begin()->first)}}};
+            auto resident = [] {
+                long pages = 0, rss = 0;
+                if (FILE *statm = std::fopen("/proc/self/statm", "r")) {
+                    if (std::fscanf(statm, "%ld %ld", &pages, &rss) != 2)
+                        rss = 0;
+                    std::fclose(statm);
+                }
+                return double(rss) * double(::sysconf(_SC_PAGESIZE));
+            };
+            const double residentBefore = resident();
+            const auto historyBefore = doc.terrainHistoryBytes();
+            QJsonObject paintOperation;
+            timer.restart();
+            executeTerrainCommand(doc, QJsonObject{{"command", "terrain.drape"},
+                                                   {"terrain", QString::number(terrain)},
+                                                   {"mode", "imprint"},
+                                                   {"faces", whole},
+                                                   {"paintRegions", true}},
+                                  &paintOperation);
+            const double wholeMs = ms(timer);
+            const auto charged = doc.terrainHistoryBytes() - historyBefore;
+            const double residentGrowth = resident() - residentBefore;
+            const auto wholeReport = paintOperation["terrainReport"].toObject()["terrain"].toObject();
+            timer.restart();
+            const auto wholeRequest = parseTerrainReplayRequest(
+                doc, QJsonObject{{"command", "terrain.regenerate"}, {"terrain", QString::number(terrain)}});
+            auto wholeReplay = runTerrainReplay(wholeRequest);
+            check(wholeReplay.ok, "the whole-terrain paint replays");
+            const auto wholeNoOp = applyTerrainReplay(doc, wholeRequest, std::move(wholeReplay));
+            const double wholeRegenerateMs = ms(timer);
+            check(!wholeNoOp["changed"].toBool(), "Regenerate after the whole-terrain paint is a no-op");
+            std::size_t paintedFaces = 0;
+            for (const auto id : terrainTiles(doc, terrain))
+                paintedFaces += doc.bodies().at(id)->faceMaterials.size();
+            result = QJsonObject{{"name", name}, {"triangles", double(terrainTriangleCount(doc, terrain))},{"tilesReplaced", wholeReport["tilesReplaced"]},
+                                                      {"tiles", double(terrainTiles(doc, terrain).size())},
+                                                      {"tilesRepainted", wholeReport["tilesRepainted"]},
+                                                      {"paintedFaces", double(paintedFaces)},
+                                                      {"commandCommitMs", wholeMs},
+                                                      {"historyChargedBytes", double(charged)},
+                                                      {"residentGrowthBytes", residentGrowth},
+                                                      {"regenerateMs", wholeRegenerateMs}};
+            doc.undo();
+            doc.undo();
+            doc.undo();
+        }
+    return result;
+}
+
 QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject &command,
                     int edits, int replayEntries, int cancelTrials, int sourceEdits, int sculpts,
                     int sculptReplay) {
@@ -1472,7 +1567,19 @@ int main(int argc, char **argv) {
                                                      {{"format", "dxf"}, {"units", "header"}},
                                                      stamps, stampReplay, 1.0, drapes, drapeReplay));
         }
+        QJsonArray wholePaint;
+        if (drapes > 0) {
+            wholePaint.append(measureWholePaint("points", pointSource(120000),
+                                                {{"format", "points"},
+                                                 {"units", "m"},
+                                                 {"columns", "XYZ"},
+                                                 {"delimiter", "whitespace"},
+                                                 {"header", false}}));
+            wholePaint.append(measureWholePaint("contours", contourSource(400, 300),
+                                                {{"format", "dxf"}, {"units", "header"}}));
+        }
         QJsonObject out{{"benchmark", "terrain_edit_benchmark"},
+                        {"wholeTerrainPaint", wholePaint},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                         {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
 #endif

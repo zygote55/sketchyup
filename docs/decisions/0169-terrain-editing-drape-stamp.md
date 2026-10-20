@@ -740,7 +740,7 @@ terrain report (`terrainOperations`, as R095.c2).
 | `terrain.add_source` | `{terrain, role, points \| edges, elevation?}`, including promotion of a display contour (`level`) | "Add contour" |
 | `terrain.remove_source` | `{terrain, source}` | "Remove contour" |
 | `terrain.stamp_pad` | `{terrain, footprint: {body, face} \| {body} \| {edges} \| {polygon}, elevation?, mode: daylight\|width, cutSlope?, fillSlope?, maxDistance?, width?}` | "Stamp pad" |
-| `terrain.drape` | `{terrain, edges?, faces?, mode: imprint\|overlay, paintRegions?, lift?}` | "Drape on terrain" |
+| `terrain.drape` | `{terrain, edges?, faces?, mode: imprint\|overlay, paintRegions?, lift?, context?}`; `context` (R096.e): the group an overlay goes in | "Drape on terrain" |
 | `terrain.update_edit` | `{terrain, edit, …parameters}`: change a recorded entry (Restamp; pad elevation or slopes); replays from that entry | "Edit terrain change" |
 | `terrain.remove_edit` | `{terrain, edit}`; replays | "Remove terrain change" |
 | `terrain.reset_edits` | Empty the list; Regenerate from base sources | "Reset terrain edits" |
@@ -2002,7 +2002,8 @@ the model).
 **Command** (§8). `terrain.drape {terrain, edges?, faces?, mode: imprint|overlay, paintRegions?,
 lift?, context?}` ("Drape on terrain"), one edit through the batch API with its dry run, MCP and
 sessions. `edges` are chained as `terrain.create_from_edges` chains them (so edges of a locked body
-are refused there too); `faces` give every loop, in any context, read in world coordinates. `mode`
+are refused there too, and so, to match, are faces of a locked body); `faces` give every loop, in
+any context, read in world coordinates. `mode`
 is required (decision 5's default is the desktop's). `paintRegions` is imprint only; `lift` and
 `context` are overlay only. Vertical edges and faces (no plan length or area) are dropped with
 notices; nothing left is refused. Imprint needs an unlocked, level terrain; overlay a level one (it
@@ -2126,6 +2127,39 @@ refusal and no path breaking C1 or C4; these follow it.
   once; each piece between two snapped vertices tests only the edges beside it.
 - *Decoder.* A paint loop of fewer than three points is refused as it is read, so empty loops cannot
   be many; a run that repeats a point is refused.
+
+**Review fixes (PR #390).** An independent review found no blocker; these follow it, each with a
+regression test in `terrain_drape_tests`.
+- *Region paint in history.* Measured (`terrain_edit_benchmark`, Release, a painted face over a whole
+  terrain, its box inset 3 %, on terrains built 4 % smaller so its outline fits under the limit:
+  245,579 and 240,666 triangles): the imprint replaces 56 and 104 tiles and repaints 169 and 2,843,
+  painting 214,718 and 235,770 faces; it commits in 1.13 and 0.80 s, and a replaying Regenerate after
+  it is a no-op in 0.68 and 0.81 s. Its history charge was 224 and 247 MB, because a repainted tile
+  was charged as any changed body, its before and after copies in full. A tile whose paint alone
+  changes is now charged one copy of its mesh plus the larger of its two paints (`model.cpp`,
+  `paintOnlyTileChange`): the history holds one copy of it at a time (the before copy while the edit
+  is done, the after copy while it is undone), so this is still a bound on what the history holds.
+  The charge falls to 148 and 136 MB (`paint history`: a fully painted tile is charged 0.6 of a
+  rebuilt one). Resident memory grew by 243 and 151 MB in the same commits, so charging only the
+  paint delta (about 20 MB) would have under-counted the memory the history keeps alive; the tiles'
+  meshes cannot be shared between the two copies without changing `Body`, which stores them by value.
+  The ≥ 64 one-tile undo entries of decision 10 still hold: the history drops its oldest entries
+  first, and even the whole-terrain paint leaves room for over 360 one-tile edits.
+- *Paint work.* Every paint pass (the tiles one edit builds and repaints, or a Regenerate's) charges
+  each region it tests and the band edges it reads against 2^27 and refuses past it
+  (`limit-exceeded`, located); a Regenerate's paint now runs on the replay (`paintTerrainTileSet`,
+  the run a desktop worker cancels) with a cancellation checkpoint every 4,096 tests, and applying
+  the tiles only copies its result. A crafted record of 640 thin frames around a 60,000-triangle
+  terrain is refused by Regenerate, located, in 7.1 s (Debug), and a cancellation stops the pass
+  (`paint work`).
+- *Crossed contours.* Re-elevating a contour or breakline whose vertex a drape's line (or a pad's
+  outline or daylight line) shares is refused as `crossed-by-change`, located at the shared vertex,
+  naming the change ("This contour is crossed by Drape (change #4); remove that change with
+  terrain.remove_edit to re-elevate it alone."); other shared vertices keep the generic conflict.
+  Removing such a contour is allowed and leaves the crossing points, vertices of the drape's lines,
+  where the drape put them (`crossed contour`; UX_DESIGN §15.3 and §15.5).
+- *Locked bodies.* Faces of a locked body are refused like its edges (`refusals`).
+- §8's command table names `context`.
 
 ## Sources
 

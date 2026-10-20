@@ -1,6 +1,7 @@
 #include "io/terrain_import.hpp"
 #include "core/terrain_sources.hpp"
 #include "core/terrain_source_edit.hpp"
+#include "core/terrain_drape.hpp"
 #include <QJsonArray>
 #include <unordered_set>
 #include <QJsonDocument>
@@ -1314,6 +1315,23 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
         result.record.edits = std::move(replayedEdits);
     result.record.parameters = parameters;
     result.record.generator = terrainGenerator;
+    // R096.e: the region paint of the replayed tiles, here on the run (with its progress and the
+    // paint work bound) rather than while the tiles are applied.
+    if (result.ok && result.tileSet) {
+        try {
+            paintTerrainTileSet(*result.tileSet, result.record, progress);
+        } catch (const TerrainEditRefused &error) {
+            for (const auto &problem : error.problems()) {
+                report.add(Severity::Refusal, problem.kind, problem.count, problem.message);
+                for (const auto &location : problem.locations)
+                    report.locate(Severity::Refusal, problem.kind, problem.message,
+                                  {"paint", {}, std::array<double, 2>{location.xy.x, location.xy.y}},
+                                  false);
+            }
+            result.ok = false;
+            result.tileSet.reset();
+        }
+    }
     const QString outcome = !result.ok            ? "refused"
                             : report.hasNotices() ? "regeneratedWithNotices"
                                                   : "regenerated";

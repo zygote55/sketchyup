@@ -591,10 +591,10 @@ void applyTerrainSculptClip(TerrainSourceState &state, const TerrainSculptClip &
         }
         state.replace(source.pieces.front());
         // R096.e: the further runs of an imprinted line stay the drape's own.
-        const bool drape = state.isDrapeSource(source.id);
+        const auto drape = state.drapeSourceOwner(source.id);
         for (std::size_t i = 1; i < source.pieces.size(); ++i) {
             if (drape)
-                state.markDrapeSource(source.pieces[i].id);
+                state.markDrapeSource(source.pieces[i].id, drape);
             state.add(source.pieces[i]);
         }
     }

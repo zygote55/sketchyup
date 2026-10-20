@@ -1082,6 +1082,13 @@ The mockups are `mockups/terrain.html` (all screens, with notes) or
   Release to cancel, or move back"). The preview is withdrawn and releasing
   changes nothing. The status bar repeats the reason with the location in site
   coordinates.
+- **Contours a drape crossed** (R096.e). An imprinted drape shares its crossing
+  points with the contours and breaklines it crossed, so typing a new elevation
+  for such a contour is refused at the first crossing, naming the change
+  ("This contour is crossed by Drape (change #4); remove that change to
+  re-elevate it alone"). Moving or deleting the contour is allowed: the
+  crossing points stay where the drape put them, at their surface heights, as
+  vertices of the drape's lines.
 
 ### 15.4 Stamp pad
 
@@ -1121,6 +1128,10 @@ The mockups are `mockups/terrain.html` (all screens, with notes) or
   row appears in Terrain edits. *Overlay* makes ordinary geometry in a new
   group in the active context, lifted by *Lift* (default 0.01 m, enabled only
   for Overlay), and afterwards the new group is selected.
+- **Crossed contours.** An imprint's lines keep the points where they cross
+  contours and breaklines. Removing a crossed contour leaves those points at
+  their heights, and a crossed contour cannot be re-elevated alone while the
+  drape exists (§15.3); removing the drape's change lifts both.
 
 ### 15.6 Terrain edits
 

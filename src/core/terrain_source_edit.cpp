@@ -191,6 +191,59 @@ void checkProtected(const TerrainPadIndex &pads, const std::vector<Vec3> &points
             problems.add(insidePad, padMessage, {(a.x + b.x) / 2, (a.y + b.y) / 2}, source, edit);
 }
 
+// R096.e: a vertex the edit would re-elevate that another source shares. When that source is a
+// drape's line or a pad's outline or daylight line, the refusal names the change and points to
+// terrain.remove_edit (a drape crossing a contour shares its crossing vertices with it); otherwise
+// it is the generic conflict. The owners are indexed once, on the first such vertex.
+class SharedVertices {
+  public:
+    SharedVertices(const TerrainSourceState &state, const TerrainSource &self)
+        : state_(state), self_(self) {}
+    void add(Problems &problems, TerrainPlanKey key, TerrainVec2 at, std::uint64_t source) {
+        if (!indexed_) {
+            indexed_ = true;
+            for (const auto *other : state_.sources()) {
+                if (other->id == self_.id)
+                    continue;
+                const auto drape = state_.drapeSourceOwner(other->id);
+                const auto pad = state_.padSourceOwner(other->id);
+                if (!drape && !pad)
+                    continue;
+                for (const auto &p : other->points)
+                    owners_.try_emplace(keyOf(p), Owner{drape ? drape : pad, drape != 0});
+            }
+        }
+        const auto found = owners_.find(key);
+        if (found == owners_.end()) {
+            problems.add(conflictKind, "A vertex another source shares cannot take a new elevation.",
+                         at, source);
+            return;
+        }
+        const auto &[edit, drape] = found->second;
+        const std::string what = self_.role == TerrainSourceRole::Contour ? "This contour" : "This breakline";
+        const std::string change = " (change #" + std::to_string(edit) + ")";
+        problems.add("crossed-by-change",
+                     drape ? what + " is crossed by Drape" + change +
+                                 "; remove that change with terrain.remove_edit to re-elevate it "
+                                 "alone."
+                           : what + " shares a vertex with the outline or daylight line of Pad" +
+                                 change +
+                                 "; change the pad with terrain.update_edit or remove it with "
+                                 "terrain.remove_edit to re-elevate it alone.",
+                     at, source, edit);
+    }
+
+  private:
+    struct Owner {
+        std::uint32_t edit{};
+        bool drape{};
+    };
+    const TerrainSourceState &state_;
+    const TerrainSource &self_;
+    bool indexed_{};
+    std::unordered_map<TerrainPlanKey, Owner, TerrainPlanHash> owners_;
+};
+
 // ---- Elevation only -------------------------------------------------------------------------
 TerrainSourceEditPlan planElevation(const TerrainEditContext &context, const TerrainSource &old,
                                     const TerrainSource &next, const SourceView &before,
@@ -202,6 +255,7 @@ TerrainSourceEditPlan planElevation(const TerrainEditContext &context, const Ter
     plan.elevationOnly = true;
     plan.resolved = next.points;
     std::map<TerrainPlanKey, std::pair<Vec3, double>> lifts;
+    SharedVertices shared(context.sources, old);
     for (std::size_t i = 0; i < old.points.size(); ++i) {
         const auto &p = old.points[i], &q = next.points[i];
         if (p.z == q.z)
@@ -213,9 +267,7 @@ TerrainSourceEditPlan planElevation(const TerrainEditContext &context, const Ter
             continue;
         }
         if (now.others(key))
-            problems.add(conflictKind,
-                         "A vertex another source shares cannot take a new elevation.", v2(p),
-                         next.id);
+            shared.add(problems, key, v2(p), next.id);
         else if (view.at(p).empty())
             problems.add("triangulation-failed", "A source vertex is not a mesh vertex.", v2(p),
                          next.id);
@@ -347,14 +399,15 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
     std::map<TerrainPlanKey, Vec3> lifted;    // old position; new Z from `after`
     std::map<TerrainPlanKey, Vec3> inserted;  // new position
     std::map<TerrainPlanKey, Vec3> joined;    // new position equal to a kept mesh vertex
+    std::optional<SharedVertices> shared;
+    if (old)
+        shared.emplace(state, *old);
     for (const auto &[key, p] : before.at) {
         if (const auto found = after.at.find(key); found != after.at.end()) {
             if (found->second.z == p.z)
                 continue;
             if (now.others(key))
-                problems.add(conflictKind,
-                             "A vertex another source shares cannot take a new elevation.", v2(p),
-                             sourceId);
+                shared->add(problems, key, v2(p), sourceId);
             else if (view.at(p).empty())
                 inserted.emplace(key, found->second);
             else

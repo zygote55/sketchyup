@@ -815,7 +815,10 @@ TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainTil
     auto tiles = terrainTileBodies(set, ids, terrain, *materials);
     // R096.e: the record's paint regions paint every tile (decision 7), so a tile whose mesh and
     // regions did not change compares equal and is left alone.
-    if (const TerrainPaintRegions regions(record); !regions.empty())
+    if (set.paint.size() == tiles.size()) {
+        for (std::size_t t = 0; t < tiles.size(); ++t)
+            applyTerrainTilePaint(*tiles[t], set.paint[t]);
+    } else if (const TerrainPaintRegions regions(record); !regions.empty())
         for (auto &tile : tiles)
             paintTerrainTile(*tile, regions);
     record.meshDigest = tilesDigest(tiles);
