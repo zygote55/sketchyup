@@ -1238,6 +1238,9 @@ the base mesh:
   the assembled contours equal the whole-terrain ones.
 
 `command_tests` covers the two new commands, and the R095 desktop and display suites pass.
+The edit-list decoder was fuzzed with libFuzzer (clang, ASan and UBSan, the documented options):
+`parser_fuzz_terrain_edits` ran 45,407 inputs in 180 s from the generated seeds (522 coverage
+points, 581 MB peak) with no failure; `parser_fuzz_seeds` generates its two seeds.
 
 ## Sources
 
