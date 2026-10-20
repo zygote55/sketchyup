@@ -524,8 +524,11 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
     }
     for (const auto &[a, b] : addedSegments) {
         const auto tris = view.touching(v2(a), v2(b));
-        if (tris.empty())
-            problems.add(outsideOutline, outsideMessage, v2(a), sourceId);
+        // Between two points of the outline a segment may run outside it without crossing an
+        // outline edge (across a notch or a hole): its midpoint is then on no triangle.
+        const TerrainVec2 middle{a.x + (b.x - a.x) / 2, a.y + (b.y - a.y) / 2};
+        if (tris.empty() || view.containing(middle).empty())
+            problems.add(outsideOutline, outsideMessage, middle, sourceId);
         for (const auto &ref : tris) {
             cavity.insert(ref);
             const auto c = view.corners(ref);

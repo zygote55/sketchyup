@@ -793,6 +793,29 @@ void fixtureOutlineAndHole() {
               direct(doc, command("terrain.remove_source", terrain, {{"source", double(pond->id)}}));
           }).code == "INVALID_REQUEST",
           "the pond (a hole source) is not removed by a source edit");
+    // A breakline between two vertices of the pond's shore, across the pond: no outline edge is
+    // crossed, but its middle is in the hole.
+    {
+        std::vector<Vec3> shore;
+        for (const auto id : terrainTiles(doc, terrain))
+            for (const auto &[vid, p] : doc.bodies().at(id)->surface.vertices)
+                for (const auto &q : pond->points)
+                    if (p.x == q.x && p.y == q.y &&
+                        std::none_of(shore.begin(), shore.end(), [&](const Vec3 &s) {
+                            return s.x == p.x && s.y == p.y;
+                        }))
+                        shore.push_back(p);
+        check(shore.size() >= 4, "the pond's vertices are mesh vertices");
+        const auto across = refusal([&] {
+            direct(doc, command("terrain.add_source", terrain,
+                                {{"role", "breakline"},
+                                 {"points", modelPoints(doc, terrain,
+                                                        {shore[0], shore[shore.size() / 2]})}}));
+        });
+        check(across.message.find("outside-outline") != std::string::npos,
+              "a breakline across the pond between two shore vertices is refused: " +
+                  across.message);
+    }
     checkC6(doc, terrain, "fixture");
     std::cout << "fixture: a point in the pond is refused\n";
 }

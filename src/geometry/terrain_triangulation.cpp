@@ -1896,6 +1896,21 @@ TerrainCavityResult cavity(const TerrainCavityInput &input,
                                               : "New geometry lies outside the cavity.",
                                store.xy[v]);
     }
+    {
+        // Every constraint and new segment must be an edge of the cavity's triangles: a segment
+        // between two boundary vertices that runs outside the cavity is not.
+        std::vector<u64> keptEdges;
+        keptEdges.reserve(kept.v.size() * 3);
+        for (const auto &t : kept.v)
+            for (u32 i = 0; i < 3; ++i)
+                keptEdges.push_back(edgeKey(t[i], t[(i + 1) % 3]));
+        std::sort(keptEdges.begin(), keptEdges.end());
+        for (const auto &segment : segments)
+            if (!sortedContains(keptEdges, edgeKey(segment.a, segment.b)))
+                return invalid("New geometry lies outside the cavity.",
+                               Pt{(store.xy[segment.a].x + store.xy[segment.b].x) / 2,
+                                  (store.xy[segment.a].y + store.xy[segment.b].y) / 2});
+    }
     if (kept.v.size() > limits.maxTriangles) {
         problems.add(TerrainProblemKind::TriangleBudget);
         problems.detail(TerrainProblemKind::TriangleBudget,
