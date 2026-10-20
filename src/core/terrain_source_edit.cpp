@@ -592,6 +592,13 @@ TerrainSourceEditPlan planTerrainSourceEdit(const TerrainEditContext &context,
                 break;
         }
     }
+    if (cavity.empty()) {
+        // Nothing in the mesh changes (a spot point removed from the outline, say): the edit
+        // changes the current sources only.
+        if (next)
+            plan.resolved = next->points;
+        return plan;
+    }
     if (cavity.size() > limit) {
         problems.add("limit-exceeded", "The edit would re-triangulate too much of the terrain.",
                      v2(inserted.empty() ? removed.begin()->second : inserted.begin()->second),
