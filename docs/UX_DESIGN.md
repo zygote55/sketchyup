@@ -1,6 +1,6 @@
 # SketchyUp UX design
 
-Status: proposed design, not an implemented interface. Updated: 2026-10-19.
+Status: proposed design, not an implemented interface. Updated: 2026-10-20.
 
 This document designs the user experience for the native editor described in
 the [build plan](BUILD_PLAN.md). It covers the window, tools, numeric entry,
@@ -991,8 +991,8 @@ interface is checked on X11 and Wayland at 1× and 2× and at 200 % text.
 
 This section designs the desktop tools for editing a terrain: sculpt, smooth,
 contour edit, pad stamp and drape ([ADR 0169](decisions/0169-terrain-editing-drape-stamp.md)
-§8 lists the questions it answers; R096.f builds it). Status: proposed,
-awaiting the owner's approval. Every change is one labelled, undoable History
+§8 lists the questions it answers; R096.f builds it). Status: approved by the
+owner on 2026-10-20. Every change is one labelled, undoable History
 entry with a preview first, and every refusal leaves the model unchanged.
 The mockups are `mockups/terrain.html` (all screens, with notes) or
 `mockups/terrain.html?screen=<name>` (`menu`, `sculpt`, `contours`, `stamp`,
