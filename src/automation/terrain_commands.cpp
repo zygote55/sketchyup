@@ -1219,9 +1219,13 @@ QJsonObject applyStamp(Document &doc, Id terrain, std::shared_ptr<TerrainStampDa
     } catch (const TerrainEditRefused &error) {
         refused(error);
     }
+    // The dry run is the kind's own outcome for this entry on the same mesh and sources, so the
+    // commit uses it rather than planning again.
     TerrainEditApplied applied;
     try {
-        applied = applyTerrainEdit(doc, terrain, terrainStampKind, plan.resolved, "Stamp pad");
+        const TerrainEditOutcome outcome{std::move(plan.change), {}, plan.resolved};
+        applied = applyTerrainEdit(doc, terrain, terrainStampKind, plan.resolved, "Stamp pad",
+                                   &outcome);
     } catch (const TerrainEditRefused &error) {
         refused(error);
     }

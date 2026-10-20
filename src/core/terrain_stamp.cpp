@@ -174,9 +174,21 @@ void validateTerrainStampData(const TerrainStampData &data) {
         fail("The grading mode is daylight or width");
     if (data.sourceFace && !data.sourceBody)
         fail("A pad's source face needs its source body");
+    // Recorded pieces stay with an unresolved pad (terrain.update_edit keeps them), so split
+    // source lines keep their ids when it applies again.
+    auto checkPieces = [&] {
+        if (data.pieces.size() > terrainSculptPiecesPerEdit)
+            fail("A pad records at most 4,096 source line pieces");
+        std::set<std::uint32_t> ids;
+        for (const auto &[parent, id] : data.pieces)
+            if (!parent || id < terrainSplitSourceIdFloor || !ids.insert(id).second)
+                fail("A pad's source line pieces name a source and distinct piece ids from "
+                     "3,221,225,472 up");
+    };
     if (!data.resolved()) {
-        if (!data.rays.empty() || data.dropped || !data.pieces.empty())
-            fail("An unresolved pad has no rays or pieces");
+        if (!data.rays.empty() || data.dropped)
+            fail("An unresolved pad has no rays");
+        checkPieces();
         return;
     }
     const auto m = data.outline.size();
@@ -196,13 +208,7 @@ void validateTerrainStampData(const TerrainStampData &data) {
             std::abs(ray.daylight.z) > localBound)
             fail("Daylight points are finite and within the local bound");
     }
-    if (data.pieces.size() > terrainSculptPiecesPerEdit)
-        fail("A pad records at most 4,096 source line pieces");
-    std::set<std::uint32_t> ids;
-    for (const auto &[parent, id] : data.pieces)
-        if (!parent || id < terrainSplitSourceIdFloor || !ids.insert(id).second)
-            fail("A pad's source line pieces name a source and distinct piece ids from "
-                 "3,221,225,472 up");
+    checkPieces();
 }
 std::vector<Vec3> terrainStampRing(const TerrainStampData &data) {
     std::vector<Vec3> ring;
@@ -550,7 +556,9 @@ struct Segment {
     std::uint32_t r0, r1; // ray positions (in the kept list) it belongs to
 };
 // Every pair of segments that meet other than at a shared end point (exact), found through a
-// uniform grid along each segment; bounded by terrainStampPairWork.
+// uniform grid: each segment is listed in the cells it passes through (a grid walk, with both
+// neighbours where it passes a corner), so two segments that meet share a cell. Outline pieces are
+// not paired with each other. Bounded by terrainStampPairWork.
 std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector<Segment> &segments,
                                                                std::uint64_t &work,
                                                                Problems &problems,
@@ -559,58 +567,91 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector
     if (segments.empty())
         return result;
     auto box = emptyBox();
-    double total = 0;
+    std::vector<double> lengths;
+    lengths.reserve(segments.size());
     for (const auto &s : segments) {
         extend(box, s.a.x, s.a.y);
         extend(box, s.b.x, s.b.y);
-        total += planDistance(s.a, s.b);
+        lengths.push_back(planDistance(s.a, s.b));
     }
+    // The cell: the median segment length, so short outline pieces and long rays both list in a
+    // few cells, but never more than 4,096 cells a side.
+    std::nth_element(lengths.begin(), lengths.begin() + std::ptrdiff_t(lengths.size() / 2),
+                     lengths.end());
     const double span = std::max(box[2] - box[0], box[3] - box[1]);
-    double cell = std::max({total / double(segments.size()), span / 2048, 1e-6});
-    auto cellOf = [&](double v, double low) { return std::int64_t(std::floor((v - low) / cell)); };
+    const double cell = std::max({lengths[lengths.size() / 2], span / 4096, 1e-6});
+    auto refuse = [&](TerrainVec2 at) {
+        problems.refuse(limitKind,
+                        "The grading is too irregular to check for crossings; use a smaller "
+                        "footprint, maximum distance or width.",
+                        at);
+    };
     std::unordered_map<std::uint64_t, std::vector<std::uint32_t>> grid;
     auto key = [](std::int64_t x, std::int64_t y) {
         return (std::uint64_t(std::uint32_t(x)) << 32) | std::uint32_t(y);
     };
+    auto cellOf = [&](double v, double low) {
+        return std::int64_t(std::floor((v - low) / cell));
+    };
+    auto list = [&](std::int64_t x, std::int64_t y, std::uint32_t i) {
+        auto &cellList = grid[key(x, y)];
+        if (cellList.empty() || cellList.back() != i)
+            cellList.push_back(i);
+        if (++work > terrainStampPairWork)
+            refuse(segments[i].a);
+    };
     for (std::uint32_t i = 0; i < segments.size(); ++i) {
         const auto &s = segments[i];
-        const double length = planDistance(s.a, s.b);
-        const auto steps = std::size_t(std::ceil(length / cell)) + 1;
-        work += steps;
-        if (work > terrainStampPairWork)
-            problems.refuse(limitKind,
-                            "The grading is too irregular to check for crossings; use a smaller "
-                            "footprint, maximum distance or width.",
-                            s.a);
-        std::int64_t lastX = std::numeric_limits<std::int64_t>::min(), lastY = lastX;
-        for (std::size_t k = 0; k <= steps; ++k) {
-            const double f = double(k) / double(steps);
-            const auto cx = cellOf(s.a.x + (s.b.x - s.a.x) * f, box[0]),
-                       cy = cellOf(s.a.y + (s.b.y - s.a.y) * f, box[1]);
-            if (cx == lastX && cy == lastY)
-                continue;
-            lastX = cx;
-            lastY = cy;
-            for (std::int64_t dx = -1; dx <= 1; ++dx)
-                for (std::int64_t dy = -1; dy <= 1; ++dy) {
-                    auto &list = grid[key(cx + dx, cy + dy)];
-                    if (list.empty() || list.back() != i)
-                        list.push_back(i);
-                }
+        // Amanatides and Woo's walk in cell units; where it passes a corner (both crossings within
+        // a hair) both neighbours are listed too.
+        const double ax = (s.a.x - box[0]) / cell, ay = (s.a.y - box[1]) / cell,
+                     bx = (s.b.x - box[0]) / cell, by = (s.b.y - box[1]) / cell;
+        std::int64_t x = cellOf(s.a.x, box[0]), y = cellOf(s.a.y, box[1]);
+        const std::int64_t endX = cellOf(s.b.x, box[0]), endY = cellOf(s.b.y, box[1]);
+        const double dx = bx - ax, dy = by - ay;
+        const int stepX = dx > 0 ? 1 : dx < 0 ? -1 : 0, stepY = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+        const double inf = std::numeric_limits<double>::infinity();
+        double tMaxX = stepX ? ((stepX > 0 ? double(x + 1) : double(x)) - ax) / dx : inf;
+        double tMaxY = stepY ? ((stepY > 0 ? double(y + 1) : double(y)) - ay) / dy : inf;
+        const double tDeltaX = stepX ? std::abs(1 / dx) : inf, tDeltaY = stepY ? std::abs(1 / dy) : inf;
+        list(x, y, i);
+        const auto cells = std::abs(endX - x) + std::abs(endY - y) + 2;
+        for (std::int64_t k = 0; k < cells * 2 && (x != endX || y != endY); ++k) {
+            if (std::abs(tMaxX - tMaxY) <= 1e-9) {
+                list(x + stepX, y, i);
+                list(x, y + stepY, i);
+                x += stepX;
+                y += stepY;
+                tMaxX += tDeltaX;
+                tMaxY += tDeltaY;
+            } else if (tMaxX < tMaxY) {
+                x += stepX;
+                tMaxX += tDeltaX;
+            } else {
+                y += stepY;
+                tMaxY += tDeltaY;
+            }
+            list(x, y, i);
         }
+        // Rounding may stop the walk a cell short: the end's cell is listed in any case.
+        list(endX, endY, i);
     }
     std::vector<std::uint64_t> pairs;
-    for (const auto &[cellKey, list] : grid) {
-        work += list.size() * (list.size() - 1) / 2;
+    for (const auto &[cellKey, cellList] : grid) {
+        std::size_t outline = 0;
+        for (const auto i : cellList)
+            outline += segments[i].kind == 0;
+        const std::size_t others = cellList.size() - outline;
+        work += outline * others + others * (others > 0 ? others - 1 : 0) / 2;
         if (work > terrainStampPairWork)
-            problems.refuse(limitKind,
-                            "The grading is too irregular to check for crossings; use a smaller "
-                            "footprint, maximum distance or width.",
-                            segments[list.front()].a);
-        for (std::size_t x = 0; x < list.size(); ++x)
-            for (std::size_t y = x + 1; y < list.size(); ++y)
-                pairs.push_back((std::uint64_t(std::min(list[x], list[y])) << 32) |
-                                std::max(list[x], list[y]));
+            refuse(segments[cellList.front()].a);
+        for (std::size_t x = 0; x < cellList.size(); ++x)
+            for (std::size_t y = x + 1; y < cellList.size(); ++y) {
+                if (segments[cellList[x]].kind == 0 && segments[cellList[y]].kind == 0)
+                    continue;
+                pairs.push_back((std::uint64_t(std::min(cellList[x], cellList[y])) << 32) |
+                                std::max(cellList[x], cellList[y]));
+            }
     }
     terrainCheckpoint(progress, TerrainStage::Replay, 0);
     std::sort(pairs.begin(), pairs.end());
@@ -708,6 +749,9 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
     for (std::size_t i = 0; i < n; ++i) {
         if ((i & 255) == 0)
             terrainCheckpoint(progress, TerrainStage::Replay, 0);
+        // An edge no longer than the smallest spacing has no interior rays at any spacing.
+        if (planDistance(v2(footprint[i]), v2(footprint[(i + 1) % n])) <= terrainStampSpacingMin)
+            continue;
         for (const auto &ref : view.touching(v2(footprint[i]), v2(footprint[(i + 1) % n]))) {
             const auto c = view.corners(ref);
             double longest = 0;
@@ -981,11 +1025,33 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
         inserted.push_back({p[0], p[1], h});
     for (const auto &p : ring)
         inserted.push_back(p);
+    // Every inserted vertex lies in the widened polygon, so the triangles holding it are flood
+    // triangles: a grid over them finds them without scanning whole tiles.
+    std::vector<TerrainTriangleRef> flood(cavity.begin(), cavity.end());
+    std::vector<TerrainBoxTree::Box> floodBoxes;
+    floodBoxes.reserve(flood.size());
+    for (const auto &ref : flood) {
+        const auto c = view.corners(ref);
+        floodBoxes.push_back({std::min({c[0].x, c[1].x, c[2].x}), std::min({c[0].y, c[1].y, c[2].y}),
+                              std::max({c[0].x, c[1].x, c[2].x}), std::max({c[0].y, c[1].y, c[2].y})});
+    }
+    const TerrainBoxTree floodTree(std::move(floodBoxes));
+    auto containing = [&](TerrainVec2 q) {
+        std::vector<TerrainTriangleRef> found;
+        floodTree.visit({q.x, q.y, q.x, q.y}, [&](std::uint32_t k) {
+            const auto c = view.corners(flood[k]);
+            if (terrain_view::inTriangle(v2(c[0]), v2(c[1]), v2(c[2]), q))
+                found.push_back(flood[k]);
+            return true;
+        });
+        std::sort(found.begin(), found.end());
+        return found;
+    };
     for (std::size_t i = 0; i < inserted.size(); ++i) {
         if ((i & 255) == 0)
             terrainCheckpoint(progress, TerrainStage::Replay, 0);
         const auto q = v2(inserted[i]);
-        const auto start = view.containing(q);
+        const auto start = containing(q);
         std::set<TerrainTriangleRef> visited(start.begin(), start.end());
         std::vector<TerrainTriangleRef> walk(start.begin(), start.end());
         for (std::size_t head = 0; head < walk.size(); ++head) {
@@ -1222,7 +1288,6 @@ std::vector<TerrainEditKind> terrainStampKinds() {
         cleared->outline.clear();
         cleared->rays.clear();
         cleared->dropped = 0;
-        cleared->pieces.clear();
         return cleared;
     };
     return {std::move(kind)};

@@ -946,6 +946,390 @@ void refusals() {
     }
     std::cout << "refusals: each located refusal changes nothing\n";
 }
+
+// terrain.update_edit: pad elevation, slopes and mode, and Restamp, each one edit ("Edit terrain
+// change") with a replay when the pad is not the last entry; refusals change nothing.
+void updateEdit() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    const auto c = centre(doc, terrain);
+    const auto cm = toModel(doc, terrain, c);
+    const double h = groundAt(doc, terrain, c.x + 40, c.y);
+    // A face to stamp, so Restamp can re-read it.
+    const double z = toModel(doc, terrain, {0, 0, h}).z;
+    const auto face = doc.addFace({{{cm.x + 36, cm.y - 3, z}, {cm.x + 44, cm.y - 3, z},
+                                    {cm.x + 44, cm.y + 3, z}, {cm.x + 36, cm.y + 3, z}}},
+                                  "Slab");
+    const auto faceId = doc.bodies().at(face)->surface.faces.begin()->first;
+    run(doc, stampCommand(terrain, {{"footprint", QJsonObject{{"body", QString::number(face)},
+                                                              {"face", QString::number(faceId)}}}}));
+    const auto pad = recordOf(doc, terrain).edits.back()->id;
+    // A later sculpt elsewhere, so the pad is not the last entry.
+    run(doc, command("terrain.sculpt", terrain, {{"mode", "raise"},
+                                                 {"path", planPoints(doc, terrain, {{c.x - 40, c.y}})},
+                                                 {"radius", 6},
+                                                 {"amount", 0.5}}));
+    const auto sculpt = recordOf(doc, terrain).edits.back()->id;
+    const auto update = [&](QJsonObject fields) {
+        fields["edit"] = double(pad);
+        return command("terrain.update_edit", terrain, std::move(fields));
+    };
+    // Elevation.
+    auto before = model(doc);
+    auto result = run(doc, update({{"elevation", z + 0.5}}));
+    check(result["changed"].toBool(), "the elevation update changes the terrain");
+    check(recordOf(doc, terrain).edits.size() == 2 && recordOf(doc, terrain).edits.front()->id == pad &&
+              recordOf(doc, terrain).edits.back()->id == sculpt,
+          "the entry keeps its id and place");
+    check(std::abs(toModel(doc, terrain, {0, 0, stampOf(doc, terrain, pad).elevation}).z - (z + 0.5)) < 1e-9,
+          "the pad takes its new elevation");
+    check(doc.history().entries.back().label == "Edit terrain change", "one labelled edit");
+    checkC3(doc, terrain, "update elevation");
+    checkC1(doc, terrain, "update elevation");
+    checkC6(doc, terrain, "update elevation");
+    checkC7(doc, terrain, "update elevation");
+    checkHistoryAndSave(doc, terrain, before, "update elevation");
+    // Slopes, then fixed width.
+    run(doc, update({{"cutSlope", 1.0}, {"fillSlope", 0.3}}));
+    check(stampOf(doc, terrain, pad).cutSlope == 1.0 && stampOf(doc, terrain, pad).fillSlope == 0.3,
+          "the slopes change");
+    checkC3(doc, terrain, "update slopes");
+    run(doc, update({{"mode", "width"}, {"width", 2}}));
+    check(stampOf(doc, terrain, pad).mode == TerrainStampMode::Width, "the mode changes");
+    checkC3(doc, terrain, "update to width");
+    checkC7(doc, terrain, "update to width");
+    // Restamp after the face moved 3 m east.
+    doc.transform(face, Transform::translation({3, 0, 0}));
+    const double westBefore = stampOf(doc, terrain, pad).footprint.front()[0];
+    run(doc, update({{"restamp", true}}));
+    double west = 1e300;
+    for (const auto &p : stampOf(doc, terrain, pad).footprint)
+        west = std::min(west, p[0]);
+    check(std::abs(west - (westBefore + 3)) < 1e-6, "Restamp re-reads the moved footprint");
+    checkC3(doc, terrain, "restamp");
+    checkC1(doc, terrain, "restamp");
+    checkC7(doc, terrain, "restamp");
+    // Refusals.
+    checkUnchanged(doc, "updating a sculpt", [&] {
+        direct(doc, command("terrain.update_edit", terrain, {{"edit", double(sculpt)}, {"elevation", z}}));
+    }, "INVALID_REQUEST");
+    checkUnchanged(doc, "updating a missing change", [&] {
+        direct(doc, command("terrain.update_edit", terrain, {{"edit", 999.0}, {"elevation", z}}));
+    }, "NOT_FOUND");
+    checkUnchanged(doc, "an update with nothing to change", [&] { direct(doc, update({})); },
+                   "INVALID_REQUEST");
+    checkUnchanged(doc, "slopes for a fixed-width pad", [&] { direct(doc, update({{"cutSlope", 1}})); },
+                   "INVALID_REQUEST");
+    const auto off = [&] { direct(doc, update({{"mode", "daylight"}, {"elevation", z + 30}, {"maxDistance", 1}})); };
+    checkUnchanged(doc, "an update whose rays find no daylight", off, "INVALID_REQUEST");
+    check(refusalReportKinds(off).find("daylight-distance") != std::string::npos,
+          "the replay's refusal of the changed pad is located");
+    // A polygon pad has no source body to restamp.
+    run(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, square(c.x - 40, c.y + 30, 3))},
+                                    {"elevation", toModel(doc, terrain, {0, 0, groundAt(doc, terrain, c.x - 40, c.y + 30)}).z}}));
+    const auto polygonPad = recordOf(doc, terrain).edits.back()->id;
+    checkUnchanged(doc, "restamping a polygon pad", [&] {
+        direct(doc, command("terrain.update_edit", terrain, {{"edit", double(polygonPad)}, {"restamp", true}}));
+    }, "INVALID_REQUEST");
+    // A Restamp whose source body is gone.
+    doc.apply({"Erase", {{face, doc.bodies().at(face), nullptr}}}, doc.revision());
+    checkUnchanged(doc, "restamping without the source body", [&] { direct(doc, update({{"restamp", true}})); },
+                   "NOT_FOUND");
+    std::cout << "update: elevation, slopes, width and Restamp replay; refusals change nothing\n";
+}
+
+// The self-intersection repair: rays from the walls of a narrow notch cross; the inner ones are
+// dropped, the outer boundary kept, and the report says so.
+void repair() {
+    Document doc;
+    const auto terrain = importPoints(doc);
+    const auto c = centre(doc, terrain);
+    const double x = c.x - 15, y = c.y - 10;
+    const std::vector<std::array<double, 2>> u{{x, y},           {x + 30, y},      {x + 30, y + 20},
+                                               {x + 17, y + 20}, {x + 17, y + 6},  {x + 13, y + 6},
+                                               {x + 13, y + 20}, {x, y + 20}};
+    const double h = groundAt(doc, terrain, c.x, c.y) + 3;
+    const auto result = run(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, u)},
+                                                        {"elevation", toModel(doc, terrain, {0, 0, h}).z}}));
+    const auto report = result["terrainReport"].toObject()["terrain"].toObject();
+    const auto dropped = report["rays"].toObject()["dropped"].toDouble();
+    std::cout << "repair: " << dropped << " of "
+              << report["rays"].toObject()["count"].toDouble() + dropped << " rays dropped\n";
+    check(dropped > 0, "rays crossing in the notch are dropped");
+    bool notice = false;
+    for (const auto &value : report["notices"].toArray())
+        notice = notice || value.toObject()["kind"] == "daylight-repaired";
+    check(notice, "the report names the repair");
+    checkC3(doc, terrain, "repair");
+    checkC1(doc, terrain, "repair");
+    checkC6(doc, terrain, "repair");
+    checkC7(doc, terrain, "repair");
+    std::cout << "repair: C1, C3, C6, C7 hold\n";
+}
+
+// The entry codec: round trips (resolved and not) and refusals.
+void codec() {
+    Document doc;
+    const auto terrain = importRings(doc, 12, 48);
+    const auto c = centre(doc, terrain);
+    run(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, square(c.x + 20, c.y, 3))},
+                                    {"elevation", toModel(doc, terrain, {0, 0, groundAt(doc, terrain, c.x + 20, c.y)}).z}}));
+    const auto entry = recordOf(doc, terrain).edits.back();
+    const auto json = encodeTerrainEdit(*entry);
+    check(json["mode"] == "daylight" && json["rays"].isArray() && json["outline"].isArray() &&
+              !json.contains("width"),
+          "a resolved pad encodes its fields");
+    check(*decodeTerrainEdit(json) == *entry, "the codec round-trips a resolved pad");
+    auto unresolved = json;
+    unresolved.remove("outline");
+    unresolved.remove("rays");
+    unresolved.remove("pieces");
+    unresolved.remove("dropped");
+    const auto back = decodeTerrainEdit(unresolved);
+    check(back && !dynamic_cast<const TerrainStampData &>(*back->data).resolved(),
+          "an unresolved pad round-trips");
+    auto refuses = [](QJsonObject value, const std::string &what) {
+        bool threw = false;
+        try {
+            (void)decodeTerrainEdit(value);
+        } catch (const std::exception &) {
+            threw = true;
+        }
+        check(threw, "the decoder refuses " + what);
+    };
+    auto bad = json;
+    bad["offset"] = 1;
+    refuses(bad, "an unknown field");
+    bad = json;
+    bad["mode"] = "terrace";
+    refuses(bad, "an unknown mode");
+    bad = json;
+    bad.remove("rays");
+    refuses(bad, "an outline without rays");
+    bad = json;
+    bad["width"] = 2;
+    refuses(bad, "a width on a daylight pad");
+    bad = json;
+    bad["cutSlope"] = 0;
+    refuses(bad, "a zero slope");
+    bad = json;
+    bad["footprint"] = QJsonArray{QJsonArray{0, 0}, QJsonArray{1, 0}};
+    refuses(bad, "a two-point footprint");
+    bad = json;
+    bad["sourceFace"] = "4";
+    refuses(bad, "a source face without a body");
+    bad = json;
+    bad["rays"] = QJsonArray{QJsonArray{0, 1, 2}};
+    refuses(bad, "a ray without its Z");
+    bad = json;
+    bad["sourceBody"] = 12;
+    refuses(bad, "a numeric source body");
+    std::cout << "codec: round trips and refusals\n";
+}
+
+// The in-app assistant has no stamp tool and reads terrain.describe without `pads` (MCP and
+// sessions keep it).
+void assistantSurface() {
+    Document doc;
+    const auto terrain = importRings(doc, 12, 48);
+    const auto c = centre(doc, terrain);
+    run(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, square(c.x + 20, c.y, 3))},
+                                    {"elevation", toModel(doc, terrain, {0, 0, groundAt(doc, terrain, c.x + 20, c.y)}).z}}));
+    const auto documentId = QString::fromStdString(doc.identity());
+    const QJsonObject query{{"apiVersion", 1},
+                            {"documentId", documentId},
+                            {"expectedRevision", QString::number(doc.revision())},
+                            {"query", "terrain.describe"},
+                            {"body", QString::number(terrain)}};
+    check(inspectDocument(doc, query)["data"].toObject().contains("pads"),
+          "the shared inspection (MCP, sessions) reports pads");
+    AssistantTask::Options options;
+    options.prompt = "Describe the terrain.";
+    options.provider = "fixture";
+    options.model = "fixture";
+    options.context = QJsonArray{query};
+    AssistantTask task(AssistantBackend{[&](const QJsonObject &request) { return inspectDocument(doc, request); },
+                                        [&] {
+                                            return QJsonObject{{"documentId", documentId},
+                                                               {"revision", QString::number(doc.revision())}};
+                                        }},
+                       options);
+    const auto pending = task.nextRequest();
+    check(bool(pending), "the assistant asks the provider");
+    const auto request = QJsonDocument(*pending).toJson(QJsonDocument::Compact);
+    check(!request.contains("terrain.stamp_pad") && !request.contains("terrain.update_edit") &&
+              !request.contains("\"pads\"") && request.contains("\"stamp\""),
+          "the assistant has no stamp tool, no pads list, and reads the stamp in its edits");
+    std::cout << "assistant: terrain.stamp_pad and update_edit hidden, pads left out\n";
+}
+
+// Cancellation inside a stamp entry (a replay's progress), and the hostile-input bounds: a
+// 20,000-point footprint, a comb footprint, too many rays.
+void cancelInsideEntry() {
+    Document doc;
+    const auto terrain = importPoints(doc);
+    const auto c = centre(doc, terrain);
+    auto data = std::make_shared<TerrainStampData>();
+    data->footprint = square(c.x, c.y, 40);
+    data->elevation = groundAt(doc, terrain, c.x, c.y) + 1;
+    data->cutSlope = data->fillSlope = 0.5;
+    data->maxDistance = 100;
+    const TerrainEdit entry{1, terrainStampKind, data};
+    const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+    const auto state = stateOf(doc, terrain);
+    int calls = 0;
+    TerrainProgress progress([&] { return ++calls > 3; });
+    bool cancelled = false;
+    try {
+        (void)planTerrainStamp({*mesh, *state, recordOf(doc, terrain).parameters, &progress}, entry);
+    } catch (const TerrainCancelled &) {
+        cancelled = true;
+    }
+    check(cancelled, "a cancelled replay stops inside a stamp entry");
+    const auto plan = planTerrainStamp({*mesh, *state, recordOf(doc, terrain).parameters}, entry);
+    check(plan.rays > 100, "without cancellation the entry plans");
+    std::cout << "cancel: inside a " << plan.rays << "-ray stamp after " << calls << " checks\n";
+}
+void hostile() {
+    Document doc;
+    const auto terrain = importPoints(doc);
+    const auto c = centre(doc, terrain);
+    const double z = toModel(doc, terrain, {0, 0, groundAt(doc, terrain, c.x, c.y)}).z;
+    auto timed = [&](const std::string &what, auto operation) {
+        const auto start = std::chrono::steady_clock::now();
+        const auto r = refusal(operation);
+        const double seconds =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        std::cout << "hostile: " << what << ": " << (r.code.empty() ? "applied" : r.code) << " in "
+                  << seconds << " s (" << r.message.substr(0, 120) << "; "
+                  << r.report["terrain"].toObject()["refusals"].toArray().at(0).toObject()["message"]
+                         .toString()
+                         .toStdString()
+                  << ")\n";
+        check(seconds < 300, what + " is bounded");
+        return r;
+    };
+    // A 20,000-point circle: many rays; applied or refused by a bound, quickly.
+    {
+        std::vector<std::array<double, 2>> circle;
+        for (int i = 0; i < 20000; ++i) {
+            const double t = 2 * std::numbers::pi * i / 20000;
+            circle.push_back({c.x + 30 * std::cos(t), c.y + 30 * std::sin(t)});
+        }
+        const auto revision = doc.revision();
+        const auto r = timed("a 20,000-point circle", [&] {
+            direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, circle)},
+                                               {"elevation", z + 0.5}}));
+        });
+        check(r.code.empty() || doc.revision() == revision, "a refused circle changes nothing");
+        if (r.code.empty()) {
+            checkC3(doc, terrain, "circle");
+            doc.undo();
+        }
+    }
+    // A comb: its busiest band holds thousands of edges.
+    {
+        std::vector<std::array<double, 2>> comb;
+        const int teeth = 2000;
+        for (int i = 0; i < teeth; ++i) {
+            const double x0 = c.x - 50 + 100.0 * i / teeth, x1 = x0 + 100.0 / teeth / 2;
+            comb.push_back({x0, c.y});
+            comb.push_back({x0, c.y + 40});
+            comb.push_back({x1, c.y + 40});
+            comb.push_back({x1, c.y});
+        }
+        comb.push_back({c.x + 50, c.y - 5});
+        comb.push_back({c.x - 50, c.y - 5});
+        checkUnchanged(doc, "a comb footprint", [&] {
+            direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, comb)},
+                                               {"elevation", z}}));
+        }, "LIMIT_EXCEEDED");
+        timed("a comb footprint", [&] {
+            direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, comb)},
+                                               {"elevation", z}}));
+        });
+    }
+    // Too many rays: 4,000 sharp teeth around a circle, each convex tip a fan of about 17 rays.
+    {
+        std::vector<std::array<double, 2>> teeth;
+        for (int i = 0; i < 4000; ++i) {
+            const double t0 = 2 * std::numbers::pi * i / 4000, t1 = 2 * std::numbers::pi * (i + 0.5) / 4000;
+            teeth.push_back({c.x + 100 * std::cos(t0), c.y + 100 * std::sin(t0)});
+            teeth.push_back({c.x + 101 * std::cos(t1), c.y + 101 * std::sin(t1)});
+        }
+        const auto r = timed("4,000 sharp teeth", [&] {
+            direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, teeth)},
+                                               {"elevation", z}}));
+        });
+        check(r.code == "LIMIT_EXCEEDED" &&
+                  r.report["terrain"].toObject()["refusals"].toArray().at(0).toObject()["message"]
+                          .toString()
+                          .contains("32,768"),
+              "the teeth are refused by the ray bound");
+    }
+    std::cout << "hostile: each input bounded\n";
+}
+
+// A scripted sequence on the contour hill: two pads, a sculpt beside one, a contour edit, an
+// update and a removal, with every check after each, Undo and Redo of all, reopen, and a pinned
+// replay digest.
+constexpr const char *sequenceDigest = "";
+void sequence() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    TerrainContourCache cache;
+    cache.get(doc, terrain);
+    const auto c = centre(doc, terrain);
+    const auto start = model(doc);
+    std::size_t steps = 0;
+    const auto stamp = [&](double dx, double dy, double half, double lift) {
+        run(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, square(c.x + dx, c.y + dy, half))},
+                                        {"elevation", toModel(doc, terrain, {0, 0, groundAt(doc, terrain, c.x + dx, c.y + dy) + lift}).z}}));
+        ++steps;
+    };
+    stamp(40, 0, 5, 0.3);
+    checkAll(doc, terrain, cache, "sequence pad 1");
+    checkC3(doc, terrain, "sequence pad 1");
+    stamp(-30, 30, 4, -0.4);
+    checkAll(doc, terrain, cache, "sequence pad 2");
+    checkC3(doc, terrain, "sequence pad 2");
+    run(doc, command("terrain.sculpt", terrain, {{"mode", "raise"},
+                                                 {"path", planPoints(doc, terrain, {{c.x + 55, c.y}, {c.x + 55, c.y + 10}})},
+                                                 {"radius", 4},
+                                                 {"amount", 0.3}}));
+    ++steps;
+    checkAll(doc, terrain, cache, "sequence sculpt");
+    checkC3(doc, terrain, "sequence sculpt");
+    const auto first = recordOf(doc, terrain).edits.front()->id;
+    run(doc, command("terrain.update_edit", terrain, {{"edit", double(first)}, {"fillSlope", 0.8}}));
+    ++steps;
+    checkAll(doc, terrain, cache, "sequence update");
+    checkC3(doc, terrain, "sequence update");
+    const auto digest = recordOf(doc, terrain).meshDigest;
+    std::cout << "sequence digest " << digest << "\n";
+    if (std::string(sequenceDigest).size())
+        check(digest == sequenceDigest, "the sequence's replay digest is pinned");
+    const auto end = encoded(doc);
+    for (std::size_t i = 0; i < steps; ++i)
+        doc.undo();
+    check(model(doc) == start, "undoing the sequence restores the start");
+    for (std::size_t i = 0; i < steps; ++i)
+        doc.redo();
+    check(encoded(doc) == end, "redoing the sequence restores the end");
+    auto reopened = decodeDocument(encodeDocument(doc));
+    checkC1(reopened, terrain, "sequence (reopened)");
+    checkC3(reopened, terrain, "sequence (reopened)");
+    checkC6(reopened, terrain, "sequence (reopened)");
+    checkC7(reopened, terrain, "sequence (reopened)");
+    // Removing the first pad replays the rest; Reset edits returns the base.
+    run(doc, command("terrain.remove_edit", terrain, {{"edit", double(first)}}));
+    checkC1(doc, terrain, "sequence remove");
+    checkC3(doc, terrain, "sequence remove");
+    checkC7(doc, terrain, "sequence remove");
+    run(doc, command("terrain.reset_edits", terrain));
+    check(recordOf(doc, terrain).edits.empty(), "Reset edits empties the list");
+    std::cout << "sequence: " << steps << " changes undone, redone, reopened, removed and reset\n";
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -955,7 +1339,10 @@ int main(int argc, char **argv) {
         {"square pad", squarePad},   {"L pad", lShapePad},
         {"tile corner", tileCornerPad}, {"footprints", footprintForms},
         {"protection", protection}, {"overlaps", overlaps},
-        {"refusals", refusals}};
+        {"refusals", refusals},     {"update edit", updateEdit},
+        {"repair", repair},         {"codec", codec},
+        {"assistant surface", assistantSurface}, {"cancel inside entry", cancelInsideEntry},
+        {"hostile", hostile},       {"sequence", sequence}};
     int failed = 0;
     for (const auto &[name, test] : tests) {
         if (argc > 1 && std::string(argv[1]) != name)

@@ -678,7 +678,8 @@ struct Computed {
 };
 // Everything applyTerrainEdit does before the commit; previewTerrainEdit stops here.
 Computed computeTerrainEdit(const Document &doc, Id terrain, const std::string &kindName,
-                            std::shared_ptr<const TerrainEditData> data) {
+                            std::shared_ptr<const TerrainEditData> data,
+                            const TerrainEditOutcome *planned = nullptr) {
     const auto found = doc.bodies().find(terrain);
     if (found == doc.bodies().end() || found->second->kind != BodyKind::Terrain ||
         !found->second->terrain)
@@ -709,9 +710,10 @@ Computed computeTerrainEdit(const Document &doc, Id terrain, const std::string &
                "to keep the surface as ordinary geometry");
     const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
     std::shared_ptr<const TerrainSourceState> state;
-    if (readsSources(kind))
+    if (readsSources(kind) && !planned)
         state = terrainSourceState(record);
-    const auto outcome = applyKind(*kind, *mesh, state.get(), record.parameters, *entry);
+    const auto outcome =
+        planned ? *planned : applyKind(*kind, *mesh, state.get(), record.parameters, *entry);
     if (!outcome.change)
         refuse("INVALID_REQUEST", outcome.notice.empty() ? "The terrain edit does not apply here"
                                                           : outcome.notice);
@@ -739,8 +741,8 @@ Computed computeTerrainEdit(const Document &doc, Id terrain, const std::string &
 } // namespace
 TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string &kindName,
                                     std::shared_ptr<const TerrainEditData> data,
-                                    std::string label) {
-    auto computed = computeTerrainEdit(doc, terrain, kindName, std::move(data));
+                                    std::string label, const TerrainEditOutcome *planned) {
+    auto computed = computeTerrainEdit(doc, terrain, kindName, std::move(data), planned);
     TerrainEditApplied applied;
     applied.edit = computed.id;
     applied.tiles = applyTerrainTiles(doc, terrain, std::move(computed.record), computed.region,

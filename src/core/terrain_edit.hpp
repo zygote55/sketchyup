@@ -156,9 +156,13 @@ struct TerrainEditApplied {
 // NOT_FOUND (terrain), INVALID_REQUEST (unknown kind, an entry that does not apply),
 // LIMIT_EXCEEDED (4,096 entries or 8 MiB of edit data, naming Reset edits and Explode terrain;
 // the terrain limit), INVALID_OPERATION (locked) and a frame that is not level.
+// R096.d: with `planned`, the outcome the kind gave for this entry (its ID the record's next) on
+// the document's current cached mesh and current sources (a command's dry run), used instead of
+// planning it again; it is what the kind would compute, so the commit is the same.
 TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string &kind,
                                     std::shared_ptr<const TerrainEditData> data,
-                                    std::string label);
+                                    std::string label,
+                                    const TerrainEditOutcome *planned = nullptr);
 // R096.c (ADR 0169 §5, the terrain preview path): the candidate of the same edit, computed on
 // the cached edit mesh exactly as applyTerrainEdit computes it, with nothing validated or
 // committed. Committing the same data gives these tiles bit for bit (tested). Refuses as
