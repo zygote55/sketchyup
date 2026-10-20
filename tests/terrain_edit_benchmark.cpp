@@ -922,8 +922,8 @@ QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntr
 // commit p95 <= 100 ms; samples whose touched tiles hold more than 2,048 triangles are reported
 // apart). Then a long line across the whole terrain (corner to corner, reported), a painted face
 // over several tiles, the overlay of a one-tile face, and a replaying Regenerate of R drape
-// entries (one per tile, default 100, placed while the terrain stays 3,000 triangles under the
-// document limit).
+// entries (a short line in each tile, 15 % of its side, default 100, placed while the terrain
+// stays 3,000 triangles under the document limit).
 QJsonObject measureDrapes(Document &doc, Id terrain, int samples, int replayEntries) {
     QElapsedTimer timer;
     const auto world = doc.worldTransform(terrain);
@@ -1176,7 +1176,7 @@ QJsonObject measureDrapes(Document &doc, Id terrain, int samples, int replayEntr
                                 terrainTriangleCount(doc, terrain) + 3000 < TerrainLimits::triangles;
              ++i) {
             try {
-                applyTerrainEdit(doc, terrain, terrainDrapeKind, dataOf(lineIn(bySize[i].second, 0.6, 0)),
+                applyTerrainEdit(doc, terrain, terrainDrapeKind, dataOf(lineIn(bySize[i].second, 0.15, 0)),
                                  "Drape on terrain");
                 ++placed;
             } catch (const TerrainError &) {

@@ -2025,7 +2025,35 @@ meets it), the triangles split (65,536), and the points clustered (2^25 comparis
 for cancellation per line, every 4,096 pair tests and every 64 split triangles, so a replay is
 cancelled part-way through a long drape (tested at every checkpoint).
 
-**Measured.** Pending: `terrain_edit_benchmark --drapes` on the two terrains (Release).
+**Measured** (`terrain_edit_benchmark --edits 1 --replay 0 --cancel 0 --source-edits 0 --sculpts 0
+--sculpt-replay 0 --stamps 0 --stamp-replay 0 --drapes 100 --drape-replay 100`, Release, GCC, the
+development host with 22 CPUs). As for pads, drapes add triangles (a one-tile drape about 70), so
+they are measured on the two terrains of `terrain_budget_benchmark` built from 2 % fewer points or
+rings (244,970 and 244,498 triangles, 256 and 3,108 tiles); at the document's 250,000-triangle
+limit every drape is refused with the located `triangle-budget` report. A one-tile sample is a
+three-point line across the middle of one of the 64 largest tiles, 60 % of its smaller side;
+samples whose touched tiles hold more than 2,048 triangles (4 of 100 on the point terrain) are
+left out of the budget rows. Display = the per-tile surface and contour caches, without GPU upload
+or drawing.
+
+| Terrain | One-tile drape: triangles split, touched triangles (p95) | Preview p95 (max) | Commit p95: core / command / command + display (max) | Long line across the terrain: length, tiles, triangles split; preview / command / display | Painted face (8 tiles): command; then Regenerate | Overlay of a one-tile face | Replaying Regenerate (entries) |
+| --- | --- | --- | --- | --- | --- | --- | ---: |
+| 122,500 points (244,970 triangles) | 41; 1,159 | 0.8 (9.5) ms | 40.9 / 41.4 / 50.6 ms (51.3) | 1,115 m, 25 tiles, 836; 11.9 / 211.9 / 62.1 ms | 103.9 ms; 0.62 s | 432 faces, 4.3 ms | 0.64 s (90) |
+| 408 contour rings (244,498 triangles) | 41; 926 | 1.3 (22.1) ms | 55.1 / 55.7 / 72.4 ms (73.5) | 1,011 m, 98 tiles, 1,781; 25.2 / 182.7 / 61.2 ms | 116.4 ms; 0.77 s | 470 faces, 5.6 ms | 0.82 s (100) |
+
+A one-tile drape commits within decision 10's 100 ms at p95: 41–56 ms through the command and
+51–72 ms with the display update; as for the other kinds, most of it is the whole-terrain digest,
+and the plan (the arrangement, the split and the per-triangle re-triangulation) is the preview's
+1 ms. A line a kilometre long across 25 to 98 tiles previews in 12–25 ms and commits in 183–212 ms
+(rebuilding and validating every tile it crosses), reported as the nine-tile sculpt is. A replaying
+Regenerate of 90–100 drapes (short lines, placed while the terrains stayed 3,000 triangles under the
+limit) takes 0.64–0.82 s with the base CDT, and is a no-op; C1 and C6 hold after it and after the
+long line. Hostile inputs (`terrain_drape_tests`, Debug): a 300 × 300 grid of lines (90,000
+crossings among themselves) is refused by the crossing bound in 0.2 s, a 10,000-segment zigzag
+across the terrain by the touched-triangle bound in 0.1 s, 20,000 points within 2 micrometres
+(one point) in 0.2 s, and a serpentine of 1,170 rows through 120 grid vertices each by the point
+bound in 3.9 s; a crafted record whose split segment one source passes 10,000 times derives in
+15 ms with the drape's effect left out.
 
 **Verification.** `terrain_drape_tests` (ctest `terrain_drape`, dev and sanitize presets) on the
 40-ring contour hill, the R095 contour fixture (boundary and pond), the 12,000-point terrain and
@@ -2070,12 +2098,34 @@ gridded point terrains:
   below; the triangle limit (refused, located, naming the counts); and a scripted sequence of a
   painted drape, a sculpt across it, a pad and a second drape crossing the first, with the checks
   after each, Undo and Redo of all, reopen, Remove change and Reset edits, its replay digest pinned
-  (`11e74534…22ddcb1a`, the same in Debug and Release builds).
+  (`11e74534…22ddcb1a`, the same in Debug and Release builds);
+- the review fixes below: a crafted record whose split segment one source passes 10,000 times
+  (its effect left out, quickly), and a stored source edit naming a drape's line (left out of the
+  derivation).
 
 `command_tests` covers the command, and the parser fuzz seeds (a resolved drape with a paint
 region and a split, an unresolved one, and a rejected one whose split runs backwards) and
 `parser_fault_corpus_tests` cover the codec. The R096.b, R096.c and R096.d suites pass unchanged,
-with their pinned digests.
+with their pinned digests. `parser_fuzz_terrain_edits` (libFuzzer, clang 23 with ASan and UBSan,
+the documented options, 2026-10-20), now with the drapes in its seeds, ran 474,260 inputs in 301 s
+(2,352 coverage points, 616 MB peak) with no failure.
+
+**Review fixes.** An internal review before the pull request found no partial mutation on a
+refusal and no path breaking C1 or C4; these follow it.
+- *Source growth.* A split's points are inserted wherever a current source passes its segment, so a
+  crafted entry whose segment many sources share (or one source passes many times) could have grown
+  the derived sources without bound. The plan and the `sources` hook count the growth alike (the
+  runs plus each split once per use) and a drape that would take the current sources past
+  2,000,000 vertices is refused (`LIMIT_EXCEEDED`); a stored one changes nothing.
+- *Protected sources in the derivation.* A stored `editSource` or `removeSource` naming a pad's
+  outline or daylight line, or a drape's line, was skipped by the replay but still applied by the
+  mesh-free derivation; it is now left out there too (R096.d's pad rule included).
+- *Bounded scans.* The hook skips source segments outside the splits' box before any lookup; paint
+  tests only the regions whose boxes meet a tile's, also when counting paint a rebuild drops;
+  overlay counts every piece of a split triangle against its work bound and indexes each outer loop
+  once; each piece between two snapped vertices tests only the edges beside it.
+- *Decoder.* A paint loop of fewer than three points is refused as it is read, so empty loops cannot
+  be many; a run that repeats a point is refused.
 
 ## Sources
 
