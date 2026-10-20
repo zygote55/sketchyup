@@ -1167,6 +1167,13 @@ void applyStampSources(TerrainSourceState &state, const TerrainEdit &edit) {
     };
     rule.firstOrdinal = 2;
     applyTerrainSculptClip(state, planTerrainSourceClip(state, edit.id, data.pieces, rule));
+    // Older pads' rays the widened polygon meets are superseded; this pad's rays join.
+    state.dropPadRays(rule.box, rule.segment);
+    for (const auto &ray : data.rays) {
+        const auto &s = data.outline[ray.start];
+        if (!(ray.daylight.x == s[0] && ray.daylight.y == s[1]))
+            state.addPadRay(edit.id, {s[0], s[1], data.elevation}, ray.daylight);
+    }
     const auto outlineId = terrainStampOutlineSource(edit.id),
                daylightId = terrainStampDaylightSource(edit.id);
     if (!outlineId || !daylightId)

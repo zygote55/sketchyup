@@ -173,6 +173,36 @@ void TerrainSourceState::clipPoints(std::uint32_t id, const std::vector<bool> &k
     }
     slot = std::make_shared<const TerrainSource>(std::move(next));
 }
+void TerrainSourceState::addPadRay(std::uint32_t edit, const Vec3 &a, const Vec3 &b) {
+    auto ka = TerrainPlanKey::of(a.x, a.y), kb = TerrainPlanKey::of(b.x, b.y);
+    if (ka == kb)
+        return;
+    if (kb < ka)
+        std::swap(ka, kb);
+    ++segments_[{ka, kb}];
+    padRays_.push_back({edit, a, b, true});
+    ++padRayCount_;
+}
+std::size_t TerrainSourceState::dropPadRays(
+    const std::array<double, 4> &box, const std::function<bool(const Vec3 &, const Vec3 &)> &meets) {
+    std::size_t dropped = 0;
+    for (auto &ray : padRays_) {
+        if (!ray.alive || std::max(ray.a.x, ray.b.x) < box[0] || std::min(ray.a.x, ray.b.x) > box[2] ||
+            std::max(ray.a.y, ray.b.y) < box[1] || std::min(ray.a.y, ray.b.y) > box[3] ||
+            !meets(ray.a, ray.b))
+            continue;
+        ray.alive = false;
+        --padRayCount_;
+        ++dropped;
+        auto ka = TerrainPlanKey::of(ray.a.x, ray.a.y), kb = TerrainPlanKey::of(ray.b.x, ray.b.y);
+        if (kb < ka)
+            std::swap(ka, kb);
+        const auto found = segments_.find({ka, kb});
+        if (found != segments_.end() && !--found->second)
+            segments_.erase(found);
+    }
+    return dropped;
+}
 std::uint32_t TerrainSourceState::vertexUses(TerrainPlanKey at) const {
     const auto found = positions_.find(at);
     return found == positions_.end() ? 0 : found->second.all;

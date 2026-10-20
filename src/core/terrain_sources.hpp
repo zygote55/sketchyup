@@ -101,6 +101,14 @@ class TerrainSourceState {
     std::uint32_t contourUses(TerrainPlanKey at) const;
     std::uint32_t segmentUses(TerrainPlanKey a, TerrainPlanKey b) const;
     std::vector<TerrainProtectedRegion> protectedRegions;
+    // R096.d: the rays of applied pads. They are constraint segments of the mesh (counted by
+    // segmentUses, so later cavities keep them and never grow across them) but not sources. A
+    // newer pad whose widened daylight polygon meets a ray supersedes it: `dropPadRays` removes
+    // the rays in `box` that `meets` marks, and returns how many.
+    void addPadRay(std::uint32_t edit, const Vec3 &a, const Vec3 &b);
+    std::size_t dropPadRays(const std::array<double, 4> &box,
+                            const std::function<bool(const Vec3 &, const Vec3 &)> &meets);
+    std::size_t padRays() const { return padRayCount_; }
 
   private:
     struct Uses {
@@ -120,6 +128,13 @@ class TerrainSourceState {
     std::unordered_map<SegmentKey, std::uint32_t, SegmentHash> segments_;
     std::uint32_t maxBaseId_{};
     std::size_t vertices_{};
+    struct PadRay {
+        std::uint32_t edit{};
+        Vec3 a, b;
+        bool alive{};
+    };
+    std::vector<PadRay> padRays_;
+    std::size_t padRayCount_{};
 };
 // The polyline segments of a source by exact plan position (contours and breaklines; a source
 // whose last point repeats its first is closed), zero-length ones left out, each once.

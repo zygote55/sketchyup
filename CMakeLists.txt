@@ -523,6 +523,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_include_directories(terrain_sculpt_tests PRIVATE tests)
     add_test(NAME terrain_sculpt COMMAND terrain_sculpt_tests)
     set_tests_properties(terrain_sculpt PROPERTIES TIMEOUT 900)
+    # R096.d: the building-pad stamp (ADR 0169 §4.3, §6).
+    add_executable(terrain_stamp_tests tests/terrain_stamp_tests.cpp)
+    target_link_libraries(terrain_stamp_tests PRIVATE sketchyup_io)
+    target_include_directories(terrain_stamp_tests PRIVATE tests)
+    add_test(NAME terrain_stamp COMMAND terrain_stamp_tests)
+    set_tests_properties(terrain_stamp PROPERTIES TIMEOUT 900)
     # R096.a: the one-tile edit budget (ADR 0169 §9; manual, build Release).
     add_executable(terrain_edit_benchmark EXCLUDE_FROM_ALL tests/terrain_edit_benchmark.cpp)
     target_link_libraries(terrain_edit_benchmark PRIVATE sketchyup_io)
