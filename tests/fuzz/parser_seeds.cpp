@@ -6,6 +6,7 @@
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
+#include "core/terrain_sculpt.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
@@ -373,6 +374,30 @@ int main(int argc, char **argv) {
                 publishRejected("terrain-edits",
                                 QJsonDocument(QJsonArray{twoLevels}).toJson(QJsonDocument::Compact),
                                 "contour-two-elevations");
+            }
+            // R096.b: sculpt (a brush) and smooth (a region with a falloff width), and a smooth
+            // with nine iterations, which the decoder refuses.
+            {
+                auto brush = std::make_shared<TerrainSculptData>();
+                brush->path = {{1, 2}, {4, 6}, {9, 5}};
+                brush->radius = 3.5;
+                brush->falloff = TerrainFalloff::Linear;
+                brush->amount = -0.75;
+                brush->pieces = {{3, 4294967295u}};
+                auto region = std::make_shared<TerrainSculptData>();
+                region->region = {{0, 0}, {10, 0}, {10, 8}, {4, 12}, {0, 8}};
+                region->width = 2;
+                region->strength = 0.5;
+                region->iterations = 3;
+                QJsonArray sculpts{encodeTerrainEdit({1, terrainSculptKind, brush}),
+                                   encodeTerrainEdit({2, terrainSmoothKind, region})};
+                publish("terrain-edits", QJsonDocument(sculpts).toJson(QJsonDocument::Compact),
+                        "sculpt-smooth");
+                auto nine = sculpts[1].toObject();
+                nine["iterations"] = 9;
+                publishRejected("terrain-edits",
+                                QJsonDocument(QJsonArray{nine}).toJson(QJsonDocument::Compact),
+                                "smooth-nine-iterations");
             }
         }
         // R095.c: terrain sources, the generated fixtures (ADR 0168 section 6). The invalid

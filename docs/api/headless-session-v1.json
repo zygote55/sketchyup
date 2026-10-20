@@ -12565,6 +12565,107 @@
                                     {
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                                         "additionalProperties": false,
+                                        "description": "Sculpt terrain",
+                                        "properties": {
+                                            "amount": {
+                                                "description": "raise: metres at full weight, not 0 (negative lowers)",
+                                                "maximum": 1000,
+                                                "minimum": -1000,
+                                                "type": "number"
+                                            },
+                                            "command": {
+                                                "const": "terrain.sculpt"
+                                            },
+                                            "falloff": {
+                                                "description": "Weight from 1 at the path or inside the region to 0 at the radius or falloff width; default smooth",
+                                                "enum": [
+                                                    "smooth",
+                                                    "linear",
+                                                    "constant"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "falloffWidth": {
+                                                "description": "Plan metres outside the region over which the weight falls to 0; default 0",
+                                                "maximum": 1000,
+                                                "minimum": 0,
+                                                "type": "number"
+                                            },
+                                            "iterations": {
+                                                "description": "smooth: default 1",
+                                                "maximum": 8,
+                                                "minimum": 1,
+                                                "type": "integer"
+                                            },
+                                            "mode": {
+                                                "description": "raise (a negative amount lowers; \"Sculpt terrain\") or smooth (\"Smooth terrain\")",
+                                                "enum": [
+                                                    "raise",
+                                                    "smooth"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "path": {
+                                                "description": "Brush stroke as model [x, y]; a click is one point. The stroke is swept: each vertex moves once, by its distance to the whole path",
+                                                "items": {
+                                                    "items": {
+                                                        "maximum": 100000000,
+                                                        "minimum": -100000000,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 2,
+                                                    "minItems": 2,
+                                                    "type": "array"
+                                                },
+                                                "maxItems": 256,
+                                                "minItems": 1,
+                                                "type": "array"
+                                            },
+                                            "radius": {
+                                                "description": "Brush radius, plan metres",
+                                                "maximum": 1000,
+                                                "minimum": 0.01,
+                                                "type": "number"
+                                            },
+                                            "region": {
+                                                "description": "Closed polygon as model [x, y] (at most 20,000 corners; a last point repeating the first is dropped)",
+                                                "items": {
+                                                    "items": {
+                                                        "maximum": 100000000,
+                                                        "minimum": -100000000,
+                                                        "type": "number"
+                                                    },
+                                                    "maxItems": 2,
+                                                    "minItems": 2,
+                                                    "type": "array"
+                                                },
+                                                "maxItems": 20001,
+                                                "minItems": 3,
+                                                "type": "array"
+                                            },
+                                            "strength": {
+                                                "description": "smooth: the step toward the neighbours' mean per iteration; default 0.5",
+                                                "exclusiveMinimum": 0,
+                                                "maximum": 1,
+                                                "type": "number"
+                                            },
+                                            "terrain": {
+                                                "description": "Terrain body",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "terrain",
+                                            "mode",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
                                         "description": "Terrain display",
                                         "properties": {
                                             "command": {

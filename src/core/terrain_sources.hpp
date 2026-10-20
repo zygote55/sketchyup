@@ -21,6 +21,9 @@ namespace sketchy {
 class Document;
 struct TerrainEdit;
 struct TerrainEditKind;
+// R096.b: source ids at or above this are the further runs of lines a sculpt split
+// (terrainSplitSourceId); base and added source ids stay below it.
+inline constexpr std::uint32_t terrainSplitSourceIdFloor = 3221225472u; // 2^32 - 2^30
 // An exact plan position.
 struct TerrainPlanKey {
     std::uint64_t x{}, y{};
@@ -53,6 +56,11 @@ class TerrainSourceState {
     void add(TerrainSource source);
     void replace(TerrainSource source);
     void remove(std::uint32_t id);
+    // R096.b: keeps the spot points of source `id` that `keep` marks (one flag per point) and
+    // drops the source when none is left, updating the index for the dropped positions only, so
+    // a sculpt over a large point source does not re-index all of it. Refuses an unknown id, a
+    // source that is not spot points or a mask of another length (std::invalid_argument).
+    void clipPoints(std::uint32_t id, const std::vector<bool> &keep);
     // Index: how many current sources have a vertex at exactly (x, y), of any role or of the
     // contour role; and how many contour or breakline sources have the segment between two
     // positions (either direction). A source counts once per position or segment.

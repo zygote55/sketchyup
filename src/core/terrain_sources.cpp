@@ -130,6 +130,48 @@ void TerrainSourceState::remove(std::uint32_t id) {
     slots_[found->second].reset();
     byId_.erase(found);
 }
+void TerrainSourceState::clipPoints(std::uint32_t id, const std::vector<bool> &keep) {
+    const auto found = byId_.find(id);
+    if (found == byId_.end())
+        throw std::invalid_argument("The terrain source does not exist");
+    auto &slot = slots_[found->second];
+    if (slot->role != TerrainSourceRole::Points || keep.size() != slot->points.size())
+        throw std::invalid_argument("Only spot points are clipped point by point");
+    TerrainSource next;
+    next.id = slot->id;
+    next.role = slot->role;
+    next.reference = slot->reference;
+    std::unordered_map<TerrainPlanKey, bool, TerrainPlanHash> dropped; // still held by a kept point
+    for (std::size_t i = 0; i < keep.size(); ++i)
+        if (!keep[i])
+            dropped.try_emplace(TerrainPlanKey::of(slot->points[i].x, slot->points[i].y), false);
+    for (std::size_t i = 0; i < keep.size(); ++i) {
+        const auto &p = slot->points[i];
+        if (!keep[i])
+            continue;
+        next.points.push_back(p);
+        if (const auto found = dropped.find(TerrainPlanKey::of(p.x, p.y)); found != dropped.end())
+            found->second = true;
+    }
+    // A position leaves the index only when no kept point of the source is there (the source
+    // counts once per position).
+    for (const auto &[key, held] : dropped) {
+        if (held)
+            continue;
+        const auto uses = positions_.find(key);
+        if (uses == positions_.end())
+            continue;
+        if (!--uses->second.all)
+            positions_.erase(uses);
+    }
+    vertices_ -= slot->points.size() - next.points.size();
+    if (next.points.empty()) {
+        slot.reset();
+        byId_.erase(found);
+        return;
+    }
+    slot = std::make_shared<const TerrainSource>(std::move(next));
+}
 std::uint32_t TerrainSourceState::vertexUses(TerrainPlanKey at) const {
     const auto found = positions_.find(at);
     return found == positions_.end() ? 0 : found->second.all;
