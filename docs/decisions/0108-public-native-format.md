@@ -404,7 +404,7 @@ feature.
   next entry takes, so ids are never reused; it must exceed every entry's id. R096.a defines
   no kind (its test-only kinds are not part of the format); R096.b–e add `sculpt`, `smooth`,
   `editSource`, `addSource`, `removeSource`, `stamp` and `drape` with their fields (R096.c's
-  three and R096.b's two are in the addenda below).
+  three, R096.b's two and R096.d's `stamp` are in the addenda below).
 - A tile marker is `terrainTile: {key: [row, column, path, part]}` in place of `true`:
   `row` and `column` integers within ±2^53 (negative outside the original extent), `path` a
   string of at most 24 quadrant digits `0`–`3`, `part` an integer 0–9,999.
@@ -471,6 +471,39 @@ first remaining run; each further run takes the ids recorded for that line in or
 beyond them the next unrecorded id of the entry's block, 2^32 − 1 − (entry id − 1) × 4,096 − n
 (n = 0 to 4,095; entries up to 2^18), so these ids are never reused either. Base and added source
 ids stay below 3,221,225,472 (a reader refuses a base id at or above it).
+
+**Schema 29 addendum: building-pad stamp (R096.d).** 2026-10-20. One more kind
+([ADR 0169](0169-terrain-editing-drape-stamp.md#implementation-notes-r096d)), with exactly these
+fields after `id` and `kind` (a reader refuses others):
+
+- `stamp {footprint, elevation, mode: "daylight", cutSlope, fillSlope, maxDistance, sourceBody?,
+  sourceFace?, outline?, rays?, dropped?, pieces?}` or the same with `mode: "width"` and `width`
+  in place of the two slopes and the distance.
+- `footprint` is the pad's polygon: 3 to 20,000 plan points `[x, y]` in the terrain frame, finite
+  and within ±1e6, the closing edge implied, no point repeating the one before it, running
+  counter-clockwise around a positive area (a binary64 sum in point order), with at most 512
+  edges meeting any of its min(4,096, corners) equal horizontal bands. `elevation` is the pad's
+  Z in the terrain frame, finite and within ±1e6.
+- `cutSlope` and `fillSlope` are rise over run, 0.01 to 100; `maxDistance` is above 0 and at most
+  1,000; `width` is 0.01 to 1,000.
+- `sourceBody` and `sourceFace` (decimal ID strings) name the body (and face) the footprint was
+  read from, for Restamp only; a face needs its body. Nothing follows the body (decision 4).
+- `outline` and `rays` are the resolved geometry, both present when the pad applied and both
+  absent when it did not (a replay that skipped it clears them): `outline` is 3 to 52,768 plan
+  points, the footprint with the start points of the edge rays, at `elevation`; `rays` is 3 to
+  32,768 entries `[start, x, y, z]` in order around the outline, `start` an index into `outline`
+  (never decreasing) and `[x, y, z]` the ray's daylight point (the start point at `elevation` where
+  the pad meets the ground). The daylight line is those points in order, a point repeating the one
+  before it (or the first) once.
+- `dropped` (written when above 0) is how many rays the self-intersection repair dropped, an
+  integer 1 to 131,072; only with resolved geometry.
+- `pieces` (written when not empty) is as for `sculpt`, with ids from the entry's block from its
+  third id on: the first two, 2^32 − 1 − (entry id − 1) × 4,096 and that minus 1, name the pad's
+  outline and daylight line, which join the current sources as closed breaklines.
+
+A pad's resolved geometry is recomputed whenever it applies, so a replay against a changed base
+(Terrain settings) stores the new daylight line; the derived current sources and the pads other
+edits must not enter are read from it.
 
 **The `terrain-mesh` chunk.** It follows the asset chunks, at most once and only with
 `terrain-v1`: `{kind: "terrain-mesh", encoding: "f64-u32-le-v1", offset, bytes,

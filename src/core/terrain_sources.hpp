@@ -134,6 +134,14 @@ class TerrainSourceState {
         bool alive{};
     };
     std::vector<PadRay> padRays_;
+    // The rays of each pad (a run of padRays_) with their box, so a newer pad tests only the
+    // pads its box meets.
+    struct PadRayGroup {
+        std::uint32_t edit{};
+        std::size_t first{}, count{}, alive{};
+        std::array<double, 4> box{};
+    };
+    std::vector<PadRayGroup> padRayGroups_;
     std::size_t padRayCount_{};
 };
 // The polyline segments of a source by exact plan position (contours and breaklines; a source

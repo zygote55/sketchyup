@@ -903,6 +903,21 @@ void refusals() {
                                                                          {c.x + 32, c.y + 12}})},
                           {"elevation", z}}),
                    "INVALID_REQUEST");
+    // Two lobes pinched at one corner (only neighbouring edges may share a corner).
+    {
+        const auto pinch = [&] {
+            direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, {{c.x + 40, c.y},
+                                                                                             {c.x + 44, c.y - 3},
+                                                                                             {c.x + 44, c.y + 3},
+                                                                                             {c.x + 40, c.y},
+                                                                                             {c.x + 36, c.y + 3},
+                                                                                             {c.x + 36, c.y - 3}})},
+                                               {"elevation", z}}));
+        };
+        checkUnchanged(doc, "a pinched footprint", pinch, "INVALID_REQUEST");
+        check(refusalReportKinds(pinch).find("invalid-polygon") != std::string::npos,
+              "a pinched footprint is refused as invalid-polygon");
+    }
     // Parameters.
     checkUnchanged(doc, "a zero slope", stamp({{"footprint", at(40, 0)}, {"elevation", z}, {"cutSlope", 0}}),
                    "INVALID_REQUEST");
@@ -1001,14 +1016,20 @@ void updateEdit() {
     // Restamp after the face moved 3 m east.
     doc.transform(face, Transform::translation({3, 0, 0}));
     const double westBefore = stampOf(doc, terrain, pad).footprint.front()[0];
+    TerrainContourCache cache;
+    cache.get(doc, terrain);
+    const auto snap = snapshot(doc, terrain);
+    before = model(doc);
     run(doc, update({{"restamp", true}}));
     double west = 1e300;
     for (const auto &p : stampOf(doc, terrain, pad).footprint)
         west = std::min(west, p[0]);
     check(std::abs(west - (westBefore + 3)) < 1e-6, "Restamp re-reads the moved footprint");
     checkC3(doc, terrain, "restamp");
-    checkC1(doc, terrain, "restamp");
-    checkC7(doc, terrain, "restamp");
+    checkAll(doc, terrain, cache, "restamp");
+    checkC5(doc, terrain, snap, "restamp");
+    checkHistoryAndSave(doc, terrain, before, "restamp");
+    checkC3(decodeDocument(encodeDocument(doc)), terrain, "restamp (reopened)");
     // Refusals.
     checkUnchanged(doc, "updating a sculpt", [&] {
         direct(doc, command("terrain.update_edit", terrain, {{"edit", double(sculpt)}, {"elevation", z}}));
@@ -1060,6 +1081,17 @@ void repair() {
     for (const auto &value : report["notices"].toArray())
         notice = notice || value.toObject()["kind"] == "daylight-repaired";
     check(notice, "the report names the repair");
+    {
+        const auto location = [&] {
+            for (const auto &value : report["notices"].toArray())
+                if (value.toObject()["kind"] == "daylight-repaired")
+                    return value.toObject()["locations"].toArray().at(0).toObject()["xy"].toArray();
+            return QJsonArray{};
+        }();
+        const auto m = toModel(doc, terrain, c);
+        check(location.size() == 2 && std::hypot(location[0].toDouble() - m.x, location[1].toDouble() - m.y) < 40,
+              "the repair is located at the pad");
+    }
     checkC3(doc, terrain, "repair");
     checkC1(doc, terrain, "repair");
     checkC6(doc, terrain, "repair");

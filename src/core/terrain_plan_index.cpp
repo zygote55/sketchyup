@@ -121,18 +121,32 @@ TerrainPolygonIndex::TerrainPolygonIndex(std::vector<Point> polygon) : polygon_(
         box_[2] = std::max(box_[2], p[0]);
         box_[3] = std::max(box_[3], p[1]);
     }
-    const std::size_t count = std::min<std::size_t>(4096, n);
+    // min(4,096, corners) bands, halved while the bands would list more than 32 entries a corner
+    // in all (an edge is listed in every band its Y range meets, so a zigzag polygon could list
+    // each edge thousands of times). Fewer bands only make containment read more edges, which
+    // `busiestBand` reports; the answers do not change.
+    std::size_t bands = std::min<std::size_t>(4096, n);
     bandLow_ = box_[1];
-    bandHeight_ = (box_[3] - box_[1]) / double(count);
-    std::size_t bands = count;
-    if (!(bandHeight_ > 0) || !std::isfinite(bandHeight_)) {
-        bands = 1;
-        bandHeight_ = std::numeric_limits<double>::infinity();
-    }
     auto bandOf = [&](double y) {
         const double t = std::floor((y - bandLow_) / bandHeight_);
         return std::size_t(std::clamp(std::isfinite(t) ? t : 0.0, 0.0, double(bands - 1)));
     };
+    for (;;) {
+        bandHeight_ = (box_[3] - box_[1]) / double(bands);
+        if (!(bandHeight_ > 0) || !std::isfinite(bandHeight_)) {
+            bands = 1;
+            bandHeight_ = std::numeric_limits<double>::infinity();
+            break;
+        }
+        std::size_t entries = 0;
+        for (std::size_t e = 0; e < n; ++e) {
+            const auto &a = polygon_[e], &b = polygon_[(e + 1) % n];
+            entries += bandOf(std::max(a[1], b[1])) - bandOf(std::min(a[1], b[1])) + 1;
+        }
+        if (entries <= 32 * n || bands == 1)
+            break;
+        bands /= 2;
+    }
     bands_.assign(bands, {});
     std::vector<TerrainBoxTree::Box> boxes;
     boxes.reserve(n);

@@ -35,8 +35,10 @@
 // Uploading to the GPU and drawing the frame are not included (no viewport here). Prints one
 // JSON document. Build it Release.
 //
+// - R096.d: pad stamps (terrain.stamp_pad, terrain.update_edit); see measureStamps.
+//
 //   terrain_edit_benchmark [--edits N] [--replay M] [--cancel TRIALS] [--source-edits K]
-//                          [--sculpts J] [--sculpt-replay S]
+//                          [--sculpts J] [--sculpt-replay S] [--stamps T] [--stamp-replay P]
 #include "automation/terrain_commands.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain.hpp"
@@ -44,6 +46,7 @@
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include "core/terrain_sources.hpp"
 #include "terrain_edit_test_kinds.hpp"
 #include <QCoreApplication>
@@ -631,9 +634,278 @@ QJsonObject measureSculpts(Document &doc, Id terrain, int samples, int replayEnt
     return result;
 }
 
+// R096.d: pad stamps (terrain.stamp_pad). Square pads in the middle of the largest tiles, a
+// quarter of the tile's smaller side across and 0.2 m above the ground there, so the pad and its
+// slopes stay inside about one tile: the preview (previewTerrainEdit: the rays, the walk, the
+// repair, the cavity and the adapter), the commit through applyTerrainEdit and through the whole
+// command (its dry run committed without planning again), with the display update (decision 10:
+// one-tile commit p95 <= 100 ms; samples whose touched tiles hold more than 2,048 triangles are
+// reported apart). Then a larger pad (a whole cell across), the 64-vertex footprint of §9 (a
+// circle half a cell across), a 20,000-point circle and a refused comb, a pad parameter change
+// replaying the list (terrain.update_edit of the first of P pads), and a replaying Regenerate
+// of P pad entries (one per tile, default 200).
+QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntries) {
+    QElapsedTimer timer;
+    const auto world = doc.worldTransform(terrain);
+    const auto grid = doc.bodies().at(terrain)->terrain->tiling;
+    std::vector<std::pair<std::size_t, TerrainTileKey>> bySize;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &tile = *doc.bodies().at(id);
+        bySize.push_back({tile.surface.faces.size(), tile.tileKey});
+    }
+    std::stable_sort(bySize.begin(), bySize.end(),
+                     [](const auto &a, const auto &b) { return a.first > b.first; });
+    auto ground = [&](double x, double y) {
+        const auto m = world.point({x, y, 0});
+        const auto found = terrainElevationAt(doc, terrain, {{m.x, m.y}});
+        check(found.front().found, "a pad centre is on the terrain");
+        return world.inverse().point({m.x, m.y, found.front().elevation}).z;
+    };
+    // A pad in the middle of a tile: `points` corners on a circle of `radius` (4 is a square),
+    // `lift` metres above the ground at the centre.
+    auto pad = [&](const TerrainTileKey &key, double radius, int points, double lift) {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto *tile = mesh->tile(key);
+        const double cx = (tile->minX + tile->maxX) / 2, cy = (tile->minY + tile->maxY) / 2;
+        auto data = std::make_shared<TerrainStampData>();
+        for (int i = 0; i < points; ++i) {
+            const double t = 2 * std::numbers::pi * (i + 0.5) / points;
+            data->footprint.push_back({cx + radius * std::cos(t), cy + radius * std::sin(t)});
+        }
+        data->elevation = ground(cx, cy) + lift;
+        data->cutSlope = data->fillSlope = 0.5;
+        data->maxDistance = 100;
+        return data;
+    };
+    auto side = [&](const TerrainTileKey &key) {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto *tile = mesh->tile(key);
+        return std::min(tile->maxX - tile->minX, tile->maxY - tile->minY);
+    };
+    auto touchedTriangles = [&](const TerrainEditPreview &preview) {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        std::size_t triangles = 0;
+        for (const auto &key : preview.region.replaced)
+            triangles += mesh->tile(key)->content->triangles.size();
+        return triangles;
+    };
+    auto commandOf = [&](const TerrainStampData &data) {
+        QJsonArray polygon;
+        for (const auto &p : data.footprint) {
+            const auto m = world.point({p[0], p[1], 0});
+            polygon.append(QJsonArray{m.x, m.y});
+        }
+        return QJsonObject{{"command", "terrain.stamp_pad"},
+                           {"terrain", QString::number(terrain)},
+                           {"footprint", QJsonObject{{"polygon", polygon}}},
+                           {"elevation", world.point({0, 0, data.elevation}).z}};
+    };
+    TerrainSurfaceCache surfaces;
+    TerrainContourCache contours;
+    (void)surfaces.get(doc, terrain);
+    (void)contours.get(doc, terrain);
+    std::vector<double> preview, previewOver, core, command, display, commandAndDisplay,
+        tilesTouched, triangles, rays, cavity;
+    std::size_t over = 0, refused = 0;
+    const auto pool = std::min<std::size_t>(bySize.size(), 64);
+    for (int i = 0; i < samples; ++i) {
+        const auto &key = bySize[std::size_t(i) % pool].second;
+        auto data = pad(key, side(key) / 8 * std::sqrt(2.0), 4, 0.2);
+        TerrainEditPreview candidate;
+        timer.restart();
+        try {
+            candidate = previewTerrainEdit(doc, terrain, terrainStampKind, data);
+        } catch (const TerrainError &) {
+            ++refused; // a pad over an earlier one's slopes into its outline, say
+            continue;
+        }
+        const double previewMs = ms(timer);
+        const auto touched = touchedTriangles(candidate);
+        tilesTouched.push_back(double(candidate.region.replaced.size()));
+        triangles.push_back(double(touched));
+        cavity.push_back(double(candidate.removedTriangles));
+        if (touched > TerrainLimits::tileTriangles) {
+            ++over;
+            previewOver.push_back(previewMs);
+            continue;
+        }
+        preview.push_back(previewMs);
+        if (i % 2 == 0) {
+            timer.restart();
+            applyTerrainEdit(doc, terrain, terrainStampKind, data, "Stamp pad");
+            core.push_back(ms(timer));
+        } else {
+            QJsonObject operation;
+            timer.restart();
+            executeTerrainCommand(doc, commandOf(*data), &operation);
+            command.push_back(ms(timer));
+            rays.push_back(operation["terrainReport"].toObject()["terrain"].toObject()["rays"]
+                               .toObject()["count"]
+                               .toDouble());
+        }
+        QElapsedTimer update;
+        update.start();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+        display.push_back(ms(update));
+        if (i % 2)
+            commandAndDisplay.push_back(command.back() + display.back());
+        // Undo, so every sample stamps the same kind of ground.
+        doc.undo();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+    }
+    QJsonObject result{
+        {"oneTile",
+         QJsonObject{{"samples", samples},
+                     {"overBudgetTiles", double(over)},
+                     {"refused", double(refused)},
+                     {"tilesTouched", stats(tilesTouched)},
+                     {"touchedTriangles", stats(triangles)},
+                     {"cavityTriangles", stats(cavity)},
+                     {"rays", stats(rays)},
+                     {"previewMs", stats(preview)},
+                     {"coreCommitMs", stats(core)},
+                     {"commandCommitMs", stats(command)},
+                     {"displayUpdateMs", stats(display)},
+                     {"commandAndDisplayMs", stats(commandAndDisplay)}}}};
+    if (!previewOver.empty())
+        result["oneTileOverBudgetPreviewMs"] = stats(previewOver);
+    // A larger pad (a whole tile side across, 1 m above the ground) and the 64-vertex footprint.
+    auto larger = [&](const char *label, double scale, int points, double lift) {
+        std::vector<double> previewTimes, commitTimes, tiles, cavityTriangles, rayCounts;
+        for (int i = 0; i < std::max(1, samples / 10); ++i) {
+            const auto &key = bySize[std::size_t(i * 7) % pool].second;
+            auto data = pad(key, side(key) * scale, points, lift);
+            try {
+                timer.restart();
+                const auto candidate = previewTerrainEdit(doc, terrain, terrainStampKind, data);
+                previewTimes.push_back(ms(timer));
+                tiles.push_back(double(candidate.region.replaced.size()));
+                cavityTriangles.push_back(double(candidate.removedTriangles));
+                QJsonObject operation;
+                timer.restart();
+                executeTerrainCommand(doc, commandOf(*data), &operation);
+                commitTimes.push_back(ms(timer));
+                rayCounts.push_back(operation["terrainReport"].toObject()["terrain"].toObject()["rays"]
+                                        .toObject()["count"]
+                                        .toDouble());
+                doc.undo();
+            } catch (const TerrainError &) {
+            }
+        }
+        result[label] = QJsonObject{{"tilesTouched", stats(tiles)},
+                                    {"cavityTriangles", stats(cavityTriangles)},
+                                    {"rays", stats(rayCounts)},
+                                    {"previewMs", stats(previewTimes)},
+                                    {"commandCommitMs", stats(commitTimes)}};
+    };
+    larger("largerPad", 0.5 * std::sqrt(2.0), 4, 1.0);
+    larger("footprint64", 0.25, 64, 0.5);
+    // Hostile inputs: a 20,000-point circle (applied or refused by a bound) and a comb (refused
+    // by the band bound before any work).
+    {
+        const auto &key = bySize.front().second;
+        auto circle = pad(key, side(key) * 0.3, 20000, 0.3);
+        std::string code = "applied";
+        timer.restart();
+        try {
+            QJsonObject operation;
+            executeTerrainCommand(doc, commandOf(*circle), &operation);
+        } catch (const TerrainError &error) {
+            code = error.code();
+        }
+        const double circleMs = ms(timer);
+        if (code == "applied")
+            doc.undo();
+        auto comb = std::make_shared<TerrainStampData>(*circle);
+        comb->footprint.clear();
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto *tile = mesh->tile(key);
+        for (int i = 0; i < 2000; ++i) {
+            const double x0 = tile->minX + (tile->maxX - tile->minX) * i / 2000,
+                         x1 = x0 + (tile->maxX - tile->minX) / 4000;
+            comb->footprint.push_back({x0, tile->minY + 1});
+            comb->footprint.push_back({x0, tile->maxY - 1});
+            comb->footprint.push_back({x1, tile->maxY - 1});
+            comb->footprint.push_back({x1, tile->minY + 2});
+        }
+        std::string combCode = "applied";
+        timer.restart();
+        try {
+            QJsonObject operation;
+            executeTerrainCommand(doc, commandOf(*comb), &operation);
+        } catch (const TerrainError &error) {
+            combCode = error.code();
+        }
+        const double combMs = ms(timer);
+        check(combCode == "LIMIT_EXCEEDED", "the comb footprint is refused");
+        result["hostile"] = QJsonObject{{"circle20000", QJsonObject{{"outcome", QString::fromStdString(code)},
+                                                                   {"ms", circleMs}}},
+                                        {"comb8000", QJsonObject{{"outcome", QString::fromStdString(combCode)},
+                                                                 {"ms", combMs}}}};
+    }
+    // P pads, one per tile (largest first), then a parameter change of the first (a replay of
+    // the list) and a replaying Regenerate.
+    if (replayEntries > 0) {
+        std::uint32_t first = 0;
+        std::size_t placed = 0;
+        for (std::size_t i = 0; i < bySize.size() && placed < std::size_t(replayEntries); ++i) {
+            const auto &key = bySize[i].second;
+            try {
+                applyTerrainEdit(doc, terrain, terrainStampKind, pad(key, side(key) / 8, 4, 0.2),
+                                 "Stamp pad");
+                if (!first)
+                    first = doc.bodies().at(terrain)->terrain->edits.back()->id;
+                ++placed;
+            } catch (const TerrainError &) {
+                // Its slopes would enter a neighbour's pad: skip that tile.
+            }
+        }
+        const auto entries = doc.bodies().at(terrain)->terrain->edits.size();
+        const auto &firstData = dynamic_cast<const TerrainStampData &>(
+            *doc.bodies().at(terrain)->terrain->edits.front()->data);
+        const QJsonObject update{{"command", "terrain.update_edit"},
+                                 {"terrain", QString::number(terrain)},
+                                 {"edit", double(first)},
+                                 {"elevation", world.point({0, 0, firstData.elevation + 0.1}).z}};
+        timer.restart();
+        QJsonObject operation;
+        executeTerrainCommand(doc, update, &operation);
+        const double updateMs = ms(timer);
+        const QJsonObject regenerate{{"command", "terrain.regenerate"},
+                                     {"terrain", QString::number(terrain)}};
+        timer.restart();
+        const auto request = parseTerrainReplayRequest(doc, regenerate);
+        const double requestMs = ms(timer);
+        timer.restart();
+        auto replayed = runTerrainReplay(request);
+        const double runMs = ms(timer);
+        check(replayed.ok, "the pad replay succeeds");
+        timer.restart();
+        const auto noOp = applyTerrainReplay(doc, request, std::move(replayed));
+        const double applyMs = ms(timer);
+        check(!noOp["changed"].toBool(), "Regenerate after the pads is a no-op");
+        const auto pads = checkTerrainPadConsistency(doc, terrain);
+        const auto sources = checkTerrainSourceConsistency(doc, terrain);
+        const auto seams = checkTerrainSeams(doc, terrain);
+        check(pads.ok() && sources.ok() && seams.ok(), "C1, C3 and C6 hold after the pads");
+        result["replay"] = QJsonObject{{"entries", double(entries)},
+                                       {"updateFirstMs", updateMs},
+                                       {"requestMs", requestMs},
+                                       {"runMs", runMs},
+                                       {"applyMs", applyMs},
+                                       {"totalMs", requestMs + runMs + applyMs},
+                                       {"padRaysChecked", double(pads.rays)}};
+        while (doc.canUndo() && !doc.bodies().at(terrain)->terrain->edits.empty())
+            doc.undo();
+    }
+    return result;
+}
+
 QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject &command,
                     int edits, int replayEntries, int cancelTrials, int sourceEdits, int sculpts,
-                    int sculptReplay) {
+                    int sculptReplay, int stamps, int stampReplay) {
     Document doc;
     auto request = parseTerrainSourceRequest(bytes, command);
     auto result = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
@@ -645,6 +917,8 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
         sourceEdits > 0 ? measureSourceEdits(doc, terrain, sourceEdits) : QJsonObject{};
     const auto sculptResult =
         sculpts > 0 ? measureSculpts(doc, terrain, sculpts, sculptReplay) : QJsonObject{};
+    const auto stampResult =
+        stamps > 0 ? measureStamps(doc, terrain, stamps, stampReplay) : QJsonObject{};
     {
         auto display = doc.bodies().at(terrain)->terrain->display;
         display.contours = true;
@@ -809,14 +1083,15 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
                                     {"undone", double(undone)}}},
             {"seamCheckMs", seamTime},
             {"sourceEdits", sourceEditResult},
-            {"sculpts", sculptResult}};
+            {"sculpts", sculptResult},
+            {"stamps", stampResult}};
 }
 } // namespace
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     int edits = 200, replay = 1000, cancel = 20, sourceEdits = 100, sculpts = 100,
-        sculptReplay = 1000;
+        sculptReplay = 1000, stamps = 100, stampReplay = 200;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--edits" && i + 1 < argc)
@@ -831,6 +1106,10 @@ int main(int argc, char **argv) {
             sculpts = std::max(0, std::atoi(argv[++i]));
         else if (arg == "--sculpt-replay" && i + 1 < argc)
             sculptReplay = std::max(0, std::atoi(argv[++i]));
+        else if (arg == "--stamps" && i + 1 < argc)
+            stamps = std::max(0, std::atoi(argv[++i]));
+        else if (arg == "--stamp-replay" && i + 1 < argc)
+            stampReplay = std::max(0, std::atoi(argv[++i]));
     }
     kinds::registerKinds();
     try {
@@ -841,10 +1120,11 @@ int main(int argc, char **argv) {
                                  {"columns", "XYZ"},
                                  {"delimiter", "whitespace"},
                                  {"header", false}},
-                                edits, replay, cancel, sourceEdits, sculpts, sculptReplay));
+                                edits, replay, cancel, sourceEdits, sculpts, sculptReplay, stamps,
+                                stampReplay));
         terrains.append(measure("contours", contourSource(416, 300),
                                 {{"format", "dxf"}, {"units", "header"}}, edits, replay,
-                                cancel, sourceEdits, sculpts, sculptReplay));
+                                cancel, sourceEdits, sculpts, sculptReplay, stamps, stampReplay));
         QJsonObject out{{"benchmark", "terrain_edit_benchmark"},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                         {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},

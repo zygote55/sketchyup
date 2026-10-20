@@ -9,6 +9,7 @@
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "fuzz/parameter_expression_harness.hpp"
 #include "integrations/glb_export.hpp"
@@ -427,6 +428,18 @@ int main(int argc, char **argv) {
                 region->iterations = 8;
                 list.append(encodeTerrainEdit({12, terrainSculptKind, brush}));
                 list.append(encodeTerrainEdit({13, terrainSmoothKind, region}));
+            }
+            // R096.d: a resolved pad joins it too.
+            {
+                auto pad = std::make_shared<TerrainStampData>();
+                pad->footprint = {{0, 0}, {4, 0}, {4, 3}, {0, 3}};
+                pad->elevation = 2;
+                pad->cutSlope = pad->fillSlope = 0.5;
+                pad->maxDistance = 50;
+                pad->outline = pad->footprint;
+                pad->rays = {{0, {-1, -1, 1.5}}, {1, {5, -1, 1.5}}, {2, {5, 4, 2.5}},
+                             {3, {-1, 4, 2.5}}};
+                list.append(encodeTerrainEdit({14, terrainStampKind, pad}));
             }
             results.append(exercise("terrain-edits", QJsonDocument(list).toJson(QJsonDocument::Compact),
                                     [](const auto &bytes, bool &parsed) {

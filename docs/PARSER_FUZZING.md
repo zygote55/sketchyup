@@ -22,14 +22,15 @@ and one with bad values) plus a rejected DXF version and a rejected two-column p
 One more covers the R096.a terrain edit list decoder (`terrain-edits`;
 [ADR 0169 §7](decisions/0169-terrain-editing-drape-stamp.md#7-persistence)): its input is the
 JSON `edits` array of a terrain record. The harness decodes the production kinds (R096.c:
-`editSource`, `addSource`, `removeSource`; R096.b: `sculpt`, `smooth`) and registers the
+`editSource`, `addSource`, `removeSource`; R096.b: `sculpt`, `smooth`; R096.d: `stamp`) and registers the
 test-only kinds of `tests/terrain_edit_test_kinds.hpp` (`test.lift`, `test.split`,
 `test.refine`). An accepted list has 1 to 4,096 entries with unique ids within the 8 MiB bound
 and re-encodes to a list that decodes to equal entries. Its seeds are a lift and a split as
 applied to the schema-29 seed terrain, the three source edits, a brush sculpt and a region
-smooth, a rejected list one entry over the bound, a rejected contour at two elevations and a
-rejected smooth of nine iterations; `parser_fault_corpus_tests` mutates the valid list (with two
-source edits, a sculpt and a smooth) 512 times.
+smooth, a resolved daylight pad and an unresolved fixed-width pad, a rejected list one entry over
+the bound, a rejected contour at two elevations, a rejected smooth of nine iterations and a
+rejected pad whose rays run backwards; `parser_fault_corpus_tests` mutates the valid list (with
+two source edits, a sculpt, a smooth and a pad) 512 times.
 Existing deterministic parser-fault and transaction tests remain required.
 
 Configure a separate build and generate valid, deterministic seeds:

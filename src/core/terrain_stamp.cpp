@@ -377,13 +377,19 @@ class Walker {
             const double ta = reachTo * double(step) / double(steps),
                          tb = step + 1 == steps ? reachTo : reachTo * double(step + 1) / double(steps);
             const auto pa = point(ta), pb = point(tb);
+            // Each step counts as work too, so a long walk over few large tiles is bounded.
+            charge(1, s);
+            const std::size_t sorted = pending.size();
             for (const auto *tile : mesh_.tilesIn(std::min(pa.x, pb.x), std::min(pa.y, pb.y),
                                                   std::max(pa.x, pb.x), std::max(pa.y, pb.y), 1e-6))
                 if (seen.insert(tile).second)
                     add(*tile, s, d, reachTo, pending);
             // Every interval meeting this step is known now (its triangle's tile meets the step's
             // box), so those starting by its end are processed in order.
-            std::sort(pending.begin(), pending.end());
+            // Only the new intervals are sorted; the rest are in order already.
+            std::sort(pending.begin() + std::ptrdiff_t(sorted), pending.end());
+            std::inplace_merge(pending.begin(), pending.begin() + std::ptrdiff_t(sorted),
+                               pending.end());
             std::size_t used = 0;
             for (; used < pending.size() && pending[used].t0 <= tb + gap && !done; ++used) {
                 const auto &iv = pending[used];
@@ -487,17 +493,7 @@ class Walker {
         const double minX = std::min(s.x, ex), maxX = std::max(s.x, ex), minY = std::min(s.y, ey),
                      maxY = std::max(s.y, ey);
         const double margin = 1e-6 * (std::abs(d.x) + std::abs(d.y)) * reachTo + 1e-9;
-        work_ += content.triangles.size();
-        if (work_ > terrainStampWalkWork)
-            throw TerrainEditRefused(
-                "LIMIT_EXCEEDED",
-                "Stamp pad refused; nothing was changed: the grading rays cross too much of the "
-                "terrain; use a smaller footprint, maximum distance or width",
-                {{limitKind,
-                  "The grading rays would test more than 67,108,864 triangles; use a smaller "
-                  "footprint, maximum distance or width.",
-                  1,
-                  {{s, 0, 0}}}});
+        charge(content.triangles.size(), s);
         if ((++tiles_ & 63) == 0)
             terrainCheckpoint(progress_, TerrainStage::Replay, 0); // cancellation only
         for (std::uint32_t t = 0; t < content.triangles.size(); ++t) {
@@ -543,6 +539,19 @@ class Walker {
             out.push_back({lo, hi, g0, g1, {content.key, t}});
         }
     }
+    void charge(std::uint64_t amount, TerrainVec2 at) {
+        work_ += amount;
+        if (work_ > terrainStampWalkWork)
+            throw TerrainEditRefused(
+                "LIMIT_EXCEEDED",
+                "Stamp pad refused; nothing was changed: the grading rays cross too much of the "
+                "terrain; use a smaller footprint, maximum distance or width",
+                {{limitKind,
+                  "The grading rays would test more than 67,108,864 triangles; use a smaller "
+                  "footprint, maximum distance or width.",
+                  1,
+                  {{at, 0, 0}}}});
+    }
     const TerrainEditMesh &mesh_;
     std::uint64_t &work_;
     TerrainProgress *progress_;
@@ -558,34 +567,40 @@ struct Segment {
 // Every pair of segments that meet other than at a shared end point (exact), found through a
 // uniform grid: each segment is listed in the cells it passes through (a grid walk, with both
 // neighbours where it passes a corner), so two segments that meet share a cell. Outline pieces are
-// not paired with each other. Bounded by terrainStampPairWork.
+// not paired with each other. With `cyclic` (a polygon's n edges, segment i from corner i), a
+// shared corner is allowed only between neighbouring edges. The cell is at least the median
+// segment length and large enough that the walks list at most about five cells a segment; the
+// pairs are counted before any is tested, and more than terrainStampPairWork refuses the call
+// (located at the first segment, whatever the hash order).
 std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector<Segment> &segments,
-                                                               std::uint64_t &work,
                                                                Problems &problems,
-                                                               TerrainProgress *progress) {
+                                                               TerrainProgress *progress,
+                                                               std::size_t cyclic = 0) {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> result;
     if (segments.empty())
         return result;
     auto box = emptyBox();
     std::vector<double> lengths;
     lengths.reserve(segments.size());
+    double total = 0;
     for (const auto &s : segments) {
         extend(box, s.a.x, s.a.y);
         extend(box, s.b.x, s.b.y);
         lengths.push_back(planDistance(s.a, s.b));
+        total += lengths.back();
     }
-    // The cell: the median segment length, so short outline pieces and long rays both list in a
-    // few cells, but never more than 4,096 cells a side.
     std::nth_element(lengths.begin(), lengths.begin() + std::ptrdiff_t(lengths.size() / 2),
                      lengths.end());
     const double span = std::max(box[2] - box[0], box[3] - box[1]);
-    const double cell = std::max({lengths[lengths.size() / 2], span / 4096, 1e-6});
-    auto refuse = [&](TerrainVec2 at) {
+    const double cell = std::max({lengths[lengths.size() / 2], total / (4 * double(segments.size())),
+                                  span / 4096, 1e-6});
+    auto refuse = [&] {
         problems.refuse(limitKind,
                         "The grading is too irregular to check for crossings; use a smaller "
                         "footprint, maximum distance or width.",
-                        at);
+                        segments.front().a);
     };
+    std::uint64_t work = 0;
     std::unordered_map<std::uint64_t, std::vector<std::uint32_t>> grid;
     auto key = [](std::int64_t x, std::int64_t y) {
         return (std::uint64_t(std::uint32_t(x)) << 32) | std::uint32_t(y);
@@ -598,7 +613,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector
         if (cellList.empty() || cellList.back() != i)
             cellList.push_back(i);
         if (++work > terrainStampPairWork)
-            refuse(segments[i].a);
+            refuse();
     };
     for (std::uint32_t i = 0; i < segments.size(); ++i) {
         const auto &s = segments[i];
@@ -636,39 +651,34 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector
         // Rounding may stop the walk a cell short: the end's cell is listed in any case.
         list(endX, endY, i);
     }
-    std::vector<std::uint64_t> pairs;
+    // The pairs to test, counted first (the count does not depend on the hash order).
     for (const auto &[cellKey, cellList] : grid) {
-        std::size_t outline = 0;
+        std::uint64_t outline = 0;
         for (const auto i : cellList)
             outline += segments[i].kind == 0;
-        const std::size_t others = cellList.size() - outline;
+        const std::uint64_t others = cellList.size() - outline;
         work += outline * others + others * (others > 0 ? others - 1 : 0) / 2;
         if (work > terrainStampPairWork)
-            refuse(segments[cellList.front()].a);
-        for (std::size_t x = 0; x < cellList.size(); ++x)
-            for (std::size_t y = x + 1; y < cellList.size(); ++y) {
-                if (segments[cellList[x]].kind == 0 && segments[cellList[y]].kind == 0)
-                    continue;
-                pairs.push_back((std::uint64_t(std::min(cellList[x], cellList[y])) << 32) |
-                                std::max(cellList[x], cellList[y]));
-            }
+            refuse();
     }
     terrainCheckpoint(progress, TerrainStage::Replay, 0);
-    std::sort(pairs.begin(), pairs.end());
-    pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
     auto same = [](TerrainVec2 p, TerrainVec2 q) { return p.x == q.x && p.y == q.y; };
-    for (const auto pair : pairs) {
-        const auto i = std::uint32_t(pair >> 32), j = std::uint32_t(pair & 0xffffffffu);
+    auto neighbours = [&](const Segment &s, const Segment &t) {
+        const auto d = s.r0 > t.r0 ? s.r0 - t.r0 : t.r0 - s.r0;
+        return d == 1 || d + 1 == cyclic;
+    };
+    auto crossing = [&](std::uint32_t i, std::uint32_t j) {
         const auto &s = segments[i], &t = segments[j];
         if (s.kind == 0 && t.kind == 0)
-            continue; // the footprint is simple
+            return false; // the footprint is simple
         if (!terrainSegmentsMeet(s.a, s.b, t.a, t.b))
-            continue;
+            return false;
         // Identical segments (a daylight edge along the outline where the pad meets the ground)
         // are one constraint.
         if ((same(s.a, t.a) && same(s.b, t.b)) || (same(s.a, t.b) && same(s.b, t.a)))
-            continue;
-        // A shared end point is allowed when the segments do not overlap along a line.
+            return cyclic != 0;
+        // A shared end point is allowed when the segments do not overlap along a line (for a
+        // polygon's own edges, only between neighbours).
         std::optional<TerrainVec2> shared, otherS, otherT;
         if (same(s.a, t.a)) {
             shared = s.a;
@@ -687,16 +697,27 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> crossings(const std::vector
             otherS = s.a;
             otherT = t.a;
         }
-        if (shared) {
-            const bool collinear = orient(*shared, *otherS, *otherT) == 0;
-            const bool sameSide = (otherS->x - shared->x) * (otherT->x - shared->x) +
-                                      (otherS->y - shared->y) * (otherT->y - shared->y) >
-                                  0;
-            if (!(collinear && sameSide))
-                continue;
-        }
-        result.push_back({i, j});
-    }
+        if (!shared)
+            return true;
+        if (cyclic && !neighbours(s, t))
+            return true;
+        const bool collinear = orient(*shared, *otherS, *otherT) == 0;
+        const bool sameSide = (otherS->x - shared->x) * (otherT->x - shared->x) +
+                                  (otherS->y - shared->y) * (otherT->y - shared->y) >
+                              0;
+        return collinear && sameSide;
+    };
+    // Tested cell by cell; a pair sharing several cells is found once (sorted, unique).
+    for (const auto &[cellKey, cellList] : grid)
+        for (std::size_t x = 0; x < cellList.size(); ++x)
+            for (std::size_t y = x + 1; y < cellList.size(); ++y) {
+                const auto i = std::min(cellList[x], cellList[y]),
+                           j = std::max(cellList[x], cellList[y]);
+                if (crossing(i, j))
+                    result.push_back({i, j});
+            }
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
 }
 } // namespace
@@ -727,13 +748,12 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
                                 ", which a source already has",
                             v2(footprint.front()));
     // ---- The footprint: simple (no two edges meet but neighbours at their shared corner) ----
-    std::uint64_t pairWork = 0;
     {
         std::vector<Segment> edges;
         for (std::uint32_t i = 0; i < n; ++i)
             edges.push_back({v2(footprint[i]), v2(footprint[(i + 1) % n]), 1, i, i});
         // kind 1 so they are compared with each other; neighbours share a corner.
-        for (const auto &[i, j] : crossings(edges, pairWork, problems, progress))
+        for (const auto &[i, j] : crossings(edges, problems, progress, n))
             problems.add("invalid-polygon",
                          "A pad footprint must be a simple polygon (its edges may not cross or "
                          "touch).",
@@ -744,6 +764,7 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
                              "A pad footprint's corners are at least 1e-6 m apart.", edges[i].a);
         problems.check();
     }
+    std::uint64_t walkWork = 0;
     // ---- Edge spacing: the smallest longest side of the triangles an edge touches ----
     std::vector<double> spacing(n, std::numeric_limits<double>::infinity());
     for (std::size_t i = 0; i < n; ++i) {
@@ -752,6 +773,30 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
         // An edge no longer than the smallest spacing has no interior rays at any spacing.
         if (planDistance(v2(footprint[i]), v2(footprint[(i + 1) % n])) <= terrainStampSpacingMin)
             continue;
+        // The triangles the query scans (its tiles along the edge) count against the walk's bound.
+        {
+            const auto a = v2(footprint[i]), b = v2(footprint[(i + 1) % n]);
+            const double cell = mesh.grid().cell > 0 ? mesh.grid().cell : 1.0;
+            const auto steps =
+                std::size_t(std::clamp(std::ceil(planDistance(a, b) / cell), 1.0, 1e6));
+            std::unordered_set<const void *> tiles;
+            std::uint64_t triangles = steps;
+            for (std::size_t k = 0; k < steps; ++k) {
+                const double f0 = double(k) / double(steps), f1 = double(k + 1) / double(steps);
+                const double x0 = a.x + (b.x - a.x) * f0, y0 = a.y + (b.y - a.y) * f0,
+                             x1 = a.x + (b.x - a.x) * f1, y1 = a.y + (b.y - a.y) * f1;
+                for (const auto *tile : mesh.tilesIn(std::min(x0, x1), std::min(y0, y1),
+                                                     std::max(x0, x1), std::max(y0, y1), 1e-6))
+                    if (tiles.insert(tile).second)
+                        triangles += tile->content->triangles.size();
+            }
+            walkWork += triangles;
+            if (walkWork > terrainStampWalkWork)
+                problems.refuse(limitKind,
+                                "The footprint's edges cross too much of the terrain; use a "
+                                "simpler or smaller footprint.",
+                                a);
+        }
         for (const auto &ref : view.touching(v2(footprint[i]), v2(footprint[(i + 1) % n]))) {
             const auto c = view.corners(ref);
             double longest = 0;
@@ -773,7 +818,6 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
                         v2(footprint.front()));
     layRays(footprint, spacing, outline, rays, count, false);
     plan.rays = rays.size();
-    std::uint64_t walkWork = 0;
     Walker walker(mesh, walkWork, progress);
     for (std::size_t i = 0; i < rays.size(); ++i) {
         if ((i & 63) == 0)
@@ -783,6 +827,10 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
     }
     // ---- Self-intersection repair ----
     std::vector<std::uint32_t> kept;
+    auto dropAt = [&](std::uint32_t ray) {
+        if (!plan.dropped)
+            plan.droppedAt = v2(rays[ray].daylight);
+    };
     for (std::uint32_t i = 0; i < rays.size(); ++i) {
         // A daylight point within 1e-6 m of the one before it (a fan's rays on a short reach)
         // adds nothing but a sliver: that ray is dropped.
@@ -790,16 +838,13 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
             const auto &previous = rays[kept.back()].daylight;
             if (!(previous == rays[i].daylight) &&
                 planDistance(v2(previous), v2(rays[i].daylight)) <= terrainStampSlack) {
+                dropAt(i);
                 ++plan.dropped;
                 continue;
             }
         }
         kept.push_back(i);
     }
-    auto dropAt = [&](std::uint32_t ray) {
-        if (!plan.dropped)
-            plan.droppedAt = v2(rays[ray].daylight);
-    };
     for (int round = 0;; ++round) {
         terrainCheckpoint(progress, TerrainStage::Replay, 0);
         if (kept.size() < 3)
@@ -807,7 +852,7 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
                             "The grading crosses itself everywhere; no daylight line remains. Use "
                             "a simpler footprint or gentler slopes.",
                             v2(footprint.front()));
-        if (round >= 64)
+        if (round >= 16)
             problems.refuse("daylight-repair",
                             "The grading crosses itself too often to repair; use a simpler "
                             "footprint or gentler slopes.",
@@ -825,7 +870,7 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
             if (!(r.daylight.x == next.daylight.x && r.daylight.y == next.daylight.y))
                 segments.push_back({v2(r.daylight), v2(next.daylight), 2, i, (i + 1) % k});
         }
-        const auto found = crossings(segments, pairWork, problems, progress);
+        const auto found = crossings(segments, problems, progress);
         if (found.empty())
             break;
         std::vector<bool> drop(k, false);
@@ -906,28 +951,38 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
     // ---- Other pads: the widened daylight polygon may not meet their outlines ----
     {
         const TerrainPadIndex pads(state.protectedRegions);
+        const auto &ringBox = polygon.box();
+        auto inBox = [&](const std::array<double, 4> &box, double x, double y) {
+            return x >= box[0] - slack && x <= box[2] + slack && y >= box[1] - slack &&
+                   y <= box[3] + slack;
+        };
         pads.inBox(polygon.box(), slack, [&](const TerrainProtectedRegion &region) {
+            // Only points and edges in the other's box are tested, each counted.
             std::optional<TerrainVec2> at;
             for (const auto &p : ringPlan)
-                if ((region.index && region.index->near(p[0], p[1], slack))) {
-                    at = v2(p);
-                    break;
-                }
-            if (!at && region.index)
-                for (const auto &p : region.polygon)
-                    if (polygon.near(p[0], p[1], slack)) {
+                if (inBox(region.box, p[0], p[1]) && region.index) {
+                    classifyCost(v2(p));
+                    if (region.index->near(p[0], p[1], slack)) {
                         at = v2(p);
                         break;
                     }
-            if (!at)
-                for (const auto &p : region.points)
-                    if (polygon.near(p[0], p[1], slack)) {
-                        at = v2(p);
-                        break;
+                }
+            for (const auto *list : {&region.polygon, &region.points})
+                for (const auto &p : *list)
+                    if (!at && inBox(ringBox, p[0], p[1])) {
+                        classifyCost(v2(p));
+                        if (polygon.near(p[0], p[1], slack))
+                            at = v2(p);
                     }
             if (!at && region.index)
                 for (std::size_t i = 0; i < ringPlan.size(); ++i) {
                     const auto a = v2(ringPlan[i]), b = v2(ringPlan[(i + 1) % ringPlan.size()]);
+                    if (std::max(a.x, b.x) < region.box[0] - slack ||
+                        std::min(a.x, b.x) > region.box[2] + slack ||
+                        std::max(a.y, b.y) < region.box[1] - slack ||
+                        std::min(a.y, b.y) > region.box[3] + slack)
+                        continue;
+                    classifyCost(a);
                     if (region.index->segmentNear(a, b, slack)) {
                         at = TerrainVec2{(a.x + b.x) / 2, (a.y + b.y) / 2};
                         break;
@@ -1047,11 +1102,15 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
         std::sort(found.begin(), found.end());
         return found;
     };
+    // The walks are bounded as R096.c bounds its touched triangles: every triangle a walk visits
+    // counts.
+    std::uint64_t visits = 0;
     for (std::size_t i = 0; i < inserted.size(); ++i) {
         if ((i & 255) == 0)
             terrainCheckpoint(progress, TerrainStage::Replay, 0);
         const auto q = v2(inserted[i]);
         const auto start = containing(q);
+        visits += start.size();
         std::set<TerrainTriangleRef> visited(start.begin(), start.end());
         std::vector<TerrainTriangleRef> walk(start.begin(), start.end());
         for (std::size_t head = 0; head < walk.size(); ++head) {
@@ -1065,6 +1124,11 @@ TerrainStampPlan planTerrainStamp(const TerrainEditContext &context, const Terra
                 if (!next || visited.contains(*next))
                     continue;
                 visited.insert(*next);
+                if (++visits > terrainSourceEditTouchedTriangles)
+                    problems.refuse(limitKind,
+                                    "The pad would re-triangulate too much of the terrain; use a "
+                                    "smaller footprint or maximum distance.",
+                                    q);
                 const auto t = view.corners(*next);
                 if (terrainInCircle(v2(t[0]), v2(t[1]), v2(t[2]), q) <= 0)
                     continue;
@@ -1318,6 +1382,16 @@ TerrainPadConsistency checkTerrainPadConsistency(const Document &doc, Id terrain
         return !shared.empty();
     };
     const auto &edits = record.edits;
+    // Each applied pad's widened daylight polygon, built once (later pads supersede rays).
+    std::vector<std::shared_ptr<TerrainPolygonIndex>> rings(edits.size());
+    for (std::size_t f = 0; f < edits.size(); ++f)
+        if (edits[f]->kind == terrainStampKind && !isSkipped(edits[f]->id) &&
+            dataOf(*edits[f]).resolved()) {
+            std::vector<Plan2> ring;
+            for (const auto &p : terrainStampRing(dataOf(*edits[f])))
+                ring.push_back({p.x, p.y});
+            rings[f] = std::make_shared<TerrainPolygonIndex>(std::move(ring));
+        }
     for (std::size_t e = 0; e < edits.size(); ++e) {
         const auto &entry = *edits[e];
         if (entry.kind != terrainStampKind || isSkipped(entry.id))
@@ -1359,19 +1433,9 @@ TerrainPadConsistency checkTerrainPadConsistency(const Document &doc, Id terrain
         // Later entries that may supersede rays.
         std::vector<std::pair<const TerrainEdit *, std::shared_ptr<TerrainPolygonIndex>>> later;
         for (std::size_t f = e + 1; f < edits.size(); ++f) {
-            if (isSkipped(edits[f]->id))
+            if (isSkipped(edits[f]->id) || (edits[f]->kind == terrainStampKind && !rings[f]))
                 continue;
-            std::shared_ptr<TerrainPolygonIndex> polygon;
-            if (edits[f]->kind == terrainStampKind) {
-                const auto &other = dataOf(*edits[f]);
-                if (!other.resolved())
-                    continue;
-                std::vector<Plan2> ring;
-                for (const auto &p : terrainStampRing(other))
-                    ring.push_back({p.x, p.y});
-                polygon = std::make_shared<TerrainPolygonIndex>(std::move(ring));
-            }
-            later.push_back({edits[f].get(), std::move(polygon)});
+            later.push_back({edits[f].get(), rings[f]});
         }
         for (const auto &ray : data.rays) {
             const auto &s = data.outline[ray.start];
@@ -1400,12 +1464,19 @@ TerrainPadConsistency checkTerrainPadConsistency(const Document &doc, Id terrain
             const auto at = mesh->trianglesAt(ray.daylight);
             const double run = planDistance({s[0], s[1]}, v2(ray.daylight));
             bool grade = true;
+            // Within 1e-9 relative, plus the rounding of the stored point: a few units in the
+            // last place of the coordinates and elevations, over the run.
+            constexpr double ulp = 0x1p-52;
+            const double scale = std::max({std::abs(s[0]), std::abs(s[1]), std::abs(ray.daylight.x),
+                                           std::abs(ray.daylight.y)});
+            const double zScale = std::max(std::abs(h), std::abs(ray.daylight.z));
             if (data.mode == TerrainStampMode::Daylight) {
                 const double rise = std::abs(h - ray.daylight.z);
                 const double slope = ray.daylight.z < h ? data.fillSlope : data.cutSlope;
-                grade = ray.daylight.z != h && std::abs(rise / run - slope) <= 1e-9 * slope;
+                const double tolerance = 1e-9 * slope + 8 * ulp * (zScale + slope * scale) / run;
+                grade = ray.daylight.z != h && std::abs(rise / run - slope) <= tolerance;
             } else
-                grade = std::abs(run - data.width) <= 1e-9 * data.width;
+                grade = std::abs(run - data.width) <= 1e-9 * data.width + 8 * ulp * scale;
             if (!isEdge || at.empty() || !grade) {
                 ++report.wrongRays;
                 problem("pad " + std::to_string(entry.id) + " ray from " + where(s[0], s[1]) +

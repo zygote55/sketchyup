@@ -180,26 +180,43 @@ void TerrainSourceState::addPadRay(std::uint32_t edit, const Vec3 &a, const Vec3
     if (kb < ka)
         std::swap(ka, kb);
     ++segments_[{ka, kb}];
+    if (padRayGroups_.empty() || padRayGroups_.back().edit != edit ||
+        padRayGroups_.back().first + padRayGroups_.back().count != padRays_.size())
+        padRayGroups_.push_back({edit, padRays_.size(), 0, 0,
+                                 {std::min(a.x, b.x), std::min(a.y, b.y), std::max(a.x, b.x),
+                                  std::max(a.y, b.y)}});
+    auto &group = padRayGroups_.back();
+    ++group.count;
+    ++group.alive;
+    group.box = {std::min({group.box[0], a.x, b.x}), std::min({group.box[1], a.y, b.y}),
+                 std::max({group.box[2], a.x, b.x}), std::max({group.box[3], a.y, b.y})};
     padRays_.push_back({edit, a, b, true});
     ++padRayCount_;
 }
 std::size_t TerrainSourceState::dropPadRays(
     const std::array<double, 4> &box, const std::function<bool(const Vec3 &, const Vec3 &)> &meets) {
     std::size_t dropped = 0;
-    for (auto &ray : padRays_) {
-        if (!ray.alive || std::max(ray.a.x, ray.b.x) < box[0] || std::min(ray.a.x, ray.b.x) > box[2] ||
-            std::max(ray.a.y, ray.b.y) < box[1] || std::min(ray.a.y, ray.b.y) > box[3] ||
-            !meets(ray.a, ray.b))
+    for (auto &group : padRayGroups_) {
+        if (!group.alive || group.box[2] < box[0] || group.box[0] > box[2] ||
+            group.box[3] < box[1] || group.box[1] > box[3])
             continue;
-        ray.alive = false;
-        --padRayCount_;
-        ++dropped;
-        auto ka = TerrainPlanKey::of(ray.a.x, ray.a.y), kb = TerrainPlanKey::of(ray.b.x, ray.b.y);
-        if (kb < ka)
-            std::swap(ka, kb);
-        const auto found = segments_.find({ka, kb});
-        if (found != segments_.end() && !--found->second)
-            segments_.erase(found);
+        for (std::size_t r = group.first; r < group.first + group.count; ++r) {
+            auto &ray = padRays_[r];
+            if (!ray.alive || std::max(ray.a.x, ray.b.x) < box[0] ||
+                std::min(ray.a.x, ray.b.x) > box[2] || std::max(ray.a.y, ray.b.y) < box[1] ||
+                std::min(ray.a.y, ray.b.y) > box[3] || !meets(ray.a, ray.b))
+                continue;
+            ray.alive = false;
+            --padRayCount_;
+            --group.alive;
+            ++dropped;
+            auto ka = TerrainPlanKey::of(ray.a.x, ray.a.y), kb = TerrainPlanKey::of(ray.b.x, ray.b.y);
+            if (kb < ka)
+                std::swap(ka, kb);
+            const auto found = segments_.find({ka, kb});
+            if (found != segments_.end() && !--found->second)
+                segments_.erase(found);
+        }
     }
     return dropped;
 }

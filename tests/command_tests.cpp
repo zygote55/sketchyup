@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
 #include "io/solar_io.hpp"
@@ -1179,6 +1180,16 @@ int main(int argc, char **argv) {
                                          {"path", QJsonArray{QJsonArray{2, 0}}},
                                          {"radius", 1},
                                          {"amount", 0.5}});
+        // R096.d: a small pad inside the same fixture's triangle, and a change of its elevation.
+        parameterCase("terrain.stamp_pad",
+                      {{"terrain", "1"},
+                       {"footprint",
+                        QJsonObject{{"polygon", QJsonArray{QJsonArray{1.3, 0.3}, QJsonArray{1.7, 0.3},
+                                                           QJsonArray{1.7, 0.7}, QJsonArray{1.3, 0.7}}}}},
+                       {"elevation", -2.78},
+                       {"mode", "width"},
+                       {"width", 0.1}});
+        parameterCase("terrain.update_edit", {{"terrain", "1"}, {"edit", 1}, {"elevation", -2.76}});
         // R095.e2: display settings (contours, interval, shading); the fixture is set below.
         parameterCase("terrain.set_display", {{"terrain", "1"},
                                               {"contours", true},
@@ -1392,7 +1403,9 @@ int main(int argc, char **argv) {
                 command["command"] == "terrain.edit_source" ||
                 command["command"] == "terrain.add_source" ||
                 command["command"] == "terrain.remove_source" ||
-                command["command"] == "terrain.sculpt") {
+                command["command"] == "terrain.sculpt" ||
+                command["command"] == "terrain.stamp_pad" ||
+                command["command"] == "terrain.update_edit") {
                 // Stored points whose mesh is not the hand-made one, so both commit.
                 TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}}, {{0, 1, 2}}};
                 TerrainRecord record;
@@ -1403,6 +1416,18 @@ int main(int argc, char **argv) {
                                    {{0, 0, -3}, {2, 0, -3}, {2, 2, -2}, {0, 2, -3}}}};
                 const auto terrain = createTerrain(doc, mesh, record);
                 command["terrain"] = QString::number(terrain.terrain);
+                if (command["command"] == "terrain.update_edit") {
+                    QJsonObject pad = command;
+                    pad["command"] = "terrain.stamp_pad";
+                    pad.remove("edit");
+                    pad["footprint"] = QJsonObject{
+                        {"polygon", QJsonArray{QJsonArray{1.3, 0.3}, QJsonArray{1.7, 0.3},
+                                               QJsonArray{1.7, 0.7}, QJsonArray{1.3, 0.7}}}};
+                    pad["elevation"] = -2.78;
+                    pad["mode"] = "width";
+                    pad["width"] = 0.1;
+                    executeTerrainCommand(doc, pad);
+                }
                 if (command["command"] == "terrain.reset_edits" ||
                     command["command"] == "terrain.remove_edit") {
                     terrain_test_kinds::registerKinds();
