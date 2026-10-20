@@ -2,6 +2,9 @@
 #include "core/terrain.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain_edit.hpp"
+#include "core/terrain_edit_mesh.hpp"
+#include "core/terrain_source_edit.hpp"
+#include "core/terrain_sources.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
 #include <algorithm>
@@ -335,6 +338,367 @@ TerrainParameters chosenParameters(const Document &doc, Id terrain, const QJsonO
     validateTerrainParameters(parameters, doc.bodies().at(terrain)->terrain->sources);
     return parameters;
 }
+
+// ---- R096.c: terrain.edit_source, terrain.add_source and terrain.remove_source ------------
+// Inputs are model coordinates in metres, converted once to the terrain frame (ADR 0169 §4);
+// the report's locations are model coordinates again.
+struct SourceEditCommand {
+    Id terrain{};
+    std::string kind, label;
+    std::shared_ptr<TerrainSourceEditData> data;
+    const TerrainSource *before{}; // in `state`
+    std::shared_ptr<const TerrainSourceState> state;
+    Transform world;
+    TerrainPolylineCleaning cleaning;
+    bool promoted{};
+};
+std::uint32_t sourceIdOf(const QJsonValue &value) {
+    if (!value.isDouble() || value.toDouble() != std::floor(value.toDouble()) ||
+        value.toDouble() < 1 || value.toDouble() > 4294967295.0)
+        reject("INVALID_REQUEST", "source is the integer ID of a terrain source (terrain.describe "
+                                  "lists them)");
+    return std::uint32_t(value.toDouble());
+}
+TerrainSourceRole roleOf(const QJsonValue &value, bool points) {
+    const auto name = value.toString();
+    if (name == "contour")
+        return TerrainSourceRole::Contour;
+    if (name == "breakline")
+        return TerrainSourceRole::Breakline;
+    if (points && name == "points")
+        return TerrainSourceRole::Points;
+    reject("INVALID_REQUEST", points ? "role is contour, breakline or points"
+                                     : "role is contour or breakline");
+}
+// Model points [x, y] or [x, y, z] to the terrain frame; a missing z stays NaN for the caller.
+std::vector<Vec3> localPoints(const QJsonValue &value, const Transform &toLocal) {
+    if (!value.isArray() || value.toArray().isEmpty() ||
+        std::size_t(value.toArray().size()) > terrainSourceEditPoints)
+        reject("INVALID_REQUEST", "points is a list of 1 to 20,000 model points [x, y] or [x, y, z]");
+    std::vector<Vec3> points;
+    for (const auto &entry : value.toArray()) {
+        const auto xyz = entry.toArray();
+        if (!entry.isArray() || xyz.size() < 2 || xyz.size() > 3)
+            reject("INVALID_REQUEST", "A point is [x, y] or [x, y, z] in model metres");
+        const double x = coordinate(xyz[0]), y = coordinate(xyz[1]);
+        if (xyz.size() == 3) {
+            points.push_back(toLocal.point({x, y, coordinate(xyz[2])}));
+        } else {
+            auto p = toLocal.point({x, y, 0});
+            p.z = std::numeric_limits<double>::quiet_NaN();
+            points.push_back(p);
+        }
+    }
+    return points;
+}
+bool closedPoints(const std::vector<Vec3> &points) {
+    return points.size() >= 4 && points.front() == points.back();
+}
+// Cleaning and canonical order, as the importer does; a closed polyline keeps its repeated start.
+std::vector<Vec3> cleanPoints(std::vector<Vec3> points, TerrainSourceRole role,
+                              TerrainPolylineCleaning &counts) {
+    if (role == TerrainSourceRole::Points)
+        return points;
+    const bool closed = closedPoints(points);
+    std::vector<TerrainVec3> line;
+    for (std::size_t i = 0; i < points.size() - (closed ? 1 : 0); ++i)
+        line.push_back({points[i].x, points[i].y, points[i].z});
+    cleanTerrainPolyline(line, closed, counts);
+    const bool stillClosed = closed && line.size() >= 3;
+    canonicalTerrainPolyline(line, stillClosed);
+    std::vector<Vec3> result;
+    for (const auto &p : line)
+        result.push_back({p.x, p.y, p.z});
+    if (stillClosed)
+        result.push_back(result.front());
+    if (result.size() < 2)
+        reject("INVALID_REQUEST", "The polyline has no length after removing repeated points");
+    return result;
+}
+// Each point's Z: the contour's one elevation, or the points' own (required).
+void elevations(std::vector<Vec3> &points, TerrainSourceRole role, std::optional<double> contourZ) {
+    if (role == TerrainSourceRole::Contour) {
+        double z = contourZ.value_or(std::numeric_limits<double>::quiet_NaN());
+        if (!contourZ)
+            for (const auto &p : points)
+                if (!std::isnan(p.z)) {
+                    if (!std::isnan(z) && p.z != z)
+                        reject("INVALID_REQUEST", "A contour has one elevation; give `elevation` "
+                                                  "or points at one Z");
+                    z = p.z;
+                }
+        if (std::isnan(z))
+            reject("INVALID_REQUEST", "A contour needs its elevation: give `elevation` or [x, y, "
+                                      "z] points");
+        for (auto &p : points)
+            p.z = z;
+        return;
+    }
+    for (const auto &p : points)
+        if (std::isnan(p.z))
+            reject("INVALID_REQUEST", "Breakline and spot points need [x, y, z]");
+}
+std::array<double, 4> planBox(const std::vector<Vec3> &points) {
+    std::array<double, 4> box{points.front().x, points.front().y, points.front().x,
+                              points.front().y};
+    for (const auto &p : points) {
+        box[0] = std::min(box[0], p.x);
+        box[1] = std::min(box[1], p.y);
+        box[2] = std::max(box[2], p.x);
+        box[3] = std::max(box[3], p.y);
+    }
+    return box;
+}
+SourceEditCommand parseSourceEdit(const Document &doc, const QJsonObject &command) {
+    const auto name = command["command"].toString();
+    SourceEditCommand parsed;
+    if (name == "terrain.edit_source") {
+        onlyFields(command, {"command", "terrain", "source", "points", "elevation", "role"});
+        parsed.kind = terrainEditSourceKind;
+        parsed.label = "Edit contour";
+    } else if (name == "terrain.add_source") {
+        onlyFields(command, {"command", "terrain", "role", "points", "edges", "elevation", "level",
+                             "at"});
+        parsed.kind = terrainAddSourceKind;
+        parsed.label = "Add contour";
+    } else {
+        onlyFields(command, {"command", "terrain", "source"});
+        parsed.kind = terrainRemoveSourceKind;
+        parsed.label = "Remove contour";
+    }
+    parsed.terrain = identity(command["terrain"]);
+    if (!isTerrain(doc, parsed.terrain))
+        reject("NOT_FOUND", "Terrain body does not exist");
+    requireUnlockedTerrain(doc, parsed.terrain);
+    requireLevelTerrain(doc, parsed.terrain);
+    const auto &record = *doc.bodies().at(parsed.terrain)->terrain;
+    parsed.state = terrainSourceState(record);
+    parsed.world = doc.worldTransform(parsed.terrain);
+    const auto toLocal = parsed.world.inverse();
+    const auto zLocal = [&](double elevation) { return toLocal.point({0, 0, elevation}).z; };
+    auto data = std::make_shared<TerrainSourceEditData>();
+    if (parsed.kind != terrainAddSourceKind) {
+        data->source = sourceIdOf(command["source"]);
+        parsed.before = parsed.state->find(data->source);
+        if (!parsed.before)
+            reject("NOT_FOUND", "The terrain has no source " + std::to_string(data->source));
+        if (parsed.before->role == TerrainSourceRole::Boundary ||
+            parsed.before->role == TerrainSourceRole::Hole)
+            reject("INVALID_REQUEST", "Boundary and hole sources define the outline; source edits "
+                                      "change contours, breaklines and spot points");
+        data->before = planBox(parsed.before->points);
+    }
+    if (parsed.kind == terrainEditSourceKind) {
+        const auto &old = *parsed.before;
+        if (!command.contains("points") && !command.contains("elevation") &&
+            !command.contains("role"))
+            reject("INVALID_REQUEST", "Give points, elevation or role to change");
+        data->role = old.role;
+        if (command.contains("role")) {
+            if (old.role == TerrainSourceRole::Points)
+                reject("INVALID_REQUEST", "Spot points keep their role");
+            data->role = roleOf(command["role"], false);
+        }
+        std::optional<double> contourZ;
+        if (command.contains("elevation")) {
+            if (data->role == TerrainSourceRole::Points)
+                reject("INVALID_REQUEST", "elevation applies to contours and breaklines");
+            contourZ = zLocal(coordinate(command["elevation"]));
+        } else if (old.role == TerrainSourceRole::Contour && !old.points.empty() &&
+                   data->role == TerrainSourceRole::Contour)
+            contourZ = old.points.front().z;
+        if (command.contains("points")) {
+            auto points = localPoints(command["points"], toLocal);
+            elevations(points, data->role, contourZ);
+            data->points = cleanPoints(std::move(points), data->role, parsed.cleaning);
+        } else {
+            data->points = old.points;
+            if (contourZ && data->role == TerrainSourceRole::Contour)
+                for (auto &p : data->points)
+                    p.z = *contourZ;
+            else if (command.contains("elevation"))
+                for (auto &p : data->points)
+                    p.z = *contourZ;
+            else if (data->role == TerrainSourceRole::Contour)
+                elevations(data->points, data->role, std::nullopt);
+        }
+        if (data->role == old.role && data->points == old.points)
+            reject("INVALID_REQUEST", "The source would not change");
+    } else if (parsed.kind == terrainAddSourceKind) {
+        const bool hasPoints = command.contains("points"), hasEdges = command.contains("edges"),
+                   hasLevel = command.contains("level");
+        if (int(hasPoints) + int(hasEdges) + int(hasLevel) != 1)
+            reject("INVALID_REQUEST", "Give exactly one of points, edges or level");
+        data->role = command.contains("role") ? roleOf(command["role"], true)
+                     : hasLevel               ? TerrainSourceRole::Contour
+                                              : TerrainSourceRole::Points;
+        if (!command.contains("role") && !hasLevel)
+            reject("INVALID_REQUEST", "role is contour, breakline or points");
+        if (command.contains("at") && !hasLevel)
+            reject("INVALID_REQUEST", "at chooses a contour line with level");
+        std::optional<double> contourZ;
+        if (command.contains("elevation")) {
+            if (data->role == TerrainSourceRole::Points || hasLevel)
+                reject("INVALID_REQUEST", "elevation applies to contours and breaklines");
+            contourZ = zLocal(coordinate(command["elevation"]));
+        }
+        std::vector<Vec3> points;
+        if (hasLevel) {
+            if (data->role != TerrainSourceRole::Contour)
+                reject("INVALID_REQUEST", "A display contour is promoted as a contour");
+            std::optional<std::array<double, 2>> near;
+            if (command.contains("at")) {
+                const auto at = command["at"].toArray();
+                if (!command["at"].isArray() || at.size() != 2)
+                    reject("INVALID_REQUEST", "at is a model point [x, y]");
+                const auto local = toLocal.point({coordinate(at[0]), coordinate(at[1]), 0});
+                near = std::array<double, 2>{local.x, local.y};
+            }
+            const auto mesh = terrainEditMeshCache().get(doc, parsed.terrain, true);
+            points = terrainContourAtLevel(*mesh, zLocal(coordinate(command["level"])), near);
+            parsed.promoted = true;
+        } else if (hasPoints) {
+            points = localPoints(command["points"], toLocal);
+        } else {
+            TerrainEdgeSelection selection;
+            selection.edges = edgeList(command["edges"], "edges");
+            if (selection.edges.empty())
+                reject("INVALID_REQUEST", "Choose at least one edge");
+            const auto set = terrainEdgeSources(doc, selection);
+            if (data->role != TerrainSourceRole::Points && set.polylines.size() != 1)
+                reject("INVALID_REQUEST",
+                       "The edges form " + std::to_string(set.polylines.size()) +
+                           " polylines; add one polyline at a time");
+            for (const auto &line : set.polylines) {
+                for (const auto &p : line.points) {
+                    auto local = toLocal.point({p.x, p.y, p.z});
+                    if (data->role == TerrainSourceRole::Contour && contourZ)
+                        local.z = std::numeric_limits<double>::quiet_NaN();
+                    points.push_back(local);
+                }
+                if (line.closed && data->role != TerrainSourceRole::Points && !points.empty())
+                    points.push_back(points.front());
+            }
+            if (points.size() > terrainSourceEditPoints)
+                reject("LIMIT_EXCEEDED", "A source edit has at most 20,000 points");
+        }
+        elevations(points, data->role, contourZ);
+        data->points = cleanPoints(std::move(points), data->role, parsed.cleaning);
+        data->source = terrainAddedSourceId(parsed.state->maxBaseId(), record.nextEditId);
+    }
+    try {
+        validateTerrainSourceEditData(parsed.kind, *data);
+    } catch (const std::invalid_argument &error) {
+        reject("INVALID_REQUEST", error.what());
+    }
+    parsed.data = std::move(data);
+    return parsed;
+}
+// The bounded report (the import's shape) with locations in model coordinates.
+QJsonObject sourceEditReport(const TerrainReport &report, QJsonObject envelope) {
+    return {{"apiVersion", 1},
+            {"format", "terrain-edit"},
+            {"units", "m"},
+            {"space", "model"},
+            {"terrain", report.json(std::move(envelope), TerrainReportBounds::reportBytes - 512)}};
+}
+void addProblems(TerrainReport &report, const std::vector<TerrainEditProblem> &problems,
+                 const Transform &world) {
+    for (const auto &problem : problems) {
+        report.add(TerrainReport::Severity::Refusal, problem.kind, problem.count, problem.message);
+        for (const auto &location : problem.locations) {
+            const auto model = world.point({location.xy.x, location.xy.y, 0});
+            report.locate(TerrainReport::Severity::Refusal, problem.kind, problem.message,
+                          {location.sourceA ? "source " + std::to_string(location.sourceA)
+                                            : std::string("edit"),
+                           location.sourceB ? "change " + std::to_string(location.sourceB)
+                                            : std::string(),
+                           std::array<double, 2>{model.x, model.y}},
+                          false);
+        }
+    }
+}
+QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+    auto parsed = parseSourceEdit(doc, command);
+    const auto &record = *doc.bodies().at(parsed.terrain)->terrain;
+    TerrainReport report;
+    const auto refused = [&](const TerrainEditRefused &error) {
+        addProblems(report, error.problems(), parsed.world);
+        throw TerrainImportError(error.code(), error.what(),
+                                 sourceEditReport(report, {}), "terrainReport");
+    };
+    // The dry run: validation with a located report, and the resolved geometry (new vertices
+    // that merge into existing ones are stored where the mesh holds them, so C1 holds exactly).
+    TerrainSourceEditPlan plan;
+    {
+        const auto mesh = terrainEditMeshCache().get(doc, parsed.terrain, true);
+        TerrainSource next;
+        next.id = parsed.data->source;
+        next.role = parsed.data->role;
+        next.points = parsed.data->points;
+        try {
+            plan = planTerrainSourceEdit({*mesh, *parsed.state, record.parameters}, parsed.before,
+                                         parsed.kind == terrainRemoveSourceKind ? nullptr : &next);
+        } catch (const TerrainEditRefused &error) {
+            refused(error);
+        }
+        if (parsed.kind != terrainRemoveSourceKind && plan.resolved != parsed.data->points) {
+            std::uint64_t moved = 0;
+            for (std::size_t i = 0; i < plan.resolved.size(); ++i)
+                moved += plan.resolved[i] != parsed.data->points[i];
+            parsed.data->points = plan.resolved;
+            report.add(TerrainReport::Severity::Notice, "merged-duplicates", moved,
+                       "Vertices within 1e-7 m of existing ones were merged into them.");
+        }
+    }
+    TerrainEditApplied applied;
+    try {
+        applied = applyTerrainEdit(doc, parsed.terrain, parsed.kind, parsed.data, parsed.label);
+    } catch (const TerrainEditRefused &error) {
+        refused(error);
+    }
+    changes = std::move(applied.tiles.changes);
+    if (parsed.cleaning.zeroLength)
+        report.add(TerrainReport::Severity::Notice, "zero-length-segments",
+                   parsed.cleaning.zeroLength,
+                   "Zero-length segments (repeated vertices) were dropped.");
+    if (parsed.cleaning.spikes)
+        report.add(TerrainReport::Severity::Notice, "collinear-spikes", parsed.cleaning.spikes,
+                   "Collinear spikes (vertices where a polyline doubles back on itself) were "
+                   "removed.");
+    if (applied.tiles.paintDropped.faces)
+        report.add(TerrainReport::Severity::Notice, "face-paint-dropped",
+                   applied.tiles.paintDropped.faces,
+                   "Per-face paint on the rebuilt tiles cannot follow the new mesh and was "
+                   "removed; the tiles' own material is kept.");
+    if (plan.flatRemaining)
+        report.add(TerrainReport::Severity::Notice, "flat-triangles", plan.flatRemaining,
+                   "Flat triangles remain in the edited region (three vertices of one contour "
+                   "elevation); add spot heights or a breakline to resolve them.");
+    const QJsonObject envelope{
+        {"source", double(parsed.data->source)},
+        {"elevationOnly", plan.elevationOnly},
+        {"cavity", QJsonObject{{"removed", double(plan.change.removed.size())},
+                               {"added", double(plan.change.added.size())},
+                               {"lifted", double(plan.change.lifted.size())},
+                               {"verticesRemoved", double(plan.removedVertices)},
+                               {"verticesInserted", double(plan.insertedVertices)},
+                               {"flips", double(plan.flips)}}},
+        {"edit", double(applied.edit)},
+        {"kind", QString::fromStdString(parsed.kind)},
+        {"promoted", parsed.promoted},
+        {"points", double(parsed.data->points.size())},
+        {"tilesReplaced", double(applied.tiles.removed.size())},
+        {"tilesAdded", double(applied.tiles.added.size())}};
+    return {{"command", command["command"]},
+            {"terrain", QString::number(parsed.terrain)},
+            {"source", double(parsed.data->source)},
+            {"edit", double(applied.edit)},
+            {"changed", true},
+            {"tiles", QJsonObject{{"removed", idList(applied.tiles.removed)},
+                                  {"added", idList(applied.tiles.added)}}},
+            {"terrainReport", sourceEditReport(report, envelope)}};
+}
 } // namespace
 TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command) {
     const auto name = command["command"].toString();
@@ -436,7 +800,8 @@ bool isTerrainCommand(const QString &name) {
            name == "terrain.import" || name == "terrain.create_from_edges" ||
            name == "terrain.set_parameters" || name == "terrain.regenerate" ||
            name == "terrain.set_display" || name == "terrain.reset_edits" ||
-           name == "terrain.remove_edit";
+           name == "terrain.remove_edit" || name == "terrain.edit_source" ||
+           name == "terrain.add_source" || name == "terrain.remove_source";
 }
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command) {
@@ -576,6 +941,14 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
         if (operation)
             *operation = std::move(record);
         return {};
+    }
+    if (name == "terrain.edit_source" || name == "terrain.add_source" ||
+        name == "terrain.remove_source") {
+        ChangeReport changes;
+        auto record = editTerrainSource(doc, command, changes);
+        if (operation)
+            *operation = std::move(record);
+        return changes;
     }
     if (name == "terrain.create_from_edges" || name == "terrain.set_parameters" ||
         name == "terrain.regenerate" || name == "terrain.reset_edits" ||
@@ -771,6 +1144,26 @@ QJsonArray terrainCommandSpecs() {
         schema["description"] = description;
         return schema;
     };
+    const QJsonObject sourceId{{"type", "integer"},
+                               {"minimum", 1},
+                               {"maximum", 4294967295.0},
+                               {"description", "ID of a current terrain source (terrain.describe "
+                                               "lists them under currentSources)"}};
+    const QJsonObject modelPoints{
+        {"type", "array"},
+        {"minItems", 1},
+        {"maxItems", int(terrainSourceEditPoints)},
+        {"items", QJsonObject{{"type", "array"},
+                              {"items", coordinateSchema},
+                              {"minItems", 2},
+                              {"maxItems", 3}}},
+        {"description", "Model points [x, y, z] (or [x, y] for a contour with an elevation); a "
+                        "closed polyline repeats its first point"}};
+    const QJsonObject idSchema{{"type", "string"}, {"pattern", "^[1-9][0-9]*$"}, {"maxLength", 20}};
+    const QJsonObject edgeSchema{{"type", "object"},
+                                 {"properties", QJsonObject{{"body", idSchema}, {"edge", idSchema}}},
+                                 {"required", QJsonArray{"body", "edge"}},
+                                 {"additionalProperties", false}};
     auto spec = [](QString name, QString label, QJsonObject properties, QJsonArray required) {
         properties["command"] = QJsonObject{{"const", name}};
         required.append("command");
@@ -840,6 +1233,38 @@ QJsonArray terrainCommandSpecs() {
                                    {"description", "ID of a recorded change (terrain.describe "
                                                    "lists them); the rest are replayed"}}}},
              {"terrain", "edit"}),
+        spec("terrain.edit_source", "Edit contour",
+             {{"terrain", terrainId},
+              {"source", sourceId},
+              {"points", modelPoints},
+              {"elevation", metres("A contour's new elevation (model Z, metres)")},
+              {"role", QJsonObject{{"type", "string"},
+                                   {"enum", QJsonArray{"contour", "breakline"}},
+                                   {"description", "Change a contour to a breakline or back"}}}},
+             {"terrain", "source"}),
+        spec("terrain.add_source", "Add contour",
+             {{"terrain", terrainId},
+              {"role", QJsonObject{{"type", "string"},
+                                   {"enum", QJsonArray{"contour", "breakline", "points"}},
+                                   {"description", "Required with points or edges; level adds a "
+                                                   "contour"}}},
+              {"points", modelPoints},
+              {"edges", QJsonObject{{"type", "array"},
+                                    {"maxItems", int(terrainEdgeLimit)},
+                                    {"items", edgeSchema},
+                                    {"description", "Model edges chained into one polyline (or "
+                                                    "spot points), as terrain.create_from_edges"}}},
+              {"elevation", metres("A contour's elevation when points have no Z (model Z)")},
+              {"level", metres("Promote the display contour at this model Z to a source contour")},
+              {"at", QJsonObject{{"type", "array"},
+                                 {"items", coordinateSchema},
+                                 {"minItems", 2},
+                                 {"maxItems", 2},
+                                 {"description", "Model [x, y] choosing the nearest contour line "
+                                                 "when several lie at the level"}}}},
+             {"terrain"}),
+        spec("terrain.remove_source", "Remove contour", {{"terrain", terrainId}, {"source", sourceId}},
+             {"terrain", "source"}),
         spec("terrain.set_display", "Terrain display",
              {{"terrain", terrainId},
               {"contours", QJsonObject{{"type", "boolean"},
@@ -909,6 +1334,33 @@ QJsonObject terrainEditsJson(const TerrainRecord &record) {
             {"entries", entries},
             {"entriesOmitted", double(record.edits.size() - std::size_t(entries.size()))}};
 }
+namespace {
+// R096.c: the current sources (base sources with the source edits applied) by role, with ids
+// for the first 200 (terrain.edit_source and terrain.remove_source name them).
+QJsonObject currentSourcesJson(const TerrainRecord &record) {
+    const auto state = terrainSourceState(record);
+    QJsonObject roles;
+    QJsonArray listed;
+    std::size_t vertices = 0;
+    const auto sources = state->sources();
+    for (const auto *source : sources) {
+        const auto key = QString::fromLatin1(roleName(source->role));
+        roles[key] = roles[key].toInt() + 1;
+        vertices += source->points.size();
+        if (listed.size() < 200)
+            listed.append(QJsonObject{{"id", double(source->id)},
+                                      {"role", key},
+                                      {"reference", QString::fromStdString(source->reference)},
+                                      {"points", double(source->points.size())}});
+    }
+    return {{"count", double(sources.size())},
+            {"vertices", double(vertices)},
+            {"roles", roles},
+            {"space", "terrain"},
+            {"entries", listed},
+            {"entriesOmitted", double(sources.size() - std::size_t(listed.size()))}};
+}
+} // namespace
 QJsonObject terrainDescription(const Document &doc, Id terrain) {
     if (!isTerrain(doc, terrain))
         reject("NOT_FOUND", "Terrain body does not exist");
@@ -950,6 +1402,7 @@ QJsonObject terrainDescription(const Document &doc, Id terrain) {
                                 {"vertices", double(sourceVertices)},
                                 {"roles", roles}}},
         {"edits", terrainEditsJson(record)},
+        {"currentSources", currentSourcesJson(record)},
         {"meshDigest", QString::fromStdString(record.meshDigest)},
         {"currentDigest", QString::fromStdString(digest)},
         {"changedSinceGenerated", digest != record.meshDigest},

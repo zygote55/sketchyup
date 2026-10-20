@@ -2,6 +2,7 @@
 #include "core/document_limits.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
+#include "core/terrain_source_edit.hpp"
 #include "io/native_limits.hpp"
 #include <QJsonArray>
 #include <QtEndian>
@@ -102,8 +103,9 @@ double integer(const QJsonValue &value, double low, double high) {
         throw std::runtime_error("Expected an integer in range");
     return v;
 }
+std::vector<TerrainEditCodec> builtinCodecs();
 std::vector<TerrainEditCodec> &codecs() {
-    static std::vector<TerrainEditCodec> registered;
+    static std::vector<TerrainEditCodec> registered = builtinCodecs();
     return registered;
 }
 const TerrainEditCodec *codecOf(const std::string &kind) {
@@ -121,6 +123,71 @@ void append64(QByteArray &out, std::uint64_t value) {
     char bytes[8];
     qToLittleEndian<quint64>(value, bytes);
     out.append(bytes, 8);
+}
+// R096.c source edits (ADR 0169 §7): {source, role, points, before} as the kind needs them.
+// Every bound is checked before allocating.
+std::vector<TerrainEditCodec> builtinCodecs() {
+    std::vector<TerrainEditCodec> list;
+    for (const std::string kind :
+         {terrainEditSourceKind, terrainAddSourceKind, terrainRemoveSourceKind}) {
+        const bool hasPoints = kind != terrainRemoveSourceKind;
+        const bool hasBefore = kind != terrainAddSourceKind;
+        list.push_back(
+            {kind,
+             [hasPoints, hasBefore](const TerrainEditData &data) {
+                 const auto &edit = dynamic_cast<const TerrainSourceEditData &>(data);
+                 QJsonObject object{{"source", double(edit.source)}};
+                 if (hasPoints) {
+                     object["role"] = roleName(edit.role);
+                     QJsonArray points;
+                     for (const auto &p : edit.points)
+                         points.append(QJsonArray{p.x, p.y, p.z});
+                     object["points"] = points;
+                 }
+                 if (hasBefore)
+                     object["before"] =
+                         QJsonArray{edit.before[0], edit.before[1], edit.before[2], edit.before[3]};
+                 return object;
+             },
+             [kind, hasPoints, hasBefore](const QJsonObject &entry)
+                 -> std::shared_ptr<const TerrainEditData> {
+                 QStringList fields{"source"};
+                 if (hasPoints)
+                     fields << "role" << "points";
+                 if (hasBefore)
+                     fields << "before";
+                 exactFields(entry, fields, "terrain source edit");
+                 auto data = std::make_shared<TerrainSourceEditData>();
+                 data->source = std::uint32_t(integer(entry["source"], 1, 4294967295.0));
+                 if (hasPoints) {
+                     data->role = role(entry["role"]);
+                     const auto points = array(entry["points"]);
+                     if (std::size_t(points.size()) > terrainSourceEditPoints)
+                         throw std::runtime_error("A terrain source edit has too many points");
+                     data->points.reserve(std::size_t(points.size()));
+                     for (const auto &value : points) {
+                         const auto xyz = array(value);
+                         if (xyz.size() != 3)
+                             throw std::runtime_error("A terrain source edit point is [x, y, z]");
+                         data->points.push_back({number(xyz[0]), number(xyz[1]), number(xyz[2])});
+                     }
+                 }
+                 if (hasBefore) {
+                     const auto box = array(entry["before"]);
+                     if (box.size() != 4)
+                         throw std::runtime_error("A terrain source edit box is four numbers");
+                     for (int i = 0; i < 4; ++i)
+                         data->before[std::size_t(i)] = number(box[i]);
+                 }
+                 try {
+                     validateTerrainSourceEditData(kind, *data);
+                 } catch (const std::invalid_argument &error) {
+                     throw std::runtime_error(error.what());
+                 }
+                 return data;
+             }});
+    }
+    return list;
 }
 } // namespace
 void registerTerrainEditCodec(TerrainEditCodec codec) {
