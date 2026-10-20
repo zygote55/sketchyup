@@ -25,16 +25,25 @@
 //   2,048 triangles (decision 10: p95 <= 100 ms up to 2,048); the cold derivation of the current sources; and the commit of a one-vertex contour
 //   edit through applyTerrainEdit and through the whole command (parse, dry run, commit, report),
 //   with the display update (decision 10: one-tile commit p95 <= 100 ms).
+// - R096.b: sculpt and smooth (terrain.sculpt). Short brush strokes inside the largest tiles: the
+//   preview computation (previewTerrainEdit: the weights, the clipping of the current sources, the
+//   candidate tiles; ADR 0169 §5 runs it on the UI thread), the commit through applyTerrainEdit
+//   and through the whole command, with the display update (decision 10: one-tile commit p95 <=
+//   100 ms; samples whose touched tiles hold more than 2,048 triangles are reported apart);
+//   a brush touching nine tiles; three smoothing iterations; and a replaying Regenerate of
+//   S sculpt entries (default 1,000).
 // Uploading to the GPU and drawing the frame are not included (no viewport here). Prints one
 // JSON document. Build it Release.
 //
 //   terrain_edit_benchmark [--edits N] [--replay M] [--cancel TRIALS] [--source-edits K]
+//                          [--sculpts J] [--sculpt-replay S]
 #include "automation/terrain_commands.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_source_edit.hpp"
+#include "core/terrain_sculpt.hpp"
 #include "core/terrain_sources.hpp"
 #include "terrain_edit_test_kinds.hpp"
 #include <QCoreApplication>
@@ -96,6 +105,8 @@ QByteArray contourSource(int rings, int vertices) {
     return out;
 }
 QJsonObject stats(const std::vector<double> &samples) {
+    if (samples.empty())
+        return {{"count", 0}};
     return {{"count", double(samples.size())},
             {"p50", percentile(samples, .5)},
             {"p95", percentile(samples, .95)},
@@ -348,8 +359,205 @@ QJsonObject measureSourceEdits(Document &doc, Id terrain, int samples) {
     return result;
 }
 
+// R096.b: sculpt and smooth (ADR 0169 §5, decision 10).
+QJsonObject measureSculpts(Document &doc, Id terrain, int samples, int replayEntries) {
+    QElapsedTimer timer;
+    const auto world = doc.worldTransform(terrain);
+    const auto grid = doc.bodies().at(terrain)->terrain->tiling;
+    // The tiles, largest first, with their plan boxes.
+    std::vector<std::pair<std::size_t, TerrainTileKey>> bySize;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &tile = *doc.bodies().at(id);
+        bySize.push_back({tile.surface.faces.size(), tile.tileKey});
+    }
+    std::stable_sort(bySize.begin(), bySize.end(),
+                     [](const auto &a, const auto &b) { return a.first > b.first; });
+    // A short stroke through the middle of a tile, its radius a quarter of the tile's smaller
+    // side, so it stays inside the tile (moved vertices on a seam touch the neighbour too).
+    auto stroke = [&](const TerrainTileKey &key, double scale) {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto *tile = mesh->tile(key);
+        const double cx = (tile->minX + tile->maxX) / 2, cy = (tile->minY + tile->maxY) / 2;
+        const double side = std::min(tile->maxX - tile->minX, tile->maxY - tile->minY);
+        auto data = std::make_shared<TerrainSculptData>();
+        data->radius = std::clamp(side * scale, terrainSculptRadiusMin, terrainSculptRadiusMax);
+        data->path = {{cx - data->radius / 2, cy}, {cx, cy + data->radius / 4},
+                      {cx + data->radius / 2, cy}};
+        data->amount = 0.01;
+        return data;
+    };
+    auto touchedTriangles = [&](const TerrainEditPreview &preview) {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        std::size_t triangles = 0;
+        for (const auto &key : preview.region.replaced)
+            triangles += mesh->tile(key)->content->triangles.size();
+        return triangles;
+    };
+    TerrainSurfaceCache surfaces;
+    TerrainContourCache contours;
+    (void)surfaces.get(doc, terrain);
+    (void)contours.get(doc, terrain);
+    std::vector<double> preview, previewOver, smoothPreview, core, command, display,
+        commandAndDisplay, tilesTouched, triangles, moved;
+    std::size_t over = 0;
+    const auto pool = std::min<std::size_t>(bySize.size(), 64);
+    for (int i = 0; i < samples; ++i) {
+        const auto &key = bySize[std::size_t(i) % pool].second;
+        auto data = stroke(key, 0.25);
+        timer.restart();
+        const auto candidate = previewTerrainEdit(doc, terrain, terrainSculptKind, data);
+        const double previewMs = ms(timer);
+        const auto touched = touchedTriangles(candidate);
+        tilesTouched.push_back(double(candidate.region.replaced.size()));
+        triangles.push_back(double(touched));
+        moved.push_back(double(candidate.liftedVertices));
+        if (touched > TerrainLimits::tileTriangles) {
+            ++over;
+            previewOver.push_back(previewMs);
+            continue;
+        }
+        preview.push_back(previewMs);
+        {
+            auto smooth = std::make_shared<TerrainSculptData>(*data);
+            smooth->amount = 0;
+            smooth->strength = 0.5;
+            smooth->iterations = 3;
+            timer.restart();
+            (void)previewTerrainEdit(doc, terrain, terrainSmoothKind, smooth);
+            smoothPreview.push_back(ms(timer));
+        }
+        if (i % 2 == 0) {
+            timer.restart();
+            applyTerrainEdit(doc, terrain, terrainSculptKind, data, "Sculpt terrain");
+            core.push_back(ms(timer));
+        } else {
+            QJsonArray path;
+            for (const auto &p : data->path) {
+                const auto m = world.point({p[0], p[1], 0});
+                path.append(QJsonArray{m.x, m.y});
+            }
+            const QJsonObject sculpt{{"command", "terrain.sculpt"},
+                                     {"terrain", QString::number(terrain)},
+                                     {"mode", "raise"},
+                                     {"path", path},
+                                     {"radius", data->radius},
+                                     {"amount", 0.01}};
+            QJsonObject operation;
+            timer.restart();
+            executeTerrainCommand(doc, sculpt, &operation);
+            command.push_back(ms(timer));
+        }
+        QElapsedTimer update;
+        update.start();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+        display.push_back(ms(update));
+        if (i % 2)
+            commandAndDisplay.push_back(command.back() + display.back());
+    }
+    const auto sources = checkTerrainSourceConsistency(doc, terrain);
+    const auto seams = checkTerrainSeams(doc, terrain);
+    check(sources.ok() && seams.ok(), "C1 and C6 hold after the sculpts");
+    QJsonObject result{
+        {"oneTile",
+         QJsonObject{{"samples", samples},
+                     {"overBudgetTiles", double(over)},
+                     {"tilesTouched", stats(tilesTouched)},
+                     {"touchedTriangles", stats(triangles)},
+                     {"verticesMoved", stats(moved)},
+                     {"previewMs", stats(preview)},
+                     {"smoothPreview3IterationsMs", stats(smoothPreview)},
+                     {"coreCommitMs", stats(core)},
+                     {"commandCommitMs", stats(command)},
+                     {"displayUpdateMs", stats(display)},
+                     {"commandAndDisplayMs", stats(commandAndDisplay)}}},
+        {"consistency", QJsonObject{{"sources", double(sources.sources)},
+                                    {"vertices", double(sources.vertices)},
+                                    {"seamsOk", seams.ok()}}}};
+    if (!previewOver.empty())
+        result["oneTileOverBudgetPreviewMs"] = stats(previewOver);
+    // A brush touching nine tiles: centred on a cell of the grid, its radius a cell.
+    {
+        std::vector<double> nine, nineCommit, nineDisplay, nineTiles, nineMoved, nineTriangles;
+        for (int i = 0; i < std::max(1, samples / 5); ++i) {
+            const auto &key = bySize[std::size_t(i * 7) % pool].second;
+            const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+            const auto *tile = mesh->tile(key);
+            auto data = std::make_shared<TerrainSculptData>();
+            const double cx = (tile->minX + tile->maxX) / 2, cy = (tile->minY + tile->maxY) / 2;
+            data->radius = std::clamp(grid.cell * 1.1, terrainSculptRadiusMin, terrainSculptRadiusMax);
+            data->path = {{cx, cy}};
+            data->amount = 0.01;
+            timer.restart();
+            const auto candidate = previewTerrainEdit(doc, terrain, terrainSculptKind, data);
+            nine.push_back(ms(timer));
+            nineTiles.push_back(double(candidate.region.replaced.size()));
+            nineMoved.push_back(double(candidate.liftedVertices));
+            nineTriangles.push_back(double(touchedTriangles(candidate)));
+            timer.restart();
+            applyTerrainEdit(doc, terrain, terrainSculptKind, data, "Sculpt terrain");
+            nineCommit.push_back(ms(timer));
+            QElapsedTimer update;
+            update.start();
+            (void)surfaces.get(doc, terrain);
+            (void)contours.get(doc, terrain);
+            nineDisplay.push_back(ms(update));
+        }
+        result["brushOverCells"] = QJsonObject{{"radiusCells", 1.1},
+                                               {"tilesTouched", stats(nineTiles)},
+                                               {"touchedTriangles", stats(nineTriangles)},
+                                               {"verticesMoved", stats(nineMoved)},
+                                               {"previewMs", stats(nine)},
+                                               {"coreCommitMs", stats(nineCommit)},
+                                               {"displayUpdateMs", stats(nineDisplay)}};
+    }
+    while (doc.canUndo() && !doc.bodies().at(terrain)->terrain->edits.empty())
+        doc.undo();
+    // A replaying Regenerate of sculpt entries (half raise, half three-iteration smooth).
+    if (replayEntries > 0) {
+        for (int i = 0; i < replayEntries; ++i) {
+            const auto &key = bySize[std::size_t(i) % pool].second;
+            auto data = stroke(key, 0.25);
+            if (i % 2) {
+                data->amount = 0;
+                data->strength = 0.5;
+                data->iterations = 3;
+            }
+            try {
+                applyTerrainEdit(doc, terrain, i % 2 ? terrainSmoothKind : terrainSculptKind, data,
+                                 "Sculpt terrain");
+            } catch (const TerrainError &) {
+                // A smoothing stroke over an already smooth patch may move nothing: skip it.
+            }
+        }
+        const auto entries = doc.bodies().at(terrain)->terrain->edits.size();
+        const QJsonObject regenerate{{"command", "terrain.regenerate"},
+                                     {"terrain", QString::number(terrain)}};
+        timer.restart();
+        const auto request = parseTerrainReplayRequest(doc, regenerate);
+        const double requestMs = ms(timer);
+        timer.restart();
+        auto replayed = runTerrainReplay(request);
+        const double runMs = ms(timer);
+        check(replayed.ok, "the sculpt replay succeeds");
+        timer.restart();
+        const auto noOp = applyTerrainReplay(doc, request, std::move(replayed));
+        const double applyMs = ms(timer);
+        check(!noOp["changed"].toBool(), "Regenerate after the sculpts is a no-op");
+        result["replay"] = QJsonObject{{"entries", double(entries)},
+                                       {"requestMs", requestMs},
+                                       {"runMs", runMs},
+                                       {"applyMs", applyMs},
+                                       {"totalMs", requestMs + runMs + applyMs}};
+        while (doc.canUndo() && !doc.bodies().at(terrain)->terrain->edits.empty())
+            doc.undo();
+    }
+    return result;
+}
+
 QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject &command,
-                    int edits, int replayEntries, int cancelTrials, int sourceEdits) {
+                    int edits, int replayEntries, int cancelTrials, int sourceEdits, int sculpts,
+                    int sculptReplay) {
     Document doc;
     auto request = parseTerrainSourceRequest(bytes, command);
     auto result = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
@@ -359,6 +567,8 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
     const auto triangles = terrainTriangleCount(doc, terrain);
     const auto sourceEditResult =
         sourceEdits > 0 ? measureSourceEdits(doc, terrain, sourceEdits) : QJsonObject{};
+    const auto sculptResult =
+        sculpts > 0 ? measureSculpts(doc, terrain, sculpts, sculptReplay) : QJsonObject{};
     {
         auto display = doc.bodies().at(terrain)->terrain->display;
         display.contours = true;
@@ -522,13 +732,15 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
                                     {"editsPer512MiB", double(Document::terrainHistoryLimit) / perEdit},
                                     {"undone", double(undone)}}},
             {"seamCheckMs", seamTime},
-            {"sourceEdits", sourceEditResult}};
+            {"sourceEdits", sourceEditResult},
+            {"sculpts", sculptResult}};
 }
 } // namespace
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
-    int edits = 200, replay = 1000, cancel = 20, sourceEdits = 100;
+    int edits = 200, replay = 1000, cancel = 20, sourceEdits = 100, sculpts = 100,
+        sculptReplay = 1000;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--edits" && i + 1 < argc)
@@ -539,6 +751,10 @@ int main(int argc, char **argv) {
             cancel = std::max(0, std::atoi(argv[++i]));
         else if (arg == "--source-edits" && i + 1 < argc)
             sourceEdits = std::max(0, std::atoi(argv[++i]));
+        else if (arg == "--sculpts" && i + 1 < argc)
+            sculpts = std::max(0, std::atoi(argv[++i]));
+        else if (arg == "--sculpt-replay" && i + 1 < argc)
+            sculptReplay = std::max(0, std::atoi(argv[++i]));
     }
     kinds::registerKinds();
     try {
@@ -549,10 +765,10 @@ int main(int argc, char **argv) {
                                  {"columns", "XYZ"},
                                  {"delimiter", "whitespace"},
                                  {"header", false}},
-                                edits, replay, cancel, sourceEdits));
+                                edits, replay, cancel, sourceEdits, sculpts, sculptReplay));
         terrains.append(measure("contours", contourSource(416, 300),
                                 {{"format", "dxf"}, {"units", "header"}}, edits, replay,
-                                cancel, sourceEdits));
+                                cancel, sourceEdits, sculpts, sculptReplay));
         QJsonObject out{{"benchmark", "terrain_edit_benchmark"},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                         {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},

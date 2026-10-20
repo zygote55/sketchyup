@@ -404,7 +404,7 @@ feature.
   next entry takes, so ids are never reused; it must exceed every entry's id. R096.a defines
   no kind (its test-only kinds are not part of the format); R096.b–e add `sculpt`, `smooth`,
   `editSource`, `addSource`, `removeSource`, `stamp` and `drape` with their fields (R096.c's
-  three are in the addendum below).
+  three and R096.b's two are in the addenda below).
 - A tile marker is `terrainTile: {key: [row, column, path, part]}` in place of `true`:
   `row` and `column` integers within ±2^53 (negative outside the original extent), `path` a
   string of at most 24 quadrant digits `0`–`3`, `part` an integer 0–9,999.
@@ -443,6 +443,26 @@ Each entry's fields after `id` and `kind` are exactly these (a reader refuses ot
 
 The base sources never change; the current sources are derived from them and the list. Source
 coordinates are stored as +0.0 where an import produced −0.0, since JSON keeps no sign of zero.
+
+**Schema 29 addendum: sculpt and smooth (R096.b).** 2026-10-20. Two more kinds
+([ADR 0169](0169-terrain-editing-drape-stamp.md#implementation-notes-r096b)), each with exactly
+these fields after `id` and `kind` (a reader refuses others):
+
+- `sculpt {path, radius, falloff, amount}` or `sculpt {region, falloffWidth, falloff, amount}`;
+  `smooth` has the same scope fields with `strength` and `iterations` in place of `amount`.
+- `path` is a brush stroke of 1 to 256 plan points `[x, y]` in the terrain frame, finite and
+  within ±1e6; `radius` is 0.01 to 1,000.
+- `region` is a closed polygon of 3 to 20,000 such points (the closing edge implied, no point
+  repeating the one before it, a nonzero area); `falloffWidth` is 0 to 1,000.
+- `falloff` is `smooth`, `linear` or `constant`.
+- `amount` is a non-zero height of at most 1,000 in magnitude; `strength` is above 0 and at most
+  1; `iterations` is an integer 1 to 8.
+
+An entry stores only its parameters: the vertices it moves and the source vertices it clips from
+the current sources are derived from the mesh and the current sources at its place in the list.
+A source line a sculpt splits keeps its id for its first remaining run; each further run takes
+the id 2^32 − 1 − (entry id − 1) × 4,096 − n for its n-th further run (0-based), so these ids are
+never reused either.
 
 **The `terrain-mesh` chunk.** It follows the asset chunks, at most once and only with
 `terrain-v1`: `{kind: "terrain-mesh", encoding: "f64-u32-le-v1", offset, bytes,

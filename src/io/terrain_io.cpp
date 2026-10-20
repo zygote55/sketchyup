@@ -2,6 +2,7 @@
 #include "core/document_limits.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
+#include "core/terrain_sculpt.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "io/native_limits.hpp"
 #include <QJsonArray>
@@ -181,6 +182,80 @@ std::vector<TerrainEditCodec> builtinCodecs() {
                  }
                  try {
                      validateTerrainSourceEditData(kind, *data);
+                 } catch (const std::invalid_argument &error) {
+                     throw std::runtime_error(error.what());
+                 }
+                 return data;
+             }});
+    }
+    // R096.b sculpt and smooth (ADR 0169 §4.1, §7): a brush {path, radius} or a region
+    // {region, falloffWidth}, the falloff, and {amount} or {strength, iterations}. Plan points
+    // are [x, y] in the terrain frame.
+    for (const std::string kind : {terrainSculptKind, terrainSmoothKind}) {
+        const bool sculpt = kind == terrainSculptKind;
+        list.push_back(
+            {kind,
+             [sculpt](const TerrainEditData &data) {
+                 const auto &edit = dynamic_cast<const TerrainSculptData &>(data);
+                 auto plan = [](const std::vector<std::array<double, 2>> &points) {
+                     QJsonArray list;
+                     for (const auto &p : points)
+                         list.append(QJsonArray{p[0], p[1]});
+                     return list;
+                 };
+                 QJsonObject object{{"falloff", terrainFalloffName(edit.falloff)}};
+                 if (edit.brush()) {
+                     object["path"] = plan(edit.path);
+                     object["radius"] = edit.radius;
+                 } else {
+                     object["region"] = plan(edit.region);
+                     object["falloffWidth"] = edit.width;
+                 }
+                 if (sculpt)
+                     object["amount"] = edit.amount;
+                 else {
+                     object["strength"] = edit.strength;
+                     object["iterations"] = edit.iterations;
+                 }
+                 return object;
+             },
+             [kind, sculpt](const QJsonObject &entry) -> std::shared_ptr<const TerrainEditData> {
+                 const bool brush = entry.contains("path");
+                 QStringList fields{"falloff"};
+                 fields << (brush ? "path" : "region") << (brush ? "radius" : "falloffWidth");
+                 if (sculpt)
+                     fields << "amount";
+                 else
+                     fields << "strength" << "iterations";
+                 exactFields(entry, fields, "terrain sculpt");
+                 auto data = std::make_shared<TerrainSculptData>();
+                 const auto falloff = terrainFalloffOf(text(entry["falloff"]));
+                 if (!falloff)
+                     throw std::runtime_error("Unknown terrain sculpt falloff");
+                 data->falloff = *falloff;
+                 const auto points = array(entry[brush ? "path" : "region"]);
+                 if (std::size_t(points.size()) >
+                     (brush ? terrainSculptPathPoints : terrainSculptRegionPoints))
+                     throw std::runtime_error("A terrain sculpt has too many points");
+                 auto &list = brush ? data->path : data->region;
+                 list.reserve(std::size_t(points.size()));
+                 for (const auto &value : points) {
+                     const auto xy = array(value);
+                     if (xy.size() != 2)
+                         throw std::runtime_error("A terrain sculpt point is [x, y]");
+                     list.push_back({number(xy[0]), number(xy[1])});
+                 }
+                 (brush ? data->radius : data->width) =
+                     number(entry[brush ? "radius" : "falloffWidth"]);
+                 if (sculpt)
+                     data->amount = number(entry["amount"]);
+                 else {
+                     data->strength = number(entry["strength"]);
+                     data->iterations =
+                         int(integer(entry["iterations"], 1, terrainSmoothIterationsMax));
+                 }
+                 try {
+                     validateTerrainSculptData(kind, *data);
                  } catch (const std::invalid_argument &error) {
                      throw std::runtime_error(error.what());
                  }

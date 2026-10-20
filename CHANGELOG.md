@@ -15,6 +15,18 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Sculpt and smooth (R096.b, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096b)):
+  a new `terrain.sculpt` command (automation sessions and MCP; hidden from the in-app
+  assistant) raises, lowers or smooths a terrain inside a brush stroke (1 to 256 points, a
+  radius of 0.01 to 1,000 m, a smooth, linear or constant falloff) or a closed region with a
+  falloff width. Only elevations change; the triangles are kept. A stroke moves each vertex
+  once, by its distance to the whole stroke, so the result does not depend on how the stroke
+  was sampled. Contour, breakline and spot-point vertices under the change become edited
+  ground and leave the current sources; a contour cut in two keeps its id for one part and
+  gives the other a new id. Each change is one undoable edit ("Sculpt terrain" or "Smooth
+  terrain") recorded in the terrain's edit list, so Regenerate reproduces it; out-of-range
+  parameters and a brush that reaches no vertex are refused and change nothing.
+
 - Contour edit (R096.c, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096c)):
   new `terrain.edit_source`, `terrain.add_source` and `terrain.remove_source` commands
   (automation sessions and MCP; hidden from the in-app assistant) move, reshape, re-elevate, add

@@ -8,6 +8,7 @@
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
+#include "core/terrain_sculpt.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "fuzz/parameter_expression_harness.hpp"
 #include "integrations/glb_export.hpp"
@@ -411,6 +412,21 @@ int main(int argc, char **argv) {
                 removed->before = {-1, -1, 1, 1};
                 list.append(encodeTerrainEdit({10, terrainAddSourceKind, added}));
                 list.append(encodeTerrainEdit({11, terrainRemoveSourceKind, removed}));
+            }
+            // R096.b: sculpt and smooth join it too.
+            {
+                auto brush = std::make_shared<TerrainSculptData>();
+                brush->path = {{1, 2}, {4, 6}};
+                brush->radius = 2;
+                brush->amount = 0.5;
+                auto region = std::make_shared<TerrainSculptData>();
+                region->region = {{0, 0}, {6, 0}, {3, 5}};
+                region->width = 1;
+                region->falloff = TerrainFalloff::Constant;
+                region->strength = 1;
+                region->iterations = 8;
+                list.append(encodeTerrainEdit({12, terrainSculptKind, brush}));
+                list.append(encodeTerrainEdit({13, terrainSmoothKind, region}));
             }
             results.append(exercise("terrain-edits", QJsonDocument(list).toJson(QJsonDocument::Compact),
                                     [](const auto &bytes, bool &parsed) {

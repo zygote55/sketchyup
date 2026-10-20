@@ -3,6 +3,7 @@
 #include "core/terrain_display.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
+#include "core/terrain_sculpt.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sources.hpp"
 #include "io/terrain_import.hpp"
@@ -724,6 +725,177 @@ QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeR
                                   {"added", idList(applied.tiles.added)}}},
             {"terrainReport", sourceEditReport(report, envelope)}};
 }
+
+// ---- R096.b: terrain.sculpt -------------------------------------------------------------------
+// A brush path or a region polygon in model [x, y], converted once to the terrain frame (ADR
+// 0169 §4); radius and width in plan metres, the amount in model Z metres. The plan of a level
+// terrain is scaled evenly (a similarity), so plan distances convert by one factor.
+double finiteNumber(const QJsonObject &command, const char *key, const char *message) {
+    const auto value = command[key];
+    if (!value.isDouble() || !std::isfinite(value.toDouble()))
+        reject("INVALID_REQUEST", message);
+    return value.toDouble();
+}
+std::vector<std::array<double, 2>> localPlan(const QJsonValue &value, const Transform &toLocal,
+                                             std::size_t limit, const char *message) {
+    if (value.isArray() && std::size_t(value.toArray().size()) > limit)
+        reject("LIMIT_EXCEEDED", message);
+    if (!value.isArray() || value.toArray().isEmpty())
+        reject("INVALID_REQUEST", message);
+    std::vector<std::array<double, 2>> points;
+    for (const auto &entry : value.toArray()) {
+        const auto xy = entry.toArray();
+        if (!entry.isArray() || xy.size() != 2)
+            reject("INVALID_REQUEST", "A plan point is [x, y] in model metres");
+        const auto local = toLocal.point({coordinate(xy[0]), coordinate(xy[1]), 0});
+        points.push_back({local.x + 0.0, local.y + 0.0}); // -0.0 is stored as 0.0 (JSON)
+    }
+    return points;
+}
+QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+    onlyFields(command, {"command", "terrain", "mode", "path", "radius", "falloff", "region",
+                         "falloffWidth", "amount", "strength", "iterations"});
+    const auto terrain = identity(command["terrain"]);
+    if (!isTerrain(doc, terrain))
+        reject("NOT_FOUND", "Terrain body does not exist");
+    requireUnlockedTerrain(doc, terrain);
+    requireLevelTerrain(doc, terrain);
+    const auto mode = command["mode"].toString();
+    if (!command["mode"].isString() || (mode != "raise" && mode != "smooth"))
+        reject("INVALID_REQUEST", "mode is raise or smooth");
+    const bool raise = mode == "raise";
+    const std::string kind = raise ? terrainSculptKind : terrainSmoothKind;
+    const auto world = doc.worldTransform(terrain);
+    const auto toLocal = world.inverse();
+    const auto &m = world.m;
+    const double sx = std::hypot(m[0], m[1]), sy = std::hypot(m[4], m[5]);
+    if (!(sx > 0) || std::abs(sx - sy) > 1e-9 * sx || std::abs(m[0] * m[4] + m[1] * m[5]) > 1e-9 * sx * sy)
+        reject("INVALID_OPERATION", "Sculpting needs a terrain scaled evenly in plan");
+    const bool hasPath = command.contains("path"), hasRegion = command.contains("region");
+    if (hasPath == hasRegion)
+        reject("INVALID_REQUEST", "Give a brush path or a region, not both");
+    auto data = std::make_shared<TerrainSculptData>();
+    if (command.contains("falloff")) {
+        const auto falloff = terrainFalloffOf(command["falloff"].toString().toStdString());
+        if (!command["falloff"].isString() || !falloff)
+            reject("INVALID_REQUEST", "falloff is smooth, linear or constant");
+        data->falloff = *falloff;
+    }
+    if (hasPath) {
+        if (command.contains("falloffWidth"))
+            reject("INVALID_REQUEST", "falloffWidth applies to a region; a brush has a radius");
+        if (!command.contains("radius"))
+            reject("INVALID_REQUEST", "A brush needs its radius (0.01 to 1,000 m)");
+        data->path = localPlan(command["path"], toLocal, terrainSculptPathPoints,
+                               "path is a list of 1 to 256 model points [x, y]");
+        data->radius = finiteNumber(command, "radius", "The brush radius is 0.01 to 1,000 m") / sx;
+    } else {
+        if (command.contains("radius"))
+            reject("INVALID_REQUEST", "radius applies to a brush; a region has a falloffWidth");
+        auto region = localPlan(command["region"], toLocal, terrainSculptRegionPoints + 1,
+                                "region is a closed polygon of 3 to 20,000 model points [x, y]");
+        // Repeated consecutive points (and a repeated first point closing the polygon) are
+        // dropped; the closing edge is implied.
+        std::vector<std::array<double, 2>> corners;
+        for (const auto &p : region)
+            if (corners.empty() || corners.back() != p)
+                corners.push_back(p);
+        while (corners.size() > 1 && corners.back() == corners.front())
+            corners.pop_back();
+        if (corners.size() > terrainSculptRegionPoints)
+            reject("LIMIT_EXCEEDED", "region is a closed polygon of 3 to 20,000 model points [x, y]");
+        data->region = std::move(corners);
+        data->width = command.contains("falloffWidth")
+                          ? finiteNumber(command, "falloffWidth",
+                                         "The falloff width is 0 to 1,000 m") / sx
+                          : 0;
+    }
+    if (raise) {
+        if (command.contains("strength") || command.contains("iterations"))
+            reject("INVALID_REQUEST", "strength and iterations apply to mode smooth");
+        if (!command.contains("amount"))
+            reject("INVALID_REQUEST", "mode raise needs an amount in metres (negative lowers)");
+        data->amount = finiteNumber(command, "amount", "The amount is a height in metres") / m[10];
+    } else {
+        if (command.contains("amount"))
+            reject("INVALID_REQUEST", "amount applies to mode raise");
+        data->strength = command.contains("strength")
+                             ? finiteNumber(command, "strength",
+                                            "The smoothing strength is above 0 and at most 1")
+                             : 0.5;
+        data->iterations = 1;
+        if (command.contains("iterations")) {
+            const double iterations = finiteNumber(command, "iterations",
+                                                   "Smoothing runs 1 to 8 iterations");
+            if (iterations != std::floor(iterations) || iterations < 1 ||
+                iterations > terrainSmoothIterationsMax)
+                reject("INVALID_REQUEST", "Smoothing runs 1 to 8 iterations");
+            data->iterations = int(iterations);
+        }
+    }
+    try {
+        validateTerrainSculptData(kind, *data);
+    } catch (const std::invalid_argument &error) {
+        reject("INVALID_REQUEST", error.what());
+    }
+    // The dry run: refusals with their code and a located report, and the counts reported.
+    const auto &record = *doc.bodies().at(terrain)->terrain;
+    TerrainSculptPlan plan;
+    {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto state = terrainSourceState(record);
+        const TerrainEdit entry{record.nextEditId, kind, data};
+        plan = planTerrainSculpt({*mesh, *state, record.parameters}, entry);
+    }
+    TerrainReport report;
+    if (!plan.refusal.empty()) {
+        const auto &first = data->brush() ? data->path.front() : data->region.front();
+        const auto at = world.point({first[0], first[1], 0});
+        const auto problem = plan.refusalCode == "LIMIT_EXCEEDED" ? "limit-exceeded" : "nothing-moved";
+        report.locate(TerrainReport::Severity::Refusal, problem, plan.refusal,
+                      {data->brush() ? "brush" : "region", {}, std::array<double, 2>{at.x, at.y}});
+        throw TerrainImportError(plan.refusalCode, plan.refusal, sourceEditReport(report, {}),
+                                 "terrainReport");
+    }
+    const auto applied =
+        applyTerrainEdit(doc, terrain, kind, data, raise ? "Sculpt terrain" : "Smooth terrain");
+    changes = applied.tiles.changes;
+    if (plan.clip.vertices)
+        report.add(TerrainReport::Severity::Notice, "sources-clipped", plan.clip.vertices,
+                   "Source contour, breakline and spot-point vertices under the change are edited "
+                   "ground now and were clipped from the current sources.");
+    if (plan.protectedVertices)
+        report.add(TerrainReport::Severity::Notice, "pad-protected", plan.protectedVertices,
+                   "Vertices on building pads were not moved.");
+    if (applied.tiles.paintDropped.faces)
+        report.add(TerrainReport::Severity::Notice, "face-paint-dropped",
+                   applied.tiles.paintDropped.faces,
+                   "Per-face paint on the rebuilt tiles cannot follow the new mesh and was "
+                   "removed; the tiles' own material is kept.");
+    const QJsonObject envelope{
+        {"edit", double(applied.edit)},
+        {"kind", QString::fromStdString(kind)},
+        {"mode", mode},
+        {"scope", data->brush() ? "brush" : "region"},
+        {"verticesMoved", double(plan.change.lifted.size())},
+        {"verticesInfluenced", double(plan.influenced)},
+        {"verticesProtected", double(plan.protectedVertices)},
+        {"tilesTouched", double(applied.tiles.removed.size())},
+        {"tilesAdded", double(applied.tiles.added.size())},
+        {"sourcesClipped", QJsonObject{{"sources", double(plan.clip.sources.size())},
+                                       {"vertices", double(plan.clip.vertices)},
+                                       {"pieces", double(plan.clip.pieces)},
+                                       {"removed", double(plan.clip.removed)}}}};
+    return {{"command", "terrain.sculpt"},
+            {"terrain", QString::number(terrain)},
+            {"edit", double(applied.edit)},
+            {"mode", mode},
+            {"changed", true},
+            {"verticesMoved", double(plan.change.lifted.size())},
+            {"tiles", QJsonObject{{"removed", idList(applied.tiles.removed)},
+                                  {"added", idList(applied.tiles.added)}}},
+            {"terrainReport", sourceEditReport(report, envelope)}};
+}
 } // namespace
 TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command) {
     const auto name = command["command"].toString();
@@ -826,7 +998,8 @@ bool isTerrainCommand(const QString &name) {
            name == "terrain.set_parameters" || name == "terrain.regenerate" ||
            name == "terrain.set_display" || name == "terrain.reset_edits" ||
            name == "terrain.remove_edit" || name == "terrain.edit_source" ||
-           name == "terrain.add_source" || name == "terrain.remove_source";
+           name == "terrain.add_source" || name == "terrain.remove_source" ||
+           name == "terrain.sculpt";
 }
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command) {
@@ -971,6 +1144,13 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
         name == "terrain.remove_source") {
         ChangeReport changes;
         auto record = editTerrainSource(doc, command, changes);
+        if (operation)
+            *operation = std::move(record);
+        return changes;
+    }
+    if (name == "terrain.sculpt") {
+        ChangeReport changes;
+        auto record = sculptTerrain(doc, command, changes);
         if (operation)
             *operation = std::move(record);
         return changes;
@@ -1184,6 +1364,10 @@ QJsonArray terrainCommandSpecs() {
                               {"maxItems", 3}}},
         {"description", "Model points [x, y, z] (or [x, y] for a contour with an elevation); a "
                         "closed polyline repeats its first point"}};
+    const QJsonObject planPoint{{"type", "array"},
+                                {"items", coordinateSchema},
+                                {"minItems", 2},
+                                {"maxItems", 2}};
     const QJsonObject idSchema{{"type", "string"}, {"pattern", "^[1-9][0-9]*$"}, {"maxLength", 20}};
     const QJsonObject edgeSchema{{"type", "object"},
                                  {"properties", QJsonObject{{"body", idSchema}, {"edge", idSchema}}},
@@ -1290,6 +1474,58 @@ QJsonArray terrainCommandSpecs() {
              {"terrain"}),
         spec("terrain.remove_source", "Remove contour", {{"terrain", terrainId}, {"source", sourceId}},
              {"terrain", "source"}),
+        // R096.b (ADR 0169 §4.1): one of path (brush) or region; amount for raise, strength
+        // and iterations for smooth.
+        spec("terrain.sculpt", "Sculpt terrain",
+             {{"terrain", terrainId},
+              {"mode", QJsonObject{{"type", "string"},
+                                   {"enum", QJsonArray{"raise", "smooth"}},
+                                   {"description", "raise (a negative amount lowers; \"Sculpt "
+                                                   "terrain\") or smooth (\"Smooth terrain\")"}}},
+              {"path", QJsonObject{{"type", "array"},
+                                   {"minItems", 1},
+                                   {"maxItems", int(terrainSculptPathPoints)},
+                                   {"items", planPoint},
+                                   {"description", "Brush stroke as model [x, y]; a click is one "
+                                                   "point. The stroke is swept: each vertex moves "
+                                                   "once, by its distance to the whole path"}}},
+              {"radius", QJsonObject{{"type", "number"},
+                                     {"minimum", terrainSculptRadiusMin},
+                                     {"maximum", terrainSculptRadiusMax},
+                                     {"description", "Brush radius, plan metres"}}},
+              {"falloff", QJsonObject{{"type", "string"},
+                                      {"enum", QJsonArray{"smooth", "linear", "constant"}},
+                                      {"description", "Weight from 1 at the path or inside the "
+                                                      "region to 0 at the radius or falloff "
+                                                      "width; default smooth"}}},
+              {"region", QJsonObject{{"type", "array"},
+                                     {"minItems", 3},
+                                     {"maxItems", int(terrainSculptRegionPoints) + 1},
+                                     {"items", planPoint},
+                                     {"description", "Closed polygon as model [x, y] (at most "
+                                                     "20,000 corners; a last point repeating the "
+                                                     "first is dropped)"}}},
+              {"falloffWidth", QJsonObject{{"type", "number"},
+                                           {"minimum", 0},
+                                           {"maximum", terrainSculptWidthMax},
+                                           {"description", "Plan metres outside the region over "
+                                                           "which the weight falls to 0; default "
+                                                           "0"}}},
+              {"amount", QJsonObject{{"type", "number"},
+                                     {"minimum", -terrainSculptAmountMax},
+                                     {"maximum", terrainSculptAmountMax},
+                                     {"description", "raise: metres at full weight, not 0 "
+                                                     "(negative lowers)"}}},
+              {"strength", QJsonObject{{"type", "number"},
+                                       {"exclusiveMinimum", 0},
+                                       {"maximum", 1},
+                                       {"description", "smooth: the step toward the neighbours' "
+                                                       "mean per iteration; default 0.5"}}},
+              {"iterations", QJsonObject{{"type", "integer"},
+                                         {"minimum", 1},
+                                         {"maximum", terrainSmoothIterationsMax},
+                                         {"description", "smooth: default 1"}}}},
+             {"terrain", "mode"}),
         spec("terrain.set_display", "Terrain display",
              {{"terrain", terrainId},
               {"contours", QJsonObject{{"type", "boolean"},

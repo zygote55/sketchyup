@@ -1,5 +1,6 @@
 #include "core/terrain_edit.hpp"
 #include "core/terrain_source_edit.hpp"
+#include "core/terrain_sculpt.hpp"
 #include "core/terrain_sources.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
@@ -535,8 +536,14 @@ TerrainSeamReport checkTerrainSeams(const Document &doc, Id terrain) {
 // ---- Edit kinds -----------------------------------------------------------------------------
 namespace {
 std::vector<TerrainEditKind> &kinds() {
-    // R096.c: the source edits are built in; R096.b, d and e add theirs here.
-    static std::vector<TerrainEditKind> registered = terrainSourceEditKinds();
+    // R096.c: the source edits are built in; R096.b: sculpt and smooth; R096.d and e add
+    // theirs here.
+    static std::vector<TerrainEditKind> registered = [] {
+        auto list = terrainSourceEditKinds();
+        for (auto &kind : terrainSculptKinds())
+            list.push_back(std::move(kind));
+        return list;
+    }();
     return registered;
 }
 } // namespace

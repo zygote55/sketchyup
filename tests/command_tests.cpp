@@ -1173,6 +1173,12 @@ int main(int argc, char **argv) {
                        {"role", "points"},
                        {"points", QJsonArray{QJsonArray{1.5, 0.5, -2.5}}}});
         parameterCase("terrain.remove_source", {{"terrain", "1"}, {"source", 1}});
+        // R096.b: a sculpt on the same fixture (a click over one corner of the triangle).
+        parameterCase("terrain.sculpt", {{"terrain", "1"},
+                                         {"mode", "raise"},
+                                         {"path", QJsonArray{QJsonArray{2, 0}}},
+                                         {"radius", 1},
+                                         {"amount", 0.5}});
         // R095.e2: display settings (contours, interval, shading); the fixture is set below.
         parameterCase("terrain.set_display", {{"terrain", "1"},
                                               {"contours", true},
@@ -1385,7 +1391,8 @@ int main(int argc, char **argv) {
                 command["command"] == "terrain.remove_edit" ||
                 command["command"] == "terrain.edit_source" ||
                 command["command"] == "terrain.add_source" ||
-                command["command"] == "terrain.remove_source") {
+                command["command"] == "terrain.remove_source" ||
+                command["command"] == "terrain.sculpt") {
                 // Stored points whose mesh is not the hand-made one, so both commit.
                 TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}}, {{0, 1, 2}}};
                 TerrainRecord record;

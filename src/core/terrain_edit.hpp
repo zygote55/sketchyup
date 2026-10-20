@@ -125,8 +125,8 @@ struct TerrainEditKind {
     // Later source edits whose geometry enters one are refused ("inside-pad").
     std::function<std::vector<TerrainPlanPolygon>(const TerrainEdit &)> protects;
 };
-// The kinds R096 defines (R096.a: none; R096.c: editSource, addSource and removeSource; R096.b,
-// d and e add sculpt, smooth, stamp and drape) plus any registered by tests. Registration is for
+// The kinds R096 defines (R096.a: none; R096.c: editSource, addSource and removeSource; R096.b:
+// sculpt and smooth; R096.d and e add stamp and drape) plus any registered by tests. Registration is for
 // tests and the benchmark (terrain_edit_benchmark's test-only operation); it is not thread-safe
 // and must happen before any terrain work.
 void registerTerrainEditKind(TerrainEditKind kind);
