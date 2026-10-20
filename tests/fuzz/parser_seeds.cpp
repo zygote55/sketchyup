@@ -5,6 +5,7 @@
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
+#include "core/terrain_edit.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
 #include "io/stl_export.hpp"
@@ -298,6 +299,30 @@ int main(int argc, char **argv) {
                 oversized.append(word, 4);
             }
             publishRejected("terrain-mesh", oversized, "oversized-counts");
+            // R096.a: the edit list decoder (with the test-only kinds R096.a has): a lift and a
+            // split as an edit applies them, and a list one entry over the 4,096 bound.
+            fuzz::registerTerrainTestKinds();
+            Id terrainId = 0;
+            for (const auto &[id, body] : terrain.bodies())
+                if (body->terrain)
+                    terrainId = id;
+            const auto tile = terrain.bodies().at(terrainTiles(terrain, terrainId).front());
+            applyTerrainEdit(terrain, terrainId, "test.lift",
+                             terrain_test_kinds::lift(tile->tileKey, .5), "Lift");
+            applyTerrainEdit(terrain, terrainId, "test.split", terrain_test_kinds::split(7.3, 9.1),
+                             "Split");
+            QJsonArray edits;
+            for (const auto &edit : terrain.bodies().at(terrainId)->terrain->edits)
+                edits.append(encodeTerrainEdit(*edit));
+            publish("terrain-edits", QJsonDocument(edits).toJson(QJsonDocument::Compact), "list");
+            QJsonArray tooMany;
+            for (int i = 0; i < 4097; ++i) {
+                auto entry = edits[0].toObject();
+                entry["id"] = i + 1;
+                tooMany.append(entry);
+            }
+            publishRejected("terrain-edits", QJsonDocument(tooMany).toJson(QJsonDocument::Compact),
+                            "oversized-count");
         }
         // R095.c: terrain sources, the generated fixtures (ADR 0168 section 6). The invalid
         // fixture parses and its import is refused, which the harness checks too.

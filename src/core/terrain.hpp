@@ -20,9 +20,12 @@ struct TerrainMesh {
 // than TerrainLimits::tileTriangles. Each tile lists its triangle indices in input
 // order; tiles are row-major (rows by Y, then columns by X), empty cells omitted.
 // The tiles partition the triangle set.
+// R096.a: the grid is part of the record (TerrainTileGrid: the minimum centroid as origin and
+// the cell), and each tile has its key (row, column, "" path, part in a cluster).
 struct TerrainTiling {
-    double cell{};
+    double cell{}, originX{}, originY{};
     std::vector<std::vector<std::uint32_t>> tiles;
+    std::vector<TerrainTileKey> keys; // one per tile, ascending
 };
 // D-044: with `progress`, reports TerrainStage::Tile and may throw TerrainCancelled.
 TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh, TerrainProgress *progress = nullptr);
@@ -57,8 +60,12 @@ void requireOrdinaryGeometry(const Document &doc, Id body);
 bool isTerrain(const Document &doc, Id body);
 std::vector<Id> terrainTiles(const Document &doc, Id terrain); // ascending IDs
 std::size_t terrainTriangleCount(const Document &doc, Id terrain);
-// SHA-256 (lowercase hex) of u32 tile count followed by every tile's bytes in ID order.
+// SHA-256 (lowercase hex) of u32 tile count followed by every tile's bytes in tile-key order
+// (R096.a; ADR 0169 §3). For a terrain that was never edited key order is ID order, so its
+// digest is the R095 one. The vector is ordered by key here (a stable sort).
 std::string terrainMeshDigest(const std::vector<const Body *> &tiles);
+// The terrain's tiles in key order.
+std::vector<Id> terrainTilesInKeyOrder(const Document &doc, Id terrain);
 std::string terrainMeshDigest(const Document &doc, Id terrain);
 // "Changed since generated": the stored digest no longer matches the tiles.
 bool terrainChangedSinceGenerated(const Document &doc, Id terrain);
@@ -69,7 +76,8 @@ struct TerrainCreated {
     ChangeReport changes;
 };
 // Refuses (LIMIT_EXCEEDED) when the document's terrain triangles would exceed
-// TerrainLimits::triangles; record.meshDigest is computed here.
+// TerrainLimits::triangles; record.meshDigest and record.tiling are computed here, and sources
+// whose ids are all zero are numbered 1..n (R096.a).
 TerrainCreated createTerrain(Document &doc, const TerrainMesh &mesh, TerrainRecord record,
                              Id parent = 0, std::string name = "Terrain");
 // R095.c: an imported terrain, and the site origin when the document has none yet, as ONE
@@ -118,6 +126,17 @@ struct TerrainRegenerated {
 TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainMesh &mesh,
                                      TerrainRecord record,
                                      std::string label = "Regenerate terrain");
+// R096.a: the same with the tiles already built (a replay's result: keyed tile contents and
+// the grid, see core/terrain_edit.hpp). The tile-ID rule is the generalised one (ADR 0169 §3):
+// a new tile whose key and mesh equal an old tile's keeps that tile's ID; every other new tile
+// takes a new ID from the document allocator in key order; old tiles not kept are removed. So
+// a Regenerate that changes nothing changes no IDs, wherever the change is.
+struct TerrainTileSet;
+TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainTileSet &tiles,
+                                     TerrainRecord record,
+                                     std::string label = "Regenerate terrain");
+// R096.a: the source ids 1..n when every id is zero (records built by importers and tests).
+void assignTerrainSourceIds(TerrainRecord &record);
 // Establishes the site origin; refuses (INVALID_REQUEST) when one exists.
 void setSiteOrigin(Document &doc, SiteOrigin origin);
 // Changes the origin and moves by the difference every stored world position: top-level
@@ -136,7 +155,10 @@ struct TerrainElevation {
     double elevation{};
     Id tile{}, face{};
 };
-// Highest terrain surface under each model-space XY point.
+// Highest terrain surface under each model-space XY point. R096.a: the candidate tiles come
+// from the edit mesh's grid index (terrainEditMeshCache) when the terrain's world frame is a
+// pure translation; the per-tile test and the visiting order (ascending tile ID, then face) are
+// R095's, so the results are the same bits as the full scan.
 std::vector<TerrainElevation> terrainElevationAt(const Document &doc, Id terrain,
                                                  const std::vector<std::array<double, 2>> &points);
 } // namespace sketchy

@@ -1643,7 +1643,18 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             reportFaceTextureMappingChanges(before, *change.after, changes.faces);
             change.edgeAppearancesResolved = true;
         }
-        charged += sizeof(Change) + bytes(change.before) + bytes(change.after);
+        // R096.a structural sharing (ADR 0169 §2): a terrain record change is charged its own
+        // fields and only the shared parts (source block, edit entries) one side holds alone.
+        const auto *recordBefore =
+            change.before && change.before->terrain ? &*change.before->terrain : nullptr;
+        const auto *recordAfter =
+            change.after && change.after->terrain ? &*change.after->terrain : nullptr;
+        if (recordBefore && recordAfter)
+            charged += sizeof(Change) + bytes(change.before) + bytes(change.after) -
+                       terrainRecordBytes(*recordBefore) - terrainRecordBytes(*recordAfter) +
+                       terrainRecordChangeBytes(recordBefore, recordAfter);
+        else
+            charged += sizeof(Change) + bytes(change.before) + bytes(change.after);
         const std::map<Id, Curve> noCurves;
         changes.curves = compareCurves(change.before ? change.before->curves : noCurves,
                                        change.after ? change.after->curves : noCurves);

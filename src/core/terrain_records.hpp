@@ -1,7 +1,11 @@
 #pragma once
 #include "geometry/surface.hpp"
 #include <array>
+#include <compare>
 #include <cstddef>
+#include <cstdint>
+#include <initializer_list>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -13,11 +17,56 @@ namespace sketchy {
 // frame, which its tiles share), with the reference that names it in the source
 // file: a DXF entity handle, a CSV line number or a model edge ID.
 enum class TerrainSourceRole { Contour, Breakline, Boundary, Hole, Points };
+//
+// R096.a (ADR 0169 §4.2, §7): every source has a stable `id`, unique within the terrain and
+// never zero: 1..n in canonical order at creation (createTerrain assigns them to a record
+// whose ids are all zero). Commands and edit entries name sources by id; `reference` stays the
+// import provenance.
 struct TerrainSource {
     TerrainSourceRole role{TerrainSourceRole::Contour};
     std::string reference;
     std::vector<Vec3> points;
+    std::uint32_t id{};
     bool operator==(const TerrainSource &) const = default;
+};
+// R096.a structural sharing (ADR 0169 §2): the base sources are one immutable, shared block.
+// Copying a record copies a pointer; equality compares contents (identity first). Under the
+// hybrid edit model the base sources never change after creation, so one block per record is
+// the unit of sharing. Mutators copy the block (they are for building records, not editing).
+class TerrainSources {
+  public:
+    using Vector = std::vector<TerrainSource>;
+    TerrainSources() : block_(emptyBlock()) {}
+    TerrainSources(Vector sources) : block_(std::make_shared<Vector>(std::move(sources))) {}
+    TerrainSources(std::initializer_list<TerrainSource> sources) : TerrainSources(Vector(sources)) {}
+    const Vector &get() const { return *block_; }
+    operator const Vector &() const { return *block_; }
+    // The shared block's identity (the unit of structural sharing).
+    const void *block() const { return block_.get(); }
+    std::size_t size() const { return block_->size(); }
+    bool empty() const { return block_->empty(); }
+    Vector::const_iterator begin() const { return block_->begin(); }
+    Vector::const_iterator end() const { return block_->end(); }
+    const TerrainSource &operator[](std::size_t i) const { return (*block_)[i]; }
+    const TerrainSource &front() const { return block_->front(); }
+    const TerrainSource &back() const { return block_->back(); }
+    // Copy on write: a block another record shares is copied first.
+    void push_back(TerrainSource source) {
+        if (block_.use_count() != 1 || block_ == emptyBlock())
+            block_ = std::make_shared<Vector>(*block_);
+        block_->push_back(std::move(source));
+    }
+    void clear() { block_ = emptyBlock(); }
+    bool operator==(const TerrainSources &other) const {
+        return block_ == other.block_ || *block_ == *other.block_;
+    }
+
+  private:
+    static const std::shared_ptr<Vector> &emptyBlock() {
+        static const auto block = std::make_shared<Vector>();
+        return block;
+    }
+    std::shared_ptr<Vector> block_; // never changed while shared
 };
 // Triangulation parameters recorded for Regenerate (ADR 0168 §3).
 enum class TerrainBoundaryMode { ConvexHull, MaxEdgeLength, Boundary };
@@ -47,14 +96,70 @@ struct TerrainDisplay {
     bool operator==(const TerrainDisplay &) const = default;
 };
 inline constexpr double terrainContourIntervalMin = 0.01, terrainContourIntervalMax = 1000;
+// R096.a stable tiling (ADR 0169 §3): the tile grid of the creation (or last Regenerate) is
+// part of the record. `origin` is the minimum triangle centroid X and Y of that mesh and `cell`
+// the cell size after halving; a triangle belongs to the cell of its centroid,
+// column floor((cx - originX) / cell) and row floor((cy - originY) / cell). A cell that an
+// edit pushes over 2,048 triangles splits into quadrants (the key's path), and a cluster no
+// split separates is split in triangle order (the key's part).
+struct TerrainTileGrid {
+    double originX{}, originY{}, cell{};
+    bool operator==(const TerrainTileGrid &) const = default;
+};
+// A tile's place in the grid: row and column (negative outside the original extent), the
+// sub-cell path (quadrant digits '0'..'3', digit = 2 x upper half + right half, at most
+// terrainTileMaxDepth deep) and the part number of a cluster. Tiles are ordered by key
+// (row, column, path, part): row-major, as at creation, so for a terrain that was never edited
+// key order is ID order.
+struct TerrainTileKey {
+    std::int64_t row{}, column{};
+    std::string path;
+    std::uint32_t part{};
+    auto operator<=>(const TerrainTileKey &) const = default;
+    bool operator==(const TerrainTileKey &) const = default;
+};
+inline constexpr std::size_t terrainTileMaxDepth = 24;
+inline constexpr std::int64_t terrainTileKeyLimit = std::int64_t(1) << 53; // |row|, |column|
+// R096.a edit list (ADR 0169 §2, §7). An entry is immutable and shared between records (an
+// edit copies pointers). Its kind-specific parameters and resolved geometry are a
+// TerrainEditData of its kind; kinds are registered (core/terrain_edit.hpp) and encoded by
+// io/terrain_io. Entry IDs are unique within the list (1 + the largest when appended).
+struct TerrainEditData {
+    virtual ~TerrainEditData() = default;
+    virtual bool equals(const TerrainEditData &other) const = 0;
+    // Storage charged to history and to the list's 8 MiB bound.
+    virtual std::size_t bytes() const = 0;
+};
+struct TerrainEdit {
+    std::uint32_t id{};
+    std::string kind;
+    std::shared_ptr<const TerrainEditData> data;
+    bool operator==(const TerrainEdit &other) const {
+        return id == other.id && kind == other.kind &&
+               (data == other.data || (data && other.data && data->equals(*other.data)));
+    }
+};
+using TerrainEditPtr = std::shared_ptr<const TerrainEdit>;
 struct TerrainRecord {
-    std::vector<TerrainSource> sources;
+    TerrainSources sources; // The base sources (shared, immutable).
     TerrainParameters parameters;
-    std::string generator;  // e.g. "cdt-2.0.0/terrain-v1"
+    std::string generator;  // e.g. "cdt-2.0.0/terrain-v1+edit-v1"
     TerrainProvenance provenance;
     std::string meshDigest; // terrainMeshDigest of the tiles when generated.
     TerrainDisplay display;
-    bool operator==(const TerrainRecord &) const = default;
+    TerrainTileGrid tiling;              // R096.a: the stored tile grid.
+    std::vector<TerrainEditPtr> edits;   // R096.a: the ordered edit list.
+    bool operator==(const TerrainRecord &other) const {
+        if (!(sources == other.sources && parameters == other.parameters &&
+              generator == other.generator && provenance == other.provenance &&
+              meshDigest == other.meshDigest && display == other.display &&
+              tiling == other.tiling && edits.size() == other.edits.size()))
+            return false;
+        for (std::size_t i = 0; i < edits.size(); ++i)
+            if (edits[i] != other.edits[i] && !(edits[i] && other.edits[i] && *edits[i] == *other.edits[i]))
+                return false;
+        return true;
+    }
 };
 // R095.e2: the built-in material new terrains get ("Terrain"; the Materials panel's local
 // library offers the same name and colour). An existing material of that name is reused.
@@ -69,6 +174,10 @@ struct TerrainLimits {
     static constexpr std::size_t referenceBytes = 128;
     static constexpr std::size_t generatorBytes = 64;
     static constexpr std::size_t unitBytes = 16;
+    // R096.a edit list bounds (ADR 0169 §2, §7), per terrain.
+    static constexpr std::size_t edits = 4096;
+    static constexpr std::size_t editBytes = 8u * 1024 * 1024;
+    static constexpr std::size_t editKindBytes = 32;
 };
 // D-043: a terrain edit whose record and tile changes exceed Document::terrainHistoryLimit.
 inline constexpr const char *terrainHistoryMessage =
@@ -89,6 +198,13 @@ class TerrainError : public std::runtime_error {
 void validateTerrainRecord(const TerrainRecord &record);
 void validateTerrainDisplay(const TerrainDisplay &display);
 std::size_t terrainRecordBytes(const TerrainRecord &record);
+// R096.a: the history charge of a record change (ADR 0169 §2, structural sharing): both
+// records' own fields, plus the shared parts (the source block and the edit entries) that only
+// one of them holds. A part both share is charged nothing, so an edit that appends one entry
+// is charged that entry, not the whole record. With `before` empty it is the full record.
+std::size_t terrainRecordChangeBytes(const TerrainRecord *before, const TerrainRecord *after);
+// Sum of the edit entries' storage (the 8 MiB bound).
+std::size_t terrainEditBytes(const std::vector<TerrainEditPtr> &edits);
 // Document site origin (ADR 0168 §4): projected metres; the CRS is a label only.
 struct SiteProvenance {
     std::string source, sha256;

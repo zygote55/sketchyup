@@ -57,6 +57,8 @@ struct Body {
     // A geometry body that is one tile of its parent terrain: triangles only, no
     // wires, curves or guides, identity transform, implied edge appearance.
     bool terrainTile{};
+    // R096.a: the tile's key in its terrain's stored grid (ADR 0169 §3); default on other bodies.
+    TerrainTileKey tileKey;
     bool operator==(const Body &) const = default;
 };
 using BodyPtr = std::shared_ptr<const Body>;

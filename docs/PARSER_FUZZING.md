@@ -19,6 +19,14 @@ Their seeds are the generated fixtures of `tests/terrain_import_fixtures.hpp` (t
 UTM contour DXFs, the invalid DXF, the UTM XYZ file, a PNEZD file with coded breakline points
 and one with bad values) plus a rejected DXF version and a rejected two-column point file;
 `parser_fault_corpus_tests` mutates a slice of the contour DXF and a PNEZD file 512 times each.
+One more covers the R096.a terrain edit list decoder (`terrain-edits`;
+[ADR 0169 §7](decisions/0169-terrain-editing-drape-stamp.md#7-persistence)): its input is the
+JSON `edits` array of a terrain record. R096.a defines no production edit kind, so the harness
+registers the test-only kinds of `tests/terrain_edit_test_kinds.hpp` (`test.lift`,
+`test.split`, `test.refine`). An accepted list has 1 to 4,096 entries with unique ids within the 8 MiB bound and
+re-encodes to a list that decodes to equal entries. Its seeds are a lift and a split as applied to
+the schema-29 seed terrain and a rejected list one entry over the bound; `parser_fault_corpus_tests`
+mutates the valid list 512 times.
 Existing deterministic parser-fault and transaction tests remain required.
 
 Configure a separate build and generate valid, deterministic seeds:

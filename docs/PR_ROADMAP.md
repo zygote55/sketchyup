@@ -1391,7 +1391,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R096 — Implement terrain editing, drape and stamp
 
-**Status:** Planned; design accepted ([ADR 0169](decisions/0169-terrain-editing-drape-stamp.md), owner decisions 2026-10-19); UX design pending. **Track:** Geometry. **Scope:** F03. **UX:** —.
+**Status:** In progress; design accepted ([ADR 0169](decisions/0169-terrain-editing-drape-stamp.md), owner decisions 2026-10-19); UX design pending. R096.a (edit core) is in two stacked parts. Part 1: the `terrain-v1` amendments (source ids, stored tiling, tile keys, the edit list, the key-order digest; no pinned digest changed), structural sharing in the history charge, the edit mesh and its grid index (also behind `terrain.elevation_at`), stable tiling with local tile replacement, the generalised tile-ID rule, the seam checker and `terrain_edit_benchmark`: a one-tile commit at 250k triangles is p95 44–57 ms against the 100 ms budget, and at least 561 one-tile edits fit the terrain history budget ([ADR 0169, R096.a notes](decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096a)). Part 2 (replay, reset and remove, per-tile display caches) follows. **Track:** Geometry. **Scope:** F03. **UX:** —.
 
 **Requires:** [R095](#r095); milestone gate rule above.
 

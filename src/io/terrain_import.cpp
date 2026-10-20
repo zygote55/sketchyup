@@ -1095,6 +1095,7 @@ TerrainImportResult importDryRun(const TerrainSourceSet &set, const TerrainImpor
     // The record.
     auto &record = result.record;
     record.sources = std::move(prepared.sources);
+    assignTerrainSourceIds(record); // R096.a: ids 1..n in canonical order.
     record.parameters.boundary = boundary ? TerrainBoundaryMode::Boundary
                                  : options.triangulation.maxEdgeLength
                                      ? TerrainBoundaryMode::MaxEdgeLength

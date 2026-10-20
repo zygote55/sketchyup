@@ -15,6 +15,16 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain edit core, part 1 (R096.a, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096a)):
+  the groundwork for terrain editing, with no new command yet. Terrains now store their tile
+  grid, a key for each tile and an id for each source, and can hold a list of edits; an edit
+  rebuilds only the tiles it touches and leaves every other tile untouched. Regenerate keeps the
+  ID of every tile whose mesh did not change, wherever the change is. `terrain.elevation_at`
+  looks points up through a grid index instead of scanning every tile, with the same results.
+  Terrain edits are charged to the undo history by what they change, not by the whole terrain
+  record. The unreleased schema-29 format changes in place (ADR 0108 addendum); terrain
+  documents saved by earlier development builds still open and are saved in the new form.
+
 - Progress and cancel for terrain import (D-044, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md#implementation-notes-d-044)):
   File → Import terrain… and the roles step of Create terrain from selection show what their
   check is doing (reading the source, preparing the sources, triangulating, tiling) with a
