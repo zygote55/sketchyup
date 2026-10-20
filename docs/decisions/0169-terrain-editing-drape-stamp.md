@@ -959,9 +959,9 @@ The owner decided these points on 2026-10-19, each as recommended:
 9. **Assistant visibility:** no new assistant tools; MCP exposes every R096 command; `terrain.describe` reports edits.
 10. **New budgets:** one-tile commit p95 ≤ 100 ms; contour-edit preview p95 ≤ 100 ms for cavities up to 2,048 triangles; a replaying Regenerate ≤ 3 s at 250k with progress and cancel; at least 64 undoable one-tile edits. R096.a's measurement confirms them before they are frozen.
 
-**Interaction design.** Pending. The owner approves a UX design for §8's list
-separately, as for R095; R096.a–e (core and commands) do not depend on it, and R096.f
-does.
+**Interaction design.** Approved by the owner on 2026-10-20: [UX_DESIGN section 15](../UX_DESIGN.md#15-terrain-editing)
+answers §8's ten questions, with the mockups in `docs/mockups/terrain.html`. R096.f
+builds it.
 
 ## Owner decisions
 

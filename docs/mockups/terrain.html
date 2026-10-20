@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SketchyUp terrain editing mockups (R096)</title>
+<!-- Static illustrations of docs/UX_DESIGN.md section 15, not application code.
+     Open terrain.html for every screen, or terrain.html?screen=<name> for one 1280 x 860 frame:
+     menu, sculpt, contours, stamp, drape, edits. Colours are the light theme of src/app/theme.hpp. -->
+<style>
+:root {
+  --surface: #f7f7f2; --ink: #263a32; --border: #c9d4c5; --selected: #dce7dc; --hover: #e6ebdf;
+  --input: #ffffff; --accent: #547858; --muted: #617266; --canvas: #f0f1ec;
+  --sel: #5b5bd6; --warn: #7a4f00; --warn-bg: #fdf3dc; --warn-line: #e3b75c;
+  --fail: #a8322b; --fail-bg: #fbf1f0; --info: #2c5aa0; --info-bg: #eef3fb;
+  --cut: #b8692e; --fill: #2f7f86;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #d9dcd3; font: 12px/1.35 "DejaVu Sans", "Noto Sans", "Liberation Sans", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
+body.one { background: var(--surface); }
+.gallery { padding: 24px; display: flex; flex-direction: column; gap: 28px; align-items: center; }
+.gallery h2 { margin: 0 0 6px; font-size: 15px; }
+.gallery p { margin: 0 0 10px; max-width: 1280px; color: #3d4a42; }
+.frame { width: 1280px; height: 860px; position: relative; overflow: hidden; background: var(--surface); box-shadow: 0 4px 24px rgba(0,0,0,.18); display: grid; grid-template-rows: 34px 48px 1fr 50px; }
+kbd { font: inherit; font-size: 11px; padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; background: var(--input); color: var(--muted); }
+
+.menubar { display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--border); }
+.menubar span { padding: 4px 9px; border-radius: 4px; }
+.menubar span u { text-decoration: underline; }
+.menubar span.open { background: var(--selected); }
+.header { display: flex; align-items: center; gap: 10px; padding: 0 9px 0 25px; border-bottom: 1px solid var(--border); }
+.wordmark { font-weight: 700; letter-spacing: 2.4px; font-size: 12px; margin-right: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: var(--input); }
+.seg span { padding: 3px 14px; border-left: 1px solid var(--border); white-space: nowrap; }
+.seg span:first-child { border-left: 0; }
+.seg span.on { background: var(--accent); color: #fff; font-weight: 700; }
+.seg.small span { padding: 2px 9px; }
+.doc { color: var(--ink); } .doc i { font-style: normal; color: var(--muted); }
+.cmd { margin-left: auto; border: 1px solid var(--border); border-radius: 5px; padding: 6px 11px; background: var(--input); }
+
+main { display: grid; grid-template-columns: 88px 1fr 8px 246px; min-height: 0; }
+.rail { border-right: 1px solid var(--border); padding: 5px 6px; display: flex; flex-direction: column; gap: 0; }
+.rail span { height: 41px; display: grid; place-items: center; border-radius: 5px; color: var(--ink); }
+.rail span.on { background: var(--selected); }
+.rail span.grp { margin-top: 6px; border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; height: 46px; }
+.rail span.grp.on { background: var(--selected); border-radius: 5px; border-top-color: transparent; }
+.rail span.grp::after { content: ""; position: absolute; }
+.viewport { position: relative; background: var(--canvas); overflow: hidden; }
+.viewport svg.scene { position: absolute; left: 0; right: 0; bottom: 0; top: 0; width: 100%; height: 100%; }
+.crumb { position: absolute; left: 24px; top: 14px; color: var(--accent); text-decoration: underline; }
+.crumb b { color: var(--ink); text-decoration: none; font-weight: 400; }
+.splitter { border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--hover); }
+.side { padding: 12px 8px 8px; display: flex; flex-direction: column; min-height: 0; }
+.side .caps { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; padding: 6px 4px 8px; }
+.side .selsum { padding: 0 1px 8px; }
+.tabs { display: flex; gap: 2px; padding-bottom: 2px; }
+.tabs span { padding: 5px 12px; border-radius: 4px; }
+.tabs span.on { background: var(--selected); }
+.panel { border: 1px solid var(--border); border-radius: 2px; flex: 1; min-height: 0; overflow: hidden; padding: 4px 0; background: var(--surface); }
+.sec h3 { margin: 0; padding: 7px 11px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.sec h3::before { content: "▾"; font-size: 10px; }
+.sec.shut h3::before { content: "▸"; }
+.sec h3 .n { margin-left: auto; font-weight: 400; color: var(--muted); }
+.sec .body { padding: 0 6px 6px 11px; }
+.kv { display: grid; grid-template-columns: 70px 1fr; gap: 0 6px; padding: 2px 0; }
+.kv span:first-child { color: var(--ink); }
+.btnrow { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 4px; background: var(--input); white-space: nowrap; }
+.btn.wide { flex: 1; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.btn.off { color: #9aa49b; }
+.edits { border: 1px solid var(--border); background: var(--input); margin-top: 2px; }
+.edit { display: grid; grid-template-columns: 18px 1fr auto; gap: 1px 6px; padding: 4px 6px; border-top: 1px solid #edf0ea; align-items: start; }
+.edit:first-child { border-top: 0; }
+.edit .g { color: var(--muted); text-align: center; }
+.edit .id { color: var(--muted); font-size: 11px; }
+.edit small { grid-column: 2 / 4; color: var(--muted); font-size: 11px; }
+.edit.sel { background: color-mix(in srgb, var(--sel) 13%, white); box-shadow: inset 2px 0 var(--sel); }
+.edit.skip small { color: var(--warn); font-weight: 700; }
+.cap { color: var(--muted); font-size: 11px; padding: 3px 0 0; }
+.notice { margin-top: 6px; padding: 6px 8px; border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 5px; }
+.notice b { color: var(--warn); }
+.notice a, .link { color: var(--accent); text-decoration: underline; }
+.hint2 { color: var(--muted); font-size: 11px; padding: 6px 4px 0; }
+
+.status { display: flex; align-items: center; gap: 10px; padding: 0 9px; border-top: 1px solid var(--border); white-space: nowrap; }
+.status .msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status .msg b { font-weight: 700; }
+.status .msg.fail { color: var(--fail); font-weight: 700; }
+.status .meas { display: flex; align-items: center; gap: 7px; }
+.status .meas span.box { width: 150px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 3px; background: var(--input); }
+.status .meas span.box.ph { color: #9aa49b; }
+.status .meas span.box.live { border: 2px solid var(--accent); padding: 5px 8px; }
+
+/* Tool options strip: the terrain tools' switcher and options, top of the viewport. */
+.strip { position: absolute; left: 76px; right: 14px; top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 2px 8px rgba(38,58,50,.08); }
+.strip .f { display: inline-flex; align-items: center; gap: 5px; }
+.strip .f label { color: var(--muted); }
+.strip .in { min-width: 64px; padding: 2px 7px; border: 1px solid var(--border); border-radius: 3px; background: var(--input); }
+.strip .in.dd::after { content: " ▾"; color: var(--muted); }
+.strip .in.foc { border: 2px solid var(--accent); padding: 1px 6px; }
+.strip .in.off { color: #9aa49b; background: var(--surface); }
+.strip .vr { width: 1px; height: 20px; background: var(--border); }
+.strip .chk::before { content: "☑ "; color: var(--accent); }
+.strip .sum { color: var(--muted); margin-left: auto; }
+.legend i { display: inline-block; width: 14px; height: 10px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.25); margin-right: 3px; }
+
+.menu { position: absolute; top: 31px; background: var(--input); border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 8px 26px rgba(30,45,35,.18); padding: 4px 0; min-width: 300px; z-index: 5; }
+.menu div { display: flex; justify-content: space-between; gap: 24px; padding: 4px 14px 4px 26px; position: relative; }
+.menu div.on { background: var(--selected); }
+.menu div.off { color: #9aa49b; }
+.menu div kbd { border: 0; background: none; padding: 0; }
+.menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+.menu .h { color: var(--muted); font-size: 11px; padding: 4px 14px 2px; }
+</style>
+</head>
+<body>
+<script>
+(() => {
+// ---------- Terrain model: a 120 m x 90 m site, a 1.5 m grid, projected isometrically ----------
+const W = 120, D = 90, STEP = 1.5, NX = W / STEP, NY = D / STEP;
+const ZS = 1.7, Z0 = 100;
+let S = 4.4, OX = 0, OY = 0;
+const P = (x, y, z) => [(x - y) * 0.866 * S + OX, (x + y) * 0.5 * S - (z - Z0) * S * ZS + OY];
+// The camera: plan point (x, y, z) at the viewport's centre (a little below, for the strip), S pixels per metre.
+const cam = (x, y, z, s) => { S = s; OX = OY = 0; const [cx, cy] = P(x, y, z); OX = 469 - cx; OY = 390 - cy; };
+const f1 = n => n.toFixed(1);
+const fmt = n => n.toFixed(2);
+function base(x, y) {
+  return 104 + 3.4 * Math.sin(x / 17) * Math.cos(y / 21) + 3.2 * Math.exp(-((x - 86) ** 2 + (y - 28) ** 2) / 420)
+    - 2.6 * Math.exp(-((x - 28) ** 2 + (y - 64) ** 2) / 320) + 0.035 * x + 0.02 * y;
+}
+const grid = fn => { const g = []; for (let i = 0; i <= NX; i++) { g.push([]); for (let j = 0; j <= NY; j++) g[i].push(fn(i * STEP, j * STEP)); } return g; };
+const H0 = grid(base);
+const PAD = [40, 50, 62, 64];
+const padZ = (() => { let t = 0, n = 0; for (let x = PAD[0]; x <= PAD[2]; x += 1) for (let y = PAD[1]; y <= PAD[3]; y += 1) { t += base(x, y); n++; } return Math.round(t / n * 10) / 10; })();
+
+// Distance from point to segment, and to a polyline/polygon.
+function dSeg(px, py, ax, ay, bx, by) {
+  const vx = bx - ax, vy = by - ay, l = vx * vx + vy * vy;
+  const t = l ? Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / l)) : 0;
+  return Math.hypot(px - ax - t * vx, py - ay - t * vy);
+}
+const smoothFall = t => t >= 1 ? 0 : 1 - (3 * t * t - 2 * t * t * t);
+
+// Marching squares on a grid for one level: segments in plan with the level's z.
+function iso(G, level, i0 = 0, i1 = NX, j0 = 0, j1 = NY) {
+  const segs = [];
+  const lerp = (a, b, za, zb) => { const t = (level - za) / (zb - za); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; };
+  for (let i = i0; i < i1; i++) for (let j = j0; j < j1; j++) {
+    const c = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]].map(([a, b]) => [a * STEP, b * STEP, G[a][b]]);
+    const pts = [];
+    for (let k = 0; k < 4; k++) {
+      const a = c[k], b = c[(k + 1) % 4];
+      if ((a[2] < level) !== (b[2] < level)) pts.push(lerp(a, b, a[2], b[2]));
+    }
+    if (pts.length === 2) segs.push(pts);
+    else if (pts.length === 4) segs.push([pts[0], pts[1]], [pts[2], pts[3]]);
+  }
+  return segs;
+}
+// Chain segments into polylines.
+function chain(segs) {
+  const key = p => p[0].toFixed(4) + ',' + p[1].toFixed(4);
+  const map = new Map(); segs.forEach((s, n) => { for (const p of s) { const k = key(p); (map.get(k) || map.set(k, []).get(k)).push(n); } });
+  const used = new Set(), lines = [];
+  for (let n = 0; n < segs.length; n++) {
+    if (used.has(n)) continue; used.add(n);
+    const line = [segs[n][0], segs[n][1]];
+    for (const dir of [1, 0]) {
+      for (;;) {
+        const end = dir ? line[line.length - 1] : line[0];
+        const next = (map.get(key(end)) || []).find(m => !used.has(m));
+        if (next === undefined) break; used.add(next);
+        const s = segs[next], other = key(s[0]) === key(end) ? s[1] : s[0];
+        dir ? line.push(other) : line.unshift(other);
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+const chaikin = (line, n = 2) => { for (let k = 0; k < n; k++) { const out = [line[0]]; for (let m = 0; m < line.length - 1; m++) { const [a, b] = [line[m], line[m + 1]]; out.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); } out.push(line[line.length - 1]); line = out; } return line; };
+const ptsAt = (line, z) => line.map(([x, y]) => P(x, y, typeof z === 'function' ? z(x, y) : z).map(f1).join(',')).join(' ');
+
+// Bilinear sample of a grid.
+function sample(G, x, y) {
+  const i = Math.max(0, Math.min(NX - 1, Math.floor(x / STEP))), j = Math.max(0, Math.min(NY - 1, Math.floor(y / STEP)));
+  const u = x / STEP - i, v = y / STEP - j;
+  return G[i][j] * (1 - u) * (1 - v) + G[i + 1][j] * u * (1 - v) + G[i][j + 1] * (1 - u) * v + G[i + 1][j + 1] * u * v;
+}
+
+const DEFS = `<defs>
+  <pattern id="hPrev" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fff"/><rect width="3" height="6" fill="#263a32"/></pattern>
+  <pattern id="hCut" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#7a3d12" stroke-width="1.2" opacity=".55"/></pattern>
+  <pattern id="hFill" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r=".9" fill="#14474c" opacity=".55"/></pattern>
+  <pattern id="hPave" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#c9c2b3"/><rect width="2" height="6" fill="#263a32" opacity=".35"/></pattern>
+  <filter id="halo"><feMorphology operator="dilate" radius="1.4" in="SourceAlpha" result="d"/><feFlood flood-color="#fff"/><feComposite in2="d" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;
+
+// Draw a surface grid G. o.tint(i, j) -> 'cut' | 'fill' | 'pad' | 'pave' | null; o.contours: 'display' | 'sources' | 'none'.
+function surface(G, o = {}) {
+  let s = '';
+  for (let x = -20; x <= 140; x += 10) s += `<polyline class="g" points="${ptsAt([[x, -20], [x, 110]], 97)}"/>`;
+  for (let y = -20; y <= 110; y += 10) s += `<polyline class="g" points="${ptsAt([[-20, y], [140, y]], 97)}"/>`;
+  const L = [-0.42, -0.58, 0.7], ln = Math.hypot(...L);
+  const order = [];
+  for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) order.push([i, j]);
+  order.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
+  const levels = [];
+  for (let z = 96; z <= 118; z += o.contours === 'sources' ? 1 : 0.5) levels.push(z);
+  for (const [i, j] of order) {
+    const c = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
+    const dzx = (G[i + 1][j] + G[i + 1][j + 1] - G[i][j] - G[i][j + 1]) / (2 * STEP) * ZS;
+    const dzy = (G[i][j + 1] + G[i + 1][j + 1] - G[i][j] - G[i + 1][j]) / (2 * STEP) * ZS;
+    const nl = Math.hypot(dzx, dzy, 1);
+    const lit = Math.max(0, (-dzx * L[0] - dzy * L[1] + L[2]) / (nl * ln));
+    const t = o.tint ? o.tint(i, j) : null;
+    let rgb = t === 'cut' ? [214, 165, 120] : t === 'fill' ? [140, 191, 189] : t === 'pad' ? [222, 218, 205] : t === 'pave' ? [201, 194, 179] : [176, 184, 146];
+    const k = t === 'pad' ? 0.97 : 0.6 + 0.42 * lit;
+    const col = `rgb(${rgb.map(v => Math.min(255, Math.round(v * k))).join(',')})`;
+    const pts = c.map(([a, b]) => P(a * STEP, b * STEP, G[a][b]).map(f1).join(',')).join(' ');
+    s += `<polygon points="${pts}" fill="${col}" stroke="${col}" stroke-width=".6"/>`;
+    if (t === 'cut' || t === 'fill' || t === 'pave') s += `<polygon points="${pts}" fill="url(#h${t === 'cut' ? 'Cut' : t === 'fill' ? 'Fill' : 'Pave'})"/>`;
+    if (o.contours !== 'none') {
+      for (const z of levels) {
+        const index = Math.abs(z / 5 - Math.round(z / 5)) < 1e-9, whole = Math.abs(z - Math.round(z)) < 1e-9;
+        for (const [a, b] of iso(G, z, i, i + 1, j, j + 1)) {
+          const cls = o.contours === 'sources' ? 'src' : index ? 'ci' : whole ? 'c' : 'ch';
+          s += `<polyline class="${cls}" points="${ptsAt([a, b], z)}"/>`;
+        }
+      }
+    }
+  }
+  return s;
+}
+
+const svg = (inner, vb = '0 0 938 728') => `<svg class="scene" viewBox="${vb}" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .g { stroke: #dfe2d9; stroke-width: .8; fill: none; }
+    .c { stroke: #4b4a35; stroke-width: .55; opacity: .55; fill: none; }
+    .ch { stroke: #4b4a35; stroke-width: .4; opacity: .28; fill: none; }
+    .ci { stroke: #3a3826; stroke-width: 1.1; opacity: .75; fill: none; }
+    .src { stroke: #263a32; stroke-width: 1.5; fill: none; }
+    .lbl rect { fill: #f7f7f2; stroke: #c9d4c5; } .lbl text { fill: #263a32; font: 12px "DejaVu Sans", sans-serif; }
+    .lbl.ink rect { fill: #263a32; stroke: none; } .lbl.ink text { fill: #fff; }
+    .lbl.fail rect { fill: #fbf1f0; stroke: #a8322b; stroke-width: 1.5; } .lbl.fail text { fill: #a8322b; font-weight: 700; }
+    .lbl.sel rect { fill: #fff; stroke: #5b5bd6; stroke-width: 1.5; }
+  </style>${DEFS}${inner}</svg>`;
+
+function label(x, y, lines, cls = '') {
+  lines = [].concat(lines);
+  const w = Math.max(...lines.map(t => t.replace(/<[^>]+>/g, '').length)) * 7.1 + 18, h = lines.length * 16 + 8;
+  return `<g class="lbl ${cls}" transform="translate(${f1(x)},${f1(y)})"><rect x="0" y="0" width="${f1(w)}" height="${h}" rx="4"/>` +
+    lines.map((t, n) => `<text x="9" y="${17 + n * 16}">${t}</text>`).join('') + '</g>';
+}
+const ringOn = (G, cx, cy, r, lift = 0.06) => { const a = []; for (let k = 0; k <= 72; k++) { const t = k / 72 * 2 * Math.PI; a.push([cx + r * Math.cos(t), cy + r * Math.sin(t)]); } return ptsAt(a, (x, y) => sample(G, x, y) + lift); };
+const lineOn = (G, pts, lift = 0.06, stepLen = 0.5) => {
+  const out = [];
+  for (let k = 0; k < pts.length - 1; k++) {
+    const [ax, ay] = pts[k], [bx, by] = pts[k + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / stepLen));
+    for (let m = 0; m <= n; m++) out.push([ax + (bx - ax) * m / n, ay + (by - ay) * m / n]);
+  }
+  return ptsAt(out, (x, y) => sample(G, x, y) + lift);
+};
+// The preview outline: a hatched band (hatch says "not in your model yet", UX_DESIGN section 7).
+const previewOutline = pts => `<polyline points="${pts}" fill="none" stroke="#fff" stroke-width="6.5" stroke-linejoin="round"/>
+  <polyline points="${pts}" fill="none" stroke="url(#hPrev)" stroke-width="5" stroke-linejoin="round"/>`;
+const cursorCross = (x, y) => `<g transform="translate(${f1(x)},${f1(y)})" stroke="#263a32" stroke-width="1.4" fill="none"><circle r="4" fill="#fff"/><path d="M-11 0h6M5 0h6M0 -11v6M0 5v6"/></g>`;
+const arrow = (x, y) => `<path transform="translate(${f1(x)},${f1(y)})" d="M0 0l0 17 4.6-4.2 3 6.8 2.8-1.3-3-6.6 6.2-.4z" fill="#fff" stroke="#1c2420" stroke-width="1.2" stroke-linejoin="round"/>`;
+
+// ---------- Chrome ----------
+const MENUS = ['<u>F</u>ile', '<u>E</u>dit', '<u>D</u>raw', '<u>T</u>errain', '<u>C</u>amera', 'E<u>x</u>tensions', '<u>V</u>iew'];
+const menubar = open => `<div class="menubar">${MENUS.map((m, n) => `<span class="${n === open ? 'open' : ''}">${m}</span>`).join('')}</div>`;
+const header = state => `<div class="header"><span class="wordmark">SKETCHYUP</span><span class="seg"><span class="on">Model</span><span>Sheets</span></span>
+  <span class="doc">riverside-site &nbsp;·&nbsp; <i>${state}</i></span><span class="cmd">Commands &nbsp;Ctrl+K</span></div>`;
+const RAIL = ['Select', 'Paint', 'Line', 'Rect', 'Circle', 'Push/pull', 'Offset', 'Follow', 'Intersect', 'Solids', 'Orient', 'Move', 'Rotate', 'Scale', 'Tape'];
+const rail = (on, terrainLabel = 'Terrain') => `<nav class="rail">${RAIL.map(t => `<span class="${t === on ? 'on' : ''}">${t}</span>`).join('')}
+  <span class="grp${on === 'Terrain' ? ' on' : ''}" title="Terrain tools">${terrainLabel} ▸</span></nav>`;
+const status = (msg, label, value, o = {}) => `<div class="status"><span class="msg${o.fail ? ' fail' : ''}">${msg}</span>${o.extra || ''}
+  <span class="meas">Measurements · m${label ? ` · ${label}` : ''}<span class="box${value ? (o.live ? ' live' : '') : ' ph'}">${value || o.ph || 'distance'}</span></span></div>`;
+const side = (sum, panel) => `<aside class="side"><div class="caps">MODEL</div><div class="selsum">${sum}</div>
+  <div class="tabs"><span>Outliner</span><span>Tags</span><span class="on">Info</span><span>M ‹ ›</span></div><div class="panel">${panel}</div>
+  <div class="hint2">Middle drag: orbit<br>Right drag: pan · Wheel: zoom</div></aside>`;
+const frame = (open, railOn, view, sidebar, stat, extra = '', state = 'Edited', railLabel) =>
+  `<div class="frame">${menubar(open)}${header(state)}<main>${rail(railOn, railLabel)}<section class="viewport">${view}</section><div class="splitter"></div>${sidebar}</main>${stat}${extra}</div>`;
+
+const TOOLS = ['Sculpt', 'Smooth', 'Contours', 'Pad', 'Drape'];
+const switcher = on => `<span class="seg small" aria-label="Terrain tool">${TOOLS.map(t => `<span class="${t === on ? 'on' : ''}">${t}</span>`).join('')}</span>`;
+const strip = (on, inner) => `<div class="strip">${switcher(on)}<span class="vr"></span>${inner}</div>`;
+const f = (lab, val, cls = '') => `<span class="f"><label>${lab}</label><span class="in ${cls}">${val}</span></span>`;
+
+const terrainSec = (o = {}) => `<section class="sec shut"><h3>Entity info</h3></section>
+  <section class="sec"><h3>Terrain<span class="n">${o.n || ''}</span></h3><div class="body">
+  <div class="kv"><span>Name</span><span>Riverside site</span></div>
+  <div class="kv"><span>Triangles</span><span>${o.tris || '18,412 in 12 tiles'}</span></div>
+  <div class="kv"><span>Sources</span><span>${o.sources || '23 contours, 2 breaklines'}</span></div>
+  <div class="kv"><span>Elevation</span><span>${o.elev || '98.6 m to 111.4 m'}</span></div>
+  <div class="kv"><span>Generator</span><span>${o.gen || 'cdt-2.0.0/terrain-v1+edit-v1'}</span></div>
+  <div class="btnrow"><span class="btn wide">Terrain settings…</span><span class="btn wide">Explode terrain…</span></div></div></section>`;
+const editRow = (n, g, title, detail, o = {}) => `<div class="edit${o.sel ? ' sel' : ''}${o.skip ? ' skip' : ''}"><span class="g">${g}</span><span>${title}</span><span class="id">#${n}</span>${detail ? `<small>${detail}</small>` : ''}</div>`;
+const G = { sculpt: '⌒', smooth: '≈', contour: '∿', pad: '▭', drape: '⤓' };
+const editsSec = (rows, o = {}) => `<section class="sec"><h3>Terrain edits<span class="n">${o.count}</span></h3><div class="body">
+  <div class="edits" role="listbox" aria-label="Terrain edits, in the order they are applied">${rows}</div>
+  <div class="cap">${o.cap || 'Applied top to bottom · 3 of 4,096 changes'}</div>
+  ${o.buttons || '<div class="btnrow"><span class="btn off">Edit pad…</span><span class="btn off">Restamp</span><span class="btn off">Remove</span><span class="btn" style="margin-left:auto">Reset edits…</span></div>'}
+  ${o.notice || ''}</div></section>`;
+
+// ---------- Screens ----------
+const SCREENS = {};
+
+// 1. Where the tools live: the Terrain menu and the rail's Terrain slot.
+SCREENS.menu = {
+  title: '1 · Where the tools live',
+  note: 'A new <b>Terrain</b> menu between Draw and Camera holds the five tools and the commands that act on the selected terrain; File → Import terrain… and Site settings… stay where they are. The rail gains one <b>Terrain</b> slot after Tape: it starts the last terrain tool used (Sculpt at first), and the tool options strip switches between the five. Right-clicking a terrain offers the same tools. Only Sculpt has a default shortcut, Shift+S, which is unused today; the others can be assigned in the shortcut editor.',
+  html: () => {
+    cam(60, 45, 104, 4.4);
+    const view = svg(surface(H0) + (() => { // the selected terrain's bounding box
+      const c = [[0, 0], [W, 0], [W, D], [0, D]];
+      return `<polygon points="${ptsAt(c, 97.5)}" fill="none" stroke="#5b5bd6" stroke-width="1.4"/><polygon points="${ptsAt(c, 112)}" fill="none" stroke="#5b5bd6" stroke-width="1.4"/>` +
+        c.map(([x, y]) => `<polyline points="${ptsAt([[x, y], [x, y]], 97.5).split(' ')[0]} ${ptsAt([[x, y]], 112)}" stroke="#5b5bd6" stroke-width="1.4"/>`).join('');
+    })()) + `<div class="crumb">Model</div>`;
+    const menu = `<div class="menu" style="left:226px">
+      <div class="h">Tools</div>
+      <div class="on"><span>Sculpt</span><kbd>Shift+S</kbd></div><div><span>Smooth</span><kbd></kbd></div>
+      <div><span>Edit contours</span><kbd></kbd></div><div><span>Stamp pad</span><kbd></kbd></div><div><span>Drape</span><kbd></kbd></div>
+      <hr><div class="h">Riverside site</div>
+      <div><span>Terrain settings…</span></div><div class="off"><span>Regenerate</span></div><div><span>Reset edits…</span></div><div><span>Explode terrain…</span></div>
+      <hr><div class="off"><span>Create terrain from selection</span></div></div>`;
+    return frame(3, 'Select', view, side('Riverside site', terrainSec() + editsSec(
+      editRow(1, G.sculpt, 'Sculpt · raise 1.80 m', 'Radius 9.00 m · smooth falloff') +
+      editRow(2, G.contour, 'Contour 105.00 m', 'Reshaped · 2 vertices moved') +
+      editRow(3, G.pad, 'Pad · Building A', `${padZ.toFixed(2)} m · daylight, cut 1:2, fill 1:2`), { count: '3 changes' })),
+      status('Riverside site selected. Sculpt, smooth, edit contours, stamp pads and drape from the Terrain menu or the Terrain tool.', '', ''), menu);
+  },
+};
+
+// 2. Sculpt: a swept stroke with the brush and the vertices that move.
+SCREENS.sculpt = {
+  title: '2 · Sculpt: brush, stroke and the vertices that move',
+  note: 'Press and drag paints a stroke at the strip\'s Amount; release commits it as one change. A click without a drag is the one-spot brush (Smoove): move the pointer up or down to set the amount, then click or type it. The brush ring lies on the surface; the dashed inner ring is half strength. Dots mark every vertex that will move, sized by how far; a brush that catches none turns amber and says so. Ctrl lowers, Shift smooths while held, [ and ] change the radius by 10 %. The hatched band outlines the region the preview changed.',
+  html: () => {
+    cam(55, 43, 106, 9.5);
+    const A = [44, 34], B = [62, 46], R = 9, AMT = 1.8;
+    const w = (x, y) => smoothFall(dSeg(x, y, ...A, ...B) / R);
+    const H = grid((x, y) => base(x, y) + AMT * w(x, y));
+    let s = surface(H);
+    let n = 0, dots = '';
+    for (let i = 0; i <= NX; i++) for (let j = 0; j <= NY; j++) {
+      const x = i * STEP, y = j * STEP, ww = w(x, y);
+      if (ww > 0.01) { n++; const [px, py] = P(x, y, H[i][j]); dots += `<circle cx="${f1(px)}" cy="${f1(py)}" r="${(0.7 + 1.9 * ww).toFixed(2)}" fill="#263a32" opacity="${(0.35 + 0.55 * ww).toFixed(2)}"/>`; }
+    }
+    // Capsule outline of the stroke's influence.
+    const cap = [], ang = Math.atan2(B[1] - A[1], B[0] - A[0]);
+    for (let k = 0; k <= 36; k++) { const t = ang + Math.PI / 2 + k / 36 * Math.PI; cap.push([A[0] + (R + .3) * Math.cos(t), A[1] + (R + .3) * Math.sin(t)]); }
+    for (let k = 0; k <= 36; k++) { const t = ang - Math.PI / 2 + k / 36 * Math.PI; cap.push([B[0] + (R + .3) * Math.cos(t), B[1] + (R + .3) * Math.sin(t)]); }
+    cap.push(cap[0]);
+    s += previewOutline(lineOn(H, cap, .08)) + dots;
+    s += `<polyline points="${lineOn(H, [A, B], .1)}" fill="none" stroke="#547858" stroke-width="2.4" stroke-dasharray="1 5" stroke-linecap="round"/>`;
+    s += `<polyline points="${ringOn(H, ...B, R)}" fill="none" stroke="#fff" stroke-width="4"/><polyline points="${ringOn(H, ...B, R)}" fill="none" stroke="#263a32" stroke-width="1.6"/>`;
+    s += `<polyline points="${ringOn(H, ...B, R * 0.5)}" fill="none" stroke="#263a32" stroke-width="1.1" stroke-dasharray="4 3"/>`;
+    const [cx, cy] = P(...B, sample(H, ...B));
+    s += cursorCross(cx, cy) + label(cx + 80, cy - 96, ['<tspan font-weight="700">+1.80 m</tspan> · radius 9.00 m', `${n} vertices · 2 tiles`]);
+    s += `<polyline points="${f1(cx + 6)},${f1(cy - 6)} ${f1(cx + 80)},${f1(cy - 74)}" stroke="#617266" stroke-width="1"/>`;
+    const view = svg(s) + `<div class="crumb">Model</div>` + strip('Sculpt',
+      `<span class="seg small"><span class="on">Brush</span><span>Region</span></span>` + f('Radius', '9.00 m') + f('Falloff', 'Smooth', 'dd') + f('Amount', '+1.80 m', 'foc') +
+      `<span class="sum">Ctrl lowers · Shift smooths</span>`);
+    return frame(-1, 'Terrain', view, side('Riverside site', terrainSec() + editsSec(
+      editRow(1, G.contour, 'Contour 105.00 m', 'Reshaped · 2 vertices moved') +
+      editRow(2, G.pad, 'Pad · Building A', `${padZ.toFixed(2)} m · daylight, cut 1:2, fill 1:2`), { count: '2 changes', cap: 'Applied top to bottom · 2 of 4,096 changes' })),
+      status('<b>Sculpt</b> · Drag to raise along a stroke · Ctrl: lower · Shift: smooth · [ ]: radius · Click for one spot, then move up or down · Esc cancels', 'Amount', '1.80', { live: true }), '', 'Edited', 'Sculpt');
+  },
+};
+
+// 3. Contours: sources drawn distinctly, handles, and a refusal at the pointer.
+SCREENS.contours = {
+  title: '3 · Edit contours: source contours, handles and a refusal at the pointer',
+  note: 'In Edit contours, source contours are drawn solid and display contours fade; breaklines are dash-dot and spot points are crosses. Hovering a source names it; clicking selects it and shows square vertex handles and round midpoint handles (dragging one inserts a vertex). With a source selected, typing a number sets its elevation, Delete removes the selected vertex and Shift+Delete the source. Add contour, Add breakline and Add spot draw on the surface like the Line tool; Promote turns the display contour under the pointer into a source at its level. A drag that would cross another contour, leave the outline or enter a pad is refused at the pointer in red with its location; the preview is withdrawn and releasing changes nothing.',
+  html: () => {
+    cam(48, 40, 105, 6.6);
+    let s = surface(H0, { contours: 'sources' });
+    const L105 = chain(iso(H0, 105)).sort((a, b) => b.length - a.length)[0];
+    const L106 = chain(iso(H0, 106));
+    // Handles on the selected source; pick a vertex near the front to drag.
+    const hs = []; for (let k = 0; k < L105.length; k += 6) hs.push(k);
+    let kk = hs[0], best = -1e9;
+    for (const k of hs.slice(1, -1)) { const [x, y] = L105[k]; const sc = x + y - Math.abs(x - 55) * 0.6; if (sc > best && x > 25 && x < 95) { best = sc; kk = k; } }
+    const prev = L105[Math.max(0, kk - 6)], cur = L105[kk], next = L105[Math.min(L105.length - 1, kk + 6)];
+    // Move the vertex past the 106 m contour.
+    let q = null, dq = 1e9;
+    for (const line of L106) for (const p of line) { const d = Math.hypot(p[0] - cur[0], p[1] - cur[1]); if (d < dq) { dq = d; q = p; } }
+    const moved = [cur[0] + (q[0] - cur[0]) * 1.7, cur[1] + (q[1] - cur[1]) * 1.7];
+    s += `<polyline points="${ptsAt(L105, 105)}" fill="none" stroke="#fff" stroke-width="5"/><polyline points="${ptsAt(L105, 105)}" fill="none" stroke="#5b5bd6" stroke-width="2.4"/>`;
+    s += `<polyline points="${ptsAt([prev, moved, next], 105)}" fill="none" stroke="#a8322b" stroke-width="2.2" stroke-dasharray="6 3"/>`;
+    // Crossing point with the 106 m contour.
+    let X = null;
+    const inter = (a, b, c, d) => { const r = [b[0] - a[0], b[1] - a[1]], t2 = [d[0] - c[0], d[1] - c[1]], den = r[0] * t2[1] - r[1] * t2[0]; if (!den) return null; const u = ((c[0] - a[0]) * t2[1] - (c[1] - a[1]) * t2[0]) / den, v = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den; return u >= 0 && u <= 1 && v >= 0 && v <= 1 ? [a[0] + u * r[0], a[1] + u * r[1]] : null; };
+    for (const [a, b] of [[prev, moved], [moved, next]]) for (const line of L106) for (let k = 0; k < line.length - 1 && !X; k++) X = inter(a, b, line[k], line[k + 1]);
+    for (const k of hs) {
+      const [x, y] = P(...L105[k], 105);
+      if (k === kk) continue;
+      s += `<rect x="${f1(x - 3.5)}" y="${f1(y - 3.5)}" width="7" height="7" fill="#fff" stroke="#5b5bd6" stroke-width="1.5"/>`;
+      if (k + 3 < L105.length) { const [mx, my] = P(...L105[k + 3], 105); s += `<circle cx="${f1(mx)}" cy="${f1(my)}" r="2.6" fill="#fff" stroke="#5b5bd6" stroke-width="1.2"/>`; }
+    }
+    const [ox, oy] = P(...cur, 105); s += `<rect x="${f1(ox - 3.5)}" y="${f1(oy - 3.5)}" width="7" height="7" fill="none" stroke="#5b5bd6" stroke-width="1" stroke-dasharray="2 2"/>`;
+    const [mx, my] = P(...moved, 105); s += `<rect x="${f1(mx - 4.5)}" y="${f1(my - 4.5)}" width="9" height="9" fill="#a8322b" stroke="#fff" stroke-width="1.2"/>`;
+    if (X) { const [xx, xy] = P(...X, 106); s += `<g transform="translate(${f1(xx)},${f1(xy)})" stroke="#fff" stroke-width="5" stroke-linecap="round"><path d="M-6 -6L6 6M6 -6L-6 6"/></g><g transform="translate(${f1(xx)},${f1(xy)})" stroke="#a8322b" stroke-width="2.4" stroke-linecap="round"><path d="M-6 -6L6 6M6 -6L-6 6"/></g>`; s += label(xx + 16, xy + 14, ['Crosses contour 106.00 m', 'Release to cancel, or move back'], 'fail'); }
+    s += arrow(mx + 4, my + 4);
+    const view = svg(s) + `<div class="crumb">Model</div>` + strip('Contours',
+      `<span><b>Contour 105.00 m</b> <span style="color:var(--muted)">· source 17</span></span>` + f('Role', 'Contour', 'dd') + f('Elevation', '105.00 m') +
+      `<span class="btn">Add contour</span><span class="btn">Add breakline</span><span class="btn">Add spot</span><span class="btn">Promote</span><span class="btn">Remove</span>`);
+    return frame(-1, 'Terrain', view, side('Riverside site · contour 105.00 m', terrainSec({ sources: '23 contours, 2 breaklines' }) + editsSec(
+      editRow(1, G.sculpt, 'Sculpt · raise 1.80 m', 'Radius 9.00 m · smooth falloff') +
+      editRow(2, G.pad, 'Pad · Building A', `${padZ.toFixed(2)} m · daylight, cut 1:2, fill 1:2`), { count: '2 changes', cap: 'Applied top to bottom · 2 of 4,096 changes' })),
+      status('Crosses contour 106.00 m at E 512 371.6 m, N 5 234 548.2 m. Release to cancel, or move back.', 'Elevation', '105.00', { fail: true }), '', 'Edited', 'Contours');
+  },
+};
+
+// 4. Stamp pad: daylight grading with cut and fill tinted and hatched.
+function stamped(padZ, rect, slope = 0.5) {
+  const [x0, y0, x1, y1] = rect;
+  const dRect = (x, y) => Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1));
+  return (x, y) => {
+    const h = base(x, y), d = dRect(x, y);
+    if (d === 0) return padZ;
+    if (padZ > h) { const g = padZ - slope * d; return g > h ? g : h; }
+    const g = padZ + slope * d; return g < h ? g : h;
+  };
+}
+function stampScene(H, o = {}) {
+  const tint = (i, j) => {
+    const x = (i + .5) * STEP, y = (j + .5) * STEP;
+    if (x >= PAD[0] && x <= PAD[2] && y >= PAD[1] && y <= PAD[3]) return 'pad';
+    if (!o.tint) return null;
+    const d = sample(H, x, y) - base(x, y);
+    return d > 0.03 ? 'fill' : d < -0.03 ? 'cut' : null;
+  };
+  let s = surface(H, { tint });
+  // Daylight line: the edge of the changed region.
+  const M = grid((x, y) => (Math.abs(H[Math.round(x / STEP)][Math.round(y / STEP)] - H0[Math.round(x / STEP)][Math.round(y / STEP)]) > 0.005 || (x >= PAD[0] && x <= PAD[2] && y >= PAD[1] && y <= PAD[3])) ? 1 : 0);
+  let day = chain(iso(M, 0.5)).sort((a, b) => b.length - a.length)[0];
+  if (day) day = chaikin(day, 3);
+  const padRing = [[PAD[0], PAD[1]], [PAD[2], PAD[1]], [PAD[2], PAD[3]], [PAD[0], PAD[3]], [PAD[0], PAD[1]]];
+  // Rays from the pad outline to the daylight line (constraints, exact slope along each).
+  if (o.rays) {
+    const rays = [];
+    const out = (px, py, dx, dy) => { let t = 0; while (t < 40 && Math.abs(sample(H, px + dx * t, py + dy * t) - base(px + dx * t, py + dy * t)) > 0.01) t += 0.25; return [px + dx * t, py + dy * t]; };
+    for (let x = PAD[0] + 3; x < PAD[2]; x += 3) { rays.push([[x, PAD[1]], out(x, PAD[1], 0, -1)]); rays.push([[x, PAD[3]], out(x, PAD[3], 0, 1)]); }
+    for (let y = PAD[1] + 3; y < PAD[3]; y += 3) { rays.push([[PAD[0], y], out(PAD[0], y, -1, 0)]); rays.push([[PAD[2], y], out(PAD[2], y, 1, 0)]); }
+    for (const [cx, cy, a0] of [[PAD[0], PAD[1], Math.PI], [PAD[2], PAD[1], 1.5 * Math.PI], [PAD[2], PAD[3], 0], [PAD[0], PAD[3], .5 * Math.PI]])
+      for (let k = 0; k <= 6; k++) { const a = a0 + k / 6 * Math.PI / 2; rays.push([[cx, cy], out(cx, cy, Math.cos(a), Math.sin(a))]); }
+    for (const [a, b] of rays) s += `<polyline points="${lineOn(H, [a, b], .04, .4)}" fill="none" stroke="#263a32" stroke-width=".6" opacity=".45"/>`;
+  }
+  s += `<polyline points="${ptsAt(padRing, padZ + 0.02)}" fill="none" stroke="#263a32" stroke-width="1.6"/>`;
+  if (day) s += o.preview ? previewOutline(lineOn(H, day, .06)) : '';
+  if (day) s += `<polyline points="${lineOn(H, day, .08)}" fill="none" stroke="${o.selected ? '#5b5bd6' : '#263a32'}" stroke-width="${o.selected ? 2.4 : 1.4}" stroke-dasharray="${o.selected ? '' : '7 4'}"/>`;
+  return { s, day };
+}
+function building(z, h = 6, ghost = false) {
+  const [x0, y0, x1, y1] = [PAD[0] + 1, PAD[1] + 1, PAD[2] - 1, PAD[3] - 1];
+  const pt = (x, y, zz) => P(x, y, zz).map(f1).join(',');
+  const face = (a, fill) => `<polygon points="${a.map(p => pt(...p)).join(' ')}" fill="${fill}" fill-opacity="${ghost ? .28 : 1}" stroke="#263a32" stroke-width="1" stroke-opacity="${ghost ? .6 : 1}" stroke-linejoin="round"/>`;
+  return face([[x1, y0, z], [x1, y1, z], [x1, y1, z + h], [x1, y0, z + h]], '#dcdfd6') +
+    face([[x0, y1, z], [x1, y1, z], [x1, y1, z + h], [x0, y1, z + h]], '#eceee7') +
+    face([[x0, y0, z + h], [x1, y0, z + h], [x1, y1, z + h], [x0, y1, z + h]], '#fbfbf8');
+}
+SCREENS.stamp = {
+  title: '4 · Stamp pad: footprint, pad elevation, cut and fill, daylight',
+  note: 'Start Stamp pad with a face, group, component or closed loop selected, or hover one and click: a group or component uses its lowest horizontal face. The pad follows the footprint\'s height less the Pad offset (0.15 m here, for the slab build-up); move the pointer up or down or type an elevation, and Enter or a click stamps it. Cut is tinted brown with a diagonal hatch and fill teal with dots, and the legend names both, so colour is never the only signal. The dashed line is the daylight line where the slopes meet the ground; thin lines are the slope rays. After stamping, typing a new elevation or slope amends the same change. Fixed width replaces the slope fields with Width.',
+  html: () => {
+    cam(51, 57, 106, 8.6);
+    const H = grid(stamped(padZ, PAD));
+    let { s, day } = stampScene(H, { tint: true, rays: true, preview: true });
+    s += building(padZ + 0.15, 6, true);
+    const [px, py] = P((PAD[0] + PAD[2]) / 2, PAD[1], padZ);
+    s += label(px - 330, py - 150, [`Pad <tspan font-weight="700">${padZ.toFixed(2)} m</tspan>`, 'Building A − 0.15 m offset'], 'ink');
+    s += `<polyline points="${f1(px - 200)},${f1(py - 110)} ${f1(px - 40)},${f1(py + 22)}" stroke="#263a32" stroke-width="1"/>`;
+    // Label a cut and a fill area.
+    let cut = null, fill = null;
+    for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) { const d = H[i][j] - H0[i][j]; if (d < -0.6 && (!cut || (i + j) > cut[0] + cut[1])) cut = [i, j]; if (d > 0.6 && (!fill || (i + j) > fill[0] + fill[1])) fill = [i, j]; }
+    if (cut) { const [x, y] = P(cut[0] * STEP, cut[1] * STEP, H[cut[0]][cut[1]]); s += label(x + 10, y - 6, ['Cut 1:2']); }
+    if (fill) { const [x, y] = P(fill[0] * STEP, fill[1] * STEP, H[fill[0]][fill[1]]); s += label(x + 10, y + 4, ['Fill 1:2']); }
+    if (day) { const p = day[Math.floor(day.length * 0.62)]; const [x, y] = P(...p, sample(H, ...p)); s += label(x + 12, y + 8, ['Daylight']); }
+    const view = svg(s) + `<div class="crumb">Model</div>` + strip('Pad',
+      `<span><b>Building A</b> <span style="color:var(--muted)">footprint</span></span>` + `<span class="seg small"><span class="on">Daylight</span><span>Fixed width</span></span>` +
+      f('Cut', '1:2') + f('Fill', '1:2') + f('Max distance', '100 m') + f('Pad offset', '0.15 m') +
+      `<span class="legend sum"><i style="background:#d6a578"></i>Cut <i style="background:#8cbfbd;margin-left:8px"></i>Fill</span>`);
+    return frame(-1, 'Terrain', view, side('Riverside site · Building A', terrainSec() + editsSec(
+      editRow(1, G.sculpt, 'Sculpt · raise 1.80 m', 'Radius 9.00 m · smooth falloff') +
+      editRow(2, G.contour, 'Contour 105.00 m', 'Reshaped · 2 vertices moved'), { count: '2 changes', cap: 'Applied top to bottom · 2 of 4,096 changes' })),
+      status(`<b>Stamp pad</b> · Building A · Move up or down or type the pad elevation · Enter stamps · Esc cancels`, 'Elevation', padZ.toFixed(2), { live: true }), '', 'Edited', 'Pad');
+  },
+};
+
+// 5. Drape: imprint the selected path onto the terrain, with region paint.
+SCREENS.drape = {
+  title: '5 · Drape: imprint with region paint, and clipping at the outline',
+  note: 'Select edges, curves or faces (anywhere: in groups, above or below the terrain), then choose Drape or right-click → Drape onto terrain. The preview shows the lines lying on the surface; a face\'s region is drawn in its material when Paint regions is on. Click the terrain or press Enter to drape. Imprint is the default: the terrain\'s shape does not change, the lines become breaklines, and afterwards the terrain is selected with the new row in Terrain edits. Overlay makes ordinary geometry in a new group lifted 0.01 m (Lift), and selects the group. Parts outside the terrain are drawn red and dashed and are clipped, with the count in the strip.',
+  html: () => {
+    cam(62, 50, 106, 5.6);
+    // A 4 m drive: centreline, offset edges, drawn flat at z = 117 above the terrain.
+    const cl = []; for (let t = 0; t <= 1.0001; t += 0.02) { const x = 8 + 70 * t + 6 * Math.sin(t * 5), y = 12 + 62 * t * t + 8 * Math.sin(t * 3.4); cl.push([x, y]); }
+    const off = (k) => cl.map((p, n) => { const a = cl[Math.max(0, n - 1)], b = cl[Math.min(cl.length - 1, n + 1)]; const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy); return [p[0] - dy / l * k, p[1] + dx / l * k]; });
+    const e1 = off(2), e2 = off(-2), region = e1.concat(e2.slice().reverse());
+    const inside = (x, y) => { let c = false; for (let a = 0, b = region.length - 1; a < region.length; b = a++) { const [xa, ya] = region[a], [xb, yb] = region[b]; if ((ya > y) !== (yb > y) && x < (xb - xa) * (y - ya) / (yb - ya) + xa) c = !c; } return c; };
+    let s = surface(H0, { tint: (i, j) => inside((i + .5) * STEP, (j + .5) * STEP) ? 'pave' : null });
+    s += previewOutline(lineOn(H0, region.concat([region[0]]), .06));
+    s += `<polyline points="${lineOn(H0, e1, .08)}" fill="none" stroke="#263a32" stroke-width="1.8"/><polyline points="${lineOn(H0, e2, .08)}" fill="none" stroke="#263a32" stroke-width="1.8"/>`;
+    // Property line, partly outside the terrain.
+    const prop = [[92, 50], [128, 50], [128, 84], [92, 84], [92, 50]];
+    const inPart = [[92, 50], [120, 50]], outPart = [[120, 50], [128, 50], [128, 84], [120, 84]], back = [[120, 84], [92, 84], [92, 50]];
+    s += `<polyline points="${lineOn(H0, inPart, .08)}" fill="none" stroke="#263a32" stroke-width="1.8"/><polyline points="${lineOn(H0, back, .08)}" fill="none" stroke="#263a32" stroke-width="1.8"/>`;
+    s += `<polyline points="${ptsAt(outPart, 108)}" fill="none" stroke="#a8322b" stroke-width="2" stroke-dasharray="6 4"/>`;
+    // The selected source drawing above the terrain.
+    const ZSRC = 113;
+    s += `<polyline points="${ptsAt(e1, ZSRC)}" fill="none" stroke="#5b5bd6" stroke-width="1.3"/><polyline points="${ptsAt(e2, ZSRC)}" fill="none" stroke="#5b5bd6" stroke-width="1.3"/><polyline points="${ptsAt(prop, ZSRC)}" fill="none" stroke="#5b5bd6" stroke-width="1.3"/>`;
+    for (const p of [e1[0], e1[25], e1[50], e2[50], [92, 50], [92, 84]]) s += `<polyline points="${ptsAt([p], ZSRC)} ${ptsAt([p], sample(H0, ...p))}" stroke="#5b5bd6" stroke-width=".9" stroke-dasharray="2 3"/>`;
+    const [lx, ly] = P(128, 67, 108); s += label(lx + 12, ly - 10, ['Clipped: outside the terrain'], 'fail');
+    const [dx, dy] = P(...e1[30], sample(H0, ...e1[30]));
+    s += cursorCross(dx + 40, dy + 30) + label(dx + 56, dy + 40, ['Imprint · 1 face, 5 edges', 'Paint: Paving, grey']);
+    const view = svg(s) + `<div class="crumb">Model</div>` + strip('Drape',
+      `<span class="seg small"><span class="on">Imprint</span><span>Overlay</span></span><span class="chk">Paint regions with their material</span>` + f('Lift', '0.01 m', 'off') +
+      `<span class="sum">1 face, 5 edges · 1 edge clipped</span>`);
+    return frame(-1, 'Terrain', view, side('1 face, 5 edges in Drive', `<section class="sec"><h3>Entity info<span class="n">1 face, 5 edges</span></h3><div class="body">
+      <div class="kv"><span>Context</span><span>Drive (group)</span></div><div class="kv"><span>Material</span><span>Paving, grey</span></div>
+      <div class="kv"><span>Area</span><span>311.42 m²</span></div></div></section><section class="sec shut"><h3>Terrain</h3></section>`),
+      status('<b>Drape</b> · Click the terrain or press Enter to drape the selection · 1 edge outside the terrain is clipped · Esc cancels', '', '', { ph: 'click or Enter' }), '', 'Edited', 'Drape');
+  },
+};
+
+// 6. Terrain edits: rows, selection highlight, actions, a skipped entry and notices.
+SCREENS.edits = {
+  title: '6 · Terrain edits: rows, region highlight, Restamp, skipped changes and notices',
+  note: 'Terrain edits lists the changes in the order they are applied. Each row names the change and its key values. Selecting a row outlines its region in the viewport with a label; double-clicking frames it. Remove (or Delete) removes the selected change and replays the ones after it; a replay shows progress in the status bar with Cancel, and both are one undoable entry. Edit pad… opens the pad\'s elevation, grading and slopes; Restamp re-reads the footprint. Reset edits… asks first, naming the count, with Cancel the default. A change that no longer applies after a replay stays in the list, marked Skipped with the reason, until it is removed or the replay is undone. Notices from the last change or replay (paint removed from rebuilt tiles, sources clipped) appear under the list with Show report.',
+  html: () => {
+    cam(51, 57, 106, 7.0);
+    const H = grid(stamped(padZ, PAD));
+    let { s, day } = stampScene(H, { selected: true });
+    s += building(padZ + 0.15);
+    if (day) { const p = day[Math.floor(day.length * 0.12)]; const [x, y] = P(...p, sample(H, ...p)); s += label(x - 200, y - 50, ['Change 3 · Pad · Building A', `${padZ.toFixed(2)} m · daylight 1:2`], 'sel'); }
+    const view = svg(s) + `<div class="crumb">Model</div>`;
+    const rows = editRow(1, G.sculpt, 'Sculpt · raise 1.80 m', 'Radius 9.00 m · smooth falloff') +
+      editRow(2, G.contour, 'Contour 105.00 m', 'Reshaped · 2 vertices moved') +
+      editRow(3, G.pad, 'Pad · Building A', `${padZ.toFixed(2)} m · daylight, cut 1:2, fill 1:2`, { sel: true }) +
+      editRow(4, G.drape, 'Drape · Drive', '⚠ Skipped: the path now crosses Pad · Building A', { skip: true }) +
+      editRow(5, G.smooth, 'Smooth · strength 0.50', '2 passes · radius 6.00 m');
+    return frame(-1, 'Select', view, side('Riverside site · change 3', '<section class="sec shut"><h3>Entity info</h3></section><section class="sec shut"><h3>Terrain<span class="n">18,412 triangles</span></h3></section>' + editsSec(rows, {
+      count: '5 changes', cap: 'Applied top to bottom · 5 of 4,096 changes',
+      buttons: '<div class="btnrow"><span class="btn">Edit pad…</span><span class="btn">Restamp</span><span class="btn">Remove</span><span class="btn" style="margin-left:auto">Reset edits…</span></div>',
+      notice: '<div class="notice"><b>⚠ Last replay</b> (Restamp change 3): 1 change skipped; paint removed from 2 rebuilt tiles. <a>Show report</a></div>' })),
+      status('Change 3 selected · Double-click frames it · Delete removes it and replays the 2 changes after it', '', ''));
+  },
+};
+
+const ORDER = ['menu', 'sculpt', 'contours', 'stamp', 'drape', 'edits'];
+const one = new URLSearchParams(location.search).get('screen');
+if (one && SCREENS[one]) { document.body.className = 'one'; document.body.innerHTML = SCREENS[one].html(); }
+else document.body.innerHTML = `<div class="gallery">` + ORDER.map(k => `<div><h2>${SCREENS[k].title}</h2><p>${SCREENS[k].note}</p>${SCREENS[k].html()}</div>`).join('') + '</div>';
+})();
+</script>
+</body>
+</html>
