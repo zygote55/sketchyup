@@ -282,6 +282,29 @@ int main(int argc, char **argv) {
             createTerrain(terrain, mesh, record);
             terrain = stableIdentity(terrain, QStringLiteral("00000000000000000000000000000840"));
             publish("native-json", encodeDocument(terrain), "terrain");
+            {
+                // R096.a: two tiles of the terrain with one key are refused at load.
+                auto tree = QJsonDocument::fromJson(encodeDocument(terrain)).object();
+                auto bodies = tree["bodies"].toArray();
+                QJsonValue key;
+                bool found = false;
+                for (qsizetype i = 0; i < bodies.size(); ++i) {
+                    auto o = bodies[i].toObject();
+                    if (!o.contains("terrainTile"))
+                        continue;
+                    if (!found) {
+                        key = o["terrainTile"];
+                        found = true;
+                        continue;
+                    }
+                    o["terrainTile"] = key;
+                    bodies[i] = o;
+                    break;
+                }
+                tree["bodies"] = bodies;
+                publishRejected("native-json", QJsonDocument(tree).toJson(QJsonDocument::Compact),
+                                "terrain-duplicate-tile-key");
+            }
             publish("native-container", encodeContainer(terrain), "terrain");
             const auto chunk = encodeTerrainMesh(terrain.bodies());
             fuzz::require(chunk.size() > 12, "the terrain seed has a mesh chunk");

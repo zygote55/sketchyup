@@ -1005,9 +1005,14 @@ this build, edited or not (the amended format's identity). The digest reads tile
 
 - *Choices where the ADR is open.* The edit-list bound "8 MiB of encoded edit data" is checked on
   the decoded entries' storage (`TerrainEditData::bytes`), which every kind defines, rather than
-  on JSON text. Entry ids are 1 + the largest id in the list: unique within the list, but an id
-  can recur after the last entry is removed (the ADR does not require more; revision checks
-  guard stale clients). A `kind` is at most 32 bytes. A tile key's path is at most 24 quadrant
+  on JSON text; the bound counts each entry's storage plus a fixed per-entry overhead
+  (`terrainEditEntryBytes`), and the edit command checks exactly what validation checks, so an
+  entry over it refuses with `LIMIT_EXCEEDED`. Entry ids come from a stored counter, the record's
+  `nextEdit` (written when above 1; it must exceed every entry's id): an id is never reused, not
+  even after the last entry is removed or the list is reset, and the counter's last value refuses
+  with `LIMIT_EXCEEDED` rather than wrapping. This was chosen now, while `terrain-v1` is unshipped,
+  so that R096.c's added sources and their entries never need a migration. A `kind` is at most 32
+  bytes. A tile key's path is at most 24 quadrant
   digits (the creation grid's own halving bound) and its part at most 9,999; rows and columns are
   within ±2^53 so JSON numbers hold them exactly.
 - *Edit kinds and the format.* R096.a defines no production kind, so a production reader refuses
@@ -1046,8 +1051,15 @@ side holds alone (the source block when it differs; entries by identity), and
 in full). Display edits now charge a few hundred bytes instead of the whole record, and copying a
 record (every edit freezes its bodies) copies pointers.
 
-**Stable tiling and local replacement.** `tileTerrainTriangles` is unchanged (same cell, buckets
-and order) and also returns the grid origin and each tile's key; `terrainTileSet` turns a mesh
+**Stable tiling and local replacement.** `tileTerrainTriangles` keeps its cell, buckets and order
+and also returns the grid origin and each tile's key. One fix: when all 24 attempts overflow (a
+cluster that splits into parts), the cell is no longer halved once more after the last attempt, so
+the stored grid is the grid the buckets were built with. The tiles were already right, so no digest
+changes, but before the fix the stored cell was half the bucket cell, and an edit or a legacy load
+would have mapped such a terrain's triangles to the wrong leaves. Tile keys are unique within a
+terrain. Terrain operations build key-unique sets, and the document's full validation (on load and
+in the full oracle) refuses two tiles of one terrain with one key, naming the terrain, the key and
+both tiles. `terrainTileSet` turns a mesh
 into keyed tile contents. An edit kind returns a `TerrainRegionChange` (triangles removed by
 tile key and index, vertices lifted in Z by exact position, triangles added by position).
 `replaceTerrainRegion` rebuilds the touched **leaves** only: the leaves of tiles holding a removed
@@ -1082,8 +1094,11 @@ more than 8 cells a side is kept in a short "wide" list), and a topology built o
 vertices merged by exact position (as `TerrainSurfaceDisplay::key`) with their incident triangles
 (adjacency is derived from incidence, which costs less memory than a half-edge map).
 `insertTile` / `eraseTile` keep all of it up to date. `terrainEditMeshCache()` keeps up to eight
-terrains keyed by their tile `BodyPtr`s and updates a cached mesh from the tiles an edit replaced
-(in place when no caller holds it, otherwise on a copy, under a mutex). Nothing observable depends
+terrains, keyed by document identity and terrain ID. An entry is served only for the same tile
+`BodyPtr`s (the entry holds them, so their addresses cannot be reused), and the cache updates a
+mesh from the tiles an edit replaced (in place when no caller holds it, otherwise on a copy, under
+a mutex). The viewport prunes the entries of deleted terrains with its other display caches, and
+forgets a document's entries when the document is replaced or the viewport is destroyed. Nothing observable depends
 on slot numbers or incidence order: lookups return triangles in (tile key, index) order.
 **`terrainElevationAt`** asks the grid for candidate tiles when the terrain's world frame is a
 pure translation, then runs R095's exact tile-box and triangle tests in R095's order (ascending
@@ -1095,8 +1110,10 @@ frame uses the scan).
 **Seam checker** (`checkTerrainSeams`, C6): merged by exact plan position, every copy of a
 position has one Z; every directed edge is used once (consistent orientation, edge-manifold); and
 no boundary edge (used by one triangle) has another boundary vertex strictly inside it within
-1e-9 m (a crack or T-junction between tiles; boundary edges spanning more than 4,096 index cells are
-checked by their ends only). It reports counts and at most 32 located problems.
+1e-9 m (a crack or T-junction between tiles). Every boundary edge is checked. A short edge
+searches the grid cells of its box. An edge whose box spans more than 4,096 cells searches the
+cells along it (with their neighbours), or every boundary vertex when that walk would be longer.
+It reports counts and at most 32 located problems.
 
 **Measured** (`terrain_edit_benchmark --edits 100`, Release, GCC, development host with 22 CPUs;
 the two 250k terrains of `terrain_budget_benchmark`; `test.lift` on the 64 largest tiles in turn):
@@ -1128,7 +1145,11 @@ identical); 40 splits and one refinement in one cell (each one edit; the refinem
 cell over 2,048 triangles and it splits into quadrants; every triangle in its tile's cell and
 quadrant, distant tiles pointer-identical, seams); the seam checker's three
 faults; the history charge; the generalised tile-ID rule; the indexed elevation query.
-`parser_fault_corpus_tests` and the `terrain-edits` fuzz format cover the edit-list decoder (see
+Review fixes add `clusterParts` (a terrain forced into parts stores the bucket cell and an edit in
+the cluster stays in its cell), `editIdsAndBounds` (the counter, a borderline entry, the last id),
+`editMeshCache` (per-document entries, pruning, forgetting), a duplicate-key refusal and a crack in
+a very long boundary edge. `parser_fault_corpus_tests` and the `terrain-edits` fuzz format cover
+the edit-list decoder (see
 [PARSER_FUZZING.md](../PARSER_FUZZING.md)). The R095 suites pass unchanged except the generator
 pin.
 

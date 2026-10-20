@@ -409,6 +409,10 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies, const Edit *edit,
                           const ComponentDefinitions &definitions,
                           const std::map<Id, BodyPtr> *baseline = nullptr) {
     DocumentTotals totals;
+    // R096.a: a terrain's tiles have distinct keys (the edit mesh, the elevation index and the
+    // digest identify tiles by key). Terrain operations build key-unique tile sets, and generic
+    // edits cannot change a key, so the full scan (load and the full oracle) checks it.
+    std::map<Id, std::map<TerrainTileKey, Id>> tileKeys;
     for (const auto &[id, b] : bodies) {
         addTotals(totals, b);
         if (b->parent && bodies.contains(b->parent) && bodies.at(b->parent)->referenceImage)
@@ -416,6 +420,17 @@ void validateDocumentSize(const std::map<Id, BodyPtr> &bodies, const Edit *edit,
         checkTerrainParent(*b, b->parent && bodies.contains(b->parent)
                                    ? bodies.at(b->parent).get()
                                    : nullptr);
+        if (b->terrainTile) {
+            const auto [found, inserted] = tileKeys[b->parent].emplace(b->tileKey, id);
+            if (!inserted) {
+                const auto &key = b->tileKey;
+                throw std::runtime_error(
+                    "Terrain " + std::to_string(b->parent) + " has two tiles with the key [" +
+                    std::to_string(key.row) + ", " + std::to_string(key.column) + ", \"" +
+                    key.path + "\", " + std::to_string(key.part) + "]: tiles " +
+                    std::to_string(found->second) + " and " + std::to_string(id));
+            }
+        }
         const auto world = worldTransformIn(bodies, id);
         // worldTransformIn still validates every candidate parent chain. World
         // bounds need another scan only when this record or an ancestor changed.

@@ -109,9 +109,13 @@ void validateTerrainRecord(const TerrainRecord &record) {
     if (record.edits.size() > TerrainLimits::edits)
         throw std::runtime_error("Terrain edit list exceeds 4,096 entries");
     std::set<std::uint32_t> editIds;
+    if (!record.nextEditId)
+        throw std::runtime_error("Invalid terrain next edit ID");
     for (const auto &edit : record.edits) {
         if (!edit || !edit->data || !edit->id || !editIds.insert(edit->id).second)
             throw std::runtime_error("Terrain edit ids must be unique and not zero");
+        if (edit->id >= record.nextEditId)
+            throw std::runtime_error("A terrain edit ID is not below the next edit ID");
         if (edit->kind.empty() || !boundedText(edit->kind, TerrainLimits::editKindBytes) ||
             !findTerrainEditKind(edit->kind))
             throw std::runtime_error("Unknown terrain edit kind");
@@ -142,15 +146,15 @@ std::size_t sourceBlockBytes(const TerrainSources &sources) {
                  source.points.size() * sizeof(Vec3);
     return bytes;
 }
-std::size_t editEntryBytes(const TerrainEdit &edit) {
+} // namespace
+std::size_t terrainEditEntryBytes(const TerrainEdit &edit) {
     return sizeof(TerrainEdit) + 64 + edit.kind.size() + (edit.data ? edit.data->bytes() : 0);
 }
-} // namespace
 std::size_t terrainEditBytes(const std::vector<TerrainEditPtr> &edits) {
     std::size_t bytes = 0;
     for (const auto &edit : edits)
         if (edit)
-            bytes += editEntryBytes(*edit);
+            bytes += terrainEditEntryBytes(*edit);
     return bytes;
 }
 std::size_t terrainRecordBytes(const TerrainRecord &record) {
@@ -173,10 +177,10 @@ std::size_t terrainRecordChangeBytes(const TerrainRecord *before, const TerrainR
         afterEntries.insert(edit.get());
     for (const auto &edit : before->edits)
         if (edit && !afterEntries.contains(edit.get()))
-            bytes += editEntryBytes(*edit);
+            bytes += terrainEditEntryBytes(*edit);
     for (const auto &edit : after->edits)
         if (edit && !beforeEntries.contains(edit.get()))
-            bytes += editEntryBytes(*edit);
+            bytes += terrainEditEntryBytes(*edit);
     return bytes;
 }
 void validateSiteOrigin(const SiteOrigin &origin) {
@@ -218,7 +222,8 @@ TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh, TerrainProgress *pro
         cell = std::min(cell, std::sqrt(width * height * double(limit / 2) / double(count)));
     using Key = std::pair<std::uint64_t, std::uint64_t>; // row, column
     std::map<Key, std::vector<std::uint32_t>> buckets;
-    for (int attempt = 0; attempt < 24; ++attempt) {
+    constexpr int attempts = 24;
+    for (int attempt = 0; attempt < attempts; ++attempt) {
         buckets.clear();
         std::size_t largest = 0;
         terrainCheckpoint(progress, TerrainStage::Tile, .1 + .03 * attempt);
@@ -231,7 +236,9 @@ TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh, TerrainProgress *pro
             bucket.push_back(std::uint32_t(i));
             largest = std::max(largest, bucket.size());
         }
-        if (largest <= limit)
+        // The cell is halved only for another attempt: after the last one the buckets (and the
+        // stored grid) keep the cell they were built with, and clusters split into parts.
+        if (largest <= limit || attempt + 1 == attempts)
             break;
         cell *= .5;
     }
