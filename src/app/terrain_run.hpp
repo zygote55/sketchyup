@@ -42,7 +42,7 @@ inline TerrainProgress terrainRunProgress(const std::shared_ptr<TerrainRunContro
 }
 
 // What a run is doing, for a status line: "reading the source", "preparing the sources",
-// "triangulating", "tiling" (empty before the first report).
+// "triangulating", "tiling", "replaying the edits" (empty before the first report).
 inline QString terrainRunStageText(int stage) {
     switch (stage) {
     case int(TerrainStage::Parse):
@@ -53,6 +53,8 @@ inline QString terrainRunStageText(int stage) {
         return QStringLiteral("triangulating");
     case int(TerrainStage::Tile):
         return QStringLiteral("tiling");
+    case int(TerrainStage::Replay):
+        return QStringLiteral("replaying the edits");
     default:
         return {};
     }

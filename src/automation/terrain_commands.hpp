@@ -92,6 +92,34 @@ TerrainImportResult runTerrainEdgeRequest(const TerrainEdgeRequest &request,
 // The terrain.create_from_edges fields for an edge selection: `edges` (always present),
 // `roles.contour` / `roles.breakline`, `boundary` and `holes` when non-empty.
 QJsonObject terrainCreateFromEdgesCommand(const TerrainEdgeSelection &selection);
+// R096.a: terrain.regenerate, terrain.set_parameters, terrain.reset_edits and
+// terrain.remove_edit in three parts, so a desktop worker can replay with progress and cancel
+// (ADR 0169 §2). parseTerrainReplayRequest checks the command on the document (throwing
+// TerrainError exactly as the command: NOT_FOUND for a missing terrain or change,
+// INVALID_REQUEST for no edits to reset, INVALID_OPERATION when locked or, with edits, not
+// level) and builds the record to replay; runTerrainReplay reads no document (the CDT of the
+// base sources and the replay); applyTerrainReplay applies it as ONE labelled edit, refusing a
+// failed or cancelled run (TerrainImportError, "terrainReport") and a terrain whose record
+// changed since the request was made. Reset edits empties the list and Remove change removes one
+// entry; both then follow Regenerate's rules (tile IDs, paint notices).
+struct TerrainReplayRequest {
+    QString command;
+    std::string label;
+    Id terrain{};
+    TerrainRecord current; // the record when the request was made
+    TerrainRecord record;  // the record to replay (its edit list changed by the command)
+    TerrainParameters parameters;
+    std::size_t otherTriangles{};
+    TerrainReport notices;
+};
+TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command);
+TerrainImportResult runTerrainReplay(const TerrainReplayRequest &request,
+                                     TerrainProgress *progress = nullptr);
+QJsonObject applyTerrainReplay(Document &doc, const TerrainReplayRequest &request,
+                               TerrainImportResult result, ChangeReport *changes = nullptr);
+// terrain.describe's `edits`: count, bytes and at most 200 entries {id, kind, bounds} (bounds in
+// the terrain frame, when the kind gives them), with the rest counted.
+QJsonObject terrainEditsJson(const TerrainRecord &record);
 // Entries in the shared command catalogue format.
 QJsonArray terrainCommandSpecs();
 QJsonObject siteDescription(const Document &doc);

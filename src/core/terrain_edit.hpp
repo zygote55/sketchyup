@@ -123,6 +123,28 @@ struct TerrainEditApplied {
 TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string &kind,
                                     std::shared_ptr<const TerrainEditData> data,
                                     std::string label);
+// ---- Replay (ADR 0169 §2) -------------------------------------------------------------------
+// Regenerate, Terrain settings, Reset edits and Remove change rebuild the terrain as the CDT of
+// its base sources followed by a replay of its edit list. Each entry replays against the mesh
+// state before it, through the same kind, replaceTerrainRegion and leaf rules as the
+// incremental edit, so a replay of the list a terrain was edited with gives the same tiles
+// (keys, names and meshes) as those edits did ("Regenerate after edits is a no-op", C7). An entry
+// that can no longer apply is skipped with its notice and stays in the list. With `progress`,
+// the replay reports TerrainStage::Replay per entry and throws TerrainCancelled when cancelled;
+// nothing is changed (the replay works on its own mesh).
+struct TerrainReplaySkip {
+    std::uint32_t edit{};
+    std::string kind, notice;
+};
+struct TerrainReplayResult {
+    TerrainTileSet tiles;            // key order
+    std::size_t applied{};
+    std::vector<TerrainReplaySkip> skipped;
+};
+TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
+                                       const std::vector<TerrainEditPtr> &edits,
+                                       TerrainProgress *progress = nullptr);
+
 // Refuses (INVALID_OPERATION) a terrain whose frame is not level: edits are vertical in the
 // terrain frame, and "terrains are created level" (ADR 0169 §3).
 void requireLevelTerrain(const Document &doc, Id terrain);

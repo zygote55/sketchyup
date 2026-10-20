@@ -534,6 +534,54 @@ const TerrainEditKind *findTerrainEditKind(const std::string &name) {
             return &kind;
     return nullptr;
 }
+TerrainReplayResult replayTerrainEdits(const TerrainTileSet &base,
+                                       const std::vector<TerrainEditPtr> &edits,
+                                       TerrainProgress *progress) {
+    terrainCheckpoint(progress, TerrainStage::Replay, 0);
+    TerrainReplayResult result;
+    result.tiles.grid = base.grid;
+    if (edits.empty()) {
+        result.tiles = base;
+        terrainCheckpoint(progress, TerrainStage::Replay, 1);
+        return result;
+    }
+    TerrainEditMesh mesh(base.grid);
+    for (const auto &tile : base.tiles)
+        mesh.insertTile(tile);
+    for (std::size_t i = 0; i < edits.size(); ++i) {
+        terrainCheckpoint(progress, TerrainStage::Replay, double(i) / double(edits.size()));
+        const auto &edit = *edits[i];
+        const auto *kind = findTerrainEditKind(edit.kind);
+        auto skip = [&](std::string notice) {
+            result.skipped.push_back({edit.id, edit.kind, std::move(notice)});
+        };
+        if (!kind) {
+            skip("Unknown terrain edit kind");
+            continue;
+        }
+        // A refusal of the change is the entry no longer applying, like an empty outcome.
+        try {
+            const auto outcome = kind->apply(mesh, edit);
+            if (!outcome.change) {
+                skip(outcome.notice.empty() ? "The change no longer applies" : outcome.notice);
+                continue;
+            }
+            const auto region = replaceTerrainRegion(mesh, *outcome.change);
+            if (!region.trianglesAfter) {
+                skip("The change would leave the terrain without triangles");
+                continue;
+            }
+            applyTerrainRegion(mesh, region);
+            ++result.applied;
+        } catch (const TerrainError &error) {
+            skip(error.what());
+        }
+    }
+    for (const auto *tile : mesh.tiles())
+        result.tiles.tiles.push_back(tile->content);
+    terrainCheckpoint(progress, TerrainStage::Replay, 1);
+    return result;
+}
 void requireLevelTerrain(const Document &doc, Id terrain) {
     const auto world = doc.worldTransform(terrain);
     const auto &m = world.m;

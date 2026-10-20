@@ -495,6 +495,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_include_directories(terrain_edit_tests PRIVATE tests)
     add_test(NAME terrain_edit COMMAND terrain_edit_tests)
     set_tests_properties(terrain_edit PROPERTIES TIMEOUT 900)
+    # R096.a part 2: replay, reset and remove, cancel, per-tile display caches (ADR 0169).
+    add_executable(terrain_replay_tests tests/terrain_replay_tests.cpp)
+    target_link_libraries(terrain_replay_tests PRIVATE sketchyup_io)
+    target_include_directories(terrain_replay_tests PRIVATE tests)
+    add_test(NAME terrain_replay COMMAND terrain_replay_tests)
+    set_tests_properties(terrain_replay PROPERTIES TIMEOUT 900)
     # R096.a: the one-tile edit budget (ADR 0169 §9; manual, build Release).
     add_executable(terrain_edit_benchmark EXCLUDE_FROM_ALL tests/terrain_edit_benchmark.cpp)
     target_link_libraries(terrain_edit_benchmark PRIVATE sketchyup_io)

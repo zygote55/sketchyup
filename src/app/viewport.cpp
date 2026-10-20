@@ -1019,16 +1019,21 @@ void Viewport::rebuild() {
         const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
         // R095.e2: a terrain tile draws with its terrain's surface (normals across seams, only
         // outer edges) and, for elevation-band shading, band colours.
-        std::shared_ptr<const TerrainSurfaceDisplay> terrainSurface;
+        std::shared_ptr<const TerrainTileSurface> terrainSurface;
+        std::array<double, 2> terrainRange{};
         bool terrainBands = false;
         if (body->terrainTile)
             if (const auto view = terrainViews_.find(body->parent); view != terrainViews_.end()) {
-                terrainSurface = view->second->surface;
+                if (view->second->surface) {
+                    terrainSurface = view->second->surface->tile(id);
+                    terrainRange = {view->second->surface->zMin, view->second->surface->zMax};
+                }
                 terrainBands = view->second->record->terrain->display.shading ==
                                TerrainShading::ElevationBands;
             }
         if (inputsUnchanged && chainSame && cache.mesh && cache.geometry &&
             cache.terrainSurface == terrainSurface && cache.terrainBands == terrainBands &&
+            (!terrainBands || cache.terrainRange == terrainRange) &&
             cache.alpha == alpha && cache.presentationRevision == presentationRevision_ &&
             cache.sectionCuts.empty() && cache.sections.empty() &&
             cache.mesh->opaqueGpu.buffer.isCreated() && cache.mesh->linesGpu.buffer.isCreated() &&
@@ -1105,6 +1110,7 @@ void Viewport::rebuild() {
                                        cache.alpha != alpha ||
                                        cache.terrainSurface != terrainSurface ||
                                        cache.terrainBands != terrainBands ||
+                                       (terrainBands && cache.terrainRange != terrainRange) ||
                                        cache.presentationRevision != presentationRevision_ ||
                                        cache.source != previousSource || !cache.mesh;
         // Tessellation: shared by every body projecting the same canonical member.
@@ -1226,8 +1232,7 @@ void Viewport::rebuild() {
                                    terrainSurface->normal(t.c, normals[2])};
                         if (bands) {
                             const auto color = terrainElevationBandColor(
-                                (t.a.z + t.b.z + t.c.z) / 3, terrainSurface->zMin,
-                                terrainSurface->zMax);
+                                (t.a.z + t.b.z + t.c.z) / 3, terrainRange[0], terrainRange[1]);
                             front.color = back.color = color;
                             front.material = back.material = 0;
                         }
@@ -1327,7 +1332,7 @@ void Viewport::rebuild() {
                     // A terrain's tile seams and interior edges are drawn only with hidden
                     // geometry shown, like soft edges.
                     const bool terrainHidden =
-                        terrainSurface && !terrainSurface->outerEdge(id, edge.id);
+                        terrainSurface && !terrainSurface->outerEdge(edge.id);
                     auto &lines = selection_.hidden(doc_, entity) || terrainHidden
                                       ? mesh.hiddenLines
                                       : mesh.lines;
@@ -1427,6 +1432,7 @@ void Viewport::rebuild() {
         textureMappingFallbacks_ += mesh.mappingFallbacks;
         cache.alpha = alpha;
         cache.terrainSurface = std::move(terrainSurface);
+        cache.terrainRange = terrainRange;
         cache.terrainBands = terrainBands;
         cache.presentationRevision = presentationRevision_;
         if (alpha > 0)

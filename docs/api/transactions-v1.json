@@ -9449,6 +9449,55 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Reset terrain edits",
+                                    "properties": {
+                                        "command": {
+                                            "const": "terrain.reset_edits"
+                                        },
+                                        "terrain": {
+                                            "description": "Terrain body",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "terrain",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Remove terrain change",
+                                    "properties": {
+                                        "command": {
+                                            "const": "terrain.remove_edit"
+                                        },
+                                        "edit": {
+                                            "description": "ID of a recorded change (terrain.describe lists them); the rest are replayed",
+                                            "maximum": 4294967295,
+                                            "minimum": 1,
+                                            "type": "integer"
+                                        },
+                                        "terrain": {
+                                            "description": "Terrain body",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "terrain",
+                                        "edit",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Terrain display",
                                     "properties": {
                                         "command": {

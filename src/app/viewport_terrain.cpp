@@ -121,7 +121,10 @@ const Viewport::TerrainView *Viewport::terrainViewOfTile(Id tile) const {
 }
 bool Viewport::terrainEdgeDrawn(Id tile, Id edge) const {
     const auto *view = terrainViewOfTile(tile);
-    return !view || !view->surface || view->surface->outerEdge(tile, edge);
+    if (!view || !view->surface)
+        return true;
+    const auto surface = view->surface->tile(tile);
+    return surface && surface->outerEdge(edge);
 }
 std::shared_ptr<const TerrainContours> Viewport::terrainContoursShown(Id terrain) const {
     const auto view = terrainViews_.find(terrain);
@@ -136,6 +139,7 @@ void Viewport::syncTerrainViews() {
     stats_.contourSegments = 0;
     std::erase_if(terrainViews_, [&](const auto &item) { return !isTerrain(doc_, item.first); });
     contourCache_.prune(doc_);
+    surfaceCache_.prune(doc_);
     if (terrainViews_.empty() && !doc_.materializedTotals().terrainTriangles &&
         std::none_of(doc_.bodies().begin(), doc_.bodies().end(),
                      [](const auto &item) { return item.second->kind == BodyKind::Terrain; }))
@@ -152,11 +156,10 @@ void Viewport::syncTerrainViews() {
             view = std::make_unique<TerrainView>();
         const auto &list = tiles[id];
         if (!view->surface || view->tiles != list) {
-            std::vector<const Body *> records;
-            for (const auto &tile : list)
-                records.push_back(tile.get());
-            view->surface =
-                std::make_shared<const TerrainSurfaceDisplay>(terrainSurfaceDisplay(records));
+            // R096.a: per-tile surfaces; after an edit only the rebuilt tiles and their seam
+            // ring get new ones.
+            view->surface = list.empty() ? std::make_shared<const TerrainTileSurfaces>()
+                                         : surfaceCache_.get(doc_, id);
             view->tiles = list;
             ++stats_.terrainSurfaces;
         }

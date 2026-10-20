@@ -3,7 +3,7 @@
 // first with a test-only operation (terrain_edit_test_kinds.hpp, "test.lift": raise one tile's
 // unshared vertices, which rebuilds exactly that tile).
 //
-//   terrain_edit_benchmark [--edits N]
+//   terrain_edit_benchmark [--edits N] [--replay M] [--cancel TRIALS]
 //
 // For each terrain it reports:
 // - the commit of a one-tile edit (applyTerrainEdit: edit mesh lookup, the kind, the local tile
@@ -14,10 +14,16 @@
 // - terrainElevationAt for 200 points, indexed, against R095's full scan;
 // - the undo depth: the terrain history charge after the N edits, the largest single charge
 //   and the edits that fit the 512 MiB budget at that rate (decision 10: at least 64);
-// - the seam check of the whole terrain.
-// The frame part of "release to committed frame" needs the per-tile display (R096.a part 2)
-// and the viewport; it is reported there. Prints one JSON document. Build it Release.
+// - the seam check of the whole terrain;
+// - R096.a part 2: the display update after each commit (the per-tile surface and contour
+//   caches the viewport uses, contour lines at 1 m), and commit plus display;
+// - the replaying Regenerate with M entries (default 1,000; decision 10 proposes <= 3 s): the
+//   request, the CDT of the base and the replay, and the apply; and the cancel latency of that
+//   replay, cancelled from another thread at TRIALS (default 20) times spread over the run.
+// Uploading to the GPU and drawing the frame are not included (no viewport here). Prints one
+// JSON document. Build it Release.
 #include "automation/terrain_commands.hpp"
+#include "core/terrain_display.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
@@ -29,7 +35,9 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <atomic>
 #include <numbers>
+#include <thread>
 #include <unistd.h>
 using namespace sketchy;
 namespace kinds = terrain_test_kinds;
@@ -86,7 +94,7 @@ QJsonObject stats(const std::vector<double> &samples) {
 }
 
 QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject &command,
-                    int edits) {
+                    int edits, int replayEntries, int cancelTrials) {
     Document doc;
     auto request = parseTerrainSourceRequest(bytes, command);
     auto result = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
@@ -94,6 +102,18 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
     const auto applied = applyTerrainImport(doc, std::move(result), request.name);
     const Id terrain = applied["terrain"].toString().toULongLong();
     const auto triangles = terrainTriangleCount(doc, terrain);
+    {
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        display.contours = true;
+        setTerrainDisplay(doc, terrain, display);
+    }
+    TerrainSurfaceCache surfaces;
+    TerrainContourCache contours;
+    QElapsedTimer coldDisplay;
+    coldDisplay.start();
+    (void)surfaces.get(doc, terrain);
+    (void)contours.get(doc, terrain);
+    const double coldDisplayMs = ms(coldDisplay);
     const auto recordBytes = terrainRecordBytes(*doc.bodies().at(terrain)->terrain);
 
     // The edit mesh: cold build (grid index and topology) and memory.
@@ -124,7 +144,8 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
     }
     std::stable_sort(bySize.begin(), bySize.end(),
                      [](const auto &a, const auto &b) { return a.first > b.first; });
-    std::vector<double> commit, phaseKind, phaseReplace, phaseApply, digest, cacheUpdate;
+    std::vector<double> commit, phaseKind, phaseReplace, phaseApply, digest, cacheUpdate,
+        displayUpdate, commitAndDisplay;
     std::size_t largestCharge = 0, editedTriangles = 0;
     const auto historyBefore = doc.terrainHistoryBytes();
     for (int i = 0; i < edits; ++i) {
@@ -133,6 +154,12 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
         timer.restart();
         applyTerrainEdit(doc, terrain, "test.lift", kinds::lift(key, .01), "Lift tile");
         commit.push_back(ms(timer));
+        QElapsedTimer display;
+        display.start();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+        displayUpdate.push_back(ms(display));
+        commitAndDisplay.push_back(commit.back() + displayUpdate.back());
         largestCharge = std::max(largestCharge, doc.terrainHistoryBytes() - charged);
         editedTriangles = std::max(editedTriangles, size);
         if (i < 20) {
@@ -166,12 +193,64 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
         ++undone;
     }
     check(undone == std::size_t(edits), std::string(name) + ": every edit is undoable");
+
+    // The replaying Regenerate: M lifts, then the request, the run and the apply.
+    for (int i = 0; i < replayEntries; ++i) {
+        const auto &[size, key] = bySize[std::size_t(i) % std::min<std::size_t>(bySize.size(), 64)];
+        applyTerrainEdit(doc, terrain, "test.lift", kinds::lift(key, .001 * ((i % 7) + 1)),
+                         "Lift tile");
+    }
+    const QJsonObject regenerate{{"command", "terrain.regenerate"},
+                                 {"terrain", QString::number(terrain)}};
+    timer.restart();
+    const auto replayRequest = parseTerrainReplayRequest(doc, regenerate);
+    const double requestMs = ms(timer);
+    timer.restart();
+    auto replayed = runTerrainReplay(replayRequest);
+    const double runMs = ms(timer);
+    check(replayed.ok, std::string(name) + ": the replay succeeds");
+    timer.restart();
+    const auto noOp = applyTerrainReplay(doc, replayRequest, std::move(replayed));
+    const double applyMs = ms(timer);
+    check(!noOp["changed"].toBool(), std::string(name) + ": Regenerate after edits is a no-op");
+    // Cancel latency: from the request (another thread) until the run has returned.
+    std::vector<double> latency;
+    for (int trial = 0; trial < cancelTrials; ++trial) {
+        std::atomic<bool> cancel{false};
+        std::atomic<std::int64_t> requested{0};
+        TerrainProgress progress([&] { return cancel.load(); });
+        QElapsedTimer clock;
+        clock.start();
+        const auto delay = std::chrono::microseconds(
+            std::int64_t(runMs * 1000 * (trial + .5) / double(std::max(cancelTrials, 1))));
+        std::thread canceller([&] {
+            std::this_thread::sleep_for(delay);
+            requested = clock.nsecsElapsed();
+            cancel = true;
+        });
+        const auto result = runTerrainReplay(replayRequest, &progress);
+        const auto returned = clock.nsecsElapsed();
+        canceller.join();
+        if (result.cancelled)
+            latency.push_back(double(returned - requested) / 1e6);
+    }
+    QJsonObject replay{{"entries", replayEntries},
+                       {"requestMs", requestMs},
+                       {"runMs", runMs},
+                       {"applyMs", applyMs},
+                       {"totalMs", requestMs + runMs + applyMs}};
+    if (!latency.empty())
+        replay["cancelLatencyMs"] = stats(latency);
     return {{"name", name},
             {"triangles", double(triangles)},
             {"tiles", double(bySize.size())},
             {"recordBytes", double(recordBytes)},
             {"editedTileTriangles", double(editedTriangles)},
             {"commitMs", stats(commit)},
+            {"displayUpdateMs", stats(displayUpdate)},
+            {"commitAndDisplayMs", stats(commitAndDisplay)},
+            {"coldDisplayMs", coldDisplayMs},
+            {"replay", replay},
             {"phasesMs", QJsonObject{{"cacheUpdate", stats(cacheUpdate)},
                                      {"kind", stats(phaseKind)},
                                      {"replaceRegion", stats(phaseReplace)},
@@ -191,10 +270,16 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
-    int edits = 200;
-    for (int i = 1; i < argc; ++i)
-        if (std::string(argv[i]) == "--edits" && i + 1 < argc)
+    int edits = 200, replay = 1000, cancel = 20;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "--edits" && i + 1 < argc)
             edits = std::max(1, std::atoi(argv[++i]));
+        else if (arg == "--replay" && i + 1 < argc)
+            replay = std::max(0, std::atoi(argv[++i]));
+        else if (arg == "--cancel" && i + 1 < argc)
+            cancel = std::max(0, std::atoi(argv[++i]));
+    }
     kinds::registerKinds();
     try {
         QJsonArray terrains;
@@ -204,9 +289,10 @@ int main(int argc, char **argv) {
                                  {"columns", "XYZ"},
                                  {"delimiter", "whitespace"},
                                  {"header", false}},
-                                edits));
+                                edits, replay, cancel));
         terrains.append(measure("contours", contourSource(416, 300),
-                                {{"format", "dxf"}, {"units", "header"}}, edits));
+                                {{"format", "dxf"}, {"units", "header"}}, edits, replay,
+                                cancel));
         QJsonObject out{{"benchmark", "terrain_edit_benchmark"},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                         {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},

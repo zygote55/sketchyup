@@ -1,6 +1,7 @@
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_display.hpp"
+#include "core/terrain_edit.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
 #include <algorithm>
@@ -295,40 +296,12 @@ QJsonObject createTerrainFromEdges(Document &doc, const QJsonObject &command,
             {"changed", true},
             {"terrainReport", result.report}};
 }
-// terrain.regenerate and terrain.set_parameters: one edit with `label`.
-QJsonObject regenerateTerrainCommand(Document &doc, Id terrain,
-                                     std::optional<TerrainParameters> parameters,
-                                     const QString &command, std::string label,
-                                     ChangeReport &changes) {
-    if (!isTerrain(doc, terrain))
-        reject("NOT_FOUND", "Terrain body does not exist");
-    requireUnlockedTerrain(doc, terrain);
-    const auto record = *doc.bodies().at(terrain)->terrain;
-    const auto chosen = parameters.value_or(record.parameters);
-    // Tiles are rebuilt, so paint on the old tiles cannot follow the new mesh.
-    TerrainReport notices;
-    const auto paint = terrainTilePaint(doc, terrain);
-    if (paint.faces)
-        notices.add(TerrainReport::Severity::Notice, "face-paint-dropped", paint.faces,
-                    "Per-face paint on the old tiles cannot follow a new mesh and was removed; "
-                    "the terrain's own material is kept.");
-    if (paint.tiles)
-        notices.add(TerrainReport::Severity::Notice, "tile-paint-dropped", paint.tiles,
-                    "Materials and colours of individual tiles were removed with the old tiles; "
-                    "the terrain's own material is kept.");
-    const auto total = doc.materializedTotals().terrainTriangles;
-    const auto own = terrainTriangleCount(doc, terrain);
-    auto result = runTerrainRegenerate(record, chosen, total > own ? total - own : 0, notices);
-    if (!result.ok)
-        throw TerrainImportError(result.code, result.message, result.report, "terrainReport");
-    auto regenerated =
-        regenerateTerrain(doc, terrain, result.mesh, std::move(result.record), std::move(label));
-    changes = std::move(regenerated.changes);
-    return {{"command", command},
-            {"terrain", QString::number(terrain)},
-            {"tiles", idList(regenerated.tiles)},
-            {"changed", regenerated.changed},
-            {"terrainReport", result.report}};
+// terrain.regenerate, terrain.set_parameters, terrain.reset_edits and terrain.remove_edit:
+// one edit with the request's label, replaying the (changed) edit list.
+QJsonObject replayTerrainCommand(Document &doc, const QJsonObject &command,
+                                 ChangeReport &changes) {
+    const auto request = parseTerrainReplayRequest(doc, command);
+    return applyTerrainReplay(doc, request, runTerrainReplay(request), &changes);
 }
 TerrainParameters chosenParameters(const Document &doc, Id terrain, const QJsonObject &command) {
     if (!isTerrain(doc, terrain))
@@ -363,6 +336,95 @@ TerrainParameters chosenParameters(const Document &doc, Id terrain, const QJsonO
     return parameters;
 }
 } // namespace
+TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command) {
+    const auto name = command["command"].toString();
+    TerrainReplayRequest request;
+    request.command = name;
+    if (name == "terrain.regenerate") {
+        onlyFields(command, {"command", "terrain"});
+        request.label = "Regenerate terrain";
+    } else if (name == "terrain.set_parameters") {
+        onlyFields(command, {"command", "terrain", "boundary", "maxEdgeLength",
+                             "flipFlatTriangles", "steinerFill"});
+        request.label = "Terrain settings";
+    } else if (name == "terrain.reset_edits") {
+        onlyFields(command, {"command", "terrain"});
+        request.label = "Reset terrain edits";
+    } else if (name == "terrain.remove_edit") {
+        onlyFields(command, {"command", "terrain", "edit"});
+        request.label = "Remove terrain change";
+    } else
+        reject("INVALID_REQUEST", "Not a terrain replay command");
+    const auto terrain = identity(command["terrain"]);
+    if (!isTerrain(doc, terrain))
+        reject("NOT_FOUND", "Terrain body does not exist");
+    requireUnlockedTerrain(doc, terrain);
+    request.terrain = terrain;
+    request.current = *doc.bodies().at(terrain)->terrain;
+    request.record = request.current;
+    request.parameters = name == "terrain.set_parameters"
+                             ? chosenParameters(doc, terrain, command)
+                             : request.record.parameters;
+    if (name == "terrain.reset_edits") {
+        if (request.record.edits.empty())
+            reject("INVALID_REQUEST", "The terrain has no edits to reset");
+        request.record.edits.clear();
+    } else if (name == "terrain.remove_edit") {
+        const auto value = command["edit"];
+        if (!value.isDouble() || value.toDouble() != std::floor(value.toDouble()) ||
+            value.toDouble() < 1 || value.toDouble() > 4294967295.0)
+            reject("INVALID_REQUEST", "edit is the integer ID of a recorded terrain change");
+        const auto id = std::uint32_t(value.toDouble());
+        auto &edits = request.record.edits;
+        const auto found = std::find_if(edits.begin(), edits.end(),
+                                        [&](const TerrainEditPtr &edit) { return edit->id == id; });
+        if (found == edits.end())
+            reject("NOT_FOUND", "The terrain has no change " + std::to_string(id));
+        edits.erase(found);
+    }
+    if (!request.record.edits.empty())
+        requireLevelTerrain(doc, terrain);
+    // Tiles are rebuilt, so paint on the old tiles cannot follow the new mesh.
+    const auto paint = terrainTilePaint(doc, terrain);
+    if (paint.faces)
+        request.notices.add(TerrainReport::Severity::Notice, "face-paint-dropped", paint.faces,
+                            "Per-face paint on the old tiles cannot follow a new mesh and was "
+                            "removed; the terrain's own material is kept.");
+    if (paint.tiles)
+        request.notices.add(TerrainReport::Severity::Notice, "tile-paint-dropped", paint.tiles,
+                            "Materials and colours of individual tiles were removed with the old "
+                            "tiles; the terrain's own material is kept.");
+    const auto total = doc.materializedTotals().terrainTriangles;
+    const auto own = terrainTriangleCount(doc, terrain);
+    request.otherTriangles = total > own ? total - own : 0;
+    return request;
+}
+TerrainImportResult runTerrainReplay(const TerrainReplayRequest &request,
+                                     TerrainProgress *progress) {
+    return runTerrainRegenerate(request.record, request.parameters, request.otherTriangles,
+                                request.notices, progress);
+}
+QJsonObject applyTerrainReplay(Document &doc, const TerrainReplayRequest &request,
+                               TerrainImportResult result, ChangeReport *changes) {
+    if (result.cancelled)
+        throw TerrainImportError("CANCELLED", result.message, result.report, "terrainReport");
+    if (!result.ok || !result.tileSet)
+        throw TerrainImportError(result.code.empty() ? "INVALID_REQUEST" : result.code,
+                                 result.message, result.report, "terrainReport");
+    if (!isTerrain(doc, request.terrain) ||
+        !(*doc.bodies().at(request.terrain)->terrain == request.current))
+        reject("INVALID_OPERATION",
+               "The terrain changed while it was being rebuilt; nothing was changed");
+    auto regenerated = regenerateTerrain(doc, request.terrain, *result.tileSet,
+                                         std::move(result.record), request.label);
+    if (changes)
+        *changes = std::move(regenerated.changes);
+    return {{"command", request.command},
+            {"terrain", QString::number(request.terrain)},
+            {"tiles", idList(regenerated.tiles)},
+            {"changed", regenerated.changed},
+            {"terrainReport", result.report}};
+}
 QJsonObject terrainDisplayJson(const TerrainDisplay &display) {
     return {{"contours", display.contours},
             {"contourInterval", display.contourInterval},
@@ -373,7 +435,8 @@ bool isTerrainCommand(const QString &name) {
     return name == "site.set" || name == "site.reanchor" || name == "terrain.explode" ||
            name == "terrain.import" || name == "terrain.create_from_edges" ||
            name == "terrain.set_parameters" || name == "terrain.regenerate" ||
-           name == "terrain.set_display";
+           name == "terrain.set_display" || name == "terrain.reset_edits" ||
+           name == "terrain.remove_edit";
 }
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command) {
@@ -515,22 +578,14 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
         return {};
     }
     if (name == "terrain.create_from_edges" || name == "terrain.set_parameters" ||
-        name == "terrain.regenerate") {
+        name == "terrain.regenerate" || name == "terrain.reset_edits" ||
+        name == "terrain.remove_edit") {
         ChangeReport changes;
         QJsonObject record;
         if (name == "terrain.create_from_edges")
             record = createTerrainFromEdges(doc, command, changes);
-        else if (name == "terrain.regenerate") {
-            onlyFields(command, {"command", "terrain"});
-            record = regenerateTerrainCommand(doc, identity(command["terrain"]), std::nullopt, name,
-                                              "Regenerate terrain", changes);
-        } else {
-            onlyFields(command, {"command", "terrain", "boundary", "maxEdgeLength",
-                                 "flipFlatTriangles", "steinerFill"});
-            const auto terrain = identity(command["terrain"]);
-            record = regenerateTerrainCommand(doc, terrain, chosenParameters(doc, terrain, command),
-                                              name, "Terrain settings", changes);
-        }
+        else
+            record = replayTerrainCommand(doc, command, changes);
         if (operation)
             *operation = std::move(record);
         return changes;
@@ -776,6 +831,15 @@ QJsonArray terrainCommandSpecs() {
               {"steinerFill", QJsonObject{{"type", "boolean"}}}},
              {"terrain"}),
         spec("terrain.regenerate", "Regenerate terrain", {{"terrain", terrainId}}, {"terrain"}),
+        spec("terrain.reset_edits", "Reset terrain edits", {{"terrain", terrainId}}, {"terrain"}),
+        spec("terrain.remove_edit", "Remove terrain change",
+             {{"terrain", terrainId},
+              {"edit", QJsonObject{{"type", "integer"},
+                                   {"minimum", 1},
+                                   {"maximum", 4294967295.0},
+                                   {"description", "ID of a recorded change (terrain.describe "
+                                                   "lists them); the rest are replayed"}}}},
+             {"terrain", "edit"}),
         spec("terrain.set_display", "Terrain display",
              {{"terrain", terrainId},
               {"contours", QJsonObject{{"type", "boolean"},
@@ -827,6 +891,24 @@ QJsonObject siteConversion(const Document &doc, const QString &to, const QJsonAr
     }
     return {{"to", to}, {"units", "m"}, {"points", result}};
 }
+QJsonObject terrainEditsJson(const TerrainRecord &record) {
+    QJsonArray entries;
+    for (const auto &edit : record.edits) {
+        if (entries.size() >= 200)
+            break;
+        QJsonObject entry{{"id", double(edit->id)}, {"kind", QString::fromStdString(edit->kind)}};
+        if (const auto *kind = findTerrainEditKind(edit->kind); kind && kind->bounds) {
+            const auto box = kind->bounds(*edit);
+            entry["bounds"] = QJsonArray{box[0], box[1], box[2], box[3]};
+        }
+        entries.append(entry);
+    }
+    return {{"count", double(record.edits.size())},
+            {"bytes", double(terrainEditBytes(record.edits))},
+            {"space", "terrain"},
+            {"entries", entries},
+            {"entriesOmitted", double(record.edits.size() - std::size_t(entries.size()))}};
+}
 QJsonObject terrainDescription(const Document &doc, Id terrain) {
     if (!isTerrain(doc, terrain))
         reject("NOT_FOUND", "Terrain body does not exist");
@@ -867,6 +949,7 @@ QJsonObject terrainDescription(const Document &doc, Id terrain) {
         {"sources", QJsonObject{{"count", double(record.sources.size())},
                                 {"vertices", double(sourceVertices)},
                                 {"roles", roles}}},
+        {"edits", terrainEditsJson(record)},
         {"meshDigest", QString::fromStdString(record.meshDigest)},
         {"currentDigest", QString::fromStdString(digest)},
         {"changedSinceGenerated", digest != record.meshDigest},

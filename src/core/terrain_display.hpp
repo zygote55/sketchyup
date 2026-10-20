@@ -44,32 +44,43 @@ TerrainContours terrainContours(const std::vector<const Body *> &tiles, double i
 // the site origin's elevation (0 without a site origin).
 double terrainElevationOffset(const Document &doc, Id terrain);
 
-// Cached contours per terrain, keyed by the mesh digest, the interval and the elevation offset.
-// A lookup with the same tile records (immutable, compared by identity) skips the digest; a
-// changed tile set recomputes the digest and regenerates only when the key differs. Bounded:
-// entries for terrains that no longer exist are dropped, and at most `capacity` terrains are
-// kept (least recently used first out).
+// Cached contours per terrain and, within it, per tile (R096.a; ADR 0169 §5): keyed by the
+// interval and the elevation offset, and per tile by its record (identity) or, for a changed
+// record with the same mesh (paint), by the mesh. A lookup with the same tile records returns
+// the cached contours; after an edit only the rebuilt tiles' segments are generated and the
+// terrain's are assembled in tile-key order (for a terrain never edited, ID order: the R095
+// result). When every tile is reused in the same order the previous contours are returned. The
+// segment bound applies to the sum of the tiles' estimates. Bounded: entries for terrains that
+// no longer exist are dropped, and at most `capacity` terrains are kept (least recently used
+// first out).
 class TerrainContourCache {
   public:
     explicit TerrainContourCache(std::size_t capacity = 8) : capacity_(capacity) {}
     std::shared_ptr<const TerrainContours> get(const Document &doc, Id terrain);
     void prune(const Document &doc);
     std::size_t size() const { return entries_.size(); }
+    // Terrain contours assembled, and tile contours generated, since construction.
     std::size_t generations() const { return generations_; }
-    std::size_t digests() const { return digests_; }
+    std::size_t tileGenerations() const { return tileGenerations_; }
 
   private:
+    struct Tile {
+        BodyPtr body;
+        std::vector<TerrainContourSegment> segments;
+        std::vector<std::int64_t> levels; // ascending
+        double estimate{};
+    };
     struct Entry {
-        std::vector<BodyPtr> tiles;
-        std::string digest;
+        std::vector<BodyPtr> tiles; // key order
         double interval{}, offset{};
+        std::map<Id, std::shared_ptr<const Tile>> perTile;
         std::shared_ptr<const TerrainContours> contours;
         std::uint64_t used{};
     };
     std::size_t capacity_;
     std::map<Id, Entry> entries_;
     std::uint64_t clock_{};
-    std::size_t generations_{}, digests_{};
+    std::size_t generations_{}, tileGenerations_{};
 };
 
 // ---- Surface ---------------------------------------------------------------------------------
@@ -93,7 +104,50 @@ struct TerrainSurfaceDisplay {
     Vec3 normal(Vec3 point, Vec3 fallback) const;
     bool outerEdge(Id tile, Id edge) const;
 };
+// The tiles are taken in tile-key order (sorted here), so each position's normal sums its
+// triangles in (tile key, face) order, the order the per-tile surfaces below use.
 TerrainSurfaceDisplay terrainSurfaceDisplay(const std::vector<const Body *> &tiles);
+
+// R096.a per-tile surface display (ADR 0169 §5): the same normals and outer edges, held per tile
+// so an edit recomputes only the tiles it rebuilt and the tiles sharing a position with them
+// (the seam ring); every other tile keeps its object (pointer-identical), so the viewport keeps
+// its tessellation. Each tile's normals and outer edges are bit-equal to terrainSurfaceDisplay's.
+struct TerrainTileSurface {
+    std::unordered_map<TerrainSurfaceDisplay::Key, Vec3, TerrainSurfaceDisplay::Hash> normals;
+    std::set<Id> outerEdges;
+    Vec3 normal(Vec3 point, Vec3 fallback) const;
+    bool outerEdge(Id edge) const { return outerEdges.contains(edge); }
+};
+struct TerrainTileSurfaces {
+    std::map<Id, std::shared_ptr<const TerrainTileSurface>> tiles; // by tile body
+    double zMin{}, zMax{};
+    std::shared_ptr<const TerrainTileSurface> tile(Id id) const {
+        const auto found = tiles.find(id);
+        return found == tiles.end() ? nullptr : found->second;
+    }
+};
+// Per terrain, keyed by its tile records; a lookup after an edit updates the previous surfaces
+// from the tiles the edit replaced. Uses the edit mesh (terrainEditMeshCache) for adjacency.
+// Bounded as TerrainContourCache.
+class TerrainSurfaceCache {
+  public:
+    explicit TerrainSurfaceCache(std::size_t capacity = 8) : capacity_(capacity) {}
+    std::shared_ptr<const TerrainTileSurfaces> get(const Document &doc, Id terrain);
+    void prune(const Document &doc);
+    std::size_t size() const { return entries_.size(); }
+    std::size_t tileComputations() const { return computations_; }
+
+  private:
+    struct Entry {
+        std::vector<BodyPtr> tiles; // ascending ID
+        std::shared_ptr<const TerrainTileSurfaces> surfaces;
+        std::uint64_t used{};
+    };
+    std::size_t capacity_;
+    std::map<Id, Entry> entries_;
+    std::uint64_t clock_{};
+    std::size_t computations_{};
+};
 
 // Elevation-band shading: ten bands over [zMin, zMax] from green through sand to brown (the
 // import preview's ramp). `z` and the range are in one frame.
