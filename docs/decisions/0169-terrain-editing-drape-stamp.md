@@ -7,7 +7,8 @@ R096.a (the edit core) is implemented in two stacked parts; see "Implementation 
 (R096.a)". R096.c (cavity re-triangulation and contour edit) is implemented; see
 "Implementation notes (R096.c)". R096.b (sculpt and smooth) is implemented; see
 "Implementation notes (R096.b)". R096.d (building-pad stamp) is implemented; see
-"Implementation notes (R096.d)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
+"Implementation notes (R096.d)". R096.e (projection and drape) is implemented; see
+"Implementation notes (R096.e)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
 interaction design (§8, "Decisions the UX design must make") still needs the owner's
 approval, and R096.f waits for it.
 

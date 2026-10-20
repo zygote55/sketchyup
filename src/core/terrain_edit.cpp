@@ -363,11 +363,7 @@ TerrainTilesApplied applyTerrainTiles(Document &doc, Id terrain, TerrainRecord r
         if (kept.contains(key))
             continue;
         const auto &old = byKey.at(key);
-        for (const auto &[face, record] : old->surface.faces)
-            if ((old->faceColors.contains(face) || old->faceMaterials.contains(face) ||
-                 old->faceTextureMappings.contains(face)) &&
-                !terrainFacePaintDerived(*old, face, regionsBefore))
-                ++applied.paintDropped.faces;
+        applied.paintDropped.faces += terrainTileOwnPaint(*old, regionsBefore);
         applied.removed.push_back(old->id);
         edit.changes.push_back({old->id, old, nullptr, {}, {}, {}, true});
     }

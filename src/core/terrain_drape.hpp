@@ -50,6 +50,9 @@ inline constexpr std::size_t terrainDrapePaintRegions = 1024;   // paint regions
 inline constexpr std::size_t terrainDrapeRuns = 4096;           // resolved runs (source ids)
 inline constexpr std::size_t terrainDrapeResolvedPoints = 65536; // resolved run points, in all
 inline constexpr std::size_t terrainDrapeSplitPoints = 65536;   // points inserted into sources
+// The current sources' vertices after a drape's effect (its runs and every use of its split
+// points): an entry that would pass it is refused (and a stored one changes nothing).
+inline constexpr std::size_t terrainDrapeSourceVertices = 2000000;
 inline constexpr std::size_t terrainDrapeTriangles = 65536;     // triangles split
 inline constexpr std::size_t terrainDrapeTouched = 16 * 65536;  // triangles found by segments
 inline constexpr std::size_t terrainDrapeCrossings = 65536;     // crossings among the lines
@@ -161,6 +164,10 @@ class TerrainPaintRegions {
     Id materialAt(double x, double y, std::size_t first = 0) const;
     // Whether any region from `first` on has a box meeting the box.
     bool meets(const std::array<double, 4> &box, std::size_t first = 0) const;
+    // The regions from `first` on whose boxes meet the box, in list order (a tile's candidates).
+    std::vector<std::size_t> candidates(const std::array<double, 4> &box, std::size_t first = 0) const;
+    // The material of the last of `candidates` holding (x, y), or 0.
+    Id materialAt(double x, double y, const std::vector<std::size_t> &candidates) const;
 
   private:
     struct Region {
@@ -174,10 +181,10 @@ class TerrainPaintRegions {
 // a region takes its material on both sides (no per-face entry when that equals the tile's own
 // materials); other faces are left as they are. Returns whether the body changed.
 bool paintTerrainTile(Body &tile, const TerrainPaintRegions &regions, std::size_t first = 0);
-// Whether a face's per-face paint is exactly what the regions give it (so a rebuild that paints it
-// again drops nothing): no colour or texture, and its material sides those of the region holding
-// its centroid.
-bool terrainFacePaintDerived(const Body &tile, Id face, const TerrainPaintRegions &regions);
+// The tile's faces with paint of their own, which a rebuild drops: per-face colour, texture or
+// material, except a material that is exactly what the regions give the face (the region
+// holding its centroid, on both sides), which the rebuild paints again.
+std::size_t terrainTileOwnPaint(const Body &tile, const TerrainPaintRegions &regions);
 // The sum over the record's paint loops of their busiest band (refused past
 // terrainDrapePaintBandEdges by validateTerrainRecord).
 std::size_t terrainPaintBandEdges(const TerrainRecord &record);

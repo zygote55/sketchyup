@@ -10,6 +10,7 @@
 #include "core/terrain_edit.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "fuzz/parameter_expression_harness.hpp"
 #include "integrations/glb_export.hpp"
@@ -440,6 +441,16 @@ int main(int argc, char **argv) {
                 pad->rays = {{0, {-1, -1, 1.5}}, {1, {5, -1, 1.5}}, {2, {5, 4, 2.5}},
                              {3, {-1, 4, 2.5}}};
                 list.append(encodeTerrainEdit({14, terrainStampKind, pad}));
+            }
+            // R096.e: a resolved drape with region paint joins it too.
+            {
+                auto drape = std::make_shared<TerrainDrapeData>();
+                drape->lines = {{{{0, 0}, {5, 1}}, false}, {{{2, 2}, {6, 2}, {6, 5}, {2, 5}}, true}};
+                drape->paint = {{{{{2, 2}, {6, 2}, {6, 5}, {2, 5}}}, 3}};
+                drape->runs = {{{0, 0, 1}, {5, 1, 1.5}},
+                               {{2, 2, 1.2}, {6, 2, 1.4}, {6, 5, 1.6}, {2, 5, 1.3}, {2, 2, 1.2}}};
+                drape->splits = {{{1, 0}, {1, 3}, {{1, 0.2, 1.05}}}};
+                list.append(encodeTerrainEdit({15, terrainDrapeKind, drape}));
             }
             results.append(exercise("terrain-edits", QJsonDocument(list).toJson(QJsonDocument::Compact),
                                     [](const auto &bytes, bool &parsed) {

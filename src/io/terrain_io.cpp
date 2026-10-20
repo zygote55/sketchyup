@@ -550,6 +550,10 @@ std::vector<TerrainEditCodec> builtinCodecs() {
                      if (loops.isEmpty() || std::size_t(loops.size()) > budget)
                          throw std::runtime_error("A terrain drape paint region has loops");
                      for (const auto &loop : loops) {
+                         // A loop has at least three points, so empty loops cannot be many.
+                         if (!loop.isArray() || loop.toArray().size() < 3)
+                             throw std::runtime_error("A terrain drape paint loop has at least "
+                                                      "three points");
                          parsed.loops.emplace_back();
                          plan(loop, parsed.loops.back());
                      }

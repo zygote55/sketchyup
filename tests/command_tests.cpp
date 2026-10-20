@@ -1190,6 +1190,8 @@ int main(int argc, char **argv) {
                        {"mode", "width"},
                        {"width", 0.1}});
         parameterCase("terrain.update_edit", {{"terrain", "1"}, {"edit", 1}, {"elevation", -2.76}});
+        // R096.e: a line draped across the same fixture's triangle (its edges are set below).
+        parameterCase("terrain.drape", {{"terrain", "1"}, {"mode", "imprint"}, {"edges", QJsonArray{}}});
         // R095.e2: display settings (contours, interval, shading); the fixture is set below.
         parameterCase("terrain.set_display", {{"terrain", "1"},
                                               {"contours", true},
@@ -1405,7 +1407,8 @@ int main(int argc, char **argv) {
                 command["command"] == "terrain.remove_source" ||
                 command["command"] == "terrain.sculpt" ||
                 command["command"] == "terrain.stamp_pad" ||
-                command["command"] == "terrain.update_edit") {
+                command["command"] == "terrain.update_edit" ||
+                command["command"] == "terrain.drape") {
                 // Stored points whose mesh is not the hand-made one, so both commit.
                 TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}}, {{0, 1, 2}}};
                 TerrainRecord record;
@@ -1427,6 +1430,14 @@ int main(int argc, char **argv) {
                     pad["mode"] = "width";
                     pad["width"] = 0.1;
                     executeTerrainCommand(doc, pad);
+                }
+                if (command["command"] == "terrain.drape") {
+                    const auto wires = doc.addWire(0, {0.6, 0.3, 5}, {1.8, 1.0, 5});
+                    QJsonArray edges;
+                    for (const auto &[edge, record] : doc.bodies().at(wires)->topology.edges)
+                        edges.append(QJsonObject{{"body", QString::number(wires)},
+                                                 {"edge", QString::number(edge)}});
+                    command["edges"] = edges;
                 }
                 if (command["command"] == "terrain.reset_edits" ||
                     command["command"] == "terrain.remove_edit") {

@@ -833,6 +833,8 @@ void regionPaint() {
               << " tiles replaced, " << report["tilesRepainted"].toDouble() << " repainted\n";
     check(report["paintRegions"].toDouble() == 1, "the face records one paint region");
     check(report["runs"].toDouble() == 2, "the face's two loops imprint as two closed runs");
+    for (const auto &run : lastDrape(doc, terrain).runs)
+        check(run.size() > 3 && run.front() == run.back(), "a face loop is a closed breakline");
     checkPaint(doc, terrain, gravel, outer, hole, "paint");
     check(report["tilesRepainted"].toDouble() > 0, "tiles inside the region but not crossed are repainted");
     checkC4(doc, terrain, probes, "paint");
@@ -1054,6 +1056,34 @@ void pads() {
     checkC6(doc, terrain, "pads slopes");
     checkC7(doc, terrain, "pads slopes");
     std::cout << "pads: footprint and outline refused, slopes crossed\n";
+}
+
+// A line passing 2e-7 m from a grid vertex (outside the 1e-7 m snap) would leave a sliver below
+// the modelling tolerance: refused, located there, nothing changed. At 5e-8 m it snaps instead.
+void sliver() {
+    Document doc;
+    const auto terrain = importGrid(doc, 30);
+    const auto near = addPolyline(doc, modelLine(doc, terrain, {{4.5, 10 + 2e-7}, {15.5, 10 + 2e-7}}));
+    checkUnchanged(doc, "a line 2e-7 m from a vertex",
+                   [&] { direct(doc, drapeCommand(terrain, {{"edges", edgesOf(doc, near)}})); },
+                   "INVALID_REQUEST");
+    const auto r = refusal([&] { direct(doc, drapeCommand(terrain, {{"edges", edgesOf(doc, near)}})); });
+    const auto refusals = r.report["terrain"].toObject()["refusals"].toArray();
+    check(!refusals.isEmpty() && refusals.at(0).toObject()["kind"] == "degenerate-triangle" &&
+              !refusals.at(0).toObject()["locations"].toArray().isEmpty(),
+          "the sliver is refused with its location: " + refusalReportKinds([&] {
+              direct(doc, drapeCommand(terrain, {{"edges", edgesOf(doc, near)}}));
+          }));
+    const auto snapped = addPolyline(doc, modelLine(doc, terrain, {{4.5, 10 + 5e-8}, {15.5, 10 + 5e-8}}));
+    const auto probes = probesIn(doc, terrain, {4, 9, 16, 11}, 10000);
+    const auto result = run(doc, drapeCommand(terrain, {{"edges", edgesOf(doc, snapped)}}));
+    check(result["terrainReport"].toObject()["terrain"].toObject()["snapped"].toDouble() >= 10,
+          "a line within 1e-7 m of the vertices snaps to them");
+    checkC4(doc, terrain, probes, "snap");
+    checkC1(doc, terrain, "snap");
+    checkC6(doc, terrain, "snap");
+    checkC7(doc, terrain, "snap");
+    std::cout << "sliver: refused at 2e-7 m, snapped at 5e-8 m\n";
 }
 
 // Refusals: each wrong field, missing target and lock changes nothing.
@@ -1337,7 +1367,96 @@ void hostile() {
         const auto [r, seconds] = timed("20,000 points within 2 micrometres", data);
         check(!r.code.empty() && seconds < 30, "a point cloud as a line is refused");
     }
+    // Lines along grid rows pass through every grid vertex: each segment is bent at 120 vertices,
+    // and each piece tests only the edges beside it.
+    {
+        Document grid;
+        const auto gridTerrain = importGrid(grid, 120);
+        const auto gridMesh = terrainEditMeshCache().get(grid, gridTerrain, true);
+        const auto gridState = stateOf(grid, gridTerrain);
+        auto data = std::make_shared<TerrainDrapeData>();
+        // A serpentine along the rows (the grid's whole width at whole Y), ten times over.
+        const auto gc = centre(grid, gridTerrain);
+        const double x0 = gc.x - 59.5, x1 = gc.x + 59.5, y0 = gc.y - 59.5;
+        std::vector<std::array<double, 2>> rows;
+        for (int pass = 0; pass < 10; ++pass)
+            for (int y = 1; y <= 117; ++y) {
+                const bool right = (pass * 117 + y) % 2;
+                rows.push_back({right ? x0 : x1, y0 + y});
+                rows.push_back({right ? x1 : x0, y0 + y});
+            }
+        rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+        data->lines.push_back({rows, false});
+        const TerrainEdit entry{1, terrainDrapeKind, data};
+        const auto start = std::chrono::steady_clock::now();
+        std::size_t resolvedPoints = 0, segments = rows.size();
+        const auto r = refusal([&] {
+            resolvedPoints = planTerrainDrape({*gridMesh, *gridState, recordOf(grid, gridTerrain).parameters}, entry).points;
+        });
+        std::cout << "hostile: rows: " << segments << " points in, " << resolvedPoints << " resolved\n";
+        const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        std::cout << "hostile: rows through 120 grid vertices each: " << (r.code.empty() ? "applied" : r.code)
+                  << " in " << seconds << " s (" << r.message.substr(0, 140) << ")\n";
+        check(seconds < 30, "lines through many grid vertices are split or refused quickly");
+    }
     std::cout << "hostile: refused within their bounds\n";
+}
+
+// Crafted files (review fixes): a drape whose split segment a source passes 10,000 times would
+// grow the current sources by 655 million points; its effect is left out of the derivation (and
+// a command that would do it is refused), quickly. A stored source edit naming a drape's line is
+// left out of the derivation too, as the replay skips it.
+void hostileFile() {
+    Document doc;
+    const auto terrain = importGrid(doc, 20);
+    auto record = recordOf(doc, terrain);
+    const auto state0 = stateOf(doc, terrain);
+    const Vec3 a{3.25, 4.5, 50.1}, b{8.75, 4.5, 50.2};
+    auto add = std::make_shared<TerrainSourceEditData>();
+    add->source = terrainAddedSourceId(state0->maxBaseId(), 1);
+    add->role = TerrainSourceRole::Breakline;
+    for (int i = 0; i < 10000; ++i) {
+        add->points.push_back(a);
+        add->points.push_back(b);
+    }
+    auto drape = std::make_shared<TerrainDrapeData>();
+    drape->lines.push_back({{{3.25, 2}, {3.25, 7}}, false});
+    drape->runs.push_back({{3.25, 2, 50.1}, {3.25, 7, 50.2}});
+    TerrainDrapeSplit split;
+    split.a = {a.x, a.y};
+    split.b = {b.x, b.y};
+    for (int i = 0; i < 65536; ++i)
+        split.points.push_back({a.x + 5.5 * (i + 1) / 65537.0, a.y, 50.15});
+    drape->splits.push_back(split);
+    validateTerrainDrapeData(*drape);
+    record.edits.push_back(std::make_shared<TerrainEdit>(TerrainEdit{1, terrainAddSourceKind, add}));
+    record.edits.push_back(std::make_shared<TerrainEdit>(TerrainEdit{2, terrainDrapeKind, drape}));
+    // A source edit naming the drape's line (ordinal 0 of entry 2).
+    auto edit = std::make_shared<TerrainSourceEditData>();
+    edit->source = *terrainSplitSourceId(2, 0);
+    edit->role = TerrainSourceRole::Breakline;
+    edit->points = {{3.25, 2, 51}, {3.25, 7, 51}};
+    edit->before = {3.25, 2, 3.25, 7};
+    record.edits.push_back(std::make_shared<TerrainEdit>(TerrainEdit{3, terrainEditSourceKind, edit}));
+    record.nextEditId = 4;
+    const auto start = std::chrono::steady_clock::now();
+    const auto state = terrainSourceState(record);
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    std::cout << "hostile file: derived in " << seconds << " s\n";
+    check(seconds < 10, "the crafted drape is derived quickly");
+    check(state->find(add->source)->points.size() == 20000, "the crafted drape's effect is left out");
+    check(!state->find(*terrainSplitSourceId(2, 0)), "so its lines are not added either");
+    // A drape whose own effect stands: the source edit naming its line is left out.
+    record.edits[1] = std::make_shared<TerrainEdit>(TerrainEdit{2, terrainDrapeKind, [&] {
+        auto plain = std::make_shared<TerrainDrapeData>(*drape);
+        plain->splits.clear();
+        return plain;
+    }()});
+    const auto second = terrainSourceState(record);
+    const auto *line = second->find(*terrainSplitSourceId(2, 0));
+    check(line && line->points.front().z == 50.1 && second->isDrapeSource(line->id),
+          "a stored source edit naming a drape's line is left out of the derivation");
+    std::cout << "hostile file: crafted drape and source edit left out\n";
 }
 
 // A cell over the triangle limit: an imprint that would pass the document's 250,000 terrain
@@ -1449,9 +1568,11 @@ int main(int argc, char **argv) {
         {"path", imprintPath},          {"clipping", clipping},
         {"paint", regionPaint},         {"overlay", overlay},
         {"grid", gridLines},            {"pads", pads},
+        {"sliver", sliver},
         {"refusals", refusals},         {"codec", codec},
         {"assistant surface", assistantSurface}, {"cancel everywhere", cancelEverywhere},
-        {"hostile", hostile},           {"triangle limit", triangleLimit},
+        {"hostile", hostile},           {"hostile file", hostileFile},
+        {"triangle limit", triangleLimit},
         {"sequence", sequence}};
     int failed = 0;
     for (const auto &[name, test] : tests) {

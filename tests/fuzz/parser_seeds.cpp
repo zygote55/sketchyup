@@ -8,6 +8,7 @@
 #include "core/terrain_edit.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
@@ -435,6 +436,37 @@ int main(int argc, char **argv) {
                 publishRejected("terrain-edits",
                                 QJsonDocument(QJsonArray{backwards}).toJson(QJsonDocument::Compact),
                                 "stamp-rays-backwards");
+            }
+            // R096.e: a resolved drape (an open and a closed line, a paint region with a hole, its
+            // runs and a split contour segment), an unresolved drape, and a drape whose split names
+            // its segment's larger end first, which the decoder refuses.
+            {
+                auto drape = std::make_shared<TerrainDrapeData>();
+                drape->lines = {{{{0, 0}, {5, 1}, {9, 0.5}}, false},
+                                {{{2, 2}, {6, 2}, {6, 5}, {2, 5}}, true},
+                                {{{3, 3}, {3, 4}, {4, 4}, {4, 3}}, true}};
+                drape->paint = {{{{{2, 2}, {6, 2}, {6, 5}, {2, 5}}, {{3, 3}, {3, 4}, {4, 4}, {4, 3}}}, 7}};
+                drape->runs = {{{0, 0, 10}, {2.5, 0.5, 10.2}, {5, 1, 10.4}, {9, 0.5, 10.1}},
+                               {{2, 2, 10.5}, {6, 2, 10.6}, {6, 5, 10.9}, {2, 5, 10.7}, {2, 2, 10.5}},
+                               {{3, 3, 10.6}, {3, 4, 10.7}, {4, 4, 10.75}, {4, 3, 10.65}, {3, 3, 10.6}}};
+                drape->splits = {{{2, 0}, {3, 1}, {{2.5, 0.5, 10.2}}}};
+                auto plain = std::make_shared<TerrainDrapeData>();
+                plain->lines = {{{{-4, -4}, {-1, -2}}, false}};
+                QJsonArray drapes{encodeTerrainEdit({1, terrainDrapeKind, drape}),
+                                  encodeTerrainEdit({2, terrainDrapeKind, plain})};
+                publish("terrain-edits", QJsonDocument(drapes).toJson(QJsonDocument::Compact),
+                        "drapes");
+                auto backwards = drapes[0].toObject();
+                auto splits = backwards["splits"].toArray();
+                auto split = splits[0].toObject();
+                const QJsonValue a = split["a"], b = split["b"];
+                split["a"] = b;
+                split["b"] = a;
+                splits[0] = split;
+                backwards["splits"] = splits;
+                publishRejected("terrain-edits",
+                                QJsonDocument(QJsonArray{backwards}).toJson(QJsonDocument::Compact),
+                                "drape-split-backwards");
             }
         }
         // R095.c: terrain sources, the generated fixtures (ADR 0168 section 6). The invalid

@@ -730,11 +730,7 @@ TerrainPaint terrainTilePaint(const Document &doc, Id terrain) {
     const TerrainPaintRegions regions(*doc.bodies().at(terrain)->terrain);
     for (const auto id : terrainTiles(doc, terrain)) {
         const auto &tile = *doc.bodies().at(id);
-        for (const auto &[face, record] : tile.surface.faces)
-            if ((tile.faceColors.contains(face) || tile.faceMaterials.contains(face) ||
-                 tile.faceTextureMappings.contains(face)) &&
-                !terrainFacePaintDerived(tile, face, regions))
-                ++paint.faces;
+        paint.faces += terrainTileOwnPaint(tile, regions);
         if ((!shared && tile.materials != fallback) || tile.color != plain.color)
             ++paint.tiles;
     }

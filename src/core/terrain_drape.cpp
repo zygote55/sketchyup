@@ -197,9 +197,13 @@ void validateTerrainDrapeData(const TerrainDrapeData &data) {
     for (const auto &run : data.runs) {
         if (run.size() < 2)
             fail("A drape run has at least two points");
-        for (const auto &p : run)
+        for (std::size_t i = 0; i < run.size(); ++i) {
+            const auto &p = run[i];
             if (!finitePoint(p.x, p.y) || !std::isfinite(p.z) || std::abs(p.z) > localBound)
                 fail("Drape runs are finite and within 1,000,000 m of the terrain");
+            if (i && p.x == run[i - 1].x && p.y == run[i - 1].y)
+                fail("A drape run repeats a point");
+        }
         resolved += run.size();
         if (resolved > terrainDrapeResolvedPoints)
             fail("A drape's runs have at most 65,536 points");
@@ -686,6 +690,28 @@ class Splitter {
             stops.push_back(loc);
         }
         stops.push_back(to);
+        // The edges by the range of their projection on the segment, so each piece between two
+        // stops tests only the edges beside it (a line through many grid vertices has many).
+        struct Span {
+            double lo, hi;
+            const std::pair<Vec3, Vec3> *edge;
+        };
+        const double sx = Qc.x - Pc.x, sy = Qc.y - Pc.y, len2 = sx * sx + sy * sy;
+        auto along = [&](TerrainVec2 v) { return ((v.x - Pc.x) * sx + (v.y - Pc.y) * sy) / len2; };
+        std::vector<Span> spans;
+        spans.reserve(edges.size());
+        double widest = 0;
+        for (const auto &[key, edge] : edges) {
+            const double t0 = along(v2(edge.first)), t1 = along(v2(edge.second));
+            spans.push_back({std::min(t0, t1), std::max(t0, t1), &edge});
+            widest = std::max(widest, spans.back().hi - spans.back().lo);
+        }
+        std::sort(spans.begin(), spans.end(), [](const Span &l, const Span &r) {
+            return l.lo < r.lo || (l.lo == r.lo && (lexLess(l.edge->first, r.edge->first) ||
+                                                    (l.edge->first == r.edge->first &&
+                                                     lexLess(l.edge->second, r.edge->second))));
+        });
+        constexpr double slack = 1e-9;
         std::vector<Loc> result{from};
         for (std::size_t k = 0; k + 1 < stops.size(); ++k) {
             const auto &A = stops[k], &B = stops[k + 1];
@@ -699,9 +725,16 @@ class Splitter {
                     return keyOf(l.p) == keyOf(u) || keyOf(l.p) == keyOf(w);
                 return sameEdge(l, u, w);
             };
+            const double ta = along(a), tb = along(b);
+            const double lo = std::min(ta, tb) - slack, hi = std::max(ta, tb) + slack;
+            auto first = std::lower_bound(spans.begin(), spans.end(), lo - widest,
+                                          [](const Span &span, double t) { return span.lo < t; });
             std::vector<std::pair<double, Loc>> crossings;
-            for (const auto &[key, edge] : edges) {
-                const auto &[u, w] = edge;
+            for (auto span = first; span != spans.end() && span->lo <= hi; ++span) {
+                scan(1, a);
+                if (span->hi < lo)
+                    continue;
+                const auto &[u, w] = *span->edge;
                 if (attached(A, u, w) || attached(B, u, w))
                     continue;
                 const int o1 = orient(Ac, Bc, v2(u)), o2 = orient(Ac, Bc, v2(w)),
@@ -748,14 +781,16 @@ class Splitter {
     }
 
   private:
-    void scan(std::size_t triangles, TerrainVec2 at) {
-        scanned_ += triangles;
+    void scan(std::size_t work, TerrainVec2 at) {
+        scanned_ += work;
         if (scanned_ > terrainDrapeScanWork)
             problems_.refuse(limitKind,
-                             "Locating the lines on the terrain would scan too many triangles; "
-                             "drape fewer lines.",
+                             "Splitting the lines on the terrain would take too much work (they "
+                             "scan over " +
+                                 std::to_string(terrainDrapeScanWork) +
+                                 " triangles and edges); drape fewer or shorter lines.",
                              at);
-        if (++calls_ % 256 == 0)
+        if (++calls_ % 4096 == 0)
             checkpoint(progress_);
     }
     // A point on the mesh edge u–w (u lexicographically smaller) at parameter s: points of one
@@ -783,6 +818,66 @@ class Splitter {
     std::size_t touched_{}, snappedCount_{}, crossingCount_{}, calls_{};
     std::uint64_t scanned_{};
     std::map<std::pair<TerrainPlanKey, TerrainPlanKey>, std::vector<Loc>> byEdge_;
+};
+// A drape's split segments by plan key, and how much its effect grows the current sources: its
+// runs and its split points once per place a source passes a split segment. The plan and the
+// `sources` hook count alike, so a command is refused exactly when its stored effect would be.
+struct DrapeSplitIndex {
+    using SegmentKey = std::pair<TerrainPlanKey, TerrainPlanKey>;
+    std::map<SegmentKey, const TerrainDrapeSplit *> bySegment;
+    Box box = emptyBox();
+    const TerrainDrapeData &data;
+    explicit DrapeSplitIndex(const TerrainDrapeData &drape) : data(drape) {
+        for (const auto &split : data.splits) {
+            bySegment.emplace(SegmentKey{TerrainPlanKey::of(split.a[0], split.a[1]),
+                                         TerrainPlanKey::of(split.b[0], split.b[1])},
+                              &split);
+            extend(box, split.a[0], split.a[1]);
+            extend(box, split.b[0], split.b[1]);
+        }
+    }
+    // The split segment a source's segment is (reversed when it runs from b to a); segments
+    // outside the splits' box are skipped before any lookup.
+    const TerrainDrapeSplit *splitOf(const Vec3 &a, const Vec3 &b, bool &reverse) const {
+        if (bySegment.empty() || std::max(a.x, b.x) < box[0] || std::min(a.x, b.x) > box[2] ||
+            std::max(a.y, b.y) < box[1] || std::min(a.y, b.y) > box[3])
+            return nullptr;
+        const auto ka = keyOf(a), kb = keyOf(b);
+        if (const auto found = bySegment.find({ka, kb}); found != bySegment.end()) {
+            reverse = false;
+            return found->second;
+        }
+        if (const auto back = bySegment.find({kb, ka}); back != bySegment.end()) {
+            reverse = true;
+            return back->second;
+        }
+        return nullptr;
+    }
+    std::size_t growth(const TerrainSourceState &state,
+                       std::vector<const TerrainSource *> *touched = nullptr) const {
+        std::size_t total = 0;
+        for (const auto &run : data.runs)
+            total += run.size();
+        if (bySegment.empty())
+            return total;
+        for (const auto *source : state.sources()) {
+            if (source->role != TerrainSourceRole::Contour &&
+                source->role != TerrainSourceRole::Breakline)
+                continue;
+            const auto &p = source->points;
+            bool any = false;
+            for (std::size_t i = 0; i + 1 < p.size(); ++i) {
+                bool reverse = false;
+                if (const auto *split = splitOf(p[i], p[i + 1], reverse)) {
+                    total += split->points.size();
+                    any = true;
+                }
+            }
+            if (any && touched)
+                touched->push_back(source);
+        }
+        return total;
+    }
 };
 } // namespace
 
@@ -1174,6 +1269,14 @@ TerrainDrapePlan planTerrainDrape(const TerrainEditContext &context, const Terra
                             std::to_string(terrainDrapeSplitPoints) + " times.",
                         v2(runs.front().front().p));
     plan.splitSegments = resolved->splits.size();
+    // The current sources' growth, counted as the `sources` hook counts it.
+    if (!overlay &&
+        state.vertexCount() + DrapeSplitIndex(*resolved).growth(state) > terrainDrapeSourceVertices)
+        problems.refuse(limitKind,
+                        "The drape would grow the terrain's current sources past " +
+                            std::to_string(terrainDrapeSourceVertices) +
+                            " vertices; drape fewer lines, or use Reset edits.",
+                        v2(runs.front().front().p));
     plan.runLines = std::move(runLines);
     plan.resolved = std::move(resolved);
     return plan;
@@ -1341,6 +1444,13 @@ TerrainDrapeOverlay terrainDrapeOverlay(const TerrainEditMesh &mesh, const Terra
                         owner[{ref, part}] = f;
                 };
                 if (const auto found = split.find(ref); found != split.end()) {
+                    // Every piece of a split triangle is a containment test of its own.
+                    work += found->second->count;
+                    if (work > terrainDrapeOverlayWork)
+                        problems.refuse(limitKind,
+                                        "The draped faces cover too much of the terrain to "
+                                        "overlay at once; drape fewer faces.",
+                                        {shape.box[0], shape.box[1]});
                     for (std::uint32_t k = 0; k < found->second->count; ++k)
                         test(plan.change.added[found->second->first + k], k);
                 } else
@@ -1427,25 +1537,25 @@ TerrainDrapeOverlay terrainDrapeOverlay(const TerrainEditMesh &mesh, const Terra
             continue;
         }
         std::vector<TerrainDrapeOverlayFace> made;
+        std::vector<TerrainPaintLoop> outlines; // each outer loop indexed once (several outers)
         for (auto &outer : outers) {
             TerrainDrapeOverlayFace face{f, {}};
             face.loops.push_back(outer);
             made.push_back(std::move(face));
+            if (outers.size() > 1 && !holes.empty()) {
+                std::vector<Plan2> outline;
+                for (const auto &q : outer)
+                    outline.push_back({q.x, q.y});
+                outlines.emplace_back(std::move(outline));
+            }
         }
         for (auto &hole : holes) {
             std::size_t into = 0;
-            if (made.size() > 1) {
-                const auto &p = hole.front();
-                for (std::size_t m = 0; m < made.size(); ++m) {
-                    std::vector<Plan2> outline;
-                    for (const auto &q : made[m].loops.front())
-                        outline.push_back({q.x, q.y});
-                    if (TerrainPaintLoop(outline).odd(p.x, p.y)) {
-                        into = m;
-                        break;
-                    }
+            for (std::size_t m = 0; m < outlines.size(); ++m)
+                if (outlines[m].odd(hole.front().x, hole.front().y)) {
+                    into = m;
+                    break;
                 }
-            }
             made[into].loops.push_back(std::move(hole));
         }
         for (auto &face : made) {
@@ -1470,6 +1580,7 @@ TerrainDrapeOverlay terrainDrapeOverlay(const TerrainEditMesh &mesh, const Terra
 
 // ---- The kind -------------------------------------------------------------------------------
 namespace {
+
 // The current sources after a resolved drape: the split points inserted into the contours and
 // breaklines whose segments they split (and the split pad rays superseded), then the runs as
 // breaklines with the entry's block ids.
@@ -1477,61 +1588,44 @@ void applyDrapeSources(TerrainSourceState &state, const TerrainEdit &edit) {
     const auto &data = dataOf(edit);
     if (!data.resolved())
         return;
-    if (!data.splits.empty()) {
-        using SegmentKey = std::pair<TerrainPlanKey, TerrainPlanKey>;
-        std::map<SegmentKey, const TerrainDrapeSplit *> bySegment;
-        auto box = emptyBox();
-        for (const auto &split : data.splits) {
-            bySegment.emplace(SegmentKey{TerrainPlanKey::of(split.a[0], split.a[1]),
-                                         TerrainPlanKey::of(split.b[0], split.b[1])},
-                              &split);
-            extend(box, split.a[0], split.a[1]);
-            extend(box, split.b[0], split.b[1]);
-        }
+    const DrapeSplitIndex index(data);
+    std::vector<const TerrainSource *> touched;
+    const auto growth = index.growth(state, &touched);
+    const auto &box = index.box;
+    const auto &bySegment = index.bySegment;
+    auto splitOf = [&](const Vec3 &a, const Vec3 &b, bool &reverse) {
+        return index.splitOf(a, b, reverse);
+    };
+    if (state.vertexCount() + growth > terrainDrapeSourceVertices)
+        throw std::invalid_argument("The drape would grow the current sources past their bound");
+    if (!touched.empty()) {
         std::vector<TerrainSource> replaced;
-        for (const auto *source : state.sources()) {
-            if (source->role != TerrainSourceRole::Contour &&
-                source->role != TerrainSourceRole::Breakline)
-                continue;
+        for (const auto *source : touched) {
             const auto &p = source->points;
-            std::optional<std::vector<Vec3>> points;
+            std::vector<Vec3> points{p.front()};
             for (std::size_t i = 0; i + 1 < p.size(); ++i) {
-                const auto ka = keyOf(p[i]), kb = keyOf(p[i + 1]);
-                const TerrainDrapeSplit *split = nullptr;
                 bool reverse = false;
-                if (const auto found = bySegment.find({ka, kb}); found != bySegment.end())
-                    split = found->second;
-                else if (const auto back = bySegment.find({kb, ka}); back != bySegment.end()) {
-                    split = back->second;
-                    reverse = true;
+                if (const auto *split = splitOf(p[i], p[i + 1], reverse)) {
+                    if (reverse)
+                        points.insert(points.end(), split->points.rbegin(), split->points.rend());
+                    else
+                        points.insert(points.end(), split->points.begin(), split->points.end());
                 }
-                if (!split) {
-                    if (points)
-                        points->push_back(p[i + 1]);
-                    continue;
-                }
-                if (!points)
-                    points.emplace(p.begin(), p.begin() + std::ptrdiff_t(i + 1));
-                if (reverse)
-                    points->insert(points->end(), split->points.rbegin(), split->points.rend());
-                else
-                    points->insert(points->end(), split->points.begin(), split->points.end());
-                points->push_back(p[i + 1]);
+                points.push_back(p[i + 1]);
             }
-            if (points) {
-                TerrainSource changed = *source;
-                changed.points = std::move(*points);
-                replaced.push_back(std::move(changed));
-            }
+            TerrainSource changed = *source;
+            changed.points = std::move(points);
+            replaced.push_back(std::move(changed));
         }
         for (auto &source : replaced)
             state.replace(std::move(source));
+    }
+    if (!bySegment.empty())
         // Pad rays the drape split are superseded, as a newer pad's would be.
         state.dropPadRays(box, [&](const Vec3 &a, const Vec3 &b) {
             return bySegment.contains({keyOf(a), keyOf(b)}) ||
                    bySegment.contains({keyOf(b), keyOf(a)});
         });
-    }
     for (std::size_t i = 0; i < data.runs.size(); ++i) {
         const auto id = terrainSplitSourceId(edit.id, std::uint32_t(i));
         if (!id || state.find(*id))
@@ -1603,6 +1697,30 @@ Id TerrainPaintRegions::materialAt(double x, double y, std::size_t first) const 
     }
     return 0;
 }
+std::vector<std::size_t> TerrainPaintRegions::candidates(const std::array<double, 4> &box,
+                                                         std::size_t first) const {
+    std::vector<std::size_t> list;
+    for (std::size_t i = first; i < regions_.size(); ++i) {
+        const auto &b = regions_[i].box;
+        if (!(b[2] < box[0] || b[0] > box[2] || b[3] < box[1] || b[1] > box[3]))
+            list.push_back(i);
+    }
+    return list;
+}
+Id TerrainPaintRegions::materialAt(double x, double y,
+                                   const std::vector<std::size_t> &candidates) const {
+    for (std::size_t k = candidates.size(); k-- > 0;) {
+        const auto &region = regions_[candidates[k]];
+        if (x < region.box[0] || x > region.box[2] || y < region.box[1] || y > region.box[3])
+            continue;
+        bool parity = false;
+        for (const auto &loop : region.loops)
+            parity = parity != loop->odd(x, y);
+        if (parity)
+            return region.material;
+    }
+    return 0;
+}
 bool TerrainPaintRegions::meets(const std::array<double, 4> &box, std::size_t first) const {
     for (std::size_t i = first; i < regions_.size(); ++i) {
         const auto &b = regions_[i].box;
@@ -1620,14 +1738,21 @@ std::array<double, 2> faceCentroid(const Body &tile, const Face &face) {
 }
 } // namespace
 bool paintTerrainTile(Body &tile, const TerrainPaintRegions &regions, std::size_t first) {
-    if (regions.size() <= first)
+    if (regions.size() <= first || tile.surface.vertices.empty())
+        return false;
+    // Only the regions whose boxes meet the tile's are tested.
+    auto box = emptyBox();
+    for (const auto &[id, p] : tile.surface.vertices)
+        extend(box, p.x, p.y);
+    const auto candidates = regions.candidates(box, first);
+    if (candidates.empty())
         return false;
     bool changed = false;
     for (const auto &[id, face] : tile.surface.faces) {
         if (face.loops.empty() || face.loops.front().size() != 3)
             continue;
         const auto c = faceCentroid(tile, face);
-        const auto material = regions.materialAt(c[0], c[1], first);
+        const auto material = regions.materialAt(c[0], c[1], candidates);
         if (!material)
             continue;
         const MaterialSides sides{material, material};
@@ -1641,20 +1766,30 @@ bool paintTerrainTile(Body &tile, const TerrainPaintRegions &regions, std::size_
     }
     return changed;
 }
-bool terrainFacePaintDerived(const Body &tile, Id face, const TerrainPaintRegions &regions) {
-    if (tile.faceColors.contains(face) || tile.faceTextureMappings.contains(face))
-        return false;
-    const auto found = tile.surface.faces.find(face);
-    if (found == tile.surface.faces.end() || found->second.loops.empty() ||
-        found->second.loops.front().size() != 3)
-        return !tile.faceMaterials.contains(face);
-    const auto c = faceCentroid(tile, found->second);
-    const auto material = regions.empty() ? Id{0} : regions.materialAt(c[0], c[1]);
-    if (!material)
-        return !tile.faceMaterials.contains(face);
-    const MaterialSides sides{material, material};
-    const auto entry = tile.faceMaterials.find(face);
-    return entry == tile.faceMaterials.end() ? sides == tile.materials : entry->second == sides;
+std::size_t terrainTileOwnPaint(const Body &tile, const TerrainPaintRegions &regions) {
+    std::vector<std::size_t> candidates;
+    if (!regions.empty() && !tile.surface.vertices.empty()) {
+        auto box = emptyBox();
+        for (const auto &[id, p] : tile.surface.vertices)
+            extend(box, p.x, p.y);
+        candidates = regions.candidates(box);
+    }
+    std::size_t own = 0;
+    for (const auto &[id, face] : tile.surface.faces) {
+        const bool painted = tile.faceColors.contains(id) || tile.faceMaterials.contains(id) ||
+                             tile.faceTextureMappings.contains(id);
+        if (!painted)
+            continue;
+        if (tile.faceColors.contains(id) || tile.faceTextureMappings.contains(id) ||
+            candidates.empty() || face.loops.empty() || face.loops.front().size() != 3) {
+            ++own;
+            continue;
+        }
+        const auto c = faceCentroid(tile, face);
+        const auto material = regions.materialAt(c[0], c[1], candidates);
+        own += !material || tile.faceMaterials.at(id) != MaterialSides{material, material};
+    }
+    return own;
 }
 std::size_t terrainPaintBandEdges(const TerrainRecord &record) {
     std::size_t sum = 0;

@@ -925,7 +925,10 @@ void applySourceEffect(TerrainSourceState &state, const TerrainEdit &edit) {
         state.add(sourceOf(edit, nullptr));
         return;
     }
-    if (!old || !editable(*old))
+    // A pad's outline and daylight line (R096.d) and a drape's lines (R096.e) change only with
+    // their own entry: a stored source edit naming one is skipped by the replay (its plan refuses
+    // it), so the mesh-free derivation leaves it out too.
+    if (!old || !editable(*old) || state.isPadSource(old->id) || state.isDrapeSource(old->id))
         return;
     if (edit.kind == terrainRemoveSourceKind)
         state.remove(data.source);
