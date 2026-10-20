@@ -188,4 +188,87 @@ TerrainTriangulationResult triangulateTerrain(const TerrainTriangulationInput &i
                                               const TerrainTriangulationOptions &options = {},
                                               TerrainProgress *progress = nullptr);
 
+// ---- R096.c: local re-triangulation (ADR 0169 section 3, "Local re-triangulation") -------
+//
+// The exact in-circle predicate: +1 when d lies strictly inside the circle through the
+// counter-clockwise a, b, c, -1 outside, 0 on it. The edit core grows a Bowyer-Watson cavity
+// with it.
+int terrainInCircle(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c, TerrainVec2 d);
+
+// A vertex the caller keeps: a cavity boundary vertex or a kept interior vertex, with its
+// elevation. `contour` says whether it lies on a current source contour (the flat-triangle rule
+// counts only contour vertices, as triangulateTerrain does).
+struct TerrainCavityVertex {
+    TerrainVec3 position;
+    bool contour{false};
+    std::uint64_t sourceId{0}; // echoed in report locations
+};
+// One cavity: a union of whole triangles of an existing mesh, given by its boundary, plus what
+// is inserted into it. Vertices to remove are simply left out of `vertices`.
+struct TerrainCavityInput {
+    // The kept vertices. No two share an x and y.
+    std::vector<TerrainCavityVertex> vertices;
+    // The cavity's boundary as directed edges (indices into `vertices`), the cavity on the left
+    // of each. Together they form closed loops (an outer loop counter-clockwise, loops around
+    // islands of kept triangles clockwise); the loops may touch at vertices.
+    std::vector<std::array<std::uint32_t, 2>> boundary;
+    // Kept constraint segments inside the cavity (contour and breakline segments of the current
+    // sources), by vertex index.
+    std::vector<std::array<std::uint32_t, 2>> constraints;
+    // The new geometry, as in triangulateTerrain. Each new vertex must lie strictly inside the
+    // cavity or on a kept vertex (within xyTolerance), with the same elevation bit for bit.
+    std::vector<TerrainContour> contours;
+    std::vector<TerrainBreakline> breaklines;
+    std::vector<TerrainPoint> points;
+};
+struct TerrainCavityResult {
+    bool ok{false};
+    // The kept vertices in input order, then each new vertex that did not merge.
+    std::vector<TerrainVec3> vertices;
+    // Counter-clockwise, inside the cavity only, each starting at its smallest index, sorted.
+    // Every boundary edge appears exactly once in its direction, so the triangles join the
+    // surrounding mesh exactly; every constraint and new segment is an edge.
+    std::vector<std::array<std::uint32_t, 3>> triangles;
+    // For each new input vertex (contour points, then breakline points, then points, in input
+    // order): its index in `vertices`. A vertex merged into a kept one names that one, so the
+    // caller can store exactly the positions the mesh holds.
+    std::vector<std::uint32_t> placed;
+    TerrainTriangulationReport report;
+};
+// The cavity re-triangulated with the numbers, exact predicates, crossing checks, report kinds
+// and bounds of triangulateTerrain, and these rules:
+// - the input is canonicalised by position (the CDT sees the vertices in x, y order), so the
+//   same cavity gives the same triangles whatever the caller's vertex order;
+// - a new vertex merges into a vertex within options.xyTolerance only with a bit-equal
+//   elevation; otherwise it is a conflicting duplicate (the edit's sources must lie on the mesh
+//   exactly, ADR 0169 check C1);
+// - a vertex strictly inside a boundary edge or a kept constraint, or crossing segments, is a
+//   crossing-constraints refusal (boundary edges are never split, they are shared with the
+//   surrounding mesh);
+// - the flat-triangle flip (options.flatMode) runs inside the cavity only; Steiner fill and the
+//   maximum-edge-length trim do not run (edits stay inside the outline, ADR 0169 decision 6);
+// - a malformed cavity (an open or doubled boundary, an index out of range, two kept vertices at
+//   one x and y, a new vertex outside the cavity) is an invalid-polygon refusal.
+// Never throws for bad input; throws std::bad_alloc only when memory is exhausted.
+TerrainCavityResult retriangulateTerrainCavity(const TerrainCavityInput &input,
+                                               const TerrainTriangulationOptions &options = {});
+
+// The elevation-only path (ADR 0169 section 4.2): the flat-triangle flip over a set of existing
+// triangles whose elevations changed, without re-triangulating. Edges used by one triangle of
+// the set and `constraints` are never flipped. The triangles must be counter-clockwise and
+// edge-manifold. The result's triangles are in the caller's indices, each starting at its
+// smallest index, sorted; the flip order is canonical by position.
+struct TerrainFlipInput {
+    std::vector<TerrainCavityVertex> vertices;
+    std::vector<std::array<std::uint32_t, 3>> triangles;
+    std::vector<std::array<std::uint32_t, 2>> constraints;
+};
+struct TerrainFlipResult {
+    bool ok{false};
+    std::vector<std::array<std::uint32_t, 3>> triangles;
+    TerrainTriangulationReport report; // flat counts and flips; refusals when !ok
+};
+TerrainFlipResult flipTerrainFlatTriangles(const TerrainFlipInput &input,
+                                           const TerrainTriangulationOptions &options = {});
+
 } // namespace sketchy

@@ -72,7 +72,13 @@ if(SKETCHYUP_BUILD_FUZZERS)
   add_executable(parser_fuzz_terrain_triangulation EXCLUDE_FROM_ALL tests/fuzz/terrain_triangulation_fuzzer.cpp tests/fuzz/fuzzer_allocation.cpp)
   target_link_libraries(parser_fuzz_terrain_triangulation PRIVATE sketchyup_terrain_triangulation)
   target_link_options(parser_fuzz_terrain_triangulation PRIVATE -fsanitize=fuzzer)
-  add_custom_target(terrain_triangulation_fuzzers DEPENDS terrain_triangulation_fuzz_seeds parser_fuzz_terrain_triangulation)
+  # R096.c: the cavity adapter (ADR 0169 §9). Seeds: terrain_cavity_fuzz_seeds DIR.
+  add_executable(terrain_cavity_fuzz_seeds EXCLUDE_FROM_ALL tests/fuzz/terrain_cavity_seeds.cpp)
+  target_link_libraries(terrain_cavity_fuzz_seeds PRIVATE sketchyup_terrain_triangulation)
+  add_executable(parser_fuzz_terrain_cavity EXCLUDE_FROM_ALL tests/fuzz/terrain_cavity_fuzzer.cpp tests/fuzz/fuzzer_allocation.cpp)
+  target_link_libraries(parser_fuzz_terrain_cavity PRIVATE sketchyup_terrain_triangulation)
+  target_link_options(parser_fuzz_terrain_cavity PRIVATE -fsanitize=fuzzer)
+  add_custom_target(terrain_triangulation_fuzzers DEPENDS terrain_triangulation_fuzz_seeds parser_fuzz_terrain_triangulation terrain_cavity_fuzz_seeds parser_fuzz_terrain_cavity)
 endif()
 # R093.b component parameters: the core evaluates and regenerates through the engine,
 # and drives geometry with the same deterministic binary64 rules.
