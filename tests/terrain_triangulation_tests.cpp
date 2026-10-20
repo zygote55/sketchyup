@@ -2,6 +2,7 @@
 // input in local metres, runs triangulateTerrain and checks the mesh, the report or the
 // refusal with its locations.
 //   terrain_triangulation_tests [--fuzz-count N]
+#include "fuzz/terrain_cavity_harness.hpp"
 #include "fuzz/terrain_triangulation_harness.hpp"
 #include "geometry/terrain_triangulation.hpp"
 #include <algorithm>
@@ -1012,6 +1013,191 @@ void progressAndCancel() {
 
 } // namespace
 
+// ---- R096.c: the cavity API and the elevation-only flip (ADR 0169 §3, §4.2) ---------------
+fuzz::CavityCase cavityGrid(int n, double cx, double cy, double radius) {
+    fuzz::CavityCase c;
+    for (int j = 0; j < n; ++j)
+        for (int i = 0; i < n; ++i)
+            c.base.push_back({double(i), double(j), 0.25 * i + 0.5 * j});
+    c.cx = cx;
+    c.cy = cy;
+    c.radius = radius;
+    return c;
+}
+bool refusedWith(const TerrainCavityResult &r, TerrainProblemKind kind) {
+    if (r.ok)
+        return false;
+    for (const auto &problem : r.report.refusals)
+        if (problem.kind == kind)
+            return !problem.message.empty();
+    return false;
+}
+void cavityBasics() {
+    // A breakline and a spot point inserted into the middle of a grid; the boundary is kept.
+    auto c = cavityGrid(7, 3, 3, 1.6);
+    c.breaklines = {TerrainBreakline{{{2.5, 2.25, 2.5}, {3.5, 3.6, 3.5}}, false, 7}};
+    c.points = {{{3.25, 2.75, 3}, 8}};
+    const auto setup = fuzz::cavitySetup(c, false);
+    check(setup.has_value(), "the grid has a cavity");
+    const auto result = retriangulateTerrainCavity(setup->input);
+    fuzz::checkCavityResult(*setup, result);
+    check(result.ok && result.vertices.size() == setup->input.vertices.size() + 3,
+          "the cavity takes the breakline and the point");
+    check(result.placed.size() == 3 && result.placed[0] >= setup->input.vertices.size(),
+          "new vertices are placed after the kept ones");
+    // The same cavity with its vertices in another order gives the same triangles by position.
+    const auto reversed = fuzz::cavitySetup(c, true);
+    const auto again = retriangulateTerrainCavity(reversed->input);
+    check(fuzz::positionTriangles(result) == fuzz::positionTriangles(again),
+          "the cavity is canonical by position");
+    // A new vertex within the merge tolerance of a kept one, at its elevation, merges into it.
+    auto merge = cavityGrid(6, 2.5, 2.5, 1.2);
+    merge.points = {{{2 + 5e-8, 2, 0.25 * 2 + 0.5 * 2}, 5}};
+    const auto merged = fuzz::cavitySetup(merge, false);
+    const auto mergedResult = retriangulateTerrainCavity(merged->input);
+    check(mergedResult.ok && mergedResult.report.mergedDuplicates == 1 &&
+              mergedResult.placed[0] < merged->input.vertices.size() &&
+              mergedResult.vertices[mergedResult.placed[0]].x == 2,
+          "a new vertex merges into a kept one and names it");
+}
+void cavityRefusals() {
+    auto duplicate = cavityGrid(6, 2.5, 2.5, 1.2);
+    duplicate.points = {{{2, 2, 9}, 5}};
+    check(refusedWith(retriangulateTerrainCavity(fuzz::cavitySetup(duplicate, false)->input),
+                      TerrainProblemKind::ConflictingDuplicate),
+          "a new vertex on a kept one at another elevation is a conflicting duplicate");
+    auto crossing = cavityGrid(8, 3.5, 3.5, 2.5);
+    crossing.breaklines = {TerrainBreakline{{{2.5, 2.5, 1}, {4.5, 4.5, 1}}, false, 1},
+                           TerrainBreakline{{{2.5, 4.5, 1}, {4.5, 2.5, 1}}, false, 2}};
+    const auto crossed = retriangulateTerrainCavity(fuzz::cavitySetup(crossing, false)->input);
+    check(refusedWith(crossed, TerrainProblemKind::CrossingConstraints) &&
+              !crossed.report.refusals.front().locations.empty(),
+          "crossing new segments are refused, located");
+    // A new segment running into a kept constraint (a touch) is refused too.
+    auto touching = cavityGrid(8, 3.5, 3.5, 2.5);
+    touching.stride = 1;
+    touching.points = {};
+    const auto touchSetup = fuzz::cavitySetup(touching, false);
+    auto touchInput = touchSetup->input;
+    const auto &[ka, kb] = touchInput.constraints.front();
+    const auto pa = touchInput.vertices[ka].position, pb = touchInput.vertices[kb].position;
+    const TerrainVec3 mid{(pa.x + pb.x) / 2, (pa.y + pb.y) / 2, 7};
+    touchInput.points = {{mid, 9}};
+    check(refusedWith(retriangulateTerrainCavity(touchInput), TerrainProblemKind::CrossingConstraints),
+          "a new vertex on a kept constraint is refused");
+    auto outside = cavityGrid(6, 1, 1, 0.8);
+    outside.points = {{{4.25, 4.25, 1}, 5}};
+    check(refusedWith(retriangulateTerrainCavity(fuzz::cavitySetup(outside, false)->input),
+                      TerrainProblemKind::InvalidPolygon),
+          "a new vertex outside the cavity is refused");
+    auto open = fuzz::cavitySetup(cavityGrid(6, 2.5, 2.5, 1.5), false)->input;
+    open.boundary.pop_back();
+    check(refusedWith(retriangulateTerrainCavity(open), TerrainProblemKind::InvalidPolygon),
+          "an open boundary is refused");
+    auto reversedBoundary = fuzz::cavitySetup(cavityGrid(6, 2.5, 2.5, 1.5), false)->input;
+    for (auto &edge : reversedBoundary.boundary)
+        std::swap(edge[0], edge[1]);
+    check(refusedWith(retriangulateTerrainCavity(reversedBoundary),
+                      TerrainProblemKind::InvalidPolygon),
+          "a boundary with the cavity on its right is refused");
+    auto nan = fuzz::cavitySetup(cavityGrid(6, 2.5, 2.5, 1.5), false)->input;
+    nan.points = {{{std::nan(""), 1, 1}, 3}};
+    check(refusedWith(retriangulateTerrainCavity(nan), TerrainProblemKind::NonFinite),
+          "a non-finite new vertex is refused");
+}
+void cavityFlats() {
+    // Flat triangles (three contour vertices at one elevation) are flipped inside the cavity only.
+    auto c = cavityGrid(9, 4, 4, 2.6);
+    for (auto &p : c.base)
+        p.z = 0;
+    c.flags = 2;
+    c.contours = {TerrainContour{1, {{3.5, 3.5}, {4.5, 3.5}, {4.5, 4.5}, {3.5, 4.5}}, true, 9}};
+    const auto setup = fuzz::cavitySetup(c, false);
+    const auto flipped = retriangulateTerrainCavity(setup->input);
+    fuzz::checkCavityResult(*setup, flipped);
+    TerrainTriangulationOptions reportOnly;
+    reportOnly.flatMode = TerrainFlatMode::ReportOnly;
+    const auto kept = retriangulateTerrainCavity(setup->input, reportOnly);
+    check(flipped.ok && kept.ok && kept.report.flipsApplied == 0 &&
+              flipped.report.flatTrianglesRemaining <= kept.report.flatTrianglesRemaining,
+          "the flat flip runs inside the cavity, not in report-only mode");
+    // The elevation-only flip: a flat triangle beside a lower vertex is flipped away, unless
+    // its diagonal is a constraint.
+    TerrainFlipInput quad;
+    quad.vertices = {{{0, 0, 1}, true, 1}, {{2, 0, 1}, true, 1}, {{2, 2, 1}, true, 1},
+                     {{0, 2, 0}, false, 2}};
+    quad.triangles = {{0, 1, 2}, {0, 2, 3}};
+    const auto flippedQuad = flipTerrainFlatTriangles(quad);
+    check(flippedQuad.ok && flippedQuad.report.flipsApplied == 1 &&
+              flippedQuad.report.flatTrianglesRemaining == 0 &&
+              flippedQuad.triangles ==
+                  std::vector<std::array<std::uint32_t, 3>>{{0, 1, 3}, {1, 2, 3}},
+          "a flat triangle is flipped away");
+    quad.constraints = {{0, 2}};
+    const auto constrained = flipTerrainFlatTriangles(quad);
+    check(constrained.ok && constrained.report.flipsApplied == 0 &&
+              constrained.report.flatTrianglesRemaining == 1,
+          "a constraint diagonal is never flipped");
+    quad.constraints.clear();
+    quad.triangles = {{0, 2, 1}, {0, 2, 3}};
+    check(!flipTerrainFlatTriangles(quad).ok, "clockwise flip input is refused");
+}
+void generatedCavities(int count) {
+    Random random(20261020);
+    std::size_t accepted = 0, refused = 0;
+    std::vector<std::vector<std::uint8_t>> corpus;
+    for (const auto &c : {cavityGrid(7, 3, 3, 1.6), cavityGrid(6, 2.5, 2.5, 1.2)})
+        corpus.push_back(fuzz::encodeCavityCase(c));
+    for (int i = 0; i < count; ++i) {
+        fuzz::CavityCase c;
+        auto coordinate = [&] { return double(random.pick(9 * 16)) / 16; };
+        c.flags = std::uint8_t(random.pick(4));
+        const int n = 4 + random.pick(40);
+        const bool lattice = random.pick(2) == 0;
+        for (int k = 0; k < n; ++k)
+            c.base.push_back(lattice ? TerrainVec3{double(k % 7), double(k / 7), double(random.pick(4))}
+                                     : TerrainVec3{coordinate(), coordinate(), double(random.pick(4))});
+        c.cx = coordinate();
+        c.cy = coordinate();
+        c.radius = 0.5 + random.pick(5);
+        c.stride = std::uint8_t(random.pick(4));
+        for (int k = random.pick(3); k > 0; --k) {
+            TerrainContour contour;
+            contour.z = double(random.pick(4));
+            contour.closed = random.pick(3) == 0;
+            for (int m = 2 + random.pick(4); m > 0; --m)
+                contour.points.push_back({coordinate(), coordinate()});
+            c.contours.push_back(contour);
+        }
+        for (int k = random.pick(3); k > 0; --k) {
+            TerrainBreakline line;
+            for (int m = 2 + random.pick(3); m > 0; --m)
+                line.points.push_back({coordinate(), coordinate(), double(random.pick(4))});
+            c.breaklines.push_back(line);
+        }
+        for (int k = random.pick(4); k > 0; --k)
+            c.points.push_back({{coordinate(), coordinate(), double(random.pick(4))}, 50});
+        auto bytes = fuzz::encodeCavityCase(c);
+        if (i % 3 == 2) {
+            bytes = corpus[std::size_t(random.pick(int(corpus.size())))];
+            for (int k = 1 + random.pick(4); k > 0; --k)
+                bytes[std::size_t(random.pick(int(bytes.size())))] = std::uint8_t(random.next());
+        }
+        try {
+            (fuzz::runCavityHarness(bytes.data(), bytes.size()) ? accepted : refused)++;
+        } catch (const std::exception &) {
+            std::cout << "failing cavity input " << i << ":";
+            for (const auto b : bytes)
+                std::printf(" %02x", unsigned(b));
+            std::cout << "\n";
+            throw;
+        }
+    }
+    std::cout << "generated cavities: " << accepted << " re-triangulated, " << refused
+              << " refused or empty\n";
+    check(accepted > std::size_t(count) / 20, "a fair share of generated cavities is accepted");
+}
+
 int main(int argc, char **argv) {
     int fuzzCount = 3000;
     for (int i = 1; i + 1 < argc; ++i)
@@ -1036,6 +1222,10 @@ int main(int argc, char **argv) {
         reportBounds();
         boundaryAreaProperty();
         generatedInputs(fuzzCount);
+        cavityBasics();
+        cavityRefusals();
+        cavityFlats();
+        generatedCavities(fuzzCount);
         progressAndCancel();
         std::cout << "terrain triangulation tests passed in "
                   << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()
