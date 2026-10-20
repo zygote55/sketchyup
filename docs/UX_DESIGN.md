@@ -1,6 +1,6 @@
 # SketchyUp UX design
 
-Status: proposed design, not an implemented interface. Updated: 2026-10-17.
+Status: proposed design, not an implemented interface. Updated: 2026-10-19.
 
 This document designs the user experience for the native editor described in
 the [build plan](BUILD_PLAN.md). It covers the window, tools, numeric entry,
@@ -399,6 +399,7 @@ main source of confusion, so the current context is always visible.
 | Diagnostics | Open edges, non-manifold regions, reversed faces | Each finding selects and frames its entities; repairs are explicit, previewed and undoable (E09) | M6 |
 | Styles, Scenes, Shadows | Display modes, saved views, sun | Scenes also appear as tabs in the viewport (P02, P03, P06) | M7 |
 | Components | Local library with thumbnails; the bundled configurable assemblies (section 14) | Missing assets shown as such, never silently substituted (O05) | M8 |
+| Terrain edits | A selected terrain's ordered changes (section 15.6) | Remove, Edit pad…, Restamp and Reset edits… replay with progress; skipped changes stay listed with their reason | R096 |
 
 ## 6. Document lifecycle
 
@@ -985,3 +986,199 @@ its caption and, first, "Invalid: …" or "Warning: …" while it has a message.
 Override, information and warning states have text as well as colour, and the
 default button and focused controls draw the focus ring of section 10. The
 interface is checked on X11 and Wayland at 1× and 2× and at 200 % text.
+
+## 15. Terrain editing
+
+This section designs the desktop tools for editing a terrain: sculpt, smooth,
+contour edit, pad stamp and drape ([ADR 0169](decisions/0169-terrain-editing-drape-stamp.md)
+§8 lists the questions it answers; R096.f builds it). Status: proposed,
+awaiting the owner's approval. Every change is one labelled, undoable History
+entry with a preview first, and every refusal leaves the model unchanged.
+The mockups are `mockups/terrain.html` (all screens, with notes) or
+`mockups/terrain.html?screen=<name>` (`menu`, `sculpt`, `contours`, `stamp`,
+`drape`, `edits`), drawn in the light theme of `src/app/theme.hpp`.
+
+### 15.1 Where the tools live
+
+- **Terrain menu.** A new top-level menu between Draw and Camera. *Tools:*
+  Sculpt, Smooth, Edit contours, Stamp pad, Drape. Then, for the selected
+  terrain (its name as the heading): Terrain settings…, Regenerate, Reset
+  edits…, Explode terrain…. Last, Create terrain from selection. File →
+  Import terrain… and Site settings… stay where they are. All of them are in
+  command search (Ctrl+K).
+- **Rail.** One **Terrain** slot after Tape, in its own group. It shows the
+  last terrain tool used ("Sculpt ▸" at first) and starts it. The rail stays
+  one slot longer instead of five, and it follows the rail's existing
+  responsive rule.
+- **Tool options strip.** While a terrain tool is active, a strip across the
+  top of the viewport holds a five-way switcher (Sculpt · Smooth · Contours ·
+  Pad · Drape) and that tool's options. It is one row where it fits and wraps
+  to a second row where it does not. Its fields take the Measurements box's
+  syntax and units, and F6 moves focus between the strip and the box.
+- **Context menu.** Right-clicking a terrain offers the five tools, Terrain
+  settings… and Explode terrain…. With edges or faces selected it also offers
+  **Drape onto terrain**.
+- **Shortcuts.** Only Sculpt has a default, Shift+S, which is unused in the
+  model scope today. The others start with no shortcut and can be assigned in
+  the shortcut editor. Inside a terrain tool, `[` and `]` change the brush
+  radius by 10 %. These keys have no other model-scope meaning.
+- **Outside a terrain.** Each tool follows R095.e1's hover pattern: over
+  anything but a terrain the cursor is not-allowed and the status bar names
+  what to point at. With no terrain in the model, it says "No terrain in this
+  model. Import one with File → Import terrain…".
+
+### 15.2 Sculpt and Smooth
+
+- **Brush.** A ring is drawn on the surface at the pointer: a solid outer ring
+  at the radius and a dashed inner ring at half strength. Every vertex that
+  will move gets a dot whose size and opacity follow its weight, and a label
+  gives the amount, the radius, the vertex count and the tiles touched. A
+  brush that catches no vertex draws its ring amber and dashed, with "No
+  vertices under the brush · ] enlarges it" (ADR 0169 §4.1, sparse meshes).
+- **Stroke.** Press and drag paints a stroke at the strip's Amount. The stroke
+  is swept, so each vertex moves once, by its distance to the whole path.
+  Release commits it as "Sculpt terrain".
+- **One spot (Smoove).** A click without a drag anchors the brush. Moving the
+  pointer up or down then sets the amount, and a click or a typed value
+  commits it. This is the only terrain gesture where press–drag and
+  click–move–click differ, because a drag paints. The status bar says so.
+- **Modifiers.** Ctrl lowers. Shift smooths while held, so one Sculpt session
+  can raise and then soften. The status bar lists both.
+- **Options.** *Scope* Brush or Region; *Radius*; *Falloff* Smooth, Linear or
+  Constant; *Amount* (Sculpt) or *Strength* 0.05–1 and *Passes* 1–8 (Smooth).
+  The Measurements box is labelled Radius before a stroke and Amount (or
+  Strength) after one. After a commit, typing a new amount amends the same
+  entry, under §4.3's rules.
+- **Region scope.** If a face or a closed edge loop is selected when the tool
+  starts, that region is used. Otherwise, click points on the surface as with
+  the Line tool and close the polygon on its first point. The falloff band is
+  a dashed outline offset by *Falloff width*, typed in the strip or the box.
+- **Pads** are protected. Their vertices show no dots, and a stroke over a pad
+  skips them.
+
+### 15.3 Edit contours
+
+- **What is shown.** While the tool is active, source contours are drawn solid
+  at 1.5 px and display contours fade. Breaklines are dash-dot and spot points
+  are small crosses. Hovering a source highlights it and names it ("Contour
+  105.00 m · source 17").
+- **Selecting and handles.** A click selects a source. It turns
+  selection-coloured, with square handles on its vertices and round handles
+  at segment midpoints; dragging a round handle inserts a vertex. Tab cycles
+  overlapping candidates (§4.2).
+- **Editing.** A dragged handle previews the re-triangulated cavity on a
+  worker, latest wins (ADR 0169 §4.2), with the changed region outlined. A
+  typed number sets the selected source's elevation (the box is labelled
+  Elevation). Delete removes the selected vertex and Shift+Delete removes the
+  source. *Role* in the strip switches Contour and Breakline.
+- **Adding.** **Add contour**, **Add breakline** and **Add spot** draw on the
+  surface as the Line tool does. Enter finishes a line. A new contour takes
+  its first point's elevation unless one is typed. **Promote** turns the
+  display contour under the pointer into a source at its level; this is how
+  terrains made from points become editable.
+- **Refusals at the pointer.** A drag that would cross another source, leave
+  the outline or enter a pad draws the moved run red and dashed, with a red ×
+  at the first conflict and a failure label ("Crosses contour 106.00 m ·
+  Release to cancel, or move back"). The preview is withdrawn and releasing
+  changes nothing. The status bar repeats the reason with the location in site
+  coordinates.
+
+### 15.4 Stamp pad
+
+- **Footprint.** Start the tool with a face, group, component or closed loop
+  selected, or hover one and click. A group or component uses its lowest
+  horizontal face, which is highlighted before the click. The strip names the
+  footprint.
+- **Elevation.** The pad starts at the footprint's height less *Pad offset*
+  (default 0 m; a slab build-up such as 0.15 m is typed once and remembered).
+  Move the pointer up or down, or type the elevation; Enter or a click stamps
+  it. After the stamp, typing a new elevation or slope amends the same entry.
+- **Grading.** *Daylight* (the default) has *Cut* and *Fill* slopes as rise:run
+  (default 1:2; `0.5` and `26.6°` are also accepted) and *Max distance*
+  (100 m). *Fixed width* replaces them with *Width*.
+- **Preview.** Cut is tinted brown with a diagonal hatch and fill teal with
+  dots; the strip has a legend, so colour is never the only signal. The pad
+  is drawn flat and light, the slope rays as thin lines, and the daylight line
+  is dashed and labelled. A refusal ("Ray at E …, N … leaves the terrain";
+  "Overlaps Pad · Building B") marks the ray or overlap in red, and Enter is
+  refused until it changes.
+- **Restamp.** A pad row in Terrain edits (15.6) offers **Restamp**, which
+  re-reads the footprint from its source body as one entry, "Edit terrain
+  change". It is unavailable, with the reason as its tooltip, when the source
+  body no longer exists.
+
+### 15.5 Drape
+
+- **Input.** Select edges, curves or faces in any context, above or below the
+  terrain, then choose Drape (or **Drape onto terrain** from the context menu)
+  and point at the terrain.
+- **Preview.** The lines are drawn lying on the surface. With *Paint regions
+  with their material* on, a face's region is also drawn in its material.
+  Parts outside the terrain are red and dashed and are counted in the strip
+  ("1 edge clipped"). A click on the terrain or Enter drapes.
+- **Mode.** *Imprint* (the default) leaves the terrain's shape unchanged and
+  adds the lines as breaklines. Afterwards the terrain is selected and the new
+  row appears in Terrain edits. *Overlay* makes ordinary geometry in a new
+  group in the active context, lifted by *Lift* (default 0.01 m, enabled only
+  for Overlay), and afterwards the new group is selected.
+
+### 15.6 Terrain edits
+
+A **Terrain edits** section follows the Terrain section on the Info tab
+whenever a terrain is selected. The header shows the count ("5 changes").
+
+- **Rows.** The list is in the order the changes are applied. A row shows a
+  kind glyph, the title ("Pad · Building A"), its key values on a second line
+  ("106.00 m · daylight, cut 1:2, fill 1:2") and its ID, muted. A caption
+  gives the use ("5 of 4,096 changes").
+- **Selection.** Selecting a row outlines its region in the viewport in the
+  selection colour, with a label. Double-click or Enter frames it.
+- **Actions.**
+  - **Remove** (or Delete) removes the selected change and replays the ones
+    after it.
+  - **Edit pad…** opens a small form with the pad's elevation, grading,
+    slopes and offset.
+  - **Restamp** is described in 15.4.
+  - **Reset edits…** asks first ("Reset 5 changes to Riverside site? The
+    terrain is rebuilt from its sources."), and Cancel is the default.
+  
+  Each action is one undoable entry. A replay shows a job chip in the status
+  bar ("Replaying 3 changes · 64 %") with **Cancel**; cancelling leaves the
+  model as it was.
+- **Skipped changes.** A change that no longer applies after a replay stays in
+  the list. It is marked "⚠ Skipped" in the warning colour, with the reason on
+  its second line, until it is removed or the replay is undone. It is not
+  silently deleted.
+- **Notices.** The notices of the last change or replay appear under the list
+  in the warning style, each with **Show report**, which opens the R095.c2
+  report tree. Examples: "Paint removed from 2 rebuilt tiles (use Drape with
+  Paint regions to keep paint)", "3 source contours clipped", "1 change
+  skipped".
+
+### 15.7 Accessibility and keyboard
+
+- **Keyboard-only path.** With a terrain tool active, typing a coordinate in
+  the Measurements box places the brush, footprint or contour point there.
+  Both `[x,y]` in model coordinates and `@E,N` in site coordinates (R095.e2)
+  work. Then:
+  - Sculpt: type the amount, and Enter commits a one-spot brush at that point.
+  - Region scope: type successive points.
+  - Contours: with a source selected, Tab moves between its handles, and a
+    typed coordinate moves the focused handle.
+- **Accessible names.** The strip's fields, the switcher, the Terrain edits
+  rows and their buttons are Tab stops with accessible names. A row reads, for
+  example, "Change 3 of 5, Pad, Building A, 106.00 metres, daylight, cut 1 to
+  2, fill 1 to 2". A skipped row's description starts with "Warning: skipped".
+- **Not colour alone.** Cut, fill and preview use hatch and labels as well as
+  colour. Refusals use the × marker and text.
+- **Checks.** The interface is checked on X11 and Wayland at 1×, 2× and a
+  fractional scale, and at 200 % text, as in R096.f's input tests.
+
+| Screen | Shows | Sections |
+| --- | --- | --- |
+| ![menu](mockups/terrain/menu.png) | The Terrain menu, the rail's Terrain slot, a selected terrain with its Terrain edits | 15.1, 15.6 |
+| ![sculpt](mockups/terrain/sculpt.png) | A stroke in progress: brush rings, moving-vertex dots, hatched preview outline, strip and Amount | 15.2 |
+| ![contours](mockups/terrain/contours.png) | Source contours, handles, and a drag refused at the pointer | 15.3 |
+| ![stamp](mockups/terrain/stamp.png) | Pad preview with cut and fill tint and hatch, rays and daylight line | 15.4 |
+| ![drape](mockups/terrain/drape.png) | An imprint preview with region paint and a clipped part | 15.5 |
+| ![edits](mockups/terrain/edits.png) | A selected change highlighted, the row actions, a skipped change and the last replay's notices | 15.6 |
