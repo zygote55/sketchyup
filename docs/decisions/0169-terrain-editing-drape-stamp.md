@@ -2630,6 +2630,120 @@ points and 268.3–330.1 ms on contours.
   event (one per stroke), not a UI-thread computation.
 - Caching the section's figures per tile is left as a follow-up, recorded for R096.g.
 
+## Implementation notes (R096.f1c)
+
+R096.f1c removes the two CPU costs that R096.f1b found around a sculpt commit. The first, the
+Terrain section's whole-terrain rescan, is removed. The second, the duplicated edit validation of
+a batch, is explained below and left in place.
+
+**The Terrain section's figures, per tile** (`TerrainStatisticsCache` in
+`src/app/terrain_actions.*`). The section showed figures that it recomputed over the whole terrain
+on every refresh: after every commit while the terrain is selected. Those figures are the tile
+and triangle counts, the elevation range in world Z over every vertex, and the flat areas.
+`terrainFlatArea` looked up each triangle's corners in a set of all contour points.
+- **Per tile.** The cache keeps each tile's elevation range and the areas of its flat triangles,
+  in face order. A tile's entry is keyed by the tile record: an immutable body, held so that its
+  address stays unique.
+  - An edit's rebuilt tiles take new IDs, so only they are scanned.
+  - The kept tiles are reused, and tiles the terrain no longer has are dropped.
+- **Invalidation.** The cache starts over when any input of every tile changes:
+  - the document (`Document::identity`);
+  - the terrain;
+  - its base sources block (the contour points);
+  - its world transform, compared bit for bit, which covers a move of the terrain or of a group
+    that holds it.
+- **The same bits as the full scan.**
+  - The cache and `terrainFlatArea` share one per-face test (`flatTriangleArea`).
+  - The combination follows the full scan's order: tiles in ID order, then faces. The flat areas
+    are added one by one in that order, so the sum is the same floating-point sum.
+  - Taking the minimum and maximum of the per-tile minima and maxima keeps the first of equal
+    values, as the vertex-by-vertex scan does.
+- **Robustness.**
+  - A tile is scanned into a separate entry and stored only when complete, so a failure leaves
+    no partial entry.
+  - The cache drops everything when the section hides, when the terrain is gone, or when another
+    document is shown. A hidden section holds no tiles.
+- **What is left in the refresh.**
+  - Summing the cached flat areas, and the identity check behind "Changed since generated"
+    (R096.f1b).
+  - The contour-line status, which reads the viewport's contour cache. After a commit, that read
+    assembles the new contour set before the frame does. The work is moved, not added: the
+    frame's terrain views are cheaper by about the same amount.
+
+**Tests.** `terrain_desktop_tests` "section statistics" uses rings of contours over several tiles
+with flat triangles. It compares the cache with the old full scan bit for bit:
+- after the import, a raise, a smooth and a lowering;
+- after Undo, Redo and two Undos;
+- after moving the terrain, grouping it and moving the group;
+- across two terrains;
+- for a terrain whose import is undone, and for a terrain with every tile erased ("No mesh").
+
+It also checks:
+- each stroke rescans exactly its new tiles, and a move rescans every tile;
+- the cache holds exactly the terrain's tiles;
+- the section's triangle, elevation and flat-area labels equal a new section's (a full scan)
+  when shown, after a sculpt and after Undo, and the section rescans only the stroke's tiles;
+- a hidden section holds nothing.
+
+**Measured.** The setup is R096.f1b's: `terrain_budget_benchmark --sculpt-frames 64`, with and
+without `--terrain-section`, llvmpipe, 4 CPUs. `main` (6b83ffaf) and R096.f1c ran in three
+interleaved rounds, alternating order, with load average 3–7 from other sessions. The table gives
+p95 in ms, best run (range of the three).
+
+| One-tile commit | Points: `main` | Points: R096.f1c | Contours: `main` | Contours: R096.f1c |
+| --- | ---: | ---: | ---: | ---: |
+| Without the section | 123.6 (123.6–196.8) | 122.3 (122.3–124.9) | 110.2 (110.2–115.7) | 109.6 (109.6–116.8) |
+| **With the section** | 159.0 (159.0–241.4) | **124.3** (124.3–127.6) | 232.1 (232.1–240.1) | **115.7** (115.7–119.1) |
+| With the section: refresh | 50.9–74.7 | 13.7–15.9 | 137.3–144.1 | 11.7–13.3 |
+| With the section: CPU part | 95.2 | 61.1 | 185.5 | 66.4 |
+| Without the section: CPU part | 56.0 | 54.7 | 63.7 | 62.7 |
+
+| Nine tiles, commit | Points: `main` | Points: R096.f1c | Contours: `main` | Contours: R096.f1c |
+| --- | ---: | ---: | ---: | ---: |
+| Without the section | 420.5 | 420.7 | 359.5 | 351.7 |
+| With the section | 456.8 | 433.2 | 465.9 | 363.1 |
+
+- With the section shown, a one-tile commit now costs 2 ms (points) and 6 ms (contours) more at
+  p95 than without it, against 35 and 122 ms before.
+- Its refresh is 12–16 ms. Part of that is the contour assembly the frame no longer does: the
+  CPU part differs by 4–6 ms.
+- For nine tiles the difference is 11–13 ms, against 36–106 ms.
+
+**The nine-tile command: the duplicated validation stays.** A desktop commit runs
+`Document::applyEdit` twice:
+1. **On the batch's staged document** (a snapshot), when `terrain.sculpt` applies its own edit.
+   This run keeps the staged document valid for the batch's later commands. It also produces the
+   lineage that the batch's composed edit carries.
+2. **On the document**, for the batch's composed edit. This is the edit that is published, with
+   the batch's label, metadata, lineage and allocator floor. It is the run the validation
+   contract, the validation oracle and the fault tests cover.
+
+Measured with temporary probes at nine tiles, each run takes 50–71 ms of the command's 160–256
+ms (12–15 ms at one tile). Neither run can be removed safely:
+- **Without the second run,** the document would publish an edit that was validated against
+  another document object, as another `Edit`. That is only equivalent if `applyEdit` is a pure
+  function of the state and the edit, and if the composed edit matches the staged one. Nothing
+  enforces either.
+  - The two edits already differ in label, metadata, lineage pruning and the allocator floor.
+  - A multi-command batch, an amend or a dry run breaks the match.
+  - Any later divergence would weaken validation silently.
+- **Without the first run,** later commands in a batch would work on an unvalidated staged state.
+  The command's refusals would also move to the end of the batch, with other messages.
+- **Sharing per-change results between the two runs** needs proof that each check sees the same
+  inputs: allocator floors, retired IDs, locks and placements. That holds for a fresh single
+  command, but not in general.
+
+The probes also showed where each run's time goes. 23–33 ms (about half) is `compareTopology` on
+one-sided changes: the replaced tiles are erased and the rebuilt tiles are created. For those
+changes, the adjacency maps it builds cannot report a modified edge, because no edge is in common.
+Their implicit topology validation repeats what is already known:
+- the freeze validated the new side;
+- the old side is a stored body.
+
+Skipping the adjacency for one-sided changes would save about 45–65 ms per nine-tile command and
+change no validation outcome. It is a change to the shared report code, though, not to the
+duplicate run. It is recorded for R096.g as a separate decision.
+
 ## Sources
 
 Retrieved by web search on 2026-10-19.
