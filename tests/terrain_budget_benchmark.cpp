@@ -35,6 +35,7 @@
 // from another thread, and reports the time from the cancel request until the run has
 // returned, overall and by the stage the run was in.
 #include "app/surface_format.hpp"
+#include "app/terrain_section.hpp"
 #include "app/viewport.hpp"
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
@@ -58,6 +59,7 @@
 #include <cmath>
 #include <thread>
 #include <iostream>
+#include <memory>
 #include <malloc.h>
 #include <numbers>
 #include <sys/resource.h>
@@ -425,6 +427,10 @@ QJsonObject frames(Document &doc) {
 } // namespace
 
 // ---- R096.f1: input event to presented frame for a sculpt preview and commit -----------------
+// R096.f1b: --terrain-section selects the terrain and shows its Entity Info section, refreshed on
+// every change as the window does, so its reads (the "changed since generated" chip) are timed in
+// the release event.
+bool withTerrainSection = false;
 QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonObject &command,
                          int strokes) {
     auto doc = baseDocument();
@@ -456,6 +462,17 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
     view.fit();
     view.setTool(Viewport::Tool::Sculpt);
     QCoreApplication::processEvents();
+    std::unique_ptr<TerrainSection> section;
+    if (withTerrainSection) {
+        view.setSelection(terrain);
+        section = std::make_unique<TerrainSection>(doc, view);
+        QObject::connect(&view, &Viewport::changed, section.get(), &TerrainSection::refresh);
+        section->show();
+        section->refresh();
+        QCoreApplication::processEvents();
+        check(section->isVisible() && section->terrain() == terrain,
+              "the Terrain section shows the selected terrain");
+    }
     auto frame = [&] {
         const auto before = view.renderStats().frames;
         const auto image = view.grabFramebuffer();
@@ -496,8 +513,9 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
     struct Samples {
         std::vector<double> preview, commit, previewPaint, commitPaint;
         std::vector<double> previewEvent, previewBuild, commitEvent, commitRebuild, baseline;
+        std::vector<double> commitCommand, commitRefresh, commitViews;
         std::vector<std::size_t> triangles, vertices, tilesTouched;
-        std::size_t excluded{};
+        std::size_t excluded{}, digestsInEvent{};
     };
     auto stroke = [&](const Tile &tile, double radius, Samples &out, bool budget) {
         TerrainToolOptions options;
@@ -552,11 +570,15 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
         for (const auto &content : candidate->edit->region.tiles)
             triangles += content->triangles.size();
         const auto revision = doc.revision();
+        const auto digests = TerrainDigest::computations();
         const auto t0 = Clock::now();
         send(QEvent::MouseButtonRelease,
              view.project(z(tile.centre + Vec3{radius * 0.45, 0.01, 0})), Qt::LeftButton,
              Qt::NoButton);
         const double commitEvent = ms(Clock::now() - t0);
+        // The digest is computed by the worker; a frame must not wait for it (a race with the
+        // worker can count it here, which is fine: the frame did not compute it).
+        out.digestsInEvent += TerrainDigest::computations() - digests;
         frame();
         const double commit = ms(Clock::now() - t0);
         check(doc.revision() == revision + 1, "the stroke committed");
@@ -571,6 +593,9 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
             out.commitPaint.push_back(view.completeFrameMs());
             out.commitEvent.push_back(commitEvent);
             out.commitRebuild.push_back(view.renderStats().rebuildMs);
+            out.commitCommand.push_back(view.renderStats().terrainCommandMs);
+            out.commitRefresh.push_back(view.renderStats().terrainRefreshMs);
+            out.commitViews.push_back(view.renderStats().terrainViewsMs);
             out.baseline.push_back(baseline);
             out.triangles.push_back(triangles);
             out.vertices.push_back(candidate->moving.size());
@@ -583,6 +608,7 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
     auto summary = [&](const Samples &s) {
         auto maxOf = [](const auto &v) { return v.empty() ? 0.0 : double(*std::max_element(v.begin(), v.end())); };
         QJsonObject json{{"strokes", double(s.commit.size())},
+                         {"digestsComputedDuringCommitEvents", double(s.digestsInEvent)},
                          {"excluded", double(s.excluded)}};
         if (s.commit.empty())
             return json;
@@ -601,6 +627,21 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
         json["previewBuildP95Ms"] = p95(s.previewBuild);
         json["commitEventP95Ms"] = p95(s.commitEvent);
         json["commitRebuildP95Ms"] = p95(s.commitRebuild);
+        json["commitCommandP95Ms"] = p95(s.commitCommand);
+        json["commitRefreshP95Ms"] = p95(s.commitRefresh);
+        json["commitTerrainViewsP95Ms"] = p95(s.commitViews);
+        json["previewCpuP95Ms"] = p95([&] {
+            std::vector<double> cpu;
+            for (std::size_t i = 0; i < s.previewEvent.size(); ++i)
+                cpu.push_back(s.previewEvent[i] + s.previewBuild[i]);
+            return cpu;
+        }());
+        json["commitCpuP95Ms"] = p95([&] {
+            std::vector<double> cpu;
+            for (std::size_t i = 0; i < s.commitEvent.size(); ++i)
+                cpu.push_back(s.commitEvent[i] + s.commitRebuild[i]);
+            return cpu;
+        }());
         json["baselineFrameP95Ms"] = p95(s.baseline);
         json["baselineFrameP50Ms"] = median(s.baseline);
         std::vector<double> triangles(s.triangles.begin(), s.triangles.end()),
@@ -655,6 +696,8 @@ int main(int argc, char **argv) {
             if (i + 1 < argc && std::atoi(argv[i + 1]) > 0)
                 cancelTrials = std::atoi(argv[++i]);
         }
+        else if (arg == "--terrain-section")
+            withTerrainSection = true;
         else if (arg == "--repeat" && i + 1 < argc)
             repeat = std::max(1, std::atoi(argv[++i]));
     }
@@ -674,6 +717,7 @@ int main(int argc, char **argv) {
             sources.append(
                 sculptFrames("contours", contourSource(416, 300), contoursCommand, sculptStrokes));
             QJsonObject out{{"benchmark", "terrain_budget_benchmark --sculpt-frames"},
+                            {"terrainSection", withTerrainSection},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                             {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
 #endif

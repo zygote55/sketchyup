@@ -21,6 +21,7 @@
 #include "core/material_records.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain_sculpt.hpp"
+#include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLineF>
 #include <QLocale>
@@ -28,6 +29,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
+#include <QThreadPool>
 #include <algorithm>
 #include <cmath>
 #include <numbers>
@@ -832,7 +834,10 @@ void Viewport::commitTerrain(std::optional<double> value) {
     try {
         if (!terrainSession_.active())
             terrainSession_.begin();
+        QElapsedTimer timing;
+        timing.start();
         terrainSession_.commit(command, BatchResponse::Changes);
+        stats_.terrainCommandMs = timing.nsecsElapsed() / 1e6;
     } catch (const std::exception &error) {
         cancelTerrainOperation();
         brush_.terrain = terrain;
@@ -841,11 +846,26 @@ void Viewport::commitTerrain(std::optional<double> value) {
     }
     cancelTerrainOperation(true);
     terrainCommitted_ = command;
+    prefetchTerrainDigest(terrain);
+    QElapsedTimer timing;
+    timing.start();
     refresh(); // rebuilds the overlay on the committed surface
     emit changed();
+    stats_.terrainRefreshMs = timing.nsecsElapsed() / 1e6;
     terrainStatusShown_.clear();
     emitTerrainStatus();
     emit terrainToolChanged();
+}
+// R096.f1b: the commit deferred the terrain's mesh digest (TerrainDigest); a worker computes it
+// now, off the frame, so a later reader (save, describe) rarely waits for it. The task holds the
+// digest weakly: a digest no record holds any more (an amend replaced it, the document closed) is
+// skipped, and it never throws.
+void Viewport::prefetchTerrainDigest(Id terrain) {
+    const auto found = doc_.bodies().find(terrain);
+    if (found == doc_.bodies().end() || !found->second->terrain ||
+        !found->second->terrain->meshDigest.pending())
+        return;
+    QThreadPool::globalInstance()->start(found->second->terrain->meshDigest.prefetchTask());
 }
 void Viewport::amendTerrain(double value) {
     auto command = terrainCommitted_;
@@ -853,6 +873,7 @@ void Viewport::amendTerrain(double value) {
     command[smoothing ? "strength" : "amount"] = value;
     terrainSession_.commit(command, BatchResponse::Changes); // executeAmend: one entry, revised (UX §4.3)
     terrainCommitted_ = command;
+    prefetchTerrainDigest(brush_.terrain);
     refresh();
     emit changed();
     emit message(QString("Revised the %1 · %2").arg(smoothing ? "smoothing" : "sculpt")

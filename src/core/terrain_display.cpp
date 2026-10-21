@@ -417,6 +417,11 @@ std::shared_ptr<const TerrainTileSurfaces> TerrainSurfaceCache::get(const Docume
                    a.topology == b.topology && a.edgeAppearances == b.edgeAppearances;
         };
         std::unordered_set<TerrainSurfaceDisplay::Key, TerrainSurfaceDisplay::Hash> changed;
+        std::vector<Vec3> changedPoints;
+        auto change = [&](Vec3 p) {
+            if (changed.insert(TerrainSurfaceDisplay::key(p)).second)
+                changedPoints.push_back(p);
+        };
         std::set<Id> current;
         for (const auto &tile : tiles) {
             current.insert(tile->id);
@@ -424,24 +429,26 @@ std::shared_ptr<const TerrainTileSurfaces> TerrainSurfaceCache::get(const Docume
             if (old != before.end() && (old->second == tile || sameMesh(*old->second, *tile)))
                 continue;
             for (const auto &[id, p] : tile->surface.vertices)
-                changed.insert(TerrainSurfaceDisplay::key(p));
+                change(p);
         }
         for (const auto &[id, tile] : before)
             if (!current.contains(id))
                 for (const auto &[vertex, p] : tile->surface.vertices)
-                    changed.insert(TerrainSurfaceDisplay::key(p));
+                    change(p);
+        // R096.f1b: the kept tiles with a triangle at a changed position (the seam ring), found
+        // through the edit mesh's incidence instead of testing every vertex of every kept tile.
+        // A kept tile holds a changed position exactly when one of its triangles is there.
+        std::unordered_set<Id> touchedTiles;
+        for (const auto &p : changedPoints)
+            for (const auto &ref : mesh->trianglesAt(p))
+                if (const auto *meshTile = mesh->tile(ref.tile))
+                    touchedTiles.insert(meshTile->body);
         for (const auto &tile : tiles) {
             std::shared_ptr<const TerrainTileSurface> kept;
             if (entry.surfaces)
                 if (const auto old = before.find(tile->id);
                     old != before.end() && (old->second == tile || sameMesh(*old->second, *tile))) {
-                    bool touched = false;
-                    for (const auto &[id, p] : tile->surface.vertices)
-                        if (changed.contains(TerrainSurfaceDisplay::key(p))) {
-                            touched = true;
-                            break;
-                        }
-                    if (!touched)
+                    if (!touchedTiles.contains(tile->id))
                         kept = entry.surfaces->tile(tile->id);
                 }
             if (!kept) {

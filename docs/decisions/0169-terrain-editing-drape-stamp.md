@@ -2427,6 +2427,209 @@ on X11 and Wayland at 1× and 2×, at 1.5 on both, and at 200 % text. It covers:
 `terrain_sculpt_tests` adds "desktop preview" (described above, with the amend policy's refusals).
 `narrow_layout_input_tests` lists the Terrain group.
 
+## Implementation notes (R096.f1b)
+
+R096.f1b works on the one-tile sculpt commit budget that R096.f1 measured and did not meet (p95
+187–216 ms). Its fixes were recorded for R096.g. The digest's definition stays as it is: the
+`terrain-v1` `meshDigest` is still the key-order SHA-256, every pinned digest is unchanged, and C7
+holds. Only the time the digest is computed changes.
+
+**The deferred digest** (`TerrainDigest` in `src/core/terrain_records.hpp`).
+- `TerrainRecord::meshDigest` is now a `TerrainDigest`, which is either known (text) or deferred.
+- `applyTerrainTiles` (the one commit path of every terrain edit) no longer hashes the whole
+  terrain. It records a deferred digest instead. The deferred digest holds the new tiles' immutable
+  records in key order and computes `terrainMeshDigest` of them once.
+- **Readers block or compute on demand.** `value()` and every conversion to text (encoding,
+  `terrain.describe`, comparisons, messages) first read an atomic "done" flag (acquire). Once the
+  value is computed, they read the immutable text without locking. Before that, the first reader
+  computes the value under the digest's mutex; any other reader waits for it, and the result is
+  then published with a release store. A reader never sees a missing or partial value. If the
+  hash throws, the digest stays pending and the next reader computes it.
+- **Saves never write a stale digest.** The encoder reads `value()`. The hashed tiles are the
+  tiles the commit stored (or, before the commit stores them, their originals, which have the same
+  geometry). Both are immutable, so the value is the digest of the record's own tiles whenever it
+  is computed.
+- **Undo and Redo** restore the record object of each history step. Copies of a record share one
+  deferred state, so they restore the same value, computed at most once.
+- **The definition is unchanged:** the same function on the same tiles in the same order.
+  `validateTerrainRecord` skips the SHA-256 text check for a pending digest, because the text is
+  well formed by construction and checking it would compute it. `TerrainRecord::operator==`
+  compares the digest last, so that the cheap fields decide first.
+- **Identity.** A deferred digest knows the tile records it describes (`describes`):
+  - **Weak.** It holds each tile's address and a weak reference. An address counts only while its
+    reference is live, so a reused address can never match. The tiles to hash are held strongly
+    only until the digest is computed.
+  - **Follows the commit.** `Document::applyEdit` stores a copy of every record it commits: the
+    batch's staged document, then the document itself. At each copy the digest follows its tiles
+    to the stored copies (`rebind`, while the originals are alive), so it keeps describing the
+    document's own tiles. The validation oracle's private reference run does not rebind.
+  - **Never computes.** `describes` locks only the small identity table, never the hash.
+  - `terrainMeshDigest(doc, terrain)` returns the record's digest without hashing a second time
+    when the digest describes the current tiles.
+  - `terrainChangedSinceGenerated` (the Terrain section's Changed chip, read after every commit)
+    answers "unchanged" from the identity without computing at all.
+- **History charge.** The identity table is charged to terrain history: whole in
+  `terrainRecordBytes`, and in `terrainRecordChangeBytes` only when the two records do not share
+  the state. That is 24 bytes a tile, about 76 KB for the 3,169-tile contours terrain.
+- **Prefetch.** After a commit or an amend, the viewport queues a task on the global
+  `QThreadPool` (`TerrainDigest::prefetchTask`) that computes the digest off the UI thread.
+  - The task holds the digest weakly. If no record holds the digest any more (an amend replaced
+    it, or the document closed), the task does nothing, and it keeps no tiles alive.
+  - It catches every exception.
+  - A later save usually finds the value ready. If a reader comes first, that reader computes the
+    value, and the task then finds it done.
+- `TerrainDigest::computations()` counts computed digests for tests and the benchmark. No commit
+  event computes one on the UI thread. With the Terrain section shown, the worker's hash can
+  finish inside the longer event and is counted there; with the prefetch disabled, the count is
+  0.
+
+**The display path after a commit.**
+1. **Seam-ring normals are patched, not re-tessellated.** A kept tile in the seam ring changes only
+   its normals. Its tessellation, colours, edges and texture coordinates stay as they are.
+   - A full build now records, for each opaque vertex of a terrain tile's own mesh, the local
+     triangle and corner it came from (`BodyMesh::terrainCorners`). It also records whether the
+     corner's normal fell back to the tile's own shading normal, which happens when its position
+     is not in the surface.
+   - When every other input is the same, the rebuild recomputes each vertex's light from the new
+     surface normal (with the same arithmetic as a full build, with and without the sun) and
+     re-uploads only the opaque buffer. The other inputs are the record, world transform, bands
+     and range, alpha, presentation revision, outer edges and render origin; the tile also needs
+     no section cut, no translucent pass and an unshared mesh.
+   - A tile is built in full if a corner changes between a surface normal and the fallback.
+2. **Contours are uploaded per tile row.** A terrain's contour lines are one pair of GPU batches
+   (ordinary and index lines) per row of tile keys. These replace the two batches per terrain.
+   - A row whose tile records are all the same as before keeps its buffers. Interval, offset,
+     world, theme and origin must also be unchanged. A tile's segments depend only on its record
+     and those values.
+   - The preview's per-tile skip ranges are kept per row.
+   - A one-tile commit re-uploads one or two rows instead of the terrain's whole batch.
+3. **The surface cache finds the seam ring through incidence.** `TerrainSurfaceCache` used to test
+   every vertex of every kept tile against the changed positions. It now looks up the changed
+   positions in the edit mesh's vertex incidence (`trianglesAt`), which gives the tiles that hold
+   them.
+4. **The terrain record changes alone.** A commit changes the terrain container's record, so every
+   tile's ancestor chain counted as changed and every tile was re-examined. When the container
+   differs only in its `terrain` record (its transform, visibility, tag, lock and the rest are
+   equal), the kept tiles keep the unchanged-chain fast path.
+5. **Per-body work is hoisted in `buildMesh`.** It covers active and dim state, reflection and the
+   light direction. Hidden state is now computed per triangle and per edge rather than per vertex.
+   A terrain tile builds its `ShadingNormals` only if a position is missing from the surface.
+
+**Tests.**
+- `terrain_sculpt_tests` adds "deferred digest". It checks:
+  - a commit leaves the digest pending, with no digest computed;
+  - "changed since generated" during pending answers without computing, with and without the
+    validation oracle;
+  - the history charge includes the identity table;
+  - `terrain.describe` during pending reports the eager digest;
+  - a save (`encodeDocument`) during pending writes the final digest, and reopening gives an equal
+    document;
+  - Undo and Redo during pending restore the right digests;
+  - a worker computing the value while readers on other threads read it, with every reader seeing
+    the eager value;
+  - C7 after the edits.
+- `terrain_sculpt_tests` also adds "deferred digest state", on a synthetic hash:
+  - `pending` and `describes` answer while a hash is in flight without waiting for it;
+  - the hashed tiles are released once computed, and the identity then holds them weakly, so an
+    expired tile no longer matches its address;
+  - a prefetch of a digest no record holds computes nothing;
+  - a throwing hash leaves the digest pending, and its prefetch task does not throw.
+- `terrain_edit_input_tests` adds "incremental display". For material and elevation-band shading
+  with contours, a stroke from real input must patch seam-ring tiles (`terrainNormalPatches`). The
+  committed frame must then equal, pixel for pixel, the frame after a forced full rebuild, and the
+  deferred digest must equal the eager one.
+- Bit equality from preview to commit and every R096 consistency check pass unchanged: the full
+  ctest (228 tests), the terrain suites, and the three terrain desktop suites on X11 at 1× and 2×
+  and Wayland at 2×.
+
+**Measured.** The conditions are R096.f1's: `terrain_budget_benchmark --sculpt-frames 64`, Release,
+host llvmpipe on the pinned image's Xvfb at 1920 × 1080, `systemd-run` with 4 CPUs, 4 GiB and no
+swap, and the same strokes. The figures are the best of three runs, with the ranges of all runs.
+The benchmark now splits the release event into the command (`terrain.sculpt` through
+`ToolSession`) and the viewport's refresh, and the frame's cache rebuild into its terrain views
+(surfaces and contours) and the rest.
+
+The **CPU part** is the release event plus the commit frame's cache rebuild, summed per stroke.
+The **llvmpipe frame** is the complete frame (`paintGL` plus `glFinish`) minus that rebuild. On
+the AMD GPU a complete 250k frame is p95 0.8–0.9 ms (R095.f).
+
+| One-tile commit, p95 | Points (249,970 triangles, 256 tiles) before | after | Contours (249,298 triangles, 3,169 tiles) before | after |
+| --- | ---: | ---: | ---: | ---: |
+| Input event to presented frame, p50 / p95 (max) | 176.9 / 192.3 (204.5) | 95.2 / 115.6 (120.3) | 160.3 / 179.1 (182.1) | 94.0 / 106.1 (110.3) |
+| All runs, p95 | 192.3–198.6 | 114.5–116.6 | 179.1–238.3 | 106.1–108.1 |
+| Release event | 64.1 | 38.0 | 80.5 | 44.1 |
+| of which: command / refresh | — | 30.9 / 11.1 | — | 39.1 / 4.4 |
+| Commit frame's cache rebuild | 64.9 | 16.4 | 54.2 | 18.9 |
+| of which: terrain views | — | 6.6 | — | 9.8 |
+| **CPU part** (event + rebuild) | about 129 | **53.0** (51.3–53.2) | about 135 | **63.7** (62.6–63.7) |
+| Complete frame (rebuild and llvmpipe drawing) | 131.9 | 81.5 | 98.1 | 61.0 |
+| Frame without a candidate (llvmpipe alone) | 76.4 | 73.9 | 48.1 | 44.6 |
+
+The "before" CPU part sums the two p95 values, because the earlier harness did not record the
+split.
+
+| Nine tiles (13 touched), p95 | Points before | after | Contours before | after |
+| --- | ---: | ---: | ---: | ---: |
+| Commit, all runs | 537.8–544.9 | 407.2–417.0 | 453.9–458.2 (652.4 in one loaded run) | 341.1–363.0 |
+| CPU part | — | 354.8–365.3 | — | 262.7–279.6 |
+| of which: command | — | 219.8–228.0 | — | 163.2–169.4 |
+| Preview | 162.4–164.6 | 163.9–168.7 | 154.0–245.7 | 138.1–143.3 |
+
+- **One tile.** The CPU part is now p95 51–64 ms, less than half of what it was. That leaves 36–49
+  ms of the 100 ms budget for the frame, against about 1 ms for a hardware frame. Under llvmpipe
+  the frame still takes 42–65 ms of drawing, so the end-to-end p95 is 106–117 ms. It is not met
+  under software rendering, but the software frame alone exceeds what is left. The AMD session
+  (R096.g) is still to measure it on hardware.
+- **Where the CPU time goes now.** The command (29–39 ms) is the largest part. It plans nothing
+  (the preview's plan is reused) and hashes nothing (the digest is deferred). What remains is
+  building and validating the edit: `Document::applyEdit` runs once on the batch's staged
+  document and once on the real one, with a topology comparison of every replaced tile each
+  time. The refresh (4–11 ms) is mostly the first use of the edit mesh cache after the commit,
+  for the overlay.
+- **Preview** is unchanged in method. Its p95 is 93–98 ms on points and 66–67 ms on contours. The
+  hoists in `buildMesh` shave a few milliseconds from building the candidate.
+- **Nine tiles** commit 25–30 % faster. The command (163–228 ms) now dominates. It scales with the
+  replaced tiles' validation and topology comparison twice per batch, and that cost is not
+  terrain-specific. R096.g should look at it if the nine-tile case gets a budget.
+- **Not done.** The digest needed neither per-tile hashes nor a Merkle tree. The staged and final
+  `applyEdit` passes, and skipping the topology adjacency for a created or erased tile, would
+  change the shared edit validation. They are left for R096.g with these numbers.
+
+**Re-measured after the internal review** (the atomic flag, the weak identity that follows the
+commit, the weak prefetch). The host was busier this time (load average 3–6 from other sessions),
+so the three builds ran interleaved under the same conditions:
+- `main` (ca9cca21), three runs;
+- the first R096.f1b head (5d9cc86c) and the reviewed code (e1c9e42a), eight runs each, in
+  alternating order.
+
+The table gives one-tile commit p95, best run and range.
+
+| Build | Points | Contours |
+| --- | ---: | ---: |
+| `main` | 232.7 (232.7–244.8) | 199.1 (199.1–213.9) |
+| R096.f1b before the review | 118.0 (118.0–149.8) | 112.5 (112.5–167.1) |
+| R096.f1b after the review | 123.9 (123.9–219.7) | 103.7 (103.7–142.4) |
+| after the review: CPU part / command | 54.6 / 30.6 | 59.4 / 34.9 |
+| after the review: nine tiles | 422.9 (422.9–543.4) | 340.5 (340.5–451.7) |
+
+The review's changes cost nothing measurable. With the order reversed, the reviewed build was
+ahead on both terrains (123.9–128.7 against 127.4–149.8 ms on points). The differences follow the
+software frame, whose baseline moved by up to 40 ms between runs.
+
+**With the Terrain section shown** (`--terrain-section`: the terrain selected and its Entity Info
+section refreshed on every change, as the window does), one-tile commit p95 is 161.4–178.7 ms on
+points and 268.3–330.1 ms on contours.
+- The release event's refresh grows to 53.7–55.0 and 168.6–216.1 ms.
+- That time is the section's own refresh. "Changed since generated" no longer computes the digest.
+  With the prefetch disabled, no digest is computed during the event, and the refresh costs the
+  same.
+- The section rescans the whole terrain after every commit: the elevation range over every vertex,
+  and `terrainFlatArea`, which looks up every triangle's corners in a set of all contour points.
+  The contours terrain has 3,169 tiles and many contour points, hence its larger cost.
+- With the section shown, the digest counter shows the worker's hash finishing inside the longer
+  event (one per stroke), not a UI-thread computation.
+- Caching the section's figures per tile is left as a follow-up, recorded for R096.g.
+
 ## Sources
 
 Retrieved by web search on 2026-10-19.

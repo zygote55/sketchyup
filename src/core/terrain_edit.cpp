@@ -395,11 +395,24 @@ TerrainTilesApplied applyTerrainTiles(Document &doc, Id terrain, TerrainRecord r
             body = std::move(painted);
         }
     }
-    std::vector<const Body *> ordered;
-    ordered.reserve(finalTiles.size());
-    for (const auto &[key, body] : finalTiles)
-        ordered.push_back(body.get());
-    record.meshDigest = terrainMeshDigest(ordered);
+    // R096.f1b: the digest of the new tiles (key order) is deferred: computed once, from these
+    // immutable tile records, by its first reader or a worker (TerrainDigest), not here on the
+    // commit's critical path. Its definition is unchanged.
+    {
+        std::vector<std::shared_ptr<const void>> tiles;
+        tiles.reserve(finalTiles.size());
+        for (const auto &[key, body] : finalTiles)
+            tiles.push_back(body);
+        record.meshDigest = TerrainDigest::deferred(
+            [](const std::vector<const void *> &held) {
+                std::vector<const Body *> ordered;
+                ordered.reserve(held.size());
+                for (const auto *tile : held)
+                    ordered.push_back(static_cast<const Body *>(tile));
+                return terrainMeshDigest(ordered);
+            },
+            std::move(tiles));
+    }
     validateTerrainRecord(record);
     if (createdMaterial)
         edit.materials.push_back(std::move(*createdMaterial));

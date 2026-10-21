@@ -318,6 +318,11 @@ class Viewport : public QOpenGLWidget {
         // R096.f1: triangles in the last translucent pass upload, and in the last sun shadow map
         // (with the terrain preview's candidate triangles among them).
         size_t transparentTriangles{}, shadowTriangles{}, shadowPreviewTriangles{};
+        // R096.f1b (benchmark instrumentation): the last terrain commit's command and refresh,
+        // and the last rebuild's terrain display update (surfaces, contours, their uploads).
+        double terrainCommandMs{}, terrainRefreshMs{}, terrainViewsMs{};
+        // R096.f1b: seam-ring tiles whose normals were patched in place instead of rebuilt.
+        std::uint64_t terrainNormalPatches{};
     };
     RenderStats renderStats() const { return stats_; }
     struct GeometryCacheMemory {
@@ -563,11 +568,10 @@ class Viewport : public QOpenGLWidget {
         std::vector<Vertex> surfaceVertices; // the candidate surface (world), for sun shadows
         bool active{};
     } terrainPreviewGpu_;
-    // Contour vertex ranges per tile in a terrain's line batches (ordinary, index).
+    // Contour vertex ranges per tile in a chunk's line batches (ordinary, index).
     struct ContourRange {
         int lineFirst{}, lineCount{}, indexFirst{}, indexCount{};
     };
-    std::map<Id, std::map<Id, ContourRange>> contourRanges_;
     bool terrainToolActive() const { return terrainTool(tool_); }
     bool terrainSmoothing() const;
     std::optional<std::pair<Id, Vec3>> terrainHit(QPointF point) const;
@@ -584,6 +588,7 @@ class Viewport : public QOpenGLWidget {
     QJsonObject terrainCommand(std::optional<double> value = std::nullopt) const;
     void commitTerrain(std::optional<double> value = std::nullopt);
     void amendTerrain(double value);
+    void prefetchTerrainDigest(Id terrain);
     double terrainAmount() const;
     std::optional<double> terrainElevation(Id terrain, double x, double y) const;
     void rebuildTerrainPreview();
@@ -650,6 +655,10 @@ class Viewport : public QOpenGLWidget {
         // placement-space value was degenerate (2) or kept (1); 0 is not drawn.
         // Placements whose world values disagree use their own mesh instead.
         std::vector<std::uint8_t> triangleFlags, edgeFlags;
+        // R096.f1b: for a terrain tile's unshared mesh, each opaque vertex's local triangle and
+        // corner (triangle * 3 + corner; the top bit marks a corner whose normal is the tile's
+        // own, its position not being in the surface), so new normals can be patched in place.
+        std::vector<std::uint32_t> terrainCorners;
         GpuBatch opaqueGpu, linesGpu, hiddenLinesGpu;
         size_t mappingFallbacks{};
         MaterialRecords materials;
@@ -706,7 +715,20 @@ class Viewport : public QOpenGLWidget {
         std::shared_ptr<const TerrainContours> contours;
         Transform world;
         bool hidden{}, dark{};
-        GpuBatch linesGpu, indexGpu;
+        // R096.f1b: the contour lines in chunks, one per row of the tile grid (key order keeps a
+        // row's tiles together), so an edit re-uploads only the rows whose tiles changed. A chunk
+        // is kept while it holds the same tile records (their lines depend on nothing else, as
+        // long as the interval, offset, world transform, colours and render origin are the same).
+        struct ContourChunk {
+            std::int64_t row{};
+            std::vector<BodyPtr> tiles;
+            GpuBatch lines, index;
+            std::map<Id, ContourRange> ranges; // per tile, within this chunk's batches
+        };
+        std::vector<std::unique_ptr<ContourChunk>> chunks;
+        double interval{}, offset{};
+        Vec3 origin{};
+        bool built{};
     };
     std::map<Id, std::unique_ptr<TerrainView>> terrainViews_;
     TerrainContourCache contourCache_;

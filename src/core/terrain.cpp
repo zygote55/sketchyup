@@ -8,6 +8,7 @@
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <cstring>
@@ -120,7 +121,8 @@ void validateTerrainRecord(const TerrainRecord &record) {
         provenance.metresPerUnit > 1e6)
         throw std::runtime_error("Invalid terrain import provenance");
     validateTerrainDisplay(record.display);
-    if (!sha256Text(record.meshDigest))
+    // A deferred digest is a SHA-256 by construction; checking it would compute it now.
+    if (!record.meshDigest.pending() && !sha256Text(record.meshDigest.value()))
         throw std::runtime_error("Invalid terrain mesh digest");
     // R096.a: the stored tile grid and the edit list.
     const auto &grid = record.tiling;
@@ -237,7 +239,7 @@ std::size_t terrainEditBytes(const std::vector<TerrainEditPtr> &edits) {
 }
 std::size_t terrainRecordBytes(const TerrainRecord &record) {
     return recordOwnBytes(record) + sourceBlockBytes(record.sources) +
-           terrainEditBytes(record.edits);
+           terrainEditBytes(record.edits) + record.meshDigest.retainedBytes();
 }
 std::size_t terrainRecordChangeBytes(const TerrainRecord *before, const TerrainRecord *after) {
     if (!before && !after)
@@ -247,6 +249,9 @@ std::size_t terrainRecordChangeBytes(const TerrainRecord *before, const TerrainR
     std::size_t bytes = recordOwnBytes(*before) + recordOwnBytes(*after);
     if (before->sources.block() != after->sources.block())
         bytes += sourceBlockBytes(before->sources) + sourceBlockBytes(after->sources);
+    // R096.f1b: a deferred digest's identity table, held once when the records share it.
+    if (!before->meshDigest.sharesState(after->meshDigest))
+        bytes += before->meshDigest.retainedBytes() + after->meshDigest.retainedBytes();
     // Entries are compared by identity: a shared entry is held once, whoever holds it.
     std::set<const TerrainEdit *> beforeEntries, afterEntries;
     for (const auto &edit : before->edits)
@@ -527,14 +532,152 @@ std::vector<Id> terrainTilesInKeyOrder(const Document &doc, Id terrain) {
 }
 std::string terrainMeshDigest(const Document &doc, Id terrain) {
     std::vector<const Body *> tiles;
-    for (const auto id : terrainTiles(doc, terrain))
+    std::vector<const void *> identity;
+    for (const auto id : terrainTiles(doc, terrain)) {
         tiles.push_back(doc.bodies().at(id).get());
+        identity.push_back(tiles.back());
+    }
+    // R096.f1b: the record's deferred digest describes exactly these tile records: it is their
+    // digest, with no second hash of them.
+    if (const auto *record = bodyOf(doc, terrain);
+        record && record->terrain && record->terrain->meshDigest.describes(identity))
+        return record->terrain->meshDigest.value();
     return terrainMeshDigest(tiles);
 }
+// ---- R096.f1b: the deferred digest ----------------------------------------------------------
+namespace {
+std::atomic<std::size_t> deferredComputations{0};
+}
+namespace {
+void sortIdentity(std::vector<std::pair<const void *, std::weak_ptr<const void>>> &identity) {
+    std::sort(identity.begin(), identity.end(),
+              [](const auto &a, const auto &b) { return std::less<>{}(a.first, b.first); });
+}
+} // namespace
+TerrainDigest TerrainDigest::deferred(Hash hash, std::vector<std::shared_ptr<const void>> tiles) {
+    auto state = std::make_shared<Deferred>();
+    state->hash = std::move(hash);
+    state->identity.reserve(tiles.size());
+    for (const auto &tile : tiles)
+        state->identity.emplace_back(tile.get(), tile);
+    sortIdentity(state->identity);
+    state->tiles = std::move(tiles);
+    TerrainDigest digest;
+    digest.deferred_ = std::move(state);
+    return digest;
+}
+const std::string &TerrainDigest::value() const {
+    if (!deferred_)
+        return text_;
+    if (deferred_->done.load(std::memory_order_acquire))
+        return deferred_->text; // immutable once done
+    std::lock_guard lock(deferred_->computing);
+    if (!deferred_->done.load(std::memory_order_relaxed)) {
+        std::vector<std::shared_ptr<const void>> held;
+        {
+            std::lock_guard guard(deferred_->guard);
+            held = deferred_->tiles;
+        }
+        std::vector<const void *> tiles;
+        tiles.reserve(held.size());
+        for (const auto &tile : held)
+            tiles.push_back(tile.get());
+        deferred_->text = deferred_->hash(tiles); // a throw leaves it pending for the next reader
+        {
+            std::lock_guard guard(deferred_->guard);
+            deferred_->tiles.clear(); // releases the tiles; the identity stays, weakly
+            deferred_->tiles.shrink_to_fit();
+        }
+        deferred_->done.store(true, std::memory_order_release);
+        ++deferredComputations;
+    }
+    return deferred_->text;
+}
+bool TerrainDigest::pending() const {
+    return deferred_ && !deferred_->done.load(std::memory_order_acquire);
+}
+bool TerrainDigest::describes(const std::vector<const void *> &tiles) const {
+    if (!deferred_)
+        return false;
+    auto sorted = tiles;
+    std::sort(sorted.begin(), sorted.end(), std::less<>{});
+    std::lock_guard guard(deferred_->guard);
+    const auto &identity = deferred_->identity;
+    if (sorted.size() != identity.size())
+        return false;
+    for (std::size_t i = 0; i < sorted.size(); ++i)
+        // An expired reference means the address may now name another record.
+        if (sorted[i] != identity[i].first || identity[i].second.expired())
+            return false;
+    return true;
+}
+void TerrainDigest::rebind(
+    const std::vector<std::pair<const void *, std::shared_ptr<const void>>> &frozen) const {
+    if (!deferred_ || frozen.empty())
+        return;
+    std::lock_guard guard(deferred_->guard);
+    auto find = [&](const void *original) -> const std::shared_ptr<const void> * {
+        const auto found = std::lower_bound(
+            frozen.begin(), frozen.end(), original,
+            [](const auto &entry, const void *key) { return std::less<>{}(entry.first, key); });
+        return found != frozen.end() && found->first == original ? &found->second : nullptr;
+    };
+    bool moved = false;
+    for (auto &[address, weak] : deferred_->identity) {
+        // Only a live entry: its address names that record, so it is the original in `frozen`.
+        if (weak.expired())
+            continue;
+        if (const auto *copy = find(address)) {
+            address = copy->get();
+            weak = *copy;
+            moved = true;
+        }
+    }
+    if (!moved)
+        return;
+    sortIdentity(deferred_->identity);
+    for (auto &tile : deferred_->tiles)
+        if (const auto *copy = find(tile.get()))
+            tile = *copy; // the original copies are released
+}
+std::function<void()> TerrainDigest::prefetchTask() const {
+    if (!pending())
+        return [] {};
+    return [state = std::weak_ptr<const Deferred>(deferred_)] {
+        try {
+            TerrainDigest digest;
+            digest.deferred_ = state.lock();
+            if (digest.deferred_)
+                (void)digest.value();
+        } catch (...) {
+            // A failed computation stays pending; the next reader computes it and reports.
+        }
+    };
+}
+std::size_t TerrainDigest::retainedBytes() const {
+    if (!deferred_)
+        return 0;
+    std::lock_guard guard(deferred_->guard);
+    return sizeof(Deferred) + deferred_->identity.capacity() *
+                                  sizeof(decltype(deferred_->identity)::value_type);
+}
+bool TerrainDigest::operator==(const TerrainDigest &other) const {
+    if (deferred_ == other.deferred_ && text_ == other.text_)
+        return true; // the same value (one deferred digest shared, or equal text)
+    return value() == other.value();
+}
+std::size_t TerrainDigest::computations() { return deferredComputations.load(); }
 bool terrainChangedSinceGenerated(const Document &doc, Id terrain) {
     const auto *record = bodyOf(doc, terrain);
     if (!record || !record->terrain)
         refuse("NOT_FOUND", "Terrain body does not exist");
+    // R096.f1b: a digest deferred from exactly the current tiles is their digest: unchanged,
+    // without computing it.
+    std::vector<const void *> identity;
+    for (const auto id : terrainTiles(doc, terrain))
+        identity.push_back(doc.bodies().at(id).get());
+    if (record->terrain->meshDigest.describes(identity))
+        return false;
     return terrainMeshDigest(doc, terrain) != record->terrain->meshDigest;
 }
 namespace {

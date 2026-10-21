@@ -1,12 +1,16 @@
 #pragma once
 #include "geometry/surface.hpp"
 #include <array>
+#include <atomic>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -144,12 +148,84 @@ struct TerrainEdit {
     }
 };
 using TerrainEditPtr = std::shared_ptr<const TerrainEdit>;
+// R096.f1b: a terrain's mesh digest (the SHA-256 hex text of terrainMeshDigest). Its definition
+// is unchanged; only when it is computed differs. A digest is either known (text) or deferred: a
+// terrain edit's commit captures the immutable tiles it describes and the digest is computed once,
+// on the first read (save, describe, a comparison) or earlier on a worker (prefetchTask),
+// whichever comes first. Copies share the deferred value, so an Undo, a Redo or a copied record
+// reads the same result, and a reader blocks until it is computed: no reader ever sees a stale or
+// missing value. Once computed, the value is read without locking. Thread-safe.
+class TerrainDigest {
+  public:
+    using Hash = std::function<std::string(const std::vector<const void *> &tiles)>;
+    TerrainDigest() = default;
+    TerrainDigest(std::string text) : text_(std::move(text)) {} // NOLINT: a known digest
+    TerrainDigest(const char *text) : text_(text) {}            // NOLINT
+    // A digest computed on first read as `hash(tiles)`. `tiles` (in the order `hash` expects)
+    // are held until then and released after; they also identify what the digest describes
+    // (describes), held weakly.
+    static TerrainDigest deferred(Hash hash, std::vector<std::shared_ptr<const void>> tiles);
+    // The digest text (computing it now if it is deferred and not yet computed).
+    const std::string &value() const;
+    operator const std::string &() const { return value(); } // NOLINT
+    std::size_t size() const { return deferred_ ? 64 : text_.size(); }
+    bool empty() const { return !deferred_ && text_.empty(); }
+    bool isDeferred() const { return bool(deferred_); }
+    // Whether a deferred digest has not been computed yet (never blocks).
+    bool pending() const;
+    // Whether this digest was deferred from exactly these live tile records (by identity, any
+    // order): then it is also their current digest, without hashing them. Never computes and
+    // never waits for a computation.
+    bool describes(const std::vector<const void *> &tiles) const;
+    // Document::applyEdit stores a copy of every record it commits; `frozen` maps each committed
+    // record's original to its stored copy (both alive), and the digest follows its tiles there.
+    // The copies' geometry, and so the digest, is the same.
+    void rebind(const std::vector<std::pair<const void *, std::shared_ptr<const void>>> &frozen) const;
+    // A task that computes a pending digest if anything still holds it (a worker's prefetch); it
+    // never throws and keeps nothing alive.
+    std::function<void()> prefetchTask() const;
+    // The bytes a deferred digest retains besides its text (its identity table), for the history
+    // charge; a shared state (sharesState) is charged once per record pair.
+    std::size_t retainedBytes() const;
+    bool sharesState(const TerrainDigest &other) const {
+        return deferred_ && deferred_ == other.deferred_;
+    }
+    bool operator==(const TerrainDigest &other) const;
+    bool operator==(const std::string &other) const { return value() == other; }
+    bool operator==(const char *other) const { return value() == other; }
+    // Process-wide count of deferred digests computed (tests and the benchmark).
+    static std::size_t computations();
+
+  private:
+    struct Deferred {
+        mutable std::mutex computing;     // held while computing
+        mutable std::atomic<bool> done{}; // released after `text` is written
+        mutable std::string text;
+        Hash hash;
+        // Under `guard` (never held while hashing): the tiles to hash (strong, cleared once
+        // done), and each tile's address with a weak reference proving the address still names
+        // it, by address.
+        mutable std::mutex guard;
+        mutable std::vector<std::shared_ptr<const void>> tiles;
+        mutable std::vector<std::pair<const void *, std::weak_ptr<const void>>> identity;
+    };
+    std::string text_;
+    std::shared_ptr<const Deferred> deferred_;
+};
+// Text use of a digest (messages, logs) reads its value.
+inline std::ostream &operator<<(std::ostream &out, const TerrainDigest &digest) {
+    return out << digest.value();
+}
+inline std::string operator+(const std::string &a, const TerrainDigest &b) { return a + b.value(); }
+inline std::string operator+(const char *a, const TerrainDigest &b) { return a + b.value(); }
+inline std::string operator+(const TerrainDigest &a, const std::string &b) { return a.value() + b; }
+inline std::string operator+(const TerrainDigest &a, const char *b) { return a.value() + b; }
 struct TerrainRecord {
     TerrainSources sources; // The base sources (shared, immutable).
     TerrainParameters parameters;
     std::string generator;  // e.g. "cdt-2.0.0/terrain-v1+edit-v1"
     TerrainProvenance provenance;
-    std::string meshDigest; // terrainMeshDigest of the tiles when generated.
+    TerrainDigest meshDigest; // terrainMeshDigest of the tiles when generated (R096.f1b: deferred).
     TerrainDisplay display;
     TerrainTileGrid tiling;              // R096.a: the stored tile grid.
     std::vector<TerrainEditPtr> edits;   // R096.a: the ordered edit list.
@@ -158,13 +234,14 @@ struct TerrainRecord {
         if (!(sources == other.sources && parameters == other.parameters &&
               nextEditId == other.nextEditId &&
               generator == other.generator && provenance == other.provenance &&
-              meshDigest == other.meshDigest && display == other.display &&
-              tiling == other.tiling && edits.size() == other.edits.size()))
+              display == other.display && tiling == other.tiling &&
+              edits.size() == other.edits.size()))
             return false;
         for (std::size_t i = 0; i < edits.size(); ++i)
             if (edits[i] != other.edits[i] && !(edits[i] && other.edits[i] && *edits[i] == *other.edits[i]))
                 return false;
-        return true;
+        // R096.f1b: last, since comparing a pending digest computes it.
+        return meshDigest == other.meshDigest;
     }
 };
 // R095.e2: the built-in material new terrains get ("Terrain"; the Materials panel's local
