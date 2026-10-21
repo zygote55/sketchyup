@@ -1792,6 +1792,28 @@ void desktopPreview() {
                              }),
               "the revised terrain's tiles equal the direct change's");
     }
+    // The terrain policy revises only an edit that appended one change of the same kind: not a
+    // display change, and not into a change of another kind.
+    {
+        auto copy = doc;
+        auto smooth = amended;
+        smooth["mode"] = "smooth";
+        smooth.remove("amount");
+        const auto otherKind = refusal([&] {
+            executeAmend(copy, copy.amendmentStamp(), batch(copy, {smooth}));
+        });
+        check(!otherKind.message.empty() && lastSculpt(copy, terrain).amount == amended["amount"].toDouble(),
+              "a revision into another kind is refused: " + otherKind.message);
+        auto display = recordOf(copy, terrain).display;
+        display.contourInterval = 2;
+        setTerrainDisplay(copy, terrain, display);
+        const auto entriesBefore = recordOf(copy, terrain).edits.size();
+        const auto ofDisplay = refusal([&] {
+            executeAmend(copy, copy.amendmentStamp(), batch(copy, {amended}));
+        });
+        check(!ofDisplay.message.empty() && recordOf(copy, terrain).edits.size() == entriesBefore,
+              "a display change is not revised into a sculpt: " + ofDisplay.message);
+    }
     // An intervening edit ends the revision.
     stamp = doc.amendmentStamp();
     auto paint = recordOf(doc, terrain).display;

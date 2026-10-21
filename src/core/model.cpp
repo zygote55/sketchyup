@@ -2118,16 +2118,30 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     auto contexts = hostedEditingContexts(undo_.back().edit);
     // R096.f1: the terrain whose tiles a terrain-edit replacement may replace or create.
     Id amendedTerrain = 0;
+    std::string amendedKind;
+    // A terrain record whose edit list is `before`'s with exactly one entry appended (the same
+    // entries before it, shared); the appended entry's kind, or empty.
+    auto appendedKind = [](const BodyPtr &before, const BodyPtr &after) -> std::string {
+        if (!before || !after || !before->terrain || !after->terrain)
+            return {};
+        const auto &a = before->terrain->edits, &b = after->terrain->edits;
+        if (b.size() != a.size() + 1 || !std::equal(a.begin(), a.end(), b.begin()))
+            return {};
+        return b.back()->kind;
+    };
     if (policy == AmendPolicy::TerrainTiles) {
+        // Only an operation that appended one entry to one terrain's edit list (a sculpt, a
+        // smooth or a stamp) is revised this way; a display, settings or replay edit is not.
         for (const auto &change : undo_.back().edit.changes) {
             const auto &record = change.after ? change.after : change.before;
-            if (record && record->kind == BodyKind::Terrain && change.before && change.after) {
-                if (amendedTerrain)
+            if (record && record->kind == BodyKind::Terrain) {
+                if (amendedTerrain || !change.before || !change.after)
                     throw std::runtime_error("A terrain amendment revises one terrain's edit");
                 amendedTerrain = change.id;
+                amendedKind = appendedKind(change.before, change.after);
             }
         }
-        if (!amendedTerrain)
+        if (!amendedTerrain || amendedKind.empty())
             throw std::runtime_error("The most recent operation is not a terrain edit");
     }
     auto terrainTile = [&](const BodyPtr &body) {
@@ -2229,6 +2243,14 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
     replace(staged);
+    if (policy == AmendPolicy::TerrainTiles) {
+        const auto before = baseline.find(amendedTerrain);
+        const auto after = staged.bodies_.find(amendedTerrain);
+        if (before == baseline.end() || after == staged.bodies_.end() ||
+            appendedKind(before->second, after->second) != amendedKind)
+            throw std::runtime_error(
+                "A terrain amendment must append one change of the same kind to the same terrain");
+    }
     if (staged.identity_ != identity_ || staged.session_ != session_ ||
         staged.revision_ != revision_ + 1 || staged.undo_.empty() || staged.state_ == state_)
         throw std::runtime_error("Replacement must commit exactly one atomic operation");

@@ -130,10 +130,12 @@ void Viewport::stepTerrainRadius(bool larger) {
 QString Viewport::terrainMeasurementLabel() const {
     if (!terrainToolActive())
         return {};
-    const bool value = brush_.stroking || brush_.anchored || brush_.regionClosed ||
-                       (terrainSession_.canRevise() && !terrainCommitted_.isEmpty());
-    if (value)
-        return tool_ == Tool::Smooth ? "Strength" : "Amount";
+    // The value step follows the mode: a Sculpt stroke with Shift held, or committed that way, is
+    // a smooth and takes a strength.
+    if (!terrainAmendable().isEmpty() && !brush_.stroking && !brush_.anchored && !brush_.regionClosed)
+        return terrainAmendable()["mode"] == "smooth" ? "Strength" : "Amount";
+    if (brush_.stroking || brush_.anchored || brush_.regionClosed)
+        return terrainSmoothing() ? "Strength" : "Amount";
     if (terrainOptions_.scope == TerrainToolOptions::Scope::Region)
         return brush_.region.empty() ? "Falloff width" : "Point";
     return "Radius";
@@ -200,16 +202,24 @@ std::optional<std::pair<Id, Vec3>> Viewport::terrainHit(QPointF point) const {
     if (!hit.body || !std::isfinite(hit.distance))
         return std::nullopt;
     const auto found = doc_.bodies().find(hit.body);
-    if (found == doc_.bodies().end() || !found->second->terrainTile)
-        return std::nullopt;
+    if (found == doc_.bodies().end() || !found->second->terrainTile ||
+        !selection_.inActiveHierarchy(doc_, hit.body))
+        return std::nullopt; // a terrain outside the open editing context is not edited
     const auto [origin, direction] = ray(point);
     return std::pair{found->second->parent, origin + direction * hit.distance};
 }
 std::optional<double> Viewport::terrainElevation(Id terrain, double x, double y) const {
-    const auto found = terrainElevationAt(doc_, terrain, {{x, y}});
-    if (found.empty() || !found.front().found)
+    // Painting asks too: a terrain an Undo removed has no surface, and nothing here may throw.
+    if (!isTerrain(doc_, terrain))
         return std::nullopt;
-    return found.front().elevation;
+    try {
+        const auto found = terrainElevationAt(doc_, terrain, {{x, y}});
+        if (found.empty() || !found.front().found)
+            return std::nullopt;
+        return found.front().elevation;
+    } catch (const std::exception &) {
+        return std::nullopt;
+    }
 }
 void Viewport::emitTerrainStatus() {
     if (!terrainToolActive())
@@ -265,8 +275,10 @@ void Viewport::beginTerrainTool() {
         const auto &entities = selection_.entities();
         if (entities.size() == 1 && entities.begin()->kind == SelectionKind::Face) {
             const auto entity = *entities.begin();
-            const auto &body = *doc_.bodies().at(entity.body);
-            if (!body.terrainTile && body.surface.faces.contains(entity.entity)) {
+            const auto found = doc_.bodies().find(entity.body);
+            if (found != doc_.bodies().end() && !found->second->terrainTile &&
+                found->second->surface.faces.contains(entity.entity)) {
+                const auto &body = *found->second;
                 const auto world = doc_.worldTransform(entity.body);
                 for (const auto vertex : body.surface.faces.at(entity.entity).loops.front())
                     loop.push_back(world.point(body.surface.vertices.at(vertex)));
@@ -278,32 +290,39 @@ void Viewport::beginTerrainTool() {
             // Chain the edges by shared positions into one closed loop.
             std::vector<std::array<Vec3, 2>> edges;
             for (const auto &entity : entities) {
-                const auto &body = *doc_.bodies().at(entity.body);
+                const auto found = doc_.bodies().find(entity.body);
+                if (found == doc_.bodies().end() ||
+                    !found->second->topology.edges.contains(entity.entity))
+                    continue;
+                const auto &body = *found->second;
                 const auto world = doc_.worldTransform(entity.body);
                 const auto &edge = body.topology.edges.at(entity.entity);
+                if (!body.surface.vertices.contains(edge.a) || !body.surface.vertices.contains(edge.b))
+                    continue;
                 edges.push_back({world.point(body.surface.vertices.at(edge.a)),
                                  world.point(body.surface.vertices.at(edge.b))});
             }
-            std::vector<bool> used(edges.size());
-            loop = {edges[0][0], edges[0][1]};
-            used[0] = true;
-            for (std::size_t step = 1; step < edges.size(); ++step) {
-                bool linked = false;
-                for (std::size_t i = 0; i < edges.size() && !linked; ++i)
-                    for (int end = 0; end < 2 && !linked; ++end)
-                        if (!used[i] && length(edges[i][std::size_t(end)] - loop.back()) <= 1e-9) {
-                            loop.push_back(edges[i][std::size_t(1 - end)]);
-                            used[i] = linked = true;
-                        }
-                if (!linked)
+            if (edges.size() >= 3) {
+                std::vector<bool> used(edges.size());
+                used[0] = true;
+                loop = {edges[0][0], edges[0][1]};
+                for (std::size_t step = 1; step < edges.size() && !loop.empty(); ++step) {
+                    bool linked = false;
+                    for (std::size_t i = 0; i < edges.size() && !linked; ++i)
+                        for (int end = 0; end < 2 && !linked; ++end)
+                            if (!used[i] &&
+                                length(edges[i][std::size_t(end)] - loop.back()) <= 1e-9) {
+                                loop.push_back(edges[i][std::size_t(1 - end)]);
+                                used[i] = linked = true;
+                            }
+                    if (!linked)
+                        loop.clear();
+                }
+                if (loop.size() < 4 || length(loop.back() - loop.front()) > 1e-9)
                     loop.clear();
-                if (loop.empty())
-                    break;
+                else
+                    loop.pop_back();
             }
-            if (loop.size() < 4 || length(loop.back() - loop.front()) > 1e-9)
-                loop.clear();
-            else
-                loop.pop_back();
         }
         if (loop.size() >= 3) {
             // The terrain under the region's first corner.
@@ -336,7 +355,7 @@ void Viewport::cancelTerrainOperation(bool keepAmend) {
     const bool was = brush_.pressed || brush_.stroking || brush_.anchored || !brush_.region.empty() ||
                      terrainCandidateShown_;
     brush_.path.clear();
-    brush_.pressed = brush_.stroking = brush_.anchored = brush_.commitOnRelease = false;
+    brush_.pressed = brush_.stroking = brush_.anchored = false;
     brush_.spotAmount = 0;
     brush_.region.clear();
     brush_.regionClosed = brush_.regionSelected = false;
@@ -350,6 +369,8 @@ void Viewport::cancelTerrainOperation(bool keepAmend) {
         terrainCommitted_ = {};
     }
     if (was) {
+        if (!keepAmend)
+            emit measurementPreview({}); // the live value goes with the operation
         emitTerrainStatus();
         emit terrainToolChanged();
     }
@@ -407,7 +428,7 @@ void Viewport::terrainHover(QPointF point) {
             }
         } else if (!brush_.pressed) {
             if (hit)
-                updateTerrainCandidate(false);
+                updateTerrainCandidate(false); // the plan only: dots, label, empty ring
             else {
                 terrainCandidate_.reset();
                 terrainCandidateShown_ = false;
@@ -520,6 +541,13 @@ bool Viewport::terrainKey(QKeyEvent *event) {
         return false; // Other handlers may also watch modifiers.
     }
     if (!(modifiers & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
+        terrainOptions_.scope == TerrainToolOptions::Scope::Region && event->text() == "[") {
+        // Region scope has no radius: [ starts a typed point, as in the drawing tools.
+        emit measurementsRequested("[");
+        event->accept();
+        return true;
+    }
+    if (!(modifiers & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
         (event->text() == "[" || event->text() == "]")) {
         stepTerrainRadius(event->text() == "]");
         event->accept();
@@ -616,17 +644,18 @@ void Viewport::updateTerrainCandidate(bool show) {
             const auto toLocal = doc_.worldTransform(brush_.terrain).inverse();
             auto data = sculptData(spot, toLocal);
             validateTerrainSculptData(terrainSculptKind, *data);
-            auto preview = previewTerrainSculpt(doc_, brush_.terrain, terrainSculptKind, data);
-            forgetRememberedTerrainSculptPlan();
-            preview.edit.reset();
+            auto preview =
+                previewTerrainSculpt(doc_, brush_.terrain, terrainSculptKind, data, false);
             terrainCandidate_ = std::make_shared<const TerrainSculptPreview>(std::move(preview));
         } else {
             const auto toLocal = doc_.worldTransform(brush_.terrain).inverse();
             auto data = sculptData(command, toLocal);
             const std::string kind = smoothing ? terrainSmoothKind : terrainSculptKind;
             validateTerrainSculptData(kind, *data);
+            // A hover plans only; a shown candidate also builds its tiles (and is remembered for
+            // the commit).
             terrainCandidate_ = std::make_shared<const TerrainSculptPreview>(
-                previewTerrainSculpt(doc_, brush_.terrain, kind, data));
+                previewTerrainSculpt(doc_, brush_.terrain, kind, data, show));
         }
         terrainCandidateShown_ = show && terrainCandidate_->edit.has_value();
         terrainCandidateDocument_ = doc_.identity();
@@ -809,6 +838,18 @@ void Viewport::rebuildTerrainPreview() {
     gpu.active = false;
     gpu.hidden.clear();
     gpu.hiddenContours.clear();
+    // A preview that cannot be drawn is withdrawn; it never takes the viewport down.
+    try {
+        uploadTerrainPreview();
+    } catch (const std::exception &error) {
+        gpu.active = false;
+        gpu.hidden.clear();
+        gpu.hiddenContours.clear();
+        brush_.error = QString("The preview cannot be drawn: %1").arg(error.what());
+    }
+}
+void Viewport::uploadTerrainPreview() {
+    auto &gpu = terrainPreviewGpu_;
     const auto candidate = terrainPreviewShown();
     if (!candidate || !candidate->edit || terrainCandidateDocument_ != doc_.identity() ||
         terrainCandidateRevision_ != doc_.revision() || !isTerrain(doc_, brush_.terrain))
@@ -937,9 +978,8 @@ void Viewport::paintTerrainBrush(QPainter &p) {
         return;
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
-    const auto terrain = brush_.terrain;
-    const auto world = terrain && isTerrain(doc_, terrain) ? doc_.worldTransform(terrain)
-                                                           : Transform{};
+    const auto terrain = isTerrain(doc_, brush_.terrain) ? brush_.terrain : Id{};
+    const auto world = terrain ? doc_.worldTransform(terrain) : Transform{};
     const QColor ink = colors_.ink, halo = QColor(255, 255, 255, 220);
     auto onSurface = [&](double x, double y, double fallback) {
         return Vec3{x, y, terrain ? terrainElevation(terrain, x, y).value_or(fallback) : fallback};
@@ -1101,7 +1141,7 @@ void Viewport::paintTerrainBrush(QPainter &p) {
     QString text = view.label;
     QColor textColor = ink;
     if (!brush_.error.isEmpty()) {
-        text = brush_.error;
+        text = "× " + brush_.error; // a refusal is marked, not only coloured (UX §15.7)
         textColor = colors_.failure.isValid() ? colors_.failure : QColor("#a8322b");
     }
     const auto anchor = centre ? std::optional(project(*centre))

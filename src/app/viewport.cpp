@@ -133,6 +133,17 @@ void Viewport::cleanupGL() {
                 batch->count = 0;
             }
         terrainViews_.clear();
+        contourRanges_.clear();
+        // R096.f1: the terrain preview's buffers; the next frame rebuilds them.
+        for (auto *batch : {&terrainPreviewGpu_.surface, &terrainPreviewGpu_.lines,
+                            &terrainPreviewGpu_.contours, &terrainPreviewGpu_.indexContours}) {
+            batch->buffer.destroy();
+            batch->count = 0;
+        }
+        terrainPreviewGpu_.active = false;
+        terrainPreviewGpu_.hidden.clear();
+        terrainPreviewGpu_.hiddenContours.clear();
+        terrainPreviewDirty_ = true;
         for (const auto &[id, name] : textureGpu_)
             gl_->glDeleteTextures(1, &name);
         cleanupSolarShadowMap();
@@ -1639,8 +1650,10 @@ void Viewport::paintScene(QPaintDevice *device) {
         if (terrainPreviewDirty_ ||
             (terrainPreviewGpu_.active && terrainPreviewGpu_.surface.origin != renderOrigin_))
             rebuildTerrainPreview();
-        const auto previewHides = [this](Id id) {
-            return terrainPreviewGpu_.active && terrainPreviewGpu_.hidden.contains(id);
+        // Exports draw the model as it is, never an uncommitted candidate.
+        const bool terrainPreview = terrainPreviewGpu_.active && rasterSize_.isEmpty();
+        const auto previewHides = [&](Id id) {
+            return terrainPreview && terrainPreviewGpu_.hidden.contains(id);
         };
         sortTransparent(transform);
         drawSolarShadowMap(transform);
@@ -1660,7 +1673,8 @@ void Viewport::paintScene(QPaintDevice *device) {
             for (auto &[id, cache] : bodyCaches_)
                 if (cache->mesh && !previewHides(id))
                     draw(cache->mesh->opaqueGpu, GL_TRIANGLES, 1, placementOffset(*cache));
-            drawTerrainPreview();
+            if (terrainPreview)
+                drawTerrainPreview();
             sortTransparent(transform);
             if (transparentGpu_.count) {
                 gl_->glEnable(GL_BLEND);
@@ -1681,7 +1695,7 @@ void Viewport::paintScene(QPaintDevice *device) {
             for (auto &[id, cache] : bodyCaches_)
                 if (cache->mesh && !previewHides(id))
                     draw(cache->mesh->linesGpu, GL_LINES, 1, placementOffset(*cache));
-            if (terrainPreviewGpu_.active)
+            if (terrainPreview)
                 draw(terrainPreviewGpu_.lines, GL_LINES);
             shader_->setUniformValue("stipple", 2);
             for (auto &[id, cache] : bodyCaches_)
@@ -2057,6 +2071,10 @@ void Viewport::setSelection(Id body, Id face) {
 }
 
 void Viewport::setTool(Tool tool) {
+    // R096.f1: choosing the active terrain tool again (Shift+S, the rail, the strip) keeps an
+    // anchored spot or region and the chance to revise the last edit.
+    if (terrainTool(tool) && tool == tool_)
+        return;
     cancel();
     assemblyAmend_.reset();
     const bool wasTerrain = terrainTool(tool_);
@@ -2889,6 +2907,7 @@ bool Viewport::event(QEvent *event) {
         if (brush_.stroking)
             cancelTerrainOperation();
         brush_.pressed = false;
+        brush_.modifiers = Qt::NoModifier;
         dragging_ = false;
         dragButton_ = Qt::NoButton;
         toolPressed_ = false;

@@ -29,6 +29,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QJsonArray>
 #include <QLabel>
@@ -39,12 +40,14 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QWidgetAction>
 #include <cmath>
 #include <iostream>
 using namespace sketchy;
@@ -373,49 +376,73 @@ void menuAndRail(Window &window) {
     // The selected terrain's name heads its commands; Reset edits needs edits.
     view->setSelection(terrain);
     changed(window);
-    check(drive(
-              "terrainMenu",
-              [&](QWidget &shown) {
-                  auto *opened = qobject_cast<QMenu *>(&shown);
-                  QStringList sections;
-                  for (const auto *name : {"terrainMenuToolsHeading", "terrainMenuTerrainHeading"})
-                      if (auto *label = opened->findChild<QLabel *>(name))
-                          sections << label->text();
-                  check(sections.contains("Tools") && sections.contains("Hill"),
-                        "the menu heads the tools and the selected terrain's commands: " +
-                            sections.join(", ").toStdString());
-                  check(!action(window, "terrain.resetEdits")->isEnabled() &&
-                            action(window, "terrain.settings")->isEnabled(),
-                        "Reset edits is unavailable without edits");
-              },
-              [&] {
-                  const auto at = window.menuBar()->actionGeometry(
-                      window.menuBar()->actions()[menu]);
-                  terrainMenu->popup(window.menuBar()->mapToGlobal(at.bottomLeft()));
-                  QTest::qWait(200);
-              }),
-          "the Terrain menu opens");
-    terrainMenu->close();
+    // Qt's Wayland popups need a compositor input serial that synthetic input cannot supply (as
+    // in terrain_desktop_tests and narrow_layout_input_tests): there the menus are checked by
+    // their contents and the requests, not by opening them.
+    const bool wayland = QGuiApplication::platformName() == "wayland";
+    auto checkMenu = [&](QMenu &opened) {
+        QStringList sections;
+        for (const auto *name : {"terrainMenuToolsHeading", "terrainMenuTerrainHeading"})
+            if (auto *label = opened.findChild<QLabel *>(name))
+                sections << label->text();
+        for (auto *entry : opened.actions())
+            if (auto *widget = qobject_cast<QWidgetAction *>(entry))
+                if (auto *label = qobject_cast<QLabel *>(widget->defaultWidget()))
+                    if (!sections.contains(label->text()))
+                        sections << label->text();
+        check(sections.contains("Tools") && sections.contains("Hill"),
+              "the menu heads the tools and the selected terrain's commands: " +
+                  sections.join(", ").toStdString());
+        check(!action(window, "terrain.resetEdits")->isEnabled() &&
+                  action(window, "terrain.settings")->isEnabled(),
+              "Reset edits is unavailable without edits");
+    };
+    if (wayland) {
+        emit terrainMenu->aboutToShow();
+        checkMenu(*terrainMenu);
+    } else {
+        check(drive(
+                  "terrainMenu", [&](QWidget &shown) { checkMenu(*qobject_cast<QMenu *>(&shown)); },
+                  [&] {
+                      const auto at = window.menuBar()->actionGeometry(
+                          window.menuBar()->actions()[menu]);
+                      terrainMenu->popup(window.menuBar()->mapToGlobal(at.bottomLeft()));
+                      QTest::qWait(200);
+                  }),
+              "the Terrain menu opens");
+        terrainMenu->close();
+    }
     // The context menu on a terrain: its tools, Terrain settings… and Explode terrain….
     view->setSelection(0);
     frame(view);
     const auto onTerrain = screen(window, terrain, 30, 30);
-    check(drive(
-              "viewportContextMenu",
-              [&](QWidget &shown) {
-                  QStringList items;
-                  for (auto *entry : qobject_cast<QMenu *>(&shown)->actions())
-                      if (!entry->isSeparator())
-                          items << entry->text();
-                  for (const auto *name :
-                       {"Sculpt", "Smooth", "Terrain settings…", "Explode terrain…"})
-                      check(items.contains(name),
-                            std::string("the context menu offers ") + name + ": " +
-                                items.join(", ").toStdString());
-              },
-              [&] { emit view->contextMenuRequested(onTerrain); }),
-          "the context menu opens on a terrain");
-    check(view->selectedBody() == terrain, "right-clicking a terrain selects it");
+    if (wayland) {
+        QSignalSpy requested(view, &Viewport::contextMenuRequested);
+        QContextMenuEvent event(QContextMenuEvent::Keyboard, onTerrain, view->mapToGlobal(onTerrain));
+        QApplication::sendEvent(view, &event);
+        QTest::qWait(20);
+        check(requested.count() == 1 && action(window, "tool.29")->isEnabled(),
+              "the keyboard requests the context menu, the tools available");
+        view->setSelection(terrain);
+        changed(window);
+    } else {
+        check(drive(
+                  "viewportContextMenu",
+                  [&](QWidget &shown) {
+                      QStringList items;
+                      for (auto *entry : qobject_cast<QMenu *>(&shown)->actions())
+                          if (!entry->isSeparator())
+                              items << entry->text();
+                      for (const auto *name :
+                           {"Sculpt", "Smooth", "Terrain settings…", "Explode terrain…"})
+                          check(items.contains(name),
+                                std::string("the context menu offers ") + name + ": " +
+                                    items.join(", ").toStdString());
+                  },
+                  [&] { emit view->contextMenuRequested(onTerrain); }),
+              "the context menu opens on a terrain");
+        check(view->selectedBody() == terrain, "right-clicking a terrain selects it");
+    }
     // Reset edits… after a change: confirmation with Cancel the default, then one edit.
     startTool(window, Viewport::Tool::Sculpt, {});
     enter(window, "[30,30]");
@@ -649,6 +676,19 @@ void spotAndAmend(Window &window) {
     hover(view, at - QPoint(0, 40));
     brush = view->terrainBrush();
     check(brush.amount > 0 && brush.previewShown, "moving up raises, with a preview");
+    // Keys the strip's controls leave unhandled never reach the viewport (UX §4.2): Enter in
+    // Passes or on a switcher button does not commit the spot.
+    {
+        auto &bar = strip(window);
+        const auto before = doc.revision();
+        bar.toolButton(int(Viewport::Tool::Sculpt))->setFocus();
+        QTest::keyClick(bar.toolButton(int(Viewport::Tool::Sculpt)), Qt::Key_Return);
+        QTest::keyClick(bar.toolButton(int(Viewport::Tool::Sculpt)), Qt::Key_BracketRight);
+        check(doc.revision() == before && view->terrainBrush().anchored &&
+                  view->terrainOptions().radius == 5,
+              "keys on the strip stay in the strip");
+        view->setFocus();
+    }
     const auto candidate = view->terrainPreviewShown();
     const double amount = brush.amount;
     const auto revision = doc.revision();

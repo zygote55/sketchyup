@@ -453,8 +453,39 @@ press the Menu key or Shift+F10) and choose **Create terrain from selection**; e
 groups work too. Constant-height edges become contours and others breaklines; a refusal or any
 notices open the report. Modelling tools such as Push/pull, Offset and the drawing tools show a
 not-allowed cursor over a terrain, and the status bar offers **Explode terrain…**; Select,
-Paint, tags, hiding and locking, and moving the whole terrain work as usual. All terrain actions
-are also in command search (Ctrl+K).
+Paint, tags, hiding and locking, and moving the whole terrain work as usual. The **Terrain** menu
+(between Draw and Camera) holds the terrain tools and, under the selected terrain's name,
+Terrain settings…, Regenerate terrain, **Reset edits…** (asks first; the terrain is rebuilt from
+its sources as one undoable edit) and Explode terrain…, then Create terrain from selection.
+Right-clicking a terrain offers its tools, Terrain settings… and Explode terrain…. All terrain
+actions are also in command search (Ctrl+K).
+
+**Sculpt and smooth a terrain.** Choose **Terrain → Sculpt** (**Shift+S**), **Smooth**, or the
+rail's **Terrain** slot after Tape, which starts the last terrain tool used. A strip across the top
+of the view holds the tool switcher and the options: **Brush** or **Region**, **Radius**,
+**Falloff** (smooth, linear or constant), **Amount** for Sculpt, or **Strength** (0.05–1) and
+**Passes** (1–8) for Smooth. Its fields take the Measurements box's syntax and units (`350cm`,
+`12'6"`); **F6** moves between the view, the strip and the Measurements box, and Escape in a field
+returns to the view. The brush lies on the surface at the pointer: a solid ring at the radius, a
+dashed ring at half strength, a dot on every vertex that will move (larger and darker where it
+moves more) and a label with the amount, the radius, the number of vertices and the tiles. A brush
+that catches no vertex turns amber and dashed and says so; **]** enlarges it and **[** shrinks it
+(10 % a press). **Press and drag** paints a stroke at the strip's Amount: each vertex moves once,
+by its distance to the whole stroke. The changed surface is shown in place, outlined by a black and
+white band, and **releasing** applies it as one undoable edit ("Sculpt terrain"); **Escape**
+before releasing withdraws it and changes nothing. **Ctrl** lowers and **Shift** smooths while
+held. A **click** without a drag anchors the brush instead: move the pointer up or down to set the
+amount, then click or type it. With Smooth, a click smooths one spot. After an edit the
+Measurements box reads **Amount** (or **Strength**): typing a new value revises the same edit, as
+long as nothing else changed the model. With **Region** scope, a face or closed loop that is
+selected when the tool starts is the region; otherwise click points on the terrain and close the
+polygon on its first point. The dashed outline outside it is the **Falloff width**. A click on the
+terrain or Enter applies it. Pads (stamped building platforms) never move, and their vertices get
+no dots. Without a pointer, type `[x, y]` (model metres) or `@E, N` (site coordinates) in the
+Measurements box to place the brush, then the amount (or strength) and Enter; in Region scope,
+type the points one by one and the first point again to close. Over anything but a terrain the
+cursor is not-allowed and the status bar says to point at a terrain; with no terrain in the model
+it says how to import one.
 
 **Terrain display.** A new terrain uses the **Terrain** material and draws as one smooth
 surface: the seams between its tiles and its interior edges are not drawn (Show hidden geometry

@@ -305,6 +305,12 @@ void TerrainToolStrip::apply(QLineEdit *edit) {
         edit->setText(QLocale().toString(applied.strength, 'f', 2));
     sync();
 }
+void TerrainToolStrip::keyPressEvent(QKeyEvent *event) {
+    // A key a control ignored (Enter in Passes, [ on a button, digits) would otherwise travel to
+    // the viewport, its parent, and act on the brush. The strip keeps the keyboard while it has
+    // focus; Tab, F6 and shortcuts are handled before a key press is delivered.
+    event->accept();
+}
 bool TerrainToolStrip::eventFilter(QObject *object, QEvent *event) {
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);

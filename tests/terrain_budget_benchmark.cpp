@@ -13,6 +13,21 @@
 // elevation bands. Prints one JSON document. Build it Release; run the frame part under the
 // platform and renderer to be measured (for example xvfb-run with LIBGL_ALWAYS_SOFTWARE=1).
 //
+// R096.f1 (ADR 0169 §5, §9): --sculpt-frames [N] measures the terrain preview path from the input
+// event to the presented frame instead, on both sources, each in a 20-box model, at 1920 x 1080
+// with 1 m contour lines shown, in the Sculpt tool. For N strokes (default 64) through the middle
+// of the largest tiles (a radius of a quarter of the tile's smaller side, 0.5 m), it times:
+// - preview: each pointer move of the drag that adds a stroke sample, from the event sent to the
+//   viewport until the frame showing the candidate is complete (event handling with the plan on
+//   the cached edit mesh, then a frame: the candidate's display, its upload and the draw, plus
+//   glFinish and the frame's readback);
+// - commit: the release, from the event until the frame showing the committed tiles is complete
+//   (terrain.sculpt through the batch, the document edit, then the frame with the rebuilt tiles,
+//   their seam ring and their contours);
+// strokes whose touched tiles hold more than 2,048 triangles in all are reported apart (the
+// budget is the one-tile row); each stroke is undone afterwards (outside the timing). It also
+// times a nine-tile brush: a click at a tile's middle, radius 1.1 cells, then a drag.
+//
 // D-044: --cancel measures the cancel latency of the same dry run instead (parse, prepare,
 // triangulate and tile with a TerrainProgress): it checks that a run with progress gives the
 // same mesh, then cancels TRIALS runs (default 100) at times spread evenly over the dry run,
@@ -30,6 +45,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMouseEvent>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QTemporaryDir>
@@ -407,6 +423,174 @@ QJsonObject frames(Document &doc) {
 }
 } // namespace
 
+// ---- R096.f1: input event to presented frame for a sculpt preview and commit -----------------
+QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonObject &command,
+                         int strokes) {
+    auto doc = baseDocument();
+    const auto imported = importTerrainSource(doc, bytes, command);
+    const Id terrain = imported["terrain"].toString().toULongLong();
+    {
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        display.contours = true;
+        display.contourInterval = 1;
+        setTerrainDisplay(doc, terrain, display);
+    }
+    QWidget host;
+    host.setWindowTitle("SketchyUp terrain sculpt benchmark");
+    host.resize(1920, 1080);
+    TimedViewport view(doc, &host);
+    view.resize(1920, 1080);
+    view.setSynchronousFrameTiming(true);
+    host.show();
+    check(QTest::qWaitForWindowExposed(&host), "viewport exposed");
+    bool sized{};
+    for (int attempt = 0; attempt < 100 && !sized; ++attempt) {
+        view.setFixedSize(qRound(1920 / view.devicePixelRatioF()),
+                          qRound(1080 / view.devicePixelRatioF()));
+        QTest::qWait(25);
+        sized = view.grabFramebuffer().size() == QSize(1920, 1080);
+    }
+    check(sized, "a 1920 x 1080 framebuffer");
+    view.standardView(1); // top: the whole terrain in view
+    view.fit();
+    view.setTool(Viewport::Tool::Sculpt);
+    QCoreApplication::processEvents();
+    auto frame = [&] {
+        const auto before = view.renderStats().frames;
+        const auto image = view.grabFramebuffer();
+        check(!image.isNull() && view.renderStats().frames > before, "a fresh frame");
+    };
+    for (int i = 0; i < 3; ++i)
+        frame(); // cold display build (surfaces, contours, tile meshes)
+    using Clock = std::chrono::steady_clock;
+    auto ms = [](Clock::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
+    auto send = [&](QEvent::Type type, QPointF point, Qt::MouseButton button,
+                    Qt::MouseButtons buttons) {
+        QMouseEvent event(type, point, view.mapToGlobal(point), button, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(&view, &event);
+    };
+    const auto world = doc.worldTransform(terrain);
+    // The largest tiles, with their plan centre and smaller side (model coordinates).
+    struct Tile {
+        std::size_t triangles;
+        Vec3 centre;
+        double side;
+        Vec3 low, high;
+    };
+    std::vector<Tile> tiles;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &body = *doc.bodies().at(id);
+        Vec3 low{1e300, 1e300, 0}, high{-1e300, -1e300, 0};
+        for (const auto &[vertex, p] : body.surface.vertices) {
+            const auto m = world.point(p);
+            low = {std::min(low.x, m.x), std::min(low.y, m.y), 0};
+            high = {std::max(high.x, m.x), std::max(high.y, m.y), 0};
+        }
+        tiles.push_back({body.surface.faces.size(), (low + high) * 0.5,
+                         std::min(high.x - low.x, high.y - low.y), low, high});
+    }
+    std::stable_sort(tiles.begin(), tiles.end(),
+                     [](const Tile &a, const Tile &b) { return a.triangles > b.triangles; });
+    const auto cell = doc.bodies().at(terrain)->terrain->tiling.cell;
+    struct Samples {
+        std::vector<double> preview, commit, previewPaint, commitPaint;
+        std::vector<std::size_t> triangles, vertices, tilesTouched;
+        std::size_t excluded{};
+    };
+    auto stroke = [&](const Tile &tile, double radius, Samples &out, bool budget) {
+        TerrainToolOptions options;
+        options.radius = radius;
+        options.amount = 0.5;
+        view.setTerrainOptions(options);
+        const auto z = [&](Vec3 p) {
+            const auto found = terrainElevationAt(doc, terrain, {{p.x, p.y}});
+            return Vec3{p.x, p.y, found.empty() ? 0 : found.front().elevation};
+        };
+        const auto start = z(tile.centre + Vec3{-radius * 0.5, 0.01, 0});
+        send(QEvent::MouseMove, view.project(start), Qt::NoButton, Qt::NoButton);
+        send(QEvent::MouseButtonPress, view.project(start), Qt::LeftButton, Qt::LeftButton);
+        frame();
+        std::vector<double> preview, paint;
+        for (int step = 1; step <= 3; ++step) {
+            const auto p = z(tile.centre + Vec3{-radius * 0.5 + radius * 0.5 * step, 0.01, 0});
+            const auto t0 = Clock::now();
+            send(QEvent::MouseMove, view.project(p), Qt::NoButton, Qt::LeftButton);
+            frame();
+            preview.push_back(ms(Clock::now() - t0));
+            paint.push_back(view.completeFrameMs());
+        }
+        const auto candidate = view.terrainPreviewShown();
+        if (!candidate || !candidate->edit) {
+            send(QEvent::MouseButtonRelease, view.project(z(tile.centre)), Qt::LeftButton,
+                 Qt::NoButton);
+            view.cancel();
+            view.setTool(Viewport::Tool::Sculpt);
+            return;
+        }
+        std::size_t triangles = 0;
+        for (const auto &content : candidate->edit->region.tiles)
+            triangles += content->triangles.size();
+        const auto revision = doc.revision();
+        const auto t0 = Clock::now();
+        send(QEvent::MouseButtonRelease,
+             view.project(z(tile.centre + Vec3{radius, 0.01, 0})), Qt::LeftButton, Qt::NoButton);
+        frame();
+        const double commit = ms(Clock::now() - t0);
+        check(doc.revision() == revision + 1, "the stroke committed");
+        if (budget && triangles > 2048)
+            ++out.excluded;
+        else {
+            out.preview.insert(out.preview.end(), preview.begin(), preview.end());
+            out.previewPaint.insert(out.previewPaint.end(), paint.begin(), paint.end());
+            out.commit.push_back(commit);
+            out.commitPaint.push_back(view.completeFrameMs());
+            out.triangles.push_back(triangles);
+            out.vertices.push_back(candidate->moving.size());
+            out.tilesTouched.push_back(candidate->tilesTouched());
+        }
+        doc.undo();
+        view.refresh();
+        frame();
+    };
+    auto summary = [&](const Samples &s) {
+        auto maxOf = [](const auto &v) { return v.empty() ? 0.0 : double(*std::max_element(v.begin(), v.end())); };
+        QJsonObject json{{"strokes", double(s.commit.size())},
+                         {"excluded", double(s.excluded)}};
+        if (s.commit.empty())
+            return json;
+        json["previewP50Ms"] = median(s.preview);
+        json["previewP95Ms"] = p95(s.preview);
+        json["previewMaxMs"] = maxOf(s.preview);
+        json["previewFrameP95Ms"] = p95(s.previewPaint);
+        json["commitP50Ms"] = median(s.commit);
+        json["commitP95Ms"] = p95(s.commit);
+        json["commitMaxMs"] = maxOf(s.commit);
+        json["commitFrameP95Ms"] = p95(s.commitPaint);
+        std::vector<double> triangles(s.triangles.begin(), s.triangles.end()),
+            vertices(s.vertices.begin(), s.vertices.end()),
+            touched(s.tilesTouched.begin(), s.tilesTouched.end());
+        json["touchedTrianglesP95"] = p95(triangles);
+        json["verticesP95"] = p95(vertices);
+        json["tilesTouchedMax"] = maxOf(touched);
+        return json;
+    };
+    Samples one, nine;
+    for (int i = 0; i < strokes && i < int(tiles.size()); ++i)
+        stroke(tiles[std::size_t(i)], std::max(0.5, tiles[std::size_t(i)].side / 4), one, true);
+    for (int i = 0; i < std::min(strokes, 16) && i < int(tiles.size()); ++i)
+        stroke(tiles[std::size_t(i)], 1.1 * cell, nine, false);
+    const auto *renderer = reinterpret_cast<const char *>(
+        view.context()->functions()->glGetString(GL_RENDERER));
+    return {{"source", name},
+            {"triangles", double(doc.materializedTotals().terrainTriangles)},
+            {"tiles", double(tiles.size())},
+            {"renderer", renderer ? renderer : ""},
+            {"platform", QGuiApplication::platformName()},
+            {"framebuffer", "1920x1080"},
+            {"oneTile", summary(one)},
+            {"nineTiles", summary(nine)}};
+}
+
 int main(int argc, char **argv) {
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -418,11 +602,17 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", settings.path().toUtf8());
     qputenv("XDG_DATA_HOME", settings.path().toUtf8());
     bool frame = false;
-    int repeat = 3, cancelTrials = 0;
+    int repeat = 3, cancelTrials = 0, sculptStrokes = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--frame")
             frame = true;
+        else if (arg == "--sculpt-frames") {
+            frame = true;
+            sculptStrokes = 64;
+            if (i + 1 < argc && std::atoi(argv[i + 1]) > 0)
+                sculptStrokes = std::atoi(argv[++i]);
+        }
         else if (arg == "--cancel") {
             cancelTrials = 100;
             if (i + 1 < argc && std::atoi(argv[i + 1]) > 0)
@@ -441,6 +631,20 @@ int main(int argc, char **argv) {
                                         {"delimiter", "whitespace"},
                                         {"header", false}};
         const QJsonObject contoursCommand{{"format", "dxf"}, {"units", "header"}};
+        if (sculptStrokes) {
+            QJsonArray sources;
+            sources.append(sculptFrames("points", pointSource(125000), pointsCommand, sculptStrokes));
+            sources.append(
+                sculptFrames("contours", contourSource(416, 300), contoursCommand, sculptStrokes));
+            QJsonObject out{{"benchmark", "terrain_budget_benchmark --sculpt-frames"},
+#ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
+                            {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
+#endif
+                            {"cpus", int(::sysconf(_SC_NPROCESSORS_ONLN))},
+                            {"sources", sources}};
+            std::cout << QJsonDocument(out).toJson().toStdString();
+            return 0;
+        }
         if (cancelTrials) {
             QJsonArray sources;
             sources.append(cancelLatency("points", pointSource(125000), pointsCommand, cancelTrials));

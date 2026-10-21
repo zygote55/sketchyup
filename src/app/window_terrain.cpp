@@ -187,7 +187,7 @@ void Window::showViewportMenu(const QPoint &position) {
     if (const auto [body, face] = viewport_->pick(position); body)
         terrain = terrainOfBody(doc_, body);
     if (terrain && selectedTerrain(doc_, viewport_->selectionState()) != terrain &&
-        viewport_->tool() == Viewport::Tool::Select && !viewport_->selectionState().context()) {
+        !viewport_->selectionState().context()) {
         viewport_->setSelection(terrain);
         sync();
     }
@@ -198,7 +198,17 @@ void Window::showViewportMenu(const QPoint &position) {
     menu.setObjectName("viewportContextMenu");
     menu.setAccessibleName("Selection actions");
     if (terrain) {
-        menu.addSection(QString::fromStdString(doc_.bodies().at(terrain)->name));
+        // The terrain's name heads its entries (a label: the style draws a section as a bare
+        // separator).
+        auto *label = new QLabel(QString::fromStdString(doc_.bodies().at(terrain)->name));
+        label->setObjectName("viewportMenuTerrainHeading");
+        label->setContentsMargins(14, 6, 14, 2);
+        if (auto *themed = static_cast<QWidgetAction *>(terrainHeading_)->defaultWidget())
+            label->setStyleSheet(themed->styleSheet());
+        auto *heading = new QWidgetAction(&menu);
+        heading->setDefaultWidget(label);
+        heading->setEnabled(false);
+        menu.addAction(heading);
         for (const auto *id : {"tool.29", "tool.30"})
             menu.addAction(findChild<QAction *>(id));
         menu.addSeparator();
@@ -231,6 +241,7 @@ void Window::setupTerrainTools(QActionGroup *group, QToolBar *rail) {
     terrainRail_ = new QAction("Terrain ▸", this);
     terrainRail_->setObjectName("railTerrain");
     terrainRail_->setCheckable(true);
+    terrainRail_->setProperty("sketchyupRailSlot", true);
     connect(terrainRail_, &QAction::triggered, this, [this] {
         if (auto *entry = findChild<QAction *>("tool." + QString::number(int(lastTerrainTool_))))
             entry->trigger();
@@ -305,6 +316,7 @@ void Window::syncTerrainTools() {
     const auto key = entry ? entry->shortcut().toString(QKeySequence::NativeText) : QString();
     terrainRail_->setToolTip("Terrain tools: " + name + (key.isEmpty() ? "" : " (" + key + ")"));
     terrainRail_->setChecked(active);
+    terrainRail_->setProperty("accessibleName", "Terrain tools: " + name);
     if (auto *button = modelRail_ ? modelRail_->widgetForAction(terrainRail_) : nullptr) {
         button->setAccessibleName("Terrain tools: " + name);
         button->setAccessibleDescription("Starts " + name + "; the strip switches terrain tools");

@@ -531,9 +531,8 @@ class Viewport : public QOpenGLWidget {
         std::optional<Vec3> point;      // brush centre on the surface (model)
         QPointF pointer;                // where the pointer was
         std::vector<Vec3> path;         // the stroke so far (model)
-        bool pressed{}, stroking{}, anchored{}, commitOnRelease{};
+        bool pressed{}, stroking{}, anchored{};
         QPointF pressPosition, anchorPosition;
-        double anchorPixel{};           // metres per logical pixel at the anchor
         double spotAmount{};            // the one-spot amount set by moving up or down
         std::vector<Vec3> region;       // region scope polygon (model, on the surface)
         bool regionClosed{}, regionSelected{};
@@ -577,6 +576,7 @@ class Viewport : public QOpenGLWidget {
     double terrainAmount() const;
     std::optional<double> terrainElevation(Id terrain, double x, double y) const;
     void rebuildTerrainPreview();
+    void uploadTerrainPreview();
     void drawTerrainPreview();
     void paintTerrainBrush(QPainter &painter);
     void emitTerrainStatus();

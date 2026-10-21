@@ -740,14 +740,23 @@ struct RememberedPlan {
 std::mutex rememberedMutex;
 std::optional<RememberedPlan> remembered;
 } // namespace
+void requireUnscaledTerrain(const Document &doc, Id terrain) {
+    const auto &m = doc.worldTransform(terrain).m;
+    const double sx = std::hypot(m[0], m[1]), sy = std::hypot(m[4], m[5]);
+    if (std::abs(sx - 1) > 1e-12 || std::abs(sy - 1) > 1e-12 ||
+        std::abs(m[0] * m[4] + m[1] * m[5]) > 1e-12 || std::abs(m[10] - 1) > 1e-12)
+        throw TerrainError("INVALID_OPERATION", "Sculpting needs a terrain at its original scale");
+}
 TerrainSculptPreview previewTerrainSculpt(const Document &doc, Id terrain, const std::string &kind,
-                                          std::shared_ptr<const TerrainSculptData> data) {
+                                          std::shared_ptr<const TerrainSculptData> data,
+                                          bool candidate) {
     const auto found = doc.bodies().find(terrain);
     if (found == doc.bodies().end() || found->second->kind != BodyKind::Terrain ||
         !found->second->terrain)
         throw TerrainError("NOT_FOUND", "Terrain body does not exist");
     requireUnlockedTerrain(doc, terrain);
     requireLevelTerrain(doc, terrain);
+    requireUnscaledTerrain(doc, terrain);
     if (kind != terrainSculptKind && kind != terrainSmoothKind)
         throw TerrainError("INVALID_REQUEST", "Unknown terrain edit kind");
     if (!data)
@@ -768,6 +777,14 @@ TerrainSculptPreview previewTerrainSculpt(const Document &doc, Id terrain, const
     preview.moving.reserve(preview.plan.change.lifted.size());
     for (const auto &[p, z] : preview.plan.change.lifted)
         preview.moving.emplace_back(p, influence.weight(p.x, p.y));
+    if (!candidate) {
+        std::set<TerrainTileKey> tiles;
+        for (const auto &[p, z] : preview.plan.change.lifted)
+            for (const auto &ref : mesh->trianglesAt(p))
+                tiles.insert(ref.tile);
+        preview.touched = tiles.size();
+        return preview;
+    }
     // The entry as the command stores it: the pieces its clip resolved.
     auto stored = std::make_shared<TerrainSculptData>(*data);
     stored->pieces = preview.plan.clip.resolved;

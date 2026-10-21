@@ -968,7 +968,7 @@ bool resetTerrainEditsInteractive(QWidget *parent, Document &doc, Viewport &view
     try {
         const auto operation = commitTerrain(
             view, {{"command", "terrain.reset_edits"}, {"terrain", QString::number(terrain)}});
-        return operation["changed"].toBool() || !operation.isEmpty();
+        return operation["changed"].toBool();
     } catch (const std::exception &error) {
         const auto report = refusalReport(error);
         if (report.isEmpty())

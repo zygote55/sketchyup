@@ -5,6 +5,7 @@
 #include "app/terrain_actions.hpp"
 #include "app/unit_display.hpp"
 #include "app/viewport.hpp"
+#include "core/terrain_sculpt.hpp"
 #include <QContextMenuEvent>
 #include <QPainter>
 namespace sketchy {
@@ -143,8 +144,10 @@ void Viewport::syncTerrainViews() {
     surfaceCache_.prune(doc_);
     // R096.a: the shared edit mesh cache drops deleted terrains and a replaced document.
     if (terrainCacheIdentity_ != doc_.identity()) {
-        if (!terrainCacheIdentity_.empty())
+        if (!terrainCacheIdentity_.empty()) {
             terrainEditMeshCache().forget(terrainCacheIdentity_);
+            forgetRememberedTerrainSculptPlan(); // it holds the old document's mesh
+        }
         terrainCacheIdentity_ = doc_.identity();
     }
     terrainEditMeshCache().prune(doc_);
@@ -236,7 +239,8 @@ void Viewport::drawTerrainContours() {
             continue;
         // R096.f1 (ADR 0169 §5): during a terrain preview, the candidate tiles' contours replace
         // those of the tiles they replace; every other tile's lines are drawn as they are.
-        const bool preview = terrainPreviewGpu_.active && terrainPreviewGpu_.terrain == id &&
+        const bool preview = terrainPreviewGpu_.active && rasterSize_.isEmpty() &&
+                             terrainPreviewGpu_.terrain == id &&
                              !terrainPreviewGpu_.hiddenContours.empty() &&
                              contourRanges_.contains(id);
         auto drawBatch = [&](GpuBatch &batch, bool indexBatch) {

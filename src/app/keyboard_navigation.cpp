@@ -153,6 +153,11 @@ class ToolbarNavigation : public QObject {
                     button &&
                     std::find(candidates.begin(), candidates.end(), button) != candidates.end())
                     return button;
+        // R096.f1: a slot that stands for tools off the rail (the Terrain slot) while one is active.
+        for (auto *button : candidates)
+            if (auto *action = button->defaultAction();
+                action && action->property("sketchyupRailSlot").toBool() && action->isChecked())
+                return button;
         return candidates.empty() ? nullptr : candidates.front();
     }
     // Exactly one button takes Tab focus; mouse clicks never take focus, as before.
@@ -165,7 +170,9 @@ class ToolbarNavigation : public QObject {
             button->setFocusPolicy(button == stop ? Qt::TabFocus : Qt::NoFocus);
             // The full tool name, also where the rail shows shorter icon text ("Solids").
             if (auto *action = button->defaultAction()) {
-                auto name = action->text();
+                auto name = action->property("accessibleName").toString();
+                if (name.isEmpty())
+                    name = action->text();
                 name.remove('&');
                 button->setAccessibleName(name);
             } else if (button->accessibleName().isEmpty())
