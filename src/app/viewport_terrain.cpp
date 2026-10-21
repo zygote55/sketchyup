@@ -4,6 +4,7 @@
 // pointer feedback before a click.
 #include "app/terrain_actions.hpp"
 #include "app/unit_display.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/viewport.hpp"
 #include "core/terrain_sculpt.hpp"
 #include <QContextMenuEvent>
@@ -14,6 +15,17 @@ QJsonObject Viewport::commitTerrainCommand(const QJsonObject &command) {
     // Terrain commands name top-level bodies or model edges; they never run in a component
     // scope's definition frame.
     auto result = commitCommands(QJsonArray{command}, false);
+    // R096.f2: a replay outside the Terrain edits job (Regenerate, Terrain settings) decides
+    // afresh which changes are skipped; its report is the last.
+    const auto name = command["command"].toString();
+    if (name == "terrain.regenerate" || name == "terrain.set_parameters") {
+        const auto terrain = Id(command["terrain"].toString().toULongLong());
+        rememberTerrainReport(terrain, result);
+        const auto operations = result["terrainOperations"].toArray();
+        setTerrainSkips(terrain, operations.isEmpty()
+                                     ? std::map<std::uint32_t, QString>{}
+                                     : terrainReportSkips(operations.last().toObject()["terrainReport"].toObject()));
+    }
     refresh();
     emit changed();
     return result;

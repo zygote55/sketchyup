@@ -539,6 +539,22 @@ rebuild; afterwards the terrain is selected. **Overlay** instead makes ordinary 
 group in the open context, lifted by **Lift** (0.01 m), and selects that group. The tool then
 returns to Select.
 
+**Terrain edits.** With a terrain selected, the **Terrain edits** section follows the Terrain section
+on the Info tab. It lists the terrain's changes in the order they apply, each with its kind, its
+title ("Pad · Building A"), its key values ("106.00 m · daylight, cut 1:2, fill 1:2") and its number;
+the header counts them and the caption gives the use ("5 of 4,096 changes"). Selecting a change
+outlines its region in the view with a label; double-click or Enter frames it. **Remove** (or
+Delete) removes the change and replays the ones after it; **Edit pad…** changes a pad's elevation (or
+its offset below the footprint), grading, slopes or width; **Restamp** re-reads a pad's footprint
+from its building (unavailable, with the reason, when the building is gone or the pad was stamped
+from edges or a polygon); **Reset edits…** asks first and rebuilds the terrain from its sources.
+Each is one undoable edit, replayed in the background while the status bar shows its progress
+("Replaying 3 changes · 64 %") with **Cancel**, which leaves the model as it was. A change that no
+longer applies after a replay stays in the list, marked **⚠ Skipped** with the reason, until you
+remove it or undo the replay. The notices of the last change or replay (changes skipped, paint
+removed from rebuilt tiles, sources clipped) show under the list with **Show report**, which opens
+the full report.
+
 **Terrain display.** A new terrain uses the **Terrain** material and draws as one smooth
 surface: the seams between its tiles and its interior edges are not drawn (Show hidden geometry
 shows them dashed). Under **Display** in its Terrain section, **Show contour lines** draws

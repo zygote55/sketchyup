@@ -18,6 +18,7 @@
 #include "app/viewport.hpp"
 #include <QDialog>
 #include <map>
+#include <set>
 class QDoubleSpinBox;
 class QComboBox;
 class QFrame;
@@ -64,9 +65,12 @@ class TerrainEditsSection : public CollapsibleSection {
 
   protected:
     bool eventFilter(QObject *object, QEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
 
   private:
-    void selectionChanged();
+    void selectionChanged(bool announce);
+    void updateButtons();
+    void fitList();
     void startReplay(const QJsonObject &command, const QString &title);
     Document &doc_;
     Viewport &view_;
@@ -107,8 +111,12 @@ class TerrainEditPadDialog final : public QDialog {
     QString problem_;
     QLineEdit *elevation_{}, *cut_{}, *fill_{}, *distance_{}, *width_{}, *offset_{};
     QComboBox *mode_{};
-    QWidget *cutRow_{}, *fillRow_{}, *distanceRow_{}, *widthRow_{};
     QLabel *status_{};
+    // The fields as filled: an untouched field keeps its exact value (the text is rounded).
+    std::map<QLineEdit *, QString> initial_;
+    std::set<QLineEdit *> userEdited_; // the fields the user typed in (textEdited)
+    int initialMode_{};
+    int precision_{2};
     QPushButton *ok_{};
 };
 } // namespace sketchy

@@ -869,10 +869,15 @@ class Viewport : public QOpenGLWidget {
         QJsonObject report;
         QString title;
         std::vector<TerrainEditPtr> edits; // the list it was made for (shown while it is current)
+        std::optional<Document::SaveStamp> document; // and its document
     };
     std::map<Id, TerrainReportRecord> terrainReports_;
-    std::map<Id, std::pair<std::vector<TerrainEditPtr>, std::map<std::uint32_t, QString>>>
-        terrainSkips_;
+    struct TerrainSkipRecord {
+        std::vector<TerrainEditPtr> edits;
+        std::map<std::uint32_t, QString> skips;
+        std::optional<Document::SaveStamp> document;
+    };
+    std::map<Id, TerrainSkipRecord> terrainSkips_;
     std::uint64_t terrainReportGeneration_{};
     struct EditHighlight {
         Id terrain{};

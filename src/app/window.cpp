@@ -1,3 +1,4 @@
+#include "app/terrain_replay_job.hpp"
 #include "app/window.hpp"
 #include "app/accessible_names.hpp"
 #include "app/component_drivers_section.hpp"
@@ -1729,6 +1730,9 @@ bool Window::save(bool saveAs) {
     }
 }
 bool Window::canReplace() {
+    // R096.f2: a terrain replay belongs to this document; replacing it cancels the replay.
+    if (auto *job = TerrainReplayJob::running())
+        job->cancel();
     if (fileOperation_) {
         status_->setText("Wait for the current file operation to finish.");
         return false;

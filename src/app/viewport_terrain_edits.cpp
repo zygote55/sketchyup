@@ -1,6 +1,7 @@
 // R096.f2 (UX_DESIGN §15.6): the viewport side of the Terrain edits section: the selected change's
 // region outlined in the selection colour with its label, framing it, and the changes a replay
 // skipped.
+#include "app/terrain_actions.hpp"
 #include "app/viewport.hpp"
 #include "core/terrain_drape.hpp"
 #include "core/terrain_sculpt.hpp"
@@ -159,6 +160,8 @@ void Viewport::buildTerrainEditHighlight() {
 void Viewport::frameTerrainEdit(Id terrain, std::uint32_t edit) {
     if (editHighlight_.terrain != terrain || editHighlight_.edit != edit)
         setTerrainEditHighlight(terrain, edit, editHighlight_.label);
+    else if (editHighlight_.document != doc_.identity() || editHighlight_.revision != doc_.revision())
+        buildTerrainEditHighlight();
     Vec3 low{1e300, 1e300, 1e300}, high{-1e300, -1e300, -1e300};
     for (const auto &line : editHighlight_.lines)
         for (const auto &p : line) {
@@ -173,7 +176,9 @@ void Viewport::frameTerrainEdit(Id terrain, std::uint32_t edit) {
 }
 void Viewport::paintTerrainEditHighlight(QPainter &p) {
     auto &h = editHighlight_;
-    if (!h.edit || !isTerrain(doc_, h.terrain) || !rasterSize_.isEmpty())
+    // Only while its terrain is the selection (the section shows it), never in an export.
+    if (!h.edit || !isTerrain(doc_, h.terrain) || !rasterSize_.isEmpty() ||
+        selectedTerrain(doc_, selection_) != h.terrain)
         return;
     if (h.document != doc_.identity() || h.revision != doc_.revision())
         buildTerrainEditHighlight();
@@ -230,18 +235,19 @@ void Viewport::setTerrainSkips(Id terrain, std::map<std::uint32_t, QString> skip
     std::vector<TerrainEditPtr> edits;
     if (isTerrain(doc_, terrain))
         edits = doc_.bodies().at(terrain)->terrain->edits;
-    terrainSkips_[terrain] = {std::move(edits), std::move(skips)};
+    terrainSkips_[terrain] = {std::move(edits), std::move(skips), doc_.saveStamp()};
     ++terrainReportGeneration_;
 }
 std::map<std::uint32_t, QString> Viewport::terrainSkips(Id terrain) const {
     const auto found = terrainSkips_.find(terrain);
-    if (found == terrainSkips_.end() || !isTerrain(doc_, terrain))
+    if (found == terrainSkips_.end() || !isTerrain(doc_, terrain) || !found->second.document ||
+        !doc_.owns(*found->second.document))
         return {};
     const auto &current = doc_.bodies().at(terrain)->terrain->edits;
-    const auto &replayed = found->second.first;
+    const auto &replayed = found->second.edits;
     if (replayed.size() > current.size() ||
         !std::equal(replayed.begin(), replayed.end(), current.begin()))
         return {};
-    return found->second.second;
+    return found->second.skips;
 }
 } // namespace sketchy

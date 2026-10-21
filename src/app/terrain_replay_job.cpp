@@ -10,28 +10,10 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QThread>
+#include "core/document_limits.hpp"
 namespace sketchy {
 namespace {
 TerrainReplayJob *runningJob = nullptr;
-// A skipped change's reason as the list says it ("the lines now enter a pad"), from the replay's
-// notice (the refusal it met, quoted).
-QString skipReason(const QString &reference, QString detail) {
-    detail = detail.trimmed();
-    if (detail.size() >= 2 && (detail.front() == '\'' || detail.front() == '"'))
-        detail = detail.mid(1, detail.size() - 2);
-    const bool drape = reference.contains("drape");
-    const QString what = drape ? "the lines now" : reference.contains("stamp") ? "the pad now" : "it now";
-    if (detail.contains("inside-pad"))
-        return what + " enter" + (drape ? "" : "s") + " a pad";
-    if (detail.contains("outside-outline"))
-        return what + (drape ? " leave" : " leaves") + " the terrain's outline";
-    if (detail.contains("crossing-constraints"))
-        return what + (drape ? " cross" : " crosses") + " another source";
-    if (detail.contains("daylight-distance"))
-        return "a slope ray now finds no ground within the maximum distance";
-    const auto colon = detail.indexOf("nothing was changed: ");
-    return colon >= 0 ? detail.mid(colon + 21) : detail;
-}
 } // namespace
 
 TerrainReplayChip::TerrainReplayChip(QWidget *parent) : QFrame(parent) {
@@ -57,6 +39,40 @@ void TerrainReplayChip::show(const QString &text) {
     QFrame::show();
 }
 
+QString terrainSkipReason(const QString &kind, QString detail) {
+    detail = detail.trimmed();
+    if (detail.size() >= 2 && (detail.front() == '\'' || detail.front() == '"'))
+        detail = detail.mid(1, detail.size() - 2);
+    const bool drape = kind.contains("drape");
+    const QString what = drape ? "the lines now" : kind.contains("stamp") ? "the pad now" : "it now";
+    if (detail.contains("inside-pad"))
+        return what + " enter" + (drape ? "" : "s") + " a pad";
+    if (detail.contains("outside-outline"))
+        return what + (drape ? " leave" : " leaves") + " the terrain's outline";
+    if (detail.contains("crossing-constraints"))
+        return what + (drape ? " cross" : " crosses") + " another source";
+    if (detail.contains("daylight-distance"))
+        return "a slope ray now finds no ground within the maximum distance";
+    const auto colon = detail.indexOf("nothing was changed: ");
+    return colon >= 0 ? detail.mid(colon + 21) : detail;
+}
+std::map<std::uint32_t, QString> terrainReportSkips(const QJsonObject &report) {
+    std::map<std::uint32_t, QString> skipped;
+    static const QRegularExpression number("edit (\\d+)");
+    for (const auto &notice : report["terrain"].toObject()["notices"].toArray()) {
+        const auto object = notice.toObject();
+        if (object["kind"] != "edit-skipped")
+            continue;
+        for (const auto &location : object["locations"].toArray()) {
+            const auto reference = location.toObject()["reference"].toString();
+            const auto match = number.match(reference);
+            if (match.hasMatch())
+                skipped[std::uint32_t(match.captured(1).toULongLong())] =
+                    terrainSkipReason(reference, location.toObject()["detail"].toString());
+        }
+    }
+    return skipped;
+}
 TerrainReplayJob *TerrainReplayJob::running() { return runningJob; }
 TerrainReplayJob *TerrainReplayJob::start(QWidget *window, Document &doc, Viewport &view,
                                           const QJsonObject &command, const QString &title) {
@@ -72,9 +88,11 @@ TerrainReplayJob::TerrainReplayJob(QWidget *window, Document &doc, Viewport &vie
                                    TerrainReplayRequest request)
     : QObject(qApp), window_(window), doc_(doc), view_(view), command_(std::move(command)),
       title_(std::move(title)), request_(std::move(request)),
-      control_(std::make_shared<TerrainRunControl>()) {
+      control_(std::make_shared<TerrainRunControl>()), stamp_(doc.saveStamp()) {
     pool_.setMaxThreadCount(1);
-    changes_ = request_.record.edits.size();
+    // The changes the replay goes through (Reset edits: the ones it drops).
+    changes_ = request_.record.edits.empty() ? request_.current.edits.size()
+                                              : request_.record.edits.size();
     if (window_)
         chip_ = window_->findChild<TerrainReplayChip *>("terrainReplayChip");
     if (chip_)
@@ -114,10 +132,15 @@ void TerrainReplayJob::poll() {
     if (!chip_)
         return;
     const auto permille = control_->permille.load();
-    chip_->show(QString("Replaying %1 %2 · %3 %")
-                    .arg(QLocale().toString(qulonglong(changes_)))
-                    .arg(changes_ == 1 ? "change" : "changes")
-                    .arg(permille / 10));
+    const auto text = QString("%1 %2 %3 · %4 %")
+                          .arg(request_.record.edits.empty() ? "Resetting" : "Replaying")
+                          .arg(QString::fromStdString(groupedCount(changes_)))
+                          .arg(changes_ == 1 ? "change" : "changes")
+                          .arg(permille / 10);
+    if (text != chipText_ || !chip_->isVisible()) { // a screen reader hears each change once
+        chipText_ = text;
+        chip_->show(text);
+    }
 }
 void TerrainReplayJob::done(std::shared_ptr<TerrainImportResult> result) {
     poll_.stop();
@@ -126,7 +149,10 @@ void TerrainReplayJob::done(std::shared_ptr<TerrainImportResult> result) {
     runningJob = nullptr;
     bool applied = false;
     const auto terrain = request_.terrain;
-    if (result->cancelled || control_->cancel.load()) {
+    if (!doc_.owns(stamp_)) {
+        // The document was replaced (opened, reverted, new) while the replay ran.
+        emit view_.message("The document changed; the replay was discarded");
+    } else if (result->cancelled || control_->cancel.load()) {
         emit view_.message("Replay cancelled; nothing changed");
     } else if (!result->ok) {
         emit view_.message(QString("%1 refused; nothing changed: %2")
@@ -141,6 +167,16 @@ void TerrainReplayJob::done(std::shared_ptr<TerrainImportResult> result) {
         }
     } else {
         try {
+            // Every skipped entry with its reason (the report lists a bounded number).
+            std::map<std::uint32_t, QString> skipped;
+            for (const auto &[edit, notice] : result->skipped) {
+                QString kind;
+                for (const auto &entry : request_.record.edits)
+                    if (entry->id == edit)
+                        kind = QString::fromStdString(entry->kind);
+                skipped[edit] = terrainSkipReason(kind, QString::fromStdString(notice));
+            }
+            view_.cancel(); // a tool's preview of the old state goes
             const auto operation = applyTerrainReplay(doc_, request_, std::move(*result));
             applied = true;
             view_.refresh();
@@ -148,20 +184,6 @@ void TerrainReplayJob::done(std::shared_ptr<TerrainImportResult> result) {
             const auto report = operation["terrainReport"].toObject();
             view_.setLastTerrainReport(terrain, report, title_);
             // Changes the replay skipped stay in the list, marked with their reasons.
-            std::map<std::uint32_t, QString> skipped;
-            static const QRegularExpression number("edit (\\d+)");
-            for (const auto &notice : report["terrain"].toObject()["notices"].toArray()) {
-                const auto object = notice.toObject();
-                if (object["kind"] != "edit-skipped")
-                    continue;
-                for (const auto &location : object["locations"].toArray()) {
-                    const auto reference = location.toObject()["reference"].toString();
-                    const auto match = number.match(reference);
-                    if (match.hasMatch())
-                        skipped[std::uint32_t(match.captured(1).toULongLong())] =
-                            skipReason(reference, location.toObject()["detail"].toString());
-                }
-            }
             view_.setTerrainSkips(terrain, std::move(skipped));
             emit view_.message(title_ + " · done");
         } catch (const std::exception &error) {

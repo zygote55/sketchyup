@@ -17,6 +17,7 @@
 #include <QPointer>
 #include <QThreadPool>
 #include <QTimer>
+#include <map>
 #include <memory>
 class QLabel;
 class QPushButton;
@@ -38,6 +39,12 @@ class TerrainReplayChip final : public QFrame {
     QLabel *text_{};
     QPushButton *cancel_{};
 };
+
+// A skipped change's reason as the Terrain edits list says it ("the lines now enter a pad"), from
+// the refusal the replay met; and the skips a terrain report's edit-skipped notices name (bounded
+// to the report's listed locations).
+QString terrainSkipReason(const QString &kind, QString notice);
+std::map<std::uint32_t, QString> terrainReportSkips(const QJsonObject &terrainReport);
 
 class TerrainReplayJob final : public QObject {
     Q_OBJECT
@@ -75,5 +82,7 @@ class TerrainReplayJob final : public QObject {
     QTimer poll_;
     QPointer<TerrainReplayChip> chip_;
     std::size_t changes_{};
+    Document::SaveStamp stamp_; // the document the replay belongs to
+    QString chipText_;
 };
 } // namespace sketchy

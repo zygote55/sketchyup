@@ -338,7 +338,8 @@ TerrainEditsSection::TerrainEditsSection(Document &doc, Viewport &view, QWidget 
     layout->addWidget(notice_);
     notice_->hide();
     nameInternalEditors(this);
-    connect(list_, &QListWidget::currentRowChanged, this, [this] { selectionChanged(); });
+    connect(list_, &QListWidget::currentRowChanged, this, [this] { selectionChanged(true); });
+    list_->viewport()->installEventFilter(this);
     connect(list_, &QListWidget::itemDoubleClicked, this, [this] { frameSelected(); });
     connect(remove_, &QPushButton::clicked, this, [this] { removeSelected(); });
     connect(restamp_, &QPushButton::clicked, this, [this] { restampSelected(); });
@@ -347,10 +348,16 @@ TerrainEditsSection::TerrainEditsSection(Document &doc, Viewport &view, QWidget 
         const auto edit = selectedEdit();
         if (!edit || !isTerrain(doc_, terrain_))
             return;
-        TerrainEditPadDialog dialog(doc_, terrain_, edit, window());
-        if (dialog.exec() != QDialog::Accepted || dialog.command().isEmpty())
-            return;
-        startReplay(dialog.command(), "Edit terrain change");
+        try {
+            TerrainEditPadDialog dialog(doc_, terrain_, edit, window());
+            if (dialog.exec() != QDialog::Accepted || !isTerrain(doc_, terrain_))
+                return;
+            const auto command = dialog.command();
+            if (!command.isEmpty())
+                startReplay(command, "Edit terrain change");
+        } catch (const std::exception &error) {
+            emit view_.message(QString("Edit pad: %1").arg(QString::fromUtf8(error.what())));
+        }
     });
     connect(showReport_, &QPushButton::clicked, this, [this] {
         const auto report = view_.lastTerrainReport(terrain_);
@@ -369,7 +376,22 @@ std::uint32_t TerrainEditsSection::selectedEdit() const {
     const auto *item = list_->currentItem();
     return item && item->isSelected() ? std::uint32_t(item->data(IdRole).toULongLong()) : 0;
 }
+void TerrainEditsSection::hideEvent(QHideEvent *event) {
+    CollapsibleSection::hideEvent(event);
+    view_.setTerrainEditHighlight(0, 0, {}); // the outline goes with the section
+}
+// The list fits its rows up to about eight of them, then scrolls; it follows the panel's width.
+void TerrainEditsSection::fitList() {
+    int height = 2 * list_->frameWidth();
+    for (int i = 0; i < list_->count() && i < 8; ++i)
+        height += list_->sizeHintForRow(i);
+    list_->setFixedHeight(std::max(height, 24));
+}
 bool TerrainEditsSection::eventFilter(QObject *object, QEvent *event) {
+    if (object == list_->viewport() && event->type() == QEvent::Resize) {
+        list_->doItemsLayout();
+        fitList();
+    }
     if (object == list_ && event->type() == QEvent::KeyPress) {
         const auto *key = static_cast<QKeyEvent *>(event);
         if (key->key() == Qt::Key_Delete && selectedEdit()) {
@@ -394,15 +416,18 @@ void TerrainEditsSection::refresh() {
         hide();
         return;
     }
-    const auto &record = *doc_.bodies().at(terrain)->terrain;
+    // Rebuilt when the terrain's body (its record) changes, not on every document change; the
+    // buttons follow the rest (a source body deleted, a lock).
     const auto key = QString::fromStdString(doc_.identity()) + "/" +
-                     QString::number(doc_.revision()) + "/" + QString::number(terrain) + "/" +
-                     QString::number(int(doc_.displayUnits())) + "/" +
-                     QString::number(doc_.displayPrecision()) + "/" +
+                     QString::number(quintptr(doc_.bodies().at(terrain).get())) + "/" +
+                     QString::number(terrain) + "/" + QString::number(int(doc_.displayUnits())) +
+                     "/" + QString::number(doc_.displayPrecision()) + "/" +
                      QString::number(view_.terrainReportGeneration());
     show();
-    if (key == cacheKey_ && terrain == terrain_)
+    if (key == cacheKey_ && terrain == terrain_) {
+        updateButtons();
         return;
+    }
     const auto keep = terrain == terrain_ ? selectedEdit() : 0;
     if (terrain != terrain_)
         view_.setTerrainEditHighlight(0, 0, {});
@@ -428,11 +453,7 @@ void TerrainEditsSection::refresh() {
         if (row.edit == keep)
             current = int(i);
     }
-    // The list fits its rows up to about eight of them, then scrolls.
-    int heightNeeded = 2 * list_->frameWidth();
-    for (int i = 0; i < list_->count() && i < 8; ++i)
-        heightNeeded += list_->sizeHintForRow(i);
-    list_->setFixedHeight(std::max(heightNeeded, 24));
+    fitList();
     list_->setVisible(!rows_.empty());
     if (current >= 0)
         list_->setCurrentRow(current);
@@ -479,20 +500,14 @@ void TerrainEditsSection::refresh() {
                                            .arg(replay ? "replay" : "change", title,
                                                 notices.join("; ")));
     }
-    (void)record;
-    selectionChanged();
+    selectionChanged(false);
 }
-void TerrainEditsSection::selectionChanged() {
-    if (filling_)
-        return;
+void TerrainEditsSection::updateButtons() {
     const auto edit = selectedEdit();
     const TerrainEditRow *row = nullptr;
-    std::size_t index = 0;
-    for (std::size_t i = 0; i < rows_.size(); ++i)
-        if (rows_[i].edit == edit) {
-            row = &rows_[i];
-            index = i;
-        }
+    for (const auto &candidate : rows_)
+        if (candidate.edit == edit)
+            row = &candidate;
     const bool locked = !terrain_ || view_.selectionState().locked(doc_, terrain_);
     const TerrainStampData *pad = nullptr;
     if (row && isTerrain(doc_, terrain_))
@@ -508,12 +523,28 @@ void TerrainEditsSection::selectionChanged() {
         why = "This pad was stamped from edges or a polygon; it has no source body to restamp";
     else if (!doc_.bodies().contains(pad->sourceBody))
         why = "The pad's source body no longer exists";
-    restamp_->setEnabled(why.isEmpty() && !locked);
+    else if (locked)
+        why = "The terrain is locked; unlock it to change its edits";
+    restamp_->setEnabled(why.isEmpty());
     restamp_->setToolTip(why.isEmpty() ? QString("Re-read the footprint from its source body")
                                        : why);
     restamp_->setAccessibleDescription(restamp_->toolTip());
     editPad_->setToolTip(pad ? QString("Change the pad's elevation, grading and slopes")
                              : QString("Edit pad… changes a pad; select a pad"));
+    reset_->setEnabled(!rows_.empty() && !locked);
+}
+void TerrainEditsSection::selectionChanged(bool announce) {
+    if (filling_)
+        return;
+    updateButtons();
+    const auto edit = selectedEdit();
+    const TerrainEditRow *row = nullptr;
+    std::size_t index = 0;
+    for (std::size_t i = 0; i < rows_.size(); ++i)
+        if (rows_[i].edit == edit) {
+            row = &rows_[i];
+            index = i;
+        }
     if (!row) {
         view_.setTerrainEditHighlight(0, 0, {});
         return;
@@ -521,7 +552,8 @@ void TerrainEditsSection::selectionChanged() {
     view_.setTerrainEditHighlight(terrain_, edit,
                                   {QString("Change %1 · %2").arg(edit).arg(row->title), row->detail});
     const auto after = rows_.size() - index - 1;
-    emit view_.message(QString("Change %1 selected · Double-click frames it · Delete removes it and "
+    if (announce) // the user chose it (a refresh says nothing)
+        emit view_.message(QString("Change %1 selected · Double-click frames it · Delete removes it and "
                                "replays the %2 %3 after it")
                            .arg(edit)
                            .arg(after)
@@ -556,11 +588,15 @@ void TerrainEditsSection::restampSelected() {
 }
 void TerrainEditsSection::resetEdits() {
     QTimer::singleShot(0, this, [this] {
-        if (auto *action = window()->findChild<QAction *>("terrain.resetEdits");
-            action && action->isEnabled())
-            action->trigger();
-        else if (terrain_)
-            resetTerrainEditsInteractive(window(), doc_, view_, terrain_);
+        try {
+            if (auto *action = window()->findChild<QAction *>("terrain.resetEdits");
+                action && action->isEnabled())
+                action->trigger();
+            else if (terrain_ && isTerrain(doc_, terrain_))
+                resetTerrainEditsInteractive(window(), doc_, view_, terrain_);
+        } catch (const std::exception &error) {
+            emit view_.message(QString("Reset edits: %1").arg(QString::fromUtf8(error.what())));
+        }
     });
 }
 void TerrainEditsSection::frameSelected() {
@@ -596,7 +632,8 @@ TerrainEditPadDialog::TerrainEditPadDialog(const Document &doc, Id terrain, std:
         }
     }
     const auto units = doc.displayUnits();
-    auto length = [&](double v) { return displayLength(v, units, doc.displayPrecision() == fullDisplayPrecision ? 2 : doc.displayPrecision()); };
+    precision_ = doc.displayPrecision() == fullDisplayPrecision ? 2 : doc.displayPrecision();
+    auto length = [&](double v) { return displayLength(v, units, precision_); };
     auto *form = new QFormLayout(this);
     elevation_ = new QLineEdit(length(elevationModel_));
     elevation_->setObjectName("terrainPadElevation");
@@ -644,8 +681,19 @@ TerrainEditPadDialog::TerrainEditPadDialog(const Document &doc, Id terrain, std:
     form->addRow(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    for (auto *edit : {elevation_, offset_, cut_, fill_, distance_, width_})
-        connect(edit, &QLineEdit::textEdited, this, [this, edit] { changed(edit); });
+    for (auto *edit : {elevation_, offset_, cut_, fill_, distance_, width_}) {
+        initial_[edit] = edit->text();
+        connect(edit, &QLineEdit::textEdited, this, [this, edit] {
+            userEdited_.insert(edit);
+            // Elevation and offset are one value: the last one typed is the one that counts.
+            if (edit == elevation_)
+                userEdited_.erase(offset_);
+            if (edit == offset_)
+                userEdited_.erase(elevation_);
+            changed(edit);
+        });
+    }
+    initialMode_ = mode_->currentIndex();
     connect(mode_, &QComboBox::currentIndexChanged, this, [this] { changed(nullptr); });
     changed(nullptr);
 }
@@ -656,11 +704,11 @@ void TerrainEditPadDialog::changed(QLineEdit *source) {
     // Elevation and offset follow each other (elevation = footprint height - offset).
     try {
         if (source == offset_ && footprintZ_)
-            elevation_->setText(displayLength(*footprintZ_ - parseLength(offset_->text(), unit, locale),
-                                              units, 2));
+            elevation_->setText(displayLength(
+                *footprintZ_ - parseLength(offset_->text(), unit, locale), units, precision_));
         else if (source == elevation_ && footprintZ_)
-            offset_->setText(displayLength(*footprintZ_ - parseLength(elevation_->text(), unit, locale),
-                                           units, 2));
+            offset_->setText(displayLength(
+                *footprintZ_ - parseLength(elevation_->text(), unit, locale), units, precision_));
     } catch (const std::exception &) {
     }
     const bool daylight = mode_->currentData() == "daylight";
@@ -689,19 +737,31 @@ QJsonObject TerrainEditPadDialog::command() const {
             pad = dynamic_cast<const TerrainStampData *>(entry->data.get());
     if (!pad)
         return {};
+    // Only what the user changed goes in the command: an untouched field keeps its exact stored
+    // value (the shown text is rounded to the display precision).
+    auto edited = [&](QLineEdit *field) {
+        const auto found = initial_.find(field);
+        return userEdited_.contains(field) && found != initial_.end() &&
+               found->second != field->text();
+    };
     bool changed = false;
-    if (std::abs(elevation - elevationModel_) > 5e-7) {
+    if (edited(offset_) && !edited(elevation_) && footprintZ_) {
+        command["elevation"] = *footprintZ_ - parseLength(offset_->text(), unit, locale);
+        changed = true;
+    } else if (edited(elevation_)) {
         command["elevation"] = elevation;
         changed = true;
     }
+    const bool modeChanged = mode_->currentIndex() != initialMode_;
     if (mode_->currentData() == "daylight") {
-        const double cut = parseTerrainSlope(cut_->text()), fill = parseTerrainSlope(fill_->text());
-        const double distance = parseLength(distance_->text(), unit, locale);
+        const bool was = pad->mode == TerrainStampMode::Daylight;
+        const double cut = edited(cut_) || !was ? parseTerrainSlope(cut_->text()) : pad->cutSlope;
+        const double fill = edited(fill_) || !was ? parseTerrainSlope(fill_->text()) : pad->fillSlope;
+        const double distance = edited(distance_) || !was ? parseLength(distance_->text(), unit, locale)
+                                                          : pad->maxDistance;
         if (!(distance > 0) || distance > terrainStampDistanceMax)
             throw std::runtime_error("The maximum distance is above 0 and at most 1,000 m");
-        const bool was = pad->mode == TerrainStampMode::Daylight;
-        if (!was || std::abs(cut - pad->cutSlope) > 1e-9 || std::abs(fill - pad->fillSlope) > 1e-9 ||
-            std::abs(distance - pad->maxDistance) > 1e-9) {
+        if (modeChanged || edited(cut_) || edited(fill_) || edited(distance_)) {
             command["mode"] = "daylight";
             command["cutSlope"] = cut;
             command["fillSlope"] = fill;
@@ -709,10 +769,12 @@ QJsonObject TerrainEditPadDialog::command() const {
             changed = true;
         }
     } else {
-        const double width = parseLength(width_->text(), unit, locale);
+        const bool was = pad->mode == TerrainStampMode::Width;
+        const double width = edited(width_) || !was ? parseLength(width_->text(), unit, locale)
+                                                    : pad->width;
         if (width < terrainStampWidthMin || width > terrainStampDistanceMax)
             throw std::runtime_error("The grading width is 0.01 to 1,000 m");
-        if (pad->mode != TerrainStampMode::Width || std::abs(width - pad->width) > 1e-9) {
+        if (modeChanged || edited(width_)) {
             command["mode"] = "width";
             command["width"] = width;
             changed = true;
