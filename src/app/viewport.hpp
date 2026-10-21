@@ -315,6 +315,9 @@ class Viewport : public QOpenGLWidget {
         // R096.f1 (benchmark instrumentation): the last rebuild of the scene's caches and the last
         // terrain preview's display build and upload, in milliseconds.
         double rebuildMs{}, terrainPreviewMs{};
+        // R096.f1: triangles in the last translucent pass upload, and in the last sun shadow map
+        // (with the terrain preview's candidate triangles among them).
+        size_t transparentTriangles{}, shadowTriangles{}, shadowPreviewTriangles{};
     };
     RenderStats renderStats() const { return stats_; }
     struct GeometryCacheMemory {
@@ -548,6 +551,7 @@ class Viewport : public QOpenGLWidget {
     ToolSession terrainSession_{doc_};
     QJsonObject terrainCommitted_;   // the last committed terrain command, for amend
     std::shared_ptr<const TerrainSculptPreview> terrainCandidate_;
+    QJsonObject terrainCandidateCommand_; // the command the shown candidate was built from
     bool terrainCandidateShown_{}, terrainPreviewDirty_{};
     std::string terrainCandidateDocument_;
     std::uint64_t terrainCandidateRevision_{};
@@ -556,6 +560,7 @@ class Viewport : public QOpenGLWidget {
         std::set<Id> hidden;           // tile bodies drawn by the preview instead
         std::set<Id> hiddenContours;   // tile bodies whose contour segments are replaced
         GpuBatch surface, lines, contours, indexContours;
+        std::vector<Vertex> surfaceVertices; // the candidate surface (world), for sun shadows
         bool active{};
     } terrainPreviewGpu_;
     // Contour vertex ranges per tile in a terrain's line batches (ordinary, index).
@@ -739,6 +744,10 @@ class Viewport : public QOpenGLWidget {
     QOpenGLVertexArrayObject vao_;
     std::vector<Vertex> benchmarkVertices_;
     std::vector<std::array<Vertex, 3>> transparent_;
+    // R096.f1: the body of each triangle in transparent_, so a terrain preview can leave out
+    // the tiles it replaces; and whether the last sort left them out.
+    std::vector<Id> transparentBodies_;
+    bool transparentPreviewFiltered_{};
     std::map<Id, float> opacity_;
     std::string cachedDocument_, selectionDocument_;
     std::uint64_t cachedRevision_{};

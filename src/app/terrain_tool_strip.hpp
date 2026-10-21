@@ -48,6 +48,7 @@ class TerrainToolStrip final : public QFrame {
     bool eventFilter(QObject *object, QEvent *event) override;
     // Keys its controls leave unhandled stop here: they never reach the viewport (UX §4.2).
     void keyPressEvent(QKeyEvent *event) override;
+    void keyReleaseEvent(QKeyEvent *event) override;
 
   private:
     void apply(QLineEdit *field);

@@ -311,6 +311,10 @@ void TerrainToolStrip::keyPressEvent(QKeyEvent *event) {
     // focus; Tab, F6 and shortcuts are handled before a key press is delivered.
     event->accept();
 }
+void TerrainToolStrip::keyReleaseEvent(QKeyEvent *event) {
+    // Releases too: a Shift released in a field must not reach the viewport and replan.
+    event->accept();
+}
 bool TerrainToolStrip::eventFilter(QObject *object, QEvent *event) {
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);

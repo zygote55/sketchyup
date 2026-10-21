@@ -867,11 +867,11 @@ struct RailFixture {
                 tools.push_back(entry);
     }
     // The wide rail at a height that holds every tool; at 800 px high Qt's overflow menu takes
-    // the last few, as before. R096.f1's Terrain slot made the rail one slot longer.
-    void widen(int width = 900) {
-        f.window.setFixedSize(width, 1100);
-        check(QTest::qWaitFor([&] { return f.window.size() == QSize(width, 1100); }),
-              "Window resized to " + std::to_string(width) + "x1100");
+    // the last few, as before. R096.f1's Terrain slot must still fit at 1000 px.
+    void widen(int width = 900, int height = 1000) {
+        f.window.setFixedSize(width, height);
+        check(QTest::qWaitFor([&] { return f.window.size() == QSize(width, height); }),
+              "Window resized to " + std::to_string(width) + "x" + std::to_string(height));
         f.settle();
     }
     // A tool leaves the rail (not just the view) while another group shows.
@@ -963,7 +963,7 @@ struct RailFixture {
         };
         const auto now = visible();
         check(now == all(), where + ": every tool shows on the wide rail; shown: " + join(now));
-        check(separators() == 2, where + ": two separators (around the Terrain slot) show");
+        check(separators() == 1, where + ": one separator (before Camera) shows");
     }
 };
 void railGroupBehaviour(Fixture &f) {

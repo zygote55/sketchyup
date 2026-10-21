@@ -866,6 +866,7 @@ void Viewport::rebuild() {
     }
     stats_.meshTriangles = 0;
     transparent_.clear();
+    transparentBodies_.clear();
     if (cachedDocument_ != doc_.identity() || placementReset_) {
         if (cachedDocument_ != doc_.identity())
             opacity_.clear();
@@ -1075,6 +1076,7 @@ void Viewport::rebuild() {
             } else
                 transparent_.insert(transparent_.end(), mesh.transparent.begin(),
                                     mesh.transparent.end());
+            transparentBodies_.resize(transparent_.size(), id);
             continue;
         }
 
@@ -1468,6 +1470,7 @@ void Viewport::rebuild() {
         } else
             transparent_.insert(transparent_.end(), mesh.transparent.begin(),
                                 mesh.transparent.end());
+        transparentBodies_.resize(transparent_.size(), id);
     }
     for (const auto &[id, cache] : bodyCaches_)
         stats_.bodyUploads += cache->meshPass == rebuildPass_ ||
@@ -1556,15 +1559,30 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count, QVector3D offset) {
     vao_.release();
 }
 void Viewport::sortTransparent(const QMatrix4x4 &transform) {
+    // R096.f1: during a terrain preview (not in an export) the replaced and seam-ring tiles'
+    // translucent triangles are left out, as their opaque ones are.
+    const bool filter = terrainPreviewGpu_.active && rasterSize_.isEmpty() &&
+                        !terrainPreviewGpu_.hidden.empty();
+    if (filter != transparentPreviewFiltered_)
+        transparentDirty_ = true; // a preview began or ended (its changes mark it dirty too)
     if (!transparentDirty_ && transform == sortedMatrix_)
         return;
     if (!transparentDirty_ && transparent_.empty()) {
         sortedMatrix_ = transform;
         return;
     }
+    transparentPreviewFiltered_ = filter;
     // Centroid depth sorting is a feasibility path for non-intersecting layers.
     // Intersecting transparent surfaces need order-independent transparency later.
-    auto sorted = transparent_;
+    std::vector<std::array<Vertex, 3>> sorted;
+    if (filter) {
+        sorted.reserve(transparent_.size());
+        for (std::size_t i = 0; i < transparent_.size(); ++i)
+            if (i >= transparentBodies_.size() ||
+                !terrainPreviewGpu_.hidden.contains(transparentBodies_[i]))
+                sorted.push_back(transparent_[i]);
+    } else
+        sorted = transparent_;
     QVector3D direction(std::cos(pitch_ * degreesToRadians) * std::cos(yaw_ * degreesToRadians),
                         std::cos(pitch_ * degreesToRadians) * std::sin(yaw_ * degreesToRadians),
                         std::sin(pitch_ * degreesToRadians));
@@ -1581,6 +1599,7 @@ void Viewport::sortTransparent(const QMatrix4x4 &transform) {
     for (const auto &triangle : sorted)
         vertices.insert(vertices.end(), triangle.begin(), triangle.end());
     upload(transparentGpu_, vertices, true);
+    stats_.transparentTriangles = sorted.size();
     sortedMatrix_ = transform;
     transparentDirty_ = false;
 }

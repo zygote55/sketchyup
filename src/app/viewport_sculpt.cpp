@@ -89,6 +89,10 @@ std::optional<std::array<double, 2>> typedPoint(const QString &text, const QStri
 } // namespace
 
 bool Viewport::terrainSmoothing() const {
+    // A one-spot brush keeps the mode it was anchored with: its amount is set by moving up or
+    // down, which only a raise has (UX §15.2), and Shift while anchored changes nothing.
+    if (brush_.anchored)
+        return tool_ == Tool::Smooth;
     return tool_ == Tool::Smooth ||
            (tool_ == Tool::Sculpt && brush_.modifiers.testFlag(Qt::ShiftModifier));
 }
@@ -232,6 +236,8 @@ void Viewport::emitTerrainStatus() {
     QString text;
     if (!brush_.refusal.isEmpty())
         text = brush_.refusal;
+    else if (!brush_.error.isEmpty() && !brush_.stroking && !brush_.anchored)
+        text = brush_.error; // a locked, tilted or scaled terrain, as a refusal
     else if (brush_.stroking)
         text = name + " · Release to apply the stroke · Ctrl: lower · Shift: smooth · Esc cancels";
     else if (brush_.anchored)
@@ -366,6 +372,7 @@ void Viewport::cancelTerrainOperation(bool keepAmend) {
     brush_.error.clear();
     terrainCandidate_.reset();
     terrainCandidateShown_ = false;
+    terrainCandidateCommand_ = {};
     terrainPreviewDirty_ = true;
     terrainOverlay_ = {};
     forgetRememberedTerrainSculptPlan();
@@ -444,6 +451,8 @@ void Viewport::terrainHover(QPointF point) {
     }
     if (brush_.stroking || terrainOptions_.scope == TerrainToolOptions::Scope::Region)
         buildTerrainOverlay(); // the ring follows the pointer between stroke samples
+    // A terrain the tool cannot edit (locked, tilted, scaled) refuses like no terrain at all.
+    setCursor(refusal.isEmpty() && brush_.error.isEmpty() ? Qt::CrossCursor : Qt::ForbiddenCursor);
     emitTerrainStatus();
     update();
 }
@@ -583,6 +592,18 @@ bool Viewport::terrainKey(QKeyEvent *event) {
         }
         return false; // Leaves the tool.
     }
+    // Typing during a stroke moves focus to the Measurements box, which withdraws the stroke;
+    // the box then takes the radius. Say so (UX §4.3: an entry never needs the pointer released,
+    // but a stroke's amount comes from the strip).
+    if ((brush_.pressed || brush_.stroking) && !event->text().isEmpty() &&
+        QString("0123456789.,+-[<@").contains(event->text().front()) &&
+        !(modifiers & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+        cancelTerrainOperation();
+        emit message("Stroke cancelled · typing sets the Radius; release first to type an amount");
+        terrainStatusShown_ = "Stroke cancelled · typing sets the Radius; release first to type an "
+                              "amount";
+        return false; // the key goes on to open the box
+    }
     // '@' opens the Measurements box for a site position (R095.e2), as digits do.
     if (event->text() == "@") {
         emit measurementsRequested("@");
@@ -667,6 +688,8 @@ void Viewport::updateTerrainCandidate(bool show) {
                 previewTerrainSculpt(doc_, brush_.terrain, kind, data, show));
         }
         terrainCandidateShown_ = show && terrainCandidate_->edit.has_value();
+        // The command a commit of this candidate runs, so the commit is what was previewed.
+        terrainCandidateCommand_ = terrainCandidateShown_ ? command : QJsonObject{};
         terrainCandidateDocument_ = doc_.identity();
         terrainCandidateRevision_ = doc_.revision();
         // Before Enter the box shows the live value (UX §4.3).
@@ -792,7 +815,12 @@ void Viewport::buildTerrainOverlay() {
 void Viewport::commitTerrain(std::optional<double> value) {
     if (!brush_.terrain)
         return;
-    const auto command = terrainCommand(value);
+    // A shown candidate commits the command it was built from (a modifier pressed since, or a
+    // pointer sample the release adds, never changes it); a typed value or an unpreviewed click
+    // builds the command from the brush.
+    const auto command = !value && terrainCandidateShown_ && !terrainCandidateCommand_.isEmpty()
+                             ? terrainCandidateCommand_
+                             : terrainCommand(value);
     const bool smoothing = command["mode"] == "smooth";
     if (!smoothing && command["amount"].toDouble() == 0) {
         emit message("Move up or down to set the amount, or type it");
@@ -955,6 +983,8 @@ void Viewport::rebuildTerrainPreview() {
     gpu.active = false;
     gpu.hidden.clear();
     gpu.hiddenContours.clear();
+    gpu.surfaceVertices.clear();
+    transparentDirty_ = true;
     // A preview that cannot be drawn is withdrawn; it never takes the viewport down.
     try {
         uploadTerrainPreview();
@@ -1076,6 +1106,8 @@ void Viewport::uploadTerrainPreview() {
     } else
         gpu.hiddenContours.clear();
     upload(gpu.surface, surface);
+    gpu.surfaceVertices = std::move(surface);
+    transparentDirty_ = true; // the hidden tiles leave the translucent pass
     upload(gpu.lines, lines);
     upload(gpu.contours, contours);
     upload(gpu.indexContours, index);

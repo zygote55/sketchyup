@@ -355,7 +355,9 @@ void menuAndRail(Window &window) {
     const auto tape = railActions.indexOf(action(window, "tool.14")),
                terrainSlot = railActions.indexOf(slot);
     check(tape >= 0 && terrainSlot > tape, "the Terrain slot comes after Tape");
-    check(railActions[terrainSlot - 1]->isSeparator(), "the Terrain slot has its own group");
+    check(!slot->actionGroup() && railActions[terrainSlot + 1]->isSeparator(),
+          "the Terrain slot ends the tools before the camera group (its own group on the narrow "
+          "rail; no extra separator on the wide one)");
     auto *button = rail->widgetForAction(slot);
     check(button && button->accessibleName() == "Terrain tools: Sculpt",
           "the slot has an accessible name");
@@ -990,6 +992,147 @@ void hoverRefusals(Window &window) {
     check(view->refusedTerrain() == terrain, "Push/pull still refuses a tile");
     view->setTool(Viewport::Tool::Select);
 }
+// ---- Review regressions (#391) ---------------------------------------------------------------
+void reviewRegressions(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = hill(window);
+    auto *view = window.viewport();
+    TerrainToolOptions options;
+    options.radius = 5;
+    options.amount = 0.6;
+    startTool(window, Viewport::Tool::Sculpt, options);
+    const auto at = screen(window, terrain, 30, 30);
+    // 1. A one-spot brush commits what it previewed: Shift pressed while anchored changes nothing
+    // (the mode is the one it was anchored with).
+    hover(view, at);
+    press(view, at);
+    release(view, at);
+    hover(view, at - QPoint(0, 40));
+    auto candidate = view->terrainPreviewShown();
+    check(candidate && candidate->kind == terrainSculptKind, "the spot previews a raise");
+    const double previewed = candidate->data->amount;
+    view->setFocus();
+    key(view, Qt::Key_Shift, Qt::ShiftModifier);
+    hover(view, at - QPoint(0, 40), Qt::ShiftModifier);
+    check(view->terrainPreviewShown() == candidate || !view->terrainBrush().smoothing,
+          "Shift does not turn an anchored spot into a smooth");
+    candidate = view->terrainPreviewShown();
+    QKeyEvent enterKey(QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier);
+    QCoreApplication::sendEvent(view, &enterKey);
+    QCoreApplication::processEvents();
+    check(recordOf(doc, terrain).edits.back()->kind == terrainSculptKind &&
+              lastSculpt(doc, terrain).amount == previewed,
+          "Enter commits the previewed raise, not a smooth");
+    checkCommitted(doc, terrain, *candidate, "spot across Shift");
+    // ... and a stroke commits its last previewed command, whatever the release's modifiers.
+    const auto a = screen(window, terrain, 24, 26), b = screen(window, terrain, 34, 27);
+    hover(view, a);
+    press(view, a);
+    for (int i = 1; i <= 6; ++i)
+        drag(view, a + (b - a) * i / 6);
+    candidate = view->terrainPreviewShown();
+    check(candidate && candidate->kind == terrainSculptKind, "the stroke previews a raise");
+    release(view, b, Qt::ControlModifier | Qt::ShiftModifier);
+    check(recordOf(doc, terrain).edits.back()->kind == terrainSculptKind &&
+              lastSculpt(doc, terrain).amount == candidate->data->amount &&
+              lastSculpt(doc, terrain).path.size() == candidate->data->path.size(),
+          "a release with modifiers commits the previewed stroke");
+    checkCommitted(doc, terrain, *candidate, "stroke released with modifiers");
+    // 2. The tiles a preview hides leave the translucent pass and the sun shadows, and the
+    // candidate casts shadows in their place.
+    if (view->rendererReady()) {
+        for (const auto id : terrainTiles(doc, terrain))
+            view->setBodyOpacity(id, 0.6f);
+        auto sun = doc.solar();
+        sun.enabled = true;
+        sun.latitude = 40;
+        sun.longitude = -105;
+        sun.time = {2010, 6, 21, 12, 0, 0, -420};
+        doc.setSolar(sun);
+        changed(window);
+        hover(view, a);
+        frame(view);
+        const auto translucent = view->renderStats().transparentTriangles;
+        const auto shadows = view->renderStats().shadowTriangles;
+        check(translucent > 0 && shadows > 0, "translucent tiles and shadows are drawn");
+        press(view, a);
+        for (int i = 1; i <= 6; ++i)
+            drag(view, a + (b - a) * i / 6);
+        frame(view);
+        const auto stats = view->renderStats();
+        std::size_t hiddenTriangles = 0;
+        for (const auto id : view->terrainPreviewHiddenTiles())
+            hiddenTriangles += doc.bodies().at(id)->surface.faces.size();
+        check(hiddenTriangles > 0 && stats.transparentTriangles == translucent - hiddenTriangles,
+              "the hidden tiles leave the translucent pass (" +
+                  std::to_string(stats.transparentTriangles) + " of " +
+                  std::to_string(translucent) + ", " + std::to_string(hiddenTriangles) +
+                  " hidden)");
+        check(stats.shadowPreviewTriangles > 0 &&
+                  stats.shadowTriangles == shadows - hiddenTriangles + stats.shadowPreviewTriangles,
+              "the candidate casts shadows in place of the hidden tiles (" +
+                  std::to_string(stats.shadowTriangles) + " cast, " + std::to_string(shadows) +
+                  " before, " + std::to_string(stats.shadowPreviewTriangles) + " candidate)");
+        key(view, Qt::Key_Escape);
+        release(view, b);
+        sun.enabled = false;
+        doc.setSolar(sun);
+        for (const auto id : terrainTiles(doc, terrain))
+            view->setBodyOpacity(id, 1.f);
+        changed(window);
+    }
+    // 4. A key released in the strip does not reach the viewport.
+    {
+        hover(view, at);
+        check(!view->terrainBrush().smoothing, "no Shift: a raise");
+        auto *field = strip(window).radiusField();
+        field->setFocus();
+        QKeyEvent released(QEvent::KeyRelease, Qt::Key_Control, Qt::ShiftModifier);
+        QCoreApplication::sendEvent(field, &released);
+        QCoreApplication::processEvents();
+        check(!view->terrainBrush().smoothing, "a key released in the strip stays in the strip");
+        view->setFocus();
+    }
+    // 6. Typing during a stroke withdraws it and says so; the typed text is a radius.
+    {
+        const auto revision = doc.revision();
+        hover(view, a);
+        press(view, a);
+        for (int i = 1; i <= 6; ++i)
+            drag(view, a + (b - a) * i / 6);
+        QTest::keyClick(view, Qt::Key_3, Qt::NoModifier);
+        QTest::qWait(10);
+        release(view, b);
+        check(doc.revision() == revision && !view->terrainBrush().previewShown,
+              "typing during a stroke withdraws it");
+        check(status(window) ==
+                  "Stroke cancelled · typing sets the Radius; release first to type an amount",
+              "the status bar says why: " + status(window).toStdString());
+        check(step(window) == "Radius" &&
+                  child<QLineEdit>(window, "measurements")->text() == "3",
+              "the typed digit goes to the box as a radius");
+        child<QLineEdit>(window, "measurements")->clear();
+        view->setFocus();
+    }
+    // 5. A locked terrain refuses like no terrain: forbidden cursor, the reason in the status bar.
+    {
+        const auto before = doc.bodies().at(terrain);
+        auto locked = std::make_shared<Body>(*before);
+        locked->locked = true;
+        doc.apply({"Lock", {{terrain, before, locked}}}, doc.revision());
+        changed(window);
+        hover(view, a);
+        hover(view, at);
+        check(view->cursor().shape() == Qt::ForbiddenCursor && !view->terrainBrush().refusal.isEmpty() &&
+                  status(window) == view->terrainBrush().refusal,
+              "a locked terrain shows the forbidden cursor and says why: " +
+                  status(window).toStdString());
+        doc.undo();
+        changed(window);
+    }
+    view->setTool(Viewport::Tool::Select);
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -1019,7 +1162,8 @@ int main(int argc, char **argv) {
         {"region scope", regionScope},
         {"keyboard path", keyboardPath},
         {"empty brush and pads", emptyBrushAndPads},
-        {"hover refusals", hoverRefusals}};
+        {"hover refusals", hoverRefusals},
+        {"review regressions", reviewRegressions}};
     try {
         if (!shots.isEmpty()) {
             screenshots(window);

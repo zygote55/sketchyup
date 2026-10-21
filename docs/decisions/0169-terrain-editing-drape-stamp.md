@@ -2298,6 +2298,15 @@ other tiles.
   - Region scope takes a selected face or closed edge loop, or points clicked or typed and closed
     on the first one. A click on the terrain, Enter or a typed value applies it.
   - Choosing the active terrain tool again keeps an anchored spot and the amend.
+  - A commit runs exactly the command the shown candidate was built from; a modifier pressed or
+    a release sample added since never changes it. A one-spot brush keeps the mode it was
+    anchored with (Shift while anchored changes nothing): its amount is set by moving up or down,
+    which only a raise has.
+  - Typing during a stroke moves focus to the Measurements box, which withdraws the stroke; the
+    status bar says "Stroke cancelled · typing sets the Radius; release first to type an amount",
+    and the typed text is a radius.
+  - During a preview, the hidden tiles also leave the translucent pass and the sun shadow map, and
+    the candidate casts the shadows in their place. Exports draw the model as it is.
 - *Measurements box.* The step is:
   - before a stroke: Radius (Falloff width in region scope, Point while a region is being drawn);
   - during a stroke, while a spot or region waits for its value, and after a commit (when a typed
@@ -2310,8 +2319,9 @@ other tiles.
     not-allowed and the status bar says to point at a terrain.
   - With no terrain in the model, it says "No terrain in this model. Import one with File → Import
     terrain…".
-  - A locked, tilted or scaled terrain refuses in the preview with the command's reason. The scale
-    check is now shared (`requireUnscaledTerrain`).
+  - A locked, tilted or scaled terrain refuses in the preview with the command's reason, shown in
+    the status bar with the not-allowed cursor. The scale check is now shared
+    (`requireUnscaledTerrain`).
   - A refusal at the brush is marked with ×.
   - R095.e1's refusal of the modelling tools is unchanged.
 

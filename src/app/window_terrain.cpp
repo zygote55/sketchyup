@@ -236,8 +236,8 @@ void Window::setupTerrainTools(QActionGroup *group, QToolBar *rail) {
     add("Smooth", "", Viewport::Tool::Smooth);
     // The rail's Terrain slot: one control in its own group after Tape. It shows the last
     // terrain tool used ("Terrain" until one is, as the approved mockup draws it) and starts it
-    // (Sculpt at first).
-    railTools_.emplace_back(rail->addSeparator(), -1);
+    // (Sculpt at first). Like the other groups it has no separator on the wide rail, which has
+    // to fit a 1000 px window (a maximised window on a 1080p screen).
     terrainRail_ = new QAction("Terrain ▸", this);
     terrainRail_->setObjectName("railTerrain");
     terrainRail_->setCheckable(true);
