@@ -368,6 +368,7 @@ class Window : public QMainWindow {
     void setupTerrainTools(QActionGroup *group, QToolBar *rail);
     void setupTerrainMenu();
     void syncTerrainTools();
+    static QString measurementPlaceholder(Viewport::Tool tool);
     std::unique_ptr<QPrinter> sheetPrinter_;
     ThemeColors sheetColors_{themeColors(false)};
     void sheetExportFlow(bool print);

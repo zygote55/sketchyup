@@ -1083,6 +1083,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (auto *toolAction = findChild<QAction *>("tool." + QString::number(mode)))
             toolAction->setChecked(true);
         syncTerrainTools();
+        measurements_->setPlaceholderText(measurementPlaceholder(Viewport::Tool(mode)));
         if (Viewport::terrainTool(Viewport::Tool(mode)))
             showRailGroup(RailTerrain);
         syncParameterMeasurement();
@@ -1503,15 +1504,9 @@ bool Window::eventFilter(QObject *object, QEvent *event) {
     }
     return QMainWindow::eventFilter(object, event);
 }
-void Window::tool(Viewport::Tool t, const QString &text) {
-    status_->setText(text);
-    if (t == Viewport::Tool::HostedPlacement)
-        viewport_->startHostedPlacement();
-    else
-        viewport_->setTool(t);
-    viewport_->setFocus();
-    measurements_->setPlaceholderText(
-        t == Viewport::Tool::Paint             ? "Choose a material and side"
+// The Measurements box's placeholder for a tool (also after a tool ends itself, R096.f2 Drape).
+QString Window::measurementPlaceholder(Viewport::Tool t) {
+    return t == Viewport::Tool::Paint             ? "Choose a material and side"
         : t == Viewport::Tool::Move            ? "distance, dx,dy,dz or [x,y,z]"
         : t == Viewport::Tool::Rotate          ? "angle (deg) or [pivot / reference]"
         : t == Viewport::Tool::Scale           ? "factor or x,y,z factors"
@@ -1532,7 +1527,16 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::Pad      ? "elevation or slope, or [x,y] or @E,N"
         : t == Viewport::Tool::Drape    ? "click or Enter"
         : Viewport::terrainTool(t) ? "radius, [x,y] or @E,N, then a value"
-                                                                     : "width, depth");
+                                                                     : "width, depth";
+}
+void Window::tool(Viewport::Tool t, const QString &text) {
+    status_->setText(text);
+    if (t == Viewport::Tool::HostedPlacement)
+        viewport_->startHostedPlacement();
+    else
+        viewport_->setTool(t);
+    viewport_->setFocus();
+    measurements_->setPlaceholderText(measurementPlaceholder(t));
 }
 void Window::sync() {
     if (assistant_)

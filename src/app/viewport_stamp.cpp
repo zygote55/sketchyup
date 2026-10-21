@@ -192,6 +192,7 @@ void Viewport::beginPadTool() {
 void Viewport::cancelPadOperation() {
     auto &tool = padTool_;
     const bool was = !tool.footprint.isEmpty();
+    padTint_ = {};
     tool.footprint = {};
     tool.outline.clear();
     tool.name.clear();
@@ -201,6 +202,7 @@ void Viewport::cancelPadOperation() {
         terrainSession_.cancel();
         terrainCommitted_ = {};
         emit measurementPreview({});
+        emit terrainToolChanged(); // the strip forgets the footprint
     }
 }
 Viewport::PadToolView Viewport::padTool() const {
@@ -296,7 +298,9 @@ void Viewport::padHover(QPointF point) {
         return;
     }
     // Choosing: the face, group or component under the pointer, highlighted.
+    const auto hovered = tool.hover.name;
     tool.hover = {};
+    tool.refusal.clear();
     if (!doc_.materializedTotals().terrainTriangles)
         tool.refusal = "No terrain in this model. Import one with File → Import terrain…";
     if (const auto entity = selectionAt(point)) {
@@ -311,6 +315,8 @@ void Viewport::padHover(QPointF point) {
     }
     setCursor(tool.hover.outline.empty() ? Qt::ForbiddenCursor : Qt::CrossCursor);
     emitTerrainStatus();
+    if (tool.hover.name != hovered)
+        emit terrainToolChanged(); // the strip names the hovered footprint
     update();
 }
 bool Viewport::padPress(QMouseEvent *event) {
@@ -348,7 +354,8 @@ void Viewport::commitPad(std::optional<double> elevation) {
         result = terrainSession_.commit(command, BatchResponse::Changes);
         stats_.terrainCommandMs = double(timing.nsecsElapsed()) / 1e6;
     } catch (const std::exception &error) {
-        terrainSession_.cancel();
+        // The footprint stays chosen: the session keeps guarding it against document changes.
+        terrainSession_.begin();
         holdTerrainStatus(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
         return;
     }
@@ -406,6 +413,9 @@ bool Viewport::padKey(QKeyEvent *event) {
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
         if (!tool.footprint.isEmpty())
             commitPad();
+        else
+            holdTerrainStatus("Choose a footprint first: point at a face, group or component and "
+                              "click, or type its position as [x, y] or @E, N");
         event->accept();
         return true;
     }
@@ -443,8 +453,23 @@ bool Viewport::padMeasurements(const QString &text) {
             if (body->kind == BodyKind::Group)
                 candidates.push_back({id, SelectionKind::Body, 0});
             else
-                for (const auto &[face, record] : body->surface.faces)
-                    candidates.push_back({id, SelectionKind::Face, face});
+                for (const auto &[face, record] : body->surface.faces) {
+                    // Only horizontal faces of one loop can be footprints (checked cheaply first).
+                    if (record.loops.size() != 1)
+                        continue;
+                    double low = 1e300, high = -1e300;
+                    for (const auto vertex : record.loops.front())
+                        if (const auto p = body->surface.vertices.find(vertex);
+                            p != body->surface.vertices.end()) {
+                            low = std::min(low, p->second.z);
+                            high = std::max(high, p->second.z);
+                        }
+                    if (high - low <= 1e-6)
+                        candidates.push_back({id, SelectionKind::Face, face});
+                }
+            std::erase_if(candidates, [&](const SelectedEntity &entity) {
+                return selection_.hidden(doc_, entity) || selection_.locked(doc_, entity.body);
+            });
             for (const auto &entity : candidates) {
                 PadFootprint footprint;
                 if (padFootprintOf(entity, footprint) &&
@@ -470,6 +495,9 @@ bool Viewport::padMeasurements(const QString &text) {
             amendPad(command, "Revised the pad · slopes " + terrainSlopeText(slope));
             return true;
         }
+        if (terrainOptions_.padMode == TerrainStampMode::Width)
+            throw std::runtime_error("Fixed width has no slopes; type an elevation, or choose "
+                                     "Daylight in the strip");
         auto options = terrainOptions_;
         options.cutSlope = options.fillSlope = slope;
         setTerrainOptions(options);
@@ -529,43 +557,68 @@ void Viewport::paintPadTool(QPainter &p) {
         // never the only signal (the strip's legend names them).
         const QColor cutColour(214, 165, 120, 150), fillColour(140, 191, 189, 150);
         const QColor cutHatch(120, 72, 32, 200), fillDots(30, 96, 94, 210);
+        // The triangles inside the daylight line, classified once per preview: at the pad's
+        // elevation the pad, above it cut, below it fill (the cavity's other triangles, outside
+        // the daylight line, are ground the stamp re-triangulated, not graded).
+        if (padTint_.preview.lock() != shown) {
+            padTint_ = {};
+            padTint_.preview = shown;
+            const auto ring = terrainStampRing(pad);
+            auto inside = [&](double x, double y) {
+                bool in = false;
+                for (std::size_t i = 0, j = ring.size() - 1; i < ring.size(); j = i++)
+                    if ((ring[i].y > y) != (ring[j].y > y) &&
+                        x < (ring[j].x - ring[i].x) * (y - ring[i].y) / (ring[j].y - ring[i].y) +
+                                ring[i].x)
+                        in = !in;
+                return in;
+            };
+            for (const auto &t : shown->added) {
+                const auto c = (t[0] + t[1] + t[2]) * (1.0 / 3);
+                const std::array<Vec3, 3> model{world.point(t[0]), world.point(t[1]),
+                                                world.point(t[2])};
+                if (t[0].z == h && t[1].z == h && t[2].z == h)
+                    padTint_.flat.push_back(model);
+                else if (ring.size() < 3 || !inside(c.x, c.y))
+                    continue;
+                else
+                    (c.z > h ? padTint_.cut : padTint_.fill).push_back(model);
+            }
+        }
         QPainterPath cut, fill, flat;
+        cut.setFillRule(Qt::WindingFill);
+        fill.setFillRule(Qt::WindingFill);
+        flat.setFillRule(Qt::WindingFill);
         // Each label beside its area, apart: cut at its lowest triangle on screen, fill at its
         // leftmost.
         std::optional<QPointF> cutAt, fillAt;
-        std::size_t cuts = 0, fills = 0;
-        for (const auto &t : shown->added) {
+        const std::size_t cuts = padTint_.cut.size(), fills = padTint_.fill.size();
+        auto add = [&](QPainterPath &path, const std::array<Vec3, 3> &t) {
             QPolygonF screen;
             for (const auto &q : t)
-                screen << project(world.point(q));
-            const double zc = (t[0].z + t[1].z + t[2].z) / 3;
-            if (t[0].z == h && t[1].z == h && t[2].z == h)
-                flat.addPolygon(screen);
-            else if (zc > h) {
-                cut.addPolygon(screen);
-                const auto at = project(world.point((t[0] + t[1] + t[2]) * (1.0 / 3)));
-                if (!cutAt || at.y() > cutAt->y())
-                    cutAt = at;
-                ++cuts;
-            } else {
-                fill.addPolygon(screen);
-                const auto at = project(world.point((t[0] + t[1] + t[2]) * (1.0 / 3)));
-                if (!fillAt || at.x() < fillAt->x())
-                    fillAt = at;
-                ++fills;
-            }
-        }
+                screen << project(q);
+            path.addPolygon(screen);
+            path.closeSubpath();
+            return project((t[0] + t[1] + t[2]) * (1.0 / 3));
+        };
+        for (const auto &t : padTint_.flat)
+            add(flat, t);
+        for (const auto &t : padTint_.cut)
+            if (const auto at = add(cut, t); !cutAt || at.y() > cutAt->y())
+                cutAt = at;
+        for (const auto &t : padTint_.fill)
+            if (const auto at = add(fill, t); !fillAt || at.x() < fillAt->x())
+                fillAt = at;
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(255, 255, 255, 110));
-        p.drawPath(flat.simplified());
+        p.drawPath(flat);
         for (const auto &[path, colour, pattern, mark] :
              {std::tuple{&cut, cutColour, Qt::BDiagPattern, cutHatch},
               std::tuple{&fill, fillColour, Qt::Dense6Pattern, fillDots}}) {
-            const auto merged = path->simplified();
             p.setBrush(colour);
-            p.drawPath(merged);
+            p.drawPath(*path);
             p.setBrush(QBrush(mark, pattern));
-            p.drawPath(merged);
+            p.drawPath(*path);
         }
         // The rays: thin lines from the outline to the daylight line.
         QColor rayColour = ink;
@@ -665,7 +718,7 @@ void Viewport::paintPadTool(QPainter &p) {
     QStringList lines;
     bool failure = false;
     std::optional<QPointF> anchor;
-    if (stamp && shown->refused()) {
+    if (stamp && shown->refused() && terrainEditPreviewCurrent()) {
         const auto refusal = terrainEditFailure(*shown);
         lines << refusal.label << "Change the elevation, slopes or footprint";
         if (refusal.at)

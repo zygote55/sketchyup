@@ -42,32 +42,9 @@ void Viewport::beginDrapeTool() {
     auto &tool = drapeTool_;
     // The selection: edges (curves select their edges), faces, and the faces of selected groups
     // and components; never a terrain's own.
-    tool.edges = selectedTerrainEdges(selection_);
-    std::set<std::pair<Id, Id>> faces;
-    for (const auto &entity : selection_.entities()) {
-        const auto found = doc_.bodies().find(entity.body);
-        if (found == doc_.bodies().end() || found->second->terrainTile ||
-            found->second->kind == BodyKind::Terrain)
-            continue;
-        if (entity.kind == SelectionKind::Face)
-            faces.insert({entity.body, entity.entity});
-        else if (entity.kind == SelectionKind::Body)
-            for (const auto &[id, body] : doc_.bodies()) {
-                if (body->kind != BodyKind::Geometry || body->terrainTile)
-                    continue;
-                bool inside = false;
-                for (Id at = id; at && !inside;) {
-                    inside = at == entity.body;
-                    const auto parent = doc_.bodies().find(at);
-                    at = parent == doc_.bodies().end() ? 0 : parent->second->parent;
-                }
-                if (inside)
-                    for (const auto &[face, record] : body->surface.faces)
-                        faces.insert({id, face});
-            }
-    }
-    for (const auto &[body, face] : faces)
-        tool.faces.append(QJsonObject{{"body", QString::number(body)}, {"face", QString::number(face)}});
+    const auto input = terrainDrapeInput(doc_, selection_);
+    tool.edges = input.edges;
+    tool.faces = input.faces;
     if (!doc_.materializedTotals().terrainTriangles)
         tool.refusal = "No terrain in this model. Import one with File → Import terrain…";
     else if (tool.edges.isEmpty() && tool.faces.isEmpty())
@@ -89,6 +66,26 @@ void Viewport::beginDrapeTool() {
     emitTerrainStatus();
     emit terrainToolChanged();
     update();
+}
+// The selection or the document changed while Drape is active: its input follows the selection,
+// and a preview the change dropped is asked for again.
+void Viewport::syncDrapeTool() {
+    auto &tool = drapeTool_;
+    const auto input = terrainDrapeInput(doc_, selection_);
+    if (input.edges != tool.edges || input.faces != tool.faces) {
+        const auto terrain = tool.terrain;
+        beginDrapeTool();
+        if (terrain && isTerrain(doc_, terrain) && drapeTool_.refusal.isEmpty() &&
+            !drapeTool_.terrain) {
+            drapeTool_.terrain = terrain;
+            requestTerrainEditPreview(drapeCommand());
+        }
+        return;
+    }
+    if (tool.terrain && !isTerrain(doc_, tool.terrain))
+        tool.terrain = 0;
+    if (tool.terrain && tool.refusal.isEmpty() && terrainEditRequest_.command.isEmpty())
+        requestTerrainEditPreview(drapeCommand());
 }
 QJsonObject Viewport::drapeCommand() const {
     const auto &tool = drapeTool_;
@@ -139,7 +136,7 @@ void Viewport::emitDrapeStatus() {
     const auto view = drapeTool();
     if (!tool.refusal.isEmpty())
         text = tool.refusal;
-    else if (view.refused) {
+    else if (view.refused && terrainEditPreviewCurrent()) {
         text = terrainEditFailure(*terrainEditPreviewShown()).status + " Nothing can be draped here.";
         terrainFailureStatus_ = text;
     }
@@ -167,7 +164,8 @@ void Viewport::drapeHover(QPointF point) {
     tool.screen = point;
     terrainStatusHeld_ = false;
     const auto hit = terrainHit(point);
-    if (hit && hit->first != tool.terrain && tool.refusal.isEmpty()) {
+    if (hit && tool.refusal.isEmpty() &&
+        (hit->first != tool.terrain || terrainEditRequest_.command.isEmpty())) {
         tool.terrain = hit->first;
         requestTerrainEditPreview(drapeCommand());
     }
@@ -222,17 +220,18 @@ void Viewport::commitDrape() {
     const auto terrain = tool.terrain;
     const bool overlay = command["mode"] == "overlay";
     withdrawTerrainEditPreview();
-    rememberTerrainReport(terrain, result);
-    if (!overlay)
+    if (!overlay) {
+        rememberTerrainReport(terrain, result); // an overlay changes no terrain
         prefetchTerrainDigest(terrain);
+    }
     const auto operation = result["terrainOperations"].toArray().first().toObject();
     const auto summary = countText(std::size_t(tool.faces.size()), std::size_t(tool.edges.size()));
     // What is selected afterwards (UX §15.5): the terrain after an imprint, the new group after
     // an overlay. The tool then returns to Select, its input used.
     QElapsedTimer timing;
     timing.start();
-    refresh();
     setTool(Tool::Select);
+    refresh();
     if (overlay) {
         const Id group = operation["group"].toString().toULongLong();
         setSelection(doc_.bodies().contains(group) ? group : 0);
@@ -316,8 +315,8 @@ void Viewport::paintDrapeTool(QPainter &p) {
     p.setRenderHint(QPainter::Antialiasing);
     // Region paint: each painted face's region in its material, lying on the surface.
     if (!shown->refused() && !shown->overlay && shown->drape) {
-        if (drapeTool_.paintFor != shown.get()) {
-            drapeTool_.paintFor = shown.get();
+        if (drapeTool_.paintFor.lock() != shown) {
+            drapeTool_.paintFor = shown;
             drapeTool_.paint.clear();
             for (const auto &region : shown->drape->paint) {
                 const auto found = doc_.materials().find(region.material);
@@ -340,8 +339,9 @@ void Viewport::paintDrapeTool(QPainter &p) {
                                 doc_, shown->terrain,
                                 {plan.begin() + std::ptrdiff_t(first), plan.begin() + std::ptrdiff_t(last)});
                             for (std::size_t i = 0; i < part.size(); ++i)
-                                draped.push_back({plan[first + i][0], plan[first + i][1],
-                                                  part[i].found ? part[i].elevation : 0});
+                                if (part[i].found) // off the terrain: left out
+                                    draped.push_back(
+                                        {plan[first + i][0], plan[first + i][1], part[i].elevation});
                         }
                     } catch (const std::exception &) {
                         draped.clear();
@@ -401,12 +401,12 @@ void Viewport::paintDrapeTool(QPainter &p) {
     paintTerrainEditPreview(p);
     // Labels: the clipped parts, and the drape at the pointer ("Imprint · 1 face, 5 edges").
     std::vector<std::tuple<QPointF, QStringList, bool>> labels;
-    if (!shown->clippedParts.empty()) {
+    if (!shown->clippedParts.empty() && !shown->clippedParts.front().empty()) {
         const auto &part = shown->clippedParts.front();
         labels.push_back({project(world.point(part[part.size() / 2])) + QPointF(12, -10),
                           {"Clipped: outside the terrain"}, true});
     }
-    if (!shown->refused() && tool.terrain && !shown->runs.empty()) {
+    if (!shown->refused() && tool.terrain && !shown->runs.empty() && !shown->runs.front().empty()) {
         QStringList lines{(shown->overlay ? "Overlay · " : "Imprint · ") +
                           countText(std::size_t(tool.faces.size()), std::size_t(tool.edges.size()))};
         if (!shown->overlay && shown->drape && !shown->drape->paint.empty()) {
@@ -419,7 +419,7 @@ void Viewport::paintDrapeTool(QPainter &p) {
         labels.push_back({tool.screen ? *tool.screen + QPointF(16, 10)
                                       : project(world.point(run[run.size() / 2])) + QPointF(24, 18),
                           lines, false});
-    } else if (shown->refused()) {
+    } else if (shown->refused() && terrainEditPreviewCurrent()) {
         const auto failure = terrainEditFailure(*shown);
         if (failure.at)
             labels.push_back({project(*failure.at) + QPointF(16, 14),

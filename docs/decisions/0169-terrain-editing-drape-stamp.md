@@ -2968,7 +2968,29 @@ for, as for contours.
 - Drape's preview label at the pointer ("Imprint · 1 face, 5 edges / Paint: Paving, grey") sits
   beside the first draped line when the target came from the keyboard.
 
-MEASURED-PART-2
+**Measured (part 2)** with part 1's harness and conditions (`terrain_budget_benchmark
+--edit-frames 64`, Release, llvmpipe at 1920 × 1080, 4 CPUs), on the point terrain built from
+2 % fewer points (244,970 triangles; stamps and drapes add triangles), one sample per tile of the
+64 largest, the view framing 60 m around the tile's middle; samples whose touched tiles hold more
+than 2,048 triangles are left out of the rows (1 and 2 of 64).
+- *Stamp:* a selected square face a quarter of a tile across, 0.2 m above the ground at the
+  tile's middle; Stamp pad starts with it, three 12 px pointer steps up are timed as the contour
+  drag (to the frame showing that step's candidate), then Enter to the committed frame.
+- *Drape:* a selected 1 m wide strip 36 m long, 3 m above the ground; Drape is started (with one
+  terrain the tool asks at once) and timed to the frame showing the candidate, then Enter to the
+  committed frame.
+
+| Operation (one tile) | p50 / p95 (max) | of which, p95: event, worker wait (plan), display build, frame | Touched triangles p95 (max) |
+| --- | ---: | --- | ---: |
+| Stamp preview (189 steps) | 50.7 / 60.6 ms (77.2) | 0.3, 5.8 (5.6), 26.3, 53.5 ms | 1,883 (1,953) |
+| Stamp commit (63) | 70.7 / 102.2 ms (114.1) | event 49.3, cache rebuild 27.8, frame 50.5 ms | |
+| Drape preview (62) | 44.6 / 49.7 ms (55.8) | 0.3, 1.6 (1.5), 22.5, 46.9 ms | 1,251 (1,291) |
+| Drape commit (62) | 72.8 / 81.7 ms (86.6) | event 32.9, cache rebuild 27.8, frame 49.3 ms | |
+
+The previews are within 100 ms; the stamp's plan (rays, walk, repair, cavity) is 5.6 ms p95 on the
+worker. The one-tile stamp commit is p95 102.2 ms and the drape commit 81.7 ms end to end under
+llvmpipe, of which the CPU part (command, refresh and cache rebuild) is about 77 and 61 ms; the
+software frame is the rest, as for the sculpt and contour commits (the AMD session, R096.g).
 
 ## Sources
 

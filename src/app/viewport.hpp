@@ -828,17 +828,23 @@ class Viewport : public QOpenGLWidget {
     bool padKey(QKeyEvent *event);
     bool padMeasurements(const QString &text);
     void paintPadTool(QPainter &painter);
+    // The stamp's tint, built once per preview.
+    struct PadTint {
+        std::weak_ptr<const TerrainCommandPreview> preview;
+        std::vector<std::array<Vec3, 3>> cut, fill, flat; // model
+    } padTint_;
     // R096.f2: Drape (viewport_drape.cpp).
     struct DrapeToolState {
         QJsonArray edges, faces;
         Id terrain{};
         std::optional<QPointF> screen; // the pointer, once it has moved over the view
         QString refusal;
-        const void *paintFor{}; // the preview the draped paint loops belong to
+        std::weak_ptr<const TerrainCommandPreview> paintFor; // the preview the paint loops are for
         std::vector<std::pair<QColor, std::vector<Vec3>>> paint;
     } drapeTool_;
     QJsonObject drapeCommand() const;
     void beginDrapeTool();
+    void syncDrapeTool();
     void emitDrapeStatus();
     void drapeHover(QPointF point);
     bool drapePress(QMouseEvent *event);

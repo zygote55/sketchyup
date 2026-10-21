@@ -1825,6 +1825,7 @@ void padPreviewCommitAmend(Window &window) {
     key(view, Qt::Key_Escape);
     check(before.same(doc) && !view->terrainEditPreviewShown() && !view->padTool().footprint,
           "Escape withdraws the pad and changes nothing");
+    check(bar.padSummary()->text().contains("No footprint"), "and the strip forgets it");
     // Choose it again (hover and click) with a 0.4 m pad offset (cut over the hill's top, fill
     // around it), seen from above at an angle; then Enter stamps the previewed pad.
     options.padOffset = 0.4;
@@ -2000,6 +2001,17 @@ void drapeImprintAndOverlay(Window &window) {
               status(window).contains("outside the terrain is clipped"),
           "the status bar instructs: " + status(window).toStdString());
     check(before.same(doc), "the preview changes nothing");
+    // The input follows the selection while the tool is active.
+    view->selectEntities({{face, SelectionKind::Face, doc.bodies().at(face)->surface.faces.begin()->first}});
+    QTest::qWait(10);
+    check(view->tool() == Viewport::Tool::Drape && view->drapeTool().faces == 1,
+          "a changed selection is what Drape takes");
+    view->selectEntities({{face, SelectionKind::Face, doc.bodies().at(face)->surface.faces.begin()->first},
+                          {outside, SelectionKind::Face,
+                           doc.bodies().at(outside)->surface.faces.begin()->first}});
+    idle(view);
+    shown = view->terrainEditPreviewShown();
+    check(view->drapeTool().faces == 2 && shown && shown->candidate, "and previews again");
     view->standardView(0);
     view->frameBounds({14, 14, 46}, {60, 50, 62});
     frame(view);

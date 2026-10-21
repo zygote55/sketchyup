@@ -185,13 +185,9 @@ void Window::syncTerrainActions() {
     const bool model = workspace_ == Workspace::Model && !assistantFenced_;
     findChild<QAction *>("terrain.createFromSelection")
         ->setEnabled(model && !selectedTerrainEdges(selection).isEmpty());
-    if (auto *drape = findChild<QAction *>("terrain.drapeSelection")) {
-        bool lines = !selectedTerrainEdges(selection).isEmpty();
-        for (const auto &entity : selection.entities())
-            lines = lines || (entity.kind == SelectionKind::Face &&
-                              terrainOfBody(doc_, entity.body) == 0);
-        drape->setEnabled(model && lines && doc_.materializedTotals().terrainTriangles > 0);
-    }
+    if (auto *drape = findChild<QAction *>("terrain.drapeSelection"))
+        drape->setEnabled(model && !terrainDrapeInput(doc_, selection).empty() &&
+                          doc_.materializedTotals().terrainTriangles > 0);
     const auto selected = model ? selectedTerrain(doc_, selection) : 0;
     const bool terrain = selected != 0;
     for (const auto *id : {"terrain.settings", "terrain.regenerate", "terrain.explode"})

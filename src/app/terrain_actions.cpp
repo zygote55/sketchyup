@@ -126,6 +126,38 @@ QJsonArray selectedTerrainEdges(const Selection &selection) {
                                      {"edge", QString::number(entity.entity)}});
     return edges;
 }
+TerrainDrapeInput terrainDrapeInput(const Document &doc, const Selection &selection) {
+    TerrainDrapeInput input;
+    std::set<std::pair<Id, Id>> faces;
+    for (const auto &entity : selection.entities()) {
+        const auto found = doc.bodies().find(entity.body);
+        if (found == doc.bodies().end() || terrainOfBody(doc, entity.body))
+            continue;
+        if (entity.kind == SelectionKind::Edge)
+            input.edges.append(QJsonObject{{"body", QString::number(entity.body)},
+                                           {"edge", QString::number(entity.entity)}});
+        else if (entity.kind == SelectionKind::Face)
+            faces.insert({entity.body, entity.entity});
+        else if (entity.kind == SelectionKind::Body)
+            for (const auto &[id, body] : doc.bodies()) {
+                if (body->kind != BodyKind::Geometry || body->terrainTile)
+                    continue;
+                bool inside = false;
+                for (Id at = id; at && !inside;) {
+                    inside = at == entity.body;
+                    const auto parent = doc.bodies().find(at);
+                    at = parent == doc.bodies().end() ? 0 : parent->second->parent;
+                }
+                if (inside)
+                    for (const auto &[face, record] : body->surface.faces)
+                        faces.insert({id, face});
+            }
+    }
+    for (const auto &[body, face] : faces)
+        input.faces.append(
+            QJsonObject{{"body", QString::number(body)}, {"face", QString::number(face)}});
+    return input;
+}
 namespace {
 using ContourPoints = std::set<std::tuple<double, double, double>>;
 ContourPoints contourPoints(const TerrainSources &sources) {

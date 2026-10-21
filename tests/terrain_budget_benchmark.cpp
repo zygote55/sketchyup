@@ -74,10 +74,14 @@ void check(bool value, const std::string &message) {
         throw std::runtime_error(message);
 }
 double p95(std::vector<double> samples) {
+    if (samples.empty())
+        return 0;
     std::sort(samples.begin(), samples.end());
     return samples.at(std::size_t(std::ceil(double(samples.size()) * .95)) - 1);
 }
 double median(std::vector<double> samples) {
+    if (samples.empty())
+        return 0;
     std::sort(samples.begin(), samples.end());
     return samples.at(samples.size() / 2);
 }
@@ -869,7 +873,6 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
                 // sqrt(2 * area / density); the largest tiles are about 62 m across here.
                 const double side = 60;
                 const auto ground = onGround(tile.centre);
-                const auto revision = doc.revision();
                 Id face = 0;
                 if (kind == 0) {
                     const double half = side / 8;
@@ -950,8 +953,7 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
                         std::cerr << (kind ? "drape" : "stamp") << " refused: " << shown->message << '\n';
                     view.cancel();
                     view.setTool(Viewport::Tool::Select);
-                    while (doc.revision() > revision && doc.canUndo())
-                        doc.undo();
+                    doc.undo(); // the face
                     view.refresh();
                     continue;
                 }
@@ -979,8 +981,8 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
                     out.commitFrame.push_back(view.completeFrameMs());
                 }
                 view.setTool(Viewport::Tool::Select);
-                while (doc.revision() > revision && doc.canUndo())
-                    doc.undo();
+                doc.undo(); // the stamp or drape
+                doc.undo(); // the face
                 view.refresh();
                 frame();
             }
