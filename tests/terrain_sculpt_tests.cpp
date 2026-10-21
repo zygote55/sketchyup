@@ -26,6 +26,7 @@
 #include <QJsonDocument>
 #include <chrono>
 #include <cmath>
+#include <future>
 #include <iostream>
 #include <map>
 #include <numbers>
@@ -1857,6 +1858,22 @@ void deferredDigest() {
     run(doc, sculpt(0.75));
     check(recordOf(doc, terrain).meshDigest.pending() && TerrainDigest::computations() == before,
           "a sculpt's commit defers the digest");
+    // "Changed since generated" (the Terrain section's chip, after every commit) answers from the
+    // digest's identity without computing it.
+    check(!terrainChangedSinceGenerated(doc, terrain) &&
+              recordOf(doc, terrain).meshDigest.pending() &&
+              TerrainDigest::computations() == before,
+          "changed-since-generated during pending computes nothing");
+    // The history charge holds the deferred digest's identity table.
+    check(recordOf(doc, terrain).meshDigest.retainedBytes() >=
+                  terrainTiles(doc, terrain).size() * sizeof(void *) &&
+              terrainRecordBytes(recordOf(doc, terrain)) ==
+                  terrainRecordBytes([&] {
+                      auto known = recordOf(doc, terrain);
+                      known.meshDigest = TerrainDigest(std::string(64, '0'));
+                      return known;
+                  }()) + recordOf(doc, terrain).meshDigest.retainedBytes(),
+          "the history charge counts the deferred digest's identity table");
     // Describe while pending: the stored and the current digest are the committed tiles'.
     {
         const auto description = terrainDescription(doc, terrain);
@@ -1903,6 +1920,82 @@ void deferredDigest() {
               << " deferred digests computed by readers\n";
 }
 
+// R096.f1b: the deferred digest's own guarantees, on a synthetic computation.
+void deferredDigestState() {
+    // pending() and a known value never wait for a computation in flight.
+    {
+        std::promise<void> started, release;
+        auto releasing = release.get_future().share();
+        auto tile = std::make_shared<int>(1);
+        const auto digest = TerrainDigest::deferred(
+            [&started, releasing](const std::vector<const void *> &) {
+                started.set_value();
+                releasing.wait();
+                return std::string(64, 'a');
+            },
+            {tile});
+        std::string computed;
+        std::thread reader([&] { computed = digest.value(); });
+        started.get_future().wait();
+        const auto t0 = std::chrono::steady_clock::now();
+        const bool pending = digest.pending();
+        const bool describes = digest.describes({tile.get()});
+        const auto waited = std::chrono::steady_clock::now() - t0;
+        release.set_value();
+        reader.join();
+        check(pending && describes && waited < std::chrono::seconds(1) &&
+                  computed == std::string(64, 'a') && !digest.pending() &&
+                  digest.value() == computed,
+              "pending and describes answer during a computation without waiting for it");
+    }
+    // The identity is weak: the computation holds the tiles until it has run, then only the
+    // records holding them keep them, and an expired tile no longer matches its old address.
+    {
+        auto tile = std::make_shared<int>(2);
+        const void *address = tile.get();
+        auto digest = TerrainDigest::deferred(
+            [address](const std::vector<const void *> &tiles) {
+                check(tiles.size() == 1 && tiles[0] == address, "the hash gets the held tiles");
+                return std::string(64, 'b');
+            },
+            {tile});
+        check(tile.use_count() == 2, "the digest holds the tile while pending");
+        (void)digest.value();
+        check(tile.use_count() == 1 && digest.describes({address}),
+              "the computed digest holds the tile weakly and still describes it");
+        tile.reset();
+        check(!digest.describes({address}), "an expired tile is not described");
+    }
+    // The prefetch task skips a digest nothing holds, and never throws.
+    {
+        int runs = 0;
+        auto digest = TerrainDigest::deferred(
+            [&runs](const std::vector<const void *> &) {
+                ++runs;
+                return std::string(64, 'c');
+            },
+            {});
+        auto task = digest.prefetchTask();
+        digest = TerrainDigest();
+        task();
+        check(runs == 0, "a prefetch of a dropped digest computes nothing");
+        const auto failing = TerrainDigest::deferred(
+            [](const std::vector<const void *> &) -> std::string {
+                throw std::runtime_error("hash failed");
+            },
+            {});
+        failing.prefetchTask()(); // must not throw
+        bool threw = false;
+        try {
+            (void)failing.value();
+        } catch (const std::runtime_error &) {
+            threw = true;
+        }
+        check(failing.pending() && threw, "a failed computation stays pending for the next reader");
+    }
+    std::cout << "deferred digest state: pending, identity and prefetch\n";
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     std::cout << std::unitbuf;
@@ -1915,7 +2008,7 @@ int main(int argc, char **argv) {
         {"hostile region", hostileRegion}, {"cancel inside entry", cancelInsideEntry},
         {"exact area", exactArea},      {"piece block", pieceBlock},
         {"sequence", sequence},         {"desktop preview", desktopPreview},
-        {"deferred digest", deferredDigest}};
+        {"deferred digest", deferredDigest}, {"deferred digest state", deferredDigestState}};
     int failed = 0;
     for (const auto &[name, test] : tests) {
         if (argc > 1 && std::string(argv[1]) != name)

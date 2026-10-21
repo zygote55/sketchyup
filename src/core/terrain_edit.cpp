@@ -399,22 +399,19 @@ TerrainTilesApplied applyTerrainTiles(Document &doc, Id terrain, TerrainRecord r
     // immutable tile records, by its first reader or a worker (TerrainDigest), not here on the
     // commit's critical path. Its definition is unchanged.
     {
-        std::vector<BodyPtr> tiles;
-        std::vector<std::shared_ptr<const void>> identity;
+        std::vector<std::shared_ptr<const void>> tiles;
         tiles.reserve(finalTiles.size());
-        for (const auto &[key, body] : finalTiles) {
+        for (const auto &[key, body] : finalTiles)
             tiles.push_back(body);
-            identity.push_back(body);
-        }
         record.meshDigest = TerrainDigest::deferred(
-            [tiles = std::move(tiles)] {
+            [](const std::vector<const void *> &held) {
                 std::vector<const Body *> ordered;
-                ordered.reserve(tiles.size());
-                for (const auto &tile : tiles)
-                    ordered.push_back(tile.get());
+                ordered.reserve(held.size());
+                for (const auto *tile : held)
+                    ordered.push_back(static_cast<const Body *>(tile));
                 return terrainMeshDigest(ordered);
             },
-            std::move(identity));
+            std::move(tiles));
     }
     validateTerrainRecord(record);
     if (createdMaterial)

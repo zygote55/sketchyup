@@ -209,7 +209,7 @@ void Viewport::syncTerrainViews() {
                            doc_.bodies().at(starts[next].first)->tileKey.row == row)
                         rowTiles.push_back(doc_.bodies().at(starts[next++].first));
                     if (const auto old = previous.find(row);
-                        old != previous.end() && old->second->tiles == rowTiles) {
+                        old != previous.end() && old->second && old->second->tiles == rowTiles) {
                         view->chunks.push_back(std::move(old->second));
                         t = next;
                         continue;

@@ -35,6 +35,7 @@
 // from another thread, and reports the time from the cancel request until the run has
 // returned, overall and by the stage the run was in.
 #include "app/surface_format.hpp"
+#include "app/terrain_section.hpp"
 #include "app/viewport.hpp"
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
@@ -58,6 +59,7 @@
 #include <cmath>
 #include <thread>
 #include <iostream>
+#include <memory>
 #include <malloc.h>
 #include <numbers>
 #include <sys/resource.h>
@@ -425,6 +427,10 @@ QJsonObject frames(Document &doc) {
 } // namespace
 
 // ---- R096.f1: input event to presented frame for a sculpt preview and commit -----------------
+// R096.f1b: --terrain-section selects the terrain and shows its Entity Info section, refreshed on
+// every change as the window does, so its reads (the "changed since generated" chip) are timed in
+// the release event.
+bool withTerrainSection = false;
 QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonObject &command,
                          int strokes) {
     auto doc = baseDocument();
@@ -456,6 +462,17 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
     view.fit();
     view.setTool(Viewport::Tool::Sculpt);
     QCoreApplication::processEvents();
+    std::unique_ptr<TerrainSection> section;
+    if (withTerrainSection) {
+        view.setSelection(terrain);
+        section = std::make_unique<TerrainSection>(doc, view);
+        QObject::connect(&view, &Viewport::changed, section.get(), &TerrainSection::refresh);
+        section->show();
+        section->refresh();
+        QCoreApplication::processEvents();
+        check(section->isVisible() && section->terrain() == terrain,
+              "the Terrain section shows the selected terrain");
+    }
     auto frame = [&] {
         const auto before = view.renderStats().frames;
         const auto image = view.grabFramebuffer();
@@ -679,6 +696,8 @@ int main(int argc, char **argv) {
             if (i + 1 < argc && std::atoi(argv[i + 1]) > 0)
                 cancelTrials = std::atoi(argv[++i]);
         }
+        else if (arg == "--terrain-section")
+            withTerrainSection = true;
         else if (arg == "--repeat" && i + 1 < argc)
             repeat = std::max(1, std::atoi(argv[++i]));
     }
@@ -698,6 +717,7 @@ int main(int argc, char **argv) {
             sources.append(
                 sculptFrames("contours", contourSource(416, 300), contoursCommand, sculptStrokes));
             QJsonObject out{{"benchmark", "terrain_budget_benchmark --sculpt-frames"},
+                            {"terrainSection", withTerrainSection},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                             {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
 #endif

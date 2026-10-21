@@ -857,14 +857,15 @@ void Viewport::commitTerrain(std::optional<double> value) {
     emit terrainToolChanged();
 }
 // R096.f1b: the commit deferred the terrain's mesh digest (TerrainDigest); a worker computes it
-// now, off the frame, so a later reader (save, the Terrain section) rarely waits for it.
+// now, off the frame, so a later reader (save, describe) rarely waits for it. The task holds the
+// digest weakly: a digest no record holds any more (an amend replaced it, the document closed) is
+// skipped, and it never throws.
 void Viewport::prefetchTerrainDigest(Id terrain) {
     const auto found = doc_.bodies().find(terrain);
     if (found == doc_.bodies().end() || !found->second->terrain ||
         !found->second->terrain->meshDigest.pending())
         return;
-    QThreadPool::globalInstance()->start(
-        [digest = found->second->terrain->meshDigest] { (void)digest.value(); });
+    QThreadPool::globalInstance()->start(found->second->terrain->meshDigest.prefetchTask());
 }
 void Viewport::amendTerrain(double value) {
     auto command = terrainCommitted_;

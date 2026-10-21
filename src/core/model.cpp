@@ -1567,8 +1567,12 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         edit.bytes += sizeof(Change) + bytes(c.before) + bytes(c.after);
     }
     // Freeze caller-owned mutable records before storing them as const pointers.
+    // R096.f1b: each original is kept alive with its copy, for the deferred terrain digests.
+    std::vector<std::pair<const void *, std::shared_ptr<const void>>> refrozen;
+    std::vector<BodyPtr> originals;
     for (auto &c : edit.changes)
         if (c.after) {
+            originals.push_back(c.after);
             auto frozen = std::make_shared<Body>(*c.after);
             frozen->surface.nextId = floorUpdates.at(c.id);
             const auto edgeFloor = floorOf(edgeFloorUpdates, edgeFloors_, c.id);
@@ -1608,7 +1612,18 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             validateCurves(frozen->curves, frozen->surface, frozen->topology);
             edgeFloorUpdates[c.id] = frozen->topology.nextId;
             c.after = std::move(frozen);
+            refrozen.emplace_back(originals.back().get(), c.after);
         }
+    // R096.f1b: a deferred terrain digest follows its tiles to their stored copies, so it keeps
+    // describing the document's own tile records. Not in the validation oracle's full run: that
+    // is a private reference copy, discarded once the normal run (which rebinds) has matched it.
+    std::sort(refrozen.begin(), refrozen.end(),
+              [](const auto &a, const auto &b) { return std::less<>{}(a.first, b.first); });
+    if (!fullValidation)
+        for (const auto &c : edit.changes)
+            if (c.after && c.after->terrain && c.after->terrain->meshDigest.isDeferred())
+                c.after->terrain->meshDigest.rebind(refrozen);
+    originals.clear();
     edit.bytes = sizeof(Edit) + edit.label.size() + edit.metadata.taskId.size() +
                  edit.metadata.request.size();
     edit.terrainBytes = 0;
