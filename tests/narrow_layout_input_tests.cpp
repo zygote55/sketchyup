@@ -849,6 +849,8 @@ const std::vector<std::pair<QString, std::vector<QString>>> railGroups{
      {"Push/pull", "Offset", "Follow Me", "Intersect", "Solid tools", "Face orientation", "Move",
       "Rotate", "Scale", "Create new face when pushing/pulling"}},
     {"Measure", {"Tape measure"}},
+    // R096.f1: the Terrain slot (it shows the last terrain tool used, "Terrain" until one is).
+    {"Terrain", {"Terrain ▸"}},
     {"Camera", {"Orbit", "Pan"}}};
 struct RailFixture {
     Fixture &f;
@@ -865,11 +867,11 @@ struct RailFixture {
                 tools.push_back(entry);
     }
     // The wide rail at a height that holds every tool; at 800 px high Qt's overflow menu takes
-    // the last few, as before.
+    // the last few, as before. R096.f1's Terrain slot made the rail one slot longer.
     void widen(int width = 900) {
-        f.window.setFixedSize(width, 1000);
-        check(QTest::qWaitFor([&] { return f.window.size() == QSize(width, 1000); }),
-              "Window resized to " + std::to_string(width) + "x1000");
+        f.window.setFixedSize(width, 1100);
+        check(QTest::qWaitFor([&] { return f.window.size() == QSize(width, 1100); }),
+              "Window resized to " + std::to_string(width) + "x1100");
         f.settle();
     }
     // A tool leaves the rail (not just the view) while another group shows.
@@ -961,7 +963,7 @@ struct RailFixture {
         };
         const auto now = visible();
         check(now == all(), where + ": every tool shows on the wide rail; shown: " + join(now));
-        check(separators() == 1, where + ": one separator (before Camera) shows");
+        check(separators() == 2, where + ": two separators (around the Terrain slot) show");
     }
 };
 void railGroupBehaviour(Fixture &f) {
@@ -992,12 +994,12 @@ void railGroupBehaviour(Fixture &f) {
               " against " + std::to_string(r.widget("Select")->width()));
     // Every group's name and chevron fit the rail without clipping.
     auto *menu = r.group->menu();
-    check(menu && menu->actions().size() == 5, "The group menu lists five groups");
+    check(menu && menu->actions().size() == 6, "The group menu lists six groups");
     QStringList names;
     for (auto *entry : menu->actions())
         names << entry->text();
-    check(names == QStringList({"Select", "Draw", "Modify", "Measure", "Camera"}),
-          "The group menu lists the five groups in order");
+    check(names == QStringList({"Select", "Draw", "Modify", "Measure", "Terrain", "Camera"}),
+          "The group menu lists the six groups in order");
     // Menu item names reach the accessibility bridge as the group names.
     if (auto *menuAccessible = QAccessible::queryAccessibleInterface(menu)) {
         QStringList listed;
