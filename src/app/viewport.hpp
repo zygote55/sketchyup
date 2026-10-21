@@ -656,7 +656,8 @@ class Viewport : public QOpenGLWidget {
         // Placements whose world values disagree use their own mesh instead.
         std::vector<std::uint8_t> triangleFlags, edgeFlags;
         // R096.f1b: for a terrain tile's unshared mesh, each opaque vertex's local triangle and
-        // corner (triangle * 3 + corner), so new normals can be patched in place.
+        // corner (triangle * 3 + corner; the top bit marks a corner whose normal is the tile's
+        // own, its position not being in the surface), so new normals can be patched in place.
         std::vector<std::uint32_t> terrainCorners;
         GpuBatch opaqueGpu, linesGpu, hiddenLinesGpu;
         size_t mappingFallbacks{};

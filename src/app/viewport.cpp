@@ -52,6 +52,9 @@ Viewport::GeometryCacheMemory Viewport::geometryCacheMemory() const {
 }
 
 namespace {
+// R096.f1b: BodyMesh::terrainCorners marks a corner whose normal fell back to the tile's own
+// shading normal (its position is not in the terrain surface).
+constexpr std::uint32_t terrainCornerFellBack = 0x80000000u;
 QVector3D qv(Vec3 p) { return {float(p.x), float(p.y), float(p.z)}; }
 Vec3 vec(QVector3D p) { return {p.x(), p.y(), p.z()}; }
 constexpr float degreesToRadians = std::numbers::pi_v<float> / 180;
@@ -1127,12 +1130,18 @@ void Viewport::rebuild() {
             const bool reflected = world.determinant() < 0;
             const auto lightDirection = normalized({.3, -.5, .8});
             std::vector<Vertex> opaque = mesh.opaque;
+            bool patched = true;
             for (std::size_t i = 0; i < opaque.size(); ++i) {
-                const auto corner = mesh.terrainCorners[i];
+                const bool fellBack = mesh.terrainCorners[i] & terrainCornerFellBack;
+                const auto corner = mesh.terrainCorners[i] & ~terrainCornerFellBack;
                 const auto &t = local[corner / 3];
                 const Vec3 p = corner % 3 == 0 ? t.a : corner % 3 == 1 ? t.b : t.c;
                 const auto found = terrainSurface->normals.find(TerrainSurfaceDisplay::key(p));
-                if (found == terrainSurface->normals.end())
+                if (fellBack != (found == terrainSurface->normals.end())) {
+                    patched = false; // a corner changed source: build the tile in full
+                    break;
+                }
+                if (fellBack)
                     continue; // the tile's own shading normal, which the edit did not change
                 const auto n = found->second;
                 const Vec3 transformed{
@@ -1149,16 +1158,18 @@ void Viewport::rebuild() {
                     v.light = v.backLight =
                         .64f + .36f * std::abs(dot(worldNormal, lightDirection));
             }
-            mesh.opaque = std::move(opaque);
-            upload(mesh.opaqueGpu, mesh.opaque);
-            mesh.uploadPass = rebuildPass_;
-            ++stats_.meshUploads;
-            ++stats_.terrainNormalPatches;
-            cache.terrainSurface = std::move(terrainSurface);
-            textureMappingFallbacks_ += mesh.mappingFallbacks;
-            if (alpha > 0)
-                stats_.meshTriangles += local.size();
-            continue;
+            if (patched) {
+                mesh.opaque = std::move(opaque);
+                upload(mesh.opaqueGpu, mesh.opaque);
+                mesh.uploadPass = rebuildPass_;
+                ++stats_.meshUploads;
+                ++stats_.terrainNormalPatches;
+                cache.terrainSurface = std::move(terrainSurface);
+                textureMappingFallbacks_ += mesh.mappingFallbacks;
+                if (alpha > 0)
+                    stats_.meshTriangles += local.size();
+                continue;
+            }
         }
         const bool recordChanged = cache.record != body;
         const bool meshChanged =
@@ -1336,24 +1347,23 @@ void Viewport::rebuild() {
                     auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
                     const bool bands = terrainSurface && terrainBands &&
                                        doc_.style().mode != ModelStyleMode::Monochrome;
+                    std::uint32_t fellBack = 0; // corners whose normal is the tile's own
                     if (terrainSurface) {
                         // One smooth surface: the copies of a seam vertex share one normal.
                         const auto &t = local[triangleIndex];
-                        bool missing = false;
                         const std::array<Vec3, 3> corners{t.a, t.b, t.c};
                         for (std::size_t k = 0; k < 3; ++k) {
                             const auto found =
                                 terrainSurface->normals.find(TerrainSurfaceDisplay::key(corners[k]));
                             if (found == terrainSurface->normals.end())
-                                missing = true;
+                                fellBack |= 1u << k;
                             else
                                 normals[k] = found->second;
                         }
-                        if (missing) {
+                        if (fellBack) {
                             const auto fallback = shading().triangle(t);
                             for (std::size_t k = 0; k < 3; ++k)
-                                if (!terrainSurface->normals.contains(
-                                        TerrainSurfaceDisplay::key(corners[k])))
+                                if (fellBack & (1u << k))
                                     normals[k] = fallback[k];
                         }
                         if (bands) {
@@ -1422,9 +1432,12 @@ void Viewport::rebuild() {
                         mesh.transparent.push_back(vertices);
                     if (front.opacity == 1 || back.opacity == 1) {
                         mesh.opaque.insert(mesh.opaque.end(), vertices.begin(), vertices.end());
-                        if (terrainSurface && !cut && !placement)
+                        if (terrainSurface && !cut && !placement &&
+                            local.size() < terrainCornerFellBack / 3)
                             for (std::uint32_t k = 0; k < 3; ++k)
-                                mesh.terrainCorners.push_back(std::uint32_t(triangleIndex) * 3 + k);
+                                mesh.terrainCorners.push_back(
+                                    (std::uint32_t(triangleIndex) * 3 + k) |
+                                    (fellBack & (1u << k) ? terrainCornerFellBack : 0u));
                     }
                 };
                 if (cache.sectionCuts.empty()) {
