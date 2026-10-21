@@ -1227,6 +1227,9 @@ QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #tray {border-left:1px solid $border;} #section,#overlayHeading {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
 #hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
 #statusMessage[terrainFailure="true"] {color:$failure;font-weight:700;}
+#terrainReplayChip {border:1px solid $border;border-radius:4px;background:$input;}
+#terrainEditsNotice {background:$warningSurface;border:1px solid $warningBorder;border-radius:4px;}
+#terrainEditsShowReport {border:0;padding:0 2px;color:$accent;text-decoration:underline;background:transparent;}
 QToolBar {border:1px solid transparent;border-right:1px solid $border;spacing:6px;padding:9px 5px 9px 4px;}
 QToolButton {padding:11px 4px;border:1px solid transparent;border-radius:4px;}
 #railGroupButton {padding:11px 0;}
