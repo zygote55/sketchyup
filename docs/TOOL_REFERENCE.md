@@ -167,6 +167,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `terrain.remove_source` | Remove contour | `terrain`, `source`, `command` |
 | `terrain.sculpt` | Sculpt terrain | `terrain`, `mode`, `command` |
 | `terrain.stamp_pad` | Stamp pad | `terrain`, `footprint`, `command` |
+| `terrain.drape` | Drape on terrain | `terrain`, `mode`, `command` |
 | `terrain.update_edit` | Edit terrain change | `terrain`, `edit`, `command` |
 | `terrain.set_display` | Terrain display | `terrain`, `command` |
 

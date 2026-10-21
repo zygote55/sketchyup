@@ -130,6 +130,9 @@ struct TerrainEditData {
     virtual bool equals(const TerrainEditData &other) const = 0;
     // Storage charged to history and to the list's 8 MiB bound.
     virtual std::size_t bytes() const = 0;
+    // R096.e: the document materials the entry refers to (a drape's paint regions), so material
+    // validation keeps them alive.
+    virtual std::vector<std::uint64_t> materials() const { return {}; }
 };
 struct TerrainEdit {
     std::uint32_t id{};

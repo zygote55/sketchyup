@@ -66,7 +66,7 @@ bool assistantVisible(const QString &name) {
 }
 // R096.c: what the assistant reads of a query result. terrain.describe keeps the shape R095.g
 // measured: its `currentSources` (R096.c; up to 200 entries naming source ids no assistant tool
-// takes) and `pads` (R096.d) are dropped here, while MCP and sessions keep it. A nested inspection of a draft
+// takes), `pads` (R096.d) and `paintRegions` (R096.e) are dropped here, while MCP and sessions keep it. A nested inspection of a draft
 // (transaction.inspect {request}) is filtered the same way, wherever its envelope carries it.
 QJsonObject assistantResult(const QJsonObject &request, QJsonObject result) {
     const auto nested = request.value("request").toObject();
@@ -75,10 +75,13 @@ QJsonObject assistantResult(const QJsonObject &request, QJsonObject result) {
         return result;
     const auto strip = [](QJsonObject envelope) {
         auto data = envelope.value("data").toObject();
-        // R096.d: `pads` (stamp entries, elevations and extents) is left out the same way.
-        if (data.contains("currentSources") || data.contains("pads")) {
+        // R096.d: `pads` (stamp entries, elevations and extents) is left out the same way;
+        // R096.e: and `paintRegions` (draped region paint, materials and extents).
+        if (data.contains("currentSources") || data.contains("pads") ||
+            data.contains("paintRegions")) {
             data.remove("currentSources");
             data.remove("pads");
+            data.remove("paintRegions");
             envelope["data"] = data;
         }
         return envelope;

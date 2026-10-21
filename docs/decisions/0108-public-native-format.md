@@ -404,7 +404,7 @@ feature.
   next entry takes, so ids are never reused; it must exceed every entry's id. R096.a defines
   no kind (its test-only kinds are not part of the format); R096.b–e add `sculpt`, `smooth`,
   `editSource`, `addSource`, `removeSource`, `stamp` and `drape` with their fields (R096.c's
-  three, R096.b's two and R096.d's `stamp` are in the addenda below).
+  three, R096.b's two, R096.d's `stamp` and R096.e's `drape` are in the addenda below).
 - A tile marker is `terrainTile: {key: [row, column, path, part]}` in place of `true`:
   `row` and `column` integers within ±2^53 (negative outside the original extent), `path` a
   string of at most 24 quadrant digits `0`–`3`, `part` an integer 0–9,999.
@@ -504,6 +504,39 @@ fields after `id` and `kind` (a reader refuses others):
 A pad's resolved geometry is recomputed whenever it applies, so a replay against a changed base
 (Terrain settings) stores the new daylight line; the derived current sources and the pads other
 edits must not enter are read from it.
+
+**Schema 29 addendum: drape (R096.e).** 2026-10-20. One more kind
+([ADR 0169](0169-terrain-editing-drape-stamp.md#implementation-notes-r096e)), with exactly these
+fields after `id` and `kind` (a reader refuses others):
+
+- `drape {lines, paint?, runs?, splits?}`. Only imprints are recorded; an overlay changes no
+  terrain record.
+- `lines` is 1 to 4,096 objects `{points, closed?}`: `points` 2 or more plan points `[x, y]` in the
+  terrain frame (3 or more when closed), finite and within ±1e6, no point repeating the one before
+  it, 20,000 points in all; `closed` is written only when true, and a closed line does not repeat
+  its first point. These are the edge chains and face loops as projected (their own Z is not
+  stored).
+- `paint` (written when not empty) is 1 to 1,024 regions `{loops, material}`: `loops` one or more
+  closed loops of 3 or more such points (20,000 in all, a region's outer loop and its holes,
+  even-odd), each with at most 512 edges in any of its min(4,096, corners) equal horizontal bands;
+  `material` a decimal material ID string, which document validation requires to exist (so a
+  material a region names cannot be deleted). Over a whole terrain the loops' busiest bands sum
+  to at most 4,096 edges.
+- `runs` and `splits` are the resolved geometry, absent when the drape did not apply (a replay
+  that skipped it clears them). `runs` is 1 to 4,096 polylines of 2 or more `[x, y, z]` points
+  (65,536 in all), as the mesh holds them; a closed run repeats its first point. They join the
+  current sources as breaklines with the ids 2^32 − 1 − (entry id − 1) × 4,096 − n for run n
+  (the entry's block, as `sculpt` pieces). `splits` (written when not empty, only with `runs`) is
+  1 to 65,536 objects `{a, b, points}`: an existing contour, breakline or pad-ray segment
+  between the plan points `a` and `b` (`a` lexicographically smaller, each segment once) that new
+  vertices split, and those vertices `[x, y, z]` in order from `a` (65,536 in all); the current
+  sources holding the segment gain them, and a pad ray split this way is superseded.
+
+A drape's resolved geometry is recomputed whenever it applies, so a replay against a changed base
+stores the new runs; its paint regions apply only while it is applied. Every triangle of the
+terrain whose centroid lies in a region (the last region wins) has that material on both sides
+as per-face paint of its tile; this is derived from the record on every rebuild and is not a
+separate field.
 
 **The `terrain-mesh` chunk.** It follows the asset chunks, at most once and only with
 `terrain-v1`: `{kind: "terrain-mesh", encoding: "f64-u32-le-v1", offset, bytes,

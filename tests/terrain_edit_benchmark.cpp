@@ -36,9 +36,12 @@
 // JSON document. Build it Release.
 //
 // - R096.d: pad stamps (terrain.stamp_pad, terrain.update_edit); see measureStamps.
+// - R096.e: drapes (terrain.drape); see measureDrapes, and measureWholePaint for a painted face
+//   over a whole terrain (commit, history charge and resident growth).
 //
 //   terrain_edit_benchmark [--edits N] [--replay M] [--cancel TRIALS] [--source-edits K]
 //                          [--sculpts J] [--sculpt-replay S] [--stamps T] [--stamp-replay P]
+//                          [--drapes D] [--drape-replay R]
 #include "automation/terrain_commands.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain.hpp"
@@ -47,6 +50,7 @@
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_sources.hpp"
 #include "terrain_edit_test_kinds.hpp"
 #include <QCoreApplication>
@@ -55,6 +59,7 @@
 #include <QJsonDocument>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <atomic>
 #include <numbers>
@@ -911,6 +916,394 @@ QJsonObject measureStamps(Document &doc, Id terrain, int samples, int replayEntr
     return result;
 }
 
+// R096.e: drapes (terrain.drape). A three-point line across the middle of one of the largest
+// tiles (60 % of its smaller side, crossing it diagonally): the preview (previewTerrainEdit: the
+// arrangement, the split against the mesh, the per-triangle re-triangulation and the candidate
+// tiles), the commit through applyTerrainEdit and through the whole command (model edges, the
+// dry run committed without planning again), with the display update (decision 10: one-tile
+// commit p95 <= 100 ms; samples whose touched tiles hold more than 2,048 triangles are reported
+// apart). Then a long line across the whole terrain (corner to corner, reported), a painted face
+// over several tiles, the overlay of a one-tile face, and a replaying Regenerate of R drape
+// entries (a short line in each tile, 15 % of its side, default 100, placed while the terrain
+// stays 3,000 triangles under the document limit).
+QJsonObject measureDrapes(Document &doc, Id terrain, int samples, int replayEntries) {
+    QElapsedTimer timer;
+    const auto world = doc.worldTransform(terrain);
+    std::vector<std::pair<std::size_t, TerrainTileKey>> bySize;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &tile = *doc.bodies().at(id);
+        bySize.push_back({tile.surface.faces.size(), tile.tileKey});
+    }
+    std::stable_sort(bySize.begin(), bySize.end(),
+                     [](const auto &a, const auto &b) { return a.first > b.first; });
+    using Plan2 = std::array<double, 2>;
+    auto lineIn = [&](const TerrainTileKey &key, double fraction, int variant) {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto *tile = mesh->tile(key);
+        const double cx = (tile->minX + tile->maxX) / 2, cy = (tile->minY + tile->maxY) / 2;
+        const double r = std::min(tile->maxX - tile->minX, tile->maxY - tile->minY) * fraction / 2;
+        const double t = 0.37 + 0.11 * variant;
+        return std::vector<Plan2>{{cx - r * std::cos(t), cy - r * std::sin(t)},
+                                  {cx + 0.13 * r, cy - 0.21 * r},
+                                  {cx + r * std::cos(t), cy + r * std::sin(t)}};
+    };
+    auto dataOf = [](const std::vector<Plan2> &line, bool closed = false) {
+        auto data = std::make_shared<TerrainDrapeData>();
+        data->lines.push_back({line, closed});
+        return data;
+    };
+    // Model edges for a plan line (a loose polyline; its height does not matter).
+    auto edgesFor = [&](const std::vector<Plan2> &line) {
+        std::vector<Vec3> points;
+        for (const auto &p : line)
+            points.push_back(world.point({p[0], p[1], 50}));
+        const Id body = doc.addWire(0, points[0], points[1]);
+        for (std::size_t i = 1; i + 1 < points.size(); ++i)
+            doc.addWire(body, points[i], points[i + 1]);
+        QJsonArray edges;
+        for (const auto &[edge, record] : doc.bodies().at(body)->topology.edges)
+            edges.append(QJsonObject{{"body", QString::number(body)}, {"edge", QString::number(edge)}});
+        return edges;
+    };
+    auto touchedTriangles = [&](const TerrainEditPreview &preview) {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        std::size_t triangles = 0;
+        for (const auto &key : preview.region.replaced)
+            triangles += mesh->tile(key)->content->triangles.size();
+        return triangles;
+    };
+    TerrainSurfaceCache surfaces;
+    TerrainContourCache contours;
+    (void)surfaces.get(doc, terrain);
+    (void)contours.get(doc, terrain);
+    std::vector<double> preview, previewOver, core, command, display, commandAndDisplay,
+        tilesTouched, triangles, split;
+    std::size_t over = 0, refused = 0;
+    const auto pool = std::min<std::size_t>(bySize.size(), 64);
+    for (int i = 0; i < samples; ++i) {
+        const auto &key = bySize[std::size_t(i) % pool].second;
+        const auto line = lineIn(key, 0.6, i / int(pool));
+        auto data = dataOf(line);
+        TerrainEditPreview candidate;
+        timer.restart();
+        try {
+            candidate = previewTerrainEdit(doc, terrain, terrainDrapeKind, data);
+        } catch (const TerrainError &) {
+            ++refused;
+            continue;
+        }
+        const double previewMs = ms(timer);
+        const auto touched = touchedTriangles(candidate);
+        tilesTouched.push_back(double(candidate.region.replaced.size()));
+        triangles.push_back(double(touched));
+        split.push_back(double(candidate.removedTriangles));
+        if (touched > TerrainLimits::tileTriangles) {
+            ++over;
+            previewOver.push_back(previewMs);
+            continue;
+        }
+        preview.push_back(previewMs);
+        bool wires = false;
+        if (i % 2 == 0) {
+            timer.restart();
+            applyTerrainEdit(doc, terrain, terrainDrapeKind, data, "Drape on terrain");
+            core.push_back(ms(timer));
+        } else {
+            const auto edges = edgesFor(line);
+            wires = true;
+            QJsonObject operation;
+            timer.restart();
+            executeTerrainCommand(doc, QJsonObject{{"command", "terrain.drape"},
+                                                   {"terrain", QString::number(terrain)},
+                                                   {"mode", "imprint"},
+                                                   {"edges", edges}},
+                                  &operation);
+            command.push_back(ms(timer));
+        }
+        check(doc.bodies().at(terrain)->terrain->edits.size() == 1, "the sample drape committed");
+        QElapsedTimer update;
+        update.start();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+        display.push_back(ms(update));
+        if (i % 2)
+            commandAndDisplay.push_back(command.back() + display.back());
+        doc.undo();
+        if (wires)
+            doc.undo();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+    }
+    QJsonObject result{
+        {"oneTile",
+         QJsonObject{{"samples", samples},
+                     {"overBudgetTiles", double(over)},
+                     {"refused", double(refused)},
+                     {"tilesTouched", stats(tilesTouched)},
+                     {"touchedTriangles", stats(triangles)},
+                     {"trianglesSplit", stats(split)},
+                     {"previewMs", stats(preview)},
+                     {"coreCommitMs", stats(core)},
+                     {"commandCommitMs", stats(command)},
+                     {"displayUpdateMs", stats(display)},
+                     {"commandAndDisplayMs", stats(commandAndDisplay)}}}};
+    if (!previewOver.empty())
+        result["oneTileOverBudgetPreviewMs"] = stats(previewOver);
+    // A long line across the whole terrain, corner to corner (inset 1 %), as one command.
+    {
+        double minX = 1e300, minY = 1e300, maxX = -1e300, maxY = -1e300;
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        for (const auto *tile : mesh->tiles()) {
+            minX = std::min(minX, tile->minX);
+            minY = std::min(minY, tile->minY);
+            maxX = std::max(maxX, tile->maxX);
+            maxY = std::max(maxY, tile->maxY);
+        }
+        const double dx = maxX - minX, dy = maxY - minY;
+        const std::vector<Plan2> line{{minX + 0.2 * dx, minY + 0.03 * dy},
+                                      {minX + 0.5 * dx + 0.37, minY + 0.5 * dy + 0.21},
+                                      {minX + 0.8 * dx, minY + 0.97 * dy}};
+        timer.restart();
+        const auto candidate = previewTerrainEdit(doc, terrain, terrainDrapeKind, dataOf(line));
+        const double previewMs = ms(timer);
+        const auto edges = edgesFor(line);
+        QJsonObject operation;
+        timer.restart();
+        executeTerrainCommand(doc, QJsonObject{{"command", "terrain.drape"},
+                                               {"terrain", QString::number(terrain)},
+                                               {"mode", "imprint"},
+                                               {"edges", edges}},
+                              &operation);
+        const double commandMs = ms(timer);
+        QElapsedTimer update;
+        update.start();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+        const double displayMs = ms(update);
+        const auto report = operation["terrainReport"].toObject()["terrain"].toObject();
+        const auto sources = checkTerrainSourceConsistency(doc, terrain);
+        const auto seams = checkTerrainSeams(doc, terrain);
+        check(sources.ok() && seams.ok(), "C1 and C6 hold after the long line");
+        result["longLine"] = QJsonObject{{"lengthM", std::hypot(0.6 * dx, 0.94 * dy)},
+                                         {"tilesReplaced", report["tilesReplaced"]},
+                                         {"trianglesSplit", report["trianglesSplit"]},
+                                         {"trianglesAdded", report["trianglesAdded"]},
+                                         {"points", report["points"]},
+                                         {"previewMs", previewMs},
+                                         {"commandCommitMs", commandMs},
+                                         {"displayUpdateMs", displayMs},
+                                         {"candidateTiles", double(candidate.region.tiles.size())}};
+        doc.undo();
+        doc.undo();
+        (void)surfaces.get(doc, terrain);
+        (void)contours.get(doc, terrain);
+    }
+    // A painted face over several tiles (two cells across), and the overlay of a one-tile face.
+    {
+        const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+        const auto *tile = mesh->tile(bySize.front().second);
+        const double cx = (tile->minX + tile->maxX) / 2, cy = (tile->minY + tile->maxY) / 2;
+        const double cell = doc.bodies().at(terrain)->terrain->tiling.cell;
+        auto faceAt = [&](double half) {
+            const std::vector<Vec3> loop{world.point({cx - half, cy - half * 0.8, 60}),
+                                         world.point({cx + half, cy - half * 0.8, 60}),
+                                         world.point({cx + half, cy + half * 0.8, 60}),
+                                         world.point({cx - half, cy + half * 0.8, 60})};
+            const auto face = doc.addFace({loop}, "Drape face");
+            return QJsonArray{QJsonObject{
+                {"body", QString::number(face)},
+                {"face", QString::number(doc.bodies().at(face)->surface.faces.begin()->first)}}};
+        };
+        Id material = 0;
+        for (const auto &[id, record] : doc.materials())
+            material = id;
+        if (!material) {
+            Edit edit{"Material", {}};
+            material = doc.nextMaterialId();
+            edit.materials.push_back({material, nullptr,
+                                      std::make_shared<MaterialRecord>(MaterialRecord{material, "Gravel", {0.6f, 0.5f, 0.4f}, 1, 0})});
+            doc.apply(std::move(edit), doc.revision());
+        }
+        const auto faces = faceAt(cell * 0.9);
+        {
+            const auto body = faces.at(0).toObject()["body"].toString().toULongLong();
+            auto painted = std::make_shared<Body>(*doc.bodies().at(body));
+            painted->materials = {material, material};
+            doc.apply({"Paint", {{body, doc.bodies().at(body), painted}}}, doc.revision());
+        }
+        QJsonObject operation;
+        timer.restart();
+        executeTerrainCommand(doc, QJsonObject{{"command", "terrain.drape"},
+                                               {"terrain", QString::number(terrain)},
+                                               {"mode", "imprint"},
+                                               {"faces", faces},
+                                               {"paintRegions", true}},
+                              &operation);
+        const double paintMs = ms(timer);
+        const auto report = operation["terrainReport"].toObject()["terrain"].toObject();
+        timer.restart();
+        const auto request = parseTerrainReplayRequest(doc, QJsonObject{{"command", "terrain.regenerate"},
+                                                                        {"terrain", QString::number(terrain)}});
+        auto replayed = runTerrainReplay(request);
+        check(replayed.ok, "the painted drape replays");
+        const auto noOp = applyTerrainReplay(doc, request, std::move(replayed));
+        const double regenerateMs = ms(timer);
+        check(!noOp["changed"].toBool(), "Regenerate after the painted drape is a no-op");
+        result["paintedFace"] = QJsonObject{{"tilesReplaced", report["tilesReplaced"]},
+                                            {"tilesRepainted", report["tilesRepainted"]},
+                                            {"trianglesSplit", report["trianglesSplit"]},
+                                            {"commandCommitMs", paintMs},
+                                            {"regenerateMs", regenerateMs}};
+        doc.undo();
+        doc.undo();
+        doc.undo();
+        const auto small = faceAt(std::min(tile->maxX - tile->minX, tile->maxY - tile->minY) * 0.3);
+        operation = {};
+        timer.restart();
+        executeTerrainCommand(doc, QJsonObject{{"command", "terrain.drape"},
+                                               {"terrain", QString::number(terrain)},
+                                               {"mode", "overlay"},
+                                               {"faces", small}},
+                              &operation);
+        result["overlayOneTile"] = QJsonObject{{"faces", operation["faces"]},
+                                               {"edges", operation["edges"]},
+                                               {"commandMs", ms(timer)}};
+        doc.undo();
+        doc.undo();
+    }
+    // R drapes, one per tile (largest first), then a replaying Regenerate.
+    if (replayEntries > 0) {
+        std::size_t placed = 0;
+        for (std::size_t i = 0; i < bySize.size() && placed < std::size_t(replayEntries) &&
+                                terrainTriangleCount(doc, terrain) + 3000 < TerrainLimits::triangles;
+             ++i) {
+            try {
+                applyTerrainEdit(doc, terrain, terrainDrapeKind, dataOf(lineIn(bySize[i].second, 0.15, 0)),
+                                 "Drape on terrain");
+                ++placed;
+            } catch (const TerrainError &) {
+            }
+        }
+        const QJsonObject regenerate{{"command", "terrain.regenerate"},
+                                     {"terrain", QString::number(terrain)}};
+        timer.restart();
+        const auto request = parseTerrainReplayRequest(doc, regenerate);
+        const double requestMs = ms(timer);
+        timer.restart();
+        auto replayed = runTerrainReplay(request);
+        const double runMs = ms(timer);
+        check(replayed.ok, "the drape replay succeeds");
+        timer.restart();
+        const auto noOp = applyTerrainReplay(doc, request, std::move(replayed));
+        const double applyMs = ms(timer);
+        check(!noOp["changed"].toBool(), "Regenerate after the drapes is a no-op");
+        const auto sources = checkTerrainSourceConsistency(doc, terrain);
+        const auto seams = checkTerrainSeams(doc, terrain);
+        check(sources.ok() && seams.ok(), "C1 and C6 hold after the drapes");
+        result["replay"] = QJsonObject{{"entries", double(placed)},
+                                       {"requestMs", requestMs},
+                                       {"runMs", runMs},
+                                       {"applyMs", applyMs},
+                                       {"totalMs", requestMs + runMs + applyMs}};
+        while (doc.canUndo() && !doc.bodies().at(terrain)->terrain->edits.empty())
+            doc.undo();
+    }
+    return result;
+}
+
+// R096.e: a painted face over a whole terrain (its box inset 3 %): its outline splits a ring of
+// triangles and every tile inside is repainted. Measured on terrains built 4 % smaller (about
+// 240,000 triangles), since the outline adds about 5,700 triangles.
+QJsonObject measureWholePaint(const char *name, const QByteArray &bytes, const QJsonObject &command) {
+    Document doc;
+    auto request = parseTerrainSourceRequest(bytes, command);
+    auto imported = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
+    check(imported.ok, std::string(name) + " imports: " + imported.message);
+    const auto applied = applyTerrainImport(doc, std::move(imported), request.name);
+    const Id terrain = applied["terrain"].toString().toULongLong();
+    const auto world = doc.worldTransform(terrain);
+    const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+    QElapsedTimer timer;
+    Id material = 0;
+    {
+        Edit edit{"Material", {}};
+        material = doc.nextMaterialId();
+        edit.materials.push_back({material, nullptr,
+                                  std::make_shared<MaterialRecord>(MaterialRecord{material, "Gravel", {0.6f, 0.5f, 0.4f}, 1, 0})});
+        doc.apply(std::move(edit), doc.revision());
+    }
+    QJsonObject result;
+        // A painted face over the whole terrain (its box inset 3 %): the tiles inside it are
+        // repainted, and the history charge of that is reported with the commit.
+        {
+            double minX = 1e300, minY = 1e300, maxX = -1e300, maxY = -1e300;
+            for (const auto *t : mesh->tiles()) {
+                minX = std::min(minX, t->minX);
+                minY = std::min(minY, t->minY);
+                maxX = std::max(maxX, t->maxX);
+                maxY = std::max(maxY, t->maxY);
+            }
+            const double ix = (maxX - minX) * 0.03, iy = (maxY - minY) * 0.03;
+            const std::vector<Vec3> loop{world.point({minX + ix, minY + iy, 60}),
+                                         world.point({maxX - ix, minY + iy, 60}),
+                                         world.point({maxX - ix, maxY - iy, 60}),
+                                         world.point({minX + ix, maxY - iy, 60})};
+            const auto face = doc.addFace({loop}, "Whole terrain face");
+            auto painted = std::make_shared<Body>(*doc.bodies().at(face));
+            painted->materials = {material, material};
+            doc.apply({"Paint", {{face, doc.bodies().at(face), painted}}}, doc.revision());
+            const QJsonArray whole{QJsonObject{
+                {"body", QString::number(face)},
+                {"face", QString::number(doc.bodies().at(face)->surface.faces.begin()->first)}}};
+            auto resident = [] {
+                long pages = 0, rss = 0;
+                if (FILE *statm = std::fopen("/proc/self/statm", "r")) {
+                    if (std::fscanf(statm, "%ld %ld", &pages, &rss) != 2)
+                        rss = 0;
+                    std::fclose(statm);
+                }
+                return double(rss) * double(::sysconf(_SC_PAGESIZE));
+            };
+            const double residentBefore = resident();
+            const auto historyBefore = doc.terrainHistoryBytes();
+            QJsonObject paintOperation;
+            timer.restart();
+            executeTerrainCommand(doc, QJsonObject{{"command", "terrain.drape"},
+                                                   {"terrain", QString::number(terrain)},
+                                                   {"mode", "imprint"},
+                                                   {"faces", whole},
+                                                   {"paintRegions", true}},
+                                  &paintOperation);
+            const double wholeMs = ms(timer);
+            const auto charged = doc.terrainHistoryBytes() - historyBefore;
+            const double residentGrowth = resident() - residentBefore;
+            const auto wholeReport = paintOperation["terrainReport"].toObject()["terrain"].toObject();
+            timer.restart();
+            const auto wholeRequest = parseTerrainReplayRequest(
+                doc, QJsonObject{{"command", "terrain.regenerate"}, {"terrain", QString::number(terrain)}});
+            auto wholeReplay = runTerrainReplay(wholeRequest);
+            check(wholeReplay.ok, "the whole-terrain paint replays");
+            const auto wholeNoOp = applyTerrainReplay(doc, wholeRequest, std::move(wholeReplay));
+            const double wholeRegenerateMs = ms(timer);
+            check(!wholeNoOp["changed"].toBool(), "Regenerate after the whole-terrain paint is a no-op");
+            std::size_t paintedFaces = 0;
+            for (const auto id : terrainTiles(doc, terrain))
+                paintedFaces += doc.bodies().at(id)->faceMaterials.size();
+            result = QJsonObject{{"name", name}, {"triangles", double(terrainTriangleCount(doc, terrain))},{"tilesReplaced", wholeReport["tilesReplaced"]},
+                                                      {"tiles", double(terrainTiles(doc, terrain).size())},
+                                                      {"tilesRepainted", wholeReport["tilesRepainted"]},
+                                                      {"paintedFaces", double(paintedFaces)},
+                                                      {"commandCommitMs", wholeMs},
+                                                      {"historyChargedBytes", double(charged)},
+                                                      {"residentGrowthBytes", residentGrowth},
+                                                      {"regenerateMs", wholeRegenerateMs}};
+            doc.undo();
+            doc.undo();
+            doc.undo();
+        }
+    return result;
+}
+
 QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject &command,
                     int edits, int replayEntries, int cancelTrials, int sourceEdits, int sculpts,
                     int sculptReplay) {
@@ -1097,7 +1490,7 @@ QJsonObject measure(const char *name, const QByteArray &bytes, const QJsonObject
 // built from 2 % fewer points or rings (about 245,000 triangles), leaving room for the pads.
 QJsonObject measureStampTerrain(const char *name, const QByteArray &bytes,
                                 const QJsonObject &command, int stamps, int stampReplay,
-                                double slope) {
+                                double slope, int drapes = 0, int drapeReplay = 0) {
     Document doc;
     auto request = parseTerrainSourceRequest(bytes, command);
     auto result = runTerrainImport(request.set, request.options, doc.site(), request.provenance);
@@ -1109,7 +1502,9 @@ QJsonObject measureStampTerrain(const char *name, const QByteArray &bytes,
         display.contours = true;
         setTerrainDisplay(doc, terrain, display);
     }
-    auto measured = measureStamps(doc, terrain, stamps, stampReplay, slope);
+    auto measured = stamps > 0 ? measureStamps(doc, terrain, stamps, stampReplay, slope) : QJsonObject{};
+    if (drapes > 0)
+        measured["drapes"] = measureDrapes(doc, terrain, drapes, drapeReplay);
     measured["name"] = name;
     measured["triangles"] = double(terrainTriangleCount(doc, terrain));
     measured["tiles"] = double(terrainTiles(doc, terrain).size());
@@ -1121,7 +1516,7 @@ QJsonObject measureStampTerrain(const char *name, const QByteArray &bytes,
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     int edits = 200, replay = 1000, cancel = 20, sourceEdits = 100, sculpts = 100,
-        sculptReplay = 1000, stamps = 100, stampReplay = 40;
+        sculptReplay = 1000, stamps = 100, stampReplay = 40, drapes = 100, drapeReplay = 100;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--edits" && i + 1 < argc)
@@ -1140,6 +1535,10 @@ int main(int argc, char **argv) {
             stamps = std::max(0, std::atoi(argv[++i]));
         else if (arg == "--stamp-replay" && i + 1 < argc)
             stampReplay = std::max(0, std::atoi(argv[++i]));
+        else if (arg == "--drapes" && i + 1 < argc)
+            drapes = std::max(0, std::atoi(argv[++i]));
+        else if (arg == "--drape-replay" && i + 1 < argc)
+            drapeReplay = std::max(0, std::atoi(argv[++i]));
     }
     kinds::registerKinds();
     try {
@@ -1155,20 +1554,32 @@ int main(int argc, char **argv) {
                                 {{"format", "dxf"}, {"units", "header"}}, edits, replay,
                                 cancel, sourceEdits, sculpts, sculptReplay));
         QJsonArray stampTerrains;
-        if (stamps > 0) {
+        if (stamps > 0 || drapes > 0) {
             stampTerrains.append(measureStampTerrain("points", pointSource(122500),
                                                      {{"format", "points"},
                                                       {"units", "m"},
                                                       {"columns", "XYZ"},
                                                       {"delimiter", "whitespace"},
                                                       {"header", false}},
-                                                     stamps, stampReplay, 0.5));
+                                                     stamps, stampReplay, 0.5, drapes, drapeReplay));
             // Its ground falls 0.55 a metre, so the pads grade at 1:1.
             stampTerrains.append(measureStampTerrain("contours", contourSource(408, 300),
                                                      {{"format", "dxf"}, {"units", "header"}},
-                                                     stamps, stampReplay, 1.0));
+                                                     stamps, stampReplay, 1.0, drapes, drapeReplay));
+        }
+        QJsonArray wholePaint;
+        if (drapes > 0) {
+            wholePaint.append(measureWholePaint("points", pointSource(120000),
+                                                {{"format", "points"},
+                                                 {"units", "m"},
+                                                 {"columns", "XYZ"},
+                                                 {"delimiter", "whitespace"},
+                                                 {"header", false}}));
+            wholePaint.append(measureWholePaint("contours", contourSource(400, 300),
+                                                {{"format", "dxf"}, {"units", "header"}}));
         }
         QJsonObject out{{"benchmark", "terrain_edit_benchmark"},
+                        {"wholeTerrainPaint", wholePaint},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                         {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
 #endif

@@ -12782,6 +12782,102 @@
                                     {
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                                         "additionalProperties": false,
+                                        "description": "Drape on terrain",
+                                        "properties": {
+                                            "command": {
+                                                "const": "terrain.drape"
+                                            },
+                                            "context": {
+                                                "description": "overlay: the group the new group goes in (the active context); 0 or omitted for the model",
+                                                "maxLength": 20,
+                                                "pattern": "^(0|[1-9][0-9]*)$",
+                                                "type": "string"
+                                            },
+                                            "edges": {
+                                                "description": "Model edges and curves {body, edge} in any context, projected vertically; chained as terrain.create_from_edges chains them",
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "body": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "edge": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "body",
+                                                        "edge"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "maxItems": 100000,
+                                                "type": "array"
+                                            },
+                                            "faces": {
+                                                "description": "Model faces {body, face} in any context; every loop is draped",
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "body": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "face": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "body",
+                                                        "face"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "maxItems": 1024,
+                                                "type": "array"
+                                            },
+                                            "lift": {
+                                                "description": "overlay: metres above the surface; default 0.01",
+                                                "maximum": 1000,
+                                                "minimum": 0,
+                                                "type": "number"
+                                            },
+                                            "mode": {
+                                                "description": "imprint: split the terrain's triangles along the lines (shape unchanged) and keep them as breaklines; overlay: ordinary geometry in a new group, terrain unchanged",
+                                                "enum": [
+                                                    "imprint",
+                                                    "overlay"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "paintRegions": {
+                                                "description": "imprint: paint the terrain inside each face with the face's material, on every rebuild too",
+                                                "type": "boolean"
+                                            },
+                                            "terrain": {
+                                                "description": "Terrain body",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "terrain",
+                                            "mode",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
                                         "description": "Edit terrain change",
                                         "properties": {
                                             "command": {

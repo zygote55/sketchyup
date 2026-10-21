@@ -4,6 +4,7 @@
 #include "core/terrain_edit.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "io/native_limits.hpp"
 #include <QJsonArray>
@@ -415,6 +416,184 @@ std::vector<TerrainEditCodec> builtinCodecs() {
              }
              try {
                  validateTerrainStampData(*data);
+             } catch (const std::invalid_argument &error) {
+                 throw std::runtime_error(error.what());
+             }
+             return data;
+         }});
+    // R096.e drape (ADR 0169 §4.4, §7): the parameters {lines [{points [[x, y]], closed?}],
+    // paint? [{loops [[[x, y]]], material}]} and, when the imprint applied, its resolved geometry
+    // {runs [[[x, y, z]]], splits? [{a [x, y], b [x, y], points [[x, y, z]]}]}. Terrain frame;
+    // material IDs are decimal strings. Every count is checked before anything is allocated.
+    list.push_back(
+        {terrainDrapeKind,
+         [](const TerrainEditData &data) {
+             const auto &drape = dynamic_cast<const TerrainDrapeData &>(data);
+             auto plan = [](const std::vector<std::array<double, 2>> &points) {
+                 QJsonArray list;
+                 for (const auto &p : points)
+                     list.append(QJsonArray{p[0], p[1]});
+                 return list;
+             };
+             auto space = [](const std::vector<Vec3> &points) {
+                 QJsonArray list;
+                 for (const auto &p : points)
+                     list.append(QJsonArray{p.x, p.y, p.z});
+                 return list;
+             };
+             QJsonArray lines;
+             for (const auto &line : drape.lines) {
+                 QJsonObject entry{{"points", plan(line.points)}};
+                 if (line.closed)
+                     entry["closed"] = true;
+                 lines.append(entry);
+             }
+             QJsonObject object{{"lines", lines}};
+             if (!drape.paint.empty()) {
+                 QJsonArray paint;
+                 for (const auto &region : drape.paint) {
+                     QJsonArray loops;
+                     for (const auto &loop : region.loops)
+                         loops.append(plan(loop));
+                     paint.append(QJsonObject{{"loops", loops},
+                                              {"material", QString::number(region.material)}});
+                 }
+                 object["paint"] = paint;
+             }
+             if (drape.resolved()) {
+                 QJsonArray runs;
+                 for (const auto &run : drape.runs)
+                     runs.append(space(run));
+                 object["runs"] = runs;
+                 if (!drape.splits.empty()) {
+                     QJsonArray splits;
+                     for (const auto &split : drape.splits)
+                         splits.append(QJsonObject{{"a", QJsonArray{split.a[0], split.a[1]}},
+                                                   {"b", QJsonArray{split.b[0], split.b[1]}},
+                                                   {"points", space(split.points)}});
+                     object["splits"] = splits;
+                 }
+             }
+             return object;
+         },
+         [](const QJsonObject &entry) -> std::shared_ptr<const TerrainEditData> {
+             auto data = std::make_shared<TerrainDrapeData>();
+             QStringList fields{"lines"};
+             for (const char *optional : {"paint", "runs", "splits"})
+                 if (entry.contains(optional))
+                     fields << optional;
+             exactFields(entry, fields, "terrain drape");
+             std::size_t budget = terrainDrapePoints;
+             auto plan = [&](const QJsonValue &value, std::vector<std::array<double, 2>> &out) {
+                 const auto points = array(value);
+                 if (std::size_t(points.size()) > budget)
+                     throw std::runtime_error("A terrain drape has too many points");
+                 budget -= std::size_t(points.size());
+                 out.reserve(std::size_t(points.size()));
+                 for (const auto &p : points) {
+                     const auto xy = array(p);
+                     if (xy.size() != 2)
+                         throw std::runtime_error("A terrain drape point is [x, y]");
+                     out.push_back({number(xy[0]), number(xy[1])});
+                 }
+             };
+             std::size_t spaceBudget = 0;
+             auto space = [&](const QJsonValue &value, std::vector<Vec3> &out) {
+                 const auto points = array(value);
+                 if (std::size_t(points.size()) > spaceBudget)
+                     throw std::runtime_error("A terrain drape has too many resolved points");
+                 spaceBudget -= std::size_t(points.size());
+                 out.reserve(std::size_t(points.size()));
+                 for (const auto &p : points) {
+                     const auto xyz = array(p);
+                     if (xyz.size() != 3)
+                         throw std::runtime_error("A terrain drape resolved point is [x, y, z]");
+                     out.push_back({number(xyz[0]), number(xyz[1]), number(xyz[2])});
+                 }
+             };
+             const auto lines = array(entry["lines"]);
+             if (lines.isEmpty() || std::size_t(lines.size()) > terrainDrapeLines)
+                 throw std::runtime_error("A terrain drape has 1 to 4,096 lines");
+             data->lines.reserve(std::size_t(lines.size()));
+             for (const auto &value : lines) {
+                 const auto line = object(value);
+                 TerrainDrapeLine parsed;
+                 if (line.contains("closed")) {
+                     exactFields(line, {"points", "closed"}, "terrain drape line");
+                     if (!flag(line["closed"]))
+                         throw std::runtime_error("A terrain drape line writes closed only when "
+                                                  "true");
+                     parsed.closed = true;
+                 } else
+                     exactFields(line, {"points"}, "terrain drape line");
+                 plan(line["points"], parsed.points);
+                 data->lines.push_back(std::move(parsed));
+             }
+             if (entry.contains("paint")) {
+                 const auto paint = array(entry["paint"]);
+                 if (paint.isEmpty() || std::size_t(paint.size()) > terrainDrapePaintRegions)
+                     throw std::runtime_error("A terrain drape has 1 to 1,024 paint regions");
+                 budget = terrainDrapePoints;
+                 data->paint.reserve(std::size_t(paint.size()));
+                 for (const auto &value : paint) {
+                     const auto region = object(value);
+                     exactFields(region, {"loops", "material"}, "terrain drape paint region");
+                     TerrainDrapePaint parsed;
+                     const auto material = region["material"].toString();
+                     bool ok = false;
+                     const auto id = material.toULongLong(&ok);
+                     if (!region["material"].isString() || !ok || !id ||
+                         QString::number(id) != material)
+                         throw std::runtime_error("A terrain drape's material is a stable ID");
+                     parsed.material = Id(id);
+                     const auto loops = array(region["loops"]);
+                     if (loops.isEmpty() || std::size_t(loops.size()) > budget)
+                         throw std::runtime_error("A terrain drape paint region has loops");
+                     for (const auto &loop : loops) {
+                         // A loop has at least three points, so empty loops cannot be many.
+                         if (!loop.isArray() || loop.toArray().size() < 3)
+                             throw std::runtime_error("A terrain drape paint loop has at least "
+                                                      "three points");
+                         parsed.loops.emplace_back();
+                         plan(loop, parsed.loops.back());
+                     }
+                     data->paint.push_back(std::move(parsed));
+                 }
+             }
+             if (entry.contains("runs")) {
+                 const auto runs = array(entry["runs"]);
+                 if (runs.isEmpty() || std::size_t(runs.size()) > terrainDrapeRuns)
+                     throw std::runtime_error("A resolved terrain drape has 1 to 4,096 runs");
+                 spaceBudget = terrainDrapeResolvedPoints;
+                 data->runs.reserve(std::size_t(runs.size()));
+                 for (const auto &run : runs) {
+                     data->runs.emplace_back();
+                     space(run, data->runs.back());
+                 }
+             } else if (entry.contains("splits"))
+                 throw std::runtime_error("A terrain drape that did not apply splits no source");
+             if (entry.contains("splits")) {
+                 const auto splits = array(entry["splits"]);
+                 if (splits.isEmpty() || std::size_t(splits.size()) > terrainDrapeSplitPoints)
+                     throw std::runtime_error("A terrain drape records 1 to 65,536 splits");
+                 spaceBudget = terrainDrapeSplitPoints;
+                 data->splits.reserve(std::size_t(splits.size()));
+                 for (const auto &value : splits) {
+                     const auto split = object(value);
+                     exactFields(split, {"a", "b", "points"}, "terrain drape split");
+                     TerrainDrapeSplit parsed;
+                     for (auto [key, out] : {std::pair{"a", &parsed.a}, std::pair{"b", &parsed.b}}) {
+                         const auto xy = array(split[key]);
+                         if (xy.size() != 2)
+                             throw std::runtime_error("A terrain drape split end is [x, y]");
+                         *out = {number(xy[0]), number(xy[1])};
+                     }
+                     space(split["points"], parsed.points);
+                     data->splits.push_back(std::move(parsed));
+                 }
+             }
+             try {
+                 validateTerrainDrapeData(*data);
              } catch (const std::invalid_argument &error) {
                  throw std::runtime_error(error.what());
              }

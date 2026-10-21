@@ -1381,7 +1381,7 @@ void applyStampSources(TerrainSourceState &state, const TerrainEdit &edit) {
     line.points.push_back(line.points.front());
     for (auto *source : {&pad, &line})
         if (!state.find(source->id)) {
-            state.markPadSource(source->id);
+            state.markPadSource(source->id, edit.id);
             state.add(std::move(*source));
         }
 }

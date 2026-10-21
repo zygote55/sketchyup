@@ -2,6 +2,7 @@
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
 #include "core/terrain_edit.hpp"
@@ -181,6 +182,22 @@ void validateTerrainRecord(const TerrainRecord &record) {
                     throw std::runtime_error("A terrain stamp's pieces take ids from its own "
                                              "block (ADR 0108, R096.d)");
         }
+    // R096.e: a drape's fields, and the paint regions' total band bound (a centroid test reads at
+    // most that many edges).
+    for (const auto &edit : record.edits)
+        if (edit->kind == terrainDrapeKind) {
+            const auto *data = dynamic_cast<const TerrainDrapeData *>(edit->data.get());
+            if (!data)
+                throw std::runtime_error("Invalid terrain drape entry");
+            try {
+                validateTerrainDrapeData(*data);
+            } catch (const std::invalid_argument &error) {
+                throw std::runtime_error(error.what());
+            }
+        }
+    if (terrainPaintBandEdges(record) > terrainDrapePaintBandEdges)
+        throw std::runtime_error("A terrain's paint regions have more than 4,096 edges in their "
+                                 "busiest bands in all");
     if (terrainEditBytes(record.edits) > TerrainLimits::editBytes)
         throw std::runtime_error("Terrain edit list exceeds 8 MiB");
 }
@@ -709,12 +726,11 @@ TerrainPaint terrainTilePaint(const Document &doc, Id terrain) {
         if (!added)
             fallback = {material, material};
     }
+    // R096.e: paint the record's paint regions give a face again is not dropped.
+    const TerrainPaintRegions regions(*doc.bodies().at(terrain)->terrain);
     for (const auto id : terrainTiles(doc, terrain)) {
         const auto &tile = *doc.bodies().at(id);
-        for (const auto &[face, record] : tile.surface.faces)
-            if (tile.faceColors.contains(face) || tile.faceMaterials.contains(face) ||
-                tile.faceTextureMappings.contains(face))
-                ++paint.faces;
+        paint.faces += terrainTileOwnPaint(tile, regions);
         if ((!shared && tile.materials != fallback) || tile.color != plain.color)
             ++paint.tiles;
     }
@@ -797,6 +813,14 @@ TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainTil
         ids.push_back(id);
     }
     auto tiles = terrainTileBodies(set, ids, terrain, *materials);
+    // R096.e: the record's paint regions paint every tile (decision 7), so a tile whose mesh and
+    // regions did not change compares equal and is left alone.
+    if (set.paint.size() == tiles.size()) {
+        for (std::size_t t = 0; t < tiles.size(); ++t)
+            applyTerrainTilePaint(*tiles[t], set.paint[t]);
+    } else if (const TerrainPaintRegions regions(record); !regions.empty())
+        for (auto &tile : tiles)
+            paintTerrainTile(*tile, regions);
     record.meshDigest = tilesDigest(tiles);
     record.tiling = set.grid;
     assignTerrainSourceIds(record);

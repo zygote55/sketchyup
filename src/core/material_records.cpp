@@ -26,6 +26,13 @@ void validateMaterialAssignments(const MaterialRecords &materials,
     };
     for (const auto &[id, body] : bodies) {
         valid(body->materials);
+        // R096.e: a terrain's paint regions name the materials they paint with.
+        if (body->terrain)
+            for (const auto &edit : body->terrain->edits)
+                if (edit->data)
+                    for (const auto material : edit->data->materials())
+                        if (!materials.contains(material))
+                            throw std::runtime_error("Assignment references a missing material");
         for (const auto &[face, sides] : body->faceMaterials) {
             if (!body->surface.faces.contains(face))
                 throw std::runtime_error("Material assignment references a missing face");

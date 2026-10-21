@@ -15,6 +15,18 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Projection and drape (R096.e, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096e)):
+  a new `terrain.drape` command (automation sessions and MCP; hidden from the in-app assistant)
+  projects edges, curves and faces in any context vertically onto a terrain. Imprint splits only
+  the triangles the lines cross, each within itself, so the terrain's shape does not change; the
+  lines join its sources as breaklines, contours they cross gain the crossing points at their
+  elevations, and parts outside the terrain are clipped and reported. With region paint, each
+  face's material paints every terrain triangle inside it, on every later edit and Regenerate.
+  The drape is one undoable edit ("Drape on terrain") recorded in the terrain's edit list; it
+  may cross a pad's slopes but not the pad. Overlay instead makes ordinary geometry lying on the
+  terrain (lifted 0.01 m by default) in a new group, leaving the terrain unchanged.
+  `terrain.describe` lists the paint regions.
+
 - Building-pad stamp (R096.d, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096d)):
   a new `terrain.stamp_pad` command (automation sessions and MCP; hidden from the in-app
   assistant) flattens a footprint (a horizontal face, the lowest horizontal face of a group or

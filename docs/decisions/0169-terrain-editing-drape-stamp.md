@@ -7,7 +7,8 @@ R096.a (the edit core) is implemented in two stacked parts; see "Implementation 
 (R096.a)". R096.c (cavity re-triangulation and contour edit) is implemented; see
 "Implementation notes (R096.c)". R096.b (sculpt and smooth) is implemented; see
 "Implementation notes (R096.b)". R096.d (building-pad stamp) is implemented; see
-"Implementation notes (R096.d)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
+"Implementation notes (R096.d)". R096.e (projection and drape) is implemented; see
+"Implementation notes (R096.e)". Each section gives the options and trade-offs that were weighed; the owner chose the recommended option in every case (see "Decisions"). The
 interaction design (§8, "Decisions the UX design must make") still needs the owner's
 approval, and R096.f waits for it.
 
@@ -739,7 +740,7 @@ terrain report (`terrainOperations`, as R095.c2).
 | `terrain.add_source` | `{terrain, role, points \| edges, elevation?}`, including promotion of a display contour (`level`) | "Add contour" |
 | `terrain.remove_source` | `{terrain, source}` | "Remove contour" |
 | `terrain.stamp_pad` | `{terrain, footprint: {body, face} \| {body} \| {edges} \| {polygon}, elevation?, mode: daylight\|width, cutSlope?, fillSlope?, maxDistance?, width?}` | "Stamp pad" |
-| `terrain.drape` | `{terrain, edges?, faces?, mode: imprint\|overlay, paintRegions?, lift?}` | "Drape on terrain" |
+| `terrain.drape` | `{terrain, edges?, faces?, mode: imprint\|overlay, paintRegions?, lift?, context?}`; `context` (R096.e): the group an overlay goes in | "Drape on terrain" |
 | `terrain.update_edit` | `{terrain, edit, …parameters}`: change a recorded entry (Restamp; pad elevation or slopes); replays from that entry | "Edit terrain change" |
 | `terrain.remove_edit` | `{terrain, edit}`; replays | "Remove terrain change" |
 | `terrain.reset_edits` | Empty the list; Regenerate from base sources | "Reset terrain edits" |
@@ -1882,6 +1883,283 @@ R096.f needs a terrain-aware amend: undo the stamp's own edit and re-run `terrai
 the state before it as one replacement, allowed to replace a different set of the same terrain's
 tiles. Until then the desktop can revise the last pad through `terrain.update_edit`, which replays
 the list.
+
+## Implementation notes (R096.e)
+
+Modules: `src/core/terrain_drape.*` (the kind `drape`, the plan imprint and overlay share, the
+overlay geometry, the paint regions), the paint hooks in `applyTerrainTiles`
+(`src/core/terrain_edit.cpp`) and `regenerateTerrain` (`src/core/terrain.cpp`), the codec in
+`src/io/terrain_io.cpp`, and `terrain.drape` and the `paintRegions` of `terrain.describe` in
+`src/automation/terrain_commands.cpp`. `terrain_drape.cpp` is compiled with `-ffp-contract=off`
+like the other replayed code.
+
+**The kind** (§4.4, §7; [ADR 0108 addendum](0108-public-native-format.md#schema-29-terrain-and-site-origin-r095a)).
+Only imprints are recorded. An entry holds its parameters in the terrain frame, the lines (edge
+chains and face loops projected to plan, open or closed) and the paint regions (a face's loops and
+its material), and its resolved geometry: the runs as the mesh holds them, with Z, and the
+existing constraint segments its new vertices split, with those vertices. As for a pad, the
+resolved geometry depends on the mesh, so it is recomputed whenever the entry applies and cleared
+when a replay skips it (`unresolved`). Bounds: 1 to 4,096 lines and 20,000 points, 1,024 paint
+regions of 20,000 points with at most 512 edges in a horizontal band, 4,096 runs and 65,536 run
+points, 65,536 split points.
+
+**Projection and splitting.** Projection is vertical in the terrain frame; the lines' own Z is not
+used. The plan runs in three steps, each a pure function of the mesh and the entry:
+- *The lines meet only at shared points.* Input points within 1e-7 m of each other become one
+  point (the lexicographically smallest of each cluster), a point within 1e-7 m of another line's
+  segment is inserted into it, and two segments that cross take their crossing point, computed
+  from the two segments in a canonical order (each from its smaller end), so a face loop and its
+  own edges, or two faces sharing an edge, give the same segments bit for bit. Pairs are found
+  through a grid of cells about one mean segment long; the pairs are counted before any is tested
+  (at most 2^25) and the crossings are bounded (65,536).
+- *Each segment is split against the mesh.* The candidate triangles are those the closed segment
+  touches (R096.c's grid walk). Mesh vertices within 1e-7 m of the segment bend it through them
+  (the "snap"); between two stops, every mesh edge the piece crosses properly (exact orientation)
+  gives a crossing point, computed from the edge's smaller end and the piece's smaller end, so a
+  segment and its reverse agree. A point within 1e-9 m of an edge (and not near a vertex) is moved
+  onto that edge. Points on one edge within 1e-7 m of each other are one point (the first found),
+  so two lines crossing an edge almost together share a vertex. Z: a vertex keeps its own; a point
+  on an edge takes the edge's elevation at its parameter from the smaller end (both triangles
+  agree, and a contour edge, whose ends share one elevation, gives exactly that elevation); a point
+  inside a triangle takes the triangle's plane by barycentric interpolation from its smallest
+  corner. Each piece between consecutive points lies in one triangle, runs along a mesh edge, or
+  lies outside the outline or in a hole (no common triangle and a midpoint on no triangle): those
+  gaps are clipped, counted and located, and the line continues as a new run where it re-enters.
+  A run along a mesh edge passes every new vertex on that edge, so every run segment is a mesh
+  edge.
+- *Imprint splits the triangles that hold a new vertex*, each within itself: the triangle's
+  corners with the new vertices on its edges form its boundary, the new vertices inside it are
+  kept vertices, and the pieces inside it are constraints, re-triangulated by
+  `retriangulateTerrainCavity` with no flat-triangle flip. Every new triangle lies in the plane of
+  the triangle it came from, so the surface's shape does not change (C4). A new triangle below the
+  modelling tolerance (its cross product under 1e-12 m², as R096.c) is refused with its location
+  (`degenerate-triangle`), and so is a piece the exact split cannot place (`triangulation-failed`,
+  "move it slightly"). Nothing outside the split triangles changes.
+
+**Current sources.** The `sources` hook reads no mesh: each split segment's points are inserted into
+the current contours and breaklines that hold it (a contour's crossing points take its exact
+elevation), a pad ray it split is superseded (`dropPadRays`, as a newer pad's would be), and each run
+joins as a breakline with id ordinal n of the entry's block (`terrainSplitSourceId`, 4,096 a
+change). So C1 holds: every current contour and breakline vertex is a mesh vertex and every segment a
+mesh edge, the drape's lines included.
+
+**Protections** (decision 6; the R096.d lesson). Choices where the ADR is open:
+- *Pads.* A run that meets a pad's footprint or its outline (closed, through R096.d's pad index, its
+  protected points included) is refused (`inside-pad`, located, naming the change). A run may cross
+  a pad's slopes, as another pad's slopes may: the crossed rays are superseded, which C3's box rule
+  already counts, and the daylight line gains the crossing point like any breakline.
+- *The drape's own lines.* They are the entry's resolved geometry, so, like a pad's outline and
+  daylight line, `terrain.edit_source` and `terrain.remove_source` naming one are refused
+  (`drape-source`, located, pointing to `terrain.remove_edit`); the runs a later sculpt or stamp
+  splits off one stay the drape's own. A later drape that crosses an earlier drape's line inserts the
+  crossing point into it, as it does into a contour.
+- *Contours a drape crossed* now share the crossing vertices with the drape's lines, so re-elevating
+  such a contour (`terrain.edit_source` with only `elevation`) is refused as R096.c refuses moving a
+  shared vertex; moving or removing the contour keeps the crossing vertices (another source uses
+  them).
+- *The outline.* Where a line leaves the terrain the run ends at the outline: the boundary edge gains
+  the crossing vertex (the outline's plan is unchanged up to rounding). Boundary and hole sources are
+  not split (they are not constraint segments of the current sources).
+
+**Region paint** (decision 7). With `paintRegions`, each draped face with a material (its front
+material, else its back) records its loops and that material; faces without one are imprinted and
+counted (`paint-without-material`). `TerrainPaintRegions` holds the regions of the applied drapes in
+list order, each loop indexed by R096.b's horizontal bands, and a triangle takes the material of the
+last region holding its centroid (even-odd over the region's loops), on both sides. Where:
+- every tile an edit builds is painted (`applyTerrainTiles`), and when the record gains regions (an
+  imprint with paint, appended last) the faces of kept tiles inside them are repainted: those tiles
+  keep their mesh and ID and are listed as `repainted` (C5's pointer identity holds for every tile
+  neither replaced nor repainted);
+- every tile Regenerate, Terrain settings, Remove change and Reset edits build is painted
+  (`regenerateTerrain`), so a tile whose mesh and regions did not change compares equal and stays
+  (C7 holds with paint); removing the drape removes its paint;
+- paint the regions give a face again is not counted as dropped (`face-paint-dropped`,
+  `terrainTilePaint`).
+Material validation keeps a region's material alive: `TerrainEditData::materials()` names it, and
+deleting a material a region names is refused like deleting one a face uses. A crafted file cannot
+make painting slow: a region's loops are refused past 512 edges in a band, and the loops of all
+regions of a terrain past 4,096 edges in their busiest bands, so a centroid test reads at most that.
+
+*A limit of centroids.* Paint and overlay decide by a triangle's centroid against the face's own
+loops, while the imprinted boundary may sit up to 1e-7 m away (the vertex snap). A piece narrower
+than about 3e-7 m (yet above the sliver tolerance) can therefore land on the other side; that is
+far below anything visible.
+
+**Overlay** (§4.4). The same plan with `overlay` skips the pad rule and the id block. Its runs from
+`edges` become loose edges; each face becomes one planar polygon per terrain-triangle piece inside
+it: the (sub)triangles whose centroid is in the face (a later face wins where faces overlap), merged
+per terrain triangle by cancelling shared edges into an outer loop and holes (a pinched piece falls
+back to its triangles). Everything is lifted by `lift` (default 0.01 m, at most 1,000 m, model metres
+up) and goes into a new group "Drape" in `context` (the active context: a group, or the model),
+holding one geometry body "Draped geometry" in the terrain's frame; pieces keep their face's
+materials. The terrain record and its tiles do not change. The faces count against the 100,000-face
+modelling limit: the overlay is refused before anything is made when it would pass the room left
+(`LIMIT_EXCEEDED`, with the document's count), and classifying is bounded (2^22 triangles).
+Choices where the ADR is open: the `context` field (the ADR's command has none; the desktop passes
+its active context), the names, and that a component context is refused (overlay adds to a group or
+the model).
+
+**Command** (§8). `terrain.drape {terrain, edges?, faces?, mode: imprint|overlay, paintRegions?,
+lift?, context?}` ("Drape on terrain"), one edit through the batch API with its dry run, MCP and
+sessions. `edges` are chained as `terrain.create_from_edges` chains them (so edges of a locked body
+are refused there too, and so, to match, are faces of a locked body); `faces` give every loop, in
+any context, read in world coordinates. `mode`
+is required (decision 5's default is the desktop's). `paintRegions` is imprint only; `lift` and
+`context` are overlay only. Vertical edges and faces (no plan length or area) are dropped with
+notices; nothing left is refused. Imprint needs an unlocked, level terrain; overlay a level one (it
+reads a locked terrain). The command's dry run gives the located refusal report, the triangle limit
+is checked before the commit (`triangle-budget`, located, as R096.d), and the outcome is committed as
+planned. The report (`format: "terrain-edit"`) counts the lines, runs, points, crossings, snapped
+vertices, inserted vertices, triangles split and added, sources split, clipped parts (with a
+`drape-clipped` notice located at the first) and, for imprint, the tiles replaced, added and
+repainted and the paint regions; overlay returns the group, the body and its face and edge counts.
+`terrain.describe` adds `paintRegions {count, space: "model", entries: [{edit, material, loops,
+extent, applied}] (at most 200), entriesOmitted}`. The in-app assistant gets no tool (decision 9):
+`assistantVisible` hides `terrain.` commands, and `assistantResult` drops `paintRegions` from
+`terrain.describe` as it drops `currentSources` and `pads`, so the assistant's schemas,
+`assistant_tool_surface_tests` and corpus v5 are unchanged.
+
+**Work bounds and cancellation.** Besides the counts above: the triangles segments find (16 ×
+65,536, as R096.c), the triangles and edges scanned while locating points and splitting segments
+(2^27; each piece between two snapped vertices tests only the edges whose projection on the segment
+meets it), the triangles split (65,536), and the points clustered (2^25 comparisons). The plan checks
+for cancellation per line, every 4,096 pair tests and every 64 split triangles, so a replay is
+cancelled part-way through a long drape (tested at every checkpoint).
+
+**Measured** (`terrain_edit_benchmark --edits 1 --replay 0 --cancel 0 --source-edits 0 --sculpts 0
+--sculpt-replay 0 --stamps 0 --stamp-replay 0 --drapes 100 --drape-replay 100`, Release, GCC, the
+development host with 22 CPUs). As for pads, drapes add triangles (a one-tile drape about 70), so
+they are measured on the two terrains of `terrain_budget_benchmark` built from 2 % fewer points or
+rings (244,970 and 244,498 triangles, 256 and 3,108 tiles); at the document's 250,000-triangle
+limit every drape is refused with the located `triangle-budget` report. A one-tile sample is a
+three-point line across the middle of one of the 64 largest tiles, 60 % of its smaller side;
+samples whose touched tiles hold more than 2,048 triangles (4 of 100 on the point terrain) are
+left out of the budget rows. Display = the per-tile surface and contour caches, without GPU upload
+or drawing.
+
+| Terrain | One-tile drape: triangles split, touched triangles (p95) | Preview p95 (max) | Commit p95: core / command / command + display (max) | Long line across the terrain: length, tiles, triangles split; preview / command / display | Painted face (8 tiles): command; then Regenerate | Overlay of a one-tile face | Replaying Regenerate (entries) |
+| --- | --- | --- | --- | --- | --- | --- | ---: |
+| 122,500 points (244,970 triangles) | 41; 1,159 | 0.8 (9.5) ms | 40.9 / 41.4 / 50.6 ms (51.3) | 1,115 m, 25 tiles, 836; 11.9 / 211.9 / 62.1 ms | 103.9 ms; 0.62 s | 432 faces, 4.3 ms | 0.64 s (90) |
+| 408 contour rings (244,498 triangles) | 41; 926 | 1.3 (22.1) ms | 55.1 / 55.7 / 72.4 ms (73.5) | 1,011 m, 98 tiles, 1,781; 25.2 / 182.7 / 61.2 ms | 116.4 ms; 0.77 s | 470 faces, 5.6 ms | 0.82 s (100) |
+
+A one-tile drape commits within decision 10's 100 ms at p95: 41–56 ms through the command and
+51–72 ms with the display update; as for the other kinds, most of it is the whole-terrain digest,
+and the plan (the arrangement, the split and the per-triangle re-triangulation) is the preview's
+1 ms. A line a kilometre long across 25 to 98 tiles previews in 12–25 ms and commits in 183–212 ms
+(rebuilding and validating every tile it crosses), reported as the nine-tile sculpt is. A replaying
+Regenerate of 90–100 drapes (short lines, placed while the terrains stayed 3,000 triangles under the
+limit) takes 0.64–0.82 s with the base CDT, and is a no-op; C1 and C6 hold after it and after the
+long line. Hostile inputs (`terrain_drape_tests`, Debug): a 300 × 300 grid of lines (90,000
+crossings among themselves) is refused by the crossing bound in 0.2 s, a 10,000-segment zigzag
+across the terrain by the touched-triangle bound in 0.1 s, 20,000 points within 2 micrometres
+(one point) in 0.2 s, and a serpentine of 1,170 rows through 120 grid vertices each by the point
+bound in 3.1 s (the split stops once its parts pass twice the run-point bound); a crafted record whose split segment one source passes 10,000 times derives in
+15 ms with the drape's effect left out.
+
+**Verification.** `terrain_drape_tests` (ctest `terrain_drape`, dev and sanitize presets) on the
+40-ring contour hill, the R095 contour fixture (boundary and pond), the 12,000-point terrain and
+gridded point terrains:
+- *path*: a three-segment line across the hill (246 mesh-edge crossings, 33 contour segments split,
+  seven tiles): the preview equals the commit; C4 at 10,000 random points in the line's box (worst
+  2.8e-14 m); each run is a current breakline and the drape's own, and every run point on a contour
+  carries its exact elevation; C1, C2, C5, C6 and C7, also after Undo, Redo, save and reopen; the
+  same drape on a second document is identical; `terrain.remove_source` of the draped line is
+  refused (`drape-source`), and `terrain.describe` lists the drape;
+- *clipping*: a line from outside the boundary across the hill, the breakline and the pond: three
+  parts clipped (located, `drape-clipped`), two runs, the breakline gains the crossing point, C4,
+  C1, C2, C6, C7, history and save; a line wholly outside or in the pond is refused
+  (`outside-outline`) and changes nothing;
+- *paint*: a face with a hole, in a group, with a material, imprinted with region paint over most
+  of the 12,000-point terrain: every triangle is painted exactly when its centroid is in the region
+  (13,757 of 25,575), tiles inside but not crossed are repainted with their IDs and meshes, every
+  other tile is pointer-identical; C4, C1, C6, C7, history and save; the paint survives a later
+  sculpt across it and Regenerate (no paint counted as dropped); the material cannot be deleted
+  while the region names it; removing the drape removes its paint;
+- *overlay*: a face and a line in a group context, lifted 0.05 m: the terrain record and tiles are
+  unchanged, the geometry is a new group in the context, every vertex lies at the lift above the
+  surface (within 1e-9 m), every face is planar, the faces cover the face's area exactly, the
+  modelling face count grows by the overlay's faces, Undo removes it, and the overlay's face bound
+  refuses;
+- *grid*: on a 1 m grid, a line along a grid row, a diagonal through grid vertices and a crossing
+  line, over an added breakline (three crossings with each other, 56 vertices snapped, the
+  breakline gains three points): C4, C1, C6, C7, history and save; draping the same lines again
+  splits nothing;
+- *pads*: a line across a pad and one along its outline edge are refused (`inside-pad`) and change
+  nothing; one across its slopes applies with C3, C4, C1, C6 and C7;
+- *sliver*: a line 2e-7 m from a row of grid vertices is refused (`degenerate-triangle`, located);
+  at 5e-8 m it snaps through them, with C4, C1, C6 and C7;
+- *refusals* (each directly and through the batch, changing nothing): no mode, an unknown mode,
+  nothing to drape, paint with overlay, lift or context with imprint, a negative lift, an unknown
+  field, a missing edge or face, a tile's face, a context that is not a group, a missing terrain, a
+  vertical face, a locked terrain (overlay reads it), 20,005 points;
+- the codec round trip and its refusals (an unknown field, no lines, a one-point line, `closed`
+  written false, splits without runs, a numeric material, a split with its larger end first, a
+  one-point run, a comb paint loop); the assistant (no `terrain.drape` tool, no `paintRegions`,
+  the drape read in its edits); a cancellation at each of the plan's checkpoints; the hostile inputs
+  below; the triangle limit (refused, located, naming the counts); and a scripted sequence of a
+  painted drape, a sculpt across it, a pad and a second drape crossing the first, with the checks
+  after each, Undo and Redo of all, reopen, Remove change and Reset edits, its replay digest pinned
+  (`11e74534…22ddcb1a`, the same in Debug and Release builds);
+- the review fixes below: a crafted record whose split segment one source passes 10,000 times
+  (its effect left out, quickly), and a stored source edit naming a drape's line (left out of the
+  derivation).
+
+`command_tests` covers the command, and the parser fuzz seeds (a resolved drape with a paint
+region and a split, an unresolved one, and a rejected one whose split runs backwards) and
+`parser_fault_corpus_tests` cover the codec. The R096.b, R096.c and R096.d suites pass unchanged,
+with their pinned digests. `parser_fuzz_terrain_edits` (libFuzzer, clang 23 with ASan and UBSan,
+the documented options, 2026-10-20), now with the drapes in its seeds, ran 474,260 inputs in 301 s
+(2,352 coverage points, 616 MB peak) with no failure.
+
+**Review fixes.** An internal review before the pull request found no partial mutation on a
+refusal and no path breaking C1 or C4; these follow it.
+- *Source growth.* A split's points are inserted wherever a current source passes its segment, so a
+  crafted entry whose segment many sources share (or one source passes many times) could have grown
+  the derived sources without bound. The plan and the `sources` hook count the growth alike (the
+  runs plus each split once per use) and a drape that would take the current sources past
+  2,000,000 vertices is refused (`LIMIT_EXCEEDED`); a stored one changes nothing.
+- *Protected sources in the derivation.* A stored `editSource` or `removeSource` naming a pad's
+  outline or daylight line, or a drape's line, was skipped by the replay but still applied by the
+  mesh-free derivation; it is now left out there too (R096.d's pad rule included).
+- *Bounded scans.* The hook skips source segments outside the splits' box before any lookup; paint
+  tests only the regions whose boxes meet a tile's, also when counting paint a rebuild drops;
+  overlay counts every piece of a split triangle against its work bound and indexes each outer loop
+  once; each piece between two snapped vertices tests only the edges beside it.
+- *Decoder.* A paint loop of fewer than three points is refused as it is read, so empty loops cannot
+  be many; a run that repeats a point is refused.
+
+**Review fixes (PR #390).** An independent review found no blocker; these follow it, each with a
+regression test in `terrain_drape_tests`.
+- *Region paint in history.* Measured (`terrain_edit_benchmark`, Release, a painted face over a whole
+  terrain, its box inset 3 %, on terrains built 4 % smaller so its outline fits under the limit:
+  245,579 and 240,666 triangles): the imprint replaces 56 and 104 tiles and repaints 169 and 2,843,
+  painting 214,718 and 235,770 faces; it commits in 1.13 and 0.80 s, and a replaying Regenerate after
+  it is a no-op in 0.68 and 0.81 s. Its history charge was 224 and 247 MB, because a repainted tile
+  was charged as any changed body, its before and after copies in full. A tile whose paint alone
+  changes is now charged one copy of its mesh plus the larger of its two paints (`model.cpp`,
+  `paintOnlyTileChange`): the history holds one copy of it at a time (the before copy while the edit
+  is done, the after copy while it is undone), so this is still a bound on what the history holds.
+  The charge falls to 148 and 136 MB (`paint history`: a fully painted tile is charged 0.6 of a
+  rebuilt one). Resident memory grew by 243 and 151 MB in the same commits, so charging only the
+  paint delta (about 20 MB) would have under-counted the memory the history keeps alive; the tiles'
+  meshes cannot be shared between the two copies without changing `Body`, which stores them by value.
+  The ≥ 64 one-tile undo entries of decision 10 still hold: the history drops its oldest entries
+  first, and even the whole-terrain paint leaves room for over 360 one-tile edits.
+- *Paint work.* Every paint pass (the tiles one edit builds and repaints, or a Regenerate's) charges
+  each region it tests and the band edges it reads against 2^27 and refuses past it
+  (`limit-exceeded`, located); a Regenerate's paint now runs on the replay (`paintTerrainTileSet`,
+  the run a desktop worker cancels) with a cancellation checkpoint every 4,096 tests, and applying
+  the tiles only copies its result. A crafted record of 640 thin frames around a 60,000-triangle
+  terrain is refused by Regenerate, located, in 7.1 s (Debug), and a cancellation stops the pass
+  (`paint work`).
+- *Crossed contours.* Re-elevating a contour or breakline whose vertex a drape's line (or a pad's
+  outline or daylight line) shares is refused as `crossed-by-change`, located at the shared vertex,
+  naming the change ("This contour is crossed by Drape (change #4); remove that change with
+  terrain.remove_edit to re-elevate it alone."); other shared vertices keep the generic conflict.
+  Removing such a contour is allowed and leaves the crossing points, vertices of the drape's lines,
+  where the drape put them (`crossed contour`; UX_DESIGN §15.3 and §15.5).
+- *Locked bodies.* Faces of a locked body are refused like its edges (`refusals`).
+- §8's command table names `context`.
 
 ## Sources
 
