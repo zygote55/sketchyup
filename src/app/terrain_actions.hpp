@@ -87,6 +87,13 @@ class TerrainRegenerateDialog final : public Settled<QDialog> {
     TerrainRegenerateDialog(const TerrainPaint &paint, QWidget *parent);
 };
 
+// R096.f1 (UX_DESIGN §15.6): Reset edits…'s confirmation ("Reset 5 changes to Riverside site? The
+// terrain is rebuilt from its sources."), Cancel the default.
+class TerrainResetEditsDialog final : public Settled<QDialog> {
+  public:
+    TerrainResetEditsDialog(const Document &doc, Id terrain, QWidget *parent);
+};
+
 struct TerrainSettingsDryRun;
 // Terrain settings…: boundary mode, maximum edge length, flat-triangle flip and Steiner fill,
 // with a dry run of the regeneration (on a worker, debounced, stale results dropped) and its
@@ -194,4 +201,7 @@ bool explodeTerrainInteractive(QWidget *parent, Document &doc, Viewport &view, I
 bool terrainSettingsInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain);
 bool regenerateTerrainInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain);
 bool createTerrainFromSelectionInteractive(QWidget *parent, Document &doc, Viewport &view);
+// R096.f1: Reset edits… (terrain.reset_edits, one "Reset terrain edits" edit) after the
+// confirmation; refused when the terrain has no edits.
+bool resetTerrainEditsInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain);
 } // namespace sketchy

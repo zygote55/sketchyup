@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <set>
 #include <tuple>
@@ -725,6 +726,79 @@ TerrainSculptPlan planTerrainSculpt(const TerrainEditContext &context, const Ter
         plan.clip = {};
     }
     return plan;
+}
+
+// ---- R096.f1: the desktop preview --------------------------------------------------------------
+namespace {
+struct RememberedPlan {
+    BodyPtr terrain;                              // the record the plan was made for
+    std::shared_ptr<const TerrainEditMesh> mesh; // the cached mesh it was made on
+    std::string kind;
+    std::shared_ptr<const TerrainSculptData> data;
+    TerrainSculptPlan plan;
+};
+std::mutex rememberedMutex;
+std::optional<RememberedPlan> remembered;
+} // namespace
+TerrainSculptPreview previewTerrainSculpt(const Document &doc, Id terrain, const std::string &kind,
+                                          std::shared_ptr<const TerrainSculptData> data) {
+    const auto found = doc.bodies().find(terrain);
+    if (found == doc.bodies().end() || found->second->kind != BodyKind::Terrain ||
+        !found->second->terrain)
+        throw TerrainError("NOT_FOUND", "Terrain body does not exist");
+    requireUnlockedTerrain(doc, terrain);
+    requireLevelTerrain(doc, terrain);
+    if (kind != terrainSculptKind && kind != terrainSmoothKind)
+        throw TerrainError("INVALID_REQUEST", "Unknown terrain edit kind");
+    if (!data)
+        throw TerrainError("INVALID_REQUEST", "A terrain edit needs its parameters");
+    const auto &record = *found->second->terrain;
+    TerrainSculptPreview preview;
+    preview.kind = kind;
+    preview.data = data;
+    const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+    {
+        const auto state = terrainSourceState(record);
+        const TerrainEdit entry{record.nextEditId, kind, data};
+        preview.plan = planTerrainSculpt({*mesh, *state, record.parameters}, entry);
+    }
+    if (!preview.plan.refusal.empty())
+        return preview;
+    const TerrainSculptInfluence influence(*data);
+    preview.moving.reserve(preview.plan.change.lifted.size());
+    for (const auto &[p, z] : preview.plan.change.lifted)
+        preview.moving.emplace_back(p, influence.weight(p.x, p.y));
+    // The entry as the command stores it: the pieces its clip resolved.
+    auto stored = std::make_shared<TerrainSculptData>(*data);
+    stored->pieces = preview.plan.clip.resolved;
+    const TerrainEditOutcome outcome{preview.plan.change, {}};
+    preview.edit = previewTerrainEdit(doc, terrain, kind, std::move(stored), &outcome);
+    {
+        std::lock_guard lock(rememberedMutex);
+        remembered = RememberedPlan{found->second, mesh, kind, data, preview.plan};
+    }
+    return preview;
+}
+std::optional<TerrainSculptPlan> takeRememberedTerrainSculptPlan(const Document &doc, Id terrain,
+                                                                 const std::string &kind,
+                                                                 const TerrainSculptData &data) {
+    std::optional<RememberedPlan> slot;
+    {
+        std::lock_guard lock(rememberedMutex);
+        slot.swap(remembered);
+    }
+    const auto found = doc.bodies().find(terrain);
+    if (!slot || found == doc.bodies().end() || found->second != slot->terrain ||
+        slot->kind != kind || !slot->data->equals(data))
+        return std::nullopt;
+    // The same tile records give the same cached mesh object.
+    if (terrainEditMeshCache().get(doc, terrain, true) != slot->mesh)
+        return std::nullopt;
+    return std::move(slot->plan);
+}
+void forgetRememberedTerrainSculptPlan() {
+    std::lock_guard lock(rememberedMutex);
+    remembered.reset();
 }
 
 std::vector<TerrainEditKind> terrainSculptKinds() {

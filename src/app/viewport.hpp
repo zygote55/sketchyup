@@ -1,5 +1,6 @@
 #pragma once
 #include "app/inference_worker.hpp"
+#include "app/terrain_tool.hpp"
 #include "app/texture_cache.hpp"
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
@@ -40,8 +41,8 @@ class Viewport : public QOpenGLWidget {
     ~Viewport() override;
     const Document &document() const { return doc_; }
     bool inspectionBusy() const {
-        return session_.active() || dragging_ || toolPressed_ || selectionPressed_ ||
-               selectingBox_ || !walkKeys_.empty();
+        return session_.active() || terrainSession_.active() || dragging_ || toolPressed_ ||
+               selectionPressed_ || selectingBox_ || !walkKeys_.empty();
     }
     bool inspectionRenderOverrides() const {
         return benchmarkTriangles_ > 0 || !opacity_.empty() || clipPlane_.has_value();
@@ -75,7 +76,10 @@ class Viewport : public QOpenGLWidget {
         Orientation = 25,
         HostedPlacement = 26,
         LookAround = 27,
-        Walk = 28
+        Walk = 28,
+        // R096.f1 (UX_DESIGN §15): the terrain tools. f2 adds Contours, Pad and Drape.
+        Sculpt = 29,
+        Smooth = 30
     };
     void setTool(Tool tool);
     void setSceneTransitionDuration(int milliseconds);
@@ -195,6 +199,39 @@ class Viewport : public QOpenGLWidget {
     // Whether an edge of a terrain tile is drawn: only edges on the terrain's outer boundary;
     // tile seams and interior edges are not (nor picked or snapped while not drawn).
     bool terrainEdgeDrawn(Id tile, Id edge) const;
+    // ---- R096.f1: the terrain tools (viewport_sculpt.cpp; UX_DESIGN §15.1–15.2, §15.7) ----
+    static bool terrainTool(Tool tool) { return tool == Tool::Sculpt || tool == Tool::Smooth; }
+    const TerrainToolOptions &terrainOptions() const { return terrainOptions_; }
+    // Options from the strip: clamped to their bounds; a change refreshes a shown preview.
+    void setTerrainOptions(const TerrainToolOptions &options);
+    // `[` and `]`: the radius times or divided by 1.1.
+    void stepTerrainRadius(bool larger);
+    // The Measurements box's step: "Radius" (or "Falloff width" for a region) before a stroke,
+    // "Amount" (Sculpt) or "Strength" (Smooth) while a spot or region waits for its value and
+    // after a commit, when a typed value amends it; "Point" while a region is being drawn.
+    QString terrainMeasurementLabel() const;
+    // What the brush shows, for the label, the status bar and tests.
+    struct TerrainBrushView {
+        Id terrain{};                 // the terrain under the brush (0: none)
+        std::optional<Vec3> point;    // the brush centre on the surface (model)
+        bool stroking{}, anchored{};  // a press-drag stroke; a one-spot brush waiting for its amount
+        bool smoothing{};             // Smooth, or Sculpt with Shift held
+        double amount{};              // the signed amount a commit would use (Sculpt)
+        std::size_t vertices{}, tiles{}; // that would move, and the tiles they touch
+        bool empty{};                 // no vertex under the brush (amber ring)
+        bool previewShown{};          // the candidate is drawn in place of the tiles
+        std::vector<Vec3> region;     // region scope: the polygon so far (model)
+        bool regionClosed{};
+        QString label;                // the label at the brush ("+1.80 m · radius 9.00 m" …)
+        QString refusal;              // why the brush cannot act here (empty when it can)
+    };
+    TerrainBrushView terrainBrush() const;
+    // The candidate drawn in place of the tiles (null when none is shown), and the tile bodies it
+    // hides (ADR 0169 §5).
+    std::shared_ptr<const TerrainSculptPreview> terrainPreviewShown() const;
+    std::set<Id> terrainPreviewHiddenTiles() const;
+    // The amendable terrain command (after a commit, while a typed value revises it), or empty.
+    QJsonObject terrainAmendable() const;
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
@@ -372,6 +409,9 @@ class Viewport : public QOpenGLWidget {
     // R095.e1: the hovered tile's terrain that the current tool refuses (0 when the pointer left
     // it or the tool changed) and the status-bar text naming the tool.
     void terrainToolRefused(qulonglong terrain, const QString &text);
+    // R096.f1: a terrain tool's options, phase or Measurements step changed.
+    void terrainToolChanged();
+
     // R095.e1: the viewport's context menu was asked for at `position` (a right click without
     // a drag, the Menu key or Shift+F10).
     void contextMenuRequested(const QPoint &position);
@@ -484,6 +524,63 @@ class Viewport : public QOpenGLWidget {
     QPointF rightPress_;
     void updateTerrainHover(QPointF point);
     void clearTerrainHover();
+    // R096.f1 terrain tools (viewport_sculpt.cpp).
+    TerrainToolOptions terrainOptions_;
+    struct TerrainBrushState {
+        Id terrain{};
+        std::optional<Vec3> point;      // brush centre on the surface (model)
+        QPointF pointer;                // where the pointer was
+        std::vector<Vec3> path;         // the stroke so far (model)
+        bool pressed{}, stroking{}, anchored{}, commitOnRelease{};
+        QPointF pressPosition, anchorPosition;
+        double anchorPixel{};           // metres per logical pixel at the anchor
+        double spotAmount{};            // the one-spot amount set by moving up or down
+        std::vector<Vec3> region;       // region scope polygon (model, on the surface)
+        bool regionClosed{}, regionSelected{};
+        Qt::KeyboardModifiers modifiers;
+        QString refusal, error;
+    } brush_;
+    ToolSession terrainSession_{doc_};
+    QJsonObject terrainCommitted_;   // the last committed terrain command, for amend
+    std::shared_ptr<const TerrainSculptPreview> terrainCandidate_;
+    bool terrainCandidateShown_{}, terrainPreviewDirty_{};
+    std::string terrainCandidateDocument_;
+    std::uint64_t terrainCandidateRevision_{};
+    struct TerrainPreviewGpu {
+        Id terrain{};
+        std::set<Id> hidden;           // tile bodies drawn by the preview instead
+        std::set<Id> hiddenContours;   // tile bodies whose contour segments are replaced
+        GpuBatch surface, lines, contours, indexContours;
+        bool active{};
+    } terrainPreviewGpu_;
+    // Contour vertex ranges per tile in a terrain's line batches (ordinary, index).
+    struct ContourRange {
+        int lineFirst{}, lineCount{}, indexFirst{}, indexCount{};
+    };
+    std::map<Id, std::map<Id, ContourRange>> contourRanges_;
+    bool terrainToolActive() const { return terrainTool(tool_); }
+    bool terrainSmoothing() const;
+    std::optional<std::pair<Id, Vec3>> terrainHit(QPointF point) const;
+    void terrainHover(QPointF point);
+    bool terrainPress(QMouseEvent *event);
+    bool terrainMove(QMouseEvent *event);
+    bool terrainRelease(QMouseEvent *event);
+    bool terrainKey(QKeyEvent *event);
+    void terrainKeyRelease(QKeyEvent *event);
+    bool terrainMeasurements(const QString &text);
+    void beginTerrainTool();
+    void cancelTerrainOperation(bool keepAmend = false);
+    void updateTerrainCandidate(bool show);
+    QJsonObject terrainCommand(std::optional<double> value = std::nullopt) const;
+    void commitTerrain(std::optional<double> value = std::nullopt);
+    void amendTerrain(double value);
+    double terrainAmount() const;
+    std::optional<double> terrainElevation(Id terrain, double x, double y) const;
+    void rebuildTerrainPreview();
+    void drawTerrainPreview();
+    void paintTerrainBrush(QPainter &painter);
+    void emitTerrainStatus();
+    QString terrainStatusShown_;
     SelectionSet boxBase_;
     QPointF selectionStart_, selectionEnd_, lastClickPosition_;
     bool selectionPressed_{}, selectingBox_{}, pickDirty_{true}, overlayDirty_{true};

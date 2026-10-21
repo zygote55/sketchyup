@@ -138,6 +138,7 @@ std::shared_ptr<const TerrainContours> Viewport::terrainContours(Id terrain) {
 void Viewport::syncTerrainViews() {
     stats_.contourSegments = 0;
     std::erase_if(terrainViews_, [&](const auto &item) { return !isTerrain(doc_, item.first); });
+    std::erase_if(contourRanges_, [&](const auto &item) { return !terrainViews_.contains(item.first); });
     contourCache_.prune(doc_);
     surfaceCache_.prune(doc_);
     // R096.a: the shared edit mesh cache drops deleted terrains and a replaced document.
@@ -186,14 +187,34 @@ void Viewport::syncTerrainViews() {
             const std::array<float, 3> color =
                 colors_.dark ? std::array<float, 3>{.80f, .68f, .50f}
                              : std::array<float, 3>{.42f, .31f, .20f};
-            if (contours)
-                for (const auto &segment : contours->segments) {
+            // R096.f1: each tile's vertex ranges in the two batches, so a terrain preview can
+            // leave out the tiles it replaces.
+            auto &ranges = contourRanges_[id];
+            ranges.clear();
+            if (contours) {
+                const auto &starts = contours->tileStarts;
+                std::size_t next = 0;
+                Id tile = 0;
+                for (std::size_t i = 0; i < contours->segments.size(); ++i) {
+                    while (next < starts.size() && starts[next].second <= i) {
+                        tile = starts[next++].first;
+                        auto &range = ranges[tile];
+                        range.lineFirst = int(lines.size());
+                        range.indexFirst = int(index.size());
+                    }
+                    const auto &segment = contours->segments[i];
                     auto &target = segment.index ? index : lines;
                     for (const auto point : {segment.a, segment.b}) {
                         const auto p = world.point(point);
                         target.push_back(Vertex{p.x, p.y, p.z, color[0], color[1], color[2]});
                     }
+                    if (tile) {
+                        auto &range = ranges[tile];
+                        range.lineCount = int(lines.size()) - range.lineFirst;
+                        range.indexCount = int(index.size()) - range.indexFirst;
+                    }
                 }
+            }
             upload(view->linesGpu, lines);
             upload(view->indexGpu, index);
             view->contours = contours;
@@ -213,13 +234,52 @@ void Viewport::drawTerrainContours() {
     for (auto &[id, view] : terrainViews_) {
         if (view->hidden || !view->contours)
             continue;
-        draw(view->linesGpu, GL_LINES);
+        // R096.f1 (ADR 0169 §5): during a terrain preview, the candidate tiles' contours replace
+        // those of the tiles they replace; every other tile's lines are drawn as they are.
+        const bool preview = terrainPreviewGpu_.active && terrainPreviewGpu_.terrain == id &&
+                             !terrainPreviewGpu_.hiddenContours.empty() &&
+                             contourRanges_.contains(id);
+        auto drawBatch = [&](GpuBatch &batch, bool indexBatch) {
+            if (!preview) {
+                draw(batch, GL_LINES);
+                return;
+            }
+            // The replaced tiles' ranges in batch order (tiles are in key order there, not ID
+            // order), and the runs between them.
+            std::vector<std::pair<int, int>> skipped;
+            for (const auto tile : terrainPreviewGpu_.hiddenContours)
+                if (const auto found = contourRanges_.at(id).find(tile);
+                    found != contourRanges_.at(id).end()) {
+                    const auto &range = found->second;
+                    const int count = indexBatch ? range.indexCount : range.lineCount;
+                    if (count)
+                        skipped.emplace_back(indexBatch ? range.indexFirst : range.lineFirst, count);
+                }
+            std::sort(skipped.begin(), skipped.end());
+            std::vector<GpuBatch::Run> runs;
+            int cursor = 0;
+            for (const auto &[first, count] : skipped) {
+                if (first > cursor)
+                    runs.push_back({cursor, first - cursor, 0, 0});
+                cursor = std::max(cursor, first + count);
+            }
+            if (cursor < batch.count)
+                runs.push_back({cursor, batch.count - cursor, 0, 0});
+            std::swap(batch.runs, runs);
+            draw(batch, GL_LINES);
+            std::swap(batch.runs, runs);
+        };
+        drawBatch(view->linesGpu, false);
+        if (preview)
+            draw(terrainPreviewGpu_.contours, GL_LINES);
         // Index lines: the line and four one-pixel offsets.
         for (const auto offset :
              {QPointF{}, QPointF(1, 0), QPointF(-1, 0), QPointF(0, 1), QPointF(0, -1)}) {
             shader_->setUniformValue("pixelOffset", QVector2D(float(2 * offset.x() / width()),
                                                               float(2 * offset.y() / height())));
-            draw(view->indexGpu, GL_LINES);
+            drawBatch(view->indexGpu, true);
+            if (preview)
+                draw(terrainPreviewGpu_.indexContours, GL_LINES);
         }
         shader_->setUniformValue("pixelOffset", QVector2D{});
     }

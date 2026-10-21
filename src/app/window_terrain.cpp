@@ -2,8 +2,10 @@
 #include "app/site_dialogs.hpp"
 #include "app/terrain_actions.hpp"
 #include "app/terrain_import_dialog.hpp"
+#include "app/terrain_tool_strip.hpp"
 #include "app/window.hpp"
 #include "io/terrain_source.hpp"
+#include <QActionGroup>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -13,6 +15,9 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QScopedValueRollback>
+#include <QMenuBar>
+#include <QToolBar>
+#include <QToolButton>
 namespace sketchy {
 // R095.d (ADR 0168 "Decisions > Interaction design"): File > Import terrain…. Unlike the other
 // importers, terrain import adds to the open document (owner decision 11).
@@ -109,6 +114,9 @@ void Window::setupTerrainActions() {
                   &regenerateTerrainInteractive);
     terrainAction("terrain.explode", "Explode terrain…", "terrain.explode",
                   &explodeTerrainInteractive);
+    // R096.f1: Reset edits… (UX §15.1, §15.6).
+    terrainAction("terrain.resetEdits", "Reset edits…", "terrain.reset_edits",
+                  &resetTerrainEditsInteractive);
     // The tool refusal (ADR 0168, Tools on terrain): the status bar names the tool and offers
     // Explode, which opens the same confirmation. The pointer may leave the tile to reach the
     // button, so the refusal stays until a tool hovers something else or the tool changes.
@@ -153,23 +161,138 @@ void Window::syncTerrainActions() {
     const bool model = workspace_ == Workspace::Model && !assistantFenced_;
     findChild<QAction *>("terrain.createFromSelection")
         ->setEnabled(model && !selectedTerrainEdges(selection).isEmpty());
-    const bool terrain = model && selectedTerrain(doc_, selection);
+    const auto selected = model ? selectedTerrain(doc_, selection) : 0;
+    const bool terrain = selected != 0;
     for (const auto *id : {"terrain.settings", "terrain.regenerate", "terrain.explode"})
         findChild<QAction *>(id)->setEnabled(terrain);
+    findChild<QAction *>("terrain.resetEdits")
+        ->setEnabled(terrain && !doc_.bodies().at(selected)->terrain->edits.empty());
+    // The terrain tools need a terrain in the model to act on; without one they still start and
+    // say so (UX §15.1), so they stay enabled.
+    for (const auto *id : {"tool.29", "tool.30"})
+        if (auto *tool = findChild<QAction *>(id))
+            tool->setEnabled(model);
     if (statusExplode_ && statusExplodeTerrain_ && !isTerrain(doc_, statusExplodeTerrain_))
         statusExplode_->hide();
 }
 // The viewport's context menu: Create terrain from selection, enabled when the selection has
-// edges (curves select their edges).
+// edges (curves select their edges). R096.f1 (UX §15.1): right-clicking a terrain (or with one
+// selected) offers its tools, Terrain settings… and Explode terrain…; a terrain under the pointer
+// is selected first, so the actions name it.
 void Window::showViewportMenu(const QPoint &position) {
     if (workspace_ != Workspace::Model)
         return;
+    Id terrain = 0;
+    if (const auto [body, face] = viewport_->pick(position); body)
+        terrain = terrainOfBody(doc_, body);
+    if (terrain && selectedTerrain(doc_, viewport_->selectionState()) != terrain &&
+        viewport_->tool() == Viewport::Tool::Select && !viewport_->selectionState().context()) {
+        viewport_->setSelection(terrain);
+        sync();
+    }
+    if (!terrain)
+        terrain = selectedTerrain(doc_, viewport_->selectionState());
     syncTerrainActions();
     QMenu menu(this);
     menu.setObjectName("viewportContextMenu");
     menu.setAccessibleName("Selection actions");
+    if (terrain) {
+        menu.addSection(QString::fromStdString(doc_.bodies().at(terrain)->name));
+        for (const auto *id : {"tool.29", "tool.30"})
+            menu.addAction(findChild<QAction *>(id));
+        menu.addSeparator();
+        menu.addAction(findChild<QAction *>("terrain.settings"));
+        menu.addAction(findChild<QAction *>("terrain.explode"));
+        menu.addSeparator();
+    }
     menu.addAction(findChild<QAction *>("terrain.createFromSelection"));
     menu.exec(viewport_->mapToGlobal(position));
+}
+
+// ---- R096.f1: the terrain tools (UX_DESIGN §15.1) -------------------------------------------
+void Window::setupTerrainTools(QActionGroup *group, QToolBar *rail) {
+    auto add = [&](const QString &name, const QString &key, Viewport::Tool mode) {
+        auto *entry = action("tool." + QString::number(int(mode)), name, QKeySequence(key),
+                             [this, mode] { tool(mode, {}); });
+        entry->setCheckable(true);
+        group->addAction(entry);
+        entry->setProperty("command", "terrain.sculpt");
+        return entry;
+    };
+    // Only Sculpt has a default (Shift+S, unused in the model scope); Smooth can be assigned in
+    // the shortcut editor.
+    add("Sculpt", "Shift+S", Viewport::Tool::Sculpt);
+    add("Smooth", "", Viewport::Tool::Smooth);
+    // The rail's Terrain slot: one control in its own group after Tape. It shows the last
+    // terrain tool used ("Terrain" until one is, as the approved mockup draws it) and starts it
+    // (Sculpt at first).
+    railTools_.emplace_back(rail->addSeparator(), -1);
+    terrainRail_ = new QAction("Terrain ▸", this);
+    terrainRail_->setObjectName("railTerrain");
+    terrainRail_->setCheckable(true);
+    connect(terrainRail_, &QAction::triggered, this, [this] {
+        if (auto *entry = findChild<QAction *>("tool." + QString::number(int(lastTerrainTool_))))
+            entry->trigger();
+        syncTerrainTools();
+    });
+    rail->addAction(terrainRail_);
+    railTools_.emplace_back(terrainRail_, RailTerrain);
+    // The options strip on the viewport.
+    terrainStrip_ = new TerrainToolStrip(*viewport_);
+    connect(terrainStrip_, &TerrainToolStrip::toolRequested, this, [this](int mode) {
+        if (auto *entry = findChild<QAction *>("tool." + QString::number(mode)))
+            entry->trigger();
+        // The switcher keeps the keyboard: the strip stays where it was.
+        if (auto *button = terrainStrip_->toolButton(mode))
+            button->setFocus(Qt::OtherFocusReason);
+    });
+    connect(terrainStrip_, &TerrainToolStrip::problem, this, [this](const QString &text) {
+        if (!text.isEmpty())
+            status_->setText(text);
+    });
+    syncTerrainTools();
+}
+void Window::setupTerrainMenu() {
+    terrainMenu_ = menuBar()->addMenu("&Terrain");
+    terrainMenu_->setObjectName("terrainMenu");
+    terrainMenu_->addSection("Tools");
+    // Edit contours, Stamp pad and Drape join the tools with R096.f2.
+    for (const auto *id : {"tool.29", "tool.30"})
+        terrainMenu_->addAction(findChild<QAction *>(id));
+    terrainHeading_ = terrainMenu_->addSection("Selected terrain");
+    for (const auto *id :
+         {"terrain.settings", "terrain.regenerate", "terrain.resetEdits", "terrain.explode"})
+        terrainMenu_->addAction(findChild<QAction *>(id));
+    terrainMenu_->addSeparator();
+    terrainMenu_->addAction(findChild<QAction *>("terrain.createFromSelection"));
+    connect(terrainMenu_, &QMenu::aboutToShow, this, [this] {
+        syncTerrainActions();
+        const auto terrain = selectedTerrain(doc_, viewport_->selectionState());
+        terrainHeading_->setText(terrain ? QString::fromStdString(doc_.bodies().at(terrain)->name)
+                                         : QString("No terrain selected"));
+    });
+}
+void Window::syncTerrainTools() {
+    if (!terrainRail_)
+        return;
+    const auto mode = viewport_->tool();
+    const bool active = Viewport::terrainTool(mode);
+    if (active) {
+        lastTerrainTool_ = mode;
+        terrainToolUsed_ = true;
+    }
+    const QString name = lastTerrainTool_ == Viewport::Tool::Smooth ? "Smooth" : "Sculpt";
+    terrainRail_->setText((terrainToolUsed_ ? name : QString("Terrain")) + " ▸");
+    const auto *entry = findChild<QAction *>("tool." + QString::number(int(lastTerrainTool_)));
+    const auto key = entry ? entry->shortcut().toString(QKeySequence::NativeText) : QString();
+    terrainRail_->setToolTip("Terrain tools: " + name + (key.isEmpty() ? "" : " (" + key + ")"));
+    terrainRail_->setChecked(active);
+    if (auto *button = modelRail_ ? modelRail_->widgetForAction(terrainRail_) : nullptr) {
+        button->setAccessibleName("Terrain tools: " + name);
+        button->setAccessibleDescription("Starts " + name + "; the strip switches terrain tools");
+    }
+    if (terrainStrip_)
+        terrainStrip_->sync();
 }
 // R095.e2 (ADR 0168 "Decisions > Interaction design", Site): File > Site settings…. Re-anchor
 // and Set origin commit from their own dialogs (site.reanchor, site.set), one edit each.

@@ -28,7 +28,8 @@
 #include <algorithm>
 namespace sketchy {
 namespace {
-constexpr const char *railGroupNames[] = {"Select", "Draw", "Modify", "Measure", "Camera"};
+constexpr const char *railGroupNames[] = {"Select", "Draw",    "Modify",
+                                          "Measure", "Terrain", "Camera"};
 // The tool rail's group button (§3.3): the shown group's name and a down-chevron after it,
 // painted as one centred label on the rail button's own frame (background, hover, checked
 // and focus ring), so the pair reads as one control and fits the 88 px rail ("Measure" and
@@ -497,7 +498,8 @@ bool Window::overlayFilter(QObject *object, QEvent *event) {
     }
 }
 // UX_DESIGN §3.3 (< 800 px): the Model rail shows one group of tools. The group button is the
-// rail's first item (one control: the group's name, then a chevron) and lists the five groups.
+// rail's first item (one control: the group's name, then a chevron) and lists the six groups
+// (R096.f1 adds Terrain).
 void Window::setupRailGroups() {
     auto *button = new RailGroupButton;
     button->setObjectName("railGroupButton");
@@ -613,6 +615,8 @@ void Window::layoutRail() {
     }
     for (auto *entry : leaving)
         modelRail_->removeAction(entry);
+    // R096.f1: a re-added Terrain slot gets a new button; it keeps its accessible name.
+    syncTerrainTools();
 }
 void Window::themeRail(const ThemeColors &colors) {
     if (!railGroupButton_)

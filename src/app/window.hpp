@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+class QActionGroup;
 class QTabWidget;
 class QSplitter;
 class QDialog;
@@ -40,6 +41,7 @@ class SheetWorkspace;
 class SheetsTray;
 class SheetExportDialog;
 class TerrainImportDialog;
+class TerrainToolStrip;
 struct SheetExport;
 struct SheetExportOptions;
 struct SheetExportPreflight;
@@ -218,7 +220,15 @@ class Window : public QMainWindow {
     // The tool rail's groups (UX_DESIGN §2 item 2, §3.3; window_narrow.cpp). Every action on the
     // rail has one group, assigned where the rail is built (window.cpp). Below 800 px the rail
     // shows one group behind a group button; from 800 px up it is unchanged.
-    enum RailGroup { RailSelect, RailDraw, RailModify, RailMeasure, RailCamera, RailGroupCount };
+    enum RailGroup {
+        RailSelect,
+        RailDraw,
+        RailModify,
+        RailMeasure,
+        RailTerrain,
+        RailCamera,
+        RailGroupCount
+    };
     // The actions the rail holds in rail order, each with its group (-1: a separator, on the
     // wide rail only), and the group button's action.
     std::vector<std::pair<QAction *, int>> railTools_;
@@ -348,6 +358,16 @@ class Window : public QMainWindow {
     QPushButton *statusExplode_{};
     Id statusExplodeTerrain_{};
     QString terrainStatusSaved_, terrainStatusShown_;
+    // R096.f1 (UX_DESIGN §15.1): the Terrain menu, the rail's Terrain slot (the last terrain tool
+    // used; "Terrain" until one is), the tool options strip and the terrain tool actions.
+    QMenu *terrainMenu_{};
+    QAction *terrainRail_{}, *terrainHeading_{};
+    TerrainToolStrip *terrainStrip_{};
+    Viewport::Tool lastTerrainTool_{Viewport::Tool::Sculpt};
+    bool terrainToolUsed_{}, terrainMeasurement_{};
+    void setupTerrainTools(QActionGroup *group, QToolBar *rail);
+    void setupTerrainMenu();
+    void syncTerrainTools();
     std::unique_ptr<QPrinter> sheetPrinter_;
     ThemeColors sheetColors_{themeColors(false)};
     void sheetExportFlow(bool print);

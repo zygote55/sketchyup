@@ -782,8 +782,9 @@ TerrainEditApplied applyTerrainEdit(Document &doc, Id terrain, const std::string
     return applied;
 }
 TerrainEditPreview previewTerrainEdit(const Document &doc, Id terrain, const std::string &kindName,
-                                      std::shared_ptr<const TerrainEditData> data) {
-    auto computed = computeTerrainEdit(doc, terrain, kindName, std::move(data));
+                                      std::shared_ptr<const TerrainEditData> data,
+                                      const TerrainEditOutcome *planned) {
+    auto computed = computeTerrainEdit(doc, terrain, kindName, std::move(data), planned);
     TerrainEditPreview preview;
     preview.edit = computed.id;
     preview.region = std::move(computed.region);

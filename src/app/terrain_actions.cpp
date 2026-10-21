@@ -325,6 +325,40 @@ TerrainRegenerateDialog::TerrainRegenerateDialog(const TerrainPaint &paint, QWid
     resize(480, sizeHint().height());
 }
 
+TerrainResetEditsDialog::TerrainResetEditsDialog(const Document &doc, Id terrain, QWidget *parent)
+    : Settled<QDialog>(parent) {
+    setObjectName("terrainResetEditsDialog");
+    setWindowTitle("Reset terrain edits");
+    setModal(true);
+    const auto &body = *doc.bodies().at(terrain);
+    const auto count = body.terrain->edits.size();
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(10);
+    layout->addWidget(title("Reset terrain edits"));
+    layout->addWidget(text(QString("Reset %1 to %2? The terrain is rebuilt from its sources.")
+                               .arg(plural(count, "change", "changes"),
+                                    QString::fromStdString(body.name)),
+                           "terrainResetEditsSummary"));
+    layout->addWidget(text("Undo restores the changes.", "terrainDialogNote"));
+    auto *buttons = new QHBoxLayout;
+    buttons->addStretch(1);
+    auto *cancel = new QPushButton("Cancel");
+    cancel->setObjectName("terrainResetEditsCancel");
+    cancel->setAutoDefault(false);
+    cancel->setDefault(true);
+    auto *reset = new QPushButton("Reset edits");
+    reset->setObjectName("terrainResetEditsConfirm");
+    reset->setAutoDefault(false);
+    buttons->addWidget(cancel);
+    buttons->addWidget(reset);
+    layout->addLayout(buttons);
+    connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+    connect(reset, &QPushButton::clicked, this, &QDialog::accept);
+    cancel->setFocus(Qt::OtherFocusReason);
+    resize(480, sizeHint().height());
+}
+
 // ---- Settings ------------------------------------------------------------------------------
 struct TerrainSettingsDryRun {
     QJsonObject command;
@@ -917,6 +951,30 @@ bool regenerateTerrainInteractive(QWidget *parent, Document &doc, Viewport &view
             throw;
         TerrainReportDialog("Regenerate terrain",
                             "Regenerate refused. Nothing was changed. " +
+                                QString::fromUtf8(error.what()),
+                            true, report, parent)
+            .exec();
+        return false;
+    }
+}
+bool resetTerrainEditsInteractive(QWidget *parent, Document &doc, Viewport &view, Id terrain) {
+    if (!isTerrain(doc, terrain))
+        throw std::runtime_error("Select a terrain to reset its edits");
+    if (doc.bodies().at(terrain)->terrain->edits.empty())
+        throw std::runtime_error("This terrain has no edits to reset");
+    TerrainResetEditsDialog confirm(doc, terrain, parent);
+    if (confirm.exec() != QDialog::Accepted || !isTerrain(doc, terrain))
+        return false;
+    try {
+        const auto operation = commitTerrain(
+            view, {{"command", "terrain.reset_edits"}, {"terrain", QString::number(terrain)}});
+        return operation["changed"].toBool() || !operation.isEmpty();
+    } catch (const std::exception &error) {
+        const auto report = refusalReport(error);
+        if (report.isEmpty())
+            throw;
+        TerrainReportDialog("Reset terrain edits",
+                            "Reset edits refused. Nothing was changed. " +
                                 QString::fromUtf8(error.what()),
                             true, report, parent)
             .exec();

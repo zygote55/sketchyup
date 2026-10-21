@@ -257,6 +257,8 @@ bool Viewport::constraintKey(QKeyEvent *event) {
     return true;
 }
 void Viewport::keyReleaseEvent(QKeyEvent *event) {
+    if (terrainToolActive())
+        terrainKeyRelease(event);
     if (event->key() == Qt::Key_Control && transformTool() && !event->isAutoRepeat()) {
         const auto toggle = transformControlPending_;
         transformControlPending_ = false;

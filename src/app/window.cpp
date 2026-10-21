@@ -15,6 +15,7 @@
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
 #include "app/terrain_import_dialog.hpp"
+#include "app/terrain_tool_strip.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
 #include "app/unit_display.hpp"
@@ -808,6 +809,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     // An option toggle: it belongs to Push/pull's group, Modify, though it sits after Tape measure.
     railTools_.emplace_back(newFace, RailModify);
     connect(viewport_, &Viewport::pushPullModeChanged, newFace, &QAction::setChecked);
+    // R096.f1: the terrain tools and the rail's Terrain slot, in its own group after Tape.
+    setupTerrainTools(group, tools);
     // The separator before Camera shows on the wide rail only (group -1: in no group).
     railTools_.emplace_back(tools->addSeparator(), -1);
     addTool("Orbit", "O", Viewport::Tool::Orbit, "Drag to orbit · Shift-drag to pan");
@@ -816,6 +819,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     setupRailGroups();
     // One Tab stop on the active tool; arrows move between tools (R084.v).
     installToolbarNavigation(tools, group);
+    // R096.f1 (UX_DESIGN §15.1): the Terrain menu sits between Draw and Camera.
+    setupTerrainMenu();
     auto *cameraMenu = menuBar()->addMenu("&Camera");
     cameraMenu->addAction(addTool(
         "Look around", "", Viewport::Tool::LookAround,
@@ -1076,6 +1081,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             organization_->showMaterials();
         if (auto *toolAction = findChild<QAction *>("tool." + QString::number(mode)))
             toolAction->setChecked(true);
+        syncTerrainTools();
+        if (Viewport::terrainTool(Viewport::Tool(mode)))
+            showRailGroup(RailTerrain);
+        syncParameterMeasurement();
+    });
+    connect(viewport_, &Viewport::terrainToolChanged, this, [this] {
+        syncTerrainTools();
         syncParameterMeasurement();
     });
     connect(viewport_, &Viewport::changed, this, &Window::sync);
@@ -1379,6 +1391,8 @@ QFrame#terrainDialogBanner[tone="notice"] {border:1px solid $warningBorder;backg
     themeSidebar(colors);
     themeNarrow(colors);
     themeRail(colors);
+    if (terrainStrip_)
+        terrainStrip_->setColors(colors);
     if (auto *components = findChild<ComponentsTab *>())
         components->setTheme(colors);
 }
@@ -1395,6 +1409,25 @@ void Window::run(const std::function<void()> &fn, bool viewOnly) {
     }
 }
 void Window::syncParameterMeasurement() {
+    // R096.f1 (UX §15.2): a terrain tool names its step: Radius before a stroke, Amount or
+    // Strength while a spot or region waits for its value and after a commit (amend).
+    if (workspace_ == Workspace::Model && Viewport::terrainTool(viewport_->tool())) {
+        const auto label = viewport_->terrainMeasurementLabel();
+        parameterMeasurement_ = planeMeasurement_ = false;
+        terrainMeasurement_ = true;
+        measurementStep_->setText(label);
+        measurementStep_->setVisible(true);
+        measurements_->setAccessibleName(label + ", Measurements in " +
+                                         unitName(doc_.displayUnits()).toLower());
+        return;
+    }
+    if (terrainMeasurement_) {
+        terrainMeasurement_ = false;
+        measurementStep_->clear();
+        measurementStep_->hide();
+        measurements_->setAccessibleName("Measurements in " +
+                                         unitName(doc_.displayUnits()).toLower());
+    }
     if (!parameters_ || workspace_ != Workspace::Model) {
         parameterMeasurement_ = planeMeasurement_ = false;
         return;
@@ -1474,6 +1507,7 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"
         : t == Viewport::Tool::ThreePointArc                         ? "[x,y,z] or 24s"
+        : Viewport::terrainTool(t) ? "radius, [x,y] or @E,N, then a value"
                                                                      : "width, depth");
 }
 void Window::sync() {
@@ -1572,6 +1606,8 @@ void Window::sync() {
     breadcrumb_->setMaximumWidth(std::max(100, viewport_->width() - 32));
     breadcrumb_->adjustSize();
     breadcrumb_->raise();
+    if (terrainStrip_)
+        terrainStrip_->place(0);
     syncComponentActions();
     organization_->refresh();
     syncParameterMeasurement();
@@ -1771,7 +1807,16 @@ void Window::focusRegion(bool previous) {
     std::vector<QWidget *> visible;
     int current = -1;
     auto *focused = QApplication::focusWidget();
-    for (auto *region : focusRegions_) {
+    // R096.f1 (UX §15.1): while a terrain tool's options strip shows, it follows the viewport and
+    // the Measurements box follows it, so F6 moves between the strip and the box.
+    auto regions = focusRegions_;
+    if (terrainStrip_ && terrainStrip_->isVisible() && workspace_ == Workspace::Model) {
+        std::erase(regions, measurements_);
+        const auto view = std::find(regions.begin(), regions.end(), viewport_);
+        if (view != regions.end())
+            regions.insert(std::next(view), {terrainStrip_, measurements_});
+    }
+    for (auto *region : regions) {
         if (!region->isVisible() || !region->isEnabled())
             continue;
         if (region == focused || region->isAncestorOf(focused))
@@ -1782,7 +1827,10 @@ void Window::focusRegion(bool previous) {
         return;
     const int count = int(visible.size());
     const auto next = current < 0 ? 0 : (current + (previous ? count - 1 : 1)) % count;
-    visible[next]->setFocus(Qt::ShortcutFocusReason);
+    if (visible[next] == terrainStrip_)
+        terrainStrip_->firstField()->setFocus(Qt::ShortcutFocusReason);
+    else
+        visible[next]->setFocus(Qt::ShortcutFocusReason);
 }
 void Window::rememberPath(const QString &path) {
     const auto absolute = QFileInfo(path).absoluteFilePath();
