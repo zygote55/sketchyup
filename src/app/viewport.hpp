@@ -252,6 +252,9 @@ class Viewport : public QOpenGLWidget {
     const QJsonObject &terrainEditRequested() const { return terrainEditRequest_.command; }
     bool terrainEditPreviewCurrent() const;
     TerrainPreviewWorker &terrainPreviewWorker() { return *terrainWorker_; }
+    // The status-bar text of a refusal at the pointer while one is shown (the window draws it in
+    // the failure style), else empty.
+    const QString &terrainFailureStatus() const { return terrainFailureStatus_; }
     // ---- R096.f2: Edit contours (viewport_contours.cpp; UX_DESIGN §15.3, §15.7) ----
     enum class ContourMode { Edit, AddContour, AddBreakline, AddSpot, Promote };
     void setContourMode(ContourMode mode);
@@ -683,22 +686,34 @@ class Viewport : public QOpenGLWidget {
         std::vector<Vec3> ring, halfRing;
     } terrainOverlay_;
     void emitTerrainStatus();
-    QString terrainStatusShown_;
+    QString terrainStatusShown_, terrainFailureStatus_;
     // R096.f2: the worker preview (viewport_terrain_preview.cpp).
     TerrainPreviewWorker *terrainWorker_{};
     struct TerrainEditRequest {
         QJsonObject command;        // the newest command asked for
         std::uint64_t generation{}; // its worker generation (0: refused before planning)
         QString error;              // a refusal before planning (the command's parse)
+        std::string document;       // the document and revision it was made at
+        std::uint64_t revision{};
     } terrainEditRequest_;
     std::shared_ptr<const TerrainCommandPreview> terrainEditShown_;
+    // While a plan the pointer asked for is on the worker, the next frame waits for it (at most
+    // 40 ms), so the frame that follows an input shows its candidate rather than one frame
+    // without it and the next with it.
+    QTimer *terrainEditPaintWait_{};
+    void updateAfterTerrainEdit();
     void requestTerrainEditPreview(const QJsonObject &command);
     void withdrawTerrainEditPreview();
     void terrainEditPreviewFinished(qulonglong generation,
                                     std::shared_ptr<const TerrainCommandPreview> preview);
     // Commits a worker-planned command as one labelled edit (ToolSession); a refusal changes
     // nothing and is reported. Returns whether it committed.
-    bool commitTerrainEdit(const QJsonObject &command, const QString &done);
+    bool commitTerrainEdit(const QJsonObject &command, const QString &done,
+                           QString *error = nullptr);
+    // Keeps a message in the status bar until the pointer moves or a key acts (a refusal or a
+    // result would otherwise be replaced at once by the tool's instruction).
+    void holdTerrainStatus(const QString &text);
+    bool terrainStatusHeld_{};
     // The refusal of `preview` at the pointer: its label, the first location (model) and the
     // status bar's sentence with the location in site coordinates.
     struct TerrainEditFailure {

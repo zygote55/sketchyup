@@ -39,7 +39,7 @@ void TerrainPreviewWorker::startNext() {
     QPointer<TerrainPreviewWorker> guard(this);
     // The task owns its request (the record, mesh and sources it plans against are immutable)
     // and its cancel flag; it reads no document.
-    pool_.start([request = std::move(request), generation, cancel = cancel_, guard] {
+    pool_.start([request = std::move(request), generation, cancel = cancel_, guard]() mutable {
         std::shared_ptr<const TerrainCommandPreview> preview;
         try {
             TerrainProgress progress([cancel] { return cancel->load(std::memory_order_relaxed); });
@@ -48,9 +48,12 @@ void TerrainPreviewWorker::startNext() {
         } catch (...) {
             // runTerrainEditPreview returns its refusals; anything else is dropped.
         }
+        // The request (the mesh and sources it holds) is released on the UI thread: their caches
+        // update in place only when nothing else holds them.
         QMetaObject::invokeMethod(
             qApp,
-            [guard, generation, preview = std::move(preview)]() mutable {
+            [guard, generation, preview = std::move(preview), request = std::move(request)]() mutable {
+                request.reset();
                 if (guard)
                     guard->done(generation, std::move(preview));
             },

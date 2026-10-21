@@ -1353,6 +1353,18 @@ void contoursShownAndSelected(Window &window) {
     QTest::keyClick(view, Qt::Key_Escape);
     check(view->contourTool().selected == 0 && view->tool() == Viewport::Tool::Contours,
           "Escape clears the selection first");
+    // Delete with no source selected never reaches the window's Delete (the terrain is the
+    // model selection).
+    view->setSelection(terrain);
+    changed(window);
+    const auto revision = doc.revision();
+    window.activateWindow();
+    view->setFocus();
+    QTest::keyClick(view, Qt::Key_Delete);
+    QTest::qWait(10);
+    check(doc.revision() == revision && isTerrain(doc, terrain) &&
+              status(window) == "Select a source contour, breakline or spot point first",
+          "Delete without a source deletes nothing: " + status(window).toStdString());
     view->setTool(Viewport::Tool::Select);
 }
 
@@ -1431,6 +1443,14 @@ void contourRefusal(Window &window) {
     fresh(window);
     auto &doc = window.document();
     const auto terrain = rings(window);
+    {
+        // Display contours (drawn faded in Edit contours) between the source rings.
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        display.contours = true;
+        display.contourInterval = 0.25;
+        setTerrainDisplay(doc, terrain, display);
+        changed(window);
+    }
     auto *view = window.viewport();
     startContours(window);
     view->setFocus();
@@ -1455,6 +1475,8 @@ void contourRefusal(Window &window) {
     check(status(window).startsWith("Crosses contour 103.00 m at ") &&
               status(window).endsWith("Release to cancel, or move back."),
           "the status bar repeats it with the location: " + status(window).toStdString());
+    check(child<QLabel>(window, "statusMessage")->property("terrainFailure").toBool(),
+          "in the failure style");
     if (view->rendererReady())
         check(view->terrainPreviewHiddenTiles().empty(), "nothing is drawn in place of the tiles");
     shot(window, "contours");

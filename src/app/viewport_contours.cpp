@@ -33,7 +33,7 @@ namespace sketchy {
 namespace {
 constexpr double pickRadius = 6;     // logical pixels to a source line or point
 constexpr double handleRadius = 7;   // to a handle
-constexpr std::size_t crossLimit = 20000; // spot-point crosses drawn at most
+constexpr std::size_t crossLimit = 2000; // spot points in view drawn as crosses, at most
 bool finite(const Vec3 &p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); }
 double segmentDistance(QPointF p, QPointF a, QPointF b) {
     const QPointF d = b - a;
@@ -396,15 +396,17 @@ QString Viewport::contourMeasurementLabel() const {
     const auto *source = contourSource(tool.selected);
     if (!source)
         return "Position";
-    if (tool.focus >= 0)
-        return "Position";
+    // A number sets the elevation; a typed position moves the focused handle.
     return source->role == TerrainSourceRole::Points ? QString("Position") : QString("Elevation");
 }
 void Viewport::emitContourStatus() {
     const auto &tool = contourTool_;
+    if (terrainStatusHeld_)
+        return; // a refusal or result stays until the pointer moves or a key acts
     QString text;
     const auto shown = terrainEditPreviewShown();
     const bool refused = shown && shown->refused() && terrainEditPreviewCurrent();
+    terrainFailureStatus_.clear();
     if (!tool.refusal.isEmpty())
         text = tool.refusal;
     else if (tool.dragging && refused)
@@ -452,6 +454,7 @@ void Viewport::emitContourStatus() {
     if (!terrainEditRequest_.error.isEmpty() && (tool.dragging || !tool.adding.empty() ||
                                                  tool.mode == ContourMode::Promote))
         text = "Nothing would change: " + terrainEditRequest_.error;
+    terrainFailureStatus_ = tool.dragging && refused ? text : QString();
     if (text == terrainStatusShown_)
         return;
     terrainStatusShown_ = text;
@@ -462,6 +465,7 @@ void Viewport::emitContourStatus() {
 void Viewport::contourHover(QPointF point) {
     auto &tool = contourTool_;
     tool.screen = point;
+    terrainStatusHeld_ = false;
     const auto hit = terrainHit(point);
     tool.refusal.clear();
     if (!doc_.materializedTotals().terrainTriangles)
@@ -486,7 +490,7 @@ void Viewport::contourHover(QPointF point) {
             }
         }
         emitTerrainStatus();
-        update();
+        updateAfterTerrainEdit();
         return;
     }
     if (tool.mode == ContourMode::Edit) {
@@ -505,12 +509,11 @@ void Viewport::contourHover(QPointF point) {
             // interval; back to model Z.
             const double e = tool.pointer->z - worldZ + offset;
             const double level = std::round(e / interval) * interval - offset + worldZ;
-            if (!tool.promoteLevel || *tool.promoteLevel != level ||
-                QLineF(tool.promoteAt, point).length() > 24) {
-                tool.promoteLevel = level;
-                tool.promoteAt = point;
-                requestTerrainEditPreview(contourAddCommand());
-            }
+            // Every move asks again (latest wins): the line nearest the pointer is the one
+            // shown, and the one a click commits.
+            tool.promoteLevel = level;
+            tool.promoteAt = point;
+            requestTerrainEditPreview(contourAddCommand());
         }
     }
     // R095.e1's hover pattern: off a terrain (and off its sources) the cursor is not-allowed and
@@ -519,10 +522,11 @@ void Viewport::contourHover(QPointF point) {
         tool.refusal = "Point at a terrain to edit its contours";
     setCursor(tool.refusal.isEmpty() ? Qt::CrossCursor : Qt::ForbiddenCursor);
     emitTerrainStatus();
-    update();
+    updateAfterTerrainEdit();
 }
 bool Viewport::contourPress(QMouseEvent *event) {
     auto &tool = contourTool_;
+    terrainStatusHeld_ = false;
     const auto point = event->position();
     if (!tool.refusal.isEmpty() && tool.refusal.startsWith("No terrain")) {
         emit message(tool.refusal);
@@ -558,7 +562,12 @@ bool Viewport::contourPress(QMouseEvent *event) {
         }
         if (tool.adding.empty()) {
             terrainSession_.begin();
-            tool.terrain = hit->first;
+            if (hit->first != tool.terrain) {
+                tool.terrain = hit->first;
+                tool.selected = tool.hovered = 0;
+                tool.focus = -1;
+                contourSources_ = {};
+            }
         }
         auto p = hit->second;
         if (tool.mode == ContourMode::AddSpot) {
@@ -661,9 +670,7 @@ bool Viewport::contourRelease(QMouseEvent *event) {
         const auto status = refused ? terrainEditFailure(*shown).status : QString();
         withdrawTerrainEditPreview();
         terrainSession_.cancel();
-        terrainStatusShown_.clear();
-        emit message(refused ? "Nothing changed: " + status : QString("Nothing changed"));
-        terrainStatusShown_ = refused ? "Nothing changed: " + status : QString("Nothing changed");
+        holdTerrainStatus(refused ? "Nothing changed: " + status : QString("Nothing changed"));
         emit terrainToolChanged();
         update();
         return true;
@@ -722,6 +729,7 @@ void Viewport::finishContourAdd(bool close) {
 }
 bool Viewport::contourKey(QKeyEvent *event) {
     auto &tool = contourTool_;
+    terrainStatusHeld_ = false;
     const auto modifiers = event->modifiers();
     const bool plain = !(modifiers & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
     const auto *source = contourSource(tool.selected);
@@ -820,6 +828,14 @@ bool Viewport::contourKey(QKeyEvent *event) {
         event->accept();
         return true;
     }
+    if (event->key() == Qt::Key_Delete && (tool.pressed || tool.dragging || !source ||
+                                           tool.mode != ContourMode::Edit)) {
+        // Taken from the window's Delete (the model selection is the terrain): nothing to remove.
+        if (!tool.pressed && !tool.dragging && tool.mode == ContourMode::Edit)
+            holdTerrainStatus("Select a source contour, breakline or spot point first");
+        event->accept();
+        return true;
+    }
     if (event->key() == Qt::Key_Delete && source && tool.mode == ContourMode::Edit) {
         if (modifiers.testFlag(Qt::ShiftModifier))
             removeSelectedSource();
@@ -837,8 +853,8 @@ bool Viewport::contourKey(QKeyEvent *event) {
                 }
             }
         } else
-            emit message("Focus a vertex first (click a square handle or press Tab); "
-                         "Shift+Delete removes the source");
+            holdTerrainStatus("Focus a vertex first (click a square handle or press Tab); "
+                              "Shift+Delete removes the source");
         emitTerrainStatus();
         emit terrainToolChanged();
         update();
@@ -878,16 +894,20 @@ void Viewport::setSelectedSourceElevation(double elevation) {
     if (source->role == TerrainSourceRole::Points)
         throw std::runtime_error("Spot points keep their own elevations; move or remove them");
     const auto selected = contourTool_.selected;
-    commitTerrainEdit({{"command", "terrain.edit_source"},
-                       {"terrain", QString::number(contourTool_.terrain)},
-                       {"source", double(selected)},
-                       {"elevation", elevation}},
-                      "Set the elevation to " +
-                          displayLength(elevation, doc_.displayUnits(), doc_.displayPrecision()));
+    QString error;
+    const bool done = commitTerrainEdit(
+        {{"command", "terrain.edit_source"},
+         {"terrain", QString::number(contourTool_.terrain)},
+         {"source", double(selected)},
+         {"elevation", elevation}},
+        "Set the elevation to " +
+            displayLength(elevation, doc_.displayUnits(), doc_.displayPrecision()),
+        &error);
     contourTool_.selected = contourSource(selected) ? selected : 0;
-    emitTerrainStatus();
     emit terrainToolChanged();
     update();
+    if (!done)
+        throw std::runtime_error("Nothing changed: " + error.toStdString());
 }
 void Viewport::removeSelectedSource() {
     if (!contourSource(contourTool_.selected)) {
@@ -909,6 +929,8 @@ void Viewport::removeSelectedSource() {
 // ---- Measurements box (UX §15.3, §15.7) --------------------------------------------------------
 bool Viewport::contourMeasurements(const QString &text) {
     auto &tool = contourTool_;
+    if (tool.pressed || tool.dragging)
+        throw std::runtime_error("Release the drag first");
     const auto unit = inputUnit(doc_.displayUnits());
     const auto locale = QLocale();
     std::optional<std::array<double, 2>> position;
@@ -992,7 +1014,12 @@ bool Viewport::contourMeasurements(const QString &text) {
             return true;
         }
         if (tool.mode == ContourMode::Promote) {
-            tool.terrain = terrain;
+            if (terrain != tool.terrain) {
+                tool.terrain = terrain;
+                tool.selected = tool.hovered = 0;
+                tool.focus = -1;
+                contourSources_ = {};
+            }
             tool.pointer = point;
             const auto &record = *doc_.bodies().at(terrain)->terrain;
             const double interval = record.display.contourInterval;
@@ -1013,7 +1040,12 @@ bool Viewport::contourMeasurements(const QString &text) {
         }
         if (tool.adding.empty()) {
             terrainSession_.begin();
-            tool.terrain = terrain;
+            if (terrain != tool.terrain) {
+                tool.terrain = terrain;
+                tool.selected = tool.hovered = 0;
+                tool.focus = -1;
+                contourSources_ = {};
+            }
         } else if (terrain != tool.terrain)
             throw std::runtime_error("The new source's points must lie on one terrain");
         if (tool.mode == ContourMode::AddSpot)
@@ -1079,7 +1111,8 @@ void Viewport::paintContourTool(QPainter &p) {
         p.drawLine(at + QPointF(arm, -arm), at + QPointF(-arm, arm));
     };
     const auto shown = terrainEditPreviewShown();
-    const bool refused = shown && shown->refused();
+    // A refusal is drawn while it is the plan of the newest request, as the status bar says it.
+    const bool refused = shown && shown->refused() && terrainEditPreviewCurrent();
     // The changed region, hatched as for Sculpt (a black and white band, not colour alone).
     if (shown && shown->candidate && !refused) {
         for (const auto &loop : shown->outline) {
@@ -1106,29 +1139,64 @@ void Viewport::paintContourTool(QPainter &p) {
             continue;
         const bool hovered = source.id == tool.hovered;
         const QColor colour = hovered ? selection : ink;
+        // An imported point file (over 20,000 spot points) is drawn only while hovered: as the
+        // base of a points terrain it would cover the view.
+        if (source.role == TerrainSourceRole::Points && source.points.size() > 20000 && !hovered)
+            continue;
         if (source.role == TerrainSourceRole::Points) {
-            p.setPen(QPen(colour, hovered ? 1.8 : 1.2));
-            std::size_t drawn = 0;
-            for (const auto &point : source.points) {
-                const auto at = project(point);
-                if (!visible.contains(at))
-                    continue;
-                if (++drawn > crossLimit)
-                    break;
-                cross(at, hovered ? 4 : 3);
+            // Crosses while few are in view; a dense point set draws as dots (a cross each would
+            // cost the frame seconds under software rendering).
+            QPolygonF shown;
+            for (const auto &point : source.points)
+                if (const auto at = project(point); visible.contains(at))
+                    shown << at;
+            if (shown.size() <= qsizetype(crossLimit)) {
+                p.setPen(QPen(colour, hovered ? 1.8 : 1.2));
+                for (const auto &at : shown)
+                    cross(at, hovered ? 4 : 3);
+            } else {
+                p.save();
+                p.setRenderHint(QPainter::Antialiasing, false);
+                p.setPen(QPen(colour, hovered ? 2.5 : 1.5));
+                p.drawPoints(shown);
+                p.restore();
             }
             continue;
         }
-        const auto screen = polyline(source.points);
+        // Only the runs of segments in view are drawn (a large terrain's rings run far outside a
+        // close view, and every point drawn costs the frame).
+        std::vector<QPolygonF> runs;
+        {
+            QPolygonF run;
+            QPointF previous = project(source.points.front());
+            for (std::size_t i = 1; i < source.points.size(); ++i) {
+                const QPointF next = project(source.points[i]);
+                const bool shown =
+                    QRectF(previous, next).normalized().adjusted(-1, -1, 1, 1).intersects(visible);
+                if (shown) {
+                    if (run.isEmpty())
+                        run << previous;
+                    run << next;
+                } else if (!run.isEmpty()) {
+                    runs.push_back(std::move(run));
+                    run = {};
+                }
+                previous = next;
+            }
+            if (!run.isEmpty())
+                runs.push_back(std::move(run));
+        }
         if (hovered) {
             p.setPen(QPen(halo, 5));
-            p.drawPolyline(screen);
+            for (const auto &run : runs)
+                p.drawPolyline(run);
         }
         QPen pen(colour, hovered ? 2.4 : 1.5,
                  source.role == TerrainSourceRole::Breakline ? Qt::DashDotLine : Qt::SolidLine,
                  Qt::RoundCap, Qt::RoundJoin);
         p.setPen(pen);
-        p.drawPolyline(screen);
+        for (const auto &run : runs)
+            p.drawPolyline(run);
     }
     // The selected source with its handles: squares on vertices, rounds at midpoints.
     if (const auto *source = contourSource(tool.selected)) {
