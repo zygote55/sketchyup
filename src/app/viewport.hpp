@@ -706,6 +706,23 @@ class Viewport : public QOpenGLWidget {
         std::vector<ContourSource> sources;          // contours, breaklines, spot points
     };
     mutable ContourSources contourSources_;
+    // project() for many points: the matrix built once.
+    struct ScreenProjector {
+        QMatrix4x4 matrix;
+        Vec3 origin;
+        double width{}, height{};
+        QPointF operator()(const Vec3 &p) const {
+            const auto v = matrix * QVector4D(float(p.x - origin.x), float(p.y - origin.y),
+                                              float(p.z - origin.z), 1);
+            if (std::abs(v.w()) < 1e-9)
+                return {};
+            const auto n = v.toVector3DAffine();
+            return {(n.x() + 1) * width / 2, (1 - n.y()) * height / 2};
+        }
+    };
+    ScreenProjector screenProjector() const {
+        return {matrix(), renderOrigin_, double(renderWidth()), double(renderHeight())};
+    }
     const ContourSources &currentContourSources() const;
     const ContourSource *contourSource(std::uint32_t id) const;
     std::vector<std::uint32_t> contourSourcesAt(QPointF point) const;

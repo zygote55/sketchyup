@@ -15,6 +15,20 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain tools on the desktop, part 2: Edit contours (R096.f2, [UX_DESIGN §15.3](docs/UX_DESIGN.md#153-edit-contours),
+  [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f2)):
+  **Terrain → Edit contours** (Contours in the strip) draws a terrain's source contours solid,
+  breaklines dash-dot and spot points as crosses over faded display contours, names the source under
+  the pointer and selects it with square vertex and round midpoint handles. Dragging a handle moves
+  or inserts a vertex with the re-triangulated surface previewed in place, planned on a background
+  worker so the view stays responsive (the newest pointer position wins); a move that would cross
+  another source, leave the outline or enter a pad is marked at the pointer in red with an × and its
+  place in site coordinates, and releasing it changes nothing. A typed number sets the selected
+  source's elevation, Delete and Shift+Delete remove a vertex or the source, the strip switches its
+  role, and Add contour, Add breakline, Add spot and Promote add sources. Each change is one undoable
+  edit ("Edit contour", "Add contour", "Remove contour"), and a keyboard-only path selects a source by
+  a typed position, Tabs between its handles and moves them by typed positions.
+
 - Faster Terrain section (R096.f1c, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f1c)):
   with a terrain selected, Entity Info's Terrain section updates its triangle count, elevation
   range and flat areas from the tiles an edit changed instead of rescanning the whole terrain,

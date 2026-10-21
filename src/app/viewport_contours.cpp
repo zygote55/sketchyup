@@ -130,6 +130,7 @@ QString Viewport::contourSourceLabel(const ContourSource &source) const {
 }
 // The sources under the pointer, nearest first.
 std::vector<std::uint32_t> Viewport::contourSourcesAt(QPointF point) const {
+    const auto project = screenProjector();
     std::vector<std::pair<double, std::uint32_t>> found;
     for (const auto &source : currentContourSources().sources) {
         double best = std::numeric_limits<double>::infinity();
@@ -291,6 +292,8 @@ void Viewport::cancelContourOperation() {
     auto &tool = contourTool_;
     const bool was = tool.pressed || tool.dragging || !tool.adding.empty() ||
                      terrainEditShown_ || !terrainEditRequest_.command.isEmpty();
+    if (tool.pressed || tool.dragging || !tool.adding.empty())
+        terrainSession_.cancel(); // the operation ends
     tool.pressed = tool.dragging = false;
     tool.pressedHandle = tool.dragVertex = -1;
     tool.dragPoints.clear();
@@ -1056,6 +1059,7 @@ bool Viewport::contourMeasurements(const QString &text) {
 // ---- Drawing (UX §15.3) ------------------------------------------------------------------------
 void Viewport::paintContourTool(QPainter &p) {
     const auto &tool = contourTool_;
+    const auto project = screenProjector();
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
     const QColor ink = colors_.ink, halo(255, 255, 255, 220);

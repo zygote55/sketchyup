@@ -487,6 +487,30 @@ type the points one by one and the first point again to close. Over anything but
 cursor is not-allowed and the status bar says to point at a terrain; with no terrain in the model
 it says how to import one.
 
+**Edit contours.** Choose **Terrain → Edit contours** (or **Contours** in the strip). The
+terrain's source contours are drawn solid, breaklines dash-dot and spot points as small crosses,
+while the display contour lines fade. Hovering a source highlights it and names it ("Contour
+105.00 m · source 17"); when several lie under the pointer, **Tab** chooses another. Click a source
+to select it: its vertices get square handles and its segments round handles at their middles, and
+the strip shows its **Role** (Contour or Breakline) and **Elevation**. **Drag a square handle** to
+move a vertex (a contour keeps its elevation) or a **round one** to insert a vertex there; the
+re-triangulated surface is shown in place, outlined by a black and white band, and releasing
+applies it as one undoable edit ("Edit contour"). A move that would cross another source, leave the
+terrain's outline or enter a pad is refused at the pointer instead: the moved part turns red and
+dashed, an × marks the first conflict, a label says what it crosses ("Crosses contour 106.00 m ·
+Release to cancel, or move back"), and the status bar gives the place in site coordinates; releasing
+then changes nothing. With a source selected, **type a number** to set its elevation, press
+**Delete** to remove the focused vertex and **Shift+Delete** (or **Remove**) to remove the source.
+**Add contour**, **Add breakline** and **Add spot** draw new sources on the terrain as the Line tool
+does: click points, press **Enter** to finish (click a contour's first point to close it, and
+**Backspace** removes the last point). A new contour takes its first point's elevation unless you
+type one first; a spot point takes the elevation you type, or the surface's when you press Enter.
+**Promote** turns the display contour under the pointer into a source contour at its level, which
+is how a terrain made from points becomes editable. A pad's outline and daylight line, and a draped
+line, belong to their change: select them to see which, and change them in Terrain edits. Without
+a pointer, type `[x, y]` or `@E, N` to select the source nearest that position, **Tab** between its
+handles, and type a position to move the focused one.
+
 **Terrain display.** A new terrain uses the **Terrain** material and draws as one smooth
 surface: the seams between its tiles and its interior edges are not drawn (Show hidden geometry
 shows them dashed). Under **Display** in its Terrain section, **Show contour lines** draws
