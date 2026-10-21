@@ -130,12 +130,12 @@ void Viewport::cleanupGL() {
                     batch->count = 0;
                 }
         for (auto &[id, view] : terrainViews_)
-            for (auto *batch : {&view->linesGpu, &view->indexGpu}) {
-                batch->buffer.destroy();
-                batch->count = 0;
-            }
+            for (auto &chunk : view->chunks)
+                for (auto *batch : {&chunk->lines, &chunk->index}) {
+                    batch->buffer.destroy();
+                    batch->count = 0;
+                }
         terrainViews_.clear();
-        contourRanges_.clear();
         // R096.f1: the terrain preview's buffers; the next frame rebuilds them.
         for (auto *batch : {&terrainPreviewGpu_.surface, &terrainPreviewGpu_.lines,
                             &terrainPreviewGpu_.contours, &terrainPreviewGpu_.indexContours}) {
@@ -890,7 +890,12 @@ void Viewport::rebuild() {
         placementDefinitions_ = doc_.definitions();
     }
     syncTextures();
-    syncTerrainViews();
+    {
+        QElapsedTimer timing;
+        timing.start();
+        syncTerrainViews();
+        stats_.terrainViewsMs = timing.nsecsElapsed() / 1e6;
+    }
     textureMappingFallbacks_ = 0;
     std::erase_if(opacity_, [&](const auto &item) { return !doc_.bodies().contains(item.first); });
     // Both maps are in ID order: walk them together instead of searching.
@@ -1023,6 +1028,24 @@ void Viewport::rebuild() {
                                  rebuiltMaterials_ == doc_.materials() &&
                                  rebuiltImages_ == textureImages_;
     rebuiltInputsValid_ = false; // Until this pass completes.
+    // R096.f1b: a terrain edit changes the terrain container's record, which changes every tile's
+    // chain. When nothing but the record changed (transform, visibility, tag, lock and the rest
+    // are the same), the kept tiles' world transforms and inherited state are unchanged, so they
+    // keep the fast path below instead of being re-examined one by one.
+    std::set<Id> recordOnlyTerrains;
+    for (const auto &[terrain, view] : terrainViews_) {
+        const auto found = doc_.bodies().find(terrain);
+        const auto cached = bodyCaches_.find(terrain);
+        if (found == doc_.bodies().end() || found->second->parent || cached == bodyCaches_.end() ||
+            !cached->second->record || cached->second->record == found->second ||
+            cached->second->record->parent)
+            continue;
+        auto before = *cached->second->record, after = *found->second;
+        before.terrain.reset();
+        after.terrain.reset();
+        if (before == after)
+            recordOnlyTerrains.insert(terrain);
+    }
     size_t index = 0;
     auto slot = bodyCaches_.begin();
     for (const auto &[id, body] : doc_.bodies()) {
@@ -1032,7 +1055,10 @@ void Viewport::rebuild() {
         if (slot == bodyCaches_.end() || slot->first != id)
             slot = bodyCaches_.emplace_hint(slot, id, std::make_unique<BodyCache>());
         auto &cache = *(slot++)->second;
-        const bool chainSame = !chainChanged[index++];
+        bool chainSame = !chainChanged[index++];
+        if (!chainSame && body->terrainTile && cache.record == body &&
+            recordOnlyTerrains.contains(body->parent))
+            chainSame = true;
         const auto world = chainSame ? cache.world : doc_.worldTransform(id);
         const float alpha = opacity_.contains(id) ? opacity_.at(id) : 1.f;
         // R095.e2: a terrain tile draws with its terrain's surface (normals across seams, only
@@ -1080,6 +1106,60 @@ void Viewport::rebuild() {
             continue;
         }
 
+        // R096.f1b: a kept terrain tile in an edit's seam ring: only its normals changed (the
+        // neighbouring tiles' triangles moved). Its tessellation, colours and edges stand; each
+        // opaque vertex's light is recomputed from the new normal exactly as a full build would,
+        // and the buffer re-uploaded.
+        if (inputsUnchanged && chainSame && cache.record == body && cache.mesh && cache.geometry &&
+            !cache.mesh->placement && cache.terrainSurface && terrainSurface &&
+            cache.terrainSurface != terrainSurface &&
+            cache.terrainSurface->outerEdges == terrainSurface->outerEdges &&
+            cache.terrainBands == terrainBands &&
+            (!terrainBands || cache.terrainRange == terrainRange) && cache.alpha == alpha &&
+            cache.presentationRevision == presentationRevision_ && cache.sectionCuts.empty() &&
+            cache.sections.empty() && cache.mesh->transparent.empty() &&
+            cache.mesh->terrainCorners.size() == cache.mesh->opaque.size() &&
+            cache.mesh.use_count() == 1 && cache.mesh->opaqueGpu.buffer.isCreated() &&
+            cache.mesh->opaqueGpu.origin == renderOrigin_) {
+            auto &mesh = *cache.mesh;
+            const auto &local = cache.geometry->localTriangles;
+            const auto inverse = world.inverse();
+            const bool reflected = world.determinant() < 0;
+            const auto lightDirection = normalized({.3, -.5, .8});
+            std::vector<Vertex> opaque = mesh.opaque;
+            for (std::size_t i = 0; i < opaque.size(); ++i) {
+                const auto corner = mesh.terrainCorners[i];
+                const auto &t = local[corner / 3];
+                const Vec3 p = corner % 3 == 0 ? t.a : corner % 3 == 1 ? t.b : t.c;
+                const auto found = terrainSurface->normals.find(TerrainSurfaceDisplay::key(p));
+                if (found == terrainSurface->normals.end())
+                    continue; // the tile's own shading normal, which the edit did not change
+                const auto n = found->second;
+                const Vec3 transformed{
+                    inverse.m[0] * n.x + inverse.m[1] * n.y + inverse.m[2] * n.z,
+                    inverse.m[4] * n.x + inverse.m[5] * n.y + inverse.m[6] * n.z,
+                    inverse.m[8] * n.x + inverse.m[9] * n.y + inverse.m[10] * n.z};
+                const auto worldNormal = transformed * (1 / length(transformed));
+                auto &v = opaque[i];
+                if (doc_.solar().enabled) {
+                    const auto normal = worldNormal * (reflected ? -1 : 1);
+                    v.light = solarLight(normal);
+                    v.backLight = solarLight(normal * -1);
+                } else
+                    v.light = v.backLight =
+                        .64f + .36f * std::abs(dot(worldNormal, lightDirection));
+            }
+            mesh.opaque = std::move(opaque);
+            upload(mesh.opaqueGpu, mesh.opaque);
+            mesh.uploadPass = rebuildPass_;
+            ++stats_.meshUploads;
+            ++stats_.terrainNormalPatches;
+            cache.terrainSurface = std::move(terrainSurface);
+            textureMappingFallbacks_ += mesh.mappingFallbacks;
+            if (alpha > 0)
+                stats_.meshTriangles += local.size();
+            continue;
+        }
         const bool recordChanged = cache.record != body;
         const bool meshChanged =
             !cache.record ||
@@ -1179,6 +1259,7 @@ void Viewport::rebuild() {
             mesh.placement = placement;
             mesh.mappingFallbacks = 0;
             mesh.opaque.clear();
+            mesh.terrainCorners.clear();
             mesh.lines.clear();
             mesh.hiddenLines.clear();
             mesh.transparent.clear();
@@ -1186,7 +1267,19 @@ void Viewport::rebuild() {
             mesh.edgeFlags.assign(placement ? geometry->localEdges.size() : 0, 0);
             auto position = [&](Vec3 p) { return placement ? world.vector(p) : world.point(p); };
             if (alpha > 0) {
-                const ShadingNormals shading(*body);
+                // R096.f1b: per-body invariants are computed once, and a terrain tile (whose
+                // normals come from its terrain's surface) builds its shading normals only if a
+                // position is missing there; the vertices are the same bits.
+                std::optional<ShadingNormals> shadingNormals;
+                auto shading = [&]() -> const ShadingNormals & {
+                    if (!shadingNormals)
+                        shadingNormals.emplace(*body);
+                    return *shadingNormals;
+                };
+                const bool activeBody = selection_.inActiveHierarchy(doc_, id);
+                const float bodyDim = !activeBody || selection_.locked(doc_, id) ? .35f : 1.f;
+                const bool reflected = world.determinant() < 0;
+                const auto lightDirection = normalized({.3, -.5, .8});
                 const auto inverse = world.inverse();
                 auto worldNormal = [&](Vec3 n) {
                     const Vec3 transformed{
@@ -1238,7 +1331,7 @@ void Viewport::rebuild() {
                         mesh.triangleFlags[triangleIndex] = magnitude == 0 ? 2 : 1;
                     if (magnitude == 0)
                         return;
-                    auto normals = shading.triangle(local[triangleIndex]);
+                    std::array<Vec3, 3> normals;
                     auto front = surfaceAppearance(doc_.materials(), *body, triangle.face);
                     auto back = surfaceAppearance(doc_.materials(), *body, triangle.face, true);
                     const bool bands = terrainSurface && terrainBands &&
@@ -1246,35 +1339,51 @@ void Viewport::rebuild() {
                     if (terrainSurface) {
                         // One smooth surface: the copies of a seam vertex share one normal.
                         const auto &t = local[triangleIndex];
-                        normals = {terrainSurface->normal(t.a, normals[0]),
-                                   terrainSurface->normal(t.b, normals[1]),
-                                   terrainSurface->normal(t.c, normals[2])};
+                        bool missing = false;
+                        const std::array<Vec3, 3> corners{t.a, t.b, t.c};
+                        for (std::size_t k = 0; k < 3; ++k) {
+                            const auto found =
+                                terrainSurface->normals.find(TerrainSurfaceDisplay::key(corners[k]));
+                            if (found == terrainSurface->normals.end())
+                                missing = true;
+                            else
+                                normals[k] = found->second;
+                        }
+                        if (missing) {
+                            const auto fallback = shading().triangle(t);
+                            for (std::size_t k = 0; k < 3; ++k)
+                                if (!terrainSurface->normals.contains(
+                                        TerrainSurfaceDisplay::key(corners[k])))
+                                    normals[k] = fallback[k];
+                        }
                         if (bands) {
                             const auto color = terrainElevationBandColor(
                                 (t.a.z + t.b.z + t.c.z) / 3, terrainRange[0], terrainRange[1]);
                             front.color = back.color = color;
                             front.material = back.material = 0;
                         }
-                    }
+                    } else
+                        normals = shading().triangle(local[triangleIndex]);
                     if (doc_.style().mode == ModelStyleMode::Monochrome) {
                         front.color = doc_.style().front;
                         back.color = doc_.style().back;
                     }
                     // A reflected placement preserves the physical front of a face.
-                    if (world.determinant() < 0)
+                    if (reflected)
                         std::swap(front, back);
+                    const bool hiddenEntity = selection_.hidden(doc_, entity);
                     for (auto *side : {&front, &back}) {
                         side->opacity *= alpha;
                         if (doc_.style().mode == ModelStyleMode::XRay)
                             side->opacity *= float(doc_.style().xrayOpacity);
-                        if (selection_.hidden(doc_, entity))
+                        if (hiddenEntity)
                             side->opacity = std::min(side->opacity, .18f);
                     }
                     std::array<Vertex, 3> vertices;
                     size_t index = 0;
                     for (auto point : {triangle.a, triangle.b, triangle.c}) {
                         const float light = .64f + .36f * std::abs(dot(worldNormal(normals[index]),
-                                                                       normalized({.3, -.5, .8})));
+                                                                       lightDirection));
                         auto &v = vertices[index++];
                         auto color = front.color;
                         v = vertex(point, color);
@@ -1284,15 +1393,14 @@ void Viewport::rebuild() {
                         v.bb = back.color[2];
                         v.ba = back.opacity;
                         if (doc_.solar().enabled) {
-                            const auto normal = worldNormal(normals[index - 1]) * (world.determinant() < 0 ? -1 : 1);
+                            const auto normal = worldNormal(normals[index - 1]) * (reflected ? -1 : 1);
                             v.light = solarLight(normal);
                             v.backLight = solarLight(normal * -1);
                         } else
                             v.light = v.backLight = light;
-                        v.dim = !selection_.inActiveHierarchy(doc_, id) || selection_.locked(doc_, id)
-                                    ? .35f : 1.f;
+                        v.dim = bodyDim;
                     }
-                    textureVertices(*body, local[triangleIndex], world.determinant() < 0, vertices);
+                    textureVertices(*body, local[triangleIndex], reflected, vertices);
                     if (bands)
                         for (auto &v : vertices)
                             v.image = v.backImage = 0; // Bands replace the material's image.
@@ -1312,8 +1420,12 @@ void Viewport::rebuild() {
                     if (imageTransparency || (front.opacity > 0 && front.opacity < 1) ||
                         (back.opacity > 0 && back.opacity < 1))
                         mesh.transparent.push_back(vertices);
-                    if (front.opacity == 1 || back.opacity == 1)
+                    if (front.opacity == 1 || back.opacity == 1) {
                         mesh.opaque.insert(mesh.opaque.end(), vertices.begin(), vertices.end());
+                        if (terrainSurface && !cut && !placement)
+                            for (std::uint32_t k = 0; k < 3; ++k)
+                                mesh.terrainCorners.push_back(std::uint32_t(triangleIndex) * 3 + k);
+                    }
                 };
                 if (cache.sectionCuts.empty()) {
                     for (size_t i = 0; i < local.size(); ++i)
@@ -1344,15 +1456,15 @@ void Viewport::rebuild() {
                     const SelectedEntity entity{id, SelectionKind::Edge, edge.id};
                     if (!visible(entity))
                         continue;
+                    const bool hiddenEdge = selection_.hidden(doc_, entity);
                     const std::array<float, 3> color =
-                        selection_.hidden(doc_, entity) || !selection_.inActiveHierarchy(doc_, id)
-                            ? std::array<float, 3>{.56f, .58f, .60f}
-                            : doc_.style().edge;
+                        hiddenEdge || !activeBody ? std::array<float, 3>{.56f, .58f, .60f}
+                                                  : doc_.style().edge;
                     // A terrain's tile seams and interior edges are drawn only with hidden
                     // geometry shown, like soft edges.
                     const bool terrainHidden =
                         terrainSurface && !terrainSurface->outerEdge(edge.id);
-                    auto &lines = selection_.hidden(doc_, entity) || terrainHidden
+                    auto &lines = hiddenEdge || terrainHidden
                                       ? mesh.hiddenLines
                                       : mesh.lines;
                     if (!cache.sectionError.isEmpty())

@@ -4,9 +4,12 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -144,12 +147,64 @@ struct TerrainEdit {
     }
 };
 using TerrainEditPtr = std::shared_ptr<const TerrainEdit>;
+// R096.f1b: a terrain's mesh digest (the SHA-256 hex text of terrainMeshDigest). Its definition
+// is unchanged; only when it is computed differs. A digest is either known (text) or deferred: a
+// terrain edit's commit captures the immutable tiles it describes and the digest is computed once,
+// on the first read (save, describe, "changed since generated", a comparison) or earlier on a
+// worker (prefetch), whichever comes first. Copies share the deferred value, so an Undo, a Redo or
+// a copied record reads the same result, and every reader blocks until it is computed: no reader
+// ever sees a stale or missing value. Thread-safe.
+class TerrainDigest {
+  public:
+    TerrainDigest() = default;
+    TerrainDigest(std::string text) : text_(std::move(text)) {} // NOLINT: a known digest
+    TerrainDigest(const char *text) : text_(text) {}            // NOLINT
+    // A digest computed by `compute` on first read. `tiles` identify what it describes (the
+    // tile records, any order), for describes().
+    static TerrainDigest deferred(std::function<std::string()> compute,
+                                  std::vector<std::shared_ptr<const void>> tiles);
+    // The digest text (computing it now if it is deferred and not yet computed).
+    const std::string &value() const;
+    operator const std::string &() const { return value(); } // NOLINT
+    std::size_t size() const { return deferred_ ? 64 : text_.size(); }
+    bool empty() const { return !deferred_ && text_.empty(); }
+    // Whether a deferred digest has not been computed yet.
+    bool pending() const;
+    // Whether this digest was deferred from exactly these tile records (by identity, any order):
+    // then it is also their current digest, without hashing them.
+    bool describes(const std::vector<const void *> &tiles) const;
+    bool operator==(const TerrainDigest &other) const;
+    bool operator==(const std::string &other) const { return value() == other; }
+    bool operator==(const char *other) const { return value() == other; }
+    // Process-wide count of deferred digests computed (tests and the benchmark).
+    static std::size_t computations();
+
+  private:
+    struct Deferred {
+        mutable std::mutex mutex;
+        mutable bool done{};
+        mutable std::string text;
+        mutable std::function<std::string()> compute;
+        std::vector<const void *> identity; // sorted
+        std::vector<std::shared_ptr<const void>> tiles; // keeps the identities unique
+    };
+    std::string text_;
+    std::shared_ptr<const Deferred> deferred_;
+};
+// Text use of a digest (messages, logs) reads its value.
+inline std::ostream &operator<<(std::ostream &out, const TerrainDigest &digest) {
+    return out << digest.value();
+}
+inline std::string operator+(const std::string &a, const TerrainDigest &b) { return a + b.value(); }
+inline std::string operator+(const char *a, const TerrainDigest &b) { return a + b.value(); }
+inline std::string operator+(const TerrainDigest &a, const std::string &b) { return a.value() + b; }
+inline std::string operator+(const TerrainDigest &a, const char *b) { return a.value() + b; }
 struct TerrainRecord {
     TerrainSources sources; // The base sources (shared, immutable).
     TerrainParameters parameters;
     std::string generator;  // e.g. "cdt-2.0.0/terrain-v1+edit-v1"
     TerrainProvenance provenance;
-    std::string meshDigest; // terrainMeshDigest of the tiles when generated.
+    TerrainDigest meshDigest; // terrainMeshDigest of the tiles when generated (R096.f1b: deferred).
     TerrainDisplay display;
     TerrainTileGrid tiling;              // R096.a: the stored tile grid.
     std::vector<TerrainEditPtr> edits;   // R096.a: the ordered edit list.

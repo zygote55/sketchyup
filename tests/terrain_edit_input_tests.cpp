@@ -1133,6 +1133,60 @@ void reviewRegressions(Window &window) {
     }
     view->setTool(Viewport::Tool::Select);
 }
+// ---- R096.f1b: the commit's incremental display equals a full rebuild ------------------------
+// After a commit, the seam-ring tiles' normals are patched in place and only the changed rows of
+// contour lines are re-uploaded; the frame must be the frame a full rebuild draws, bit for bit.
+// The commit defers the terrain's digest and a worker computes it; readers see the final value.
+void incrementalDisplay(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = hill(window);
+    auto *view = window.viewport();
+    for (const auto shading : {TerrainShading::Material, TerrainShading::ElevationBands}) {
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        display.contours = true;
+        display.contourInterval = 0.25;
+        display.shading = shading;
+        setTerrainDisplay(doc, terrain, display);
+        changed(window);
+        TerrainToolOptions options;
+        options.radius = 4;
+        options.amount = shading == TerrainShading::Material ? 0.7 : 0.2;
+        startTool(window, Viewport::Tool::Sculpt, options);
+        // A stroke near a tile seam. With elevation bands it stays on the flank, so the
+        // elevation range (and with it every tile's band colours) does not change.
+        const bool bands = shading == TerrainShading::ElevationBands;
+        const auto a = screen(window, terrain, bands ? 16 : 27, 29),
+                   b = screen(window, terrain, bands ? 22 : 33, 31);
+        hover(view, a);
+        press(view, a);
+        for (int i = 1; i <= 6; ++i)
+            drag(view, a + (b - a) * i / 6);
+        const auto patches = view->renderStats().terrainNormalPatches;
+        release(view, b);
+        view->setTool(Viewport::Tool::Select);
+        hover(view, {4, 4});
+        frame(view);
+        if (!view->rendererReady())
+            continue;
+        check(view->renderStats().terrainNormalPatches > patches,
+              "the commit patched the seam ring's normals in place");
+        const auto incremental = view->grabFramebuffer();
+        view->setPlacementMeshSharing(false); // drops every cache: a full rebuild
+        frame(view);
+        view->setPlacementMeshSharing(true);
+        frame(view);
+        const auto full = view->grabFramebuffer();
+        check(incremental == full, "the incremental commit frame equals a full rebuild's");
+    }
+    // The deferred digest: the worker (or this read) gives the committed tiles' digest.
+    std::vector<const Body *> tiles;
+    for (const auto id : terrainTiles(doc, terrain))
+        tiles.push_back(doc.bodies().at(id).get());
+    check(std::string(doc.bodies().at(terrain)->terrain->meshDigest) == terrainMeshDigest(tiles) &&
+              !terrainChangedSinceGenerated(doc, terrain),
+          "the deferred digest is the committed tiles' digest");
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -1163,7 +1217,8 @@ int main(int argc, char **argv) {
         {"keyboard path", keyboardPath},
         {"empty brush and pads", emptyBrushAndPads},
         {"hover refusals", hoverRefusals},
-        {"review regressions", reviewRegressions}};
+        {"review regressions", reviewRegressions},
+        {"incremental display", incrementalDisplay}};
     try {
         if (!shots.isEmpty()) {
             screenshots(window);

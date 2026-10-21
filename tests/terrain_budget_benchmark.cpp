@@ -496,8 +496,9 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
     struct Samples {
         std::vector<double> preview, commit, previewPaint, commitPaint;
         std::vector<double> previewEvent, previewBuild, commitEvent, commitRebuild, baseline;
+        std::vector<double> commitCommand, commitRefresh, commitViews;
         std::vector<std::size_t> triangles, vertices, tilesTouched;
-        std::size_t excluded{};
+        std::size_t excluded{}, digestsInEvent{};
     };
     auto stroke = [&](const Tile &tile, double radius, Samples &out, bool budget) {
         TerrainToolOptions options;
@@ -552,11 +553,15 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
         for (const auto &content : candidate->edit->region.tiles)
             triangles += content->triangles.size();
         const auto revision = doc.revision();
+        const auto digests = TerrainDigest::computations();
         const auto t0 = Clock::now();
         send(QEvent::MouseButtonRelease,
              view.project(z(tile.centre + Vec3{radius * 0.45, 0.01, 0})), Qt::LeftButton,
              Qt::NoButton);
         const double commitEvent = ms(Clock::now() - t0);
+        // The digest is computed by the worker; a frame must not wait for it (a race with the
+        // worker can count it here, which is fine: the frame did not compute it).
+        out.digestsInEvent += TerrainDigest::computations() - digests;
         frame();
         const double commit = ms(Clock::now() - t0);
         check(doc.revision() == revision + 1, "the stroke committed");
@@ -571,6 +576,9 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
             out.commitPaint.push_back(view.completeFrameMs());
             out.commitEvent.push_back(commitEvent);
             out.commitRebuild.push_back(view.renderStats().rebuildMs);
+            out.commitCommand.push_back(view.renderStats().terrainCommandMs);
+            out.commitRefresh.push_back(view.renderStats().terrainRefreshMs);
+            out.commitViews.push_back(view.renderStats().terrainViewsMs);
             out.baseline.push_back(baseline);
             out.triangles.push_back(triangles);
             out.vertices.push_back(candidate->moving.size());
@@ -583,6 +591,7 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
     auto summary = [&](const Samples &s) {
         auto maxOf = [](const auto &v) { return v.empty() ? 0.0 : double(*std::max_element(v.begin(), v.end())); };
         QJsonObject json{{"strokes", double(s.commit.size())},
+                         {"digestsComputedDuringCommitEvents", double(s.digestsInEvent)},
                          {"excluded", double(s.excluded)}};
         if (s.commit.empty())
             return json;
@@ -601,6 +610,21 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
         json["previewBuildP95Ms"] = p95(s.previewBuild);
         json["commitEventP95Ms"] = p95(s.commitEvent);
         json["commitRebuildP95Ms"] = p95(s.commitRebuild);
+        json["commitCommandP95Ms"] = p95(s.commitCommand);
+        json["commitRefreshP95Ms"] = p95(s.commitRefresh);
+        json["commitTerrainViewsP95Ms"] = p95(s.commitViews);
+        json["previewCpuP95Ms"] = p95([&] {
+            std::vector<double> cpu;
+            for (std::size_t i = 0; i < s.previewEvent.size(); ++i)
+                cpu.push_back(s.previewEvent[i] + s.previewBuild[i]);
+            return cpu;
+        }());
+        json["commitCpuP95Ms"] = p95([&] {
+            std::vector<double> cpu;
+            for (std::size_t i = 0; i < s.commitEvent.size(); ++i)
+                cpu.push_back(s.commitEvent[i] + s.commitRebuild[i]);
+            return cpu;
+        }());
         json["baselineFrameP95Ms"] = p95(s.baseline);
         json["baselineFrameP50Ms"] = median(s.baseline);
         std::vector<double> triangles(s.triangles.begin(), s.triangles.end()),

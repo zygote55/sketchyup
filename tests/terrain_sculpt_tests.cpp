@@ -30,6 +30,7 @@
 #include <map>
 #include <numbers>
 #include <set>
+#include <thread>
 using namespace sketchy;
 namespace fixture = sketchy::terrain_fixture;
 namespace {
@@ -1828,6 +1829,80 @@ void desktopPreview() {
               << " seam-ring tiles redrawn\n";
 }
 
+// R096.f1b: a terrain edit's commit defers the record's mesh digest (TerrainDigest): the commit
+// does not compute it, and every reader (an equality, describe, "changed since generated", save,
+// Undo and Redo) sees the value the eager digest of the committed tiles gives, whether it reads
+// first or a worker computes it first.
+void deferredDigest() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    auto eager = [&](const Document &d) {
+        std::vector<const Body *> tiles;
+        for (const auto id : terrainTiles(d, terrain))
+            tiles.push_back(d.bodies().at(id).get());
+        return terrainMeshDigest(tiles); // the definition: key-order SHA-256 of the tiles
+    };
+    const auto original = std::string(recordOf(doc, terrain).meshDigest);
+    check(original == eager(doc) && !recordOf(doc, terrain).meshDigest.pending(),
+          "an imported terrain's digest is known");
+    auto sculpt = [&](double amount) {
+        return sculptCommand(terrain,
+                             {{"mode", "raise"},
+                              {"path", planPoints(doc, terrain, relPlan(doc, terrain, {{-20, 0}, {-6, 1}, {20, 0}}))},
+                              {"radius", 4.0},
+                              {"amount", amount}});
+    };
+    // The commit leaves it pending: nothing computed it.
+    const auto before = TerrainDigest::computations();
+    run(doc, sculpt(0.75));
+    check(recordOf(doc, terrain).meshDigest.pending() && TerrainDigest::computations() == before,
+          "a sculpt's commit defers the digest");
+    // Describe while pending: the stored and the current digest are the committed tiles'.
+    {
+        const auto description = terrainDescription(doc, terrain);
+        check(description["meshDigest"].toString().toStdString() == eager(doc) &&
+                  description["currentDigest"] == description["meshDigest"] &&
+                  !description["changedSinceGenerated"].toBool() &&
+                  !terrainChangedSinceGenerated(doc, terrain),
+              "describe during pending reads the committed tiles' digest");
+    }
+    // Save while pending (a second edit, still pending): the file holds the final digest and
+    // reopens to the same record.
+    run(doc, sculpt(-0.4));
+    check(recordOf(doc, terrain).meshDigest.pending(), "the second sculpt is pending too");
+    const auto expected = eager(doc);
+    const auto bytes = encodeDocument(doc);
+    check(QJsonDocument::fromJson(bytes).toJson().contains(QByteArray::fromStdString(expected)),
+          "a save during pending writes the final digest");
+    const auto reopened = decodeDocument(bytes);
+    check(std::string(recordOf(reopened, terrain).meshDigest) == expected &&
+              !terrainChangedSinceGenerated(reopened, terrain) && model(reopened) == model(doc),
+          "the saved document reopens with the same digest");
+    // Undo and Redo while pending.
+    run(doc, sculpt(0.3));
+    const auto third = recordOf(doc, terrain).meshDigest; // pending, shared
+    check(third.pending(), "the third sculpt is pending");
+    doc.undo();
+    check(std::string(recordOf(doc, terrain).meshDigest) == expected && expected == eager(doc),
+          "Undo restores the previous record's digest");
+    doc.redo();
+    check(recordOf(doc, terrain).meshDigest.pending() == third.pending() &&
+              std::string(recordOf(doc, terrain).meshDigest) == eager(doc),
+          "Redo restores the deferred digest, which reads the committed tiles' value");
+    // A worker and a reader race: one computes, both see the same value.
+    run(doc, sculpt(0.2));
+    const auto racing = recordOf(doc, terrain).meshDigest;
+    std::string fromWorker;
+    std::thread worker([&] { fromWorker = racing.value(); });
+    const std::string fromReader = racing.value();
+    worker.join();
+    check(fromWorker == fromReader && fromReader == eager(doc), "a worker and a reader agree");
+    // Regenerate after the edits is a no-op (C7), and the record equality holds.
+    checkC7(doc, terrain, "deferred digest");
+    std::cout << "deferred digest: " << TerrainDigest::computations() - before
+              << " deferred digests computed by readers\n";
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     std::cout << std::unitbuf;
@@ -1839,7 +1914,8 @@ int main(int argc, char **argv) {
         {"codec", codec},               {"assistant surface", assistantSurface},
         {"hostile region", hostileRegion}, {"cancel inside entry", cancelInsideEntry},
         {"exact area", exactArea},      {"piece block", pieceBlock},
-        {"sequence", sequence},         {"desktop preview", desktopPreview}};
+        {"sequence", sequence},         {"desktop preview", desktopPreview},
+        {"deferred digest", deferredDigest}};
     int failed = 0;
     for (const auto &[name, test] : tests) {
         if (argc > 1 && std::string(argv[1]) != name)
