@@ -1841,11 +1841,19 @@ void padPreviewCommitAmend(Window &window) {
     view->standardView(0);
     view->frameBounds({18, 18, 48}, {42, 42, 58});
     frame(view);
-    hover(view, at(window, {30, 30, 57.2}));
-    pad = view->padTool();
-    check(pad.hovering && pad.name == "Building A", "hovering the group highlights its footprint");
-    press(view, at(window, {30, 30, 57.2}));
-    release(view, at(window, {30, 30, 57.2}));
+    if (view->rendererReady()) {
+        // Hover and click (picking needs the renderer).
+        hover(view, at(window, {30, 30, 57.2}));
+        pad = view->padTool();
+        check(pad.hovering && pad.name == "Building A", "hovering the group highlights its footprint");
+        press(view, at(window, {30, 30, 57.2}));
+        release(view, at(window, {30, 30, 57.2}));
+    } else {
+        view->setSelection(group);
+        changed(window);
+        view->setTool(Viewport::Tool::Select);
+        startPad(window);
+    }
     idle(view);
     shown = view->terrainEditPreviewShown();
     check(view->padTool().footprint && shown && shown->candidate,
@@ -2007,7 +2015,7 @@ void drapeImprintAndOverlay(Window &window) {
           "Drape onto terrain is offered for selected faces");
     // Right-clicking the terrain keeps the faces selected and offers Drape onto terrain (Qt's
     // Wayland popups need a compositor serial synthetic input cannot give: checked on X11).
-    if (QGuiApplication::platformName() != "wayland") {
+    if (QGuiApplication::platformName() != "wayland" && view->rendererReady()) {
         frame(view);
         const auto onTerrain = screen(window, terrain, 10, 50);
         check(drive(
