@@ -309,6 +309,9 @@ class Viewport : public QOpenGLWidget {
         size_t meshTriangles{}, profileEdges{};
         // R095.e2: contour segments uploaded in the last rebuild, and terrain surfaces built.
         size_t contourSegments{}, terrainSurfaces{};
+        // R096.f1 (benchmark instrumentation): the last rebuild of the scene's caches and the last
+        // terrain preview's display build and upload, in milliseconds.
+        double rebuildMs{}, terrainPreviewMs{};
     };
     RenderStats renderStats() const { return stats_; }
     struct GeometryCacheMemory {
@@ -579,6 +582,11 @@ class Viewport : public QOpenGLWidget {
     void uploadTerrainPreview();
     void drawTerrainPreview();
     void paintTerrainBrush(QPainter &painter);
+    void buildTerrainOverlay();
+    struct TerrainOverlay {
+        std::vector<std::vector<Vec3>> outline, band; // the changed region; a region's falloff band
+        std::vector<Vec3> ring, halfRing;
+    } terrainOverlay_;
     void emitTerrainStatus();
     QString terrainStatusShown_;
     SelectionSet boxBase_;

@@ -2033,7 +2033,7 @@ void previewGeometry(const Document &doc, const Document &candidate, QJsonObject
     result["removed"] = removedIds;
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
-                         const QJsonObject &request) {
+                         const QJsonObject &request, BatchResponse response) {
     QJsonObject result;
     auto commands = request["commands"].toArray();
     if (commands.size() == 1 && commands[0].toObject()["command"] == "component.edit")
@@ -2047,7 +2047,8 @@ QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                             ? Document::AmendPolicy::TerrainTiles
                             : Document::AmendPolicy::FixedContextCount;
     const auto report = doc.amendLast(
-        stamp, [&](Document &candidate) { result = executeBatch(candidate, request); }, policy);
+        stamp, [&](Document &candidate) { result = executeBatch(candidate, request, response); },
+        policy);
     QJsonObject changes;
     for (const auto &[context, change] : report)
         changes[QString::number(context)] =

@@ -13,12 +13,14 @@ QJsonObject describeHistory(const Document &doc, size_t offset = 0, size_t limit
 QJsonObject executeHistory(Document &doc, const QJsonObject &request);
 // A local batch driver, not a provider/MCP implementation. All changes use
 // the same core operations as the desktop. No external effects in a batch.
+enum class BatchResponse { Full, Changes, CreatedIds };
+// R096.f1: `response` as for executeBatch (Full describes the whole document; the terrain tools
+// ask for Changes, since describing a 250,000-triangle terrain costs most of a commit).
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
-                         const QJsonObject &request);
+                         const QJsonObject &request, BatchResponse response = BatchResponse::Full);
 QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request);
 QJsonObject previewBatch(const Document &doc, const QJsonObject &request);
-enum class BatchResponse { Full, Changes, CreatedIds };
 QJsonObject executeBatch(Document &doc, const QJsonObject &request,
                          BatchResponse response = BatchResponse::Full);
 } // namespace sketchy

@@ -15,7 +15,8 @@
 //
 // R096.f1 (ADR 0169 §5, §9): --sculpt-frames [N] measures the terrain preview path from the input
 // event to the presented frame instead, on both sources, each in a 20-box model, at 1920 x 1080
-// with 1 m contour lines shown, in the Sculpt tool. For N strokes (default 64) through the middle
+// with 1 m contour lines shown, in the Sculpt tool, top view framing each stroke's
+// neighbourhood. For N strokes (default 64) through the middle
 // of the largest tiles (a radius of a quarter of the tile's smaller side, 0.5 m), it times:
 // - preview: each pointer move of the drag that adds a stroke sample, from the event sent to the
 //   viewport until the frame showing the candidate is complete (event handling with the plan on
@@ -494,6 +495,7 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
     const auto cell = doc.bodies().at(terrain)->terrain->tiling.cell;
     struct Samples {
         std::vector<double> preview, commit, previewPaint, commitPaint;
+        std::vector<double> previewEvent, previewBuild, commitEvent, commitRebuild, baseline;
         std::vector<std::size_t> triangles, vertices, tilesTouched;
         std::size_t excluded{};
     };
@@ -506,21 +508,40 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
             const auto found = terrainElevationAt(doc, terrain, {{p.x, p.y}});
             return Vec3{p.x, p.y, found.empty() ? 0 : found.front().elevation};
         };
-        const auto start = z(tile.centre + Vec3{-radius * 0.5, 0.01, 0});
+        // The view frames the stroke's neighbourhood (16 radii across), so each pointer step is
+        // many pixels, as when sculpting; the whole terrain stays loaded and drawn where visible.
+        {
+            const auto ground = z(tile.centre);
+            view.frameBounds(ground - Vec3{8 * radius, 8 * radius, 1},
+                             ground + Vec3{8 * radius, 8 * radius, 1});
+        }
+        frame();
+        // Samples 0.3 radius apart (the stroke takes one every quarter radius) through the
+        // middle, so a one-tile brush stays 0.36 of the tile's side from its middle.
+        const auto start = z(tile.centre + Vec3{-radius * 0.45, 0.01, 0});
         send(QEvent::MouseMove, view.project(start), Qt::NoButton, Qt::NoButton);
+        frame();
+        const double baseline = view.completeFrameMs(); // a frame without a candidate
         send(QEvent::MouseButtonPress, view.project(start), Qt::LeftButton, Qt::LeftButton);
         frame();
-        std::vector<double> preview, paint;
+        std::vector<double> preview, paint, events, builds;
         for (int step = 1; step <= 3; ++step) {
-            const auto p = z(tile.centre + Vec3{-radius * 0.5 + radius * 0.5 * step, 0.01, 0});
+            const auto p = z(tile.centre + Vec3{-radius * 0.45 + radius * 0.3 * step, 0.01, 0});
             const auto t0 = Clock::now();
             send(QEvent::MouseMove, view.project(p), Qt::NoButton, Qt::LeftButton);
+            events.push_back(ms(Clock::now() - t0));
             frame();
             preview.push_back(ms(Clock::now() - t0));
             paint.push_back(view.completeFrameMs());
+            builds.push_back(view.renderStats().terrainPreviewMs);
         }
         const auto candidate = view.terrainPreviewShown();
         if (!candidate || !candidate->edit) {
+            const auto brush = view.terrainBrush();
+            std::cerr << "no candidate: terrain " << brush.terrain << " stroking "
+                      << brush.stroking << " vertices " << brush.vertices << " refusal "
+                      << brush.refusal.toStdString() << " radius " << radius << '\n';
+            ++out.excluded;
             send(QEvent::MouseButtonRelease, view.project(z(tile.centre)), Qt::LeftButton,
                  Qt::NoButton);
             view.cancel();
@@ -533,7 +554,9 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
         const auto revision = doc.revision();
         const auto t0 = Clock::now();
         send(QEvent::MouseButtonRelease,
-             view.project(z(tile.centre + Vec3{radius, 0.01, 0})), Qt::LeftButton, Qt::NoButton);
+             view.project(z(tile.centre + Vec3{radius * 0.45, 0.01, 0})), Qt::LeftButton,
+             Qt::NoButton);
+        const double commitEvent = ms(Clock::now() - t0);
         frame();
         const double commit = ms(Clock::now() - t0);
         check(doc.revision() == revision + 1, "the stroke committed");
@@ -542,8 +565,13 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
         else {
             out.preview.insert(out.preview.end(), preview.begin(), preview.end());
             out.previewPaint.insert(out.previewPaint.end(), paint.begin(), paint.end());
+            out.previewEvent.insert(out.previewEvent.end(), events.begin(), events.end());
+            out.previewBuild.insert(out.previewBuild.end(), builds.begin(), builds.end());
             out.commit.push_back(commit);
             out.commitPaint.push_back(view.completeFrameMs());
+            out.commitEvent.push_back(commitEvent);
+            out.commitRebuild.push_back(view.renderStats().rebuildMs);
+            out.baseline.push_back(baseline);
             out.triangles.push_back(triangles);
             out.vertices.push_back(candidate->moving.size());
             out.tilesTouched.push_back(candidate->tilesTouched());
@@ -566,6 +594,15 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
         json["commitP95Ms"] = p95(s.commit);
         json["commitMaxMs"] = maxOf(s.commit);
         json["commitFrameP95Ms"] = p95(s.commitPaint);
+        // The parts: the event (pick and plan; for the commit, terrain.sculpt and the edit), the
+        // preview display build and upload inside the frame, the cache rebuild inside the commit
+        // frame, and a frame of the same view without a candidate.
+        json["previewEventP95Ms"] = p95(s.previewEvent);
+        json["previewBuildP95Ms"] = p95(s.previewBuild);
+        json["commitEventP95Ms"] = p95(s.commitEvent);
+        json["commitRebuildP95Ms"] = p95(s.commitRebuild);
+        json["baselineFrameP95Ms"] = p95(s.baseline);
+        json["baselineFrameP50Ms"] = median(s.baseline);
         std::vector<double> triangles(s.triangles.begin(), s.triangles.end()),
             vertices(s.vertices.begin(), s.vertices.end()),
             touched(s.tilesTouched.begin(), s.tilesTouched.end());

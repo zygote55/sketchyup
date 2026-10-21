@@ -35,9 +35,9 @@ QJsonObject ToolSession::preview(const QJsonObject &command) {
     phase_ = Phase::Preview;
     return componentScopeResult(result, componentScope_);
 }
-QJsonObject ToolSession::commit(const QJsonObject &command) {
-    auto result = canRevise() ? executeAmend(document_, amendment_, request(command))
-                              : executeBatch(document_, request(command));
+QJsonObject ToolSession::commit(const QJsonObject &command, BatchResponse response) {
+    auto result = canRevise() ? executeAmend(document_, amendment_, request(command), response)
+                              : executeBatch(document_, request(command), response);
     phase_ = Phase::Committed;
     amendment_ = document_.amendmentStamp();
     return componentScopeResult(result, componentScope_);

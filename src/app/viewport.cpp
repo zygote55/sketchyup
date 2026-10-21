@@ -1644,12 +1644,20 @@ void Viewport::paintScene(QPaintDevice *device) {
         draw(benchmarkGpu_, GL_TRIANGLES, std::max(1, instances_));
         gl_->glFinish();
     } else {
-        if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity())
+        if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity()) {
+            QElapsedTimer rebuilding;
+            rebuilding.start();
             rebuild();
+            stats_.rebuildMs = rebuilding.nsecsElapsed() / 1e6;
+        }
         // R096.f1 (ADR 0169 §5): a terrain candidate is drawn in place of the tiles it replaces.
         if (terrainPreviewDirty_ ||
-            (terrainPreviewGpu_.active && terrainPreviewGpu_.surface.origin != renderOrigin_))
+            (terrainPreviewGpu_.active && terrainPreviewGpu_.surface.origin != renderOrigin_)) {
+            QElapsedTimer previewing;
+            previewing.start();
             rebuildTerrainPreview();
+            stats_.terrainPreviewMs = previewing.nsecsElapsed() / 1e6;
+        }
         // Exports draw the model as it is, never an uncommitted candidate.
         const bool terrainPreview = terrainPreviewGpu_.active && rasterSize_.isEmpty();
         const auto previewHides = [&](Id id) {

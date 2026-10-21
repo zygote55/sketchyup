@@ -363,6 +363,7 @@ void Viewport::cancelTerrainOperation(bool keepAmend) {
     terrainCandidate_.reset();
     terrainCandidateShown_ = false;
     terrainPreviewDirty_ = true;
+    terrainOverlay_ = {};
     forgetRememberedTerrainSculptPlan();
     if (!keepAmend) {
         terrainSession_.cancel();
@@ -631,6 +632,7 @@ void Viewport::updateTerrainCandidate(bool show) {
     const bool region = terrainOptions_.scope == TerrainToolOptions::Scope::Region;
     if (!brush_.terrain || !isTerrain(doc_, brush_.terrain) || (region && !brush_.regionClosed) ||
         (!region && !brush_.point && brush_.path.empty())) {
+        buildTerrainOverlay();
         update();
         return;
     }
@@ -670,7 +672,109 @@ void Viewport::updateTerrainCandidate(bool show) {
         brush_.error = error.what();
         terrainCandidate_.reset();
     }
+    buildTerrainOverlay();
     update();
+}
+// The overlay's surface geometry (the changed region's outline, a region's falloff band, the
+// rings), draped on the surface with one elevation query and kept until the brush changes, so a
+// frame only projects it.
+void Viewport::buildTerrainOverlay() {
+    terrainOverlay_ = {};
+    const auto terrain = isTerrain(doc_, brush_.terrain) ? brush_.terrain : Id{};
+    if (!terrain)
+        return;
+    std::vector<std::vector<QPointF>> outline, band;
+    std::vector<QPointF> ring, halfRing;
+    auto regionPath = [&] {
+        QPolygonF polygon;
+        for (const auto &q : brush_.region)
+            polygon << QPointF(q.x, q.y);
+        QPainterPath plan;
+        plan.addPolygon(polygon);
+        plan.closeSubpath();
+        if (terrainOptions_.falloffWidth > 0) {
+            QPainterPathStroker stroker;
+            stroker.setWidth(2 * terrainOptions_.falloffWidth);
+            stroker.setJoinStyle(Qt::RoundJoin);
+            plan = (plan + stroker.createStroke(plan)).simplified();
+        }
+        return plan;
+    };
+    auto polygons = [](const QPainterPath &path) {
+        std::vector<std::vector<QPointF>> result;
+        for (const auto &polygon : path.toSubpathPolygons())
+            result.emplace_back(polygon.begin(), polygon.end());
+        return result;
+    };
+    const bool region = terrainOptions_.scope == TerrainToolOptions::Scope::Region;
+    if (region && brush_.regionClosed && terrainOptions_.falloffWidth > 0)
+        band = polygons(regionPath());
+    if (terrainCandidateShown_) {
+        if (region)
+            outline = band.empty() ? polygons(regionPath()) : band;
+        else if (!brush_.path.empty()) {
+            const double r = terrainOptions_.radius;
+            QPainterPath plan;
+            if (brush_.path.size() == 1)
+                plan.addEllipse(QPointF(brush_.path[0].x, brush_.path[0].y), r, r);
+            else {
+                QPainterPath line(QPointF(brush_.path[0].x, brush_.path[0].y));
+                for (std::size_t i = 1; i < brush_.path.size(); ++i)
+                    line.lineTo(brush_.path[i].x, brush_.path[i].y);
+                QPainterPathStroker stroker;
+                stroker.setWidth(2 * r);
+                stroker.setCapStyle(Qt::RoundCap);
+                stroker.setJoinStyle(Qt::RoundJoin);
+                stroker.setCurveThreshold(r * 0.02);
+                plan = stroker.createStroke(line).simplified();
+            }
+            outline = polygons(plan);
+        }
+    }
+    const auto centre =
+        brush_.anchored && !brush_.path.empty() ? std::optional(brush_.path.front()) : brush_.point;
+    if (!region && centre)
+        for (int i = 0; i < ringSegments; ++i) {
+            const double angle = 2 * std::numbers::pi * i / ringSegments;
+            const QPointF direction(std::cos(angle), std::sin(angle));
+            ring.push_back(QPointF(centre->x, centre->y) + direction * terrainOptions_.radius);
+            halfRing.push_back(QPointF(centre->x, centre->y) +
+                               direction * terrainOptions_.radius * 0.5);
+        }
+    // One query for every point.
+    std::vector<std::array<double, 2>> plan;
+    auto collect = [&](const std::vector<QPointF> &points) {
+        for (const auto &q : points)
+            plan.push_back({q.x(), q.y()});
+    };
+    for (const auto &points : outline)
+        collect(points);
+    for (const auto &points : band)
+        collect(points);
+    collect(ring);
+    collect(halfRing);
+    std::vector<TerrainElevation> heights;
+    try {
+        heights = terrainElevationAt(doc_, terrain, plan);
+    } catch (const std::exception &) {
+        return;
+    }
+    const double fallback = centre ? centre->z : brush_.region.empty() ? 0 : brush_.region.front().z;
+    std::size_t next = 0;
+    auto drape = [&](const std::vector<QPointF> &points) {
+        std::vector<Vec3> result;
+        for (const auto &q : points) {
+            const auto &h = heights[next++];
+            result.push_back({q.x(), q.y(), h.found ? h.elevation : fallback});
+        }
+        return result;
+    };
+    for (const auto &points : outline)
+        terrainOverlay_.outline.push_back(drape(points));
+    for (const auto &points : band)
+        terrainOverlay_.band.push_back(drape(points));
+    terrainOverlay_.ring = drape(ring);
+    terrainOverlay_.halfRing = drape(halfRing);
 }
 void Viewport::commitTerrain(std::optional<double> value) {
     if (!brush_.terrain)
@@ -687,7 +791,7 @@ void Viewport::commitTerrain(std::optional<double> value) {
     try {
         if (!terrainSession_.active())
             terrainSession_.begin();
-        terrainSession_.commit(command);
+        terrainSession_.commit(command, BatchResponse::Changes);
     } catch (const std::exception &error) {
         cancelTerrainOperation();
         brush_.terrain = terrain;
@@ -706,7 +810,7 @@ void Viewport::amendTerrain(double value) {
     auto command = terrainCommitted_;
     const bool smoothing = command["mode"] == "smooth";
     command[smoothing ? "strength" : "amount"] = value;
-    terrainSession_.commit(command); // executeAmend: one entry, revised (UX §4.3)
+    terrainSession_.commit(command, BatchResponse::Changes); // executeAmend: one entry, revised (UX §4.3)
     terrainCommitted_ = command;
     refresh();
     emit changed();
@@ -964,7 +1068,6 @@ void Viewport::uploadTerrainPreview() {
     upload(gpu.indexContours, index);
     gpu.terrain = terrain;
     gpu.active = true;
-    pickDirty_ = overlayDirty_ = true;
 }
 void Viewport::drawTerrainPreview() {
     if (!terrainPreviewGpu_.active)
@@ -981,9 +1084,6 @@ void Viewport::paintTerrainBrush(QPainter &p) {
     const auto terrain = isTerrain(doc_, brush_.terrain) ? brush_.terrain : Id{};
     const auto world = terrain ? doc_.worldTransform(terrain) : Transform{};
     const QColor ink = colors_.ink, halo = QColor(255, 255, 255, 220);
-    auto onSurface = [&](double x, double y, double fallback) {
-        return Vec3{x, y, terrain ? terrainElevation(terrain, x, y).value_or(fallback) : fallback};
-    };
     auto polyline = [&](const std::vector<Vec3> &points, bool closed) {
         QPolygonF polygon;
         for (const auto &point : points)
@@ -995,40 +1095,7 @@ void Viewport::paintTerrainBrush(QPainter &p) {
     // The changed region, hatched (a black and white band, so not colour alone).
     const auto candidate = terrainPreviewShown();
     if (candidate && terrain) {
-        QPainterPath plan;
-        if (terrainOptions_.scope == TerrainToolOptions::Scope::Region) {
-            QPolygonF polygon;
-            for (const auto &q : brush_.region)
-                polygon << QPointF(q.x, q.y);
-            plan.addPolygon(polygon);
-            plan.closeSubpath();
-            if (terrainOptions_.falloffWidth > 0) {
-                QPainterPathStroker stroker;
-                stroker.setWidth(2 * terrainOptions_.falloffWidth);
-                stroker.setJoinStyle(Qt::RoundJoin);
-                plan = (plan + stroker.createStroke(plan)).simplified();
-            }
-        } else {
-            const auto &path = brush_.path;
-            const double r = terrainOptions_.radius;
-            if (path.size() == 1)
-                plan.addEllipse(QPointF(path[0].x, path[0].y), r, r);
-            else if (!path.empty()) {
-                QPainterPath line(QPointF(path[0].x, path[0].y));
-                for (std::size_t i = 1; i < path.size(); ++i)
-                    line.lineTo(path[i].x, path[i].y);
-                QPainterPathStroker stroker;
-                stroker.setWidth(2 * r);
-                stroker.setCapStyle(Qt::RoundCap);
-                stroker.setJoinStyle(Qt::RoundJoin);
-                stroker.setCurveThreshold(r * 0.02);
-                plan = stroker.createStroke(line).simplified();
-            }
-        }
-        for (const auto &outline : plan.toSubpathPolygons()) {
-            std::vector<Vec3> points;
-            for (const auto &q : outline)
-                points.push_back(onSurface(q.x(), q.y(), brush_.point ? brush_.point->z : 0));
+        for (const auto &points : terrainOverlay_.outline) {
             const auto screen = polyline(points, true);
             p.setBrush(Qt::NoBrush);
             p.setPen(QPen(ink, 8, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
@@ -1057,24 +1124,10 @@ void Viewport::paintTerrainBrush(QPainter &p) {
         for (const auto &corner : screen)
             p.drawEllipse(corner, 3.5, 3.5);
         if (brush_.regionClosed && terrainOptions_.falloffWidth > 0) {
-            QPolygonF polygon;
-            for (const auto &q : brush_.region)
-                polygon << QPointF(q.x, q.y);
-            QPainterPath plan;
-            plan.addPolygon(polygon);
-            plan.closeSubpath();
-            QPainterPathStroker stroker;
-            stroker.setWidth(2 * terrainOptions_.falloffWidth);
-            stroker.setJoinStyle(Qt::RoundJoin);
-            const auto band = (plan + stroker.createStroke(plan)).simplified();
             p.setBrush(Qt::NoBrush);
             p.setPen(QPen(ink, 1.5, Qt::DashLine));
-            for (const auto &outline : band.toSubpathPolygons()) {
-                std::vector<Vec3> points;
-                for (const auto &q : outline)
-                    points.push_back(onSurface(q.x(), q.y(), brush_.region.front().z));
+            for (const auto &points : terrainOverlay_.band)
                 p.drawPolyline(polyline(points, true));
-            }
         }
     }
     // The brush: a solid ring at the radius and a dashed ring at half strength, lying on the
@@ -1083,17 +1136,8 @@ void Viewport::paintTerrainBrush(QPainter &p) {
                                                                 : brush_.point;
     const bool brush = terrainOptions_.scope == TerrainToolOptions::Scope::Brush;
     const bool empty = terrainCandidate_ && terrainCandidate_->moving.empty();
-    if (brush && centre && terrain) {
-        auto ring = [&](double radius) {
-            std::vector<Vec3> points;
-            for (int i = 0; i < ringSegments; ++i) {
-                const double angle = 2 * std::numbers::pi * i / ringSegments;
-                points.push_back(onSurface(centre->x + radius * std::cos(angle),
-                                           centre->y + radius * std::sin(angle), centre->z));
-            }
-            return polyline(points, true);
-        };
-        const auto outer = ring(terrainOptions_.radius);
+    if (brush && centre && terrain && !terrainOverlay_.ring.empty()) {
+        const auto outer = polyline(terrainOverlay_.ring, true);
         p.setBrush(Qt::NoBrush);
         p.setPen(QPen(halo, 4));
         p.drawPolyline(outer);
@@ -1107,7 +1151,7 @@ void Viewport::paintTerrainBrush(QPainter &p) {
             if (terrainOptions_.falloff != TerrainFalloff::Constant) {
                 // Smooth and linear falloff weigh one half at half the radius.
                 p.setPen(QPen(ink, 1.25, Qt::DashLine));
-                p.drawPolyline(ring(terrainOptions_.radius * 0.5));
+                p.drawPolyline(polyline(terrainOverlay_.halfRing, true));
             }
         }
         p.setPen(QPen(ink, 1.5));
