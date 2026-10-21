@@ -816,7 +816,7 @@ class Viewport : public QOpenGLWidget {
     QJsonObject padCommand(double elevation) const;
     bool padFootprintOf(const SelectedEntity &entity, PadFootprint &out) const;
     Id padTerrainUnder(const std::vector<Vec3> &outline) const;
-    void choosePadFootprint(const PadFootprint &footprint);
+    void choosePadFootprint(PadFootprint footprint);
     void beginPadTool();
     void cancelPadOperation();
     QString padMeasurementLabel() const;
@@ -832,7 +832,7 @@ class Viewport : public QOpenGLWidget {
     struct DrapeToolState {
         QJsonArray edges, faces;
         Id terrain{};
-        QPointF screen;
+        std::optional<QPointF> screen; // the pointer, once it has moved over the view
         QString refusal;
         const void *paintFor{}; // the preview the draped paint loops belong to
         std::vector<std::pair<QColor, std::vector<Vec3>>> paint;

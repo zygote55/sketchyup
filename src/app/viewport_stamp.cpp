@@ -118,7 +118,7 @@ Id Viewport::padTerrainUnder(const std::vector<Vec3> &outline) const {
                     return id;
     return 0;
 }
-void Viewport::choosePadFootprint(const PadFootprint &footprint) {
+void Viewport::choosePadFootprint(PadFootprint footprint) { // by value: it may be the hover
     auto &tool = padTool_;
     tool.footprint = footprint.footprint;
     tool.name = footprint.name;
@@ -235,14 +235,19 @@ QString Viewport::padMeasurementLabel() const {
 }
 void Viewport::emitPadStatus() {
     const auto &tool = padTool_;
+    if (terrainStatusHeld_)
+        return;
+    terrainFailureStatus_.clear();
     QString text;
     const auto units = doc_.displayUnits();
     const auto shown = terrainEditPreviewShown();
     if (!tool.refusal.isEmpty())
         text = tool.refusal;
     else if (!tool.footprint.isEmpty()) {
-        if (shown && shown->refused() && terrainEditPreviewCurrent())
+        if (shown && shown->refused() && terrainEditPreviewCurrent()) {
             text = terrainEditFailure(*shown).status + " Change the elevation, slopes or footprint.";
+            terrainFailureStatus_ = text;
+        }
         else if (!terrainEditRequest_.error.isEmpty())
             text = "Nothing would change: " + terrainEditRequest_.error;
         else
@@ -266,6 +271,7 @@ void Viewport::emitPadStatus() {
 void Viewport::padHover(QPointF point) {
     auto &tool = padTool_;
     tool.screen = point;
+    terrainStatusHeld_ = false;
     if (!tool.footprint.isEmpty()) {
         // Up or down sets the elevation: metres at the footprint's depth, in centimetres.
         if (!tool.anchor)
@@ -286,7 +292,7 @@ void Viewport::padHover(QPointF point) {
             emit measurementPreview(displayLength(padElevation(), doc_.displayUnits(), 2));
         }
         emitTerrainStatus();
-        update();
+        updateAfterTerrainEdit();
         return;
     }
     // Choosing: the face, group or component under the pointer, highlighted.
@@ -331,7 +337,7 @@ void Viewport::commitPad(std::optional<double> elevation) {
     if (!elevation)
         if (const auto shown = terrainEditPreviewShown();
             shown && shown->refused() && shown->command == command) {
-            emit message("The pad cannot be stamped here: " + terrainEditFailure(*shown).status);
+            holdTerrainStatus("The pad cannot be stamped here: " + terrainEditFailure(*shown).status);
             return;
         }
     QJsonObject result;
@@ -343,7 +349,7 @@ void Viewport::commitPad(std::optional<double> elevation) {
         stats_.terrainCommandMs = double(timing.nsecsElapsed()) / 1e6;
     } catch (const std::exception &error) {
         terrainSession_.cancel();
-        emit message(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
+        holdTerrainStatus(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
         return;
     }
     const auto terrain = tool.terrain;
@@ -361,10 +367,9 @@ void Viewport::commitPad(std::optional<double> elevation) {
     refresh();
     emit changed();
     stats_.terrainRefreshMs = double(timing.nsecsElapsed()) / 1e6;
-    terrainStatusShown_.clear();
-    emit message(QString("Stamped the pad · %1 at %2")
-                     .arg(name, displayLength(command["elevation"].toDouble(), doc_.displayUnits(), 2)));
-    emitTerrainStatus();
+    holdTerrainStatus(
+        QString("Stamped the pad · %1 at %2 · Type a new elevation or slope (1:3, 26.6°) to revise it")
+            .arg(name, displayLength(command["elevation"].toDouble(), doc_.displayUnits(), 2)));
     emit terrainToolChanged();
 }
 // UX §4.3: after a stamp, a typed elevation or slope revises the same History entry.
@@ -373,7 +378,7 @@ void Viewport::amendPad(const QJsonObject &command, const QString &done) {
     try {
         result = terrainSession_.commit(command, BatchResponse::Changes);
     } catch (const std::exception &error) {
-        emit message(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
+        holdTerrainStatus(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
         return;
     }
     terrainCommitted_ = command;
@@ -381,12 +386,12 @@ void Viewport::amendPad(const QJsonObject &command, const QString &done) {
     prefetchTerrainDigest(Id(command["terrain"].toString().toULongLong()));
     refresh();
     emit changed();
-    terrainStatusShown_.clear();
-    emit message(done);
+    holdTerrainStatus(done + " · Type another value to revise it again");
     emit terrainToolChanged();
 }
 bool Viewport::padKey(QKeyEvent *event) {
     auto &tool = padTool_;
+    terrainStatusHeld_ = false;
     const bool plain =
         !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
     if (event->key() == Qt::Key_Escape) {
@@ -525,7 +530,9 @@ void Viewport::paintPadTool(QPainter &p) {
         const QColor cutColour(214, 165, 120, 150), fillColour(140, 191, 189, 150);
         const QColor cutHatch(120, 72, 32, 200), fillDots(30, 96, 94, 210);
         QPainterPath cut, fill, flat;
-        Vec3 cutAt{}, fillAt{};
+        // Each label beside its area, apart: cut at its lowest triangle on screen, fill at its
+        // leftmost.
+        std::optional<QPointF> cutAt, fillAt;
         std::size_t cuts = 0, fills = 0;
         for (const auto &t : shown->added) {
             QPolygonF screen;
@@ -536,11 +543,15 @@ void Viewport::paintPadTool(QPainter &p) {
                 flat.addPolygon(screen);
             else if (zc > h) {
                 cut.addPolygon(screen);
-                cutAt = cutAt + world.point((t[0] + t[1] + t[2]) * (1.0 / 3));
+                const auto at = project(world.point((t[0] + t[1] + t[2]) * (1.0 / 3)));
+                if (!cutAt || at.y() > cutAt->y())
+                    cutAt = at;
                 ++cuts;
             } else {
                 fill.addPolygon(screen);
-                fillAt = fillAt + world.point((t[0] + t[1] + t[2]) * (1.0 / 3));
+                const auto at = project(world.point((t[0] + t[1] + t[2]) * (1.0 / 3)));
+                if (!fillAt || at.x() < fillAt->x())
+                    fillAt = at;
                 ++fills;
             }
         }
@@ -600,11 +611,11 @@ void Viewport::paintPadTool(QPainter &p) {
             labels.push_back({project(daylight[daylight.size() * 5 / 8]) + QPointF(12, 6),
                               {"Daylight"}});
         const bool width = pad.mode == TerrainStampMode::Width;
-        if (cuts)
-            labels.push_back({project(cutAt * (1.0 / double(cuts))) + QPointF(10, -6),
+        if (cuts && cutAt)
+            labels.push_back({*cutAt + QPointF(10, 4),
                               {width ? QString("Cut") : "Cut " + terrainSlopeText(pad.cutSlope)}});
-        if (fills)
-            labels.push_back({project(fillAt * (1.0 / double(fills))) + QPointF(10, 4),
+        if (fills && fillAt)
+            labels.push_back({*fillAt + QPointF(-80, -10),
                               {width ? QString("Fill") : "Fill " + terrainSlopeText(pad.fillSlope)}});
         for (const auto &[at, lines] : labels) {
             const QFontMetrics metrics(p.font());

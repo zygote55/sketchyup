@@ -15,6 +15,18 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain tools on the desktop, part 3: Stamp pad and Drape (R096.f2, [UX_DESIGN §15.4–15.5](docs/UX_DESIGN.md#154-stamp-pad),
+  [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f2)):
+  **Terrain → Stamp pad** takes a selected or clicked face, group or component (a group's lowest
+  horizontal face, highlighted first) or a closed loop, sets the pad's elevation by moving up or down
+  or typing (less a remembered pad offset) and previews daylight or fixed-width grading with cut and
+  fill tinted and patterned, the slope rays and the dashed daylight line; Enter or a click stamps it,
+  and a typed elevation or slope afterwards revises the same edit. **Terrain → Drape** (or **Drape
+  onto terrain** in the context menu) drapes the selected edges, curves and faces: imprinted as
+  breaklines with optional region paint (the terrain selected afterwards), or as a lifted overlay
+  group (selected afterwards), previewed on the surface with clipped parts in red. Refusals are
+  marked at the place with an × and change nothing.
+
 - Terrain tools on the desktop, part 2: Edit contours (R096.f2, [UX_DESIGN §15.3](docs/UX_DESIGN.md#153-edit-contours),
   [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f2)):
   **Terrain → Edit contours** (Contours in the strip) draws a terrain's source contours solid,

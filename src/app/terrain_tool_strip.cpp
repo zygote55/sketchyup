@@ -434,7 +434,7 @@ void TerrainToolStrip::setColors(const ThemeColors &colors) {
                           "QToolButton:checked, #terrainPadMode QToolButton:checked, "
                           "#terrainDrapeMode QToolButton:checked "
                           "{background:%5;color:%6;font-weight:bold;}"
-                          "#terrainDrapeSummary, #terrainPadSummary {color:%1;}"
+                          "#terrainDrapeSummary {color:%3;}"
                           "QToolButton[terrainStripButton=\"true\"] {padding:3px 9px;border:1px "
                           "solid %2;border-radius:4px;background:%4;}"
                           "QToolButton[terrainStripButton=\"true\"]:checked {background:%5;color:%6;"

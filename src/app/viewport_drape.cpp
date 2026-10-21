@@ -132,12 +132,17 @@ Viewport::DrapeToolView Viewport::drapeTool() const {
 }
 void Viewport::emitDrapeStatus() {
     const auto &tool = drapeTool_;
+    if (terrainStatusHeld_)
+        return;
+    terrainFailureStatus_.clear();
     QString text;
     const auto view = drapeTool();
     if (!tool.refusal.isEmpty())
         text = tool.refusal;
-    else if (view.refused)
+    else if (view.refused) {
         text = terrainEditFailure(*terrainEditPreviewShown()).status + " Nothing can be draped here.";
+        terrainFailureStatus_ = text;
+    }
     else if (!terrainEditRequest_.error.isEmpty())
         text = "Nothing would change: " + terrainEditRequest_.error;
     else if (!tool.terrain)
@@ -160,6 +165,7 @@ void Viewport::emitDrapeStatus() {
 void Viewport::drapeHover(QPointF point) {
     auto &tool = drapeTool_;
     tool.screen = point;
+    terrainStatusHeld_ = false;
     const auto hit = terrainHit(point);
     if (hit && hit->first != tool.terrain && tool.refusal.isEmpty()) {
         tool.terrain = hit->first;
@@ -167,7 +173,7 @@ void Viewport::drapeHover(QPointF point) {
     }
     setCursor(hit && tool.refusal.isEmpty() ? Qt::CrossCursor : Qt::ForbiddenCursor);
     emitTerrainStatus();
-    update();
+    updateAfterTerrainEdit();
 }
 bool Viewport::drapePress(QMouseEvent *event) {
     auto &tool = drapeTool_;
@@ -197,7 +203,7 @@ void Viewport::commitDrape() {
     const auto command = drapeCommand();
     if (const auto shown = terrainEditPreviewShown();
         shown && shown->refused() && shown->command == command) {
-        emit message("Nothing changed: " + terrainEditFailure(*shown).status);
+        holdTerrainStatus("Nothing changed: " + terrainEditFailure(*shown).status);
         return;
     }
     QJsonObject result;
@@ -209,7 +215,7 @@ void Viewport::commitDrape() {
         stats_.terrainCommandMs = double(timing.nsecsElapsed()) / 1e6;
     } catch (const std::exception &error) {
         terrainSession_.cancel();
-        emit message(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
+        holdTerrainStatus(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
         return;
     }
     terrainCommitted_ = {};
@@ -400,7 +406,7 @@ void Viewport::paintDrapeTool(QPainter &p) {
         labels.push_back({project(world.point(part[part.size() / 2])) + QPointF(12, -10),
                           {"Clipped: outside the terrain"}, true});
     }
-    if (!shown->refused() && tool.terrain) {
+    if (!shown->refused() && tool.terrain && !shown->runs.empty()) {
         QStringList lines{(shown->overlay ? "Overlay · " : "Imprint · ") +
                           countText(std::size_t(tool.faces.size()), std::size_t(tool.edges.size()))};
         if (!shown->overlay && shown->drape && !shown->drape->paint.empty()) {
@@ -408,7 +414,11 @@ void Viewport::paintDrapeTool(QPainter &p) {
             if (found != doc_.materials().end())
                 lines << "Paint: " + QString::fromStdString(found->second->name);
         }
-        labels.push_back({tool.screen + QPointF(16, 10), lines, false});
+        // At the pointer, or (typed, without one) beside the first line on the surface.
+        const auto &run = shown->runs.front();
+        labels.push_back({tool.screen ? *tool.screen + QPointF(16, 10)
+                                      : project(world.point(run[run.size() / 2])) + QPointF(24, 18),
+                          lines, false});
     } else if (shown->refused()) {
         const auto failure = terrainEditFailure(*shown);
         if (failure.at)

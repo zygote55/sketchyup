@@ -302,6 +302,7 @@ void Viewport::emitTerrainStatus() {
     emit message(text);
 }
 void Viewport::beginTerrainTool() {
+    terrainStatusHeld_ = false; // a message held for the last tool goes with it
     if (tool_ == Tool::Contours)
         return beginContourTool();
     if (tool_ == Tool::Pad)
