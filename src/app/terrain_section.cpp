@@ -173,6 +173,7 @@ void TerrainSection::refresh() {
     if (!terrain) {
         terrain_ = 0;
         cacheKey_.clear();
+        statistics_.clear(); // holds no tiles while hidden
         hide();
         return;
     }

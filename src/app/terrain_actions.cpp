@@ -27,6 +27,7 @@
 #include <QVBoxLayout>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <set>
 #include <tuple>
@@ -170,17 +171,32 @@ TerrainFlatArea terrainFlatArea(const Document &doc, Id terrain) {
     }
     return flat;
 }
+void TerrainStatisticsCache::clear() {
+    document_.clear();
+    terrain_ = 0;
+    sources_ = TerrainSources();
+    hasSources_ = false;
+    world_ = Transform();
+    contour_.reset();
+    tiles_.clear();
+}
 TerrainStatistics TerrainStatisticsCache::get(const Document &doc, Id terrain) {
     TerrainStatistics result;
-    if (!isTerrain(doc, terrain))
+    if (!isTerrain(doc, terrain)) {
+        clear(); // holds nothing for a terrain that is gone
         return result;
+    }
     const auto &record = *doc.bodies().at(terrain)->terrain;
     const auto world = doc.worldTransform(terrain);
-    // The base sources (flat areas) and the world transform (elevations) feed every tile.
-    if (terrain != terrain_ || !hasSources_ || sources_.block() != record.sources.block() ||
-        !(world_ == world)) {
-        tiles_.clear();
-        contour_.reset();
+    // The base sources (flat areas) and the world transform (elevations, compared bit for bit:
+    // -0.0 and 0.0 give different signed-zero results) feed every tile.
+    const auto sameBits = [](const Transform &a, const Transform &b) {
+        return std::memcmp(a.m.data(), b.m.data(), sizeof(a.m)) == 0;
+    };
+    if (doc.identity() != document_ || terrain != terrain_ || !hasSources_ ||
+        sources_.block() != record.sources.block() || !sameBits(world_, world)) {
+        clear();
+        document_ = doc.identity();
         terrain_ = terrain;
         sources_ = record.sources;
         hasSources_ = true;
@@ -195,22 +211,25 @@ TerrainStatistics TerrainStatisticsCache::get(const Document &doc, Id terrain) {
     result.high = -result.low;
     for (const auto id : ids) {
         const auto &body = doc.bodies().at(id);
-        auto &tile = tiles_[id];
-        if (tile.body != body) {
-            ++scans_;
-            tile.body = body;
-            tile.low = std::numeric_limits<double>::infinity();
-            tile.high = -tile.low;
+        auto found = tiles_.find(id);
+        if (found == tiles_.end() || found->second.body != body) {
+            // Scanned aside and stored only when complete, so a throw leaves no partial tile.
+            Tile scanned;
+            scanned.low = std::numeric_limits<double>::infinity();
+            scanned.high = -scanned.low;
             for (const auto &[vertex, point] : body->surface.vertices) {
                 const auto z = world.point(point).z;
-                tile.low = std::min(tile.low, z);
-                tile.high = std::max(tile.high, z);
+                scanned.low = std::min(scanned.low, z);
+                scanned.high = std::max(scanned.high, z);
             }
-            tile.flatAreas.clear();
             for (const auto &[face, faceRecord] : body->surface.faces)
                 if (const auto area = flatTriangleArea(body->surface, faceRecord, *contour_))
-                    tile.flatAreas.push_back(*area);
+                    scanned.flatAreas.push_back(*area);
+            scanned.body = body;
+            ++scans_;
+            found = tiles_.insert_or_assign(id, std::move(scanned)).first;
         }
+        auto &tile = found->second;
         tile.generation = generation_;
         result.triangles += body->surface.faces.size();
         result.low = std::min(result.low, tile.low);
@@ -221,7 +240,7 @@ TerrainStatistics TerrainStatisticsCache::get(const Document &doc, Id terrain) {
             result.flat.area += area;
         }
     }
-    // Tiles the terrain no longer has.
+    // Tiles the terrain no longer has (an edit's replaced tiles take new IDs).
     if (tiles_.size() != ids.size())
         std::erase_if(tiles_, [&](const auto &item) { return item.second.generation != generation_; });
     return result;

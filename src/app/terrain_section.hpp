@@ -31,6 +31,7 @@ class TerrainSection : public CollapsibleSection {
     QDoubleSpinBox *intervalBox() const { return interval_; }
     QComboBox *shadingBox() const { return shading_; }
     QLabel *contourStatus() const { return contourStatus_; }
+    const TerrainStatisticsCache &statistics() const { return statistics_; } // tests
 
   private:
     void applyDisplay();
