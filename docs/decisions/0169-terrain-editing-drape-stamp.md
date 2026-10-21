@@ -2341,8 +2341,12 @@ other tiles.
 - **No worker yet.** f1 builds no latest-wins worker: sculpt plans on the UI thread (§5), and f2
   adds the worker for contour edits, stamps and drapes.
 - **Rail height.** The rail already overflowed at 860 px window height (New face and the camera
-  tools went behind Qt's overflow menu). The Terrain slot and its separator make it longer, so
-  `narrow_layout_input_tests` widens at 1,100 px, and the screenshots are taken at 1280 × 1080.
+  tools went behind Qt's overflow menu). The Terrain slot has no separator on the wide rail, and
+  rail buttons are 1 px shorter (`#toolRail QToolButton`, 10 px top padding instead of 11), so the
+  full 19-tool rail still fits a 1000 px window (a maximised window on a 1080p screen): it needs
+  909 px with the old padding against 896 px available. Buttons stay above §7's 28 px controls.
+  `narrow_layout_input_tests` checks the full rail at 1000 px and records that 15 of the 19 tools
+  show at 860 px. The screenshots are taken at 1280 × 1080.
 - **Disabled menu items** are now drawn muted (`QMenu::item:disabled`), as the mockup draws them;
   before this, every menu drew them in ink.
 

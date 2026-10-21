@@ -1219,6 +1219,8 @@ QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 QToolBar {border:1px solid transparent;border-right:1px solid $border;spacing:6px;padding:9px 5px 9px 4px;}
 QToolButton {padding:11px 4px;border:1px solid transparent;border-radius:4px;}
 #railGroupButton {padding:11px 0;}
+/* R096.f1: rail buttons are 1 px shorter, so the full rail (with the Terrain slot) fits a 1000 px window. */
+#toolRail QToolButton {padding:10px 4px 11px 4px;} #toolRail #railGroupButton {padding:10px 0 11px 0;}
 QToolButton:checked {background:$selected;color:$ink;}
 QToolButton:hover,QPushButton:hover {background:$hover;}
 QPushButton {border:1px solid $border;padding:7px 11px;border-radius:4px;}

@@ -969,6 +969,12 @@ struct RailFixture {
 void railGroupBehaviour(Fixture &f) {
     auto &window = f.window;
     RailFixture r(f);
+    // R096.f1: at 860 px high (the default test window) Qt's overflow menu takes the last tools;
+    // record how many show, so a taller rail is noticed.
+    r.widen(900, 860);
+    const auto at860 = r.visible().size();
+    std::cout << "860 px high: " << at860 << " of " << r.all().size() << " rail tools show\n";
+    check(at860 >= 15, "at 860 px high at least 15 rail tools show, got " + std::to_string(at860));
     r.widen();
     r.expectWide("900 px");
     check(r.rail->width() == 88, "The wide rail is 88 px");
