@@ -190,9 +190,10 @@ void TerrainSection::refresh() {
     const auto units = doc_.displayUnits();
     const auto precision = doc_.displayPrecision();
     name_->setText(QString::fromStdString(body.name));
-    const auto tiles = terrainTiles(doc_, terrain);
-    triangles_->setText(plural(terrainTriangleCount(doc_, terrain), "triangle", "triangles") +
-                        " in " + plural(tiles.size(), "tile", "tiles"));
+    // R096.f1c: the whole-terrain figures, rescanning only the tiles an edit replaced.
+    const auto statistics = statistics_.get(doc_, terrain);
+    triangles_->setText(plural(statistics.triangles, "triangle", "triangles") + " in " +
+                        plural(statistics.tiles, "tile", "tiles"));
     // Source: the file is named by the site provenance when this terrain established the site.
     const auto &provenance = record.provenance;
     if (provenance.sha256.empty()) {
@@ -243,19 +244,12 @@ void TerrainSection::refresh() {
         roles << plural(points, "spot point", "spot points");
     sources_->setText(roles.isEmpty() ? QString("None") : roles.join(" · "));
     // Elevation in world Z, as terrain.describe reports it.
-    double low = std::numeric_limits<double>::infinity(), high = -low;
-    const auto world = doc_.worldTransform(terrain);
-    for (const auto id : tiles)
-        for (const auto &[vertex, point] : doc_.bodies().at(id)->surface.vertices) {
-            const auto z = world.point(point).z;
-            low = std::min(low, z);
-            high = std::max(high, z);
-        }
-    elevation_->setText(tiles.empty() ? QString("No mesh")
-                                      : displayLength(low, units, precision) + " to " +
-                                            displayLength(high, units, precision));
+    elevation_->setText(!statistics.tiles
+                            ? QString("No mesh")
+                            : displayLength(statistics.low, units, precision) + " to " +
+                                  displayLength(statistics.high, units, precision));
     generator_->setText(QString::fromStdString(record.generator));
-    const auto flat = terrainFlatArea(doc_, terrain);
+    const auto &flat = statistics.flat;
     flat_->setText(flat.triangles
                        ? plural(flat.triangles, "flat triangle", "flat triangles") + " · " +
                              displayMeasure(flat.area, 2, units, precision)

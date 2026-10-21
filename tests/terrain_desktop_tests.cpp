@@ -45,7 +45,10 @@
 #include <QTest>
 #include <QTimer>
 #include <QTreeWidget>
+#include <bit>
+#include <cmath>
 #include <iostream>
+#include <limits>
 using namespace sketchy;
 namespace {
 QString shots;
@@ -1009,6 +1012,133 @@ void toolsOnTerrain(Window &window) {
 }
 } // namespace
 
+// ---- R096.f1c: the section's figures, per tile --------------------------------------------
+// Rings of contours (flat triangles between points of one ring) over several tiles.
+QByteArray ringContours(int rings, int vertices) {
+    QByteArray out = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\n"
+                     "ENDSEC\n0\nSECTION\n2\nENTITIES\n";
+    for (int k = 0; k < rings; ++k) {
+        const double r = 10 + 3 * k, z = 105 - 0.5 * k;
+        out += "0\nLWPOLYLINE\n5\n" + QByteArray::number(0x100 + k, 16).toUpper() +
+               "\n8\nCONTOURS\n90\n" + QByteArray::number(vertices) + "\n70\n1\n38\n" +
+               QByteArray::number(z, 'f', 4) + '\n';
+        for (int i = 0; i < vertices; ++i) {
+            const double t = 2 * 3.14159265358979323846 * i / vertices + 0.05 * k;
+            out += "10\n" + QByteArray::number(r * std::cos(t) * 1.3, 'f', 4) + "\n20\n" +
+                   QByteArray::number(r * std::sin(t), 'f', 4) + '\n';
+        }
+    }
+    out += "0\nENDSEC\n0\nEOF\n";
+    return out;
+}
+// The full scan the section made before R096.f1c.
+TerrainStatistics fullScan(const Document &doc, Id terrain) {
+    TerrainStatistics full;
+    const auto tiles = terrainTiles(doc, terrain);
+    full.tiles = tiles.size();
+    full.triangles = terrainTriangleCount(doc, terrain);
+    full.low = std::numeric_limits<double>::infinity();
+    full.high = -full.low;
+    const auto world = doc.worldTransform(terrain);
+    for (const auto id : tiles)
+        for (const auto &[vertex, point] : doc.bodies().at(id)->surface.vertices) {
+            const auto z = world.point(point).z;
+            full.low = std::min(full.low, z);
+            full.high = std::max(full.high, z);
+        }
+    full.flat = terrainFlatArea(doc, terrain);
+    return full;
+}
+bool sameBits(double a, double b) {
+    return std::bit_cast<std::uint64_t>(a) == std::bit_cast<std::uint64_t>(b);
+}
+void sectionStatistics(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const QJsonObject options{{"format", "dxf"}, {"units", "header"}, {"name", "Rings"}};
+    const auto terrain =
+        importTerrainSource(doc, ringContours(24, 120), options)["terrain"].toString().toULongLong();
+    TerrainStatisticsCache cache;
+    auto same = [&](const std::string &when) {
+        const auto cached = cache.get(doc, terrain);
+        const auto full = fullScan(doc, terrain);
+        check(cached.tiles == full.tiles && cached.triangles == full.triangles &&
+                  sameBits(cached.low, full.low) && sameBits(cached.high, full.high) &&
+                  cached.flat.triangles == full.flat.triangles &&
+                  sameBits(cached.flat.area, full.flat.area),
+              "the per-tile figures equal the full scan " + when + " (" +
+                  std::to_string(cached.flat.triangles) + " flat triangles, " +
+                  std::to_string(cached.tiles) + " tiles)");
+        return cached;
+    };
+    const auto first = same("after the import");
+    check(first.tiles > 4 && first.flat.triangles > 0,
+          "the rings have several tiles and flat areas");
+    check(cache.tileScans() == first.tiles, "the first read scans every tile");
+    const auto world = doc.worldTransform(terrain);
+    auto stroke = [&](const char *mode, std::vector<std::array<double, 2>> path, double radius) {
+        QJsonArray points;
+        for (const auto &p : path) {
+            const auto m = world.point({p[0], p[1], 0});
+            points.append(QJsonArray{m.x, m.y});
+        }
+        const bool smoothing = std::string(mode) == "smooth",
+                   lowering = std::string(mode) == "lower"; // a raise by a negative amount
+        QJsonObject command{{"command", "terrain.sculpt"},
+                            {"terrain", QString::number(terrain)},
+                            {"mode", smoothing ? "smooth" : "raise"},
+                            {"path", points},
+                            {"radius", radius}};
+        command[smoothing ? "strength" : "amount"] = smoothing ? 0.8 : lowering ? -0.6 : 0.6;
+        run(doc, command);
+    };
+    // Each edit rescans only the tiles it replaced.
+    auto scans = cache.tileScans();
+    stroke("raise", {{20, 0}, {28, 3}}, 4);
+    same("after a sculpt");
+    check(cache.tileScans() - scans < first.tiles / 2,
+          "a sculpt rescans only the replaced tiles (" +
+              std::to_string(cache.tileScans() - scans) + " of " + std::to_string(first.tiles) +
+              ")");
+    stroke("smooth", {{-30, -10}, {-24, -6}}, 5);
+    same("after a smooth");
+    stroke("lower", {{0, 40}, {6, 44}}, 6);
+    same("after a lowering");
+    scans = cache.tileScans();
+    same("on a second read");
+    check(cache.tileScans() == scans, "an unchanged terrain rescans nothing");
+    doc.undo();
+    same("after Undo");
+    doc.redo();
+    same("after Redo");
+    doc.undo();
+    doc.undo();
+    same("after two Undos");
+    // A moved terrain changes every world elevation: everything is rescanned.
+    executeBatch(doc, QJsonObject{{"apiVersion", 1},
+                                  {"documentId", QString::fromStdString(doc.identity())},
+                                  {"expectedRevision", QString::number(doc.revision())},
+                                  {"commands", QJsonArray{QJsonObject{
+                                                   {"command", "geometry.translate"},
+                                                   {"body", QString::number(terrain)},
+                                                   {"delta", QJsonArray{3.0, -2.0, 1.25}}}}}});
+    scans = cache.tileScans();
+    same("after moving the terrain");
+    check(cache.tileScans() - scans == first.tiles, "a move rescans every tile");
+    // The section shows the per-tile figures.
+    window.viewport()->refresh();
+    emit window.viewport()->changed();
+    select(window, terrain);
+    auto &info = section(window);
+    const auto shown = fullScan(doc, terrain);
+    const auto text = [&](const char *name) { return info.findChild<QLabel *>(name)->text(); };
+    check(text("terrainFlatAreas")
+              .startsWith(QLocale().toString(qulonglong(shown.flat.triangles)) + " flat triangles"),
+          "the section shows the flat areas: " + text("terrainFlatAreas").toStdString());
+    check(text("terrainTriangles").startsWith(QLocale().toString(qulonglong(shown.triangles))),
+          "the section shows the triangle count: " + text("terrainTriangles").toStdString());
+}
+
 int main(int argc, char **argv) {
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
@@ -1042,6 +1172,8 @@ int main(int argc, char **argv) {
                   << std::flush;
         toolsOnTerrain(window);
         std::cout << "tools on terrain\n" << std::flush;
+        sectionStatistics(window);
+        std::cout << "section statistics\n" << std::flush;
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;
