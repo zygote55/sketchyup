@@ -351,6 +351,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
@@ -506,6 +507,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/group_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/array_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/transform_input_tests
@@ -654,6 +656,7 @@ jobs:
           scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           scripts/test-wayland.sh build/dev/terrain_desktop_tests
           scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
+          SKETCHYUP_TEST_DEADLINE=120 scripts/test-wayland.sh build/dev/terrain_edit_input_tests
           scripts/test-wayland.sh build/dev/group_input_tests
           scripts/test-wayland.sh build/dev/selection_input_tests
           scripts/test-wayland.sh build/dev/transform_input_tests
@@ -799,6 +802,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_desktop_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
+          SKETCHYUP_TEST_DEADLINE=120 SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_edit_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/group_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/selection_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/transform_input_tests
@@ -949,6 +953,11 @@ jobs:
               xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR="$factor" LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 "build/dev/$target"
             done
           done
+          # R096.f1 (UX_DESIGN §15.7): the terrain tools at fractional 1.5 on both platforms and at
+          # 200 % interface text.
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_DEADLINE=120 SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/terrain_edit_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests --text-percent 200
           # R094.c (ADR 0166 §8): placement parameter rows at fractional 1.5 on both platforms.
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh env QT_SCALE_FACTOR=1.5 build/dev/component_parameter_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_input_tests

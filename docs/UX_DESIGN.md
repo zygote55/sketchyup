@@ -1009,7 +1009,8 @@ The mockups are `mockups/terrain.html` (all screens, with notes) or
 - **Rail.** One **Terrain** slot after Tape, in its own group. It shows the
   last terrain tool used ("Sculpt ▸" at first) and starts it. The rail stays
   one slot longer instead of five, and it follows the rail's existing
-  responsive rule.
+  responsive rule. Rail buttons are 1 px shorter so the full rail fits a
+  1000 px window (R096.f1).
 - **Tool options strip.** While a terrain tool is active, a strip across the
   top of the viewport holds a five-way switcher (Sculpt · Smooth · Contours ·
   Pad · Drape) and that tool's options. It is one row where it fits and wraps

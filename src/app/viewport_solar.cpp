@@ -87,8 +87,16 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
         }
         hasCaster = true;
     };
+    // R096.f1: during a terrain preview the candidate casts shadows in place of the tiles it
+    // replaces (never in an export).
+    const bool preview = terrainPreviewGpu_.active && rasterSize_.isEmpty();
+    if (preview)
+        for (std::size_t i = 0; i + 2 < terrainPreviewGpu_.surfaceVertices.size(); i += 3)
+            include(terrainPreviewGpu_.surfaceVertices[i], terrainPreviewGpu_.surfaceVertices[i + 1],
+                    terrainPreviewGpu_.surfaceVertices[i + 2]);
     for (const auto &[id, cache] : bodyCaches_) {
-        if (cache->record->referenceImage || !cache->mesh)
+        if (cache->record->referenceImage || !cache->mesh ||
+            (preview && terrainPreviewGpu_.hidden.contains(id)))
             continue;
         const auto &mesh = *cache->mesh;
         if (mesh.placement) {
@@ -180,10 +188,19 @@ void Viewport::drawSolarShadowMap(const QMatrix4x4 &viewMatrix) {
     gl_->glPolygonOffset(2, 4);
     shader_->setUniformValue("mvp", light);
     shader_->setUniformValue("surfacePass", 4);
+    stats_.shadowTriangles = stats_.shadowPreviewTriangles = 0;
     for (auto &[id, cache] : bodyCaches_)
-        if (cache->mesh)
+        if (cache->mesh && !(preview && terrainPreviewGpu_.hidden.contains(id))) {
             draw(cache->mesh->opaqueGpu, GL_TRIANGLES, 1, placementOffset(*cache));
+            stats_.shadowTriangles += std::size_t(cache->mesh->opaqueGpu.count / 3);
+        }
+    if (preview) {
+        draw(terrainPreviewGpu_.surface, GL_TRIANGLES);
+        stats_.shadowPreviewTriangles = std::size_t(terrainPreviewGpu_.surface.count / 3);
+        stats_.shadowTriangles += stats_.shadowPreviewTriangles;
+    }
     draw(transparentGpu_, GL_TRIANGLES);
+    stats_.shadowTriangles += std::size_t(transparentGpu_.count / 3);
     gl_->glDisable(GL_POLYGON_OFFSET_FILL);
     gl_->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFramebuffer));
     gl_->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(readFramebuffer));

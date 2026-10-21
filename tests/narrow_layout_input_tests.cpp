@@ -849,6 +849,8 @@ const std::vector<std::pair<QString, std::vector<QString>>> railGroups{
      {"Push/pull", "Offset", "Follow Me", "Intersect", "Solid tools", "Face orientation", "Move",
       "Rotate", "Scale", "Create new face when pushing/pulling"}},
     {"Measure", {"Tape measure"}},
+    // R096.f1: the Terrain slot (it shows the last terrain tool used, "Terrain" until one is).
+    {"Terrain", {"Terrain ▸"}},
     {"Camera", {"Orbit", "Pan"}}};
 struct RailFixture {
     Fixture &f;
@@ -865,11 +867,11 @@ struct RailFixture {
                 tools.push_back(entry);
     }
     // The wide rail at a height that holds every tool; at 800 px high Qt's overflow menu takes
-    // the last few, as before.
-    void widen(int width = 900) {
-        f.window.setFixedSize(width, 1000);
-        check(QTest::qWaitFor([&] { return f.window.size() == QSize(width, 1000); }),
-              "Window resized to " + std::to_string(width) + "x1000");
+    // the last few, as before. R096.f1's Terrain slot must still fit at 1000 px.
+    void widen(int width = 900, int height = 1000) {
+        f.window.setFixedSize(width, height);
+        check(QTest::qWaitFor([&] { return f.window.size() == QSize(width, height); }),
+              "Window resized to " + std::to_string(width) + "x" + std::to_string(height));
         f.settle();
     }
     // A tool leaves the rail (not just the view) while another group shows.
@@ -967,6 +969,12 @@ struct RailFixture {
 void railGroupBehaviour(Fixture &f) {
     auto &window = f.window;
     RailFixture r(f);
+    // R096.f1: at 860 px high (the default test window) Qt's overflow menu takes the last tools;
+    // record how many show, so a taller rail is noticed.
+    r.widen(900, 860);
+    const auto at860 = r.visible().size();
+    std::cout << "860 px high: " << at860 << " of " << r.all().size() << " rail tools show\n";
+    check(at860 >= 15, "at 860 px high at least 15 rail tools show, got " + std::to_string(at860));
     r.widen();
     r.expectWide("900 px");
     check(r.rail->width() == 88, "The wide rail is 88 px");
@@ -992,12 +1000,12 @@ void railGroupBehaviour(Fixture &f) {
               " against " + std::to_string(r.widget("Select")->width()));
     // Every group's name and chevron fit the rail without clipping.
     auto *menu = r.group->menu();
-    check(menu && menu->actions().size() == 5, "The group menu lists five groups");
+    check(menu && menu->actions().size() == 6, "The group menu lists six groups");
     QStringList names;
     for (auto *entry : menu->actions())
         names << entry->text();
-    check(names == QStringList({"Select", "Draw", "Modify", "Measure", "Camera"}),
-          "The group menu lists the five groups in order");
+    check(names == QStringList({"Select", "Draw", "Modify", "Measure", "Terrain", "Camera"}),
+          "The group menu lists the six groups in order");
     // Menu item names reach the accessibility bridge as the group names.
     if (auto *menuAccessible = QAccessible::queryAccessibleInterface(menu)) {
         QStringList listed;

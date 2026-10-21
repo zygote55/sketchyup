@@ -8,6 +8,7 @@
 #include "app/parameter_value_field.hpp"
 #include "app/parameters_scope_dialog.hpp"
 #include "app/unit_display.hpp"
+#include "app/flow_layout.hpp"
 #include "app/window.hpp"
 #include "automation/measurements.hpp"
 #include "core/component_parameters.hpp"
@@ -36,70 +37,6 @@
 #include <cmath>
 namespace sketchy {
 namespace {
-// Lays its items out left to right and wraps them onto further rows (the Preview strip's
-// fields wrap, ADR 0166 §3.1).
-class FlowLayout final : public QLayout {
-  public:
-    explicit FlowLayout(QWidget *parent = nullptr) : QLayout(parent) {
-        setContentsMargins(0, 0, 0, 0);
-    }
-    ~FlowLayout() override {
-        while (auto *item = takeAt(0))
-            delete item;
-    }
-    void addItem(QLayoutItem *item) override { items_.push_back(item); }
-    int count() const override { return int(items_.size()); }
-    QLayoutItem *itemAt(int index) const override {
-        return index >= 0 && index < count() ? items_[std::size_t(index)] : nullptr;
-    }
-    QLayoutItem *takeAt(int index) override {
-        if (index < 0 || index >= count())
-            return nullptr;
-        auto *item = items_[std::size_t(index)];
-        items_.erase(items_.begin() + index);
-        return item;
-    }
-    Qt::Orientations expandingDirections() const override { return {}; }
-    bool hasHeightForWidth() const override { return true; }
-    int heightForWidth(int width) const override { return place(QRect(0, 0, width, 0), false); }
-    void setGeometry(const QRect &rect) override {
-        QLayout::setGeometry(rect);
-        place(rect, true);
-    }
-    QSize sizeHint() const override { return minimumSize(); }
-    QSize minimumSize() const override {
-        QSize size;
-        for (auto *item : items_)
-            size = size.expandedTo(item->minimumSize());
-        const auto margins = contentsMargins();
-        return size + QSize(margins.left() + margins.right(), margins.top() + margins.bottom());
-    }
-
-  private:
-    std::vector<QLayoutItem *> items_;
-    int place(const QRect &rect, bool apply) const {
-        const int gapX = 12, gapY = 6;
-        int x = rect.x(), y = rect.y(), line = 0;
-        for (auto *item : items_) {
-            if (item->isEmpty())
-                continue;
-            const auto hint = item->sizeHint();
-            const int width = std::min(hint.width(), rect.width());
-            if (x > rect.x() && x + width > rect.right() + 1) {
-                x = rect.x();
-                y += line + gapY;
-                line = 0;
-            }
-            const int height = item->hasHeightForWidth() ? item->heightForWidth(width)
-                                                         : hint.height();
-            if (apply)
-                item->setGeometry(QRect(QPoint(x, y), QSize(width, height)));
-            x += width + gapX;
-            line = std::max(line, height);
-        }
-        return y + line - rect.y();
-    }
-};
 // ADR 0165 §4 (R094.e): an edit through the placement would be refused, because it shows its
 // own values (overrides, or values from its parent) rather than its template.
 bool showsOwnValues(const Document &doc, Id placement) {

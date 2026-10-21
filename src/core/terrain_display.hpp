@@ -5,6 +5,7 @@
 // interior edges not drawn). Everything here is derived display: nothing changes the mesh, and
 // nothing here is picked or snapped to.
 #include "core/terrain.hpp"
+#include "core/terrain_edit.hpp"
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -31,6 +32,10 @@ struct TerrainContours {
     std::size_t levels{}, indexLevels{}; // Distinct levels with at least one segment.
     std::size_t estimatedSegments{};     // Upper bound counted before generating.
     bool tooDense{};                     // estimatedSegments exceeded the limit: no segments.
+    // R096.f1: from TerrainContourCache, each tile's first segment (tile body, index into
+    // `segments`), in segment order, so a preview can leave out the tiles it replaces. Empty from
+    // terrainContours.
+    std::vector<std::pair<Id, std::size_t>> tileStarts;
 };
 // Levels are at elevations e = z + elevationOffset that are whole multiples k of `interval`
 // (z in the terrain frame; the offset turns it into a site elevation), index when k is a
@@ -40,6 +45,11 @@ struct TerrainContours {
 // result depends only on the tiles in order (deterministic). O(triangles + segments).
 TerrainContours terrainContours(const std::vector<const Body *> &tiles, double interval,
                                 double elevationOffset);
+// R096.f1 (ADR 0169 §5, the terrain preview path): one tile's contour segments, as the cache
+// generates them for a tile body with this mesh (the same bits, in face order), for a candidate
+// tile that is not a body yet.
+std::vector<TerrainContourSegment> terrainTileContours(const TerrainTileContent &tile,
+                                                       double interval, double elevationOffset);
 // The offset of the terrain frame's Z to site elevation: the frame's world Z translation plus
 // the site origin's elevation (0 without a site origin).
 double terrainElevationOffset(const Document &doc, Id terrain);
@@ -148,6 +158,33 @@ class TerrainSurfaceCache {
     std::uint64_t clock_{};
     std::size_t computations_{};
 };
+
+// ---- R096.f1: the display of a terrain preview (ADR 0169 §5) -------------------------------
+// A candidate (an edit's TerrainRegionResult on the cached edit mesh) is drawn in place of the
+// tiles it replaces. The tiles drawn for it are the candidate tiles and the seam ring: the kept
+// tiles that share a position with a replaced or a candidate tile, whose normals there change.
+// Each drawn tile's normals and outer edges are those the per-tile surfaces will have once the
+// candidate is committed: a position sums the weighted normals of its triangles in (tile key,
+// index) order over the candidate terrain, as TerrainSurfaceCache does, so the preview and the
+// committed frame are bit-equal.
+struct TerrainPreviewTile {
+    TerrainTilePtr content;  // terrain frame
+    bool candidate{};        // a candidate tile; otherwise a kept seam-ring tile
+    std::unordered_map<TerrainSurfaceDisplay::Key, Vec3, TerrainSurfaceDisplay::Hash> normals;
+    // Edges (vertex index pairs) on the candidate terrain's outer boundary: one triangle uses them.
+    std::vector<std::array<std::uint32_t, 2>> outerEdges;
+    Vec3 normal(Vec3 point, Vec3 fallback) const;
+};
+struct TerrainPreviewDisplay {
+    // The tiles the preview hides (replaced and seam-ring), by key, in key order.
+    std::vector<TerrainTileKey> hidden;
+    // What it draws instead: the candidates and the seam ring, in key order.
+    std::vector<TerrainPreviewTile> tiles;
+    // The candidate terrain's elevation range (terrain frame).
+    double zMin{}, zMax{};
+};
+TerrainPreviewDisplay terrainPreviewDisplay(const TerrainEditMesh &mesh,
+                                            const TerrainRegionResult &region);
 
 // Elevation-band shading: ten bands over [zMin, zMax] from green through sand to brown (the
 // import preview's ramp). `z` and the range are in one frame.

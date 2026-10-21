@@ -824,6 +824,30 @@ inline std::vector<Case> cases(Context &ctx) {
          "Regenerate terrain (palette)", [](Context &context) { terrainFixture(context, true); },
          viaPalette("Regenerate terrain"), named("terrainRegenerateDialog"), Enter::Closes,
          "Cancel", Return::Viewport, {}, {}, {}, "Cancel is the default."});
+    // R096.f1: Reset edits… on a terrain with one sculpt; Cancel is the default.
+    add({"terrain-reset-edits", "terrain", "Reset terrain edits (confirmation)",
+         "Terrain > Reset edits… (palette)",
+         [](Context &context) {
+             terrainFixture(context, false);
+             auto &doc = context.window.document();
+             const auto terrain = context.window.viewport()->selectedBody();
+             const QJsonObject request{
+                 {"apiVersion", 1},
+                 {"documentId", QString::fromStdString(doc.identity())},
+                 {"expectedRevision", QString::number(doc.revision())},
+                 {"commands", QJsonArray{QJsonObject{{"command", "terrain.sculpt"},
+                                                     {"terrain", QString::number(terrain)},
+                                                     {"mode", "raise"},
+                                                     {"path", QJsonArray{QJsonArray{0.3, 0.2}}},
+                                                     {"radius", 15},
+                                                     {"amount", 1}}}}};
+             executeBatch(doc, request);
+             context.window.viewport()->refresh();
+             context.window.viewport()->setSelection(0);
+             context.window.viewport()->setSelection(terrain);
+         },
+         viaPalette("Reset edits…"), named("terrainResetEditsDialog"), Enter::Closes, "Cancel",
+         Return::Viewport, {}, {}, {}, "Cancel is the default."});
     add({"terrain-create-refused", "terrain", "Create terrain from selection (refusal report)",
          "Create terrain from selection (palette)",
          [](Context &context) { terrainFixture(context, false, true); },

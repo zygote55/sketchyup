@@ -2033,17 +2033,22 @@ void previewGeometry(const Document &doc, const Document &candidate, QJsonObject
     result["removed"] = removedIds;
 }
 QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
-                         const QJsonObject &request) {
+                         const QJsonObject &request, BatchResponse response) {
     QJsonObject result;
     auto commands = request["commands"].toArray();
     if (commands.size() == 1 && commands[0].toObject()["command"] == "component.edit")
         commands = commands[0].toObject()["commands"].toArray();
-    const auto policy =
-        commands.size() == 1 && commands[0].toObject()["command"] == "geometry.array_selection"
-            ? Document::AmendPolicy::CopyArray
-            : Document::AmendPolicy::FixedContextCount;
+    // R096.f1: a typed value after a terrain edit revises it; the new value moves other
+    // vertices, so it may replace another set of that terrain's tiles (ADR 0169, R096.f).
+    const auto single = commands.size() == 1 ? commands[0].toObject()["command"].toString()
+                                             : QString{};
+    const auto policy = single == "geometry.array_selection" ? Document::AmendPolicy::CopyArray
+                        : single == "terrain.sculpt" || single == "terrain.stamp_pad"
+                            ? Document::AmendPolicy::TerrainTiles
+                            : Document::AmendPolicy::FixedContextCount;
     const auto report = doc.amendLast(
-        stamp, [&](Document &candidate) { result = executeBatch(candidate, request); }, policy);
+        stamp, [&](Document &candidate) { result = executeBatch(candidate, request, response); },
+        policy);
     QJsonObject changes;
     for (const auto &[context, change] : report)
         changes[QString::number(context)] =

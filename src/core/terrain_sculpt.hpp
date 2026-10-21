@@ -191,6 +191,41 @@ struct TerrainSculptPlan {
 };
 TerrainSculptPlan planTerrainSculpt(const TerrainEditContext &context, const TerrainEdit &edit);
 
+// ---- R096.f1: the desktop preview (ADR 0169 §5) ---------------------------------------------
+// One sculpt or smooth planned on the document's cached edit mesh and current sources, with its
+// candidate tiles (previewTerrainEdit), nothing validated or committed. `data` is in the terrain
+// frame, without recorded pieces (the plan resolves them). When the change does not apply,
+// `plan.refusal` says why and `edit` is empty. Without `candidate` (a hover: the brush shows the
+// vertices that will move but no surface), only the plan is made and the tiles it touches are
+// counted. Refuses (TerrainError) a missing, locked, tilted or scaled terrain before planning,
+// and a full edit list when the candidate is built.
+struct TerrainSculptPreview {
+    std::string kind;
+    std::shared_ptr<const TerrainSculptData> data; // as given (no pieces)
+    TerrainSculptPlan plan;
+    std::optional<TerrainEditPreview> edit;        // the candidate when the change applies
+    // The vertices that move: each position before the change (terrain frame) with its weight,
+    // in the plan's (x, y) order. A smooth's lifted vertices only.
+    std::vector<std::pair<Vec3, double>> moving;
+    std::size_t touched{}; // tiles with a moving vertex (the candidate's replaced tiles)
+    std::size_t tilesTouched() const { return edit ? edit->region.replaced.size() : touched; }
+};
+TerrainSculptPreview previewTerrainSculpt(const Document &doc, Id terrain, const std::string &kind,
+                                          std::shared_ptr<const TerrainSculptData> data,
+                                          bool candidate = true);
+// Refuses (TerrainError INVALID_OPERATION) a terrain whose frame scales plan or height: sculpt and
+// smooth store radius, width and amount in model metres.
+void requireUnscaledTerrain(const Document &doc, Id terrain);
+// The plan of the last candidate preview (one slot, thread-safe), when it was made for the same terrain
+// record, the same cached edit mesh (the same tile records), kind and data: terrain.sculpt then
+// commits it instead of planning again, so the committed tiles are the previewed ones (ADR 0169,
+// R096.f notes "avoid planning twice"). Taking it clears the slot.
+std::optional<TerrainSculptPlan> takeRememberedTerrainSculptPlan(const Document &doc, Id terrain,
+                                                                 const std::string &kind,
+                                                                 const TerrainSculptData &data);
+// Clears the slot (tests, and a viewport whose preview ends without a commit).
+void forgetRememberedTerrainSculptPlan();
+
 // The two kinds (registered as built-in by core/terrain_edit.cpp).
 std::vector<TerrainEditKind> terrainSculptKinds();
 } // namespace sketchy

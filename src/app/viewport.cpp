@@ -6,6 +6,7 @@
 #include "core/component_regeneration.hpp"
 #include "core/hierarchy_changes.hpp"
 #include "core/shading_normals.hpp"
+#include "core/terrain_sculpt.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLocale>
@@ -108,6 +109,7 @@ Viewport::Viewport(Document &doc, QWidget *parent)
 Viewport::~Viewport() {
     if (!terrainCacheIdentity_.empty())
         terrainEditMeshCache().forget(terrainCacheIdentity_);
+    forgetRememberedTerrainSculptPlan(); // it may hold this document's terrain and mesh
     cleanupGL();
 }
 void Viewport::cleanupGL() {
@@ -133,6 +135,17 @@ void Viewport::cleanupGL() {
                 batch->count = 0;
             }
         terrainViews_.clear();
+        contourRanges_.clear();
+        // R096.f1: the terrain preview's buffers; the next frame rebuilds them.
+        for (auto *batch : {&terrainPreviewGpu_.surface, &terrainPreviewGpu_.lines,
+                            &terrainPreviewGpu_.contours, &terrainPreviewGpu_.indexContours}) {
+            batch->buffer.destroy();
+            batch->count = 0;
+        }
+        terrainPreviewGpu_.active = false;
+        terrainPreviewGpu_.hidden.clear();
+        terrainPreviewGpu_.hiddenContours.clear();
+        terrainPreviewDirty_ = true;
         for (const auto &[id, name] : textureGpu_)
             gl_->glDeleteTextures(1, &name);
         cleanupSolarShadowMap();
@@ -853,6 +866,7 @@ void Viewport::rebuild() {
     }
     stats_.meshTriangles = 0;
     transparent_.clear();
+    transparentBodies_.clear();
     if (cachedDocument_ != doc_.identity() || placementReset_) {
         if (cachedDocument_ != doc_.identity())
             opacity_.clear();
@@ -1062,6 +1076,7 @@ void Viewport::rebuild() {
             } else
                 transparent_.insert(transparent_.end(), mesh.transparent.begin(),
                                     mesh.transparent.end());
+            transparentBodies_.resize(transparent_.size(), id);
             continue;
         }
 
@@ -1455,6 +1470,7 @@ void Viewport::rebuild() {
         } else
             transparent_.insert(transparent_.end(), mesh.transparent.begin(),
                                 mesh.transparent.end());
+        transparentBodies_.resize(transparent_.size(), id);
     }
     for (const auto &[id, cache] : bodyCaches_)
         stats_.bodyUploads += cache->meshPass == rebuildPass_ ||
@@ -1543,15 +1559,30 @@ void Viewport::draw(GpuBatch &batch, GLenum mode, int count, QVector3D offset) {
     vao_.release();
 }
 void Viewport::sortTransparent(const QMatrix4x4 &transform) {
+    // R096.f1: during a terrain preview (not in an export) the replaced and seam-ring tiles'
+    // translucent triangles are left out, as their opaque ones are.
+    const bool filter = terrainPreviewGpu_.active && rasterSize_.isEmpty() &&
+                        !terrainPreviewGpu_.hidden.empty();
+    if (filter != transparentPreviewFiltered_)
+        transparentDirty_ = true; // a preview began or ended (its changes mark it dirty too)
     if (!transparentDirty_ && transform == sortedMatrix_)
         return;
     if (!transparentDirty_ && transparent_.empty()) {
         sortedMatrix_ = transform;
         return;
     }
+    transparentPreviewFiltered_ = filter;
     // Centroid depth sorting is a feasibility path for non-intersecting layers.
     // Intersecting transparent surfaces need order-independent transparency later.
-    auto sorted = transparent_;
+    std::vector<std::array<Vertex, 3>> sorted;
+    if (filter) {
+        sorted.reserve(transparent_.size());
+        for (std::size_t i = 0; i < transparent_.size(); ++i)
+            if (i >= transparentBodies_.size() ||
+                !terrainPreviewGpu_.hidden.contains(transparentBodies_[i]))
+                sorted.push_back(transparent_[i]);
+    } else
+        sorted = transparent_;
     QVector3D direction(std::cos(pitch_ * degreesToRadians) * std::cos(yaw_ * degreesToRadians),
                         std::cos(pitch_ * degreesToRadians) * std::sin(yaw_ * degreesToRadians),
                         std::sin(pitch_ * degreesToRadians));
@@ -1568,6 +1599,7 @@ void Viewport::sortTransparent(const QMatrix4x4 &transform) {
     for (const auto &triangle : sorted)
         vertices.insert(vertices.end(), triangle.begin(), triangle.end());
     upload(transparentGpu_, vertices, true);
+    stats_.transparentTriangles = sorted.size();
     sortedMatrix_ = transform;
     transparentDirty_ = false;
 }
@@ -1633,8 +1665,25 @@ void Viewport::paintScene(QPaintDevice *device) {
         draw(benchmarkGpu_, GL_TRIANGLES, std::max(1, instances_));
         gl_->glFinish();
     } else {
-        if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity())
+        if (cacheDirty_ || cachedRevision_ != doc_.revision() || cachedDocument_ != doc_.identity()) {
+            QElapsedTimer rebuilding;
+            rebuilding.start();
             rebuild();
+            stats_.rebuildMs = rebuilding.nsecsElapsed() / 1e6;
+        }
+        // R096.f1 (ADR 0169 §5): a terrain candidate is drawn in place of the tiles it replaces.
+        if (terrainPreviewDirty_ ||
+            (terrainPreviewGpu_.active && terrainPreviewGpu_.surface.origin != renderOrigin_)) {
+            QElapsedTimer previewing;
+            previewing.start();
+            rebuildTerrainPreview();
+            stats_.terrainPreviewMs = previewing.nsecsElapsed() / 1e6;
+        }
+        // Exports draw the model as it is, never an uncommitted candidate.
+        const bool terrainPreview = terrainPreviewGpu_.active && rasterSize_.isEmpty();
+        const auto previewHides = [&](Id id) {
+            return terrainPreview && terrainPreviewGpu_.hidden.contains(id);
+        };
         sortTransparent(transform);
         drawSolarShadowMap(transform);
         drawStyleGround(transform);
@@ -1651,8 +1700,10 @@ void Viewport::paintScene(QPaintDevice *device) {
             gl_->glPolygonOffset(1, 1);
             shader_->setUniformValue("surfacePass", 1);
             for (auto &[id, cache] : bodyCaches_)
-                if (cache->mesh)
+                if (cache->mesh && !previewHides(id))
                     draw(cache->mesh->opaqueGpu, GL_TRIANGLES, 1, placementOffset(*cache));
+            if (terrainPreview)
+                drawTerrainPreview();
             sortTransparent(transform);
             if (transparentGpu_.count) {
                 gl_->glEnable(GL_BLEND);
@@ -1671,11 +1722,13 @@ void Viewport::paintScene(QPaintDevice *device) {
         shader_->setUniformValue("surfacePass", 0);
         if (doc_.style().edgesVisible || doc_.style().mode == ModelStyleMode::Wireframe) {
             for (auto &[id, cache] : bodyCaches_)
-                if (cache->mesh)
+                if (cache->mesh && !previewHides(id))
                     draw(cache->mesh->linesGpu, GL_LINES, 1, placementOffset(*cache));
+            if (terrainPreview)
+                draw(terrainPreviewGpu_.lines, GL_LINES);
             shader_->setUniformValue("stipple", 2);
             for (auto &[id, cache] : bodyCaches_)
-                if (cache->mesh)
+                if (cache->mesh && !previewHides(id))
                     draw(cache->mesh->hiddenLinesGpu, GL_LINES, 1, placementOffset(*cache));
             shader_->setUniformValue("stipple", 0);
         }
@@ -1708,6 +1761,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     paintAssistantPreview(p);
     paintParameterOverlay(p);
     paintAssemblyOverlay(p);
+    paintTerrainBrush(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.canvasRing, 2));
         p.setBrush(Qt::NoBrush);
@@ -1731,6 +1785,12 @@ void Viewport::paintScene(QPaintDevice *device) {
             labelX = chip.left();
             labelBaseline = bottom + metrics.lineSpacing();
         }
+    }
+    // R096.f1: the terrain tool options strip spans the top; the label goes under it.
+    if (const auto *strip = findChild<QWidget *>("terrainToolStrip", Qt::FindDirectChildrenOnly);
+        strip && strip->isVisible() && rasterSize_.isEmpty()) {
+        labelX = 20;
+        labelBaseline = std::max(labelBaseline, strip->geometry().bottom() + 1 + metrics.lineSpacing());
     }
     projectionLabelPainted_ =
         QRect(labelX, labelBaseline - metrics.ascent(), labelWidth, metrics.height());
@@ -2003,6 +2063,18 @@ void Viewport::refresh() {
         cancel();
         emit message("Document changed; the uncommitted operation was canceled");
     }
+    // R096.f1: a terrain preview belongs to the revision it was computed at.
+    if (terrainSession_.active() && !terrainSession_.current()) {
+        cancelTerrainOperation();
+        emit message("Document changed; the uncommitted operation was canceled");
+    } else if (terrainCandidate_ && (terrainCandidateDocument_ != doc_.identity() ||
+                                     terrainCandidateRevision_ != doc_.revision())) {
+        terrainCandidate_.reset();
+        terrainCandidateShown_ = false;
+        terrainPreviewDirty_ = true;
+    }
+    if (terrainToolActive())
+        buildTerrainOverlay(); // the surface under the brush may have changed
     if (selectionDocument_ != doc_.identity()) {
         cancel();
         configuredPlane_.reset();
@@ -2030,8 +2102,17 @@ void Viewport::setSelection(Id body, Id face) {
 }
 
 void Viewport::setTool(Tool tool) {
+    // R096.f1: choosing the active terrain tool again (Shift+S, the rail, the strip) keeps an
+    // anchored spot or region and the chance to revise the last edit.
+    if (terrainTool(tool) && tool == tool_) {
+        terrainStatusShown_.clear();
+        emit toolChanged(int(tool));
+        emitTerrainStatus();
+        return;
+    }
     cancel();
     assemblyAmend_.reset();
+    const bool wasTerrain = terrainTool(tool_);
     tool_ = tool;
     if (tool == Tool::Walk || tool == Tool::LookAround)
         setOrthographic(false);
@@ -2042,6 +2123,14 @@ void Viewport::setTool(Tool tool) {
     emit toolChanged(int(tool));
     clearTerrainHover();
     setCursor(tool == Tool::Select ? Qt::ArrowCursor : Qt::CrossCursor);
+    // R096.f1: a terrain tool starts with its brush (and a selected region, in region scope).
+    if (terrainTool(tool))
+        beginTerrainTool();
+    else if (wasTerrain) {
+        brush_ = {};
+        terrainStatusShown_.clear();
+        emit terrainToolChanged();
+    }
     if (tool == Tool::HostedPlacement) {
         try {
             beginHostedPlacement();
@@ -2080,6 +2169,7 @@ void Viewport::clearPreview() {
     update();
 }
 void Viewport::cancel() {
+    cancelTerrainOperation();
     endAssemblyPlacement();
     stopWalking();
     stopSceneTransition();
@@ -2509,6 +2599,9 @@ bool Viewport::measurements(const QString &text) {
         const auto trimmed = text.trimmed();
         if (trimmed.isEmpty() || trimmed.size() > 1024)
             throw std::runtime_error("Measurements must contain 1–1024 characters");
+        // R096.f1: the terrain tools take a radius, a position ([x, y] or @E, N) or a value.
+        if (terrainToolActive())
+            return terrainMeasurements(trimmed);
         // R095.e2 (ADR 0168, Site): a leading @ types an absolute site position E, N[, Z]
         // for a tool that takes a point; it becomes the model point [x, y, z] (site - origin).
         if (trimmed.startsWith('@'))
@@ -2845,6 +2938,11 @@ bool Viewport::event(QEvent *event) {
         releaseInferenceHold();
         // Keep the anchor when focus moves to Measurements. End every button
         // gesture so a late release cannot publish an unintended edit.
+        // R096.f1: a terrain stroke in progress is withdrawn; an anchored spot stays.
+        if (brush_.stroking)
+            cancelTerrainOperation();
+        brush_.pressed = false;
+        brush_.modifiers = Qt::NoModifier;
         dragging_ = false;
         dragButton_ = Qt::NoButton;
         toolPressed_ = false;
@@ -2863,6 +2961,12 @@ void Viewport::mousePressEvent(QMouseEvent *e) {
         return;
     if (assemblyPress(e))
         return;
+    if (terrainToolActive() && e->button() == Qt::LeftButton &&
+        !e->modifiers().testFlag(Qt::AltModifier)) {
+        terrainPress(e);
+        update();
+        return;
+    }
     if (tool_ == Tool::Paint && e->button() == Qt::LeftButton) {
         try {
             paintAt(e->position(), e->modifiers().testFlag(Qt::AltModifier));
@@ -3034,6 +3138,8 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
             panCamera(e->position(), delta);
         else
             orbitCamera(delta);
+    } else if (terrainToolActive()) {
+        terrainMove(e);
     } else if (tool_ == Tool::Select) {
         if (selectionPressed_) {
             if (!e->buttons().testFlag(Qt::LeftButton))
@@ -3089,6 +3195,11 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     }
     if (e->button() != Qt::LeftButton)
         return;
+    if (terrainToolActive()) {
+        terrainRelease(e);
+        update();
+        return;
+    }
     if (tool_ == Tool::Select && selectionPressed_) {
         selectionRelease(e->position());
         return;
@@ -3127,6 +3238,8 @@ void Viewport::mouseReleaseEvent(QMouseEvent *e) {
 }
 void Viewport::keyPressEvent(QKeyEvent *e) {
     if (assemblyKey(e))
+        return;
+    if (terrainToolActive() && terrainKey(e))
         return;
     if (tool_ == Tool::HostedPlacement &&
         (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)) {

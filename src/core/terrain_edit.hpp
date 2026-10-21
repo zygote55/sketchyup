@@ -182,8 +182,12 @@ struct TerrainEditPreview {
     TerrainRegionResult region;     // the touched tiles' candidates, key order
     std::size_t removedTriangles{}, addedTriangles{}, liftedVertices{};
 };
+// R096.f1: with `planned`, the kind's outcome for this entry on the same cached mesh and current
+// sources (as applyTerrainEdit takes it), so a desktop preview that planned the change itself
+// does not plan it twice.
 TerrainEditPreview previewTerrainEdit(const Document &doc, Id terrain, const std::string &kind,
-                                      std::shared_ptr<const TerrainEditData> data);
+                                      std::shared_ptr<const TerrainEditData> data,
+                                      const TerrainEditOutcome *planned = nullptr);
 // ---- Replay (ADR 0169 §2) -------------------------------------------------------------------
 // Regenerate, Terrain settings, Reset edits and Remove change rebuild the terrain as the CDT of
 // its base sources followed by a replay of its edit list. Each entry replays against the mesh

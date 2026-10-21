@@ -803,11 +803,11 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
     const auto toLocal = world.inverse();
     // Radius, width and amount are model metres and are stored as they are, so the terrain's
     // frame must keep metres (a level terrain may be moved or turned, not scaled).
-    const auto &m = world.m;
-    const double sx = std::hypot(m[0], m[1]), sy = std::hypot(m[4], m[5]);
-    if (std::abs(sx - 1) > 1e-12 || std::abs(sy - 1) > 1e-12 ||
-        std::abs(m[0] * m[4] + m[1] * m[5]) > 1e-12 || std::abs(m[10] - 1) > 1e-12)
-        reject("INVALID_OPERATION", "Sculpting needs a terrain at its original scale");
+    try {
+        requireUnscaledTerrain(doc, terrain);
+    } catch (const TerrainError &error) {
+        reject(error.code().c_str(), error.what());
+    }
     const bool hasPath = command.contains("path"), hasRegion = command.contains("region");
     if (hasPath == hasRegion)
         reject("INVALID_REQUEST", "Give a brush path or a region, not both");
@@ -898,9 +898,13 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
         reject("INVALID_REQUEST", error.what());
     }
     // The dry run: refusals with their code and a located report, and the counts reported.
+    // R096.f1: a desktop preview of exactly this change on the same tiles has already planned it
+    // (previewTerrainSculpt); its plan is used rather than planned again.
     const auto &record = *doc.bodies().at(terrain)->terrain;
     TerrainSculptPlan plan;
-    {
+    if (auto remembered = takeRememberedTerrainSculptPlan(doc, terrain, kind, *data))
+        plan = std::move(*remembered);
+    else {
         const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
         const auto state = terrainSourceState(record);
         const TerrainEdit entry{record.nextEditId, kind, data};
@@ -919,8 +923,12 @@ QJsonObject sculptTerrain(Document &doc, const QJsonObject &command, ChangeRepor
         throw TerrainImportError(plan.refusalCode, plan.refusal, sourceEditReport(report, {}),
                                  "terrainReport");
     }
-    const auto applied =
-        applyTerrainEdit(doc, terrain, kind, data, raise ? "Sculpt terrain" : "Smooth terrain");
+    // The dry run is the kind's own outcome for this entry on the same mesh and sources (the
+    // recorded pieces change the sources' ids only, not the mesh), so the commit uses it rather
+    // than planning a second time (R096.b notes).
+    const TerrainEditOutcome outcome{plan.change, {}};
+    const auto applied = applyTerrainEdit(doc, terrain, kind, data,
+                                          raise ? "Sculpt terrain" : "Smooth terrain", &outcome);
     changes = applied.tiles.changes;
     if (plan.clip.vertices)
         report.add(TerrainReport::Severity::Notice, "sources-clipped", plan.clip.vertices,

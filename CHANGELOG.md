@@ -15,6 +15,20 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain tools on the desktop, part 1 (R096.f1, [UX_DESIGN §15](docs/UX_DESIGN.md#15-terrain-editing),
+  [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f1)):
+  a **Terrain** menu between Draw and Camera (the tools, then Terrain settings…, Regenerate
+  terrain, Reset edits… and Explode terrain… for the selected terrain), a **Terrain** slot on the
+  tool rail after Tape, terrain entries in the viewport's context menu, and the **Sculpt**
+  (Shift+S) and **Smooth** tools with a tool options strip at the top of the view. A brush on the
+  surface shows the vertices that will move; press and drag paints a swept stroke, a click then a
+  move up or down sets a one-spot amount, Ctrl lowers and Shift smooths, `[` and `]` change the
+  radius, and region scope uses a selected face or loop or a clicked polygon. The change is drawn
+  in place of the tiles it replaces before it is applied as one undoable edit, and Escape
+  withdraws it without changing the model. A typed value after an edit revises it. The brush can
+  be placed by typing `[x, y]` or `@E, N`. `terrain.sculpt` now uses the plan its dry run (or the
+  desktop preview) made instead of planning the change twice.
+
 - Projection and drape (R096.e, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096e)):
   a new `terrain.drape` command (automation sessions and MCP; hidden from the in-app assistant)
   projects edges, curves and faces in any context vertically onto a terrain. Imprint splits only

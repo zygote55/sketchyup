@@ -2161,6 +2161,272 @@ regression test in `terrain_drape_tests`.
 - *Locked bodies.* Faces of a locked body are refused like its edges (`refusals`).
 - §8's command table names `context`.
 
+## Implementation notes (R096.f1)
+
+R096.f is split as the Implementation split allows. **f1** (this section) delivers the terrain
+preview path, the Sculpt and Smooth tools, the Terrain menu, the rail's Terrain slot, the context
+menu entries and the tool options strip. **f2** delivers Edit contours, Stamp pad, Drape and the
+Terrain edits list.
+
+Modules:
+- `src/app/viewport_sculpt.cpp`: the tools, the preview display and the overlay.
+- `src/app/terrain_tool_strip.*`: the strip.
+- `src/app/terrain_tool.hpp`: the options.
+- `src/app/window_terrain.cpp`: the menu, the rail slot and the context menu.
+- `src/app/flow_layout.hpp`: the wrapping layout, shared with the component Preview strip.
+- `terrainPreviewDisplay` and `terrainTileContours` in `src/core/terrain_display.*`.
+- `previewTerrainSculpt` and the remembered plan in `src/core/terrain_sculpt.*`.
+- `AmendPolicy::TerrainTiles` in `src/core/model.*`.
+
+**The terrain preview path (§5).**
+1. **Planning.** Every pointer move of a terrain tool plans the change on the cached edit mesh and
+   current sources (`previewTerrainSculpt`). It runs on the UI thread, as §5 allows for sculpt.
+   - A hover plans only and counts the tiles with a moving vertex. That is enough for the dots, the
+     label and the empty ring.
+   - A stroke, an anchored spot or a closed region also builds the candidate tiles through
+     `previewTerrainEdit`. That function now takes the planned outcome, as `applyTerrainEdit`
+     does.
+2. **What is drawn.** `terrainPreviewDisplay(mesh, region)` returns the tiles to draw in place of
+   the originals: the candidate tiles and the **seam ring**. The seam ring is the kept tiles that
+   hold a position of a replaced tile or a candidate tile.
+   - **Normals.** At each exact position, a drawn tile's normal sums the weighted normals of the
+     candidate terrain's triangles in (tile key, index) order. That is the order
+     `TerrainSurfaceCache` uses.
+   - **Outer edges** are the edges that only one triangle of the candidate terrain uses.
+   - **Drawing.** The viewport hides the bodies of the replaced and seam-ring tiles in the opaque
+     and edge passes, and draws one batch of the candidate surface and its outer edges instead.
+     The colour is the tile's material and colour, as the commit gives a rebuilt tile, or
+     elevation bands over the candidate's range.
+3. **Contours.** `TerrainContours` now records each tile's first segment (`tileStarts`), and the
+   viewport keeps each tile's vertex ranges in the terrain's two line batches. During a preview the
+   viewport skips the replaced tiles' ranges and draws the candidate tiles' segments instead.
+   `terrainTileContours` generates those segments with the cache's own per-tile generator, run on
+   tile contents.
+4. **Cancel.** Escape, a tool change and a document change each drop the candidate. The next frame
+   draws the original buffers, which were never touched. A preview never writes the document.
+5. **Commit.** Commit runs `terrain.sculpt` through the batch API (`ToolSession`) as one "Sculpt
+   terrain" or "Smooth terrain" edit. Exports (raster, measured views, sheet views) never draw a
+   candidate.
+
+**Overlay.** The overlay (the changed region's hatched black and white band, a region's falloff
+band, and the rings) is built when the brush changes, draped with batched elevation queries. A
+frame then only projects it.
+
+**Tested bit for bit** (`terrain_sculpt_tests` "desktop preview"):
+- the committed tiles equal the candidate;
+- every drawn tile's normals equal the committed per-tile surface's, and its outer edge count is
+  the same;
+- every tile the preview does not draw keeps its surface object;
+- each candidate tile's contour segments equal the committed tile's in the assembled contours.
+
+The desktop suite checks the same equality from real input. It also checks that Escape leaves
+revision, history, dirty state, encoding and the rendered frame (pixel-equal) unchanged.
+
+**Avoid planning twice.** `terrain.sculpt` used to plan in its dry run and again in
+`applyTerrainEdit` (R096.b notes). It now passes its dry run to `applyTerrainEdit` as the planned
+outcome. The recorded pieces change source ids only, not the mesh change.
+
+From preview to commit, `previewTerrainSculpt` (when it builds a candidate) remembers its plan in
+one thread-safe slot. The slot is keyed by:
+- the terrain's record (`BodyPtr`);
+- the cached edit mesh object (the same tile records);
+- the kind;
+- the entry data.
+
+The command takes the slot and uses the plan when every key matches, so the committed tiles are
+the previewed ones by construction. The keys match on every commit from the tool:
+- the desktop builds the entry data from the command it will commit, with the command's own
+  conversion (`sculptData`);
+- the release adds no stroke sample.
+
+A miss (any other caller, or different data) plans as before. The test also commits the same change
+on a second document with the slot cleared and gets the same tiles. The slot is cleared when it is
+taken, on cancel, and when the viewport's document is replaced, so it never keeps a closed
+document's mesh.
+
+**Amend (UX §4.3).** `Document::amendLast` refuses a replacement that touches other bodies than
+the original edit. A different typed amount, or a wider brush, touches other tiles.
+- `executeAmend` chooses the new `AmendPolicy::TerrainTiles` for a single `terrain.sculpt` (and
+  for `terrain.stamp_pad`, in f2).
+- The policy applies only when the original edit extended one terrain's edit list by exactly one
+  entry. A display, settings or replay edit is not revised this way.
+- The replacement may replace or create any tiles of that terrain. It must extend the same list by
+  one entry of the same kind.
+- Everything else is held as under the generic policy: other bodies, other terrains, non-tile
+  bodies and every other record kind.
+- One History entry remains, keeping its label, and the revision increments.
+
+The tests cover the refusals: a change of kind, a display edit, and the generic policy refusing
+other tiles.
+
+**The tools (UX §15.1, §15.2).**
+- *Menu, rail, context menu.*
+  - The Terrain menu has headings as labels (Tools, and the selected terrain's name), because the
+    style draws a QMenu section as a bare separator.
+  - Sculpt (`tool.29`, Shift+S) and Smooth (`tool.30`, no default) are model-scope tool actions,
+    in command search and in the shortcut editor. The suite checks that Shift+S is Sculpt's only
+    binding wherever it can be live, and that no command binds a plain `[` or `]`.
+  - The rail's Terrain slot follows a separator after New face. It is in a sixth rail group
+    (Terrain) for the narrow rail. While a terrain tool is active it is checked and is the rail's
+    Tab stop.
+  - Reset edits… (`terrain.reset_edits`) asks first, with Cancel the default. Its replay progress
+    chip comes with the Edits list in f2.
+- *Strip.*
+  - The strip is a frame on the viewport beside the breadcrumb. Where it does not fit there, it
+    sits under the breadcrumb, or under the component banner.
+  - It is laid out by the shared `FlowLayout` (which now honours its margins), so it wraps.
+  - Length fields parse with `parseLength` in document units.
+  - Enter applies and keeps focus. Escape restores the field and returns focus to the viewport.
+    Keys a control leaves unhandled stop at the strip.
+  - F6 goes from the viewport to the strip and from the strip to the Measurements box: while the
+    strip shows, both move after the viewport in the region order.
+- *Brush.*
+  - The ring, the half-strength ring and the label lie on the surface. The half-strength ring is at
+    half the radius, where the weight is ½ for smooth and linear falloff; constant falloff has
+    none.
+  - Dots mark the plan's moving vertices, sized by their weights
+    (`TerrainSculptInfluence::weight`), at their candidate height while a candidate shows. Pad
+    vertices weigh zero, so they get no dots.
+  - A band outlines the changed region: the union of the brush discs (`QPainterPathStroker`), or the
+    region and its falloff band.
+- *Gestures.*
+  - Press and drag sweeps a stroke: a sample every quarter radius, at most 256, thinned when full.
+    Release commits the last previewed stroke.
+  - A click anchors the one-spot brush. Its amount is the pointer's height above the anchor, in
+    metres at the anchor's depth. A click or a typed value commits it.
+  - Ctrl lowers and Shift smooths (in Sculpt) while held. `[` and `]` scale the radius by 1.1.
+  - Region scope takes a selected face or closed edge loop, or points clicked or typed and closed
+    on the first one. A click on the terrain, Enter or a typed value applies it.
+  - Choosing the active terrain tool again keeps an anchored spot and the amend.
+  - A commit runs exactly the command the shown candidate was built from; a modifier pressed or
+    a release sample added since never changes it. A one-spot brush keeps the mode it was
+    anchored with (Shift while anchored changes nothing): its amount is set by moving up or down,
+    which only a raise has.
+  - Typing during a stroke moves focus to the Measurements box, which withdraws the stroke; the
+    status bar says "Stroke cancelled · typing sets the Radius; release first to type an amount",
+    and the typed text is a radius.
+  - During a preview, the hidden tiles also leave the translucent pass and the sun shadow map, and
+    the candidate casts the shadows in their place. Exports draw the model as it is.
+- *Measurements box.* The step is:
+  - before a stroke: Radius (Falloff width in region scope, Point while a region is being drawn);
+  - during a stroke, while a spot or region waits for its value, and after a commit (when a typed
+    value amends): Amount or Strength, by mode.
+
+  During a stroke the box shows the live value. `[x, y]` (model metres) and `@E, N` (site
+  coordinates) place the brush, and the z of a typed position comes from the surface.
+- *Refusals.*
+  - Over anything but a terrain, or over a terrain outside the open editing context, the cursor is
+    not-allowed and the status bar says to point at a terrain.
+  - With no terrain in the model, it says "No terrain in this model. Import one with File → Import
+    terrain…".
+  - A locked, tilted or scaled terrain refuses in the preview with the command's reason, shown in
+    the status bar with the not-allowed cursor. The scale check is now shared
+    (`requireUnscaledTerrain`).
+  - A refusal at the brush is marked with ×.
+  - R095.e1's refusal of the modelling tools is unchanged.
+
+**Choices where the design is open, and deviations.**
+- **Rail slot label.** The slot reads "Terrain ▸" until a terrain tool has been used, then the last
+  one used ("Sculpt ▸"). It starts Sculpt at first. §15.1's text says "Sculpt ▸" at first, but the
+  approved mockup's menu screen draws "Terrain ▸" before any tool is used, and the brief asks for
+  the option closest to the mockups.
+- **`[` and `]`.** In brush scope they change the radius, so a coordinate that starts with `[` is
+  typed in the Measurements box. Reach the box with F6 or Tab, or type `@` for site coordinates,
+  which opens it. Region scope has no radius, so there `[` opens the box with the bracket, as in
+  the drawing tools.
+- **Strip hint.** "Ctrl lowers · Shift smooths" wraps left-aligned, not right-aligned as drawn.
+- **Menu item.** The Terrain menu shows "Regenerate terrain" (its command search name) where the
+  mockup has "Regenerate"; the selected terrain's name heads the group.
+- **Preview surfaces** draw the tile's material colour without its texture or translucency.
+- **No worker yet.** f1 builds no latest-wins worker: sculpt plans on the UI thread (§5), and f2
+  adds the worker for contour edits, stamps and drapes.
+- **Rail height.** The rail already overflowed at 860 px window height (New face and the camera
+  tools went behind Qt's overflow menu). The Terrain slot has no separator on the wide rail, and
+  rail buttons are 1 px shorter (`#toolRail QToolButton`, 10 px top padding instead of 11), so the
+  full 19-tool rail still fits a 1000 px window (a maximised window on a 1080p screen): it needs
+  909 px with the old padding against 896 px available. Buttons stay above §7's 28 px controls.
+  `narrow_layout_input_tests` checks the full rail at 1000 px and records that 15 of the 19 tools
+  show at 860 px. The screenshots are taken at 1280 × 1080.
+- **Disabled menu items** are now drawn muted (`QMenu::item:disabled`), as the mockup draws them;
+  before this, every menu drew them in ink.
+
+**Measured** (from the input event to the presented frame):
+
+`terrain_budget_benchmark --sculpt-frames 64` is new. Conditions:
+- **Build and drawing:** Release, GCC 16.2.1, Qt 6.12.0; host Mesa llvmpipe (LLVM 23.1.3, 256 bits)
+  drawing to the pinned image's Xvfb at 1920 × 1080.
+- **Host:** `systemd-run` with 4 CPUs, 4 GiB and no swap on the development host; load average
+  about 3.
+- **Harness:** R095.f's. `TimedViewport` times `Viewport::paintGL` plus `glFinish`, and
+  `grabFramebuffer` forces every frame, so a "frame" here includes reading it back.
+- **Scene:** the two 250k terrains of `terrain_budget_benchmark` in its 20-box model, with 1 m
+  contour lines, in top view framing each stroke's neighbourhood, with the Sculpt tool.
+
+Samples:
+- **One-tile:** a drag of three samples through the middle of one of the 64 largest tiles, with a
+  radius of a quarter of the tile's smaller side and an amount of 0.5 m. Samples whose touched tiles
+  hold more than 2,048 triangles are left out (3 of 64 on the points terrain).
+- **Preview:** each pointer move that adds a stroke sample, from the event sent to the viewport to
+  the completed frame showing the candidate.
+- **Commit:** the release, from the event to the completed frame showing the committed tiles.
+- **Nine-tile brush:** the same drag with a radius of 1.1 cells, at 16 tiles.
+- Each stroke is undone outside the timing.
+- Best of three runs (R095.f's method); the three runs' one-tile preview p95 were 112–118 ms and 67–83 ms.
+
+| Terrain | One-tile preview p50 / p95 (max) | of which: event, display build, frame (p95) | Frame without a candidate (p95) | One-tile commit p50 / p95 (max) | of which: event (command and edit), cache rebuild, frame (p95) | Nine tiles: preview / commit p95 |
+| --- | ---: | --- | ---: | ---: | --- | ---: |
+| 125,000 points (249,970 triangles, 256 tiles; 214 vertices, 1,123 triangles) | 91.2 / 112.3 ms (145.8) | 22.0, 21.3, 101.9 ms | 82.4 ms | 187.8 / 216.4 ms (223.1) | 72.1, 74.9, 148.3 ms | 174.1 / 565.2 ms (13,527 triangles in up to 13 tiles) |
+| 416 contour rings (249,298 triangles, 3,169 tiles; 155 vertices, 920 triangles) | 60.4 / 66.9 ms (85.5) | 9.9, 11.2, 58.2 ms | 48.9 ms | 165.2 / 186.6 ms (206.8) | 83.4, 55.8, 100.2 ms | 189.0 / 523.5 ms (8,797 triangles in up to 13 tiles) |
+
+- **Preview, one tile (p95 ≤ 100 ms).**
+  - It passes on the contours terrain (66.9 ms) and misses on the points terrain (112.3 ms).
+  - The work this slice adds is small: the event (the pick, the plan on the edit mesh and the
+    overlay) costs 10–22 ms, and building and uploading the candidate's display costs 11–21 ms.
+  - The rest is the frame. llvmpipe alone takes 49–82 ms p95 for the same view without a candidate.
+  - R095.f judged frames on the AMD GPU, where a complete 250k frame is p95 0.8–0.9 ms, so the
+    preview should be about 30–40 ms there. This has not been measured: the AMD session is a
+    hardware session for the owner (R096.g).
+- **Commit, one tile (p95 ≤ 100 ms, decision 10).** **Not met** under these conditions: p95 is
+  187–216 ms. Leaving the frame aside, the CPU part alone is 130–150 ms:
+  - The release event takes 72–83 ms: `terrain.sculpt` through the batch API plus the viewport's
+    refresh. R096.b measured 40–65 ms for the command, mostly the whole-terrain SHA-256.
+  - The commit frame's cache rebuild takes 56–75 ms: per-tile surfaces and contours,
+    re-tessellation of the rebuilt tiles and their seam ring, and re-upload of the terrain's whole
+    contour batch.
+
+  Until this slice, the desktop commit also described the whole document in the batch result,
+  about 480 ms at 250k. The terrain tools now ask for the changes only (`BatchResponse::Changes`,
+  also through `executeAmend`).
+
+  The remaining costs have known fixes, all outside f1's scope:
+  - a per-tile digest tree, which R096.a deferred until the frame budget needed the time; it
+    changes the digest's definition;
+  - per-tile contour GPU batches instead of one batch per terrain;
+  - keeping the seam-ring tiles' tessellations when only their normals change.
+
+  These are recorded for R096.g.
+- **Nine tiles (reported).** Preview p95 is 174–189 ms and commit p95 is 524–565 ms.
+  - The ADR's estimate of about 130 ms for the nine-tile commit and display covered only the core
+    commit (101–103 ms in R096.b) and the cache update without the viewport.
+  - Here the release also adds the batch and the refresh.
+  - The frame re-tessellates up to 13 tiles and their seam ring, re-uploads the contour batch and
+    draws at 1920 × 1080 under llvmpipe.
+
+**Verification.** `terrain_edit_input_tests` (ctest `terrain_edit_input`) runs in the native matrix
+on X11 and Wayland at 1× and 2×, at 1.5 on both, and at 200 % text. It covers:
+- the menu, the rail slot, the context menu, the shortcuts and the conflict check;
+- the strip: its syntax, refusals, Escape, F6, wrapping, accessible names, and keeping its keys;
+- the stroke preview: the hidden tiles, the overlay draped on the surface, a commit equal to the
+  candidate, and Escape leaving revision, history, dirty state, encoding and the frame unchanged;
+- the one-spot brush, and amend of amount and strength;
+- Ctrl and Shift, and `[` and `]`;
+- region scope, from a selected face and from a clicked polygon;
+- the keyboard-only path: `[x, y]`, `@E, N`, Smooth, and typed region points;
+- an empty brush, pads without moving vertices, and the hover refusals.
+
+`terrain_sculpt_tests` adds "desktop preview" (described above, with the amend policy's refusals).
+`narrow_layout_input_tests` lists the Terrain group.
+
 ## Sources
 
 Retrieved by web search on 2026-10-19.

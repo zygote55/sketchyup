@@ -16,7 +16,7 @@ class ToolSession {
     void setScopeProvider(std::function<Id()> provider) { scopeProvider_ = std::move(provider); }
     void cancel();
     QJsonObject preview(const QJsonObject &command);
-    QJsonObject commit(const QJsonObject &command);
+    QJsonObject commit(const QJsonObject &command, BatchResponse response = BatchResponse::Full);
 
   private:
     Document &document_;

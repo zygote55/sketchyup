@@ -48,17 +48,17 @@ double tileEstimate(const Body &tile, double interval, double elevationOffset) {
     }
     return estimate;
 }
-// Pass 2 for one tile: its segments in face order and the levels they are on.
-void tileSegments(const Body &tile, double interval, double elevationOffset,
-                  std::vector<TerrainContourSegment> &segments, std::set<std::int64_t> &levels) {
-    for (const auto &[id, face] : tile.surface.faces) {
-        const auto &loop = face.loops.front();
-        std::array<Vec3, 3> p{};
+// Pass 2 for one tile: its segments in face order and the levels they are on. `corners(i)` gives
+// the i-th triangle's corners in loop order.
+template <class Corners>
+void triangleSegments(std::size_t triangles, const Corners &corners, double interval,
+                      double elevationOffset, std::vector<TerrainContourSegment> &segments,
+                      std::set<std::int64_t> &levels) {
+    for (std::size_t f = 0; f < triangles; ++f) {
+        const std::array<Vec3, 3> p = corners(f);
         std::array<double, 3> e{};
-        for (std::size_t i = 0; i < 3; ++i) {
-            p[i] = tile.surface.vertices.at(loop[i]);
+        for (std::size_t i = 0; i < 3; ++i)
             e[i] = p[i].z + elevationOffset;
-        }
         const double low = std::min({e[0], e[1], e[2]}), high = std::max({e[0], e[1], e[2]});
         const auto first = std::int64_t(std::floor(low / interval)) + 1,
                    last = std::int64_t(std::floor(high / interval));
@@ -89,6 +89,22 @@ void tileSegments(const Body &tile, double interval, double elevationOffset,
         }
     }
 }
+void tileSegments(const Body &tile, double interval, double elevationOffset,
+                  std::vector<TerrainContourSegment> &segments, std::set<std::int64_t> &levels) {
+    std::vector<const std::vector<Id> *> loops;
+    loops.reserve(tile.surface.faces.size());
+    for (const auto &[id, face] : tile.surface.faces)
+        loops.push_back(&face.loops.front());
+    triangleSegments(
+        loops.size(),
+        [&](std::size_t f) {
+            const auto &loop = *loops[f];
+            return std::array<Vec3, 3>{tile.surface.vertices.at(loop[0]),
+                                       tile.surface.vertices.at(loop[1]),
+                                       tile.surface.vertices.at(loop[2])};
+        },
+        interval, elevationOffset, segments, levels);
+}
 std::size_t indexLevels(const std::set<std::int64_t> &levels) {
     return std::size_t(std::count_if(levels.begin(), levels.end(), [](auto k) {
         return k % terrainContourIndexEvery == 0;
@@ -112,6 +128,21 @@ ChangeReport setTerrainDisplay(Document &doc, Id terrain, const TerrainDisplay &
     return doc.apply({"Terrain display", {{terrain, found->second, body}}}, doc.revision());
 }
 
+std::vector<TerrainContourSegment> terrainTileContours(const TerrainTileContent &tile,
+                                                       double interval, double elevationOffset) {
+    checkInterval(interval, elevationOffset);
+    std::vector<TerrainContourSegment> segments;
+    std::set<std::int64_t> levels;
+    triangleSegments(
+        tile.triangles.size(),
+        [&](std::size_t f) {
+            const auto &t = tile.triangles[f];
+            return std::array<Vec3, 3>{tile.vertices[t[0]], tile.vertices[t[1]],
+                                       tile.vertices[t[2]]};
+        },
+        interval, elevationOffset, segments, levels);
+    return segments;
+}
 TerrainContours terrainContours(const std::vector<const Body *> &input, double interval,
                                 double elevationOffset) {
     checkInterval(interval, elevationOffset);
@@ -200,8 +231,10 @@ std::shared_ptr<const TerrainContours> TerrainContourCache::get(const Document &
             else {
                 std::set<std::int64_t> levels;
                 contours->segments.reserve(contours->estimatedSegments);
+                contours->tileStarts.reserve(tiles.size());
                 for (const auto &body : tiles) {
                     const auto &tile = *perTile.at(body->id);
+                    contours->tileStarts.emplace_back(body->id, contours->segments.size());
                     contours->segments.insert(contours->segments.end(), tile.segments.begin(),
                                               tile.segments.end());
                     levels.insert(tile.levels.begin(), tile.levels.end());
@@ -443,6 +476,120 @@ std::shared_ptr<const TerrainTileSurfaces> TerrainSurfaceCache::get(const Docume
 }
 void TerrainSurfaceCache::prune(const Document &doc) {
     std::erase_if(entries_, [&](const auto &item) { return !isTerrain(doc, item.first); });
+}
+
+// ---- R096.f1: the display of a terrain preview ---------------------------------------------
+Vec3 TerrainPreviewTile::normal(Vec3 point, Vec3 fallback) const {
+    const auto found = normals.find(TerrainSurfaceDisplay::key(point));
+    return found == normals.end() ? fallback : found->second;
+}
+TerrainPreviewDisplay terrainPreviewDisplay(const TerrainEditMesh &mesh,
+                                            const TerrainRegionResult &region) {
+    using Key = TerrainSurfaceDisplay::Key;
+    using Hash = TerrainSurfaceDisplay::Hash;
+    TerrainPreviewDisplay result;
+    const std::set<TerrainTileKey> replaced(region.replaced.begin(), region.replaced.end());
+    std::map<TerrainTileKey, TerrainTilePtr> candidates;
+    for (const auto &tile : region.tiles)
+        candidates[tile->key] = tile;
+    // The candidate triangles at each position, as (tile key, index) references.
+    std::unordered_map<Key, std::vector<TerrainTriangleRef>, Hash> at;
+    for (const auto &[key, tile] : candidates)
+        for (std::uint32_t t = 0; t < tile->triangles.size(); ++t)
+            for (const auto corner : tile->triangles[t])
+                at[TerrainSurfaceDisplay::key(tile->vertices[corner])].push_back({key, t});
+    // The seam ring: kept tiles with a triangle at a position of a replaced or candidate tile.
+    std::set<TerrainTileKey> ring;
+    auto collectRing = [&](const TerrainTileContent &content) {
+        for (const auto &p : content.vertices)
+            for (const auto &ref : mesh.trianglesAt(p))
+                if (!replaced.contains(ref.tile) && !candidates.contains(ref.tile))
+                    ring.insert(ref.tile);
+    };
+    for (const auto &key : region.replaced)
+        if (const auto *tile = mesh.tile(key))
+            collectRing(*tile->content);
+    for (const auto &[key, tile] : candidates)
+        collectRing(*tile);
+    // The triangles of the candidate terrain at a position, in reference order, and a triangle's
+    // corners.
+    auto corners = [&](const TerrainTriangleRef &ref) {
+        const auto candidate = candidates.find(ref.tile);
+        const auto &content =
+            candidate != candidates.end() ? *candidate->second : *mesh.tile(ref.tile)->content;
+        const auto &t = content.triangles[ref.triangle];
+        return std::array<Vec3, 3>{content.vertices[t[0]], content.vertices[t[1]],
+                                   content.vertices[t[2]]};
+    };
+    auto trianglesAt = [&](Vec3 p) {
+        std::vector<TerrainTriangleRef> refs;
+        for (const auto &ref : mesh.trianglesAt(p))
+            if (!replaced.contains(ref.tile) && !candidates.contains(ref.tile))
+                refs.push_back(ref);
+        if (const auto found = at.find(TerrainSurfaceDisplay::key(p)); found != at.end())
+            refs.insert(refs.end(), found->second.begin(), found->second.end());
+        std::sort(refs.begin(), refs.end());
+        return refs;
+    };
+    std::set<TerrainTileKey> drawn;
+    for (const auto &[key, tile] : candidates)
+        drawn.insert(key);
+    drawn.insert(ring.begin(), ring.end());
+    for (const auto &key : drawn) {
+        TerrainPreviewTile tile;
+        const auto candidate = candidates.find(key);
+        tile.candidate = candidate != candidates.end();
+        tile.content = tile.candidate ? candidate->second : mesh.tile(key)->content;
+        const auto &content = *tile.content;
+        tile.normals.reserve(content.vertices.size());
+        for (const auto &p : content.vertices) {
+            Vec3 sum{};
+            for (const auto &ref : trianglesAt(p)) {
+                const auto [a, b, c] = corners(ref);
+                sum = sum + cross(b - a, c - a);
+            }
+            const auto magnitude = length(sum);
+            tile.normals[TerrainSurfaceDisplay::key(p)] =
+                magnitude > 0 ? sum * (1 / magnitude) : Vec3{0, 0, 1};
+        }
+        // An edge is on the outer boundary when one triangle of the candidate terrain uses it.
+        std::set<std::array<std::uint32_t, 2>> edges;
+        for (const auto &t : content.triangles)
+            for (std::size_t i = 0; i < 3; ++i) {
+                auto edge = std::array<std::uint32_t, 2>{t[i], t[(i + 1) % 3]};
+                if (edge[1] < edge[0])
+                    std::swap(edge[0], edge[1]);
+                edges.insert(edge);
+            }
+        for (const auto &edge : edges) {
+            const auto a = trianglesAt(content.vertices[edge[0]]),
+                       b = trianglesAt(content.vertices[edge[1]]);
+            std::vector<TerrainTriangleRef> both;
+            std::set_intersection(a.begin(), a.end(), b.begin(), b.end(),
+                                  std::back_inserter(both));
+            if (both.size() == 1)
+                tile.outerEdges.push_back(edge);
+        }
+        result.tiles.push_back(std::move(tile));
+    }
+    std::set<TerrainTileKey> hidden(replaced.begin(), replaced.end());
+    hidden.insert(ring.begin(), ring.end());
+    result.hidden.assign(hidden.begin(), hidden.end());
+    result.zMin = std::numeric_limits<double>::infinity();
+    result.zMax = -result.zMin;
+    for (const auto *tile : mesh.tiles())
+        if (!replaced.contains(tile->content->key)) {
+            result.zMin = std::min(result.zMin, tile->minZ);
+            result.zMax = std::max(result.zMax, tile->maxZ);
+        }
+    for (const auto &[key, tile] : candidates)
+        for (const auto &p : tile->vertices) {
+            result.zMin = std::min(result.zMin, p.z);
+            result.zMax = std::max(result.zMax, p.z);
+        }
+    if (!(result.zMin <= result.zMax))
+        result.zMin = result.zMax = 0;
+    return result;
 }
 
 std::array<float, 3> terrainElevationBandColor(double z, double zMin, double zMax) {

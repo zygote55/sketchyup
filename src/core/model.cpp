@@ -2110,11 +2110,43 @@ bool Document::canAmend(const AmendStamp &stamp) const {
 ChangeReport Document::amendLast(const AmendStamp &stamp,
                                  const std::function<void(Document &)> &replace,
                                  AmendPolicy policy) {
-    if (policy != AmendPolicy::FixedContextCount && policy != AmendPolicy::CopyArray)
+    if (policy != AmendPolicy::FixedContextCount && policy != AmendPolicy::CopyArray &&
+        policy != AmendPolicy::TerrainTiles)
         throw std::runtime_error("Unknown amendment policy");
     if (!canAmend(stamp))
         throw std::runtime_error("The most recent operation can no longer be revised");
     auto contexts = hostedEditingContexts(undo_.back().edit);
+    // R096.f1: the terrain whose tiles a terrain-edit replacement may replace or create.
+    Id amendedTerrain = 0;
+    std::string amendedKind;
+    // A terrain record whose edit list is `before`'s with exactly one entry appended (the same
+    // entries before it, shared); the appended entry's kind, or empty.
+    auto appendedKind = [](const BodyPtr &before, const BodyPtr &after) -> std::string {
+        if (!before || !after || !before->terrain || !after->terrain)
+            return {};
+        const auto &a = before->terrain->edits, &b = after->terrain->edits;
+        if (b.size() != a.size() + 1 || !std::equal(a.begin(), a.end(), b.begin()))
+            return {};
+        return b.back()->kind;
+    };
+    if (policy == AmendPolicy::TerrainTiles) {
+        // Only an operation that appended one entry to one terrain's edit list (a sculpt, a
+        // smooth or a stamp) is revised this way; a display, settings or replay edit is not.
+        for (const auto &change : undo_.back().edit.changes) {
+            const auto &record = change.after ? change.after : change.before;
+            if (record && record->kind == BodyKind::Terrain) {
+                if (amendedTerrain || !change.before || !change.after)
+                    throw std::runtime_error("A terrain amendment revises one terrain's edit");
+                amendedTerrain = change.id;
+                amendedKind = appendedKind(change.before, change.after);
+            }
+        }
+        if (!amendedTerrain || amendedKind.empty())
+            throw std::runtime_error("The most recent operation is not a terrain edit");
+    }
+    auto terrainTile = [&](const BodyPtr &body) {
+        return amendedTerrain && body && body->terrainTile && body->parent == amendedTerrain;
+    };
     std::set<Id> definitionContexts;
     std::set<Id> tagContexts, materialContexts, assetContexts, sceneContexts, sectionContexts;
     size_t createdSections = 0;
@@ -2211,6 +2243,14 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     // and retains the pre-operation history entry and monotonic allocator floors.
     staged.revision_ = revision_;
     replace(staged);
+    if (policy == AmendPolicy::TerrainTiles) {
+        const auto before = baseline.find(amendedTerrain);
+        const auto after = staged.bodies_.find(amendedTerrain);
+        if (before == baseline.end() || after == staged.bodies_.end() ||
+            appendedKind(before->second, after->second) != amendedKind)
+            throw std::runtime_error(
+                "A terrain amendment must append one change of the same kind to the same terrain");
+    }
     if (staged.identity_ != identity_ || staged.session_ != session_ ||
         staged.revision_ != revision_ + 1 || staged.undo_.empty() || staged.state_ == state_)
         throw std::runtime_error("Replacement must commit exactly one atomic operation");
@@ -2266,6 +2306,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
                             *staged.hosted_, policy == AmendPolicy::CopyArray);
     for (const auto &[id, body] : baseline)
         if (!contexts.contains(id) &&
+            !(terrainTile(body) &&
+              (!staged.bodies_.contains(id) || terrainTile(staged.bodies_.at(id)))) &&
             (!staged.bodies_.contains(id) || staged.bodies_.at(id) != body))
             throw std::runtime_error("Replacement cannot change another editing context");
     for (const auto &[id, definition] : baselineDefinitions)
@@ -2350,9 +2392,12 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
             throw std::runtime_error("Replacement cannot bind another scene context");
     size_t newContexts = 0;
     for (const auto &[id, body] : staged.bodies_)
-        if (!baseline.contains(id))
+        if (!baseline.contains(id)) {
+            if (policy == AmendPolicy::TerrainTiles && !terrainTile(body))
+                throw std::runtime_error("A terrain amendment may create only that terrain's tiles");
             ++newContexts;
-    if (newContexts != createdContexts && policy != AmendPolicy::CopyArray)
+        }
+    if (newContexts != createdContexts && policy == AmendPolicy::FixedContextCount)
         throw std::runtime_error(
             "Replacement must preserve the operation's context creation count");
     ChangeReport report;

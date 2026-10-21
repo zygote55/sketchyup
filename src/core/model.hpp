@@ -307,7 +307,11 @@ class Document {
     ChangeReport cleanup(Id context);
     AmendStamp amendmentStamp() const;
     bool canAmend(const AmendStamp &stamp) const;
-    enum class AmendPolicy { FixedContextCount, CopyArray };
+    // R096.f1: TerrainTiles revises a terrain edit (sculpt, smooth; later stamps): the
+    // replacement may replace a different set of that terrain's tiles and create another number
+    // of them, since a new value moves other vertices. Everything else is held as for
+    // FixedContextCount, and the original edit must have changed exactly one terrain record.
+    enum class AmendPolicy { FixedContextCount, CopyArray, TerrainTiles };
     ChangeReport amendLast(const AmendStamp &stamp, const std::function<void(Document &)> &replace,
                            AmendPolicy policy = AmendPolicy::FixedContextCount);
     void undo();
