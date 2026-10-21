@@ -1214,7 +1214,7 @@ void Viewport::paintTerrainBrush(QPainter &p) {
         for (int i = 0; i < int(lines.size()); ++i)
             textWidth = std::max(textWidth, (i == 0 && brush_.error.isEmpty() ? boldMetrics : metrics)
                                                 .horizontalAdvance(lines[i]));
-        const int boxWidth = std::min(textWidth + 16, std::max(1, width() - 24));
+        const int boxWidth = std::min(textWidth + 28, std::max(1, width() - 24)); // slack: bold glyphs
         const int boxHeight = int(lines.size()) * metrics.lineSpacing() + 10;
         const QRectF box(std::clamp(anchor->x() + 28, 12.0, double(std::max(12, width() - boxWidth - 12))),
                          std::clamp(anchor->y() - boxHeight - 24, 12.0,
