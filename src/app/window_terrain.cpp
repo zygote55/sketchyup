@@ -20,6 +20,24 @@
 #include <QToolButton>
 #include <QWidgetAction>
 namespace sketchy {
+namespace {
+// R096.f2 (UX §15.1): the terrain tools' actions in menu order, and each tool's name on the rail
+// slot and in the strip's switcher (the mockup's "Contours ▸", "Pad ▸", "Drape ▸").
+const std::vector<const char *> &terrainToolActionIds() {
+    static const std::vector<const char *> ids{"tool.29", "tool.30", "tool.31"};
+    return ids;
+}
+QString terrainToolRailName(Viewport::Tool tool) {
+    switch (tool) {
+    case Viewport::Tool::Smooth:
+        return "Smooth";
+    case Viewport::Tool::Contours:
+        return "Contours";
+    default:
+        return "Sculpt";
+    }
+}
+} // namespace
 // R095.d (ADR 0168 "Decisions > Interaction design"): File > Import terrain…. Unlike the other
 // importers, terrain import adds to the open document (owner decision 11).
 void Window::importTerrainDialog() {
@@ -170,7 +188,7 @@ void Window::syncTerrainActions() {
         ->setEnabled(terrain && !doc_.bodies().at(selected)->terrain->edits.empty());
     // The terrain tools need a terrain in the model to act on; without one they still start and
     // say so (UX §15.1), so they stay enabled.
-    for (const auto *id : {"tool.29", "tool.30"})
+    for (const auto *id : terrainToolActionIds())
         if (auto *tool = findChild<QAction *>(id))
             tool->setEnabled(model);
     if (statusExplode_ && statusExplodeTerrain_ && !isTerrain(doc_, statusExplodeTerrain_))
@@ -209,7 +227,7 @@ void Window::showViewportMenu(const QPoint &position) {
         heading->setDefaultWidget(label);
         heading->setEnabled(false);
         menu.addAction(heading);
-        for (const auto *id : {"tool.29", "tool.30"})
+        for (const auto *id : terrainToolActionIds())
             menu.addAction(findChild<QAction *>(id));
         menu.addSeparator();
         menu.addAction(findChild<QAction *>("terrain.settings"));
@@ -234,6 +252,8 @@ void Window::setupTerrainTools(QActionGroup *group, QToolBar *rail) {
     // the shortcut editor.
     add("Sculpt", "Shift+S", Viewport::Tool::Sculpt);
     add("Smooth", "", Viewport::Tool::Smooth);
+    // R096.f2 (UX §15.1): no default shortcuts; they can be assigned in the shortcut editor.
+    add("Edit contours", "", Viewport::Tool::Contours)->setProperty("command", "terrain.edit_source");
     // The rail's Terrain slot: one control in its own group after Tape. It shows the last
     // terrain tool used ("Terrain" until one is, as the approved mockup draws it) and starts it
     // (Sculpt at first). Like the other groups it has no separator on the wide rail, which has
@@ -281,8 +301,7 @@ void Window::setupTerrainMenu() {
         return entry;
     };
     heading("Tools", "terrainMenuToolsHeading");
-    // Edit contours, Stamp pad and Drape join the tools with R096.f2.
-    for (const auto *id : {"tool.29", "tool.30"})
+    for (const auto *id : terrainToolActionIds())
         terrainMenu_->addAction(findChild<QAction *>(id));
     terrainMenu_->addSeparator();
     terrainHeading_ = heading("No terrain selected", "terrainMenuTerrainHeading");
@@ -310,7 +329,7 @@ void Window::syncTerrainTools() {
         lastTerrainTool_ = mode;
         terrainToolUsed_ = true;
     }
-    const QString name = lastTerrainTool_ == Viewport::Tool::Smooth ? "Smooth" : "Sculpt";
+    const QString name = terrainToolRailName(lastTerrainTool_);
     terrainRail_->setText((terrainToolUsed_ ? name : QString("Terrain")) + " ▸");
     const auto *entry = findChild<QAction *>("tool." + QString::number(int(lastTerrainTool_)));
     const auto key = entry ? entry->shortcut().toString(QKeySequence::NativeText) : QString();

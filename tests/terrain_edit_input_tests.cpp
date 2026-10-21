@@ -23,6 +23,8 @@
 #include "core/terrain.hpp"
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_source_edit.hpp"
+#include "core/terrain_sources.hpp"
 #include "core/terrain_stamp.hpp"
 #include "io/document_io.hpp"
 #include <QAccessible>
@@ -50,6 +52,7 @@
 #include <QWidgetAction>
 #include <cmath>
 #include <iostream>
+#include <numbers>
 using namespace sketchy;
 namespace {
 QString shots;
@@ -161,6 +164,44 @@ Id hill(Window &window, int n = 61, double height = 4) {
     view->fit();
     QTest::qWait(30);
     return terrain;
+}
+// R096.f2: a hill of closed elliptic contour rings 3 m apart, 0.5 m lower each (ring k: radius
+// 10 + 3 k along y, 1.3 times that along x, at 105 - 0.5 k m), as terrain_sculpt_tests builds it.
+Id rings(Window &window, int count = 8, int vertices = 48) {
+    QByteArray out = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\n"
+                     "ENDSEC\n0\nSECTION\n2\nENTITIES\n";
+    for (int k = 0; k < count; ++k) {
+        const double r = 10 + 3 * k, z = 105 - 0.5 * k;
+        out += "0\nLWPOLYLINE\n5\n" + QByteArray::number(0x100 + k, 16).toUpper() +
+               "\n8\nCONTOURS\n90\n" + QByteArray::number(vertices) + "\n70\n1\n38\n" +
+               QByteArray::number(z, 'f', 4) + '\n';
+        for (int i = 0; i < vertices; ++i) {
+            const double t = 2 * std::numbers::pi * i / vertices + 0.05 * k;
+            out += "10\n" + QByteArray::number(r * std::cos(t) * 1.3, 'f', 4) + "\n20\n" +
+                   QByteArray::number(r * std::sin(t), 'f', 4) + '\n';
+        }
+    }
+    out += "0\nENDSEC\n0\nEOF\n";
+    const QJsonObject options{{"format", "dxf"}, {"units", "header"}, {"name", "Rings"}};
+    const auto terrain =
+        importTerrainSource(window.document(), out, options)["terrain"].toString().toULongLong();
+    changed(window);
+    auto *view = window.viewport();
+    view->standardView(1); // top
+    view->fit();
+    QTest::qWait(30);
+    return terrain;
+}
+// The current source of a ring (k from the top), in model coordinates.
+const TerrainSource &ringSource(const Document &doc, Id terrain, int k) {
+    const auto state = terrainSourceState(*doc.bodies().at(terrain)->terrain);
+    static std::shared_ptr<const TerrainSourceState> held;
+    held = state;
+    for (const auto *source : state->sources())
+        if (source->role == TerrainSourceRole::Contour && !source->points.empty() &&
+            source->points.front().z == 105 - 0.5 * k)
+            return *source;
+    throw std::runtime_error("no ring " + std::to_string(k));
 }
 std::optional<double> ground(const Document &doc, Id terrain, double x, double y) {
     const auto found = terrainElevationAt(doc, terrain, {{x, y}});
@@ -315,14 +356,16 @@ void menuAndRail(Window &window) {
     for (auto *entry : terrainMenu->actions())
         if (!entry->isSeparator())
             entries << entry->text();
-    for (const auto *name : {"Sculpt", "Smooth", "Terrain settings…", "Regenerate terrain",
-                             "Reset edits…", "Explode terrain…", "Create terrain from selection"})
+    for (const auto *name : {"Sculpt", "Smooth", "Edit contours", "Terrain settings…",
+                             "Regenerate terrain", "Reset edits…", "Explode terrain…",
+                             "Create terrain from selection"})
         check(entries.contains(name), std::string("the Terrain menu has ") + name);
-    for (const auto *name : {"Edit contours", "Stamp pad", "Drape"})
+    for (const auto *name : {"Stamp pad", "Drape"})
         check(!entries.contains(name),
-              std::string("tools not built yet are not shown (f2): ") + name);
+              std::string("tools not built yet are not shown (f2b): ") + name);
     check(action(window, "tool.29")->shortcut() == QKeySequence("Shift+S") &&
-              action(window, "tool.30")->shortcut().isEmpty(),
+              action(window, "tool.30")->shortcut().isEmpty() &&
+              action(window, "tool.31")->shortcut().isEmpty(),
           "only Sculpt has a default shortcut, Shift+S");
     // The shortcut editor's conflict check: Shift+S is Sculpt's alone where it can be live, and
     // no command uses a plain [ or ].
@@ -435,8 +478,8 @@ void menuAndRail(Window &window) {
                       for (auto *entry : qobject_cast<QMenu *>(&shown)->actions())
                           if (!entry->isSeparator())
                               items << entry->text();
-                      for (const auto *name :
-                           {"Sculpt", "Smooth", "Terrain settings…", "Explode terrain…"})
+                      for (const auto *name : {"Sculpt", "Smooth", "Edit contours",
+                                               "Terrain settings…", "Explode terrain…"})
                           check(items.contains(name),
                                 std::string("the context menu offers ") + name + ": " +
                                     items.join(", ").toStdString());
@@ -1187,15 +1230,518 @@ void incrementalDisplay(Window &window) {
               !terrainChangedSinceGenerated(doc, terrain),
           "the deferred digest is the committed tiles' digest");
 }
+// ---- R096.f2: Edit contours (UX §15.3, §15.7) ------------------------------------------------
+QPoint at(Window &window, const Vec3 &model) { return window.viewport()->project(model).toPoint(); }
+void idle(Viewport *view) {
+    check(view->terrainPreviewWorker().waitForIdle(20000), "the preview worker finishes");
+    QTest::qWait(5);
+}
+// The worker candidate's tiles equal the document's tiles with their keys, bit for bit.
+void checkCommittedEdit(const Document &doc, Id terrain, const TerrainCommandPreview &preview,
+                        const std::string &when) {
+    check(preview.candidate.has_value() && !preview.refused(), when + ": the candidate applies");
+    const auto tiles = tileContents(doc, terrain);
+    for (const auto &tile : preview.candidate->region.tiles)
+        check(tiles.contains(tile->key) && tiles.at(tile->key)->sameMesh(*tile),
+              when + ": the committed tiles equal the previewed candidate bit for bit");
+    for (const auto &key : preview.candidate->region.replaced) {
+        const bool rebuilt = std::any_of(preview.candidate->region.tiles.begin(),
+                                         preview.candidate->region.tiles.end(),
+                                         [&](const auto &tile) { return tile->key == key; });
+        check(rebuilt || !tiles.contains(key), when + ": a dropped tile is gone");
+    }
+}
+struct Snapshot {
+    QByteArray encoding;
+    std::uint64_t revision{};
+    std::size_t history{};
+    bool dirty{};
+    static Snapshot of(const Document &doc) {
+        return {encodeDocument(doc), doc.revision(), doc.history().total, doc.dirty()};
+    }
+    bool same(const Document &doc) const {
+        return doc.revision() == revision && doc.history().total == history &&
+               doc.dirty() == dirty && encodeDocument(doc) == encoding;
+    }
+};
+const TerrainSourceEditData &lastSourceEdit(const Document &doc, Id terrain) {
+    return dynamic_cast<const TerrainSourceEditData &>(*recordOf(doc, terrain).edits.back()->data);
+}
+const TerrainSource *currentSource(const Document &doc, Id terrain, std::uint32_t id) {
+    static std::shared_ptr<const TerrainSourceState> held;
+    held = terrainSourceState(recordOf(doc, terrain));
+    return held->find(id);
+}
+void startContours(Window &window) {
+    action(window, "tool.31")->trigger();
+    QTest::qWait(10);
+}
+// Selects ring k by clicking beside its vertex; returns the vertex's model position.
+Vec3 selectRing(Window &window, Id terrain, int k, std::size_t vertex = 0) {
+    auto *view = window.viewport();
+    const auto &source = ringSource(window.document(), terrain, k);
+    const auto world = window.document().worldTransform(terrain);
+    const auto point = world.point(source.points[vertex]);
+    const auto between = world.point((source.points[vertex] * 0.75 + source.points[vertex + 1] * 0.25));
+    hover(view, at(window, between));
+    press(view, at(window, between));
+    release(view, at(window, between));
+    check(view->contourTool().selected == source.id,
+          "a click selects the source (ring " + std::to_string(k) + ")");
+    return point;
+}
+
+void contoursShownAndSelected(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    check(view->tool() == Viewport::Tool::Contours, "Edit contours starts");
+    auto &bar = strip(window);
+    check(bar.toolButton(int(Viewport::Tool::Contours))->isChecked() &&
+              bar.contourButton("Add contour")->isVisible() &&
+              bar.contourButton("Promote")->isVisible() && bar.roleField()->isVisibleTo(&bar) &&
+              !bar.radiusField()->isVisible(),
+          "the strip shows the Contours options");
+    for (auto *control : bar.findChildren<QWidget *>())
+        if (control->isVisibleTo(&bar) && control->focusPolicy() != Qt::NoFocus) {
+            auto *accessible = QAccessible::queryAccessibleInterface(control);
+            check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+                  "every Contours control has an accessible name: " +
+                      control->objectName().toStdString());
+        }
+    auto tool = view->contourTool();
+    check(tool.terrain == terrain && tool.sources == 8, "the terrain's eight source contours show");
+    // Hovering names a source.
+    const auto &ring = ringSource(doc, terrain, 2);
+    const auto world = doc.worldTransform(terrain);
+    const auto middle = world.point((ring.points[5] + ring.points[6]) * 0.5);
+    hover(view, at(window, middle));
+    tool = view->contourTool();
+    check(tool.hovered == ring.id &&
+              tool.hoverLabel == QString("Contour 104.00 m · source %1").arg(ring.id),
+          "hovering names the source: " + tool.hoverLabel.toStdString());
+    check(status(window).startsWith("Contour 104.00 m · source"), "the status bar names it too");
+    // Off the terrain the cursor is not-allowed.
+    hover(view, {4, 4});
+    check(view->cursor().shape() == Qt::ForbiddenCursor &&
+              status(window) == "Point at a terrain to edit its contours",
+          "off the terrain the tool refuses: " + status(window).toStdString());
+    // A click selects it: square handles on its vertices, round ones at its midpoints.
+    hover(view, at(window, middle));
+    press(view, at(window, middle));
+    release(view, at(window, middle));
+    tool = view->contourTool();
+    check(tool.selected == ring.id && tool.handles == 2 * 48 &&
+              tool.selectedName == "Contour 104.00 m" && tool.elevation == 104.0 && tool.editable,
+          "a click selects the source with 48 vertex and 48 midpoint handles");
+    check(bar.sourceSummary()->text().contains("Contour 104.00 m") &&
+              bar.elevationField()->text() == "104.00 m" &&
+              bar.roleField()->currentText() == "Contour" && bar.roleField()->isEnabled(),
+          "the strip names the source with its role and elevation: " +
+              bar.elevationField()->text().toStdString());
+    check(step(window) == "Elevation", "the box is labelled Elevation with a source selected");
+    // Tab moves between its handles (§15.7).
+    view->setFocus();
+    QTest::keyClick(view, Qt::Key_Tab);
+    check(view->contourTool().focus == 0, "Tab focuses the first vertex");
+    QTest::keyClick(view, Qt::Key_Tab);
+    check(view->contourTool().focus == 1, "Tab moves to the next handle (a midpoint)");
+    QTest::keyClick(view, Qt::Key_Tab, Qt::ShiftModifier);
+    check(view->contourTool().focus == 0, "Shift+Tab moves back");
+    QTest::keyClick(view, Qt::Key_Escape);
+    check(view->contourTool().selected == 0 && view->tool() == Viewport::Tool::Contours,
+          "Escape clears the selection first");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourDragPreviewAndCommit(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    const auto vertex = selectRing(window, terrain, 3, 6);
+    const auto id = view->contourTool().selected;
+    const auto before = Snapshot::of(doc);
+    // Drag vertex 6 outward by 1 m: between ring 3 and ring 4, 3 m out.
+    const Vec3 direction = normalized(Vec3{vertex.x, vertex.y, 0});
+    const auto target = vertex + direction * 1.0;
+    auto dragTo = [&](const Vec3 &to) {
+        press(view, at(window, vertex));
+        for (int i = 1; i <= 6; ++i)
+            drag(view, at(window, vertex + (to - vertex) * (i / 6.0)));
+        idle(view);
+        frame(view);
+    };
+    dragTo(target);
+    auto tool = view->contourTool();
+    auto shown = view->terrainEditPreviewShown();
+    check(tool.dragging && shown && view->terrainEditPreviewCurrent() && shown->candidate &&
+              !shown->refused(),
+          "the drag previews the re-triangulated cavity on the worker");
+    check(!shown->outline.empty(), "the changed region is outlined");
+    if (view->rendererReady())
+        check(!view->terrainPreviewHiddenTiles().empty(),
+              "the candidate is drawn in place of the tiles it replaces");
+    check(before.same(doc), "the preview changes nothing");
+    // Escape leaves no trace.
+    key(view, Qt::Key_Escape);
+    release(view, at(window, target));
+    check(before.same(doc), "Escape leaves revision, history, dirty state and encoding unchanged");
+    check(!view->terrainEditPreviewShown() && view->terrainPreviewHiddenTiles().empty(),
+          "Escape withdraws the candidate");
+    check(view->contourTool().selected == id, "Escape of a drag keeps the source selected");
+    // The drag again, released: one "Edit contour" edit equal to the previewed candidate.
+    dragTo(target);
+    shown = view->terrainEditPreviewShown();
+    check(shown && view->terrainEditPreviewCurrent() && shown->candidate, "the drag previews again");
+    const auto command = view->terrainEditRequested();
+    release(view, at(window, target));
+    check(doc.revision() == before.revision + 1 && doc.history().total == before.history + 1 &&
+              doc.history().entries.back().label == "Edit contour",
+          "release commits one Edit contour edit");
+    checkCommittedEdit(doc, terrain, *shown, "contour drag");
+    check(command == shown->command, "the commit runs the previewed command");
+    const auto &data = lastSourceEdit(doc, terrain);
+    check(data.source == id && data.points.size() == 49, "the moved ring is stored");
+    check(view->contourTool().selected == id && view->contourTool().focus == 12,
+          "the source stays selected with the moved vertex focused");
+    check(!view->terrainEditPreviewShown() && view->terrainPreviewHiddenTiles().empty(),
+          "after the commit the tiles draw themselves");
+    // A round handle inserts a vertex.
+    const auto world = doc.worldTransform(terrain);
+    const auto *moved = currentSource(doc, terrain, id);
+    const auto midpoint = world.point((moved->points[20] + moved->points[21]) * 0.5);
+    hover(view, at(window, midpoint));
+    press(view, at(window, midpoint));
+    const auto out = midpoint + normalized(Vec3{midpoint.x, midpoint.y, 0}) * 0.8;
+    for (int i = 1; i <= 4; ++i)
+        drag(view, at(window, midpoint + (out - midpoint) * (i / 4.0)));
+    idle(view);
+    release(view, at(window, out));
+    check(lastSourceEdit(doc, terrain).points.size() == 50 &&
+              doc.history().entries.back().label == "Edit contour",
+          "dragging a round handle inserts a vertex");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourRefusal(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    view->setFocus();
+    hover(view, {4, 4});
+    frame(view);
+    const auto before = Snapshot::of(doc);
+    const auto image = view->rendererReady() ? view->grabFramebuffer() : QImage();
+    const auto vertex = selectRing(window, terrain, 3, 6);
+    // Across ring 4 (3 m out): the moved run is refused at the pointer.
+    const auto target = vertex + normalized(Vec3{vertex.x, vertex.y, 0}) * 4.5;
+    press(view, at(window, vertex));
+    for (int i = 1; i <= 6; ++i)
+        drag(view, at(window, vertex + (target - vertex) * (i / 6.0)));
+    idle(view);
+    frame(view);
+    auto tool = view->contourTool();
+    const auto shown = view->terrainEditPreviewShown();
+    check(shown && shown->refused() && !shown->candidate && view->terrainEditPreviewCurrent(),
+          "a drag across another contour is refused and its preview withdrawn");
+    check(tool.refused && tool.failure == "Crosses contour 103.00 m" && tool.failureAt,
+          "the failure label names the crossed contour: " + tool.failure.toStdString());
+    check(status(window).startsWith("Crosses contour 103.00 m at ") &&
+              status(window).endsWith("Release to cancel, or move back."),
+          "the status bar repeats it with the location: " + status(window).toStdString());
+    if (view->rendererReady())
+        check(view->terrainPreviewHiddenTiles().empty(), "nothing is drawn in place of the tiles");
+    shot(window, "contours");
+    release(view, at(window, target));
+    check(before.same(doc), "releasing a refused drag changes nothing");
+    check(status(window).startsWith("Nothing changed: Crosses contour 103.00 m"),
+          "the status bar says nothing changed: " + status(window).toStdString());
+    // The frame is the one before (the selection cleared, the pointer off the terrain).
+    view->setFocus();
+    key(view, Qt::Key_Escape);
+    hover(view, {4, 4});
+    frame(view);
+    if (!image.isNull())
+        check(view->grabFramebuffer() == image, "the refused drag leaves the frame as it was");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourKeyboardAndStrip(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    const auto world = doc.worldTransform(terrain);
+    // A typed position selects the source passing nearest it.
+    const auto &ring = ringSource(doc, terrain, 5);
+    const auto id = ring.id;
+    const auto onRing = world.point(ring.points[10]);
+    enter(window, QString("[%1,%2]").arg(onRing.x + 0.3).arg(onRing.y));
+    check(view->contourTool().selected == id, "a typed position selects the nearest source");
+    // A typed elevation sets it: one Edit contour edit.
+    const auto revision = doc.revision();
+    enter(window, "102.70");
+    check(doc.revision() == revision + 1 && lastSourceEdit(doc, terrain).source == id &&
+              lastSourceEdit(doc, terrain).points.front().z ==
+                  world.inverse().point({0, 0, 102.7}).z &&
+              doc.history().entries.back().label == "Edit contour",
+          "a typed number sets the selected source's elevation");
+    check(view->contourTool().selected == id &&
+              strip(window).elevationField()->text() == "102.70 m",
+          "the strip shows the new elevation");
+    // With no source selected, a typed elevation changes nothing and says why.
+    view->selectTerrainSource(terrain, 0);
+    const auto refused = Snapshot::of(doc);
+    enter(window, "103");
+    check(refused.same(doc) && status(window).contains("Select a source contour or breakline"),
+          "an elevation needs a selected source: " + status(window).toStdString());
+    enter(window, QString("[%1,%2]").arg(onRing.x + 0.3).arg(onRing.y));
+    check(view->contourTool().selected == id, "the typed position selects it again");
+    // Tab to a vertex, a typed position moves it (UX §15.7).
+    view->setFocus();
+    for (int i = 0; i < 9; ++i)
+        QTest::keyClick(view, Qt::Key_Tab); // vertex 0, midpoint 0, ..., vertex 4
+    check(view->contourTool().focus == 8, "Tab reaches vertex 4");
+    const auto *source = currentSource(doc, terrain, id);
+    check(source != nullptr, "ring 5 is current");
+    const auto v4 = world.point(source->points[4]);
+    const auto movedTo = v4 + normalized(Vec3{v4.x, v4.y, 0}) * 0.5;
+    enter(window, QString("[%1,%2]").arg(movedTo.x, 0, 'f', 6).arg(movedTo.y, 0, 'f', 6));
+    const auto &moved = lastSourceEdit(doc, terrain);
+    check(moved.source == id && std::abs(world.point(moved.points[4]).x - movedTo.x) < 1e-6 &&
+              std::abs(world.point(moved.points[4]).y - movedTo.y) < 1e-6,
+          "a typed position moves the focused vertex");
+    // Delete removes the focused vertex; Shift+Delete removes the source.
+    view->setFocus();
+    const auto points = moved.points.size();
+    QTest::keyClick(view, Qt::Key_Delete);
+    check(lastSourceEdit(doc, terrain).points.size() == points - 1, "Delete removes the vertex");
+    auto *bar = &strip(window);
+    // Role: a contour becomes a breakline and back.
+    bar->roleField()->setCurrentIndex(1);
+    emit bar->roleField()->activated(1);
+    QTest::qWait(10);
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Breakline &&
+              view->contourTool().role == TerrainSourceRole::Breakline,
+          "Role switches the contour to a breakline");
+    bar->roleField()->setCurrentIndex(0);
+    emit bar->roleField()->activated(0);
+    QTest::qWait(10);
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Contour, "and back");
+    view->setFocus();
+    const auto edits = recordOf(doc, terrain).edits.size();
+    QTest::keyClick(view, Qt::Key_Delete, Qt::ShiftModifier);
+    check(recordOf(doc, terrain).edits.size() == edits + 1 &&
+              recordOf(doc, terrain).edits.back()->kind == terrainRemoveSourceKind &&
+              view->contourTool().selected == 0 &&
+              doc.history().entries.back().label == "Remove contour",
+          "Shift+Delete removes the source");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourAddAndPromote(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    auto &bar = strip(window);
+    // Add contour: clicks inside the innermost ring, an elevation typed first, Enter finishes.
+    QTest::mouseClick(bar.contourButton("Add contour"), Qt::LeftButton);
+    check(view->contourMode() == Viewport::ContourMode::AddContour &&
+              bar.contourButton("Add contour")->isChecked() && step(window) == "Elevation",
+          "Add contour waits for points, with the box labelled Elevation");
+    enter(window, "105.2");
+    view->setFocus();
+    for (const auto &[x, y] : std::vector<std::pair<double, double>>{{-4, -1}, {0, 1.5}, {4, -1}}) {
+        hover(view, screen(window, terrain, x, y));
+        press(view, screen(window, terrain, x, y));
+        release(view, screen(window, terrain, x, y));
+    }
+    idle(view);
+    const auto shown = view->terrainEditPreviewShown();
+    check(shown && shown->candidate && view->terrainEditPreviewCurrent() &&
+              view->contourTool().adding.size() == 3,
+          "the new contour previews on the worker");
+    const auto revision = doc.revision();
+    key(view, Qt::Key_Return);
+    const auto &added = lastSourceEdit(doc, terrain);
+    check(doc.revision() == revision + 1 && doc.history().entries.back().label == "Add contour" &&
+              added.role == TerrainSourceRole::Contour && added.points.size() == 3 &&
+              doc.worldTransform(terrain).point(added.points.front()).z == 105.2,
+          "Enter adds the contour at the typed elevation");
+    checkCommittedEdit(doc, terrain, *shown, "add contour");
+    check(view->contourMode() == Viewport::ContourMode::Edit &&
+              view->contourTool().selected == added.source,
+          "the new contour is selected");
+    // Add breakline: points take the surface's elevation.
+    QTest::mouseClick(bar.contourButton("Add breakline"), Qt::LeftButton);
+    view->setFocus();
+    for (const auto &[x, y] : std::vector<std::pair<double, double>>{{-5, -5}, {5, -5.5}}) {
+        hover(view, screen(window, terrain, x, y));
+        press(view, screen(window, terrain, x, y));
+        release(view, screen(window, terrain, x, y));
+    }
+    idle(view);
+    key(view, Qt::Key_Return);
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Breakline &&
+              doc.history().entries.back().label == "Add contour",
+          "Add breakline draws a breakline");
+    // Add spot: a click places it, a typed elevation adds it.
+    QTest::mouseClick(bar.contourButton("Add spot"), Qt::LeftButton);
+    view->setFocus();
+    hover(view, screen(window, terrain, 2, 4));
+    press(view, screen(window, terrain, 2, 4));
+    release(view, screen(window, terrain, 2, 4));
+    check(step(window) == "Elevation", "a placed spot waits for its elevation");
+    enter(window, "105.6");
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Points &&
+              doc.worldTransform(terrain).point(lastSourceEdit(doc, terrain).points.front()).z == 105.6,
+          "a typed elevation adds the spot point");
+    view->setTool(Viewport::Tool::Select);
+    // Promote on a terrain made from points (no source contours).
+    fresh(window);
+    terrain = hill(window);
+    auto display = doc.bodies().at(terrain)->terrain->display;
+    display.contours = true;
+    display.contourInterval = 0.5;
+    setTerrainDisplay(doc, terrain, display);
+    changed(window);
+    startContours(window);
+    check(view->contourTool().sources == 1, "a point terrain has only its spot points");
+    QTest::mouseClick(strip(window).contourButton("Promote"), Qt::LeftButton);
+    view->setFocus();
+    hover(view, screen(window, terrain, 40, 30));
+    idle(view);
+    const auto promoted = view->terrainEditPreviewShown();
+    const auto level = view->contourTool().promoteLevel;
+    check(level && promoted && promoted->candidate && !promoted->points.empty(),
+          "Promote previews the display contour under the pointer");
+    check(std::abs(*level * 2 - std::round(*level * 2)) < 1e-9, "at a display contour level");
+    press(view, screen(window, terrain, 40, 30));
+    release(view, screen(window, terrain, 40, 30));
+    const auto &made = lastSourceEdit(doc, terrain);
+    check(recordOf(doc, terrain).edits.back()->kind == terrainAddSourceKind &&
+              made.role == TerrainSourceRole::Contour &&
+              doc.worldTransform(terrain).point(made.points.front()).z == *level,
+          "a click promotes it to a source contour at its level");
+    checkCommittedEdit(doc, terrain, *promoted, "promote");
+    view->setTool(Viewport::Tool::Select);
+}
+
+// A pad protects its lines: its outline is shown as the pad's and cannot be moved.
+void contourProtectedSources(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    QJsonArray polygon;
+    for (const auto &[x, y] : std::vector<std::pair<double, double>>{{30, -3}, {34, -3}, {34, 3}, {30, 3}})
+        polygon.append(QJsonArray{x, y});
+    const QJsonObject stamp{{"command", "terrain.stamp_pad"},
+                            {"terrain", QString::number(terrain)},
+                            {"footprint", QJsonObject{{"polygon", polygon}}},
+                            {"elevation", 102.0},
+                            {"mode", "daylight"}};
+    executeBatch(doc, {{"apiVersion", 1},
+                       {"documentId", QString::fromStdString(doc.identity())},
+                       {"expectedRevision", QString::number(doc.revision())},
+                       {"commands", QJsonArray{stamp}}});
+    changed(window);
+    check(recordOf(doc, terrain).edits.size() == 1, "the pad is stamped");
+    startContours(window);
+    // Select the pad's outline by a typed position on it.
+    enter(window, "[30,0]");
+    auto tool = view->contourTool();
+    check(tool.selected && !tool.editable && tool.selectedName == "Pad outline" &&
+              tool.selectedDetail.startsWith("change #1"),
+          "a pad's outline is shown as the pad's: " + tool.selectedName.toStdString());
+    auto &bar = strip(window);
+    check(!bar.roleField()->isEnabled() && !bar.elevationField()->isEnabled() &&
+              !bar.contourButton("Remove")->isEnabled(),
+          "its Role, Elevation and Remove are unavailable");
+    // Dragging its vertex is refused at the pointer and changes nothing.
+    const auto before = Snapshot::of(doc);
+    const auto world = doc.worldTransform(terrain);
+    const auto *outline = currentSource(doc, terrain, tool.selected);
+    check(outline != nullptr, "the outline is a current source");
+    const auto corner = world.point(outline->points.front());
+    view->setFocus();
+    hover(view, at(window, corner));
+    press(view, at(window, corner));
+    for (int i = 1; i <= 4; ++i)
+        drag(view, at(window, corner + Vec3{0.3 * i, 0.1 * i, 0}));
+    idle(view);
+    tool = view->contourTool();
+    check(tool.refused && tool.failure.contains("Pad (change #1)"),
+          "moving a pad's outline is refused, naming the pad: " + tool.failure.toStdString());
+    release(view, at(window, corner + Vec3{1.2, 0.4, 0}));
+    check(before.same(doc), "and changes nothing");
+    view->setTool(Viewport::Tool::Select);
+}
+
+// The worker plans the newest request and never one a newer request replaced (latest wins).
+void previewWorkerLatestWins(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    const auto &ring = ringSource(doc, terrain, 3);
+    const auto world = doc.worldTransform(terrain);
+    TerrainPreviewWorker worker;
+    std::vector<std::pair<qulonglong, std::shared_ptr<const TerrainCommandPreview>>> results;
+    QObject::connect(&worker, &TerrainPreviewWorker::finished,
+                     [&](qulonglong generation, std::shared_ptr<const TerrainCommandPreview> p) {
+                         results.emplace_back(generation, std::move(p));
+                     });
+    std::vector<QJsonObject> commands;
+    for (int i = 1; i <= 5; ++i) {
+        QJsonArray points;
+        for (std::size_t j = 0; j < ring.points.size(); ++j) {
+            auto p = world.point(ring.points[j]);
+            if (j == 6)
+                p = p + normalized(Vec3{p.x, p.y, 0}) * (0.2 * i);
+            points.append(QJsonArray{p.x, p.y});
+        }
+        commands.push_back({{"command", "terrain.edit_source"},
+                            {"terrain", QString::number(terrain)},
+                            {"source", double(ring.id)},
+                            {"points", points}});
+    }
+    for (const auto &command : commands)
+        worker.request(prepareTerrainEditPreview(doc, command));
+    check(worker.started() == 1 && worker.busy(), "the first request runs; the others wait");
+    check(worker.waitForIdle(20000), "the worker finishes");
+    check(worker.started() == 2, "only the newest waiting request is planned next");
+    check(!results.empty() && results.back().first == worker.latest() &&
+              results.back().second->command == commands.back(),
+          "the newest plan is delivered last");
+    for (std::size_t i = 1; i < results.size(); ++i)
+        check(results[i].first > results[i - 1].first, "results are delivered newest last");
+    // Cancel withdraws everything requested before it.
+    results.clear();
+    worker.request(prepareTerrainEditPreview(doc, commands.front()));
+    worker.cancel();
+    check(worker.waitForIdle(20000) && results.empty(), "a cancelled request is never delivered");
+}
 } // namespace
 
 int main(int argc, char **argv) {
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
     QApplication app(argc, argv);
+    QString only; // --only TEXT runs the tests whose name contains TEXT
     for (int i = 1; i + 1 < argc; ++i) {
         if (QString(argv[i]) == "--screenshots")
             shots = argv[i + 1];
+        if (QString(argv[i]) == "--only")
+            only = argv[i + 1];
         if (QString(argv[i]) == "--text-percent")
             QSettings("SketchyUp", "SketchyUp")
                 .setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
@@ -1218,13 +1764,22 @@ int main(int argc, char **argv) {
         {"empty brush and pads", emptyBrushAndPads},
         {"hover refusals", hoverRefusals},
         {"review regressions", reviewRegressions},
-        {"incremental display", incrementalDisplay}};
+        {"incremental display", incrementalDisplay},
+        {"preview worker, latest wins", previewWorkerLatestWins},
+        {"contours shown and selected", contoursShownAndSelected},
+        {"contour drag, preview and commit", contourDragPreviewAndCommit},
+        {"contour refusal", contourRefusal},
+        {"contour keyboard and strip", contourKeyboardAndStrip},
+        {"contour add and promote", contourAddAndPromote},
+        {"contour protected sources", contourProtectedSources}};
     try {
         if (!shots.isEmpty()) {
             screenshots(window);
             std::cout << "screenshots\n" << std::flush;
         }
         for (const auto &[name, test] : tests) {
+            if (!only.isEmpty() && !QString(name).contains(only))
+                continue;
             test(window);
             std::cout << name << "\n" << std::flush;
         }

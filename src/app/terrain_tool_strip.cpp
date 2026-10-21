@@ -80,7 +80,8 @@ TerrainToolStrip::TerrainToolStrip(Viewport &viewport)
     flow->setContentsMargins(8, 6, 8, 6);
     flow->addWidget(segments("terrainToolSwitcher", "Terrain tool",
                              {{"Sculpt", int(Viewport::Tool::Sculpt)},
-                              {"Smooth", int(Viewport::Tool::Smooth)}},
+                              {"Smooth", int(Viewport::Tool::Smooth)},
+                              {"Contours", int(Viewport::Tool::Contours)}},
                              tools_));
     connect(tools_, &QButtonGroup::idClicked, this, [this](int id) {
         if (!syncing_)
@@ -144,6 +145,80 @@ TerrainToolStrip::TerrainToolStrip(Viewport &viewport)
     hint_ = new QLabel("Ctrl lowers · Shift smooths");
     hint_->setObjectName("terrainStripHint");
     flow->addWidget(hint_);
+    for (auto *control : std::initializer_list<QWidget *>{
+             scopes_->buttons().front()->parentWidget(), radiusBox_,
+             falloff_->parentWidget(), widthBox_, amountBox_, strengthBox_, passesBox_, hint_})
+        sculptControls_ << control;
+    // R096.f2 (UX §15.3): Edit contours. The selected source ("Contour 105.00 m · source 17"), its
+    // Role and Elevation, then the Add buttons, Promote and Remove.
+    sourceSummary_ = new QLabel;
+    sourceSummary_->setObjectName("terrainSourceSummary");
+    sourceSummary_->setTextFormat(Qt::RichText);
+    flow->addWidget(sourceSummary_);
+    role_ = new QComboBox;
+    role_->setObjectName("terrainSourceRole");
+    role_->setAccessibleName("Role of the selected source");
+    role_->addItem("Contour", int(TerrainSourceRole::Contour));
+    role_->addItem("Breakline", int(TerrainSourceRole::Breakline));
+    roleBox_ = labelled("Role", role_, "terrainSourceRole");
+    flow->addWidget(roleBox_);
+    connect(role_, &QComboBox::activated, this, [this](int index) {
+        if (syncing_)
+            return;
+        viewport_.setSelectedSourceRole(TerrainSourceRole(role_->itemData(index).toInt()));
+    });
+    elevation_ = field("terrainSourceElevation", "Elevation of the selected source", 80);
+    elevationBox_ = labelled("Elevation", elevation_, "terrainSourceElevation");
+    flow->addWidget(elevationBox_);
+    auto button = [&](const QString &text, const QString &name, const QString &description,
+                      bool checkable) {
+        auto *b = new QToolButton;
+        b->setObjectName(name);
+        b->setProperty("terrainStripButton", true);
+        b->setText(text);
+        b->setAccessibleName(text);
+        b->setAccessibleDescription(description);
+        b->setToolTip(description);
+        b->setCheckable(checkable);
+        b->setFocusPolicy(Qt::StrongFocus);
+        b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        b->installEventFilter(this);
+        flow->addWidget(b);
+        return b;
+    };
+    addContour_ = button("Add contour", "terrainAddContour",
+                         "Draw a new source contour on the terrain; Enter finishes it", true);
+    addBreakline_ = button("Add breakline", "terrainAddBreakline",
+                           "Draw a new breakline on the terrain; Enter finishes it", true);
+    addSpot_ = button("Add spot", "terrainAddSpot", "Place spot points on the terrain", true);
+    promote_ = button("Promote", "terrainPromote",
+                      "Make the display contour under the pointer a source contour", true);
+    removeSource_ = button("Remove", "terrainRemoveSource",
+                           "Remove the selected source (Shift+Delete)", false);
+    const std::vector<std::pair<QToolButton *, Viewport::ContourMode>> modes{
+        {addContour_, Viewport::ContourMode::AddContour},
+        {addBreakline_, Viewport::ContourMode::AddBreakline},
+        {addSpot_, Viewport::ContourMode::AddSpot},
+        {promote_, Viewport::ContourMode::Promote}};
+    for (const auto &[b, mode] : modes)
+        connect(b, &QToolButton::clicked, this, [this, mode = mode] {
+            if (!syncing_)
+                viewport_.setContourMode(mode);
+        });
+    connect(removeSource_, &QToolButton::clicked, this, [this] {
+        if (!syncing_)
+            viewport_.removeSelectedSource();
+    });
+    contourControls_ << sourceSummary_ << roleBox_ << elevationBox_ << addContour_
+                     << addBreakline_ << addSpot_ << promote_ << removeSource_;
+    elevation_->installEventFilter(this);
+    connect(elevation_, &QLineEdit::editingFinished, this, [this] { apply(elevation_); });
+    connect(elevation_, &QLineEdit::textEdited, this, [this] {
+        elevation_->setProperty("invalid", false);
+        elevation_->style()->unpolish(elevation_);
+        elevation_->style()->polish(elevation_);
+    });
+    role_->installEventFilter(this);
     for (auto *edit : {radius_, width_, amount_, strength_}) {
         edit->installEventFilter(this);
         connect(edit, &QLineEdit::editingFinished, this, [this, edit] { apply(edit); });
@@ -168,12 +243,24 @@ QToolButton *TerrainToolStrip::toolButton(int tool) const {
 QToolButton *TerrainToolStrip::scopeButton(TerrainToolOptions::Scope scope) const {
     return qobject_cast<QToolButton *>(scopes_->button(int(scope)));
 }
+QToolButton *TerrainToolStrip::contourButton(const QString &name) const {
+    for (auto *b : {addContour_, addBreakline_, addSpot_, promote_, removeSource_})
+        if (b->text() == name)
+            return b;
+    return nullptr;
+}
 QWidget *TerrainToolStrip::firstField() const {
     return tools_->checkedButton() ? tools_->checkedButton() : tools_->buttons().front();
 }
 QString TerrainToolStrip::lengthText(double metres) const {
     const auto &doc = viewport_.document();
     return displayLength(metres, doc.displayUnits(), doc.displayPrecision());
+}
+// Elevations as the labels give them: two decimals unless the document asks for another precision.
+QString TerrainToolStrip::elevationText(double metres) const {
+    const auto &doc = viewport_.document();
+    return displayLength(metres, doc.displayUnits(),
+                         doc.displayPrecision() == fullDisplayPrecision ? 2 : doc.displayPrecision());
 }
 void TerrainToolStrip::setColors(const ThemeColors &colors) {
     setStyleSheet(QString("#terrainToolStrip {background:%1;border:1px solid %2;border-radius:6px;}"
@@ -183,6 +270,11 @@ void TerrainToolStrip::setColors(const ThemeColors &colors) {
                           "{padding:2px 8px;border:1px solid %2;background:%4;}"
                           "#terrainToolSwitcher QToolButton:checked, #terrainScope "
                           "QToolButton:checked {background:%5;color:%6;font-weight:bold;}"
+                          "QToolButton[terrainStripButton=\"true\"] {padding:3px 9px;border:1px "
+                          "solid %2;border-radius:4px;background:%4;}"
+                          "QToolButton[terrainStripButton=\"true\"]:checked {background:%5;color:%6;"
+                          "font-weight:bold;}"
+                          "QToolButton[terrainStripButton=\"true\"]:disabled {color:%3;}"
                           "QLineEdit[invalid=\"true\"] {border:2px solid %7;}")
                       .arg(colors.surface.name(), colors.border.name(), colors.muted.name(),
                            colors.input.name(), colors.accent.name(),
@@ -203,12 +295,45 @@ void TerrainToolStrip::sync() {
         button->setChecked(true);
     const bool region = options.scope == TerrainToolOptions::Scope::Region;
     const bool sculpt = tool == Viewport::Tool::Sculpt;
-    radiusBox_->setVisible(!region);
-    widthBox_->setVisible(region);
-    amountBox_->setVisible(sculpt);
-    strengthBox_->setVisible(!sculpt);
-    passesBox_->setVisible(!sculpt);
-    hint_->setVisible(sculpt);
+    const bool brush = Viewport::sculptTool(tool);
+    for (auto *control : contourControls_)
+        control->setVisible(tool == Viewport::Tool::Contours);
+    if (brush) {
+        for (auto *control : sculptControls_)
+            control->setVisible(true);
+        radiusBox_->setVisible(!region);
+        widthBox_->setVisible(region);
+        amountBox_->setVisible(sculpt);
+        strengthBox_->setVisible(!sculpt);
+        passesBox_->setVisible(!sculpt);
+        hint_->setVisible(sculpt);
+    } else
+        for (auto *control : sculptControls_)
+            control->setVisible(false);
+    if (tool == Viewport::Tool::Contours) {
+        const auto view = viewport_.contourTool();
+        const auto muted = palette().color(QPalette::PlaceholderText).name();
+        sourceSummary_->setText(view.selected ? "<b>" + view.selectedName.toHtmlEscaped() +
+                                                    "</b> <span style=\"color:" + muted + "\">· " +
+                                                    view.selectedDetail.toHtmlEscaped() + "</span>"
+                                              : "<span style=\"color:" + muted +
+                                                    "\">No source selected</span>");
+        sourceSummary_->setAccessibleName(view.selected ? "Selected source: " + view.selectedName +
+                                                              ", " + view.selectedDetail
+                                                        : QString("No source selected"));
+        const bool line = view.selected && view.role != TerrainSourceRole::Points;
+        role_->setEnabled(line && view.editable);
+        if (line)
+            role_->setCurrentIndex(role_->findData(int(view.role)));
+        elevation_->setEnabled(line && view.editable);
+        if (!elevation_->hasFocus() && !elevation_->property("invalid").toBool())
+            elevation_->setText(view.elevation ? elevationText(*view.elevation) : QString());
+        removeSource_->setEnabled(view.selected && view.editable);
+        addContour_->setChecked(view.mode == Viewport::ContourMode::AddContour);
+        addBreakline_->setChecked(view.mode == Viewport::ContourMode::AddBreakline);
+        addSpot_->setChecked(view.mode == Viewport::ContourMode::AddSpot);
+        promote_->setChecked(view.mode == Viewport::ContourMode::Promote);
+    }
     falloff_->setCurrentIndex(falloff_->findData(int(options.falloff)));
     passes_->setValue(options.passes);
     auto fill = [](QLineEdit *edit, const QString &text) {
@@ -257,6 +382,24 @@ void TerrainToolStrip::apply(QLineEdit *edit) {
     const auto unit = inputUnit(doc.displayUnits());
     const auto locale = QLocale();
     QString error;
+    if (edit == elevation_) {
+        // R096.f2: the selected source's elevation, one "Edit contour" edit.
+        try {
+            const double value = parseLength(edit->text(), unit, locale);
+            edit->setModified(false);
+            viewport_.setSelectedSourceElevation(value);
+        } catch (const std::exception &failure) {
+            error = failure.what();
+        }
+        edit->setProperty("invalid", !error.isEmpty());
+        edit->setAccessibleDescription(error);
+        edit->style()->unpolish(edit);
+        edit->style()->polish(edit);
+        emit problem(error);
+        if (error.isEmpty())
+            sync();
+        return;
+    }
     try {
         if (edit == strength_) {
             bool ok = false;
