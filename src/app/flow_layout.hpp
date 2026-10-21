@@ -31,10 +31,14 @@ class FlowLayout final : public QLayout {
     }
     Qt::Orientations expandingDirections() const override { return {}; }
     bool hasHeightForWidth() const override { return true; }
-    int heightForWidth(int width) const override { return place(QRect(0, 0, width, 0), false); }
+    int heightForWidth(int width) const override {
+        const auto m = contentsMargins();
+        return place(QRect(m.left(), m.top(), width - m.left() - m.right(), 0), false) + m.top() +
+               m.bottom();
+    }
     void setGeometry(const QRect &rect) override {
         QLayout::setGeometry(rect);
-        place(rect, true);
+        place(rect.marginsRemoved(contentsMargins()), true);
     }
     QSize sizeHint() const override { return minimumSize(); }
     QSize minimumSize() const override {

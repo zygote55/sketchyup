@@ -130,7 +130,7 @@ void Viewport::stepTerrainRadius(bool larger) {
 QString Viewport::terrainMeasurementLabel() const {
     if (!terrainToolActive())
         return {};
-    const bool value = brush_.anchored || brush_.regionClosed ||
+    const bool value = brush_.stroking || brush_.anchored || brush_.regionClosed ||
                        (terrainSession_.canRevise() && !terrainCommitted_.isEmpty());
     if (value)
         return tool_ == Tool::Smooth ? "Strength" : "Amount";
@@ -631,6 +631,12 @@ void Viewport::updateTerrainCandidate(bool show) {
         terrainCandidateShown_ = show && terrainCandidate_->edit.has_value();
         terrainCandidateDocument_ = doc_.identity();
         terrainCandidateRevision_ = doc_.revision();
+        // Before Enter the box shows the live value (UX §4.3).
+        if (brush_.stroking || brush_.anchored || brush_.regionClosed)
+            emit measurementPreview(
+                smoothing ? QLocale().toString(command["strength"].toDouble(), 'f', 2)
+                          : displayLength(command["amount"].toDouble(), doc_.displayUnits(),
+                                          doc_.displayPrecision()));
     } catch (const std::exception &error) {
         brush_.error = error.what();
         terrainCandidate_.reset();
@@ -979,7 +985,7 @@ void Viewport::paintTerrainBrush(QPainter &p) {
                 plan = stroker.createStroke(line).simplified();
             }
         }
-        for (const auto &outline : plan.toFillPolygons()) {
+        for (const auto &outline : plan.toSubpathPolygons()) {
             std::vector<Vec3> points;
             for (const auto &q : outline)
                 points.push_back(onSurface(q.x(), q.y(), brush_.point ? brush_.point->z : 0));
@@ -1023,7 +1029,7 @@ void Viewport::paintTerrainBrush(QPainter &p) {
             const auto band = (plan + stroker.createStroke(plan)).simplified();
             p.setBrush(Qt::NoBrush);
             p.setPen(QPen(ink, 1.5, Qt::DashLine));
-            for (const auto &outline : band.toFillPolygons()) {
+            for (const auto &outline : band.toSubpathPolygons()) {
                 std::vector<Vec3> points;
                 for (const auto &q : outline)
                     points.push_back(onSurface(q.x(), q.y(), brush_.region.front().z));
@@ -1103,10 +1109,14 @@ void Viewport::paintTerrainBrush(QPainter &p) {
                                                          : std::nullopt);
     if (!text.isEmpty() && anchor) {
         const auto metrics = p.fontMetrics();
+        auto boldFont = p.font();
+        boldFont.setBold(true);
+        const QFontMetrics boldMetrics(boldFont);
         const auto lines = text.split('\n');
         int textWidth = 0;
-        for (const auto &line : lines)
-            textWidth = std::max(textWidth, metrics.horizontalAdvance(line));
+        for (int i = 0; i < int(lines.size()); ++i)
+            textWidth = std::max(textWidth, (i == 0 && brush_.error.isEmpty() ? boldMetrics : metrics)
+                                                .horizontalAdvance(lines[i]));
         const int boxWidth = std::min(textWidth + 16, std::max(1, width() - 24));
         const int boxHeight = int(lines.size()) * metrics.lineSpacing() + 10;
         const QRectF box(std::clamp(anchor->x() + 28, 12.0, double(std::max(12, width() - boxWidth - 12))),

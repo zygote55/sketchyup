@@ -293,6 +293,16 @@ void TerrainToolStrip::apply(QLineEdit *edit) {
         return;
     edit->setModified(false);
     viewport_.setTerrainOptions(options);
+    // The applied value in document units (the field keeps focus).
+    const auto &applied = viewport_.terrainOptions();
+    if (edit == radius_)
+        edit->setText(lengthText(applied.radius));
+    else if (edit == width_)
+        edit->setText(lengthText(applied.falloffWidth));
+    else if (edit == amount_)
+        edit->setText((applied.amount > 0 ? "+" : "") + lengthText(applied.amount));
+    else
+        edit->setText(QLocale().toString(applied.strength, 'f', 2));
     sync();
 }
 bool TerrainToolStrip::eventFilter(QObject *object, QEvent *event) {
@@ -304,11 +314,13 @@ bool TerrainToolStrip::eventFilter(QObject *object, QEvent *event) {
                 edit->setModified(false);
                 edit->setProperty("invalid", false);
                 edit->setAccessibleDescription({});
+                edit->style()->unpolish(edit);
+                edit->style()->polish(edit);
                 emit problem({});
             }
+            viewport_.setFocus(Qt::OtherFocusReason);
             syncing_ = false;
             sync();
-            viewport_.setFocus(Qt::OtherFocusReason);
             return true;
         }
         if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) &&

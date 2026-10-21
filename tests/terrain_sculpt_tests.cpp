@@ -1617,6 +1617,195 @@ void sequence() {
 }
 } // namespace
 
+// R096.f1 (ADR 0169 §5, the terrain preview path): the desktop preview of a sculpt plans the
+// change on the cached edit mesh and changes nothing; its candidate display (normals of the
+// candidate tiles and their seam ring, outer edges, contours per candidate tile) equals what the
+// per-tile caches compute after the commit, bit for bit; terrain.sculpt commits the previewed plan
+// (the remembered plan) and an independent plan gives the same tiles; and a typed value after the
+// commit revises the same History entry through the terrain amend policy, which may replace a
+// different set of the terrain's tiles.
+void desktopPreview() {
+    Document doc;
+    const auto terrain = importRings(doc);
+    {
+        auto display = recordOf(doc, terrain).display;
+        display.contours = true;
+        display.contourInterval = 0.5;
+        setTerrainDisplay(doc, terrain, display);
+    }
+    TerrainSurfaceCache surfaces;
+    TerrainContourCache contourCache;
+    const auto surfacesBefore = surfaces.get(doc, terrain);
+    (void)contourCache.get(doc, terrain);
+    const auto path = relPlan(doc, terrain, {{-12, 2}, {-3, 1}, {9, -2}});
+    const auto points = planPoints(doc, terrain, path);
+    const auto sculpt = sculptCommand(terrain, {{"mode", "raise"},
+                                                {"path", points},
+                                                {"radius", 4.5},
+                                                {"falloff", "smooth"},
+                                                {"amount", 1.25}});
+    // The data as the desktop builds it from the command (terrain.sculpt's conversion).
+    const auto toLocal = doc.worldTransform(terrain).inverse();
+    auto data = std::make_shared<TerrainSculptData>();
+    for (const auto &value : points) {
+        const auto xy = value.toArray();
+        const auto local = toLocal.point({xy[0].toDouble(), xy[1].toDouble(), 0});
+        data->path.push_back({local.x + 0.0, local.y + 0.0});
+    }
+    data->radius = 4.5;
+    data->amount = 1.25;
+    const auto before = encoded(doc);
+    const auto revision = doc.revision();
+    const auto history = doc.history().total;
+    const bool dirty = doc.dirty();
+    const auto preview = previewTerrainSculpt(doc, terrain, terrainSculptKind, data);
+    check(preview.edit && !preview.moving.empty() && preview.plan.refusal.empty(),
+          "the preview plans a change");
+    check(preview.moving.size() == preview.plan.change.lifted.size() &&
+              std::all_of(preview.moving.begin(), preview.moving.end(),
+                          [](const auto &m) { return m.second > 0 && m.second <= 1; }),
+          "every moving vertex has its weight");
+    check(encoded(doc) == before && doc.revision() == revision && doc.history().total == history &&
+              doc.dirty() == dirty,
+          "a preview changes no revision, history, dirty state or encoding");
+    const auto mesh = terrainEditMeshCache().get(doc, terrain, true);
+    const auto display = terrainPreviewDisplay(*mesh, preview.edit->region);
+    std::set<TerrainTileKey> candidateKeys;
+    for (const auto &tile : preview.edit->region.tiles)
+        candidateKeys.insert(tile->key);
+    std::size_t ring = 0;
+    for (const auto &tile : display.tiles)
+        ring += !tile.candidate;
+    check(ring > 0 && display.hidden.size() == preview.edit->region.replaced.size() + ring,
+          "the preview hides the replaced tiles and their seam ring");
+    const auto offset = terrainElevationOffset(doc, terrain);
+    std::map<TerrainTileKey, std::vector<TerrainContourSegment>> previewContours;
+    for (const auto &tile : preview.edit->region.tiles)
+        previewContours[tile->key] = terrainTileContours(*tile, 0.5, offset);
+    // Commit: the remembered plan is taken.
+    run(doc, sculpt);
+    check(!takeRememberedTerrainSculptPlan(doc, terrain, terrainSculptKind, *data),
+          "the commit took the remembered plan");
+    std::map<TerrainTileKey, BodyPtr> committed;
+    for (const auto &[id, tile] : tilesOf(doc, terrain))
+        committed[tile->tileKey] = tile;
+    for (const auto &tile : preview.edit->region.tiles)
+        check(committed.contains(tile->key) &&
+                  terrainTileContent(*committed.at(tile->key))->sameMesh(*tile),
+              "the committed tiles equal the previewed candidate bit for bit");
+    // The preview's normals and outer edges are the committed per-tile surfaces, bit for bit.
+    const auto after = surfaces.get(doc, terrain);
+    std::set<TerrainTileKey> drawn;
+    for (const auto &tile : display.tiles) {
+        drawn.insert(tile.content->key);
+        const auto &body = committed.at(tile.content->key);
+        const auto surface = after->tile(body->id);
+        check(surface && surface->normals == tile.normals,
+              "a drawn tile's normals equal the committed surface's bit for bit");
+        check(surface->outerEdges.size() == tile.outerEdges.size(),
+              "a drawn tile's outer edges are the committed ones");
+    }
+    for (const auto &[id, tile] : tilesOf(doc, terrain))
+        if (!drawn.contains(tile->tileKey))
+            check(after->tile(id) == surfacesBefore->tile(id),
+                  "every tile the preview does not draw keeps its surface");
+    // Contours: each candidate tile's segments are the committed tile's.
+    const auto contours = contourCache.get(doc, terrain);
+    for (std::size_t i = 0; i < contours->tileStarts.size(); ++i) {
+        const auto [id, first] = contours->tileStarts[i];
+        const auto last = i + 1 < contours->tileStarts.size() ? contours->tileStarts[i + 1].second
+                                                              : contours->segments.size();
+        const auto key = doc.bodies().at(id)->tileKey;
+        if (!previewContours.contains(key))
+            continue;
+        const auto &expected = previewContours.at(key);
+        check(last - first == expected.size(), "a candidate tile's contour count is the commit's");
+        for (std::size_t s = 0; s < expected.size(); ++s)
+            check(contours->segments[first + s].a == expected[s].a &&
+                      contours->segments[first + s].b == expected[s].b &&
+                      contours->segments[first + s].index == expected[s].index,
+                  "a candidate tile's contours are the commit's bit for bit");
+    }
+    // An independent plan (no remembered plan) gives the same tiles.
+    {
+        Document other;
+        const auto copy = importRings(other);
+        forgetRememberedTerrainSculptPlan();
+        run(other, sculptCommand(copy, {{"mode", "raise"},
+                                        {"path", planPoints(other, copy, path)},
+                                        {"radius", 4.5},
+                                        {"falloff", "smooth"},
+                                        {"amount", 1.25}}));
+        std::map<TerrainTileKey, BodyPtr> tiles;
+        for (const auto &[id, tile] : tilesOf(other, copy))
+            tiles[tile->tileKey] = tile;
+        for (const auto &tile : preview.edit->region.tiles)
+            check(tiles.contains(tile->key) &&
+                      terrainTileContent(*tiles.at(tile->key))->sameMesh(*tile),
+                  "an independent plan commits the previewed candidate");
+    }
+    // Amend: a typed amount, then a wider brush (other tiles), revise the same entry.
+    const auto entries = doc.history().total;
+    auto stamp = doc.amendmentStamp();
+    auto amended = sculpt;
+    amended["amount"] = -0.75;
+    executeAmend(doc, stamp, batch(doc, {amended}));
+    check(doc.history().total == entries && recordOf(doc, terrain).edits.size() == 1 &&
+              lastSculpt(doc, terrain).amount == -0.75,
+          "a typed amount revises the same entry");
+    check(doc.history().entries.back().label == "Sculpt terrain",
+          "the revised entry keeps its label");
+    stamp = doc.amendmentStamp();
+    amended["radius"] = 14.0;
+    {
+        // The generic policy refuses a replacement that replaces other tiles.
+        auto copy = doc;
+        auto copyStamp = copy.amendmentStamp();
+        const auto refused = refusal([&] {
+            copy.amendLast(copyStamp, [&](Document &candidate) {
+                executeBatch(candidate, batch(candidate, {amended}));
+            });
+        });
+        check(!refused.message.empty(), "the generic amend refuses other tiles");
+    }
+    executeAmend(doc, stamp, batch(doc, {amended}));
+    check(doc.history().total == entries && lastSculpt(doc, terrain).radius == 14.0,
+          "the terrain amend may replace other tiles of the terrain");
+    checkC6(doc, terrain, "amend");
+    checkC7(doc, terrain, "amend");
+    {
+        Document other;
+        const auto copy = importRings(other);
+        auto direct = amended;
+        direct["terrain"] = QString::number(copy);
+        direct["path"] = planPoints(other, copy, path);
+        run(other, direct);
+        std::map<TerrainTileKey, std::shared_ptr<const TerrainTileContent>> a, b;
+        for (const auto &[id, tile] : tilesOf(doc, terrain))
+            a[tile->tileKey] = terrainTileContent(*tile);
+        for (const auto &[id, tile] : tilesOf(other, copy))
+            b[tile->tileKey] = terrainTileContent(*tile);
+        check(a.size() == b.size() &&
+                  std::equal(a.begin(), a.end(), b.begin(), b.end(),
+                             [](const auto &x, const auto &y) {
+                                 return x.first == y.first && x.second->sameMesh(*y.second);
+                             }),
+              "the revised terrain's tiles equal the direct change's");
+    }
+    // An intervening edit ends the revision.
+    stamp = doc.amendmentStamp();
+    auto paint = recordOf(doc, terrain).display;
+    paint.contourInterval = 1;
+    setTerrainDisplay(doc, terrain, paint);
+    check(!doc.canAmend(stamp), "an intervening edit ends the revision");
+    doc.undo();
+    doc.undo();
+    check(recordOf(doc, terrain).edits.empty(), "one Undo removes the revised sculpt");
+    std::cout << "desktop preview: " << preview.moving.size() << " vertices, "
+              << preview.edit->region.replaced.size() << " tiles, " << ring
+              << " seam-ring tiles redrawn\n";
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     std::cout << std::unitbuf;
@@ -1628,7 +1817,7 @@ int main(int argc, char **argv) {
         {"codec", codec},               {"assistant surface", assistantSurface},
         {"hostile region", hostileRegion}, {"cancel inside entry", cancelInsideEntry},
         {"exact area", exactArea},      {"piece block", pieceBlock},
-        {"sequence", sequence}};
+        {"sequence", sequence},         {"desktop preview", desktopPreview}};
     int failed = 0;
     for (const auto &[name, test] : tests) {
         if (argc > 1 && std::string(argv[1]) != name)

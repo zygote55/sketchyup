@@ -18,6 +18,7 @@
 #include <QMenuBar>
 #include <QToolBar>
 #include <QToolButton>
+#include <QWidgetAction>
 namespace sketchy {
 // R095.d (ADR 0168 "Decisions > Interaction design"): File > Import terrain…. Unlike the other
 // importers, terrain import adds to the open document (owner decision 11).
@@ -255,11 +256,25 @@ void Window::setupTerrainTools(QActionGroup *group, QToolBar *rail) {
 void Window::setupTerrainMenu() {
     terrainMenu_ = menuBar()->addMenu("&Terrain");
     terrainMenu_->setObjectName("terrainMenu");
-    terrainMenu_->addSection("Tools");
+    // Headings as the mockup draws them: muted text above each group (the style draws a QMenu
+    // section as a bare separator). They are labels, not items, so keyboard navigation skips them.
+    auto heading = [this](const QString &text, const QString &name) {
+        auto *label = new QLabel(text);
+        label->setObjectName(name);
+        label->setContentsMargins(14, 6, 14, 2);
+        label->setProperty("terrainMenuHeading", true);
+        auto *entry = new QWidgetAction(terrainMenu_);
+        entry->setDefaultWidget(label);
+        entry->setEnabled(false);
+        terrainMenu_->addAction(entry);
+        return entry;
+    };
+    heading("Tools", "terrainMenuToolsHeading");
     // Edit contours, Stamp pad and Drape join the tools with R096.f2.
     for (const auto *id : {"tool.29", "tool.30"})
         terrainMenu_->addAction(findChild<QAction *>(id));
-    terrainHeading_ = terrainMenu_->addSection("Selected terrain");
+    terrainMenu_->addSeparator();
+    terrainHeading_ = heading("No terrain selected", "terrainMenuTerrainHeading");
     for (const auto *id :
          {"terrain.settings", "terrain.regenerate", "terrain.resetEdits", "terrain.explode"})
         terrainMenu_->addAction(findChild<QAction *>(id));
@@ -268,8 +283,11 @@ void Window::setupTerrainMenu() {
     connect(terrainMenu_, &QMenu::aboutToShow, this, [this] {
         syncTerrainActions();
         const auto terrain = selectedTerrain(doc_, viewport_->selectionState());
-        terrainHeading_->setText(terrain ? QString::fromStdString(doc_.bodies().at(terrain)->name)
-                                         : QString("No terrain selected"));
+        if (auto *label = qobject_cast<QLabel *>(
+                static_cast<QWidgetAction *>(terrainHeading_)->defaultWidget())) {
+            label->setText(terrain ? QString::fromStdString(doc_.bodies().at(terrain)->name)
+                                   : QString("No terrain selected"));
+        }
     });
 }
 void Window::syncTerrainTools() {

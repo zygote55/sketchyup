@@ -49,6 +49,7 @@
 #include <QStyle>
 #include <QStyleHints>
 #include <QTabBar>
+#include <QWidgetAction>
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolBar>
@@ -1210,6 +1211,7 @@ void Window::applyTheme() {
 QMainWindow,QWidget {background:$surface;color:$ink;font-family:'DejaVu Sans';font-size:$textPx;}
 QMenuBar {padding:5px;background:$surface;border-bottom:1px solid $border;}
 QMenuBar::item {padding:5px 10px;} QMenuBar::item:selected,QMenu::item:selected {background:$selected;}
+QMenu::item:disabled {color:$muted;}
 QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
 #tray {border-left:1px solid $border;} #section,#overlayHeading {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
@@ -1393,6 +1395,13 @@ QFrame#terrainDialogBanner[tone="notice"] {border:1px solid $warningBorder;backg
     themeRail(colors);
     if (terrainStrip_)
         terrainStrip_->setColors(colors);
+    // R096.f1: the Terrain menu's headings are muted labels.
+    if (terrainMenu_)
+        for (auto *entry : terrainMenu_->actions())
+            if (auto *widget = qobject_cast<QWidgetAction *>(entry))
+                if (auto *label = widget->defaultWidget())
+                    label->setStyleSheet(QString("color:%1;background:transparent;")
+                                             .arg(colors.muted.name()));
     if (auto *components = findChild<ComponentsTab *>())
         components->setTheme(colors);
 }

@@ -1331,6 +1331,12 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_link_libraries(terrain_site_desktop_tests PRIVATE sketchyup_desktop Qt6::Test)
     add_test(NAME terrain_site_desktop COMMAND terrain_site_desktop_tests)
     set_tests_properties(terrain_site_desktop PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # R096.f1 (UX_DESIGN §15, ADR 0169 §5): the Sculpt and Smooth tools, the terrain preview
+    # path, the strip, the Terrain menu and rail slot, amend and the keyboard path.
+    add_executable(terrain_edit_input_tests tests/terrain_edit_input_tests.cpp)
+    target_link_libraries(terrain_edit_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    add_test(NAME terrain_edit_input COMMAND terrain_edit_input_tests)
+    set_tests_properties(terrain_edit_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
   install(TARGETS sketchyup RUNTIME DESTINATION bin)
   install(FILES docs/api/mcp-native-2026-07-28.json docs/api/inspection-desktop-v1.json DESTINATION share/doc/sketchyup/api)
