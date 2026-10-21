@@ -1980,6 +1980,16 @@ struct TerrainEditPreviewRequest {
     std::optional<DrapeCommand> drape;
     std::size_t overlayRoom{};
 };
+TerrainPadFootprint terrainPadFootprint(const Document &doc, const QJsonValue &footprint) {
+    const auto found = footprintOf(doc, footprint, Transform{});
+    TerrainPadFootprint result;
+    result.z = found.z;
+    result.body = found.body;
+    result.face = found.face;
+    for (const auto &p : found.plan)
+        result.outline.push_back({p[0], p[1], found.z.value_or(0.0)});
+    return result;
+}
 const QJsonObject &terrainEditPreviewCommand(const TerrainEditPreviewRequest &request) {
     return request.command;
 }
@@ -2261,6 +2271,8 @@ TerrainCommandPreview runTerrainEditPreview(const TerrainEditPreviewRequest &req
         }
         if (change)
             preview.outline = previewOutline(change->added);
+        if (change && request.stamp)
+            preview.added = change->added; // the pad's cut and fill tint
         if (change)
             preview.candidate = TerrainEditPreview{record.nextEditId,
                                                    replaceTerrainRegion(mesh, *change),

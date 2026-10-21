@@ -1519,6 +1519,8 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"
         : t == Viewport::Tool::ThreePointArc                         ? "[x,y,z] or 24s"
         : t == Viewport::Tool::Contours ? "elevation, [x,y] or @E,N"
+        : t == Viewport::Tool::Pad      ? "elevation or slope, or [x,y] or @E,N"
+        : t == Viewport::Tool::Drape    ? "click or Enter"
         : Viewport::terrainTool(t) ? "radius, [x,y] or @E,N, then a value"
                                                                      : "width, depth");
 }

@@ -356,16 +356,15 @@ void menuAndRail(Window &window) {
     for (auto *entry : terrainMenu->actions())
         if (!entry->isSeparator())
             entries << entry->text();
-    for (const auto *name : {"Sculpt", "Smooth", "Edit contours", "Terrain settings…",
-                             "Regenerate terrain", "Reset edits…", "Explode terrain…",
-                             "Create terrain from selection"})
+    for (const auto *name : {"Sculpt", "Smooth", "Edit contours", "Stamp pad", "Drape",
+                             "Terrain settings…", "Regenerate terrain", "Reset edits…",
+                             "Explode terrain…", "Create terrain from selection"})
         check(entries.contains(name), std::string("the Terrain menu has ") + name);
-    for (const auto *name : {"Stamp pad", "Drape"})
-        check(!entries.contains(name),
-              std::string("tools not built yet are not shown (f2b): ") + name);
     check(action(window, "tool.29")->shortcut() == QKeySequence("Shift+S") &&
               action(window, "tool.30")->shortcut().isEmpty() &&
-              action(window, "tool.31")->shortcut().isEmpty(),
+              action(window, "tool.31")->shortcut().isEmpty() &&
+              action(window, "tool.32")->shortcut().isEmpty() &&
+              action(window, "tool.33")->shortcut().isEmpty(),
           "only Sculpt has a default shortcut, Shift+S");
     // The shortcut editor's conflict check: Shift+S is Sculpt's alone where it can be live, and
     // no command uses a plain [ or ].
@@ -478,8 +477,9 @@ void menuAndRail(Window &window) {
                       for (auto *entry : qobject_cast<QMenu *>(&shown)->actions())
                           if (!entry->isSeparator())
                               items << entry->text();
-                      for (const auto *name : {"Sculpt", "Smooth", "Edit contours",
-                                               "Terrain settings…", "Explode terrain…"})
+                      for (const auto *name :
+                           {"Sculpt", "Smooth", "Edit contours", "Stamp pad", "Drape",
+                            "Terrain settings…", "Explode terrain…"})
                           check(items.contains(name),
                                 std::string("the context menu offers ") + name + ": " +
                                     items.join(", ").toStdString());

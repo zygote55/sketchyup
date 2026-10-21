@@ -24,7 +24,8 @@ namespace {
 // R096.f2 (UX §15.1): the terrain tools' actions in menu order, and each tool's name on the rail
 // slot and in the strip's switcher (the mockup's "Contours ▸", "Pad ▸", "Drape ▸").
 const std::vector<const char *> &terrainToolActionIds() {
-    static const std::vector<const char *> ids{"tool.29", "tool.30", "tool.31"};
+    static const std::vector<const char *> ids{"tool.29", "tool.30", "tool.31", "tool.32",
+                                               "tool.33"};
     return ids;
 }
 QString terrainToolRailName(Viewport::Tool tool) {
@@ -33,6 +34,10 @@ QString terrainToolRailName(Viewport::Tool tool) {
         return "Smooth";
     case Viewport::Tool::Contours:
         return "Contours";
+    case Viewport::Tool::Pad:
+        return "Pad";
+    case Viewport::Tool::Drape:
+        return "Drape";
     default:
         return "Sculpt";
     }
@@ -180,6 +185,13 @@ void Window::syncTerrainActions() {
     const bool model = workspace_ == Workspace::Model && !assistantFenced_;
     findChild<QAction *>("terrain.createFromSelection")
         ->setEnabled(model && !selectedTerrainEdges(selection).isEmpty());
+    if (auto *drape = findChild<QAction *>("terrain.drapeSelection")) {
+        bool lines = !selectedTerrainEdges(selection).isEmpty();
+        for (const auto &entity : selection.entities())
+            lines = lines || (entity.kind == SelectionKind::Face &&
+                              terrainOfBody(doc_, entity.body) == 0);
+        drape->setEnabled(model && lines && doc_.materializedTotals().terrainTriangles > 0);
+    }
     const auto selected = model ? selectedTerrain(doc_, selection) : 0;
     const bool terrain = selected != 0;
     for (const auto *id : {"terrain.settings", "terrain.regenerate", "terrain.explode"})
@@ -204,7 +216,12 @@ void Window::showViewportMenu(const QPoint &position) {
     Id terrain = 0;
     if (const auto [body, face] = viewport_->pick(position); body)
         terrain = terrainOfBody(doc_, body);
-    if (terrain && selectedTerrain(doc_, viewport_->selectionState()) != terrain &&
+    // R096.f2: with lines to drape selected, right-clicking the terrain keeps them selected, so
+    // the menu can offer Drape onto terrain.
+    syncTerrainActions();
+    const auto *drape = findChild<QAction *>("terrain.drapeSelection");
+    const bool drapeable = drape && drape->isEnabled();
+    if (terrain && !drapeable && selectedTerrain(doc_, viewport_->selectionState()) != terrain &&
         !viewport_->selectionState().context()) {
         viewport_->setSelection(terrain);
         sync();
@@ -234,6 +251,8 @@ void Window::showViewportMenu(const QPoint &position) {
         menu.addAction(findChild<QAction *>("terrain.explode"));
         menu.addSeparator();
     }
+    if (auto *drape = findChild<QAction *>("terrain.drapeSelection"); drape && drape->isEnabled())
+        menu.addAction(drape);
     menu.addAction(findChild<QAction *>("terrain.createFromSelection"));
     menu.exec(viewport_->mapToGlobal(position));
 }
@@ -254,6 +273,14 @@ void Window::setupTerrainTools(QActionGroup *group, QToolBar *rail) {
     add("Smooth", "", Viewport::Tool::Smooth);
     // R096.f2 (UX §15.1): no default shortcuts; they can be assigned in the shortcut editor.
     add("Edit contours", "", Viewport::Tool::Contours)->setProperty("command", "terrain.edit_source");
+    add("Stamp pad", "", Viewport::Tool::Pad)->setProperty("command", "terrain.stamp_pad");
+    add("Drape", "", Viewport::Tool::Drape)->setProperty("command", "terrain.drape");
+    // UX §15.1: with edges or faces selected, the context menu offers Drape onto terrain.
+    auto *drape = action("terrain.drapeSelection", "Drape onto terrain", {}, [this] {
+        tool(Viewport::Tool::Drape, {});
+    });
+    drape->setProperty("command", "terrain.drape");
+    drape->setProperty("requiresSelection", true);
     // The rail's Terrain slot: one control in its own group after Tape. It shows the last
     // terrain tool used ("Terrain" until one is, as the approved mockup draws it) and starts it
     // (Sculpt at first). Like the other groups it has no separator on the wide rail, which has

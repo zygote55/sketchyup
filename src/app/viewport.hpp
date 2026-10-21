@@ -81,7 +81,9 @@ class Viewport : public QOpenGLWidget {
         // R096.f1 (UX_DESIGN §15): the terrain tools. f2 adds Contours, Pad and Drape.
         Sculpt = 29,
         Smooth = 30,
-        Contours = 31
+        Contours = 31,
+        Pad = 32,
+        Drape = 33
     };
     void setTool(Tool tool);
     void setSceneTransitionDuration(int milliseconds);
@@ -203,7 +205,8 @@ class Viewport : public QOpenGLWidget {
     bool terrainEdgeDrawn(Id tile, Id edge) const;
     // ---- R096.f1: the terrain tools (viewport_sculpt.cpp; UX_DESIGN §15.1–15.2, §15.7) ----
     static bool terrainTool(Tool tool) {
-        return tool == Tool::Sculpt || tool == Tool::Smooth || tool == Tool::Contours;
+        return tool == Tool::Sculpt || tool == Tool::Smooth || tool == Tool::Contours ||
+               tool == Tool::Pad || tool == Tool::Drape;
     }
     // The brush tools of R096.f1; the others plan on the worker (R096.f2).
     static bool sculptTool(Tool tool) { return tool == Tool::Sculpt || tool == Tool::Smooth; }
@@ -280,6 +283,38 @@ class Viewport : public QOpenGLWidget {
         std::optional<double> promoteLevel; // the display contour level under the pointer
     };
     ContourToolView contourTool() const;
+    // ---- R096.f2: Stamp pad (viewport_stamp.cpp; UX_DESIGN §15.4) ----
+    struct PadToolView {
+        Id terrain{};
+        bool footprint{};          // a footprint is chosen (else `outline` is the hovered one's)
+        bool hovering{};
+        QString name;              // "Building A"
+        std::vector<Vec3> outline; // the footprint (model)
+        double footprintZ{}, elevation{}; // model Z
+        QString refusal;
+        bool previewShown{}, refused{};
+        QString failure;
+        std::optional<Vec3> failureAt;
+        std::size_t cut{}, fill{}, rays{};
+    };
+    PadToolView padTool() const;
+    // ---- R096.f2: Drape (viewport_drape.cpp; UX_DESIGN §15.5) ----
+    struct DrapeToolView {
+        Id terrain{};
+        std::size_t faces{}, edges{}, runs{}, clipped{};
+        QString summary; // "1 face, 5 edges · 1 edge clipped"
+        QString refusal;
+        bool previewShown{}, refused{};
+        QString failure;
+        std::optional<Vec3> failureAt;
+    };
+    DrapeToolView drapeTool() const;
+    // R096.f2: the bounded terrain report of the last terrain change or replay committed for a
+    // terrain from the desktop (its "terrainReport"), for the Terrain edits notices.
+    QJsonObject lastTerrainReport(Id terrain) const;
+    void rememberTerrainReport(Id terrain, const QJsonObject &batchResult);
+    void setLastTerrainReport(Id terrain, const QJsonObject &report, const QString &title);
+    QString lastTerrainReportTitle(Id terrain) const;
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
@@ -744,6 +779,59 @@ class Viewport : public QOpenGLWidget {
     void finishContourAdd(bool close);
     void emitContourStatus();
     void paintContourTool(QPainter &painter);
+    // R096.f2: Stamp pad (viewport_stamp.cpp).
+    struct PadFootprint {
+        QJsonObject footprint; // terrain.stamp_pad's footprint
+        QString name, error;
+        std::vector<Vec3> outline; // model
+        double z{};
+    };
+    struct PadToolState {
+        Id terrain{};
+        QJsonObject footprint;
+        QString name;
+        std::vector<Vec3> outline;
+        double footprintZ{}, delta{};
+        std::optional<QPointF> anchor;
+        PadFootprint hover;
+        QPointF screen;
+        QString refusal;
+    } padTool_;
+    double padElevation() const;
+    QJsonObject padCommand(double elevation) const;
+    bool padFootprintOf(const SelectedEntity &entity, PadFootprint &out) const;
+    Id padTerrainUnder(const std::vector<Vec3> &outline) const;
+    void choosePadFootprint(const PadFootprint &footprint);
+    void beginPadTool();
+    void cancelPadOperation();
+    QString padMeasurementLabel() const;
+    void emitPadStatus();
+    void padHover(QPointF point);
+    bool padPress(QMouseEvent *event);
+    void commitPad(std::optional<double> elevation = std::nullopt);
+    void amendPad(const QJsonObject &command, const QString &done);
+    bool padKey(QKeyEvent *event);
+    bool padMeasurements(const QString &text);
+    void paintPadTool(QPainter &painter);
+    // R096.f2: Drape (viewport_drape.cpp).
+    struct DrapeToolState {
+        QJsonArray edges, faces;
+        Id terrain{};
+        QPointF screen;
+        QString refusal;
+        const void *paintFor{}; // the preview the draped paint loops belong to
+        std::vector<std::pair<QColor, std::vector<Vec3>>> paint;
+    } drapeTool_;
+    QJsonObject drapeCommand() const;
+    void beginDrapeTool();
+    void emitDrapeStatus();
+    void drapeHover(QPointF point);
+    bool drapePress(QMouseEvent *event);
+    void commitDrape();
+    bool drapeKey(QKeyEvent *event);
+    bool drapeMeasurements(const QString &text);
+    void paintDrapeTool(QPainter &painter);
+    std::map<Id, std::pair<QJsonObject, QString>> terrainReports_; // the last report, its title
     SelectionSet boxBase_;
     QPointF selectionStart_, selectionEnd_, lastClickPosition_;
     bool selectionPressed_{}, selectingBox_{}, pickDirty_{true}, overlayDirty_{true};

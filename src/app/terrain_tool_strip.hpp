@@ -12,6 +12,7 @@
 #include <QFrame>
 #include <functional>
 class QButtonGroup;
+class QCheckBox;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -43,6 +44,21 @@ class TerrainToolStrip final : public QFrame {
     QComboBox *roleField() const { return role_; }
     QLineEdit *elevationField() const { return elevation_; }
     QToolButton *contourButton(const QString &name) const;
+    // R096.f2 (UX §15.4): Stamp pad: the footprint, Daylight or Fixed width, Cut, Fill, Max
+    // distance or Width, Pad offset and the cut and fill legend.
+    QLabel *padSummary() const { return padSummary_; }
+    QToolButton *padModeButton(TerrainStampMode mode) const;
+    QLineEdit *cutField() const { return cut_; }
+    QLineEdit *fillField() const { return fill_; }
+    QLineEdit *maxDistanceField() const { return maxDistance_; }
+    QLineEdit *padWidthField() const { return padWidth_; }
+    QLineEdit *padOffsetField() const { return padOffset_; }
+    QWidget *legend() const { return legend_; }
+    // R096.f2 (UX §15.5): Drape: Imprint or Overlay, Paint regions, Lift and the summary.
+    QToolButton *drapeModeButton(bool overlay) const;
+    QCheckBox *paintRegionsField() const { return paintRegions_; }
+    QLineEdit *liftField() const { return lift_; }
+    QLabel *drapeSummary() const { return drapeSummary_; }
 
   signals:
     // The switcher asked for a terrain tool (a Viewport::Tool value).
@@ -74,6 +90,13 @@ class TerrainToolStrip final : public QFrame {
     QLineEdit *elevation_{};
     QWidget *roleBox_{}, *elevationBox_{};
     QToolButton *addContour_{}, *addBreakline_{}, *addSpot_{}, *promote_{}, *removeSource_{};
+    // R096.f2: Stamp pad and Drape.
+    QList<QWidget *> padControls_, drapeControls_;
+    QLabel *padSummary_{}, *drapeSummary_{};
+    QButtonGroup *padModes_{}, *drapeModes_{};
+    QLineEdit *cut_{}, *fill_{}, *maxDistance_{}, *padWidth_{}, *padOffset_{}, *lift_{};
+    QWidget *cutBox_{}, *fillBox_{}, *maxDistanceBox_{}, *padWidthBox_{}, *liftBox_{}, *legend_{};
+    QCheckBox *paintRegions_{};
     bool syncing_{};
 };
 } // namespace sketchy

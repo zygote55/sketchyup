@@ -81,6 +81,7 @@ bool Viewport::commitTerrainEdit(const QJsonObject &command, const QString &done
     terrainCommitted_ = {};
     withdrawTerrainEditPreview();
     const auto terrain = Id(command["terrain"].toString().toULongLong());
+    rememberTerrainReport(terrain, result);
     prefetchTerrainDigest(terrain);
     QElapsedTimer timing;
     timing.start();
@@ -91,6 +92,36 @@ bool Viewport::commitTerrainEdit(const QJsonObject &command, const QString &done
     emit message(done);
     emit terrainToolChanged();
     return true;
+}
+// The last change's or replay's report per terrain (the Terrain edits notices, UX §15.6).
+void Viewport::rememberTerrainReport(Id terrain, const QJsonObject &batchResult) {
+    const auto operations = batchResult["terrainOperations"].toArray();
+    if (operations.isEmpty())
+        return;
+    const auto operation = operations.last().toObject();
+    const auto report = operation["terrainReport"].toObject();
+    if (report.isEmpty())
+        return;
+    const auto command = operation["command"].toString();
+    const QString title = command == "terrain.stamp_pad"       ? "Stamp pad"
+                          : command == "terrain.drape"         ? "Drape on terrain"
+                          : command == "terrain.sculpt"        ? "Sculpt terrain"
+                          : command == "terrain.edit_source"   ? "Edit contour"
+                          : command == "terrain.add_source"    ? "Add contour"
+                          : command == "terrain.remove_source" ? "Remove contour"
+                                                               : "Terrain change";
+    setLastTerrainReport(terrain, report, title);
+}
+void Viewport::setLastTerrainReport(Id terrain, const QJsonObject &report, const QString &title) {
+    terrainReports_[terrain] = {report, title};
+}
+QJsonObject Viewport::lastTerrainReport(Id terrain) const {
+    const auto found = terrainReports_.find(terrain);
+    return found == terrainReports_.end() ? QJsonObject{} : found->second.first;
+}
+QString Viewport::lastTerrainReportTitle(Id terrain) const {
+    const auto found = terrainReports_.find(terrain);
+    return found == terrainReports_.end() ? QString{} : found->second.second;
 }
 QString Viewport::sitePlace(const Vec3 &model) const {
     const auto units = doc_.displayUnits();

@@ -15,6 +15,7 @@
 #include <QOpenGLVersionFunctionsFactory>
 #include <QPainter>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QTimer>
 #include <QTabBar>
 #include <QVector2D>
@@ -76,6 +77,9 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     setMouseTracking(true);
     setMinimumSize(160, 160);
     setAccessibleName("3D model viewport");
+    // R096.f2 (UX §15.4): the pad offset is remembered across sessions.
+    terrainOptions_.padOffset = std::clamp(
+        QSettings("SketchyUp", "SketchyUp").value("terrainPadOffset", 0.0).toDouble(), 0.0, 100.0);
     // R096.f2 (ADR 0169 §5): contour edits, stamps and drapes plan on a one-thread worker.
     terrainWorker_ = new TerrainPreviewWorker(this);
     connect(terrainWorker_, &TerrainPreviewWorker::finished, this,
