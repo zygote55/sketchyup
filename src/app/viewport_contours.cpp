@@ -396,8 +396,7 @@ QString Viewport::contourMeasurementLabel() const {
     const auto *source = contourSource(tool.selected);
     if (!source)
         return "Position";
-    if (tool.focus >= 0)
-        return "Position";
+    // A number sets the elevation; a typed position moves the focused handle.
     return source->role == TerrainSourceRole::Points ? QString("Position") : QString("Elevation");
 }
 void Viewport::emitContourStatus() {
@@ -452,6 +451,7 @@ void Viewport::emitContourStatus() {
     if (!terrainEditRequest_.error.isEmpty() && (tool.dragging || !tool.adding.empty() ||
                                                  tool.mode == ContourMode::Promote))
         text = "Nothing would change: " + terrainEditRequest_.error;
+    terrainFailureStatus_ = tool.dragging && refused ? text : QString();
     if (text == terrainStatusShown_)
         return;
     terrainStatusShown_ = text;

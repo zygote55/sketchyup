@@ -249,6 +249,9 @@ class Viewport : public QOpenGLWidget {
     const QJsonObject &terrainEditRequested() const { return terrainEditRequest_.command; }
     bool terrainEditPreviewCurrent() const;
     TerrainPreviewWorker &terrainPreviewWorker() { return *terrainWorker_; }
+    // The status-bar text of a refusal at the pointer while one is shown (the window draws it in
+    // the failure style), else empty.
+    const QString &terrainFailureStatus() const { return terrainFailureStatus_; }
     // ---- R096.f2: Edit contours (viewport_contours.cpp; UX_DESIGN §15.3, §15.7) ----
     enum class ContourMode { Edit, AddContour, AddBreakline, AddSpot, Promote };
     void setContourMode(ContourMode mode);
@@ -648,7 +651,7 @@ class Viewport : public QOpenGLWidget {
         std::vector<Vec3> ring, halfRing;
     } terrainOverlay_;
     void emitTerrainStatus();
-    QString terrainStatusShown_;
+    QString terrainStatusShown_, terrainFailureStatus_;
     // R096.f2: the worker preview (viewport_terrain_preview.cpp).
     TerrainPreviewWorker *terrainWorker_{};
     struct TerrainEditRequest {
