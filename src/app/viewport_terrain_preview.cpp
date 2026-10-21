@@ -16,6 +16,7 @@
 #include "core/terrain_stamp.hpp"
 #include <QElapsedTimer>
 #include <QPainter>
+#include <QTimer>
 namespace sketchy {
 std::shared_ptr<const TerrainCommandPreview> Viewport::terrainEditPreviewShown() const {
     return terrainEditShown_;
@@ -25,12 +26,17 @@ bool Viewport::terrainEditPreviewCurrent() const {
            terrainEditShown_->command == terrainEditRequest_.command;
 }
 void Viewport::requestTerrainEditPreview(const QJsonObject &command) {
-    if (command == terrainEditRequest_.command && !command.isEmpty())
+    if (command == terrainEditRequest_.command && !command.isEmpty() &&
+        terrainEditRequest_.document == doc_.identity() &&
+        terrainEditRequest_.revision == doc_.revision())
         return; // already asked for
-    terrainEditRequest_ = {command, 0, {}};
+    terrainEditRequest_ = {command, 0, {}, doc_.identity(), doc_.revision()};
     try {
         terrainEditRequest_.generation =
             terrainWorker_->request(prepareTerrainEditPreview(doc_, command));
+        if (!terrainEditPaintWait_->isActive())
+            terrainEditPaintWait_->start();
+        return; // the frame follows the plan (updateAfterTerrainEdit)
     } catch (const std::exception &error) {
         // Refused before planning (the command's own checks): nothing is planned or drawn.
         terrainEditRequest_.error = QString::fromUtf8(error.what());
@@ -42,7 +48,12 @@ void Viewport::requestTerrainEditPreview(const QJsonObject &command) {
     }
     update();
 }
+void Viewport::updateAfterTerrainEdit() {
+    if (!terrainEditPaintWait_->isActive())
+        update();
+}
 void Viewport::withdrawTerrainEditPreview() {
+    terrainEditPaintWait_->stop();
     if (terrainWorker_)
         terrainWorker_->cancel();
     terrainEditRequest_ = {};
@@ -60,12 +71,21 @@ void Viewport::terrainEditPreviewFinished(qulonglong,
         return;
     terrainEditShown_ = std::move(preview);
     terrainPreviewDirty_ = true;
+    if (terrainEditPreviewCurrent())
+        terrainEditPaintWait_->stop();
     stats_.terrainPlanMs = terrainEditShown_->planMs;
     emitTerrainStatus();
     emit terrainToolChanged();
     update();
 }
-bool Viewport::commitTerrainEdit(const QJsonObject &command, const QString &done) {
+void Viewport::holdTerrainStatus(const QString &text) {
+    terrainStatusShown_ = text;
+    terrainStatusHeld_ = true;
+    terrainFailureStatus_.clear();
+    emit message(text);
+}
+bool Viewport::commitTerrainEdit(const QJsonObject &command, const QString &done,
+                                 QString *error) {
     QJsonObject result;
     try {
         terrainSession_.begin(); // a new edit, never an amend of the last one
@@ -73,9 +93,11 @@ bool Viewport::commitTerrainEdit(const QJsonObject &command, const QString &done
         timing.start();
         result = terrainSession_.commit(command, BatchResponse::Changes);
         stats_.terrainCommandMs = double(timing.nsecsElapsed()) / 1e6;
-    } catch (const std::exception &error) {
+    } catch (const std::exception &failure) {
         terrainSession_.cancel();
-        emit message(QString("Nothing changed: %1").arg(QString::fromUtf8(error.what())));
+        if (error)
+            *error = QString::fromUtf8(failure.what());
+        holdTerrainStatus(QString("Nothing changed: %1").arg(QString::fromUtf8(failure.what())));
         return false;
     }
     terrainCommitted_ = {};
@@ -87,8 +109,7 @@ bool Viewport::commitTerrainEdit(const QJsonObject &command, const QString &done
     refresh();
     emit changed();
     stats_.terrainRefreshMs = double(timing.nsecsElapsed()) / 1e6;
-    terrainStatusShown_.clear();
-    emit message(done);
+    holdTerrainStatus(done);
     emit terrainToolChanged();
     return true;
 }

@@ -690,7 +690,8 @@ struct SourceEditDryRun {
 };
 SourceEditDryRun dryRunSourceEdit(SourceEditCommand &parsed, const TerrainEditMesh &mesh,
                                   const TerrainParameters &parameters,
-                                  TerrainProgress *progress = nullptr) {
+                                  TerrainProgress *progress = nullptr,
+                                  std::uint64_t *mergedOut = nullptr) {
     SourceEditDryRun run;
     TerrainSource next;
     next.id = parsed.data->source;
@@ -703,6 +704,8 @@ SourceEditDryRun dryRunSourceEdit(SourceEditCommand &parsed, const TerrainEditMe
         for (std::size_t i = 0; i < run.plan.resolved.size(); ++i)
             run.merged += run.plan.resolved[i] != parsed.data->points[i];
         parsed.data->points = run.plan.resolved;
+        if (mergedOut)
+            *mergedOut = run.merged; // reported even when the second plan is refused
         // The commit plans the resolved points, which can give another cavity: plan them.
         next.points = parsed.data->points;
         run.plan = planTerrainSourceEdit(context, parsed.before, &next);
@@ -739,16 +742,19 @@ QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeR
     TerrainSourceEditPlan plan;
     {
         const auto mesh = terrainEditMeshCache().get(doc, parsed.terrain, true);
+        std::uint64_t merged = 0;
         try {
             resolvePromotion(parsed, *mesh);
-            auto run = dryRunSourceEdit(parsed, *mesh, record.parameters);
-            plan = std::move(run.plan);
-            if (run.merged)
-                report.add(TerrainReport::Severity::Notice, "merged-duplicates", run.merged,
-                           "Vertices within 1e-7 m of existing ones were merged into them.");
+            plan = dryRunSourceEdit(parsed, *mesh, record.parameters, nullptr, &merged).plan;
         } catch (const TerrainEditRefused &error) {
+            if (merged)
+                report.add(TerrainReport::Severity::Notice, "merged-duplicates", merged,
+                           "Vertices within 1e-7 m of existing ones were merged into them.");
             refused(error);
         }
+        if (merged)
+            report.add(TerrainReport::Severity::Notice, "merged-duplicates", merged,
+                       "Vertices within 1e-7 m of existing ones were merged into them.");
     }
     {
         const auto at = parsed.world.point(sourceEditPlace(parsed, plan));
@@ -2199,11 +2205,13 @@ TerrainCommandPreview runTerrainEditPreview(const TerrainEditPreviewRequest &req
             preview.source = parsed.data->source;
             preview.role = parsed.data->role;
             preview.points = parsed.data->points;
-            checkList({record.nextEditId, parsed.kind, parsed.data});
+            // The command checks the triangle limit, then applyTerrainEdit the list.
             if (checkTriangles(std::ptrdiff_t(run.plan.change.added.size()) -
                                    std::ptrdiff_t(run.plan.change.removed.size()),
-                               sourceEditPlace(parsed, run.plan), "Contour edit"))
+                               sourceEditPlace(parsed, run.plan), "Contour edit")) {
+                checkList({record.nextEditId, parsed.kind, parsed.data});
                 change = std::move(run.plan.change);
+            }
         } else if (request.stamp) {
             preview.kind = terrainStampKind;
             const auto &data = request.stamp->data;
@@ -2216,12 +2224,13 @@ TerrainCommandPreview runTerrainEditPreview(const TerrainEditPreviewRequest &req
             preview.fill = plan.fill;
             preview.touching = plan.touching;
             preview.dropped = plan.dropped;
-            checkList({record.nextEditId, terrainStampKind, plan.resolved});
             const auto &first = data->footprint.front();
             if (checkTriangles(std::ptrdiff_t(plan.addedTriangles) -
                                    std::ptrdiff_t(plan.cavityTriangles),
-                               {first[0], first[1], 0}, "Stamp pad"))
+                               {first[0], first[1], 0}, "Stamp pad")) {
+                checkList({record.nextEditId, terrainStampKind, plan.resolved});
                 change = std::move(plan.change);
+            }
         } else if (request.drape) {
             preview.kind = terrainDrapeKind;
             preview.overlay = request.drape->overlay;
@@ -2252,11 +2261,12 @@ TerrainCommandPreview runTerrainEditPreview(const TerrainEditPreviewRequest &req
                     reject("INVALID_REQUEST", "Nothing to overlay: the faces cover no terrain "
                                               "triangle and no edge lies on the terrain");
             } else {
-                checkList({record.nextEditId, terrainDrapeKind, plan.resolved});
                 if (checkTriangles(std::ptrdiff_t(plan.change.added.size()) -
                                        std::ptrdiff_t(plan.change.removed.size()),
-                                   plan.resolved->runs.front().front(), "Drape on terrain"))
+                                   plan.resolved->runs.front().front(), "Drape on terrain")) {
+                    checkList({record.nextEditId, terrainDrapeKind, plan.resolved});
                     change = std::move(plan.change);
+                }
             }
         }
         if (change)

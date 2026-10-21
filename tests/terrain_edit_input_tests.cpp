@@ -1353,6 +1353,18 @@ void contoursShownAndSelected(Window &window) {
     QTest::keyClick(view, Qt::Key_Escape);
     check(view->contourTool().selected == 0 && view->tool() == Viewport::Tool::Contours,
           "Escape clears the selection first");
+    // Delete with no source selected never reaches the window's Delete (the terrain is the
+    // model selection).
+    view->setSelection(terrain);
+    changed(window);
+    const auto revision = doc.revision();
+    window.activateWindow();
+    view->setFocus();
+    QTest::keyClick(view, Qt::Key_Delete);
+    QTest::qWait(10);
+    check(doc.revision() == revision && isTerrain(doc, terrain) &&
+              status(window) == "Select a source contour, breakline or spot point first",
+          "Delete without a source deletes nothing: " + status(window).toStdString());
     view->setTool(Viewport::Tool::Select);
 }
 
