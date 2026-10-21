@@ -15,6 +15,13 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Faster terrain commits (R096.f1b, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f1b)):
+  a one-tile sculpt commit no longer hashes the whole terrain before the frame (the mesh digest
+  is computed when first read, or in the background, with the same value as before), and the
+  view redraws only the changed tiles' contour rows and recomputes the lighting of the tiles
+  around them instead of rebuilding them. At 250,000 triangles the work before the frame drops
+  from about 130 ms to 51–64 ms.
+
 - Terrain tools on the desktop, part 1 (R096.f1, [UX_DESIGN §15](docs/UX_DESIGN.md#15-terrain-editing),
   [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f1)):
   a **Terrain** menu between Draw and Camera (the tools, then Terrain settings…, Regenerate
