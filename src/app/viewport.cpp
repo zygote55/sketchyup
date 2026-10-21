@@ -6,6 +6,7 @@
 #include "core/component_regeneration.hpp"
 #include "core/hierarchy_changes.hpp"
 #include "core/shading_normals.hpp"
+#include "core/terrain_sculpt.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLocale>
@@ -108,6 +109,7 @@ Viewport::Viewport(Document &doc, QWidget *parent)
 Viewport::~Viewport() {
     if (!terrainCacheIdentity_.empty())
         terrainEditMeshCache().forget(terrainCacheIdentity_);
+    forgetRememberedTerrainSculptPlan(); // it may hold this document's terrain and mesh
     cleanupGL();
 }
 void Viewport::cleanupGL() {
@@ -2052,6 +2054,8 @@ void Viewport::refresh() {
         terrainCandidateShown_ = false;
         terrainPreviewDirty_ = true;
     }
+    if (terrainToolActive())
+        buildTerrainOverlay(); // the surface under the brush may have changed
     if (selectionDocument_ != doc_.identity()) {
         cancel();
         configuredPlane_.reset();
@@ -2081,8 +2085,12 @@ void Viewport::setSelection(Id body, Id face) {
 void Viewport::setTool(Tool tool) {
     // R096.f1: choosing the active terrain tool again (Shift+S, the rail, the strip) keeps an
     // anchored spot or region and the chance to revise the last edit.
-    if (terrainTool(tool) && tool == tool_)
+    if (terrainTool(tool) && tool == tool_) {
+        terrainStatusShown_.clear();
+        emit toolChanged(int(tool));
+        emitTerrainStatus();
         return;
+    }
     cancel();
     assemblyAmend_.reset();
     const bool wasTerrain = terrainTool(tool_);

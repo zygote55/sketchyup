@@ -2305,7 +2305,9 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     validateHostedAmendment(undo_.back().edit, staged.undo_.back().edit, *baselineHosted,
                             *staged.hosted_, policy == AmendPolicy::CopyArray);
     for (const auto &[id, body] : baseline)
-        if (!contexts.contains(id) && !terrainTile(body) &&
+        if (!contexts.contains(id) &&
+            !(terrainTile(body) &&
+              (!staged.bodies_.contains(id) || terrainTile(staged.bodies_.at(id)))) &&
             (!staged.bodies_.contains(id) || staged.bodies_.at(id) != body))
             throw std::runtime_error("Replacement cannot change another editing context");
     for (const auto &[id, definition] : baselineDefinitions)

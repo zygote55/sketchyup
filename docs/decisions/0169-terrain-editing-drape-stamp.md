@@ -2357,26 +2357,26 @@ Samples:
 - **Commit:** the release, from the event to the completed frame showing the committed tiles.
 - **Nine-tile brush:** the same drag with a radius of 1.1 cells, at 16 tiles.
 - Each stroke is undone outside the timing.
+- Best of three runs (R095.f's method); the three runs' one-tile preview p95 were 112–118 ms and 67–83 ms.
 
 | Terrain | One-tile preview p50 / p95 (max) | of which: event, display build, frame (p95) | Frame without a candidate (p95) | One-tile commit p50 / p95 (max) | of which: event (command and edit), cache rebuild, frame (p95) | Nine tiles: preview / commit p95 |
 | --- | ---: | --- | ---: | ---: | --- | ---: |
-| 125,000 points (249,970 triangles, 256 tiles; 214 vertices, 1,123 triangles) | 86.4 / 106.4 ms (120.9) | 18.9, 19.7, 94.1 ms | 76.1 ms | 172.0 / 206.1 ms (213.7) | 66.1, 72.4, 139.0 ms | 173.6 / 530.8 ms (13,527 triangles in up to 13 tiles) |
-| 416 contour rings (249,298 triangles, 3,169 tiles; 155 vertices, 920 triangles) | 60.5 / 71.3 ms (91.9) | 10.4, 12.4, 63.0 ms | 51.7 ms | 170.5 / 193.1 ms (196.9) | 84.0, 63.6, 108.3 ms | 176.7 / 505.1 ms (8,797 triangles in up to 13 tiles) |
+| 125,000 points (249,970 triangles, 256 tiles; 214 vertices, 1,123 triangles) | 91.2 / 112.3 ms (145.8) | 22.0, 21.3, 101.9 ms | 82.4 ms | 187.8 / 216.4 ms (223.1) | 72.1, 74.9, 148.3 ms | 174.1 / 565.2 ms (13,527 triangles in up to 13 tiles) |
+| 416 contour rings (249,298 triangles, 3,169 tiles; 155 vertices, 920 triangles) | 60.4 / 66.9 ms (85.5) | 9.9, 11.2, 58.2 ms | 48.9 ms | 165.2 / 186.6 ms (206.8) | 83.4, 55.8, 100.2 ms | 189.0 / 523.5 ms (8,797 triangles in up to 13 tiles) |
 
 - **Preview, one tile (p95 ≤ 100 ms).**
-  - It passes on the contours terrain (71.3 ms) and narrowly misses on the points terrain
-    (106.4 ms).
-  - The work this slice adds is small: the event (the pick and the plan on the edit mesh) costs
-    10–19 ms, and building and uploading the candidate's display costs 12–20 ms.
-  - The rest is the frame. llvmpipe alone takes 52–76 ms p95 for the same view without a candidate.
+  - It passes on the contours terrain (66.9 ms) and misses on the points terrain (112.3 ms).
+  - The work this slice adds is small: the event (the pick, the plan on the edit mesh and the
+    overlay) costs 10–22 ms, and building and uploading the candidate's display costs 11–21 ms.
+  - The rest is the frame. llvmpipe alone takes 49–82 ms p95 for the same view without a candidate.
   - R095.f judged frames on the AMD GPU, where a complete 250k frame is p95 0.8–0.9 ms, so the
     preview should be about 30–40 ms there. This has not been measured: the AMD session is a
     hardware session for the owner (R096.g).
 - **Commit, one tile (p95 ≤ 100 ms, decision 10).** **Not met** under these conditions: p95 is
-  193–206 ms. Leaving the frame aside, the CPU part alone is 130–150 ms:
-  - The release event takes 66–84 ms: `terrain.sculpt` through the batch API plus the viewport's
+  187–216 ms. Leaving the frame aside, the CPU part alone is 130–150 ms:
+  - The release event takes 72–83 ms: `terrain.sculpt` through the batch API plus the viewport's
     refresh. R096.b measured 40–65 ms for the command, mostly the whole-terrain SHA-256.
-  - The commit frame's cache rebuild takes 56–72 ms: per-tile surfaces and contours,
+  - The commit frame's cache rebuild takes 56–75 ms: per-tile surfaces and contours,
     re-tessellation of the rebuilt tiles and their seam ring, and re-upload of the terrain's whole
     contour batch.
 
@@ -2391,7 +2391,7 @@ Samples:
   - keeping the seam-ring tiles' tessellations when only their normals change.
 
   These are recorded for R096.g.
-- **Nine tiles (reported).** Preview p95 is 174–177 ms and commit p95 is 505–531 ms.
+- **Nine tiles (reported).** Preview p95 is 174–189 ms and commit p95 is 524–565 ms.
   - The ADR's estimate of about 130 ms for the nine-tile commit and display covered only the core
     commit (101–103 ms in R096.b) and the cache update without the viewport.
   - Here the release also adds the batch and the refresh.

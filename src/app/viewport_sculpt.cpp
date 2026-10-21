@@ -331,7 +331,8 @@ void Viewport::beginTerrainTool() {
             // The terrain under the region's first corner.
             Id terrain = 0;
             for (const auto &[id, body] : doc_.bodies())
-                if (body->kind == BodyKind::Terrain && !terrain) {
+                if (body->kind == BodyKind::Terrain && !terrain &&
+                    selection_.inActiveHierarchy(doc_, id)) {
                     for (const auto &p : loop)
                         if (terrainElevation(id, p.x, p.y)) {
                             terrain = id;
@@ -429,6 +430,7 @@ void Viewport::terrainHover(QPointF point) {
                 }
                 brush_.path.push_back(hit->second);
                 updateTerrainCandidate(true);
+                return emitTerrainStatus(), update(); // the overlay was rebuilt with it
             }
         } else if (!brush_.pressed) {
             if (hit)
@@ -440,16 +442,18 @@ void Viewport::terrainHover(QPointF point) {
             }
         }
     }
+    if (brush_.stroking || terrainOptions_.scope == TerrainToolOptions::Scope::Region)
+        buildTerrainOverlay(); // the ring follows the pointer between stroke samples
     emitTerrainStatus();
     update();
 }
 bool Viewport::terrainPress(QMouseEvent *event) {
     const auto point = event->position();
-    brush_.modifiers = event->modifiers();
     if (brush_.anchored) {
-        commitTerrain();
+        commitTerrain(); // the previewed spot, whatever the modifiers on this click
         return true;
     }
+    brush_.modifiers = event->modifiers();
     const auto hit = terrainHit(point);
     if (terrainOptions_.scope == TerrainToolOptions::Scope::Region) {
         if (brush_.regionClosed) {
@@ -809,7 +813,7 @@ void Viewport::commitTerrain(std::optional<double> value) {
     }
     cancelTerrainOperation(true);
     terrainCommitted_ = command;
-    refresh();
+    refresh(); // rebuilds the overlay on the committed surface
     emit changed();
     terrainStatusShown_.clear();
     emitTerrainStatus();
@@ -854,7 +858,7 @@ bool Viewport::terrainMeasurements(const QString &text) {
             z = terrainElevation(terrain, (*position)[0], (*position)[1]);
         if (!z)
             for (const auto &[id, body] : doc_.bodies())
-                if (body->kind == BodyKind::Terrain)
+                if (body->kind == BodyKind::Terrain && selection_.inActiveHierarchy(doc_, id))
                     if ((z = terrainElevation(id, (*position)[0], (*position)[1]))) {
                         terrain = id;
                         break;

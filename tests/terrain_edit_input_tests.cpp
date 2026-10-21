@@ -702,6 +702,11 @@ void spotAndAmend(Window &window) {
               lastSculpt(doc, terrain).path.size() == 1,
           "a second click commits the one-spot amount");
     checkCommitted(doc, terrain, *candidate, "spot");
+    check(view->terrainBrush().ringPoints == 72, "the ring stays on the committed surface");
+    // Choosing the active tool again keeps the revision and the instruction.
+    action(window, "tool.29")->trigger();
+    check(!view->terrainAmendable().isEmpty() && !status(window).isEmpty(),
+          "re-choosing Sculpt keeps the revision and the status bar's instruction");
     // A typed value amends the same entry (UX §4.3).
     const auto entries = doc.history().total;
     check(step(window) == "Amount" && !view->terrainAmendable().isEmpty(),
