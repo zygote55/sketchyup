@@ -25,7 +25,10 @@
 #include <QTableWidget>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <array>
 #include <cmath>
+#include <cstring>
+#include <limits>
 #include <set>
 #include <tuple>
 namespace sketchy {
@@ -123,36 +126,124 @@ QJsonArray selectedTerrainEdges(const Selection &selection) {
                                      {"edge", QString::number(entity.entity)}});
     return edges;
 }
+namespace {
+using ContourPoints = std::set<std::tuple<double, double, double>>;
+ContourPoints contourPoints(const TerrainSources &sources) {
+    ContourPoints contour;
+    for (const auto &source : sources)
+        if (source.role == TerrainSourceRole::Contour)
+            for (const auto &p : source.points)
+                contour.insert({p.x, p.y, p.z});
+    return contour;
+}
+// One face's flat-area test: three contour vertices at one elevation (within 1e-9 m); its planar
+// area when it is flat. Shared by the full scan and the per-tile cache, so both give the same
+// bits.
+std::optional<double> flatTriangleArea(const Surface &surface, const Face &face,
+                                       const ContourPoints &contour) {
+    const auto &loop = face.loops.front();
+    if (loop.size() != 3)
+        return std::nullopt;
+    std::array<Vec3, 3> p;
+    bool onContours = true;
+    for (int i = 0; i < 3; ++i) {
+        p[i] = surface.vertices.at(loop[i]);
+        onContours &= contour.contains({p[i].x, p[i].y, p[i].z});
+    }
+    if (!onContours || std::abs(p[1].z - p[0].z) > 1e-9 || std::abs(p[2].z - p[0].z) > 1e-9)
+        return std::nullopt;
+    return std::abs((p[1].x - p[0].x) * (p[2].y - p[0].y) - (p[2].x - p[0].x) * (p[1].y - p[0].y)) /
+           2;
+}
+} // namespace
 TerrainFlatArea terrainFlatArea(const Document &doc, Id terrain) {
     TerrainFlatArea flat;
     if (!isTerrain(doc, terrain))
         return flat;
-    std::set<std::tuple<double, double, double>> contour;
-    for (const auto &source : doc.bodies().at(terrain)->terrain->sources)
-        if (source.role == TerrainSourceRole::Contour)
-            for (const auto &p : source.points)
-                contour.insert({p.x, p.y, p.z});
+    const auto contour = contourPoints(doc.bodies().at(terrain)->terrain->sources);
     for (const auto id : terrainTiles(doc, terrain)) {
         const auto &surface = doc.bodies().at(id)->surface;
-        for (const auto &[face, record] : surface.faces) {
-            const auto &loop = record.loops.front();
-            if (loop.size() != 3)
-                continue;
-            std::array<Vec3, 3> p;
-            bool onContours = true;
-            for (int i = 0; i < 3; ++i) {
-                p[i] = surface.vertices.at(loop[i]);
-                onContours &= contour.contains({p[i].x, p[i].y, p[i].z});
+        for (const auto &[face, record] : surface.faces)
+            if (const auto area = flatTriangleArea(surface, record, contour)) {
+                ++flat.triangles;
+                flat.area += *area;
             }
-            if (!onContours || std::abs(p[1].z - p[0].z) > 1e-9 || std::abs(p[2].z - p[0].z) > 1e-9)
-                continue;
-            ++flat.triangles;
-            flat.area += std::abs((p[1].x - p[0].x) * (p[2].y - p[0].y) -
-                                  (p[2].x - p[0].x) * (p[1].y - p[0].y)) /
-                         2;
-        }
     }
     return flat;
+}
+void TerrainStatisticsCache::clear() {
+    document_.clear();
+    terrain_ = 0;
+    sources_ = TerrainSources();
+    hasSources_ = false;
+    world_ = Transform();
+    contour_.reset();
+    tiles_.clear();
+}
+TerrainStatistics TerrainStatisticsCache::get(const Document &doc, Id terrain) {
+    TerrainStatistics result;
+    if (!isTerrain(doc, terrain)) {
+        clear(); // holds nothing for a terrain that is gone
+        return result;
+    }
+    const auto &record = *doc.bodies().at(terrain)->terrain;
+    const auto world = doc.worldTransform(terrain);
+    // The base sources (flat areas) and the world transform (elevations, compared bit for bit:
+    // -0.0 and 0.0 give different signed-zero results) feed every tile.
+    const auto sameBits = [](const Transform &a, const Transform &b) {
+        return std::memcmp(a.m.data(), b.m.data(), sizeof(a.m)) == 0;
+    };
+    if (doc.identity() != document_ || terrain != terrain_ || !hasSources_ ||
+        sources_.block() != record.sources.block() || !sameBits(world_, world)) {
+        clear();
+        document_ = doc.identity();
+        terrain_ = terrain;
+        sources_ = record.sources;
+        hasSources_ = true;
+        world_ = world;
+    }
+    if (!contour_)
+        contour_ = std::make_shared<const ContourPoints>(contourPoints(record.sources));
+    const auto ids = terrainTiles(doc, terrain); // ID order, as the full scan
+    ++generation_;
+    result.tiles = ids.size();
+    result.low = std::numeric_limits<double>::infinity();
+    result.high = -result.low;
+    for (const auto id : ids) {
+        const auto &body = doc.bodies().at(id);
+        auto found = tiles_.find(id);
+        if (found == tiles_.end() || found->second.body != body) {
+            // Scanned aside and stored only when complete, so a throw leaves no partial tile.
+            Tile scanned;
+            scanned.low = std::numeric_limits<double>::infinity();
+            scanned.high = -scanned.low;
+            for (const auto &[vertex, point] : body->surface.vertices) {
+                const auto z = world.point(point).z;
+                scanned.low = std::min(scanned.low, z);
+                scanned.high = std::max(scanned.high, z);
+            }
+            for (const auto &[face, faceRecord] : body->surface.faces)
+                if (const auto area = flatTriangleArea(body->surface, faceRecord, *contour_))
+                    scanned.flatAreas.push_back(*area);
+            scanned.body = body;
+            ++scans_;
+            found = tiles_.insert_or_assign(id, std::move(scanned)).first;
+        }
+        auto &tile = found->second;
+        tile.generation = generation_;
+        result.triangles += body->surface.faces.size();
+        result.low = std::min(result.low, tile.low);
+        result.high = std::max(result.high, tile.high);
+        // The same additions in the same order as the full scan.
+        for (const auto area : tile.flatAreas) {
+            ++result.flat.triangles;
+            result.flat.area += area;
+        }
+    }
+    // Tiles the terrain no longer has (an edit's replaced tiles take new IDs).
+    if (tiles_.size() != ids.size())
+        std::erase_if(tiles_, [&](const auto &item) { return item.second.generation != generation_; });
+    return result;
 }
 QString terrainToolRefusal(const QString &tool) {
     return tool + " does not edit terrain. Edit it with the terrain tools, or explode it to work "

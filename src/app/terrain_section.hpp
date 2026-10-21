@@ -1,5 +1,6 @@
 #pragma once
 #include "app/collapsible_section.hpp"
+#include "app/terrain_actions.hpp"
 #include "app/viewport.hpp"
 class QCheckBox;
 class QComboBox;
@@ -30,6 +31,7 @@ class TerrainSection : public CollapsibleSection {
     QDoubleSpinBox *intervalBox() const { return interval_; }
     QComboBox *shadingBox() const { return shading_; }
     QLabel *contourStatus() const { return contourStatus_; }
+    const TerrainStatisticsCache &statistics() const { return statistics_; } // tests
 
   private:
     void applyDisplay();
@@ -47,5 +49,6 @@ class TerrainSection : public CollapsibleSection {
     QCheckBox *contours_{};
     QDoubleSpinBox *interval_{};
     QComboBox *shading_{};
+    TerrainStatisticsCache statistics_; // R096.f1c
 };
 } // namespace sketchy

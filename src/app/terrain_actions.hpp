@@ -25,6 +25,10 @@
 #include <QTimer>
 #include <memory>
 #include <optional>
+#include <set>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
@@ -51,6 +55,46 @@ struct TerrainFlatArea {
     double area{};
 };
 TerrainFlatArea terrainFlatArea(const Document &doc, Id terrain);
+// R096.f1c: the Terrain section's whole-terrain figures: the tile and triangle counts, the
+// elevation range in world Z (as terrain.describe reports it; meaningful when `tiles` > 0) and
+// the flat areas, bit for bit what a full scan gives (terrainFlatArea and a scan of every
+// vertex).
+struct TerrainStatistics {
+    std::size_t tiles{}, triangles{};
+    double low{}, high{};
+    TerrainFlatArea flat;
+};
+// Computes TerrainStatistics per tile and combines them in the full scan's order (tile ID, then
+// face), so the sums are the same bits. A tile's figures are kept while the tile record (an
+// immutable body, by identity), the document, the terrain's base sources and its world transform
+// are the same, so after an edit only the replaced tiles are scanned. One terrain at a time;
+// not thread-safe.
+class TerrainStatisticsCache {
+  public:
+    TerrainStatistics get(const Document &doc, Id terrain);
+    // Drops everything it holds (the section hides, or shows another document).
+    void clear();
+    // Tiles scanned so far, and tiles held now (tests).
+    std::size_t tileScans() const { return scans_; }
+    std::size_t heldTiles() const { return tiles_.size(); }
+
+  private:
+    struct Tile {
+        BodyPtr body; // keeps the identity unique
+        double low{}, high{};
+        std::vector<double> flatAreas; // in face order
+        std::uint64_t generation{};    // the last read that saw it
+    };
+    std::string document_; // Document::identity()
+    Id terrain_{};
+    TerrainSources sources_; // holds the base sources' block, by identity
+    bool hasSources_{};
+    Transform world_;
+    std::shared_ptr<const std::set<std::tuple<double, double, double>>> contour_;
+    std::unordered_map<Id, Tile> tiles_;
+    std::uint64_t generation_{};
+    std::size_t scans_{};
+};
 // The status-bar text of a tool that refuses a terrain tile.
 QString terrainToolRefusal(const QString &tool);
 

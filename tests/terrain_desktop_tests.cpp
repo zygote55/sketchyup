@@ -45,7 +45,14 @@
 #include <QTest>
 #include <QTimer>
 #include <QTreeWidget>
+#include <bit>
+#include <tuple>
+#include <set>
+#include <iterator>
+#include <algorithm>
+#include <cmath>
 #include <iostream>
+#include <limits>
 using namespace sketchy;
 namespace {
 QString shots;
@@ -1009,6 +1016,210 @@ void toolsOnTerrain(Window &window) {
 }
 } // namespace
 
+// ---- R096.f1c: the section's figures, per tile --------------------------------------------
+// Rings of contours (flat triangles between points of one ring) over several tiles.
+QByteArray ringContours(int rings, int vertices) {
+    QByteArray out = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\n"
+                     "ENDSEC\n0\nSECTION\n2\nENTITIES\n";
+    for (int k = 0; k < rings; ++k) {
+        const double r = 10 + 3 * k, z = 105 - 0.5 * k;
+        out += "0\nLWPOLYLINE\n5\n" + QByteArray::number(0x100 + k, 16).toUpper() +
+               "\n8\nCONTOURS\n90\n" + QByteArray::number(vertices) + "\n70\n1\n38\n" +
+               QByteArray::number(z, 'f', 4) + '\n';
+        for (int i = 0; i < vertices; ++i) {
+            const double t = 2 * 3.14159265358979323846 * i / vertices + 0.05 * k;
+            out += "10\n" + QByteArray::number(r * std::cos(t) * 1.3, 'f', 4) + "\n20\n" +
+                   QByteArray::number(r * std::sin(t), 'f', 4) + '\n';
+        }
+    }
+    out += "0\nENDSEC\n0\nEOF\n";
+    return out;
+}
+// The full scan the section made before R096.f1c.
+TerrainStatistics fullScan(const Document &doc, Id terrain) {
+    TerrainStatistics full;
+    const auto tiles = terrainTiles(doc, terrain);
+    full.tiles = tiles.size();
+    full.triangles = terrainTriangleCount(doc, terrain);
+    full.low = std::numeric_limits<double>::infinity();
+    full.high = -full.low;
+    const auto world = doc.worldTransform(terrain);
+    for (const auto id : tiles)
+        for (const auto &[vertex, point] : doc.bodies().at(id)->surface.vertices) {
+            const auto z = world.point(point).z;
+            full.low = std::min(full.low, z);
+            full.high = std::max(full.high, z);
+        }
+    full.flat = terrainFlatArea(doc, terrain);
+    return full;
+}
+bool sameBits(double a, double b) {
+    return std::bit_cast<std::uint64_t>(a) == std::bit_cast<std::uint64_t>(b);
+}
+QJsonObject batchOf(const Document &doc, QJsonArray commands) {
+    return {{"apiVersion", 1},
+            {"documentId", QString::fromStdString(doc.identity())},
+            {"expectedRevision", QString::number(doc.revision())},
+            {"commands", commands}};
+}
+void sectionStatistics(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const QJsonObject options{{"format", "dxf"}, {"units", "header"}, {"name", "Rings"}};
+    const auto terrain =
+        importTerrainSource(doc, ringContours(24, 120), options)["terrain"].toString().toULongLong();
+    TerrainStatisticsCache cache;
+    auto same = [&](Id which, const std::string &when) {
+        const auto cached = cache.get(doc, which);
+        const auto full = fullScan(doc, which);
+        check(cached.tiles == full.tiles && cached.triangles == full.triangles &&
+                  sameBits(cached.low, full.low) && sameBits(cached.high, full.high) &&
+                  cached.flat.triangles == full.flat.triangles &&
+                  sameBits(cached.flat.area, full.flat.area),
+              "the per-tile figures equal the full scan " + when + " (" +
+                  std::to_string(cached.flat.triangles) + " flat triangles, " +
+                  std::to_string(cached.tiles) + " tiles)");
+        check(cache.heldTiles() == cached.tiles, "the cache holds exactly the terrain's tiles " + when);
+        return cached;
+    };
+    const auto first = same(terrain, "after the import");
+    check(first.tiles > 4 && first.flat.triangles > 0,
+          "the rings have several tiles and flat areas");
+    check(cache.tileScans() == first.tiles, "the first read scans every tile");
+    auto stroke = [&](const char *mode, std::vector<std::array<double, 2>> path, double radius) {
+        const auto world = doc.worldTransform(terrain);
+        QJsonArray points;
+        for (const auto &p : path) {
+            const auto m = world.point({p[0], p[1], 0});
+            points.append(QJsonArray{m.x, m.y});
+        }
+        const bool smoothing = std::string(mode) == "smooth",
+                   lowering = std::string(mode) == "lower"; // a raise by a negative amount
+        QJsonObject command{{"command", "terrain.sculpt"},
+                            {"terrain", QString::number(terrain)},
+                            {"mode", smoothing ? "smooth" : "raise"},
+                            {"path", points},
+                            {"radius", radius}};
+        command[smoothing ? "strength" : "amount"] = smoothing ? 0.8 : lowering ? -0.6 : 0.6;
+        run(doc, command);
+    };
+    // Each edit rescans only the tiles it replaced; the replaced tiles take new IDs, so the old
+    // ones leave the cache.
+    for (const auto &[mode, path, radius] :
+         std::vector<std::tuple<const char *, std::vector<std::array<double, 2>>, double>>{
+             {"raise", {{20, 0}, {28, 3}}, 4},
+             {"smooth", {{-30, -10}, {-24, -6}}, 5},
+             {"lower", {{0, 40}, {6, 44}}, 6}}) {
+        const auto before = terrainTiles(doc, terrain);
+        const auto scans = cache.tileScans();
+        stroke(mode, path, radius);
+        const auto after = terrainTiles(doc, terrain);
+        std::vector<Id> gone, added;
+        std::set_difference(before.begin(), before.end(), after.begin(), after.end(),
+                            std::back_inserter(gone));
+        std::set_difference(after.begin(), after.end(), before.begin(), before.end(),
+                            std::back_inserter(added));
+        const auto read = same(terrain, std::string("after a ") + mode);
+        const auto rescanned = cache.tileScans() - scans;
+        check(!gone.empty() && rescanned == added.size() && rescanned < read.tiles,
+              std::string("a ") + mode + " rescans exactly its new tiles (" +
+                  std::to_string(rescanned) + " of " + std::to_string(read.tiles) + ", " +
+                  std::to_string(added.size()) + " new)");
+    }
+    auto scans = cache.tileScans();
+    same(terrain, "on a second read");
+    check(cache.tileScans() == scans, "an unchanged terrain rescans nothing");
+    doc.undo();
+    same(terrain, "after Undo");
+    doc.redo();
+    same(terrain, "after Redo");
+    doc.undo();
+    doc.undo();
+    same(terrain, "after two Undos");
+    // The section's own figures, refreshed after an edit, equal a new section's (a full scan)
+    // label for label, and it rescans only the replaced tiles.
+    window.viewport()->refresh();
+    emit window.viewport()->changed();
+    select(window, terrain);
+    auto &info = section(window);
+    const char *const labels[] = {"terrainTriangles", "terrainElevation", "terrainFlatAreas"};
+    auto sameLabels = [&](const std::string &when) {
+        TerrainSection reference(doc, *window.viewport());
+        reference.refresh();
+        for (const auto *name : labels)
+            check(info.findChild<QLabel *>(name)->text() ==
+                      reference.findChild<QLabel *>(name)->text(),
+                  std::string("the section's ") + name + " equals a full scan's " + when + ": " +
+                      info.findChild<QLabel *>(name)->text().toStdString());
+    };
+    sameLabels("when shown");
+    const auto sectionScans = info.statistics().tileScans();
+    const auto beforeStroke = terrainTiles(doc, terrain);
+    stroke("raise", {{-20, 20}, {-14, 24}}, 5);
+    std::vector<Id> strokeTiles;
+    {
+        const auto afterStroke = terrainTiles(doc, terrain);
+        std::set_difference(afterStroke.begin(), afterStroke.end(), beforeStroke.begin(),
+                            beforeStroke.end(), std::back_inserter(strokeTiles));
+    }
+    window.viewport()->refresh();
+    emit window.viewport()->changed();
+    info.refresh();
+    sameLabels("after a sculpt");
+    check(info.statistics().tileScans() - sectionScans == strokeTiles.size(),
+          "the section rescans exactly the stroke's new tiles");
+    doc.undo();
+    window.viewport()->refresh();
+    emit window.viewport()->changed();
+    info.refresh();
+    sameLabels("after Undo");
+    // Hidden, it holds nothing.
+    select(window, 0);
+    info.refresh();
+    check(info.statistics().heldTiles() == 0, "a hidden section holds no tiles");
+    // A moved terrain changes every world elevation: everything is rescanned.
+    executeBatch(doc, batchOf(doc, {QJsonObject{{"command", "geometry.translate"},
+                                                {"body", QString::number(terrain)},
+                                                {"delta", QJsonArray{3.0, -2.0, 1.25}}}}));
+    scans = cache.tileScans();
+    auto moved = same(terrain, "after moving the terrain");
+    check(cache.tileScans() - scans == moved.tiles, "a move rescans every tile");
+    // So does moving a group that holds it.
+    const auto group = createGroup(doc, {terrain}, "Site");
+    same(terrain, "after grouping the terrain");
+    executeBatch(doc, batchOf(doc, {QJsonObject{{"command", "geometry.translate"},
+                                                {"body", QString::number(group)},
+                                                {"delta", QJsonArray{-1.0, 0.5, -2.5}}}}));
+    scans = cache.tileScans();
+    moved = same(terrain, "after moving its group");
+    check(cache.tileScans() - scans == moved.tiles, "a parent's move rescans every tile");
+    // Two terrains: switching reads the other one's figures, exactly.
+    const auto second =
+        importTerrainSource(doc, ringContours(10, 60), options)["terrain"].toString().toULongLong();
+    same(second, "for a second terrain");
+    same(terrain, "back on the first terrain");
+    same(second, "on the second again");
+    // A terrain that is gone (its import undone) holds nothing.
+    doc.undo();
+    const auto gone = cache.get(doc, second);
+    check(gone.tiles == 0 && gone.triangles == 0 && cache.heldTiles() == 0,
+          "a deleted terrain has no figures and the cache holds no tiles");
+    // A terrain with no mesh (every tile erased in a terrain edit): "No mesh", as the full scan.
+    {
+        auto edited = std::make_shared<Body>(*doc.bodies().at(terrain));
+        edited->terrain->generator = "edited/terrain-v1";
+        Edit erase{"Erase tiles", {{terrain, doc.bodies().at(terrain), edited}}};
+        for (const auto id : terrainTiles(doc, terrain))
+            erase.changes.push_back({id, doc.bodies().at(id), nullptr});
+        doc.apply(std::move(erase), doc.revision());
+        const auto empty = same(terrain, "with no mesh");
+        check(empty.tiles == 0 && empty.flat.triangles == 0 && cache.heldTiles() == 0,
+              "a terrain without tiles has no figures");
+        doc.undo();
+        same(terrain, "after the tiles come back");
+    }
+}
+
 int main(int argc, char **argv) {
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
@@ -1042,6 +1253,8 @@ int main(int argc, char **argv) {
                   << std::flush;
         toolsOnTerrain(window);
         std::cout << "tools on terrain\n" << std::flush;
+        sectionStatistics(window);
+        std::cout << "section statistics\n" << std::flush;
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;

@@ -15,6 +15,11 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Faster Terrain section (R096.f1c, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f1c)):
+  with a terrain selected, Entity Info's Terrain section updates its triangle count, elevation
+  range and flat areas from the tiles an edit changed instead of rescanning the whole terrain,
+  with the same values, so sculpting a selected terrain is no slower than an unselected one.
+
 - Faster terrain commits (R096.f1b, [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f1b)):
   a one-tile sculpt commit no longer hashes the whole terrain before the frame (the mesh digest
   is computed when first read, or in the background, with the same value as before), and the
