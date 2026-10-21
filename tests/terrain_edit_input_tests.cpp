@@ -1868,6 +1868,23 @@ void padPreviewCommitAmend(Window &window) {
               std::abs(lastPad(doc, terrain).fillSlope - 1.0 / 3) < 1e-12,
           "a typed slope amends it too");
     check(checkTerrainPadConsistency(doc, terrain).ok(), "C3 holds after the amends");
+    // After Undo the stamp can no longer be revised: a typed value changes nothing.
+    doc.undo();
+    changed(window);
+    const auto undone = Snapshot::of(doc);
+    enter(window, "54.5");
+    check(undone.same(doc) && view->terrainAmendable().isEmpty(),
+          "after Undo a typed value revises nothing: " + status(window).toStdString());
+    // A document change while a footprint is chosen ends the operation.
+    view->setSelection(group);
+    changed(window);
+    view->setTool(Viewport::Tool::Select);
+    startPad(window);
+    check(view->padTool().footprint, "the footprint is chosen again");
+    doc.addFace({{{2, 2, 70}, {4, 2, 70}, {4, 4, 70}, {2, 4, 70}}});
+    changed(window);
+    check(!view->padTool().footprint && !view->terrainEditPreviewShown(),
+          "a document change ends the chosen footprint and its preview");
     view->setTool(Viewport::Tool::Select);
 }
 
@@ -1980,6 +1997,27 @@ void drapeImprintAndOverlay(Window &window) {
     selectFaces(window, {{face, 0}, {outside, 0}});
     check(action(window, "terrain.drapeSelection")->isEnabled(),
           "Drape onto terrain is offered for selected faces");
+    // Right-clicking the terrain keeps the faces selected and offers Drape onto terrain (Qt's
+    // Wayland popups need a compositor serial synthetic input cannot give: checked on X11).
+    if (QGuiApplication::platformName() != "wayland") {
+        frame(view);
+        const auto onTerrain = screen(window, terrain, 10, 50);
+        check(drive(
+                  "viewportContextMenu",
+                  [&](QWidget &shown) {
+                      QStringList items;
+                      for (auto *entry : qobject_cast<QMenu *>(&shown)->actions())
+                          if (!entry->isSeparator())
+                              items << entry->text();
+                      check(items.contains("Drape onto terrain") && items.contains("Drape") &&
+                                !items.contains("Terrain settings…"),
+                            "the context menu offers Drape onto terrain: " +
+                                items.join(", ").toStdString());
+                  },
+                  [&] { emit view->contextMenuRequested(onTerrain); }),
+              "the context menu opens");
+        check(view->selectionState().entities().size() == 2, "and keeps the faces selected");
+    }
     const auto before = Snapshot::of(doc);
     action(window, "terrain.drapeSelection")->trigger();
     QTest::qWait(10);
@@ -2016,8 +2054,20 @@ void drapeImprintAndOverlay(Window &window) {
     view->frameBounds({14, 14, 46}, {60, 50, 62});
     frame(view);
     shot(window, "drape");
+    // A document change asks for the preview again (the plan belongs to its revision).
+    doc.addFace({{{2, 2, 70}, {4, 2, 70}, {4, 4, 70}, {2, 4, 70}}});
+    changed(window);
+    idle(view);
+    shown = view->terrainEditPreviewShown();
+    check(view->tool() == Viewport::Tool::Drape && shown && shown->candidate &&
+              shown->revision == doc.revision(),
+          "after a document change Drape previews again");
+    doc.undo();
+    changed(window);
+    idle(view);
+    const auto beforeEscape = Snapshot::of(doc);
     key(view, Qt::Key_Escape);
-    check(before.same(doc) && view->tool() == Viewport::Tool::Select,
+    check(beforeEscape.same(doc) && view->tool() == Viewport::Tool::Select,
           "Escape leaves the tool and changes nothing");
     // Again: Enter drapes; the terrain is selected afterwards, the tool returns to Select.
     selectFaces(window, {{face, 0}, {outside, 0}});
@@ -2026,7 +2076,7 @@ void drapeImprintAndOverlay(Window &window) {
     shown = view->terrainEditPreviewShown();
     view->setFocus();
     key(view, Qt::Key_Return);
-    check(doc.revision() == before.revision + 1 && doc.history().entries.back().label == "Drape on terrain" &&
+    check(doc.revision() == beforeEscape.revision + 1 && doc.history().entries.back().label == "Drape on terrain" &&
               recordOf(doc, terrain).edits.back()->kind == terrainDrapeKind,
           "Enter drapes as one edit");
     checkCommittedEdit(doc, terrain, *shown, "drape");
