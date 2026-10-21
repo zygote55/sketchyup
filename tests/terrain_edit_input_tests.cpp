@@ -597,6 +597,8 @@ void strokePreviewAndCommit(Window &window) {
     auto brush = view->terrainBrush();
     check(brush.terrain == terrain && brush.vertices > 10 && !brush.empty && !brush.previewShown,
           "hovering shows the vertices that will move, without a preview");
+    check(brush.ringPoints == 72 && brush.outlinePoints == 0,
+          "the brush ring lies on the surface; no outline without a preview");
     check(brush.label.startsWith("+0.80 m · radius 4.00 m") && brush.label.contains("vertices"),
           "the label gives the amount, radius, vertices and tiles: " + brush.label.toStdString());
     // Escape leaves nothing: revision, history, dirty state, encoding and the frame.
@@ -612,6 +614,8 @@ void strokePreviewAndCommit(Window &window) {
     frame(view);
     brush = view->terrainBrush();
     check(brush.stroking && brush.previewShown, "a drag paints a stroke with a preview");
+    check(brush.ringPoints == 72 && brush.outlinePoints > 20,
+          "the changed region is outlined on the surface");
     if (view->rendererReady())
         check(!view->terrainPreviewHiddenTiles().empty(),
               "the candidate is drawn in place of the tiles it replaces");

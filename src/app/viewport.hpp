@@ -224,6 +224,9 @@ class Viewport : public QOpenGLWidget {
         bool regionClosed{};
         QString label;                // the label at the brush ("+1.80 m · radius 9.00 m" …)
         QString refusal;              // why the brush cannot act here (empty when it can)
+        // The overlay draped on the surface: ring points, and points of the changed region's
+        // outline (while a candidate shows).
+        std::size_t ringPoints{}, outlinePoints{};
     };
     TerrainBrushView terrainBrush() const;
     // The candidate drawn in place of the tiles (null when none is shown), and the tile bodies it

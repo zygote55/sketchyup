@@ -166,6 +166,9 @@ Viewport::TerrainBrushView Viewport::terrainBrush() const {
         view.empty = terrainCandidate_->moving.empty();
     }
     view.previewShown = bool(terrainPreviewShown());
+    view.ringPoints = terrainOverlay_.ring.size();
+    for (const auto &outline : terrainOverlay_.outline)
+        view.outlinePoints += outline.size();
     if (brush_.point || brush_.regionClosed) {
         const auto units = doc_.displayUnits();
         const int precision = doc_.displayPrecision() == fullDisplayPrecision
@@ -755,7 +758,13 @@ void Viewport::buildTerrainOverlay() {
     collect(halfRing);
     std::vector<TerrainElevation> heights;
     try {
-        heights = terrainElevationAt(doc_, terrain, plan);
+        // terrainElevationAt takes at most terrainPointBatch points a call.
+        for (std::size_t first = 0; first < plan.size(); first += terrainPointBatch) {
+            const auto last = std::min(plan.size(), first + terrainPointBatch);
+            const auto part = terrainElevationAt(
+                doc_, terrain, {plan.begin() + std::ptrdiff_t(first), plan.begin() + std::ptrdiff_t(last)});
+            heights.insert(heights.end(), part.begin(), part.end());
+        }
     } catch (const std::exception &) {
         return;
     }
