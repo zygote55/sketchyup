@@ -2967,6 +2967,11 @@ for, as for contours.
   terrain or the new group.
 - Drape's preview label at the pointer ("Imprint · 1 face, 5 edges / Paint: Paving, grey") sits
   beside the first draped line when the target came from the keyboard.
+- Right-clicking the terrain with lines to drape selected keeps them selected; the menu then offers
+  the terrain's tools and Drape onto terrain, and leaves out Terrain settings… and Explode
+  terrain…, which act on a selected terrain.
+- An overlay in a component's context is refused by the command (`terrain_drape_tests` covers the
+  refusal); the desktop suite does not repeat it.
 
 **Measured (part 2)** with part 1's harness and conditions (`terrain_budget_benchmark
 --edit-frames 64`, Release, llvmpipe at 1920 × 1080, 4 CPUs), on the point terrain built from

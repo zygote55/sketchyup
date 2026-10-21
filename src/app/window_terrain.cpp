@@ -248,9 +248,13 @@ void Window::showViewportMenu(const QPoint &position) {
         for (const auto *id : terrainToolActionIds())
             menu.addAction(findChild<QAction *>(id));
         menu.addSeparator();
-        menu.addAction(findChild<QAction *>("terrain.settings"));
-        menu.addAction(findChild<QAction *>("terrain.explode"));
-        menu.addSeparator();
+        // Settings and Explode act on the selected terrain; with lines to drape selected instead,
+        // they would be unavailable, so the menu leaves them out.
+        if (selectedTerrain(doc_, viewport_->selectionState()) == terrain) {
+            menu.addAction(findChild<QAction *>("terrain.settings"));
+            menu.addAction(findChild<QAction *>("terrain.explode"));
+            menu.addSeparator();
+        }
     }
     if (auto *drape = findChild<QAction *>("terrain.drapeSelection"); drape && drape->isEnabled())
         menu.addAction(drape);
