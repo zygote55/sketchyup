@@ -605,10 +605,11 @@
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3 options=--cap-add=SYS_PTRACE; env: QT_FORCE_STDERR_LOGGING=1] xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/visible_focus_input_tests --workspace=sheets
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] cmake --build --preset ifc-sanitize --parallel "$(nproc)"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] cmake --preset ifc-sanitize
-[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] ctest --test-dir build/ifc-sanitize -R '^ifc_worker_probe$' --output-on-failure --no-tests=error
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_worker_fault_corpus)$' --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --build --preset ifc --parallel "$(nproc)"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --preset ifc
-[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -R '^ifc_' --output-on-failure --no-tests=error --parallel 2
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -L full --output-on-failure --no-tests=error
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] echo "key=ifc-prefix-v1-${{ steps.package-cache-key.outputs.sum }}-$sum" >> "$GITHUB_OUTPUT"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-ifcopenshell.py check /tmp/ifcopenshell-upstream/ifcopenshell-v0.9.0.tar.gz
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-ifcopenshell.py fetch /tmp/ifcopenshell-upstream
