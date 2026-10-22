@@ -186,6 +186,24 @@ What still costs most, and the next levers, in order:
 - **Per-job setup.** Container start and package installation take about a minute in each
   of the 21 jobs of a wide run. A prebuilt CI image would save part of it; fewer compile
   shards would trade wall time for runner time.
+
+Follow-ups (2026-10-22):
+
+- **Header fan-out, first pass** (PR #404). `core/body.hpp` no longer includes the terrain
+  records: `Body::terrain` is an `IndirectOptional<TerrainRecord>` (std::optional's value
+  semantics, heap-held, so the header needs only a declaration), and the site origin, tile
+  key, terrain enumerations, component parameter aliases and assembly placement types moved
+  to small headers. `app/viewport.hpp` no longer includes the terrain display, edit-mesh and
+  preview-worker headers or the component library. Objects that recompile when a header
+  changes (of 757 in `all`): terrain records 530 → 73, terrain edit 221 → 52, terrain
+  operations 234 → 68, terrain commands 207 → 37, terrain import 210 → 40, component
+  parameter records 524 → 225. `core/model.hpp` and `core/body.hpp` themselves stay at
+  about 520. Over the 48 of the last 80 PRs that changed a `src` header, the median
+  recompile falls from 221 to 171 objects and the mean from 273 to 211.
+- **Prebuilt CI image: measured, rejected.** A 6.4 GB image of the pinned base plus every
+  CI package, pulled from this repository's GHCR, took 1 min 46 s to 1 min 48 s in
+  "Initialize containers" on each of three runners, against about 65 s for today's base
+  image plus the cached package installation (about 25 s in the compile shards).
 - **Slow suites.** The terrain suites dominate CTest; the follow-up [PR #403](https://github.com/zygote55/sketchyup/pull/403) trims duplicated work in them.
 
 ## Consequences
