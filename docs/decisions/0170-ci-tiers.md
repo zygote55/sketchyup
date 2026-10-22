@@ -137,8 +137,11 @@ until a full-tier line runs it, and its source file selects the fast X11 job.
   the X11 lines in two jobs, three at a time.
 
 A prebuilt CI image on GHCR was considered: package installation from the existing
-pacman cache takes about 45 seconds per job, and pulling a 2–3 GB image would recover
-only part of that while adding an image-publishing pipeline. It is left for later.
+pacman cache takes about 45 seconds per job (the compile shards install only the
+compile packages, about 10 seconds), and pulling a 2–3 GB image would recover only part
+of that while adding an image-publishing pipeline. It is left for later (see
+Measurements). A static `ci-fast` build was also measured: the same test times, a
+9.7 GB tree and twice the link time, so the shared libraries stay.
 
 ### Removed
 
@@ -155,7 +158,35 @@ RC. A red nightly run is fixed before the next release candidate.
 
 ## Measurements
 
-MEASUREMENTS_PLACEHOLDER
+Measured on GitHub (pull-request runs into the PR #397 branch, whose cache stood in for
+`main`'s; wall time from push to the CI verdict):
+
+| Change | Run | Plan | Wall | Runner time |
+| --- | --- | --- | --- | --- |
+| Before: any change (60 runs, 2026-10-19…21) | — | all ten jobs | 41–45 min median, about 2 h worst | 143 min per run on average (228 runs, 545 runner-hours, 2026-10-14…21) |
+| Docs only (`docs/USER_GUIDE.md`) | [39707528249](https://github.com/zygote55/sketchyup/actions/runs/39707528249) | no build | **16 s** | 0.2 min |
+| Small `src/app` change (one `.cpp`) | [39707529595](https://github.com/zygote55/sketchyup/actions/runs/39707529595) | narrow; build, native | **3 min 52 s** | 20 min |
+| Core geometry header (`src/geometry/planar.hpp`, included by 580 of 837 objects) | [39712817330](https://github.com/zygote55/sketchyup/actions/runs/39712817330) | wide; build, native, slow-core | **7 min 51 s** | 51 min |
+| Narrow change selecting every slow suite (dispatch fallback) | [39704346633](https://github.com/zygote55/sketchyup/actions/runs/39704346633) | narrow; everything fast | 4 min 52 s | 27 min |
+| Full tier | [39707993131](https://github.com/zygote55/sketchyup/actions/runs/39707993131) (dispatch, `tier=full`) | full | 70 min 35 s, all green (sanitize is the critical path) | 197 min |
+
+Wall time drops about 10× for documentation and narrow changes and about 5.5× for a core
+header change. Runner time drops less, about 2.5× per run: applying the map to the 80
+pull requests merged before this change gives about 55 runner-minutes per run (wide
+compiles 51, narrow 20, docs nothing; the five that changed a shared harness run the
+full tier, about 230), plus the nightly full run (about 27 runner-hours a week), against
+545 runner-hours a week before.
+
+What still costs most, and the next levers, in order:
+
+- **Header fan-out.** `src/core/model.hpp` pulls in 36 record headers, so 565–667 of the
+  837 objects include every core header and almost every feature PR recompiles about 570
+  objects (about 20 runner-minutes of compiling, spread over the shards). Narrowing what
+  `model.hpp` includes is the largest remaining saving in both wall and runner time.
+- **Per-job setup.** Container start and package installation take about a minute in each
+  of the 21 jobs of a wide run. A prebuilt CI image would save part of it; fewer compile
+  shards would trade wall time for runner time.
+- **Slow suites.** The terrain suites dominate CTest; the follow-up [PR #403](https://github.com/zygote55/sketchyup/pull/403) trims duplicated work in them.
 
 ## Consequences
 
@@ -168,4 +199,6 @@ MEASUREMENTS_PLACEHOLDER
   static linking surface in the full tier.
 - When `main`'s cache is behind (a run is still in flight after a merge), a pull request
   can be planned wide although its own change is narrow. That costs minutes, never
-  correctness.
+  correctness. The first run on `main` after this change has no cache and compiles
+  everything in the shards (about 10 minutes).
+- Many checks appear as "skipped" on a pull request; only **CI verdict** decides.
