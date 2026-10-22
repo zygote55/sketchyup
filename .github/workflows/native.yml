@@ -1789,8 +1789,9 @@ jobs:
           SKETCHYUP_PACKAGE_SANDBOX=1 bash /work/package/verify-package.sh
   # The declared minimum, Qt 6.8.0, compiles (ADR 0170): the other jobs build on the pinned
   # Qt 6.11.2, whose transitive includes hide a missing #include (D-047). This job builds
-  # every default target (`all`) on the release walkthrough's reference snapshot and runs
-  # no tests; the EXCLUDE_FROM_ALL benchmarks and the Clang fuzzers are not built.
+  # every target (`all` and the EXCLUDE_FROM_ALL benchmarks and trial) on the release
+  # walkthrough's reference snapshot and runs no tests; the Clang fuzzers (off at configure,
+  # they need clang) are not built.
   qt68:
     name: Qt 6.8 reference compile
     needs: plan
@@ -1872,13 +1873,13 @@ jobs:
         # (no debug info, shared libraries, mold) compiles the same sources as `dev`.
         run: |
           cmake --preset ci-fast
-          cmake --build --preset ci-fast --parallel 4 -- -k 0
+          cmake --build --preset ci-fast --parallel 4 --target all terrain_triangulation_benchmark terrain_edit_benchmark assistant_workflow_trial native_persistence_benchmark component_placement_scaling component_placement_scaling_raised_limits -- -k 0
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats --verbose
       - name: Save the compiler cache
         # A failed build still saves its objects, so the rerun after a fix starts warm.
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '') }}
+        if: ${{ !cancelled() && steps.ccache-restore.outcome == 'success' && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '') }}
         uses: actions/cache/save@v5
         with:
           path: /ccache

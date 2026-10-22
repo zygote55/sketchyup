@@ -29,7 +29,8 @@ A **Plan** job (`scripts/ci-plan.py plan`, about 15 seconds, no container) choos
 tier and what runs, and checks the test-line inventory and the path map.
 
 **Full tier**: every job that existed before, unchanged in its lines (the inventory
-proves it: the full-tier lines equal the previous workflow's lines). It runs on
+proves it: the full-tier lines equal the previous workflow's lines), plus the Qt 6.8
+reference compile job `qt68` (see the follow-ups). It runs on
 
 - tags `v*` and pushes to `release/*` branches;
 - pull requests from or into a `release/*` branch;
@@ -209,9 +210,9 @@ Follow-ups (2026-10-22):
   source that compiles only through Qt 6.11's transitive includes reaches a release candidate:
   the 1.3.0 RC2 did not build on Qt 6.8.0, the declared minimum, because a test file lacked
   `#include <QJsonDocument>` ([D-047](../verification/R089a-defect-triage.md), found by the RC's
-  Qt 6.8 reference build). The full-tier job **Qt 6.8 reference compile** (`qt68`) builds the
-  default target (`all`) with `ninja -k 0` (so one run lists every break; the
-  `EXCLUDE_FROM_ALL` benchmarks and the Clang fuzzers are not built) on the Qt 6.8 reference snapshot
+  Qt 6.8 reference build). The full-tier job **Qt 6.8 reference compile** (`qt68`) builds
+  every target (`all` plus the six `EXCLUDE_FROM_ALL` benchmark and trial targets; not the
+  Clang fuzzers, which are off at configure) with `ninja -k 0` (so one run lists every break) on the Qt 6.8 reference snapshot
   (`archlinux:base-devel-20241013.0.269705`, 2024-10-15 archive, GCC 14.2.1, Qt 6.8.0), with the
   `ci-fast` preset, and runs no tests. It has its own package and compiler caches. Package
   signatures are not checked (`SigLevel = Never`): the 2024 packager keys have expired, and the
