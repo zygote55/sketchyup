@@ -44,6 +44,7 @@
 #include <QContextMenuEvent>
 #include <QDialog>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
