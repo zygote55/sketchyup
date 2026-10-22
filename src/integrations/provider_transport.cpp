@@ -210,6 +210,11 @@ struct AssistantNetworkProvider::Impl {
             task->providerFailed(attempt, AssistantTask::ProviderFailure::Fatal);
             status = QString::fromUtf8(error.what());
             notify();
+        } catch (const ProviderStreamError &error) {
+            // D-046: name the provider's own error (sanitized fields only, ADR 0034 addendum).
+            task->providerFailed(attempt, AssistantTask::ProviderFailure::Fatal);
+            status = "Provider returned an error: " + error.summary();
+            notify();
         } catch (const std::exception &) {
             task->providerFailed(attempt, AssistantTask::ProviderFailure::Fatal);
             status = "Provider returned an incomplete or invalid response";

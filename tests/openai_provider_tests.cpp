@@ -734,7 +734,15 @@ int main(int argc, char **argv) {
                  "data: "
                  "{\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"subscription_"
                  "sharing_usage_limit_exceeded\"}}}\n\n",
-                 "data: [DONE]\n\n", QByteArray(1024 * 1024 + 1, 'x')}) {
+                 "data: [DONE]\n\n", QByteArray(1024 * 1024 + 1, 'x'),
+                 // D-046: the plan service's error event precedes response.failed.
+                 "data: {\"type\":\"response.created\",\"response\":{\"id\":\"r\"}}\n\n"
+                 "data: {\"type\":\"error\",\"error\":{\"code\":\"subscription_sharing_usage_"
+                 "limit_exceeded\",\"message\":\"limit\",\"type\":\"invalid_request_error\"}}\n\n"
+                 "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":"
+                 "\"subscription_sharing_usage_limit_exceeded\"}}}\n\n",
+                 "data: {\"type\":\"error\",\"error\":{\"code\":\"model_not_found\",\"message\":"
+                 "\"The model does not exist.\"}}\n\n"}) {
             auto model = session();
             Network network;
             network.plan = true;
@@ -749,6 +757,10 @@ int main(int argc, char **argv) {
             if (stream.contains("usage_limit"))
                 check(provider.status().contains("Manage ChatGPT usage"),
                       "Plan limit directs to usage settings");
+            if (stream.contains("model_not_found"))
+                check(provider.status() ==
+                          "Provider returned an error: model_not_found: The model does not exist.",
+                      "A stream error names the provider's code and message");
         }
         {
             auto model = session();
@@ -826,6 +838,106 @@ int main(int argc, char **argv) {
             check(!completedOpenAiStream(good).isEmpty(), "Completed SSE accepted");
             rejects([&] { completedOpenAiStream(good + good); });
             rejects([&] { completedOpenAiStream(good + "data: {\"type\":\"error\"}\n\n"); });
+            // D-046: the error fields of a failed stream, sanitized (ADR 0034 addendum).
+            auto failure = [&](const QByteArray &stream) {
+                try {
+                    completedOpenAiStream(stream);
+                } catch (const ProviderStreamError &error) {
+                    check(QString::fromUtf8(error.what()) == "OpenAI stream did not complete",
+                          "A stream error keeps the fixed decode diagnostic");
+                    return error.detail();
+                }
+                throw std::runtime_error("Expected a ProviderStreamError");
+            };
+            const auto created = event(
+                {{"type", "response.created"},
+                 {"response", QJsonObject{{"id", "resp-fixture"}, {"status", "in_progress"}}}});
+            const auto progress =
+                event({{"type", "response.in_progress"}}) + event({{"type", "response.metadata"}});
+            const QJsonObject usage{{"code", "subscription_sharing_usage_limit_exceeded"},
+                                    {"message", "The ChatGPT user has reached their Subscription "
+                                                "Sharing usage limit."},
+                                    {"param", QJsonValue::Null},
+                                    {"type", "invalid_request_error"}};
+            // The sequence the plan service sent at the 1.3.0 RC: error before response.failed.
+            const auto usageStream =
+                created + progress +
+                event({{"type", "error"}, {"error", usage}, {"sequence_number", 3}}) +
+                event(
+                    {{"type", "response.failed"},
+                     {"response",
+                      QJsonObject{{"id", "resp-fixture"}, {"status", "failed"}, {"error", usage}}},
+                     {"sequence_number", 4}});
+            bool usageLimit = false;
+            try {
+                completedOpenAiStream(usageStream);
+            } catch (const ProviderUsageLimit &) {
+                usageLimit = true;
+            } catch (const std::exception &) {
+            }
+            check(usageLimit,
+                  "A usage-limit error event before response.failed is the usage limit");
+            usageLimit = false;
+            try {
+                completedOpenAiStream(created +
+                                      event({{"type", "error"},
+                                             {"code", "subscription_sharing_usage_unavailable"},
+                                             {"message", "Unavailable."}}));
+            } catch (const ProviderUsageLimit &) {
+                usageLimit = true;
+            } catch (const std::exception &) {
+            }
+            check(usageLimit, "A flat usage-unavailable error event is the usage limit");
+            const auto invalid = failure(
+                created +
+                event({{"type", "error"},
+                       {"error", QJsonObject{{"code", "invalid_function_parameters"},
+                                             {"type", "invalid_request_error"},
+                                             {"param", "tools[0].tools[29]"},
+                                             {"message",
+                                              "Invalid schema for t29.\nBearer abc.def "
+                                              "sk-proj-ABCDEFGH1234 eyJhbGciOi.eyJzdWIi.sig"}}}}));
+            check(invalid.value("event") == "error" &&
+                      invalid.value("errorType") == "invalid_request_error" &&
+                      invalid.value("code") == "invalid_function_parameters" &&
+                      invalid.value("param") == "tools[0].tools[29]",
+                  "An error event's type, code and param are recorded");
+            const auto text = invalid.value("message").toString();
+            check(text.startsWith("Invalid schema for t29. ") && !text.contains('\n') &&
+                      !text.contains("abc.def") && !text.contains("sk-proj") &&
+                      !text.contains("eyJ") && text.count("[redacted]") == 3,
+                  "An error message has control characters replaced and credentials redacted");
+            const auto flat = failure(event(
+                {{"type", "error"}, {"code", "server_error"}, {"message", QString(2000, 'm')}}));
+            check(flat.value("code") == "server_error" && !flat.contains("errorType") &&
+                      flat.value("message").toString().size() == 513,
+                  "A flat error event is recorded and its message bounded");
+            const auto incomplete = failure(
+                created +
+                event({{"type", "response.incomplete"},
+                       {"response", QJsonObject{{"id", "resp-fixture"},
+                                                {"status", "incomplete"},
+                                                {"incomplete_details",
+                                                 QJsonObject{{"reason", "max_output_tokens"}}}}}}));
+            check(incomplete.value("event") == "response.incomplete" &&
+                      incomplete.value("status") == "incomplete" &&
+                      incomplete.value("incompleteDetails") == "{\"reason\":\"max_output_tokens\"}",
+                  "An incomplete response records its status and details");
+            const auto failed = failure(event(
+                {{"type", "response.failed"},
+                 {"response", QJsonObject{{"status", "failed"},
+                                          {"status_details", QJsonObject{{"error", "timeout"}}},
+                                          {"error", QJsonObject{{"code", "server_error"},
+                                                                {"message", "Try again."}}}}}}));
+            check(failed.value("code") == "server_error" &&
+                      failed.value("message") == "Try again." &&
+                      failed.value("statusDetails") == "{\"error\":\"timeout\"}",
+                  "A failed response records its error and status details");
+            check(failure(event({{"delta", "untyped"}})).value("event") == "(none)",
+                  "An event without a type is recorded as such");
+            check(ProviderStreamError(invalid).summary().startsWith(
+                      "invalid_function_parameters: Invalid schema for t29."),
+                  "The diagnostic names the code and message");
         }
         for (const auto mode :
              {"text", "429", "503", "408", "auth", "redirect", "invalid", "incomplete", "usage",

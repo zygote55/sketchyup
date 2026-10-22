@@ -66,3 +66,24 @@ Protocol references checked 2026-10-05:
 - [OpenAI conversation state](https://developers.openai.com/api/docs/guides/conversation-state)
 - [Create Response reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
 - [libsecret helper source](https://gnome.pages.gitlab.gnome.org/libsecret/coverage/tool/secret-tool.c.gcov.html)
+
+## Addendum (2026-10-21): stream error fields (D-046)
+
+A streamed (ChatGPT-plan) reply answers HTTP 200 and reports failure in the stream: an `error`
+event, `response.failed` or `response.incomplete`. The 1.3.0 RC1 corpus run showed that the
+plan service sends `error` before `response.failed`, and that the fixed diagnostic ("Provider
+returned an incomplete or invalid response") hid an account usage limit
+([D-046](../verification/R089a-defect-triage.md)). The rule above is narrowed for these events
+only:
+
+- The usage-limit codes `subscription_sharing_usage_limit_exceeded` and
+  `subscription_sharing_usage_unavailable` are recognised on `error` as well as on
+  `response.failed`, and end the task with the existing "Manage ChatGPT usage" message.
+- Any other such event ends the task with "Provider returned an error: CODE: MESSAGE". The host
+  reads only these fields: the event name, `error.type`, `code`, `message`, `param` (from
+  `error` or the event itself), the response `status`, `incomplete_details` and
+  `status_details`. Each is bounded (message 512 characters, code and param 128, details 256),
+  control characters are replaced, and credential-shaped text (`sk-…` keys, JWTs, bearer
+  values) is redacted. The live-trial harness records the same fields as `streamError`.
+- Raw bodies, HTTP error bodies, network error strings and headers are still never shown or
+  logged, and non-200 responses keep their fixed diagnostics.

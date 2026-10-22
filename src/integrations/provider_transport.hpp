@@ -10,6 +10,29 @@ class ProviderUsageLimit : public std::runtime_error {
         : std::runtime_error("ChatGPT plan usage is unavailable or its limit was reached. Use "
                              "Manage ChatGPT usage.") {}
 };
+// A streamed reply that ended with an error, failed or incomplete event (ADR 0034
+// addendum, D-046). detail() holds only bounded, sanitized fields: event, errorType, code,
+// message, param, status, incompleteDetails and statusDetails; token-like strings are
+// redacted and the raw body is never kept. what() stays the fixed decode diagnostic.
+class ProviderStreamError : public std::runtime_error {
+  public:
+    explicit ProviderStreamError(QJsonObject detail)
+        : std::runtime_error("OpenAI stream did not complete"), detail_(std::move(detail)) {}
+    const QJsonObject &detail() const { return detail_; }
+    // "code: message", or the event name when the event carries neither.
+    QString summary() const {
+        const auto code = detail_.value("code").toString();
+        const auto message = detail_.value("message").toString();
+        if (!code.isEmpty() && !message.isEmpty())
+            return code + ": " + message;
+        if (!code.isEmpty() || !message.isEmpty())
+            return code + message;
+        return detail_.value("event").toString();
+    }
+
+  private:
+    QJsonObject detail_;
+};
 class AssistantNetworkProvider : public QObject {
     Q_OBJECT
   public:
