@@ -151,6 +151,8 @@ struct TerrainCommandPreview {
     // The changed region's outline: the boundary loops of the triangles the change adds (terrain
     // frame), for the hatched band the tools draw around it.
     std::vector<std::vector<Vec3>> outline;
+    // Stamps: the triangles the change adds (terrain frame), tinted as pad, cut or fill.
+    std::vector<std::array<Vec3, 3>> added;
     // A refusal: the command's code ("INVALID_REQUEST", "LIMIT_EXCEEDED", "CANCELLED", ...) and
     // message, with its located problems (terrain frame). Empty when the change applies.
     std::string code, message;
@@ -183,6 +185,16 @@ std::shared_ptr<const TerrainEditPreviewRequest>
 prepareTerrainEditPreview(const Document &doc, const QJsonObject &command);
 TerrainCommandPreview runTerrainEditPreview(const TerrainEditPreviewRequest &request,
                                             TerrainProgress *progress = nullptr);
+// R096.f2 (UX §15.4): the footprint terrain.stamp_pad would read from `footprint` ({body, face},
+// {body}, {edges} or {polygon}), in model coordinates: its outline (cleaned, counter-clockwise from
+// its smallest point, at its height or at 0 when it has none), its height when it has one, and the
+// source body and face. Throws the command's TerrainError for a footprint it refuses.
+struct TerrainPadFootprint {
+    std::vector<Vec3> outline;
+    std::optional<double> z;
+    Id body{}, face{};
+};
+TerrainPadFootprint terrainPadFootprint(const Document &doc, const QJsonValue &footprint);
 // The command a request was prepared from.
 const QJsonObject &terrainEditPreviewCommand(const TerrainEditPreviewRequest &request);
 // terrain.describe's `edits`: count, bytes and at most 200 entries {id, kind, bounds} (bounds in

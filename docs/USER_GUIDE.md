@@ -511,6 +511,34 @@ line, belong to their change: select them to see which, and change them in Terra
 a pointer, type `[x, y]` or `@E, N` to select the source nearest that position, **Tab** between its
 handles, and type a position to move the focused one.
 
+**Stamp a building pad.** Select a horizontal face, a group or component (its lowest horizontal face
+is used) or a closed loop of edges, and choose **Terrain → Stamp pad** (**Pad** in the strip); or
+start the tool, point at a face, group or component, whose footprint is highlighted, and click.
+The strip names the footprint. The pad starts at the footprint's height less the **Pad offset**
+(0 m at first; type a slab build-up such as `15cm` once and it is remembered). Move the pointer up
+or down, or type the pad's elevation, and press **Enter** or click to stamp it as one undoable
+edit ("Stamp pad"). The preview shows the graded surface in place: **cut** tinted brown with a
+diagonal hatch, **fill** teal with dots (the strip's legend names both), the pad flat and light,
+the slope rays as thin lines and the dashed **Daylight** line where the slopes meet the ground.
+**Daylight** grading (the default) takes **Cut** and **Fill** slopes as rise:run (`1:2`; `0.5` and
+`26.6°` also work) and a **Max distance** (100 m); **Fixed width** takes a **Width** instead. A pad
+that cannot be stamped (a slope ray that leaves the terrain or finds no ground within the maximum
+distance, a slope that overlaps another pad) is marked in red with an × and its place, and Enter
+does nothing until you change it. Right after stamping, typing a new elevation (`106.2`) or slope
+(`1:3`, `26.6°`) revises the same edit. Without a pointer, type the footprint's position as
+`[x, y]` or `@E, N`, then its elevation.
+
+**Drape lines and paths.** Select edges, curves or faces (in groups too, above or below the terrain)
+and choose **Terrain → Drape**, or right-click and choose **Drape onto terrain**. Point at the
+terrain: the lines are shown lying on the surface, a painted face's region in its material when
+**Paint regions with their material** is on, and parts outside the terrain red and dashed, counted
+in the strip ("1 edge clipped"). Click the terrain or press **Enter** to drape, as one undoable edit
+("Drape on terrain"). **Imprint** (the default) leaves the terrain's shape unchanged and adds the
+lines to it as breaklines, so later sculpting and pads respect them, and paints the regions on every
+rebuild; afterwards the terrain is selected. **Overlay** instead makes ordinary geometry in a new
+group in the open context, lifted by **Lift** (0.01 m), and selects that group. The tool then
+returns to Select.
+
 **Terrain display.** A new terrain uses the **Terrain** material and draws as one smooth
 surface: the seams between its tiles and its interior edges are not drawn (Show hidden geometry
 shows them dashed). Under **Display** in its Terrain section, **Show contour lines** draws

@@ -5,6 +5,9 @@
 #include "app/viewport.hpp"
 #include "automation/measurements.hpp"
 #include <QButtonGroup>
+#include <QCheckBox>
+#include <QPainter>
+#include <QPixmap>
 #include <QComboBox>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -16,6 +19,8 @@
 #include <QStyle>
 #include <QToolButton>
 #include <cmath>
+#include <numbers>
+#include <tuple>
 namespace sketchy {
 namespace {
 // A label and its field, kept together when the strip wraps. The label is the field's buddy, so
@@ -70,6 +75,51 @@ QLineEdit *field(const QString &name, const QString &accessible, int width) {
 }
 } // namespace
 
+double parseTerrainSlope(const QString &input) {
+    const auto text = input.trimmed();
+    const auto locale = QLocale();
+    auto number = [&](QString value) {
+        bool ok = false;
+        value = value.trimmed();
+        double result = locale.toDouble(value, &ok);
+        if (!ok)
+            result = value.toDouble(&ok);
+        if (!ok || !std::isfinite(result))
+            throw std::runtime_error("A slope is rise:run (1:2), a ratio (0.5) or an angle (26.6°)");
+        return result;
+    };
+    double slope = 0;
+    if (text.contains(':')) {
+        const auto parts = text.split(':');
+        if (parts.size() != 2)
+            throw std::runtime_error("A slope is rise:run (1:2), a ratio (0.5) or an angle (26.6°)");
+        const double rise = number(parts[0]), run = number(parts[1]);
+        if (!(rise > 0) || !(run > 0))
+            throw std::runtime_error("A slope's rise and run are above 0");
+        slope = rise / run;
+    } else if (text.endsWith(QChar(0x00B0)) || text.endsWith("deg")) {
+        const double degrees = number(text.left(text.size() - (text.endsWith("deg") ? 3 : 1)));
+        if (!(degrees > 0) || degrees >= 90)
+            throw std::runtime_error("A slope angle is above 0° and below 90°");
+        slope = std::tan(degrees * std::numbers::pi / 180);
+    } else
+        slope = number(text);
+    if (slope < terrainStampSlopeMin || slope > terrainStampSlopeMax)
+        throw std::runtime_error("A slope is 0.01 to 100 (rise over run; 1:2 is 0.5)");
+    return slope;
+}
+QString terrainSlopeText(double slope) {
+    auto trimmed = [](double value) {
+        auto text = QLocale().toString(value, 'f', 2);
+        while (text.contains(QLocale().decimalPoint()) && text.endsWith('0'))
+            text.chop(1);
+        if (text.endsWith(QLocale().decimalPoint()))
+            text.chop(1);
+        return text;
+    };
+    return slope <= 1 ? "1:" + trimmed(1 / slope) : trimmed(slope) + ":1";
+}
+
 TerrainToolStrip::TerrainToolStrip(Viewport &viewport)
     : QFrame(&viewport), viewport_(viewport) {
     setObjectName("terrainToolStrip");
@@ -81,7 +131,9 @@ TerrainToolStrip::TerrainToolStrip(Viewport &viewport)
     flow->addWidget(segments("terrainToolSwitcher", "Terrain tool",
                              {{"Sculpt", int(Viewport::Tool::Sculpt)},
                               {"Smooth", int(Viewport::Tool::Smooth)},
-                              {"Contours", int(Viewport::Tool::Contours)}},
+                              {"Contours", int(Viewport::Tool::Contours)},
+                              {"Pad", int(Viewport::Tool::Pad)},
+                              {"Drape", int(Viewport::Tool::Drape)}},
                              tools_));
     connect(tools_, &QButtonGroup::idClicked, this, [this](int id) {
         if (!syncing_)
@@ -219,6 +271,109 @@ TerrainToolStrip::TerrainToolStrip(Viewport &viewport)
         elevation_->style()->polish(elevation_);
     });
     role_->installEventFilter(this);
+    // R096.f2 (UX §15.4): Stamp pad.
+    padSummary_ = new QLabel;
+    padSummary_->setObjectName("terrainPadSummary");
+    padSummary_->setTextFormat(Qt::RichText);
+    flow->addWidget(padSummary_);
+    auto *padModes = segments("terrainPadMode", "Grading",
+                              {{"Daylight", int(TerrainStampMode::Daylight)},
+                               {"Fixed width", int(TerrainStampMode::Width)}},
+                              padModes_);
+    flow->addWidget(padModes);
+    connect(padModes_, &QButtonGroup::idClicked, this, [this](int id) {
+        if (syncing_)
+            return;
+        auto options = viewport_.terrainOptions();
+        options.padMode = TerrainStampMode(id);
+        viewport_.setTerrainOptions(options);
+    });
+    cut_ = field("terrainCutSlope", "Cut slope", 54);
+    cutBox_ = labelled("Cut", cut_, "terrainCutSlope");
+    fill_ = field("terrainFillSlope", "Fill slope", 54);
+    fillBox_ = labelled("Fill", fill_, "terrainFillSlope");
+    maxDistance_ = field("terrainMaxDistance", "Maximum daylight distance", 60);
+    maxDistanceBox_ = labelled("Max distance", maxDistance_, "terrainMaxDistance");
+    padWidth_ = field("terrainPadWidth", "Grading width", 60);
+    padWidthBox_ = labelled("Width", padWidth_, "terrainPadWidth");
+    padOffset_ = field("terrainPadOffset", "Pad offset below the footprint", 60);
+    auto *offsetBox = labelled("Pad offset", padOffset_, "terrainPadOffset");
+    for (auto *box : {cutBox_, fillBox_, maxDistanceBox_, padWidthBox_, offsetBox})
+        flow->addWidget(box);
+    // The legend: colour and pattern, so colour is never the only signal (UX §15.4).
+    legend_ = new QWidget;
+    legend_->setObjectName("terrainCutFillLegend");
+    legend_->setAccessibleName("Legend: cut is brown with a diagonal hatch, fill is teal with dots");
+    {
+        auto *row = new QHBoxLayout(legend_);
+        row->setContentsMargins(0, 0, 0, 0);
+        row->setSpacing(4);
+        for (const auto &[text, colour, mark, pattern] :
+             {std::tuple{QString("Cut"), QColor(214, 165, 120), QColor(120, 72, 32), Qt::BDiagPattern},
+              std::tuple{QString("Fill"), QColor(140, 191, 189), QColor(30, 96, 94), Qt::Dense6Pattern}}) {
+            QPixmap swatch(12, 12);
+            swatch.fill(colour);
+            {
+                QPainter painter(&swatch);
+                painter.fillRect(swatch.rect(), QBrush(mark, pattern));
+                painter.setPen(mark);
+                painter.drawRect(swatch.rect().adjusted(0, 0, -1, -1));
+            }
+            auto *icon = new QLabel;
+            icon->setPixmap(swatch);
+            auto *label = new QLabel(text);
+            label->setObjectName("terrainStripLabel");
+            row->addWidget(icon);
+            row->addWidget(label);
+            row->addSpacing(6);
+        }
+    }
+    flow->addWidget(legend_);
+    padControls_ << padSummary_ << padModes << cutBox_ << fillBox_ << maxDistanceBox_
+                 << padWidthBox_ << offsetBox << legend_;
+    // R096.f2 (UX §15.5): Drape.
+    auto *drapeModes = segments("terrainDrapeMode", "Drape mode", {{"Imprint", 0}, {"Overlay", 1}},
+                                drapeModes_);
+    flow->addWidget(drapeModes);
+    connect(drapeModes_, &QButtonGroup::idClicked, this, [this](int id) {
+        if (syncing_)
+            return;
+        auto options = viewport_.terrainOptions();
+        options.drapeOverlay = id == 1;
+        viewport_.setTerrainOptions(options);
+    });
+    paintRegions_ = new QCheckBox("Paint regions with their material");
+    paintRegions_->setObjectName("terrainPaintRegions");
+    paintRegions_->setAccessibleName("Paint regions with their material");
+    paintRegions_->installEventFilter(this);
+    flow->addWidget(paintRegions_);
+    connect(paintRegions_, &QCheckBox::toggled, this, [this](bool on) {
+        if (syncing_)
+            return;
+        auto options = viewport_.terrainOptions();
+        options.paintRegions = on;
+        viewport_.setTerrainOptions(options);
+    });
+    lift_ = field("terrainLift", "Overlay lift", 54);
+    liftBox_ = labelled("Lift", lift_, "terrainLift");
+    flow->addWidget(liftBox_);
+    drapeSummary_ = new QLabel;
+    drapeSummary_->setObjectName("terrainDrapeSummary");
+    flow->addWidget(drapeSummary_);
+    drapeControls_ << drapeModes << paintRegions_ << liftBox_ << drapeSummary_;
+    for (auto *edit : {cut_, fill_, maxDistance_, padWidth_, padOffset_, lift_}) {
+        edit->installEventFilter(this);
+        connect(edit, &QLineEdit::editingFinished, this, [this, edit] { apply(edit); });
+        connect(edit, &QLineEdit::textEdited, this, [edit] {
+            edit->setProperty("invalid", false);
+            edit->style()->unpolish(edit);
+            edit->style()->polish(edit);
+        });
+    }
+    for (auto *button : padModes_->buttons())
+        button->installEventFilter(this);
+    for (auto *button : drapeModes_->buttons())
+        button->installEventFilter(this);
     for (auto *edit : {radius_, width_, amount_, strength_}) {
         edit->installEventFilter(this);
         connect(edit, &QLineEdit::editingFinished, this, [this, edit] { apply(edit); });
@@ -249,6 +404,12 @@ QToolButton *TerrainToolStrip::contourButton(const QString &name) const {
             return b;
     return nullptr;
 }
+QToolButton *TerrainToolStrip::padModeButton(TerrainStampMode mode) const {
+    return qobject_cast<QToolButton *>(padModes_->button(int(mode)));
+}
+QToolButton *TerrainToolStrip::drapeModeButton(bool overlay) const {
+    return qobject_cast<QToolButton *>(drapeModes_->button(overlay ? 1 : 0));
+}
 QWidget *TerrainToolStrip::firstField() const {
     return tools_->checkedButton() ? tools_->checkedButton() : tools_->buttons().front();
 }
@@ -266,10 +427,14 @@ void TerrainToolStrip::setColors(const ThemeColors &colors) {
     setStyleSheet(QString("#terrainToolStrip {background:%1;border:1px solid %2;border-radius:6px;}"
                           "#terrainStripLabel, #terrainStripHint {color:%3;}"
                           "#terrainStripDivider {color:%2;}"
-                          "#terrainToolSwitcher QToolButton, #terrainScope QToolButton "
+                          "#terrainToolSwitcher QToolButton, #terrainScope QToolButton, "
+                          "#terrainPadMode QToolButton, #terrainDrapeMode QToolButton "
                           "{padding:2px 8px;border:1px solid %2;background:%4;}"
                           "#terrainToolSwitcher QToolButton:checked, #terrainScope "
-                          "QToolButton:checked {background:%5;color:%6;font-weight:bold;}"
+                          "QToolButton:checked, #terrainPadMode QToolButton:checked, "
+                          "#terrainDrapeMode QToolButton:checked "
+                          "{background:%5;color:%6;font-weight:bold;}"
+                          "#terrainDrapeSummary {color:%3;}"
                           "QToolButton[terrainStripButton=\"true\"] {padding:3px 9px;border:1px "
                           "solid %2;border-radius:4px;background:%4;}"
                           "QToolButton[terrainStripButton=\"true\"]:checked {background:%5;color:%6;"
@@ -298,6 +463,51 @@ void TerrainToolStrip::sync() {
     const bool brush = Viewport::sculptTool(tool);
     for (auto *control : contourControls_)
         control->setVisible(tool == Viewport::Tool::Contours);
+    for (auto *control : padControls_)
+        control->setVisible(tool == Viewport::Tool::Pad);
+    for (auto *control : drapeControls_)
+        control->setVisible(tool == Viewport::Tool::Drape);
+    if (tool == Viewport::Tool::Pad) {
+        const auto view = viewport_.padTool();
+        const auto muted = palette().color(QPalette::PlaceholderText).name();
+        const QString name = view.name.isEmpty() ? QString() : view.name.toHtmlEscaped();
+        padSummary_->setText(
+            view.footprint || view.hovering
+                ? "<b>" + name + "</b> <span style=\"color:" + muted + "\">footprint</span>"
+                : "<span style=\"color:" + muted + "\">No footprint · point at a face, group or "
+                                                       "component</span>");
+        padSummary_->setAccessibleName(view.footprint || view.hovering
+                                           ? "Footprint: " + view.name
+                                           : QString("No footprint chosen"));
+        if (auto *button = padModes_->button(int(options.padMode)))
+            button->setChecked(true);
+        const bool daylight = options.padMode == TerrainStampMode::Daylight;
+        cutBox_->setVisible(daylight);
+        fillBox_->setVisible(daylight);
+        maxDistanceBox_->setVisible(daylight);
+        padWidthBox_->setVisible(!daylight);
+        auto fillField = [](QLineEdit *edit, const QString &text) {
+            if (!edit->hasFocus() && !edit->property("invalid").toBool())
+                edit->setText(text);
+        };
+        fillField(cut_, terrainSlopeText(options.cutSlope));
+        fillField(fill_, terrainSlopeText(options.fillSlope));
+        fillField(maxDistance_, lengthText(options.maxDistance));
+        fillField(padWidth_, lengthText(options.padWidth));
+        fillField(padOffset_, lengthText(options.padOffset));
+    }
+    if (tool == Viewport::Tool::Drape) {
+        if (auto *button = drapeModes_->button(options.drapeOverlay ? 1 : 0))
+            button->setChecked(true);
+        paintRegions_->setChecked(options.paintRegions);
+        paintRegions_->setEnabled(!options.drapeOverlay);
+        lift_->setEnabled(options.drapeOverlay);
+        if (!lift_->hasFocus() && !lift_->property("invalid").toBool())
+            lift_->setText(lengthText(options.lift));
+        const auto view = viewport_.drapeTool();
+        drapeSummary_->setText(view.summary);
+        drapeSummary_->setAccessibleName("Drape: " + view.summary);
+    }
     if (brush) {
         for (auto *control : sculptControls_)
             control->setVisible(true);
@@ -401,7 +611,29 @@ void TerrainToolStrip::apply(QLineEdit *edit) {
         return;
     }
     try {
-        if (edit == strength_) {
+        if (edit == cut_ || edit == fill_) {
+            const double slope = parseTerrainSlope(edit->text());
+            (edit == cut_ ? options.cutSlope : options.fillSlope) = slope;
+        } else if (edit == maxDistance_ || edit == padWidth_ || edit == padOffset_ || edit == lift_) {
+            const double value = parseLength(edit->text(), unit, locale);
+            if (edit == maxDistance_) {
+                if (!(value > 0) || value > terrainStampDistanceMax)
+                    throw std::runtime_error("The maximum distance is above 0 and at most 1,000 m");
+                options.maxDistance = value;
+            } else if (edit == padWidth_) {
+                if (value < terrainStampWidthMin || value > terrainStampDistanceMax)
+                    throw std::runtime_error("The grading width is 0.01 to 1,000 m");
+                options.padWidth = value;
+            } else if (edit == padOffset_) {
+                if (value < 0 || value > 100)
+                    throw std::runtime_error("The pad offset is 0 to 100 m below the footprint");
+                options.padOffset = value;
+            } else {
+                if (value < 0 || value > terrainDrapeLiftMax)
+                    throw std::runtime_error("The lift is 0 to 1,000 m");
+                options.lift = value;
+            }
+        } else if (edit == strength_) {
             bool ok = false;
             const double value = locale.toDouble(edit->text().trimmed(), &ok);
             if (!ok || !std::isfinite(value) || value < terrainToolStrengthMin || value > 1)
@@ -444,6 +676,18 @@ void TerrainToolStrip::apply(QLineEdit *edit) {
         edit->setText(lengthText(applied.falloffWidth));
     else if (edit == amount_)
         edit->setText((applied.amount > 0 ? "+" : "") + lengthText(applied.amount));
+    else if (edit == cut_)
+        edit->setText(terrainSlopeText(applied.cutSlope));
+    else if (edit == fill_)
+        edit->setText(terrainSlopeText(applied.fillSlope));
+    else if (edit == maxDistance_)
+        edit->setText(lengthText(applied.maxDistance));
+    else if (edit == padWidth_)
+        edit->setText(lengthText(applied.padWidth));
+    else if (edit == padOffset_)
+        edit->setText(lengthText(applied.padOffset));
+    else if (edit == lift_)
+        edit->setText(lengthText(applied.lift));
     else
         edit->setText(QLocale().toString(applied.strength, 'f', 2));
     sync();

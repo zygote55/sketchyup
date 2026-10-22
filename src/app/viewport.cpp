@@ -15,6 +15,7 @@
 #include <QOpenGLVersionFunctionsFactory>
 #include <QPainter>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QTimer>
 #include <QTabBar>
 #include <QVector2D>
@@ -76,6 +77,9 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     setMouseTracking(true);
     setMinimumSize(160, 160);
     setAccessibleName("3D model viewport");
+    // R096.f2 (UX §15.4): the pad offset is remembered across sessions.
+    terrainOptions_.padOffset = std::clamp(
+        QSettings("SketchyUp", "SketchyUp").value("terrainPadOffset", 0.0).toDouble(), 0.0, 100.0);
     // R096.f2 (ADR 0169 §5): contour edits, stamps and drapes plan on a one-thread worker.
     terrainWorker_ = new TerrainPreviewWorker(this);
     terrainEditPaintWait_ = new QTimer(this);
@@ -2220,6 +2224,8 @@ void Viewport::refresh() {
         terrainEditRequest_ = {};
     if (tool_ == Tool::Contours)
         contourSources_ = {}; // the current sources may have changed
+    if (tool_ == Tool::Drape)
+        syncDrapeTool(); // its input follows the selection; a dropped preview is asked again
     if (terrainToolActive())
         buildTerrainOverlay(); // the surface under the brush may have changed
     if (selectionDocument_ != doc_.identity()) {
@@ -2252,6 +2258,8 @@ void Viewport::setTool(Tool tool) {
     // R096.f1: choosing the active terrain tool again (Shift+S, the rail, the strip) keeps an
     // anchored spot or region and the chance to revise the last edit.
     if (terrainTool(tool) && tool == tool_) {
+        if (tool == Tool::Drape)
+            syncDrapeTool(); // Drape onto terrain again: the current selection
         terrainStatusShown_.clear();
         emit toolChanged(int(tool));
         emitTerrainStatus();

@@ -74,10 +74,14 @@ void check(bool value, const std::string &message) {
         throw std::runtime_error(message);
 }
 double p95(std::vector<double> samples) {
+    if (samples.empty())
+        return 0;
     std::sort(samples.begin(), samples.end());
     return samples.at(std::size_t(std::ceil(double(samples.size()) * .95)) - 1);
 }
 double median(std::vector<double> samples) {
+    if (samples.empty())
+        return 0;
     std::sort(samples.begin(), samples.end());
     return samples.at(samples.size() / 2);
 }
@@ -764,7 +768,7 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
             selectBaseline;
         std::size_t excluded{}, refused{};
     };
-    Samples contour, breakline;
+    Samples contour, breakline, stamp, drape;
     view.setTool(Viewport::Tool::Contours);
     // On the point terrain: Add breakline, two clicks 10 m to 120 m apart through the middle of
     // one of the largest tiles, the view framing the line's neighbourhood; timed from the second
@@ -845,6 +849,143 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
             view.cancel();
             view.setTool(Viewport::Tool::Contours);
             frame();
+        }
+    }
+    // R096.f2 part 2, on the point terrain: Stamp pad and Drape, one-tile.
+    // - Stamp: a square face a quarter of the tile across, 0.2 m above the ground at the tile's
+    //   middle, selected; Stamp pad starts with it; three 12 px pointer steps up are timed as the
+    //   contour drag (event to the frame showing that step's candidate); Enter is timed to the frame
+    //   showing the committed tiles.
+    // - Drape: a 1 m wide strip 60 % of the tile across, 3 m above the ground, selected; Drape
+    //   starts; the first move over the terrain is timed to the frame showing the candidate; Enter
+    //   to the committed frame.
+    // Each sample is undone (the edit and the face) outside the timing.
+    if (lines) {
+        auto onGround = [&](Vec3 p) {
+            const auto found = terrainElevationAt(doc, terrain, {{p.x, p.y}});
+            return Vec3{p.x, p.y, found.empty() || !found.front().found ? 0 : found.front().elevation};
+        };
+        for (int kind = 0; kind < 2; ++kind) {
+            auto &out = kind == 0 ? stamp : drape;
+            for (int i = 0; i < samples && i < int(tiles.size()); ++i) {
+                const auto &tile = tiles[std::size_t(i)];
+                // The tile's plan extent from its centre and triangle density: a side of about
+                // sqrt(2 * area / density); the largest tiles are about 62 m across here.
+                const double side = 60;
+                const auto ground = onGround(tile.centre);
+                Id face = 0;
+                if (kind == 0) {
+                    const double half = side / 8;
+                    const double z = ground.z + 0.2;
+                    face = doc.addFace({{{ground.x - half, ground.y - half, z},
+                                         {ground.x + half, ground.y - half, z},
+                                         {ground.x + half, ground.y + half, z},
+                                         {ground.x - half, ground.y + half, z}}});
+                } else {
+                    const double half = side * 0.3, z = ground.z + 3;
+                    face = doc.addFace({{{ground.x - half, ground.y - 0.5, z},
+                                         {ground.x + half, ground.y - 0.5, z},
+                                         {ground.x + half, ground.y + 0.5, z},
+                                         {ground.x - half, ground.y + 0.5, z}}});
+                }
+                view.refresh();
+                const auto faceId = doc.bodies().at(face)->surface.faces.begin()->first;
+                view.setTool(Viewport::Tool::Select);
+                view.setSelection(face, faceId);
+                view.frameBounds(ground - Vec3{side / 2, side / 2, 1}, ground + Vec3{side / 2, side / 2, 4});
+                frame();
+                std::vector<double> preview, events, waits, builds, frames, plans;
+                std::size_t touched = 0;
+                bool refused = false;
+                if (kind == 0) {
+                    view.setTool(Viewport::Tool::Pad);
+                    check(planned(), "the pad plans");
+                    frame();
+                    const auto start = view.project(ground) + QPointF(0, 40);
+                    send(QEvent::MouseMove, start, Qt::NoButton, Qt::NoButton);
+                    planned();
+                    frame();
+                    for (int step = 1; step <= 3 && !refused; ++step) {
+                        const auto t0 = Clock::now();
+                        send(QEvent::MouseMove, start - QPointF(0, 12 * step), Qt::NoButton,
+                             Qt::NoButton);
+                        events.push_back(ms(Clock::now() - t0));
+                        const auto t1 = Clock::now();
+                        refused = !planned();
+                        waits.push_back(ms(Clock::now() - t1));
+                        frame();
+                        preview.push_back(ms(Clock::now() - t0));
+                        frames.push_back(view.completeFrameMs());
+                        builds.push_back(view.renderStats().terrainPreviewMs);
+                        plans.push_back(view.renderStats().terrainPlanMs);
+                        const auto shown = view.terrainEditPreviewShown();
+                        refused = refused || !shown || !shown->candidate;
+                    }
+                } else {
+                    view.setTool(Viewport::Tool::Drape);
+                    QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
+                    // The tool asks at once with one terrain in the model; the move then asks
+                    // nothing new. Time the drape's plan from the tool's start instead.
+                    view.cancel();
+                    view.setTool(Viewport::Tool::Select);
+                    view.setSelection(face, faceId);
+                    frame();
+                    const auto t0 = Clock::now();
+                    view.setTool(Viewport::Tool::Drape);
+                    events.push_back(ms(Clock::now() - t0));
+                    const auto t1 = Clock::now();
+                    refused = !planned();
+                    waits.push_back(ms(Clock::now() - t1));
+                    frame();
+                    preview.push_back(ms(Clock::now() - t0));
+                    frames.push_back(view.completeFrameMs());
+                    builds.push_back(view.renderStats().terrainPreviewMs);
+                    plans.push_back(view.renderStats().terrainPlanMs);
+                    const auto shown = view.terrainEditPreviewShown();
+                    refused = refused || !shown || !shown->candidate;
+                }
+                if (const auto shown = view.terrainEditPreviewShown(); shown && shown->candidate)
+                    for (const auto &content : shown->candidate->region.tiles)
+                        touched += content->triangles.size();
+                if (refused) {
+                    ++out.refused;
+                    if (const auto shown = view.terrainEditPreviewShown())
+                        std::cerr << (kind ? "drape" : "stamp") << " refused: " << shown->message << '\n';
+                    view.cancel();
+                    view.setTool(Viewport::Tool::Select);
+                    doc.undo(); // the face
+                    view.refresh();
+                    continue;
+                }
+                const auto before = doc.revision();
+                const auto t0 = Clock::now();
+                QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+                QCoreApplication::sendEvent(&view, &enter);
+                const double commitEvent = ms(Clock::now() - t0);
+                frame();
+                const double commit = ms(Clock::now() - t0);
+                check(doc.revision() == before + 1, "the stamp or drape committed");
+                if (touched > 2048)
+                    ++out.excluded;
+                else {
+                    out.preview.insert(out.preview.end(), preview.begin(), preview.end());
+                    out.previewEvent.insert(out.previewEvent.end(), events.begin(), events.end());
+                    out.previewWait.insert(out.previewWait.end(), waits.begin(), waits.end());
+                    out.previewFrame.insert(out.previewFrame.end(), frames.begin(), frames.end());
+                    out.previewBuild.insert(out.previewBuild.end(), builds.begin(), builds.end());
+                    out.previewPlan.insert(out.previewPlan.end(), plans.begin(), plans.end());
+                    out.touched.push_back(double(touched));
+                    out.commit.push_back(commit);
+                    out.commitEvent.push_back(commitEvent);
+                    out.commitRebuild.push_back(view.renderStats().rebuildMs);
+                    out.commitFrame.push_back(view.completeFrameMs());
+                }
+                view.setTool(Viewport::Tool::Select);
+                doc.undo(); // the stamp or drape
+                doc.undo(); // the face
+                view.refresh();
+                frame();
+            }
         }
     }
     for (int i = 0; i < samples && !lines && i < int(tiles.size()); ++i) {
@@ -943,12 +1084,14 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
         view.refresh();
         frame();
     }
-    auto summary = [&](const Samples &s) {
+    auto summary = [&](Samples s) {
         QJsonObject json{{"edits", double(s.preview.size())},
                          {"excluded", double(s.excluded)},
                          {"refused", double(s.refused)}};
         if (s.preview.empty())
             return json;
+        if (s.cavity.empty())
+            s.cavity.push_back(0);
         auto maxOf = [](const std::vector<double> &v) { return *std::max_element(v.begin(), v.end()); };
         json["previewP50Ms"] = median(s.preview);
         json["previewP95Ms"] = p95(s.preview);
@@ -983,7 +1126,9 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
             {"renderer", renderer ? renderer : ""},
             {"platform", QGuiApplication::platformName()},
             {"framebuffer", "1920x1080"},
-            {lines ? "addBreakline" : "contourEdit", summary(lines ? breakline : contour)}};
+            {lines ? "addBreakline" : "contourEdit", summary(lines ? breakline : contour)},
+            {"stamp", summary(stamp)},
+            {"drape", summary(drape)}};
 }
 
 int main(int argc, char **argv) {

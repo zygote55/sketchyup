@@ -2897,6 +2897,106 @@ with the range.
   command and refresh (57–74 ms) and the commit frame's rebuild (19–26 ms) are the CPU part, the
   rest the software frame. The AMD session (R096.g) judges it on hardware.
 
+### Part 2: Stamp pad and Drape
+
+Modules: `src/app/viewport_stamp.cpp`, `src/app/viewport_drape.cpp`, the strip's Pad and Drape
+panels, `tool.32` (Stamp pad) and `tool.33` (Drape) with no default shortcuts, the context menu's
+**Drape onto terrain** (`terrain.drapeSelection`), and `terrainPadFootprint` in
+`src/automation/terrain_commands.*` (the footprint `terrain.stamp_pad` would read, for the
+highlight and the strip). Both tools plan on part 1's worker.
+
+**Stamp pad (UX §15.4).**
+- *Footprint.* From the selection when the tool starts: one horizontal face (`{body, face}`), a
+  group or component (`{body}`: its lowest horizontal face, as the command chooses it), or a closed
+  edge loop (`{edges}`). Otherwise the face, group or component under the pointer (`selectionAt`,
+  so the open context decides) is highlighted with its footprint and a click chooses it. A typed
+  `[x, y]` or `@E, N` chooses the footprint in the open context that holds the position in plan
+  (the highest, when several do). The strip names it ("Building A footprint"); a face's footprint
+  takes its group's name. The terrain is the one under the footprint.
+- *Elevation.* The footprint's height less the Pad offset; moving the pointer up or down adds the
+  height at the footprint's depth, in centimetres. Each change asks the worker for the preview of
+  `terrain.stamp_pad` with the strip's grading. The pad offset (0 to 100 m) is stored in the
+  settings and read when a viewport starts.
+- *Preview.* Part 1's candidate path draws the surface. The overlay tints the triangles the stamp
+  adds: those at the pad elevation are the pad (white, light), those above it are cut (brown with a
+  diagonal hatch), those below it fill (teal with a dot pattern); the strip's legend shows the same
+  swatches with their names. Rays are thin lines from the outline to their daylight points, the
+  daylight line is dashed and labelled "Daylight", and "Cut 1:2" and "Fill 1:2" label the areas.
+  The pad's label reads "Pad 106.00 m / Building A − 0.15 m offset".
+- *Refusals.* The worker's located problems give "Ray at E …, N … leaves the terrain" (outside the
+  outline), "… finds no daylight within the maximum distance" (`daylight-distance`), "Overlaps Pad
+  (change #N)" (`inside-pad`) and the triangle limit; an × marks the place and a red dashed line
+  joins it to the nearest footprint corner. Enter and a click are refused while the shown plan for
+  the current command is refused.
+- *Commit and amend (UX §4.3).* Enter or a click commits the previewed command as one "Stamp pad"
+  edit. The tool then waits for the next footprint; until another operation starts, a typed length
+  revises the elevation and a typed slope (with `:` or `°`) both slopes, through `executeAmend`'s
+  `AmendPolicy::TerrainTiles` (`terrain.stamp_pad` was already in it): one History entry, its label
+  kept, the replacement re-stamped on the state before the stamp. Fixed-width pads refuse a slope.
+- *Strip.* Daylight or Fixed width; Cut and Fill (`1:2`, `0.5` or `26.6°`; shown as rise:run),
+  Max distance, Width and Pad offset (lengths in the box's syntax); the legend.
+
+**Drape (UX §15.5).**
+- *Input.* The selected edges (curves select theirs), faces, and the faces of selected groups and
+  components; never a terrain's own. Drape onto terrain is offered in the context menu while the
+  selection has such edges or faces and the model has a terrain, and right-clicking the terrain
+  then keeps that selection. With nothing to drape the tool says what to select.
+- *Preview.* With one terrain in the open context the tool asks at once; otherwise the terrain
+  under the pointer (or a typed position) is the target. The runs are drawn on the surface
+  (`runs`), the split triangles' boundary as a band, a painted face's loops filled with its
+  material's colour on the surface (Imprint with Paint regions on), and an overlay's lifted faces in
+  the selection colour. The parts outside the outline are red and dashed with "Clipped: outside the
+  terrain": `runTerrainEditPreview` samples each input line against the mesh (at most 64 pieces a
+  segment) to find them, for display; the plan clips exactly. The strip counts the lines with a
+  clipped part ("1 edge clipped").
+- *Commit.* A click on the terrain or Enter commits `terrain.drape` with the strip's mode: Imprint
+  with `paintRegions`, Overlay with `lift` and `context` (the open context). Afterwards the terrain
+  (Imprint) or the new group (Overlay) is selected, and the tool returns to Select.
+
+**Shared.** Each tool's status, refusal and result messages follow part 1 (the failure style, a
+message held until the pointer moves). A frame after a pointer move waits for the plan it asked
+for, as for contours.
+
+**Choices where the design is open, and deviations (part 2).**
+- The strip wraps to two rows at 1280 px with every Pad field shown (the mockup fits one row and a
+  half); the fields keep the strip's field widths.
+- The pad label, Cut, Fill and Daylight labels are placed by the overlay's own geometry (the cut
+  area's lowest triangle on screen, the fill area's leftmost), not hand-placed as in the mockup.
+- A typed slope after a stamp revises both slopes; the strip sets them apart.
+- The Drape tool returns to Select after a drape, since its input (the selection) has become the
+  terrain or the new group.
+- Drape's preview label at the pointer ("Imprint · 1 face, 5 edges / Paint: Paving, grey") sits
+  beside the first draped line when the target came from the keyboard.
+- Right-clicking the terrain with lines to drape selected keeps them selected; the menu then offers
+  the terrain's tools and Drape onto terrain, and leaves out Terrain settings… and Explode
+  terrain…, which act on a selected terrain.
+- An overlay in a component's context is refused by the command (`terrain_drape_tests` covers the
+  refusal); the desktop suite does not repeat it.
+
+**Measured (part 2)** with part 1's harness and conditions (`terrain_budget_benchmark
+--edit-frames 64`, Release, llvmpipe at 1920 × 1080, 4 CPUs), on the point terrain built from
+2 % fewer points (244,970 triangles; stamps and drapes add triangles), one sample per tile of the
+64 largest, the view framing 60 m around the tile's middle; samples whose touched tiles hold more
+than 2,048 triangles are left out of the rows (1 and 2 of 64).
+- *Stamp:* a selected square face a quarter of a tile across, 0.2 m above the ground at the
+  tile's middle; Stamp pad starts with it, three 12 px pointer steps up are timed as the contour
+  drag (to the frame showing that step's candidate), then Enter to the committed frame.
+- *Drape:* a selected 1 m wide strip 36 m long, 3 m above the ground; Drape is started (with one
+  terrain the tool asks at once) and timed to the frame showing the candidate, then Enter to the
+  committed frame.
+
+| Operation (one tile) | p50 / p95 (max) | of which, p95: event, worker wait (plan), display build, frame | Touched triangles p95 (max) |
+| --- | ---: | --- | ---: |
+| Stamp preview (189 steps) | 50.7 / 60.6 ms (77.2) | 0.3, 5.8 (5.6), 26.3, 53.5 ms | 1,883 (1,953) |
+| Stamp commit (63) | 70.7 / 102.2 ms (114.1) | event 49.3, cache rebuild 27.8, frame 50.5 ms | |
+| Drape preview (62) | 44.6 / 49.7 ms (55.8) | 0.3, 1.6 (1.5), 22.5, 46.9 ms | 1,251 (1,291) |
+| Drape commit (62) | 72.8 / 81.7 ms (86.6) | event 32.9, cache rebuild 27.8, frame 49.3 ms | |
+
+The previews are within 100 ms; the stamp's plan (rays, walk, repair, cavity) is 5.6 ms p95 on the
+worker. The one-tile stamp commit is p95 102.2 ms and the drape commit 81.7 ms end to end under
+llvmpipe, of which the CPU part (command, refresh and cache rebuild) is about 77 and 61 ms; the
+software frame is the rest, as for the sculpt and contour commits (the AMD session, R096.g).
+
 ## Sources
 
 Retrieved by web search on 2026-10-19.

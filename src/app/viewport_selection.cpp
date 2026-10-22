@@ -796,7 +796,10 @@ void Viewport::selectionRelease(QPointF point) {
     update();
 }
 void Viewport::mouseDoubleClickEvent(QMouseEvent *event) {
-    if (tool_ == Tool::Walk || tool_ == Tool::LookAround) {
+    // R096.f2: a double-click in Stamp pad or Drape is not a second press (it would stamp before
+    // the preview, or reach Select after a drape).
+    if (tool_ == Tool::Walk || tool_ == Tool::LookAround || tool_ == Tool::Pad ||
+        tool_ == Tool::Drape) {
         event->accept();
         return;
     }
