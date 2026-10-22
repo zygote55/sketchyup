@@ -1272,14 +1272,25 @@ void hostile() {
         }
         comb.push_back({c.x + 50, c.y - 5});
         comb.push_back({c.x - 50, c.y - 5});
+        // One run: refused with LIMIT_EXCEEDED, changing nothing, and timed.
+        double seconds = 0;
         checkUnchanged(doc, "a comb footprint", [&] {
-            direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, comb)},
-                                               {"elevation", z}}));
+            const auto start = std::chrono::steady_clock::now();
+            const auto stop = [&] {
+                seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
+                              .count();
+            };
+            try {
+                direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, comb)},
+                                                   {"elevation", z}}));
+            } catch (...) {
+                stop();
+                throw;
+            }
+            stop();
         }, "LIMIT_EXCEEDED");
-        timed("a comb footprint", [&] {
-            direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, comb)},
-                                               {"elevation", z}}));
-        });
+        std::cout << "hostile: a comb footprint: LIMIT_EXCEEDED in " << seconds << " s\n";
+        check(seconds < 300, "a comb footprint is bounded");
     }
     // Too many rays: 4,000 sharp teeth around a circle, each convex tip a fan of about 17 rays.
     {
@@ -1490,8 +1501,13 @@ void triangleLimit() {
         direct(doc, stampCommand(terrain, {{"footprint", polygonFootprint(doc, terrain, circle)},
                                            {"elevation", toModel(doc, terrain, {0, 0, groundAt(doc, terrain, c.x + 40, c.y)}).z}}));
     };
-    checkUnchanged(doc, "a pad past the triangle limit", stamp, "LIMIT_EXCEEDED");
-    const auto r = refusal(stamp);
+    // One run: the refusal is checked for LIMIT_EXCEEDED and no change, and its report kept.
+    Refusal r;
+    checkUnchanged(doc, "a pad past the triangle limit", [&] {
+        r = refusal(stamp);
+        if (!r.code.empty())
+            throw TerrainError(r.code, r.message);
+    }, "LIMIT_EXCEEDED");
     const auto refusals = r.report["terrain"].toObject()["refusals"].toArray();
     check(!refusals.isEmpty() && refusals.at(0).toObject()["kind"] == "triangle-budget" &&
               !refusals.at(0).toObject()["locations"].toArray().isEmpty() &&

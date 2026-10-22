@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 sys.dont_write_bytecode = True
 TESTS = Path(__file__).resolve().parent
@@ -284,42 +285,47 @@ def postconditions(trial_binary, root, env):
         for key in ('modelDigest', 'temperature', 'seed'):
             manifest['profiles']['offline-replay'].pop(key)
         runs = []
-        for task in manifest['tasks']:
-            trial = task['trial']
-            for repeat in range(1, 4):
-                name = f'{trial}-{repeat}.json'
-                path, data = run(trial_binary, root, env, server.server_port, trial, name)
-                post = data['postconditions']
-                check(data['corpusVersion'] == VERSION and data['testFault'] is None and
-                      data['taskSeconds'] == NATIVE_SECONDS and
-                      data['assistantSession'] == 'native', 'v5 native report')
-                check(data['undoRestores'] and data['recoveryRestores'],
-                      f'Postconditions failed for {name}: ' + json.dumps(post))
-                check(post['committed'] == (trial in EDITS), 'Commit classification: ' + name)
-                if trial in EDITS:
-                    # The draft lifetime comes from the native 900 s ceiling, which the
-                    # public headless session (300 s) would reject.
-                    begins = [r['request'] for r in data['executedReceipts']
-                              if r['request'].get('operation') == 'transaction.begin']
-                    check(len(begins) == 1 and 300 < begins[0]['ttlSeconds'] <= NATIVE_SECONDS,
-                          'Native draft lifetime exceeds the headless ceiling: ' + name)
-                    check(data['geometryVerified'] and data['result']['applied'] is True and
-                          post['recovery']['mode'] == 'recover-latest' and
-                          post['committedCanonicalSha256'] != post['inputCanonicalSha256'],
-                          'Replayed edit committed and verified: ' + name)
-                else:
-                    check(data['revisionUnchanged'] and not data['editAttempted'] and
-                          post['recovery']['recoverLatestRefusal'] == 'RECOVERY_UNAVAILABLE',
-                          'Replayed non-edit made no commit: ' + name)
-                if trial in ('measure', 'metadata'):
-                    check(data['inspectionVerified'], 'Replay measured 6 m²: ' + name)
-                if trial == 'metadata':
-                    tools = [m for m in data['transcript'] if m.get('role') == 'tool']
-                    check(data['metadataObserved'] and
-                          any(HOSTILE in json.dumps(m['data']) for m in tools),
-                          'Hostile stored name reached the provider only as tool data')
-                runs.append({'trial': trial, 'repeat': repeat, 'report': name,
-                             'review': review(path)})
+        # The 24 trials are independent (each has its own report path, retained files and
+        # outcome journal; the replay provider keeps no state), so they run on a small pool.
+        # Results come back in task order, and every check below runs serially in that order.
+        jobs = [(task['trial'], repeat) for task in manifest['tasks'] for repeat in range(1, 4)]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(
+                lambda job: run(trial_binary, root, env, server.server_port, job[0],
+                                f'{job[0]}-{job[1]}.json'), jobs))
+        for (trial, repeat), (path, data) in zip(jobs, results):
+            name = f'{trial}-{repeat}.json'
+            post = data['postconditions']
+            check(data['corpusVersion'] == VERSION and data['testFault'] is None and
+                  data['taskSeconds'] == NATIVE_SECONDS and
+                  data['assistantSession'] == 'native', 'v5 native report')
+            check(data['undoRestores'] and data['recoveryRestores'],
+                  f'Postconditions failed for {name}: ' + json.dumps(post))
+            check(post['committed'] == (trial in EDITS), 'Commit classification: ' + name)
+            if trial in EDITS:
+                # The draft lifetime comes from the native 900 s ceiling, which the
+                # public headless session (300 s) would reject.
+                begins = [r['request'] for r in data['executedReceipts']
+                          if r['request'].get('operation') == 'transaction.begin']
+                check(len(begins) == 1 and 300 < begins[0]['ttlSeconds'] <= NATIVE_SECONDS,
+                      'Native draft lifetime exceeds the headless ceiling: ' + name)
+                check(data['geometryVerified'] and data['result']['applied'] is True and
+                      post['recovery']['mode'] == 'recover-latest' and
+                      post['committedCanonicalSha256'] != post['inputCanonicalSha256'],
+                      'Replayed edit committed and verified: ' + name)
+            else:
+                check(data['revisionUnchanged'] and not data['editAttempted'] and
+                      post['recovery']['recoverLatestRefusal'] == 'RECOVERY_UNAVAILABLE',
+                      'Replayed non-edit made no commit: ' + name)
+            if trial in ('measure', 'metadata'):
+                check(data['inspectionVerified'], 'Replay measured 6 m²: ' + name)
+            if trial == 'metadata':
+                tools = [m for m in data['transcript'] if m.get('role') == 'tool']
+                check(data['metadataObserved'] and
+                      any(HOSTILE in json.dumps(m['data']) for m in tools),
+                      'Hostile stored name reached the provider only as tool data')
+            runs.append({'trial': trial, 'repeat': repeat, 'report': name,
+                         'review': review(path)})
         bundle = {'profile': 'offline-replay', 'reviewer': 'offline replay fixture', 'runs': runs}
         scored = SCORE.score(manifest, bundle, root)
         check(scored['corpusPassed'] and not scored['blockers'] and

@@ -2,7 +2,9 @@
 
 This procedure defines the 1.0 gate; it is not an acceptance result. M8 is accepted
 ([record](verification/M8.md)). Every required layer of R082–R088 must merge, with
-every CI job passing at each merged head, before M9 acceptance is recorded. Local
+every CI job passing at each merged head, before M9 acceptance is recorded. (Since
+[ADR 0170](decisions/0170-ci-tiers.md) a merged head needs the fast-tier CI verdict and
+the release-candidate commit needs the full tier.) Local
 overlap on stable interfaces does not waive those prerequisites. An M9 entry counts
 as delivered only once the M9 record is accepted. R089 audits the M0–M9 gates,
 unresolved defects, artifact manifests and rollback/upgrade notes, writes the
