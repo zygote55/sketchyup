@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """Checks L1 to L6 of ADR 0171 section 6.3 (library packaging and licence).
 
+L3 (the pin) and L4 need the repository files; they run in `source` mode.
+
   verify-ifc-library.py install --cmake CMAKE --build-dir DIR --source-dir DIR
       Install the ifc component of a build into a scratch prefix and check it (the CTest test
-      ifc_library_install).
+      ifc_library_install; it runs inside `makepkg check()`, from the source archive, so it reads
+      only files the archive has).
   verify-ifc-library.py package --prefix /usr --source-dir DIR [--other-executables PATH...]
       Check an installed package (Arch package acceptance): the files under PREFIX, and that
       no other SketchyUp executable links IfcOpenShell or OpenCASCADE.
-  verify-ifc-library.py source --source-dir DIR
+  verify-ifc-library.py source --source-dir DIR [--pkgbuild PATH]
       The source-only checks: the pin, dependencies.json, the PKGBUILD licences and the notice
-      install lines (L3 and L4).
+      install lines (L3 and L4). The CTest test ifc_library_source (a git checkout) and package
+      acceptance run it; --pkgbuild names the PKGBUILD when it is not packaging/arch/PKGBUILD.
 
 L1  Only sketchyup-ifc-worker links IfcOpenShell or OpenCASCADE.
 L2  The worker and the libraries have a RUNPATH of $ORIGIN (not an RPATH) and a copy of the
     libraries found through LD_LIBRARY_PATH is the one the worker loads.
-L3  The notices and the written source offer are installed; the pinned commit agrees everywhere.
-L4  THIRD_PARTY_NOTICES lines, the PKGBUILD licences and dependencies.json are updated.
+L3  The notices and the written source offer are installed (naming the OpenCASCADE tag of the
+    libraries the helper loads); the pinned commit agrees in the README, dependencies.json and CMake
+    (`source` mode).
+L4  THIRD_PARTY_NOTICES lines, the PKGBUILD licences and dependencies.json are updated (`source` mode).
 L5  No GPL-3.0-or-later library is linked (ldd over the worker and the private libraries).
 L6  The OpenCASCADE libraries the kernel plugin records are exactly the set installed; with the
     kernel plugin or any one of them removed, the probe reports "kernel unavailable" (exit 0, no
@@ -147,7 +153,7 @@ def check_l2(prefix, problems):
             problems.append(f"L2: the plugins were not loaded from the replacement directory: {plugins}")
 
 
-def check_l3(prefix, source, problems):
+def check_l3(prefix, problems, occt_version=None):
     expected = [prefix / "share/licenses/sketchyup" / n for n in (
         "IfcOpenShell-COPYING.LESSER", "IfcOpenShell-COPYING", "OpenCASCADE-LICENSE",
         "OpenCASCADE-LGPL-EXCEPTION")] + [prefix / "share/doc/sketchyup/IFC-SOURCE.txt"]
@@ -157,14 +163,16 @@ def check_l3(prefix, source, problems):
     offer = prefix / "share/doc/sketchyup/IFC-SOURCE.txt"
     if offer.is_file():
         text = offer.read_text(encoding="utf-8")
-        for needle in ("7ba701972f7182322e0a00db8f0e1f3de5f69840", "three years", "Open CASCADE",
-                       "V7_9_3", "LD_LIBRARY_PATH"):
+        for needle in ("7ba701972f7182322e0a00db8f0e1f3de5f69840", "three years", "Open CASCADE", "LD_LIBRARY_PATH"):
             if needle not in text:
                 problems.append(f"L3: IFC-SOURCE.txt does not mention {needle!r}")
+        if occt_version:
+            tag = "V" + occt_version.replace(".", "_")
+            if tag not in text:
+                problems.append(f"L3: IFC-SOURCE.txt names no source tag {tag} for the OpenCASCADE {occt_version} the helper loads")
     lesser = prefix / "share/licenses/sketchyup/IfcOpenShell-COPYING.LESSER"
     if lesser.is_file() and "GNU LESSER GENERAL PUBLIC LICENSE" not in lesser.read_text(encoding="utf-8").upper():
         problems.append("L3: IfcOpenShell-COPYING.LESSER is not the LGPL text")
-    check_pin(source, problems)
 
 
 def check_pin(source, problems):
@@ -174,8 +182,8 @@ def check_pin(source, problems):
         problems.append("L3: " + result.stderr.strip().replace("\n", "; "))
 
 
-def check_l4(source, problems):
-    pkgbuild = (source / "packaging" / "arch" / "PKGBUILD").read_text(encoding="utf-8")
+def check_l4(source, problems, pkgbuild_path=None):
+    pkgbuild = Path(pkgbuild_path or source / "packaging" / "arch" / "PKGBUILD").read_text(encoding="utf-8")
     licenses = re.search(r"^license=\(([^)]*)\)", pkgbuild, re.M)
     names = re.findall(r"'([^']*)'", licenses.group(1)) if licenses else []
     for needed in ("LGPL-3.0-or-later", "LGPL-2.1-or-later"):
@@ -208,6 +216,13 @@ def check_l4(source, problems):
 GPL3 = re.compile(r"^(A?GPL-3\.0(-only|-or-later)?|GPL3|AGPL3)$")
 
 
+def package_owner(path):
+    if shutil.which("pacman") is None:
+        return None
+    owner = subprocess.run(["pacman", "-Qoq", str(path)], capture_output=True, text=True)
+    return owner.stdout.split()[0] if owner.returncode == 0 and owner.stdout.strip() else None
+
+
 def package_licenses(path):
     """Licence identifiers of the Arch package owning path, or None when that cannot be told."""
     if shutil.which("pacman") is None:
@@ -224,9 +239,13 @@ def check_l5(prefix, problems):
     private = prefix / PRIVATE
     targets = [private / WORKER] + sorted(p for p in private.iterdir()
                                           if p.is_file() and not p.is_symlink() and is_elf(p)
-                                          and p.name != WORKER)
+                                          and any(re.match(x, p.name) for x in LIBRARY_PATTERNS))
     seen = set()
+    # gcc-libs is a set of packages (libgcc, libstdc++ and others) on current Arch
+    allowed_owners = {"glibc", "gcc-libs", "libgcc", "libstdc++"}
     for target in targets:
+        if any(n.startswith("libboost") for n in dynamic(target)[0]):
+            problems.append(f"L5: {target.name} records a Boost library; the package does not depend on boost-libs")
         out = subprocess.run(["ldd", str(target)], capture_output=True, text=True,
                              env={"PATH": "/usr/bin:/bin"}).stdout
         for line in out.splitlines():
@@ -235,6 +254,7 @@ def check_l5(prefix, problems):
                 continue
             name, resolved = match.groups()
             if resolved == "not":
+                problems.append(f"L5: {target.name} needs {name}, which cannot be found")
                 continue
             real = os.path.realpath(resolved)
             if real in seen or real.startswith(str(private.resolve())):
@@ -251,6 +271,10 @@ def check_l5(prefix, problems):
             alternatives = [l for l in licenses if "LGPL" in l or "exception" in l.lower() or "WITH" in l]
             if bare and not alternatives:
                 problems.append(f"L5: {target.name} links {name} ({real}), licensed {licenses}")
+            owner = package_owner(real)
+            if owner and owner not in allowed_owners:
+                problems.append(f"L5: {target.name} links {name} from the package {owner}, which "
+                                f"sketchyup-ifc does not depend on (add it to the PKGBUILD or stop linking it)")
     return len(seen)
 
 
@@ -312,13 +336,16 @@ def check_l6(prefix, problems):
     return len(recorded)
 
 
-def run_checks(prefix, source, others):
+def run_checks(prefix, others):
     problems = []
     summary = {}
     summary["L1"] = check_l1(prefix, others, problems)
     check_l2(prefix, problems)
-    check_l3(prefix, source, problems)
-    check_l4(source, problems)
+    occt = None
+    probed = probe(prefix / PRIVATE / WORKER)
+    if probed.returncode == 0:
+        occt = json.loads(probed.stdout).get("occtVersion")
+    check_l3(prefix, problems, occt)
     summary["L5"] = check_l5(prefix, problems)
     summary["L6"] = check_l6(prefix, problems)
     return problems, summary
@@ -340,35 +367,39 @@ def main(argv):
     install = sub.add_parser("install")
     install.add_argument("--cmake", required=True)
     install.add_argument("--build-dir", required=True)
-    install.add_argument("--source-dir", required=True)
+    install.add_argument("--source-dir")  # accepted and unused: the install checks read no repository file
     package = sub.add_parser("package")
     package.add_argument("--prefix", default="/usr")
-    package.add_argument("--source-dir", required=True)
+    package.add_argument("--source-dir")  # accepted and unused
     package.add_argument("--other-executables", nargs="*", default=[])
     src = sub.add_parser("source")
     src.add_argument("--source-dir", required=True)
+    src.add_argument("--pkgbuild")
     args = parser.parse_args(argv[1:])
-    source = Path(args.source_dir).resolve()
+    source = Path(args.source_dir).resolve() if args.source_dir else None
     if args.mode == "source":
         problems = []
         check_pin(source, problems)
-        check_l4(source, problems)
-        return report(problems, {"source": "ok"})
+        check_l4(source, problems, args.pkgbuild)
+        return report(problems, {"source": "pin, dependencies.json, PKGBUILD licences, notice lines"})
     if args.mode == "install":
         build = Path(args.build_dir).resolve()
         with tempfile.TemporaryDirectory(prefix="ifc-install-") as scratch:
-            prefix = Path(scratch) / "usr"
+            # Like makepkg: DESTDIR stages the files, the prefix is the final /usr.
+            stage = Path(scratch) / "stage"
+            prefix = stage / "usr"
             done = subprocess.run([args.cmake, "--install", str(build), "--component", "ifc",
-                                   "--prefix", str(prefix)], capture_output=True, text=True)
+                                   "--prefix", "/usr"], capture_output=True, text=True,
+                                  env={**os.environ, "DESTDIR": str(stage)})
             if done.returncode != 0:
                 print(done.stdout + done.stderr, file=sys.stderr)
                 return 1
             # Every other executable the build made must not link the library either.
             others = [p for p in build.iterdir() if p.is_file() and not p.name.startswith("sketchyup-ifc-worker")]
-            problems, summary = run_checks(prefix, source, others)
+            problems, summary = run_checks(prefix, others)
         return report(problems, summary)
     prefix = Path(args.prefix)
-    problems, summary = run_checks(prefix, source, [Path(p) for p in args.other_executables])
+    problems, summary = run_checks(prefix, [Path(p) for p in args.other_executables])
     return report(problems, summary)
 
 

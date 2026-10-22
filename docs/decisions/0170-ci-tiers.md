@@ -220,9 +220,11 @@ Follow-ups (2026-10-22):
 
 - **IFC library and helper (R097.a, [ADR 0171](0171-ifc-exchange-subset.md) section 1.5).** The
   vendored IfcOpenShell tree is built by its own job, not by `ci-fast`: area `job:ifc` (a changed
-  path under `third_party/ifcopenshell/`, `src/ifc/`, `tests/ifc*`, `tests/fixtures/ifc/` or the two
-  IFC scripts) runs `IFC library and helper`, and nothing else selects it, so an ordinary pull request
-  plans, builds and tests exactly what it did before. The job installs `CI_IFC_PACKAGES` (it adds
+  path under `third_party/ifcopenshell/`, `src/ifc/`, `tests/ifc*`, `tests/fixtures/ifc/`, the two
+  IFC scripts, `dependencies.json` or `CMakePresets.json`) runs `IFC library and helper`, and only such a path
+  selects it (the vendored tree alone selects nothing else; `src`, `scripts` and `tests` paths still select
+  `build` and `native` through their generic rules), so an ordinary pull request plans, builds and tests
+  exactly what it did before. The job installs `CI_IFC_PACKAGES` (it adds
   `opencascade`, which pulls VTK, Tcl and Tk, 0.55 GiB, so it has its own package-cache entry and no
   other job's key or install changed), restores the prefix `build/ifc-prefix` from a cache keyed by the
   image's packages, the mirror, the vendored tree and `src/ifc/IfcOpenShellPrefix.cmake`, builds the helper

@@ -301,7 +301,9 @@ PYPREFS
 # the helper and the private libraries in /usr/lib/sketchyup and nothing links them but the helper.
 ifc_package=sketchyup-ifc-$package_version-$package_release-x86_64.pkg.tar.zst
 [[ -s $ifc_package ]]
-if pacman -Qlq sketchyup | grep -qE 'ifcopenshell|libTK|sketchyup-ifc-worker|IfcOpenShell|OpenCASCADE|IFC-SOURCE'; then
+# (into a variable first: with pipefail, grep -q closing the pipe early could hide a match)
+base_files=$(pacman -Qlq sketchyup)
+if grep -qE 'ifcopenshell|libTK|sketchyup-ifc-worker|IfcOpenShell|OpenCASCADE|IFC-SOURCE' <<< "$base_files"; then
   echo 'The sketchyup package contains IfcOpenShell or OpenCASCADE files.' >&2
   exit 1
 fi
@@ -320,8 +322,11 @@ jq -e --arg v "$package_version" '.worker.version == $v and .ifcopenshell.versio
 # copy of the libraries; the notices and the source offer; no GPL-3.0-or-later library; and the
 # kernel plugin reports "kernel unavailable" (no abort) when it or any OpenCASCADE library is gone.
 runuser -u builder -- python -I "$source_dir/scripts/verify-ifc-library.py" package --prefix /usr \
-  --source-dir "$source_dir" --other-executables /usr/bin/sketchyup /usr/bin/sketchyup-cli \
+  --other-executables /usr/bin/sketchyup /usr/bin/sketchyup-cli \
   /usr/lib/sketchyup/sketchyup-extension-worker /usr/lib/sketchyup/sketchyup-text-worker
+# L3 (the pin) and L4 (dependencies.json, the PKGBUILD licences, the notice lines) on the source archive.
+runuser -u builder -- python -I "$source_dir/scripts/verify-ifc-library.py" source \
+  --source-dir "$source_dir" --pkgbuild /work/package/PKGBUILD
 # The API probe against the installed helper: units, voids, colours and failures as the library really behaves.
 runuser -u builder -- python -I "$source_dir/tests/ifc_worker_probe_tests.py" \
   /usr/lib/sketchyup/sketchyup-ifc-worker "$source_dir/tests/fixtures/ifc"

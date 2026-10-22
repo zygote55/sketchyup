@@ -107,14 +107,16 @@
       ]
     },
     {
-      "why": "IFC (ADR 0171): the vendored IfcOpenShell tree, the helper that links it, its API probe, fixtures and library checks. The application does not link the library, so the fast tier runs only the IFC job, which restores the cached prefix (the tree and src/ifc/IfcOpenShellPrefix.cmake key the cache). The generic rules above add build and native for src, scripts and tests paths.",
+      "why": "IFC (ADR 0171): the vendored IfcOpenShell tree, the helper that links it, its API probe, fixtures and library checks, and the files that pin and describe it. The application does not link the library, so the vendored tree alone selects only the IFC job, which restores the cached prefix (the tree and src/ifc/IfcOpenShellPrefix.cmake key the cache); src, scripts and tests paths also select build and native through the generic rules.",
       "paths": [
         "third_party/ifcopenshell/**",
         "src/ifc/**",
         "tests/ifc*",
         "tests/fixtures/ifc/**",
         "scripts/vendor-ifcopenshell.py",
-        "scripts/verify-ifc-library.py"
+        "scripts/verify-ifc-library.py",
+        "dependencies.json",
+        "CMakePresets.json"
       ],
       "areas": [
         "job:ifc"

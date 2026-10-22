@@ -69,7 +69,8 @@ package_sketchyup() {
 package_sketchyup-ifc() {
   pkgdesc='IFC helper for SketchyUp: IfcOpenShell and the OpenCASCADE libraries it needs (private copies)'
   license=('MIT' 'LGPL-3.0-or-later' 'LGPL-2.1-or-later' 'LicenseRef-OCCT-LGPL-exception')
-  depends=("sketchyup=$pkgver" 'boost-libs' 'gcc-libs' 'glibc')
+  # Linked with --as-needed, nothing shipped records a Boost library (L5 checks it).
+  depends=("sketchyup=$pkgver" 'gcc-libs' 'glibc')
   # /usr/lib/sketchyup/sketchyup-ifc-worker, libifcopenshell*.so, the ifcopenshell_*.so plugins and
   # the libTK*.so libraries, all in one flat private directory (a RUNPATH of $ORIGIN); the notices
   # and the written source offer (share/doc/sketchyup/IFC-SOURCE.txt).

@@ -67,11 +67,19 @@ if(BUILD_TESTING)
   if(SKETCHYUP_SANITIZE)
     # IfcParse leaks the instances and header entities of every file it parses (upstream turns leak
     # detection off in its own fuzz harness for the same reason); the rest of ASan and UBSan stay on.
-    set_tests_properties(ifc_worker_probe PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+    # An UBSan report is a failure, not a line on stderr.
+    set_tests_properties(ifc_worker_probe PROPERTIES
+      ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0;UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
   endif()
   # Checks L1 to L6 of ADR 0171 section 6.3 on a scratch install of the ifc component.
   add_test(NAME ifc_library_install COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/scripts/verify-ifc-library.py" install
-    --cmake "${CMAKE_COMMAND}" --build-dir "${CMAKE_BINARY_DIR}" --source-dir "${PROJECT_SOURCE_DIR}")
+    --cmake "${CMAKE_COMMAND}" --build-dir "${CMAKE_BINARY_DIR}")
   set_tests_properties(ifc_library_install PROPERTIES TIMEOUT 600)
+  # L3 (the pin) and L4 (dependencies.json, the PKGBUILD licences, the notice lines) read repository
+  # files the source archive does not carry, so this test exists in a git checkout only.
+  if(EXISTS "${PROJECT_SOURCE_DIR}/packaging/arch/PKGBUILD" AND EXISTS "${PROJECT_SOURCE_DIR}/dependencies.json")
+    add_test(NAME ifc_library_source COMMAND "${Python3_EXECUTABLE}" -I
+      "${PROJECT_SOURCE_DIR}/scripts/verify-ifc-library.py" source --source-dir "${PROJECT_SOURCE_DIR}")
+  endif()
 endif()

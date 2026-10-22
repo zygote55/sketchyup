@@ -8,6 +8,9 @@
 # records (it is linked with --as-needed, so only the toolkits it really uses), found by reading
 # DT_NEEDED with readelf. Each copy gets RUNPATH $ORIGIN: a library finds its dependencies by its
 # own RUNPATH, never by the executable's.
+# file(INSTALL) prepends DESTDIR to an absolute destination itself; the other commands below
+# (MAKE_DIRECTORY, REAL_PATH, patchelf) work on the staged copy and need it spelled out.
+set(install_destination "${SKETCHYUP_IFC_PRIVATE_DIR}")
 set(destination "$ENV{DESTDIR}${SKETCHYUP_IFC_PRIVATE_DIR}")
 set(kernel "${SKETCHYUP_IFC_PREFIX_LIB}/ifcopenshell_geometry_kernel_opencascade.so")
 find_program(readelf_program readelf REQUIRED)
@@ -54,10 +57,9 @@ endwhile()
 list(SORT closure)
 list(LENGTH closure count)
 message(STATUS "Installing ${count} OpenCASCADE libraries beside the IfcOpenShell libraries")
-file(MAKE_DIRECTORY "${destination}")
 foreach(name IN LISTS closure)
   # FOLLOW_SYMLINK_CHAIN copies the soname link and the file it points at.
-  file(INSTALL "${SKETCHYUP_IFC_OCCT_LIB}/${name}" DESTINATION "${destination}" FOLLOW_SYMLINK_CHAIN)
+  file(INSTALL "${SKETCHYUP_IFC_OCCT_LIB}/${name}" DESTINATION "${install_destination}" FOLLOW_SYMLINK_CHAIN)
 endforeach()
 foreach(name IN LISTS closure)
   file(REAL_PATH "${destination}/${name}" real)

@@ -62,6 +62,7 @@ public:
   // Closes every container opened after the first `depth`, so an exception caught mid-document
   // still leaves valid JSON.
   JsonOut& unwindTo(std::size_t depth) {
+    if (pendingValue_) out_ += "null";  // a key was written and its value never came
     pendingValue_ = false;
     while (brackets_.size() > depth) {
       out_ += brackets_.back() == '{' ? '}' : ']';
@@ -114,7 +115,22 @@ private:
   }
   void appendString(std::string_view text) {
     out_ += '"';
-    for (unsigned char c : text) {
+    for (std::size_t i = 0; i < text.size(); ++i) {
+      const unsigned char c = static_cast<unsigned char>(text[i]);
+      if (c >= 0x80) {
+        // IFC strings are not guaranteed to be UTF-8: copy a valid sequence, replace anything else
+        // with U+FFFD, so the output is always valid JSON.
+        const std::size_t length = c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC2 ? 2 : 0;
+        bool valid = length != 0 && c < 0xF5 && i + length <= text.size();
+        for (std::size_t k = 1; valid && k < length; ++k) valid = (static_cast<unsigned char>(text[i + k]) & 0xC0) == 0x80;
+        if (valid) {
+          out_.append(text.substr(i, length));
+          i += length - 1;
+        } else {
+          out_ += "\xEF\xBF\xBD";
+        }
+        continue;
+      }
       switch (c) {
         case '"': out_ += "\\\""; break;
         case '\\': out_ += "\\\\"; break;
