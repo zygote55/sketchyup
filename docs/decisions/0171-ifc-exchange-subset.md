@@ -76,7 +76,8 @@ What the fixtures show. buildingSMART's public certification datasets contain th
 three `Building-Architecture.ifc` files and counted instance lines. They differ in
 representation: the IFC2x3 file has 20 `IfcFacetedBrep` and 2 `IfcExtrudedAreaSolid` items;
 the IFC4 and IFC4.3 files have 12 `IfcTriangulatedFaceSet` and 2 `IfcExtrudedAreaSolid`.
-All three have 1 project, 1 building, 1 storey, 2 spaces, 4 walls, 3 slabs, 1 roof,
+All three have 1 project, 1 building, 1 storey, 2 spaces, 4 walls, 3 slabs, 1 roof, building
+element proxies (5, 3 and 2),
 a classification reference with a URI, and psets and quantity sets; none has a door or
 window. The IFC4 and IFC4.3 files carry an `IfcProjectedCRS` (`EPSG:32760`) and an
 `IfcMapConversion` whose axis is rotated **60 degrees** (`XAxisAbscissa` 0.5, `XAxisOrdinate`
@@ -134,12 +135,20 @@ extrusions and one `IfcRelVoidsElement`).
   libraries at pinned commits (fast_float, TinyNURBS, GLM, earcut.hpp, CDT, spdlog, stduuid,
   unordered_dense and a test framework) with their own licences; each would need vendoring
   and a notice, and its CDT pin differs from ours (2.0.0).
-- **B.** No third-party licence. One caveat: the IFC EXPRESS schemas and the specification
-  documents are published under **CC BY-ND 4.0** (buildingSMART's `IFC4.3.x-development`
-  `LICENSE.md`). "No derivatives" makes mechanically generating code from the EXPRESS files and
-  committing it a question for the owner. The recommendation avoids it: the entity attribute
+- **B.** No third-party licence. Two caveats about buildingSMART's own material. First, the
+  `IFC4.3.x-development` repository's `LICENSE.md` opens with **CC BY-ND 4.0** ("no
+  derivatives") and its README says formal static releases are CC BY-ND 4.0, but the same
+  file's copyright notice says the technical documentation "may be photocopied, used in
+  software development, or translated into another computer language without prior written
+  consent ... provided that full attribution is given", with consent needed only "if changes
+  are made to the technical specification". Whether mechanically generating code from the
+  EXPRESS files is a derivative is therefore unclear to me, and the repository's licence
+  reads as NOASSERTION to GitHub. The recommendation avoids the question: the entity attribute
   tables are written by hand from the published documentation and verified against an
-  independent oracle (section 6). This is a risk to confirm, not a conclusion.
+  independent oracle (section 6). Second, the same file has a **trademark notice**: IFC(TM)
+  and ifcXML(TM) are buildingSMART trademarks and "should be given appropriate credits"; the
+  user guide and the fixture notice must credit them. I have no legal opinion; the owner
+  should confirm both points.
 - **D.** Nothing is linked and nothing is shipped, so no licence obligation attaches to
   SketchyUp's package. The user installs the tool. This matches how Blender is treated, but
   Blender is a rendering extra, whereas importing a user's IFC file is a core exchange
@@ -154,7 +163,7 @@ CGAL, the converter, Python and the examples switched off, schemas `2x3;4`, Rele
 | --- | --- |
 | Configure | Succeeds with only Boost added to the image |
 | Build, 29 steps, `-j4`, container capped at 10 GB / 4 CPUs | **384 s** |
-| Peak compiler memory | 620–885 MB per compile job (generated schema sources: `Ifc4.cpp` 1.7 MB, `Ifc4.h` 3.3 MB, `Ifc2x3.cpp` 1.4 MB, `Ifc2x3.h` 2.3 MB) |
+| Compiler memory | 620–885 MB resident per compiler process, sampled with `ps` during the build (generated schema sources: `Ifc4.cpp` 1.7 MB, `Ifc4.h` 3.3 MB, `Ifc2x3.cpp` 1.4 MB, `Ifc2x3.h` 2.3 MB); schema `4x3_add2` was not built, so its weight is unmeasured |
 | Outputs | `libifcopenshell.parse.so` 1.4 MB, `libifcopenshell.plugin.so` 0.13 MB, `ifcopenshell_parse_schema_ifc2x3.so` 3.8 MB, `ifcopenshell_parse_schema_ifc4.so` 4.6 MB; build tree 24 MB |
 | Run-time dependencies of the libraries | libstdc++, libm, libgcc, libc only; Boost is a build-time header dependency |
 
@@ -240,6 +249,12 @@ is no zip reader in the codebase and none is proposed.
   five ISO-specification Reference View samples are named for tessellation; the fifth is a
   wall with an opening and a window). It is claimed only after an **independent consumer** reads the file back
   (section 6). Export to IFC2x3 or IFC4.3 is not claimed; decision 2 records why.
+- **No view or certification claim.** Export is tessellated like the Reference View's
+  examples, but R097 does **not** claim Reference View conformance or buildingSMART
+  certification. The file header's `FILE_DESCRIPTION` therefore does not declare a
+  `ViewDefinition`; it states `SketchyUp export, tessellated geometry`. Claiming a view would
+  need the view's exchange requirements and the buildingSMART validation rules (the MIT
+  `ifc-gherkin-rules` repository) to pass first; that is a later row if the owner wants it.
 - **No semantic round trip is claimed.** A file exported by SketchyUp and re-imported must
   reproduce geometry, hierarchy and properties within the stated tolerances; that is a test,
   not a promise about other tools. Native history, topology, curves, guides, annotations,
@@ -270,23 +285,34 @@ identity).
 | `IfcZone`, `IfcSpatialZone`, `IfcSystem`, `IfcGroup` and `IfcRelAssignsToGroup` | Not groups | Membership is recorded on each member as the property `ifc.Groups` (a comma-joined list of at most 2,048 bytes), and the zone or system is counted as converted-to-properties |
 | 4.3 `IfcFacility`, `IfcBridge`, `IfcRoad`, `IfcRailway` and other infrastructure spatial elements | A plain group if they contain at least one supported element; otherwise omitted | `ifc.Class` records the class; the notice states that infrastructure semantics are not interpreted |
 
-Every group created from the spatial tree keeps its IFC placement as a native group
-transform (the chain of `IfcLocalPlacement` relative placements composed exactly), so moving a
-storey group moves its elements and element vertices stay in small local coordinates.
+The group tree follows **containment and aggregation**, not the placement chain; the two
+often differ (an element's `PlacementRelTo` need not be its container). Each group or body
+therefore gets the native transform `inverse(parent world) × world`, where `world` is the
+exact composition of its `IfcLocalPlacement` chain, so moving a storey group moves its
+elements and element vertices stay in small local coordinates. World positions are re-checked
+against the 1e6 m native bound after composition. An element with two parents (two
+containment or aggregation relationships) takes the first in file order and gets a notice
+(`multipleParents`); a cycle in containment or aggregation leaves the elements in the cycle
+not imported and reported.
 `IfcAxis2Placement3D` axes are derived into an orthonormal frame by the standard's rules, so
 the result is a proper rotation; the import refuses a placement with a non-finite or
 zero-length axis or a non-finite coordinate. A cycle in `PlacementRelTo`, a depth above 64, or an
 `IfcGridPlacement` or `IfcLinearPlacement` (unsupported) leaves that element not imported and
 reported by `GlobalId`.
 
-Names: `IfcRoot.Name` becomes the body name, shortened to the 64-byte display rule with an
-ellipsis; the full name is kept as `ifc.Name` when it was shortened. A missing name becomes
-`<Class> <first 6 characters of GlobalId>`.
+Names: `IfcRoot.Name` becomes the body name, shortened at a UTF-8 code-point boundary to 256
+bytes (the DXF importer's rule; native names allow 1,024); the full name is kept as `ifc.Name`
+when it was shortened. A missing name becomes
+`<Class> <first 6 characters of GlobalId>`. `GlobalId` values that are not 22 characters of
+`0-9A-Za-z_$` are kept as text with a notice (`invalidGlobalId`); a second element with a
+`GlobalId` already seen keeps its own value in `ifc.GlobalId` and gets a notice
+(`duplicateGlobalId`); the hierarchy checks use the first.
 
 **Tags.** One tag per IFC class family of the imported elements (`IFC Wall`, `IFC Slab`,
 `IFC Space`, `IFC Opening` …), at most 128 distinct tags, the rest on `IFC Other`.
 `IfcPresentationLayerAssignment` layer names are kept as the property `ifc.Layer` rather than
-as tags, because a body has one tag and class tags give the useful visibility switches
+as tags (a layer with `LayerOn` false or `LayerFrozen` true imports its bodies **hidden**, with
+a notice, so the hidden state of an export survives a re-import), because a body has one tag and class tags give the useful visibility switches
 (DXF's layer-to-tag rule is the same idea applied to a format whose layers are its only
 organization). Decision 8.
 
@@ -350,7 +376,7 @@ undoable like any other.
 | `IfcFacetedBrep`, `IfcFacetedBrepWithVoids`, `IfcFaceBasedSurfaceModel`, `IfcShellBasedSurfaceModel` (faces and shells of planar polygons) | As above; open shells stay open surfaces; faces with `IfcFaceBound` orientation flags and holes honoured | b |
 | `IfcExtrudedAreaSolid` with `IfcRectangleProfileDef`, `IfcCircleProfileDef`, `IfcArbitraryClosedProfileDef`, `IfcArbitraryProfileDefWithVoids`; profile curves `IfcPolyline` and `IfcIndexedPolyCurve` (lines and arcs) | Profile outline (arcs segmented at the chosen resolution) swept along the extrusion direction; end caps and side faces | c |
 | `IfcRevolvedAreaSolid` | Revolution segmented at the chosen resolution; angle in the project's plane-angle unit | c |
-| `IfcBooleanClippingResult`, `IfcBooleanResult` (difference, union, intersection) over supported operands, `IfcHalfSpaceSolid` and `IfcPolygonalBoundedHalfSpace` | Evaluated with the Manifold adapter on closed solids; a half-space is bounded to a large finite box | c |
+| `IfcBooleanClippingResult`, `IfcBooleanResult` (difference, union, intersection) over supported operands, `IfcHalfSpaceSolid` and `IfcPolygonalBoundedHalfSpace` | Evaluated with the Manifold adapter on closed solids; a half-space is bounded to a finite box (robustness rules below) | c |
 | `IfcMappedItem` over an `IfcRepresentationMap` | One component definition per distinct map and one placement per use; a non-uniform scale in the mapping operator stays in the placement transform, as for glTF ([ADR 0110](0110-native-gltf-conversion.md)) | c |
 | Other parametric profiles (`IfcIShapeProfileDef`, `IfcLShapeProfileDef`, `IfcTShapeProfileDef`, `IfcUShapeProfileDef`, `IfcRectangleHollowProfileDef`, `IfcCircleHollowProfileDef`) | Reported as unsupported until a later slice adds them; the element is not imported | later |
 | `IfcExtrudedAreaSolidTapered`, `IfcSweptDiskSolid`, `IfcSurfaceCurveSweptAreaSolid`, `IfcFixedReferenceSweptAreaSolid`, `IfcSectionedSolid` | Unsupported in R097; reported by class | later |
@@ -364,10 +390,37 @@ order wins and the others are counted as `alternativeRepresentationsSkipped`. `A
 counted by identifier. An element with a `Body` representation that does not convert is not
 imported; it is not replaced by its `Box`.
 
+**Robustness rules.**
+
+- *Planarity and weld.* Native faces must be planar within 1e-7 m and the surface welds points
+  within 1e-7 m. IFC coordinates are often rounded far coarser (the fixtures use three decimals
+  in millimetres, 1e-6 m), so n-gon faces from faceted breps will frequently fail planarity.
+  Such a face is split into triangles and counted (`nonPlanarFaces`), which can inflate face
+  counts toward the 100,000 limit; the cost is measured in R097.b, and a coplanar-patch merge
+  within a looser tolerance (hidden edges) is the later remedy if it matters. Triangles that
+  collapse after the weld are dropped and counted (`degenerateTriangles`).
+- *Winding and mirroring.* Shell orientation follows the file (faceted breps carry outward
+  orientation; `IfcFaceBound.Orientation` is honoured). A negative-determinant transform keeps
+  the reflection in the placement and the tessellation winding is corrected, as for glTF.
+- *Half-spaces.* A half-space is not an infinite solid: it is bounded to the other operand's
+  bounding box expanded by a margin (1.5 times the extent plus 1 m), so the Manifold adapter's
+  12.5 nm grid and 25 nm extent tolerance ([ADR 0046](0046-solid-booleans.md)) are not
+  exceeded; operands that still exceed them are rejected by the adapter and the element is
+  reported (`booleanRejected`).
+- *Boolean results.* The adapter returns polygon faces with holes, not triangles. A result with
+  several disconnected parts becomes one group of bodies named `<Name> (part n)` with a notice,
+  so one IFC element is not silently merged or dropped.
+- *Boolean and mapped-item blow-up.* Boolean tree depth, operations per import and mapped-item
+  nesting are bounded (6.3); `IfcMappedItem` and `IfcRepresentationMap` nesting is at most 8,
+  cycles are refused, and the **expanded** size (uses times definition size) is computed from
+  counts and checked against the materialized limits before any geometry is generated. An
+  element over a bound is not imported and is reported (`booleanLimit`, `mappedExpansion`).
+
 **Tolerances.** Arcs and revolutions are segmented at 12 to 256 segments per full circle
 (default 96, the DXF rule); the report gives the maximum chord deviation in metres. The
 file's `Precision` (per context) is recorded in the report and does not change native
-tolerance (1e-7 m). A body over the 100,000-vertex or 100,000-face body limit, or a result
+tolerance (1e-7 m). A body over the native per-body limit of 100,000 vertices or faces
+(`Surface::validate`, [ADR 0168](0168-terrain-import-and-surfaces.md) Context), or a result
 over the document limits, is refused with the count and the limit named, element by element
 (the element is not imported; the rest are).
 
@@ -395,16 +448,25 @@ document claims the geometry is the original parametric definition.
   m² area and m³ volume, so an area quantity is already in m²). Every other measure type is
   stored as the source number and its unit is listed in the report's `unitsUnconverted`
   table; no claim is made about it.
-- Escapes. STEP string escapes (`''`, `\\`, `\X\`, `\X2\…\X0\`, `\X4\…\X0\`, `\S\`, `\P`
-  code pages) are decoded; text that is not valid after decoding is refused for that value
-  and counted.
-- Caps. At most 128 properties per body (the native limit). Occurrence-level properties come
-  first, then type-level, each in pset-name then property-name order; the overflow is
-  dropped and counted per pset in `propertiesDropped`. Property keys over 128 bytes and
+- Escapes and encoding. STEP string escapes (`''`, `\\`, `\X\`, `\X2\…\X0\`, `\X4\…\X0\`, `\S\`,
+  `\P` code pages) are decoded. ISO 10303-21 is ASCII, but real files carry raw bytes: a UTF-8
+  byte-order mark is skipped; raw bytes of 0x80 and above are accepted as UTF-8 when valid and,
+  when not, decoded as ISO 8859-1, each with a notice and a count (`rawNonAscii`,
+  `latin1Fallback`), so a name is never blanked; text with an invalid escape or a NUL is refused
+  for that value and counted.
+- Caps. At most 128 properties per body (the native limit). Up to 16 slots are **reserved** for
+  the `ifc.*` provenance properties (class, GlobalId, step, representation, conversion, type,
+  name, layer, material, groups, classification and so on), which are written first; occurrence-level properties come
+  next, then type-level, each in pset-name then property-name order; the overflow is dropped
+  and counted per pset in `propertiesDropped`. Two keys that collide after shortening keep the
+  first and count the second. Property keys over 128 bytes and
   strings over 2,048 bytes are shortened or dropped with counts. In aggregate, imported
-  property text is bounded to **8 MiB** (a quarter of the model chunk), because a 10,000-body
-  document with a full property load would otherwise exceed 32 MiB and fail on Save; the
-  importer checks the serialized size and refuses with the count when over.
+  property text is bounded to **8 MiB**, and further by what the model chunk has left: ADR 0168
+  measured about 200 bytes of JSON per triangle, so a 100,000-face model is about 20 MB of the
+  32 MiB chunk and a full property load could otherwise fail on Save. The importer measures the
+  serialized document; while it is over `min(8 MiB, chunk − geometry − 2 MiB)` it drops
+  properties (type-level before occurrence-level, quantities before psets) and counts them. If
+  the geometry and provenance alone exceed the chunk, the import is refused with the counts.
 - Provenance properties (`ifc.*`) are the only non-IFC-named keys the importer writes; they
   count toward the 128.
 
@@ -420,7 +482,15 @@ Any other length or plane-angle unit is refused. **A file with no length unit is
 would break the no-silent-scale rule that ADR 0168 and the DXF importer already follow); the user can supply
 the length unit as an explicit override (`mm`, `cm`, `m`, `in`, `ft`), reported as an
 override. All native coordinates are metres. Area and volume units are read for quantity
-properties as described above. Mixed unit claims (several `IfcUnitAssignment`s in nested
+properties as described above; conversion-based area and volume units (square or cubic feet)
+use the same factor chain. `IfcPropertySingleValue.Unit` and `IfcPhysicalSimpleQuantity.Unit`
+override the project unit for that value: a recognised override (SI or a conversion-based unit
+of the same dimension) is applied, and an unrecognised one stores the number as written and is
+listed in `unitsUnconverted`, so no value is converted by assumption. A conversion factor
+within 1e-6 relative of a canonical value (inch 0.0254 m, foot 0.3048 m, yard 0.9144 m, US
+survey foot 1200/3937 m, degree π/180) is normalised to it with a notice; any other factor is
+used as written and `metresPerUnitExact` is false. (The Reference View degree sample states
+0.017453293, 2.7e-8 off π/180.) Mixed unit claims (several `IfcUnitAssignment`s in nested
 contexts) are refused.
 
 ### 3.6 Georeferencing
@@ -438,13 +508,14 @@ The mapping to the R095 site origin is exact in one case:
 
 | Condition | Result |
 | --- | --- |
-| θ = 0 (`XAxisAbscissa` > 0 and `XAxisOrdinate` = 0 within 1e-12), no per-axis factors, and `Scale` equals `metresPerUnit` within 1e-9 relative | The document site origin is set: easting, northing and elevation are Eastings, Northings and OrthogonalHeight; the CRS label is the `IfcProjectedCRS.Name` (shortened to 64 bytes); provenance is `IfcMapConversion` plus the file's SHA-256. The document then needs schema 29 and **opens only in SketchyUp 1.3.0 or later**; the report says so |
-| θ ≠ 0, or a factor or scale mismatch | Not representable by a translation-only site origin. Decision 6 |
+| θ = 0 (`XAxisAbscissa` > 0 and `XAxisOrdinate` = 0 within 1e-12, or both absent), no per-axis factors, the `IfcProjectedCRS` `MapUnit` absent or metre, the context's `WorldCoordinateSystem` the identity, exactly one `Model` context and one map conversion, and `Scale` (default 1) equal to `metresPerUnit` within 1e-9 relative | The document site origin is set: easting, northing and elevation are Eastings, Northings and OrthogonalHeight; the CRS label is the `IfcProjectedCRS.Name` (shortened to 64 bytes); provenance is `IfcMapConversion` plus the file's SHA-256. The document then needs schema 29 and **opens only in SketchyUp 1.3.0 or later**; the report says so |
+| θ ≠ 0, a factor, scale or map-unit mismatch (for example a State Plane CRS in US survey feet), several contexts or conversions | Not representable by a translation-only site origin; the report gives the reason. Decision 6 |
+| A non-identity `WorldCoordinateSystem` on the `Model` context | The **file is refused**, naming the context: applying or ignoring it would both be a guess, and neither fixture nor oracle covers it. A later slice may apply it |
 
 Decision 6 offers three ways to handle a rotation: (a) keep the project axes, set no site
 origin and report the whole conversion (and also record it as read-only `ifc.mapConversion.*`
 properties on the project group); (b) an opt-in "grid" mode that rotates the imported model
-by −θ about Z so that +X is east, then sets the translation-only site origin, which is exact
+by +θ about Z (the conversion's own rotation, so that +X is east), then sets the translation-only site origin, which is exact
 for site coordinates but turns the building's walls off the model axes; (c) give the site
 origin a grid rotation (and perhaps a scale), which is the faithful answer but changes R095's
 core (re-anchor, `site.convert`, DXF site coordinates, Site settings, schema). The
@@ -452,8 +523,10 @@ recommendation is (a) as the default with (b) as an explicit option and (c) as a
 later row. With the fixture buildingSMART certifies against (60 degrees, scale 0.001, mm
 units), (a) imports with no site origin and a complete report, and (b) with the origin set.
 
-Whichever way, `IfcSite` `RefLatitude`, `RefLongitude` and `RefElevation` are kept as
-properties (`ifc.RefLatitude` in decimal degrees and so on); the solar settings are not
+Whichever way, `IfcSite` `RefLatitude` and `RefLongitude` (compound lists of degrees, minutes,
+seconds and millionths of seconds) are converted to decimal degrees and kept with
+`RefElevation` as properties (`ifc.RefLatitude` and so on), and a context's `TrueNorth` is kept
+as `ifc.TrueNorth` (degrees from the Y axis) with a notice; the solar settings are not
 changed, matching ADR 0168's out-of-scope ("deriving latitude/longitude from the site
 origin"). Coordinates beyond ±1e6 m in the local frame (a model authored in absolute
 projected coordinates) are refused with the extent stated; shifting them and setting a site
@@ -461,9 +534,10 @@ origin from the extent, as R095's terrain import does, is decision 7.
 
 Export writes `IfcProjectedCRS` (the CRS label) and an `IfcMapConversion` (Eastings,
 Northings and OrthogonalHeight from the site origin, axis (1, 0), `Scale` 1 against the
-metre length unit) when the document has a site origin **and a CRS label**, since the
-standard requires a name. A site origin without a label is not written and the report says
-so. A rotation is never exported, because the document has none.
+metre length unit) when the document has a site origin **and a CRS label that looks like an authority code**
+(`EPSG:32760` form: letters, a colon, an identifier), since `IfcProjectedCRS.Name` is read by
+consumers as that identifier. The label is free text in the document (ADR 0168), so a label
+that does not match, or no label, means nothing is written and the report says why. A rotation is never exported, because the document has none.
 
 ### 3.7 Materials and colours
 
@@ -486,7 +560,7 @@ so. A rotation is never exported, because the document has none.
 
 | Native | IFC4 |
 | --- | --- |
-| Document | `IfcProject` with a 3D `Model` context (`Precision` 1E-7, the native tolerance) and a `Body` sub-context; units: metre, square metre, cubic metre, radian; one `IfcOwnerHistory` and `IfcApplication` (SketchyUp and its version); no unit option in R097 |
+| Document | `IfcProject` with a 3D `Model` context (`Precision` 1E-7, the native tolerance) and a `Body` sub-context (shape representations use identifier `Body` and type `Tessellation`); units: metre, square metre, cubic metre, radian; one `IfcOwnerHistory` and `IfcApplication` (SketchyUp and its version); no unit option in R097 |
 | Spatial structure | If the document came from IFC, groups with `ifc.Class` of `IfcSite`, `IfcBuilding` or `IfcBuildingStorey` are written as those; otherwise one site and one building are synthesized and **no storey is invented**. Elements are contained in the building (or the nearest spatial ancestor) with `IfcRelContainedInSpatialStructure` |
 | Group with children | `IfcElementAssembly` and `IfcRelAggregates` |
 | Geometry body | One `IfcTriangulatedFaceSet` (native tessellation; `IfcCartesianPointList3D`, 1-based `CoordIndex`); `Closed` set only when the native solid check passes, otherwise omitted; class from `ifc.Class` when it is a supported element class, else `IfcBuildingElementProxy` with `ObjectType` from the body name. Placement is `IfcLocalPlacement` chained like the group tree |
@@ -497,12 +571,16 @@ so. A rotation is never exported, because the document has none.
 | Site origin and CRS label | `IfcProjectedCRS` and `IfcMapConversion` as in 3.6 |
 | Not exported, counted | Wires, edges, curves, guides, text, dimensions and annotations, sections, scenes, sheets, reference images, terrain (tiles are ordinary bodies but the terrain record is dropped and the terrain is **omitted** in R097), textures, component parameters, edge appearance and smoothing |
 
-`GlobalId` (22-character compressed GUID). A body that was imported keeps its `ifc.GlobalId`.
-Others get a deterministic identifier from the SHA-256 of a fixed prefix, a project key and the
-body's stable ID, so exporting the same document twice gives the same file (the timestamp in
-`FILE_NAME` and the owner history is injectable, as `SOURCE_DATE_EPOCH` is for packages).
-Where the project key comes from, so that GUIDs stay stable across re-exports without the
-export editing the document, is an open design question for the owner (decision 16).
+`GlobalId` (22-character compressed GUID, characters `0-9A-Za-z_$`). A body that was imported
+keeps its `ifc.GlobalId` **if it is valid and not already used by another body in this
+export**; a copy of an imported body carries the same property, so duplicates and invalid
+values get a derived identifier instead and are counted (`globalIdReplaced`). Others get a
+deterministic identifier from the SHA-256 of a fixed prefix, the **document identity** and the
+body's stable ID. The document identity (`Document::identity()`) is a random 128-bit value
+that the native format already stores (`documentId`) and keeps across Save and reopen, so
+re-exporting the same document keeps its GUIDs without the export editing the document
+(decision 16). Exporting twice gives the same file when the timestamp in `FILE_NAME` and the
+owner history is injected, as `SOURCE_DATE_EPOCH` is for packages.
 
 Numbers are written as the shortest round-trip form of the double, in STEP REAL syntax. Text
 is escaped with `\X2\`/`\X4\` for non-ASCII characters. The writer streams entity lines to
@@ -539,7 +617,7 @@ Counts are complete even when locations are truncated. It contains no host paths
                "segmentsPerCircle": 96, "maximumChordDeviationMetres": 0.0,
                "openingsApplied": 0, "openingsNotApplied": 0},
   "properties": {"psets": 2, "properties": 6, "quantities": 25, "dropped": {}, "bytes": 0},
-  "materials": {"materials": 8, "styledItems": 14, "layerSetsDescribed": 1},
+  "materials": {"materials": 8, "styledItems": 14, "layerSetsDescribed": 0},
   "accounting": {"entities": 371, "converted": 0, "supporting": 0, "omitted": 0},
   "omittedEntities": {"IfcZone": 1},
   "losses": {"textures": 0, "materialLayering": 1},
@@ -556,20 +634,21 @@ The acceptance property that makes "never silently dropped" testable: every enti
 in the file is in exactly one of `converted` (it produced native content), `supporting`
 (consumed as data of a converted entity: points, directions, placements, profiles, units,
 owner history), or `omitted` (counted by class in `omittedEntities`). The three sum to
-`accounting.entities`, which equals the number of instances the reader found. Accountable
-classes (products, relationships, property definitions, materials, styles, representation
-items) that are not `converted` or `supporting` appear in `omittedEntities`; an entity whose
-class is missing from the reader's tables is counted under its own name (`IfcXyz`) and is
-never skipped. `omittedEntities` lists at most 128 kinds, with an `other` bucket past that,
-as in the DXF report.
+`accounting.entities`, which equals the number of instances the reader found. `omitted` is
+everything left over, counted by class in `omittedEntities`: accountable instances that were not
+converted (products, relationships, property definitions, materials, styles, representation
+items), and also non-accountable ones that only an omitted element referenced (a point or a
+profile of a skipped alignment) or that nothing referenced. An entity whose class is missing
+from the reader's tables is counted under its own name (`IfcXyz`) and is never skipped. `omittedEntities` lists at most 128 kinds, with an `other` bucket past
+that, as in the DXF report.
 
 ### Refusals
 
 Refused with nothing created: size, line, entity, depth or list limits; a malformed header or
 `FILE_SCHEMA`; a missing or unsupported length unit (without an override); a duplicate
 instance ID; a reference to an undefined instance in a position the subset needs (an
-undefined reference elsewhere is a notice and a skipped element); an unreadable string
-escape in a name used as an identifier; coordinates beyond ±1e6 m; and the document limits
+undefined reference elsewhere is a notice and a skipped element); a non-identity world
+coordinate system on the `Model` context; coordinates beyond ±1e6 m; and the document limits
 for the converted whole, named with counts. Per-element failures never refuse the import:
 the element is not imported and is located in the report.
 
@@ -623,6 +702,12 @@ package.
 | Original fixtures (MIT, generated by the test sources or hand-written P21): `units-mm.ifc`, `units-m.ifc`, `units-ft.ifc`, `units-missing.ifc`, `mapconv-zero-rotation.ifc`, `mapconv-60deg-scale.ifc`, `extrusion-profiles.ifc`, `revolve-and-boolean.ifc`, `mapped-items.ifc`, `openings.ifc` (closed and open hosts), `psets-types-escapes.ifc`, `unsupported-all.ifc` (an advanced brep, a swept disk, a CSG solid, an alignment, an unsupported placement, a cycle in placements), `far-from-origin.ifc`, `limits-*.ifc` generators | The project, MIT ([ADR 0001](0001-baseline.md): original examples) | Every claim not covered by buildingSMART's set, and every refusal |
 | `malformed/*.ifc` and fuzz seeds | The project | Truncation, a missing `ENDSEC`, unterminated string, bad escapes, deep nesting, a huge list, duplicate IDs, forward references, 1e308 coordinates, NaN text, a 128 MiB + 1 byte file |
 
+**CC BY 4.0 duties.** `NOTICE.md` names the author and source of each file, links the licence,
+states that the files are redistributed **unmodified** (any change is indicated), and carries
+the IFC trademark credit. The source archive redistributes the fixtures, which CC BY 4.0
+permits with attribution; the file headers name third-party products and, for the Reference
+View set, RDF Ltd. (2011).
+
 Community sample files are excluded: buildingSMART's own README says most "do not pass
 validity check", and their licence is per contributor.
 
@@ -633,7 +718,11 @@ IfcOpenShell's Python package, regenerated by a script that is optional tooling,
 is for DXF ([ADR 0120](0120-bounded-planar-dxf-source.md)):
 `tests/ifc-oracle-requirements.txt` would pin the version (0.9.0.post1 is the PyPI release
 today), the checked-in `oracle/*.json` hold the results, and CI and the package need no
-Python package. The oracle is LGPL-3.0 but is only run by a developer and its output is
+Python package. Because CI does not run the oracle, export regressions after acceptance are
+caught by **checked-in golden exports** (G6); regenerating them requires an oracle run.
+IfcOpenShell's validator is not buildingSMART's validation service (which also checks view
+rules); at acceptance the service is run by hand on the golden exports if the network allows,
+and its result is recorded, not made a CI gate. The oracle is LGPL-3.0 but is only run by a developer and its output is
 data. This also verifies the hand-written attribute tables: a table error shows up as a
 mismatch with the oracle on the three certification files.
 
@@ -641,16 +730,16 @@ mismatch with the oracle on the three certification files.
 
 | Verify clause | Check |
 | --- | --- |
-| Named fixtures preserve claimed units | A1: every vertex of the mm, m and ft fixtures is within 1e-9 m of `source × metresPerUnit` (exact for m); the report states `metresPerUnit`, exactness and any override. A2: quantity values equal the oracle's with the project's area and volume units (7 area, 7 volume and 11 length quantities in the IFC4 Architecture file). A3: a missing length unit is refused, and accepted with the override, reported as one. A4: a non-SI, non-inch, non-foot length unit is refused |
-| Named fixtures preserve claimed hierarchy | B1: on the three Architecture files and the Reference View wall, group tree = oracle's tree by `GlobalId` (project, site, building, storey, containment, aggregation), including both IFC4 sites; B2: counts per class equal the oracle's; B3: the element order within a parent follows the file; B4: `ifc.Groups` equals the oracle's group, system and zone membership; B5: tags per class |
-| Named fixtures preserve claimed properties | C1: every `Pset.Property` and `Qto.Quantity` equals the oracle (strings, booleans, doubles) with type-level properties copied to occurrences unless overridden; C2: `\X2\` and `\S\` escapes decode; C3: the 128-per-body cap and the 8 MiB aggregate cap drop and count, deterministically; C4: `ifc.GlobalId`, `ifc.Class`, `ifc.Step`, `ifc.Representation` on every body; C5: the classification reference is retained with its URI |
+| Named fixtures preserve claimed units | A1: every vertex of the mm, m and ft fixtures is within 1e-9 m of `source × metresPerUnit` (exact for m); the report states `metresPerUnit`, exactness and any override. A2: quantity values equal the oracle's with the project's area and volume units (7 area, 7 volume and 11 length quantities in the IFC4 Architecture file). A3: a missing length unit is refused, and accepted with the override, reported as one. A4: a non-SI, non-inch, non-foot length unit is refused; A5: a property or quantity with its own `Unit` is converted or listed unconverted, and a conversion-based area or volume unit converts |
+| Named fixtures preserve claimed hierarchy | B1: on the three Architecture files and the Reference View wall, group tree = oracle's tree by `GlobalId` (project, site, building, storey, containment, aggregation), including both IFC4 sites; B2: counts per class equal the oracle's; B3: the element order within a parent follows the file; B4: `ifc.Groups` equals the oracle's group, system and zone membership; B5: tags per class; B6: duplicate `GlobalId` in a file, two parents and a containment cycle are noticed or reported as specified; B7: a layer with `LayerOn` false imports its bodies hidden |
+| Named fixtures preserve claimed properties | C1: every `Pset.Property` and `Qto.Quantity` equals the oracle (strings, booleans, doubles) with type-level properties copied to occurrences unless overridden; C2: `\X2\` and `\S\` escapes decode; C3: the 128-per-body cap (provenance reserved), the 8 MiB aggregate cap and the chunk-remainder cap drop and count, deterministically, and a document whose geometry alone exceeds the chunk is refused; C4: `ifc.GlobalId`, `ifc.Class`, `ifc.Step`, `ifc.Representation` on every body; C5: the classification reference is retained with its URI |
 | Unsupported entities are reported | D1: the accounting identity holds on every fixture (`converted + supporting + omitted = entities`); D2: `unsupported-all.ifc` lists each unsupported class, with at most 32 locations and complete counts; D3: an element with an unsupported placement, a cycle or an unsupported representation is not imported and is located; **nothing is imported at the origin**; D4: a reference to an undefined ID is a notice, not a crash |
-| Converted geometry remains inspectable | E1: the whole document passes native validation (`decodeDocument(encodeDocument())`) and a save and reopen is bit-exact; E2: areas and volumes of tessellated sets and extrusions equal the oracle's to 1e-6 relative; E3: openings subtract the opening volume from the host (the Reference View wall's volume equals the oracle's) and a failed pair leaves the host uncut with the opening hidden on its tag and located in the report; E4: arc chord deviation is within the reported maximum; E5: a body is selectable, editable and undoable like any other (one edit makes the whole import one undo step); E6: each body's provenance properties resolve to the right source entity |
-| Georeferencing (claimed only as far as shown) | F1: θ = 0 and matching scale set the site origin to the E, N and H within 1e-9 m and the label; the document is schema 29; F2: the 60 degree fixture imports with `keepAxes` and no site origin, with the full conversion in the report; with `grid`, each vertex equals the oracle's mapped coordinate minus the translation to within 1e-9 m; F3: a model beyond ±1e6 m is refused naming the extent |
-| Export is demonstrated | G1: the independent oracle opens every export; **schema validation reports no errors** for IFC4; entity, hierarchy, property, unit and georeference counts equal the document's; tessellated areas and volumes agree within 1e-6 relative; G2: an export of the glTF, OBJ and DXF import fixtures and of a document built from commands re-imports to the same bodies, vertex coordinates within 1e-9 m, hierarchy and properties; G3: two exports of one document with a fixed timestamp are byte-identical; G4: the report counts every non-exported kind; G5: a CRS label is required for `IfcMapConversion`, and its absence is reported |
-| Determinism | H1: two imports of every fixture give identical encodings; H2: import of an input with its instances shuffled in file order gives the same document except for `ifc.Step` |
-| Limits and refusal | I1: each limit (128 MiB + 1, 2,000,001 entities, depth, list, record, 100,001 faces, 10,001 bodies) refuses with the count and the limit named, creating no document; I2: messages ≤ 256 bytes; the report ≤ 64 KiB |
-| Parsers | J1: a `parser_fuzz_ifc_step` target (the P21 reader and entity layouts) and a `parser_fuzz_ifc_import` target (bounded conversion dry run over accepted input, which must not throw for bad data, must keep the report within its bounds and must produce a document that decodes), with seeds from the generated fixtures; J2: `parser_fault_corpus_tests` mutates the certification files 512 times each; J3: ASan/UBSan campaigns of at least five minutes per target at [PARSER_FUZZING](../PARSER_FUZZING.md) settings; J4: the harness runs every input twice and compares |
+| Converted geometry remains inspectable | E1: the whole document passes native validation (`decodeDocument(encodeDocument())`) and a save and reopen is bit-exact; E2: areas and volumes of tessellated sets and of polygonal-profile extrusions equal the oracle's to 1e-6 relative; a circular profile's area equals the inscribed polygon's analytic area at the chosen segment count to 1e-9 and is within the reported chord deviation of the true circle; E3: openings subtract the opening volume from the host (the Reference View wall's volume equals the oracle's) and a failed pair leaves the host uncut with the opening hidden on its tag and located in the report; E4: arc chord deviation is within the reported maximum; E5: a body is selectable, editable and undoable like any other (one edit makes the whole import one undo step); E6: each body's provenance properties resolve to the right source entity |
+| Georeferencing (claimed only as far as shown) | F1: θ = 0 and matching scale set the site origin to the E, N and H within 1e-9 m and the label; the document is schema 29; F2: the 60 degree fixture imports with `keepAxes` and no site origin, with the full conversion in the report; with `grid`, each vertex equals the oracle's mapped coordinate minus the translation to within 1e-9 m; F3: a model beyond ±1e6 m is refused naming the extent; F4: a `MapUnit` of US survey foot, a non-identity `WorldCoordinateSystem` and two map conversions are each handled as specified (reported, or the file refused) |
+| Export is demonstrated | G1: the independent oracle opens every export; **schema validation reports no errors** for IFC4; entity, hierarchy, property, unit and georeference counts equal the document's; tessellated areas and volumes agree within 1e-6 relative; G2: an export of the glTF, OBJ and DXF import fixtures and of a document built from commands re-imports to the same bodies, vertex coordinates within 1e-9 m, hierarchy and properties; G3: two exports of one document with a fixed timestamp are byte-identical; G4: the report counts every non-exported kind; G5: a CRS label of authority-code form is required for `IfcMapConversion`, and its absence or a free-text label is reported; G6: golden exports are checked in and CI compares the exporter's bytes with them; G7: duplicate and invalid `ifc.GlobalId` values (a copied body) get derived identifiers and are counted |
+| Determinism | H1: two imports of every fixture give identical encodings; H2: import of an input with its instances shuffled in file order gives the same document except for `ifc.Step` and the order that file order defines (B3) |
+| Limits and refusal | I1: each file-level limit (128 MiB + 1, 2,000,001 entities, an instance ID above 2^32 - 1, depth, list, record) refuses with the count and the limit named, creating no document (slice a); each geometry limit (100,001 faces, 10,001 bodies, 1,025 materials, expansion and Boolean bounds) refuses or reports per element as specified (slices b and c); I3: a sparse ID such as `#4000000000` costs one index entry, not a dense array; I2: messages ≤ 256 bytes; the report ≤ 64 KiB |
+| Parsers | J1: a `parser_fuzz_ifc_step` target (the P21 reader and entity layouts; slice a) and a `parser_fuzz_ifc_import` target (bounded conversion dry run over accepted input, which must not throw for bad data, must keep the report within its bounds and must produce a document that decodes; created in slice b and extended in c and d), with seeds from the generated fixtures; J2: `parser_fault_corpus_tests` mutates the certification files 512 times each; J3: ASan/UBSan campaigns of at least five minutes per target, run at each slice that changes a target and again at R097.g; at [PARSER_FUZZING](../PARSER_FUZZING.md) settings; J4: the harness runs every input twice and compares; J5: text encoding: raw UTF-8, invalid UTF-8 (decoded as Latin-1 with a notice), a BOM and `\X2\` escapes in names are handled as specified |
 | Support claims | K1: the support matrix row, user guide section and the exchange-boundaries table state exactly the claimed schemas and directions, and name the unsupported classes as listed in the report; K2: `THIRD_PARTY_NOTICES` is unchanged (nothing new is linked) and the fixture `NOTICE.md` carries the CC BY 4.0 attribution |
 
 ### 6.3 Budgets
@@ -663,12 +752,15 @@ They are measured on the reference machine with software rendering, in the pinne
 | File size | 128 MiB | The glTF package bound (ADR 0109); text formats are 64 MiB, but IFC carries property data, and the 100k-face model limit already caps the geometry that can be kept |
 | Entity instances | 2,000,000 | A bound on index memory, not a proxy for file size: bytes per instance differ by about an order of magnitude (45 in the faceted-brep IFC2x3 Architecture file, 92,542 bytes for 2,046 instances; 380 in the tessellated IFC4 file, 142,325 bytes for 371, because coordinate lists are single large records) |
 | Single record | 16 MiB; list length 1,000,000; nesting depth 32; string 64 KiB after decoding | `IfcCartesianPointList3D` holds all of a mesh's coordinates in one record |
-| Distinct entity types | 1,024; reference chains (placements, units) 64 deep; Boolean tree depth 64 | |
-| Profile vertices | 10,000 each; Boolean operations 2,000 per import; per-body triangles 100,000 | The native body limit, and the R055 adapter's cost |
+| Distinct entity types | 1,024; reference chains (placements, units) 64 deep | |
+| Profile vertices; Boolean and mapped-item bounds | 10,000 vertices per profile; Boolean tree depth 64 and 2,000 operations per import; mapped-item nesting 8 | The R055 adapter's cost. These are first estimates (Revit-style clipping chains and window-heavy buildings may need more); the over-limit policy is per element: not imported, reported |
+| Per-body size | 100,000 vertices and faces | The native body limit |
+| Materials, tags | 1,024 native materials (names unique); at most 128 IFC class tags | A body past the material limit keeps its own colour and the report counts `materialsOverLimit` |
+| Instance IDs | At most 2^32 - 1, sparse index | |
 | Geometry after conversion | The native document limits (100,000 vertices and faces, 10,000 body records, 600,000 faces materialized) | A larger file is refused with the count and the limit, or, element by element, imported partially and reported; **there is no IFC-specific widening of the modelling limits** |
 | Properties | 128 per body; 8 MiB aggregate | The model chunk is 32 MiB |
 | Report | 64 KiB, 64 kinds, 32 locations per kind, 256-byte messages | The terrain report |
-| Parse and index a 64 MiB, about 1,000,000 entity IFC4 file | ≤ 3 s, with progress and cancel | R095 parse and triangulate at 250k was 0.36–0.50 s; this is a looser first target |
+| Parse and index a 64 MiB, about 1,000,000 entity IFC4 file | ≤ 3 s (a 128 MiB, 2,000,000-entity file ≤ 6 s), with progress and cancel | R095 parse and triangulate at 250k was 0.36–0.50 s; this is a looser first target |
 | Interpret, convert and commit (the 100,000-face, 10,000-body model) | ≤ 10 s, with progress; cancel latency ≤ 100 ms | ADR 0168 D-044: cancel stopped within 55 ms at 250k |
 | Refusal of an over-limit file | ≤ 1 s | The header, size and the entity count are known after the indexing pass |
 | Peak resident memory during import, at the limits | ≤ 1 GiB | The [R082.w v2 budget](../verification/R082w-memory-budget-v2.md) is 1 GiB for the supported 100k families; the reader holds the file (≤ 128 MiB) plus an offset index (about 32 bytes per entity: ≤ 64 MiB) and does not materialise arguments it does not interpret |
@@ -716,8 +808,9 @@ model limits prove tight); IFC2x3 export by the faceted-brep route.
   The report and the user guide say so; exporting does not require it.
 - **Property volume.** A full property load can exceed the 32 MiB model chunk. The 8 MiB
   aggregate cap and the serialized-size check are the guard; the cap may need tuning.
-- **Licence of the schema files** (CC BY-ND 4.0) constrains generating code from EXPRESS.
-  The recommendation avoids it; the owner should confirm the reading.
+- **Licence of the schema files** (CC BY-ND 4.0 with a software-development permission, see
+  section 1) leaves generating code from EXPRESS unclear. The recommendation avoids it; the
+  owner should confirm. IFC trademarks need a credit.
 - **Fixture licence.** The repository `LICENSE` is CC BY 4.0, but the Reference View files
   carry a different author in their headers. Decision 11.
 - **Colour space.** IFC does not define one; treating values as sRGB may shift appearance.
@@ -735,7 +828,7 @@ Proposed for the owner. Each has a recommendation; none is decided.
 1. **Library:** an in-house bounded STEP-P21 reader and writer, with IfcOpenShell only as a
    development-time oracle.
 2. **Schemas:** import IFC2x3 TC1, IFC4 ADD2 TC1 and IFC4.3 ADD2 (building subset); export
-   IFC4 ADD2 TC1 only, tessellated.
+   IFC4 ADD2 TC1 only, tessellated, with no view or certification claim.
 3. **Claims:** each direction is claimed only when its checks pass; import may ship without
    export.
 4. **Export geometry:** tessellated `IfcTriangulatedFaceSet` only; no faceted brep, no
@@ -745,8 +838,8 @@ Proposed for the owner. Each has a recommendation; none is decided.
    else reported with the host uncut and the opening hidden.
 6. **Georeferencing with a rotated or scaled map conversion:** keep the project axes and
    report (default), with an opt-in grid-aligned mode; a site rotation is a separate row.
-7. **Models beyond ±1e6 m:** refuse with the extent stated; shifting with a site origin is a
-   later option.
+7. **Models beyond ±1e6 m:** refuse with the extent stated; shifting (with or without setting
+   a site origin) is a later option.
 8. **Spaces and tags:** spaces on an `IFC Space` tag that starts hidden; one tag per IFC class
    family; layers as properties.
 9. **Properties:** flat `Pset.Property` keys, type-level copied to occurrences, `ifc.*`
@@ -762,10 +855,10 @@ Proposed for the owner. Each has a recommendation; none is decided.
     needs a new corpus version.
 14. **Budgets:** adopt the table in 6.3, to be confirmed by measurement before they are
     frozen.
-15. **Desktop UX:** commission and approve a UX design before R097.f starts.
-16. **GlobalId stability:** deterministic derivation from a project key and the body's
-    stable ID; where the key is stored without export editing the document is left to the
-    owner and the UX design.
+15. **Desktop UX:** commission and approve a UX design before R097.f starts (best commissioned
+    once R097.b lands and the report is real).
+16. **GlobalId stability:** deterministic derivation from the document identity (already stored in
+    the native file) and the body's stable ID; imported GlobalIds are kept when valid and unique.
 
 ## Implementation split
 
@@ -778,25 +871,26 @@ modelling limits.
   The bounded reader (header, schema check, instance index, argument decoding, escapes),
   the layouts for the subset (about one hundred entities across IFC2x3, IFC4 and 4.3), the
   accounting counters, and `parser_fuzz_ifc_step` with seeds and a
-  `parser_fault_corpus_tests` entry. **Verify:** checks D1, D4, I1, I2, J1–J4 at this layer;
+  `parser_fault_corpus_tests` entry. **Verify:** checks D1, D4, I1 (file-level limits), I2, I3, J1 (the step target), J2, J3 and J5 at this layer;
   attribute decodes of every accountable entity in the three Architecture files equal the
   oracle's; entity counts per class equal; no allocation above the budget on the limit
   fixtures; sanitizer suites pass.
 - **R097.b: Import core.** Units, spatial hierarchy, placements, tessellated and faceted
   geometry, materials and colours, property sets and quantities, types, classification, the
   report v1, new unsaved document, `--import-ifc` (without georeferencing, without solids).
-  **Verify:** A1–A4, B1–B5, C1–C5, D1–D4, E1, E2 (tessellated sets), E5, E6, H1, H2 on the
+  creates `parser_fuzz_ifc_import` with its seeds. **Verify:** A1–A5, B1–B7, C1–C5, D1–D4, E1,
+  E2 (tessellated sets), E5, E6, H1, H2, I1 (geometry limits) and J1 (the import target) on the
   certification set and the originals; the whole import is one undo step.
 - **R097.c: Solids, Booleans, mapped items and openings.** Extrusion and revolution with the
   four profiles and arcs, half-spaces and Boolean results, `IfcMappedItem` as component
   definitions, opening subtraction with fallback, segments option. **Verify:** E2 (extrusions),
   E3, E4; the Reference View wall volume equals the oracle's; unsupported solids are reported
-  not imported.
+  not imported; the import fuzz target and its campaign are extended to the new code.
 - **R097.d: Georeferencing.** `IfcMapConversion` and `IfcProjectedCRS`, the site-origin
-  mapping, the rotation decision, far-from-origin refusal, schema-29 notice. **Verify:** F1–F3.
+  mapping, the rotation decision, far-from-origin refusal, schema-29 notice. **Verify:** F1–F4; the import fuzz target covers georeference input.
 - **R097.e: IFC4 export.** The writer, the mapping of 3.8, `GlobalId`, georeference, the
-  export report, `--export-ifc`. **Verify:** G1–G5 and H3 (deterministic bytes), including the
-  independent-consumer schema validation; the claim is **not made** if G1 fails.
+  export report, `--export-ifc`. **Verify:** G1–G7 (G3 is the deterministic-bytes check), including the
+  independent-consumer schema validation and the checked-in golden exports; the claim is **not made** if G1 fails.
 - **R097.f: Desktop workflow.** Import and Export dialogs, the report sheet, progress and
   cancel, the dirty-document prompt, recovery context. Requires the approved UX design.
   **Verify:** `ifc_import_input_tests` and `ifc_export_input_tests` on X11 and Wayland at 1×
@@ -821,12 +915,12 @@ modelling limits.
 ## Owner decisions
 
 1. **Library:** an in-house, bounded STEP-P21 reader and writer for a defined subset; with IfcOpenShell only as a test oracle; not IfcOpenShell (full or parser only), web-ifc or an external worker. *Recommended: in-house.*
-2. **Schemas:** import IFC2x3 TC1, IFC4 ADD2 TC1 and IFC4.3 ADD2 (building entities only); export IFC4 ADD2 TC1 only. *Recommended: yes.*
+2. **Schemas:** import IFC2x3 TC1, IFC4 ADD2 TC1 and IFC4.3 ADD2 (building entities only); export IFC4 ADD2 TC1 only, with no Reference View or certification claim. *Recommended: yes.*
 3. **Claims:** a direction is claimed only when its checks pass; import may ship before or without export. *Recommended: yes.*
 4. **Export geometry:** tessellated face sets only. *Recommended: yes.*
 5. **Import geometry and openings:** tessellate on import; subtract openings when both solids are closed, else leave the host uncut, hide the opening and report. *Recommended: yes.*
 6. **Rotated or scaled map conversion:** keep project axes and report by default, with an opt-in grid-aligned mode; defer a site rotation. Alternatives: refuse georeferencing entirely, or extend the site origin now. *Recommended: keep axes, opt-in grid mode, site rotation later.*
-7. **Models far from the origin (beyond ±1e6 m):** refuse with the extent. Alternative: shift and set a site origin. *Recommended: refuse in the first release.*
+7. **Models far from the origin (beyond ±1e6 m):** refuse with the extent. Alternatives: shift and set a site origin, or shift by a reported translation with no site origin. *Recommended: refuse in the first release.*
 8. **Spaces and tags:** spaces come in on a tag that starts hidden; one tag per IFC class family; layers become properties. This is a default-visibility choice, so it is yours. *Recommended: yes.*
 9. **Properties and quantities:** the `Pset.Property` mapping, with length, area and volume converted and other numbers stored as in the file and reported. *Recommended: yes.*
 10. **Import target:** a new unsaved document, not added to the open one. *Recommended: new document.*
@@ -835,7 +929,7 @@ modelling limits.
 13. **Assistant and MCP:** no new commands, queries or assistant tools in R097. *Recommended: yes (ADR 0169 decision 9).*
 14. **Budgets:** adopt 6.3 (128 MiB, 2,000,000 entities, 3 s parse, 10 s convert, 1 GiB peak) as proposed values to be confirmed by measurement. *Recommended: yes.*
 15. **Desktop UX:** commission a UX design for the Import and Export IFC dialogs and the report before R097.f. *Recommended: yes, after R097.b lands, when the report is real.*
-16. **GlobalId stability:** deterministic GlobalIds from a project key and the stable body ID; the owner and the UX design decide where the key lives. *Recommended: deterministic, key stored as a project-group property written explicitly by the user.*
+16. **GlobalId stability:** deterministic GlobalIds from the document identity (stored in every native file) and the stable body ID; imported GlobalIds are kept when valid and unique. *Recommended: yes. This needs no new UI or format field.*
 
 ## Appendix: evidence and sources
 
@@ -906,8 +1000,12 @@ pages and are marked as such.
 - **Schema documentation.** buildingSMART
   [IFC4.3.x-development](https://github.com/buildingSMART/IFC4.3.x-development)
   (`IfcMapConversion`, `IfcMapConversionScaled`, `IfcCoordinateOperation`, `IfcProjectedCRS`
-  pages; `LICENSE.md`: CC BY-ND 4.0). Search-derived and unverified against the ISO
-  catalogue: ISO 16739-1:2018 for IFC4 ADD2 and ISO 16739-1:2024 for IFC 4.3.2;
+  pages; branch `ifc4.3-main` `LICENSE.md` (CC BY-ND 4.0 header, then a copyright notice that
+  permits use in software development with attribution, and a trademark notice; the old
+  `master` branch `LICENSE` is the bare CC BY-ND text) and `README.md`, which links the formal
+  4.3.2.0 release to the ISO catalogue entry
+  [iso.org/standard/84123](https://www.iso.org/standard/84123.html)). Search-derived and
+  unverified against the ISO catalogue: ISO 16739-1:2018 for IFC4 ADD2 and ISO 16739-1:2024 for IFC 4.3.2;
   [Graphisoft's MVD page](https://help.graphisoft.com/AC/30/INT/Topics/121_IFC/121_IFC-47.html)
   for the roles of the Coordination, Reference and Design Transfer views;
   [the IFC2x3 georeferencing forum thread](https://forums.buildingsmart.org/t/geolocation-standards-in-ifc2x3-and-ifc4/2329)
