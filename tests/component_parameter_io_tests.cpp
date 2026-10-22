@@ -1211,9 +1211,12 @@ int main(int argc, char **argv) {
 
         // ---- The previous-release window (ADR 0165 §5) ----
         // SKETCHYUP_PRIOR_CLI names a released sketchyup-cli (package acceptance passes
-        // 1.0.1-1's; R093.c also ran 1.1.0-1's). It must refuse the schema-28 fixture
-        // with its newer-format error and leave it unchanged, and open a parameter-free
-        // save from this build at the newest schema it reads.
+        // the previous release's: 1.1.1-1 for 1.2.0, 1.2.0-1 for 1.3.0; R093.c also ran
+        // 1.0.1-1's and 1.1.0-1's). A prior that reads schema 26 or 27 must refuse the
+        // schema-28 fixture with its newer-format error and leave it unchanged; a 1.2.x
+        // prior reads schema 28 and must open the fixture and a schema-28 save from this
+        // build unchanged (terrain_io checks its schema-29 refusal). Either way it opens a
+        // parameter-free save from this build at the newest schema it reads.
         const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
         if (!prior.isEmpty()) {
             QByteArray out, err;
@@ -1223,20 +1226,34 @@ int main(int argc, char **argv) {
             for (const auto &value :
                  QJsonDocument::fromJson(out).object()["readDocumentVersions"].toArray())
                 reads = std::max(reads, value.toInt());
-            check(reads >= 26 && reads < 28, "The prior release reads schema 26 or 27");
+            check(reads >= 26 && reads <= 28, "The prior release reads schema 26, 27 or 28");
             const auto fixturePath = files.filePath("prior-v28.sketchyup");
             const auto fixtureBytes = read(fixtures.filePath("component-parameters-v28.sketchyup"));
             write(fixturePath, fixtureBytes);
-            check(runPriorCli(prior, {"--validate-native", fixturePath}, out, err) != 0 &&
-                      err.contains("\"status\":\"failed\"") && read(fixturePath) == fixtureBytes,
-                  "The prior release refuses the schema-28 fixture and leaves it unchanged");
-            std::cout << "prior release refusal: " << err.trimmed().toStdString() << '\n';
             const auto savedPath = files.filePath("prior-v28-save.sketchyup");
             const auto savedBytes = encodeContainer(t.doc);
             write(savedPath, savedBytes);
-            check(runPriorCli(prior, {"--validate-native", savedPath}, out, err) != 0 &&
-                      read(savedPath) == savedBytes,
-                  "The prior release refuses a schema-28 save unchanged");
+            if (reads >= 28) {
+                check(runPriorCli(prior, {"--validate-native", fixturePath}, out, err) == 0 &&
+                          QJsonDocument::fromJson(out).object()["valid"] == true &&
+                          read(fixturePath) == fixtureBytes,
+                      "The prior release opens the schema-28 fixture unchanged: " +
+                          err.toStdString());
+                check(runPriorCli(prior, {"--validate-native", savedPath}, out, err) == 0 &&
+                          QJsonDocument::fromJson(out).object()["valid"] == true &&
+                          read(savedPath) == savedBytes,
+                      "The prior release opens a schema-28 save unchanged: " +
+                          err.toStdString());
+            } else {
+                check(runPriorCli(prior, {"--validate-native", fixturePath}, out, err) != 0 &&
+                          err.contains("\"status\":\"failed\"") &&
+                          read(fixturePath) == fixtureBytes,
+                      "The prior release refuses the schema-28 fixture and leaves it unchanged");
+                std::cout << "prior release refusal: " << err.trimmed().toStdString() << '\n';
+                check(runPriorCli(prior, {"--validate-native", savedPath}, out, err) != 0 &&
+                          read(savedPath) == savedBytes,
+                      "The prior release refuses a schema-28 save unchanged");
+            }
             // A parameter-free save: the table with every parameter edit undone, saved by
             // this build at schema 26; with sheets at 27 when the prior reads 27.
             auto plain = makeTable();
