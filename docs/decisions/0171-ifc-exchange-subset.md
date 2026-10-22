@@ -154,7 +154,7 @@ that contain only tessellated items. OpenCASCADE (OCCT) is LGPL-2.1-or-later wit
 (Arch's `opencascade` 7.9.3-3: `LGPL-2.1-or-later` and `LicenseRef-LGPL-exception`). IfcOpenShell
 requires OCCT 7.5.1 or later; upstream OCCT is at V8.0.1 (2026-07-30), Arch has 7.9.3.
 
-**The geometry kernel replaces our own tessellation work.** The first draft of this ADR had R097.c
+**The geometry kernel replaces our own tessellation work.** The first draft of this ADR had its slice c
 write extrusion, revolution, half-space, Boolean and mapped-item interpretation on Clipper2 and the
 R055 Manifold adapter. With IfcOpenShell that slice disappears: the iterator produces triangle meshes
 for the elements of a file, with the opening subtractions, representation selection, placement
@@ -1121,7 +1121,7 @@ the owner to re-confirm that wording.
     new corpus version. *Approved.*
 14. **Budgets:** adopt the table in 6.4, to be confirmed by measurement before they are frozen.
     *Approved; wording revised for the library (Q2).*
-15. **Desktop UX:** commission and approve a UX design before R097.f starts (best commissioned once
+15. **Desktop UX:** commission and approve a UX design before R097.e starts (best commissioned once
     R097.b lands and the report is real). *Approved.*
 16. **GlobalId stability:** deterministic derivation from the document identity (already stored in
     the native file) and the body's stable ID; imported GlobalIds are kept when valid and unique.
