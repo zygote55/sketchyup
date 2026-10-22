@@ -1352,7 +1352,7 @@ An `src/app`-only pull request (a comment in `src/app/window_terrain.cpp`, narro
 
 R097.b ships the import: the conversion package and its decoder, the helper's `--import`, the application's
 conversion into one new unsaved document, the report (version 1) and `sketchyup-cli --import-ifc`. It is
-delivered in three stacked pull requests (@@PRS@@). There is no desktop dialog (R097.e), no georeferencing
+delivered in three stacked pull requests (#417, #418 and #419). There is no desktop dialog (R097.e), no georeferencing
 (R097.c: the project axes are kept, no site origin is set, and the report says so), no export (R097.d), and no
 command, query or assistant tool (decision 13). Documents without IFC content are unchanged.
 
