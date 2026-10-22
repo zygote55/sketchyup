@@ -30,9 +30,9 @@ package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
 # the first pkgrel of a patch version x.y.z (z >= 1) upgrades from x.y.(z-1)-1; and the
 # first pkgrel of x.y.0 upgrades from the newest earlier entry of released_packages
 # (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1, 1.2.0-1 from
-# 1.1.1-1). Add each
+# 1.1.1-1, 1.3.0-1 from 1.2.0-1). Add each
 # published release to this table, oldest first.
-released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1)
+released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1 1.2.0-1)
 for (( index = 1; index < ${#released_packages[@]}; index++ )); do
   (( $(vercmp "${released_packages[index]}" "${released_packages[index - 1]}") > 0 )) || {
     echo "released_packages is not in vercmp order at ${released_packages[index]}." >&2
@@ -78,6 +78,7 @@ declare -A known_release_sha256=(
   [sketchyup-1.0.1-1-x86_64.pkg.tar.zst]=91e807851d40525ce5429814f88b59c4fef9321de121f165e9e33429b82869f5
   [sketchyup-1.1.0-1-x86_64.pkg.tar.zst]=e718b8fb0e52bb5ec40b6817b99c92a824242f4a20907a02f50f47e3f0c0d00a
   [sketchyup-1.1.1-1-x86_64.pkg.tar.zst]=58ddfed5332f57fc3cef422d91938337f136f8c5f29fa19003ccec5c9afd9c2b
+  [sketchyup-1.2.0-1-x86_64.pkg.tar.zst]=b95fc18909040de68c8c8cb425f1bd01f3573249b48b4c3b61fe0be53d31295d
 )
 prior_release_cli=
 if [[ -n ${SKETCHYUP_PRIOR_RELEASE_PACKAGE:-} ]]; then
@@ -103,8 +104,8 @@ fi
 sed -i -e "s/^pkgver=$package_version$/pkgver=$prior_version/" \
   -e "s/^pkgrel=$package_release$/pkgrel=$prior_release/" \
   -e "s/^_srcname=.*$/_srcname=sketchyup-$package_version/" PKGBUILD
-# check() runs ctest; drawing_sheet_io_tests and component_parameter_io_tests also drive
-# the released CLI when set.
+# check() runs ctest; drawing_sheet_io_tests, component_parameter_io_tests and
+# terrain_io_tests also drive the released CLI when set.
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" \
   SKETCHYUP_PRIOR_CLI="$prior_release_cli" makepkg --noconfirm --force
 grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_dir/CMakeLists.txt" || {

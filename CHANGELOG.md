@@ -1,10 +1,29 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — unreleased
 
-Changes on `main` since 1.2.0. R095.a adds native schema 29 (`terrain-v1`) and new
-site and terrain commands and queries; documents without a terrain or site origin keep
-their 1.2.0 schema.
+A minor release that adds terrain and site tools (scope row F03). Additive: existing
+commands, queries and schemas keep their shapes. The summary is in the
+[1.3.0 release notes](docs/RELEASE_NOTES.md), which also list the fixes since 1.2.0 that
+have no entry below (ADR 0167 recoverable replies, D-038, D-039, D-023, D-032, `anyOf`
+validation and the 88 px tool rail). The entries under "Details" are the other changes on
+`main` since 1.2.0.
+
+- Terrain: import from DXF contours and point files, or from model edges, as a tiled
+  constrained Delaunay surface (up to 250,000 triangles); a site origin with site
+  coordinates in the tools and DXF export; Sculpt, Smooth, Edit contours, Stamp pad and
+  Drape, each kept in the terrain's edit list and replayed by Regenerate.
+- API: new `site.*` and `terrain.*` operations and queries over MCP and the headless
+  session; CLI `--import-terrain` and `--dxf-site-coordinates`. The in-app assistant sees
+  only `site.describe`, `terrain.describe` and `terrain.elevation_at`.
+- Assistant: well-formed provider replies that break a host rule are refused with tool
+  errors instead of stopping the task (ADR 0167); 1.3.0 is evaluated against provider
+  corpus v5.
+- Format: schema 29 (`terrain-v1`) is written only for documents with a terrain or a site
+  origin. SketchyUp 1.2.0 refuses those files unchanged.
+- Package: Arch `sketchyup` 1.3.0-1, upgrading from 1.2.0-1.
+
+Details:
 
 - Terrain core (R095.a, [ADR 0168](docs/decisions/0168-terrain-import-and-surfaces.md)):
   a terrain body with its sources and tiled triangle mesh (at most 2,048 triangles a
@@ -92,7 +111,7 @@ their 1.2.0 schema.
   a new `terrain.stamp_pad` command (automation sessions and MCP; hidden from the in-app
   assistant) flattens a footprint (a horizontal face, the lowest horizontal face of a group or
   component, a closed edge loop or a polygon) to a pad elevation and grades the ground around it
-  by cut and fill slopes to where they meet the ground (default 1:2, up to 100 m) or by a band of
+  by cut and fill slopes to where they meet the ground (default 1:2, within a 100 m maximum distance by default) or by a band of
   fixed width. The pad, its slopes and the daylight line are one undoable edit ("Stamp pad")
   recorded in the terrain's edit list, so Regenerate reproduces it; grading rays that cross at
   tight corners are dropped and reported. Pads are protected: sculpt and smooth leave them, and

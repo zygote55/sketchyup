@@ -1,12 +1,12 @@
 # Release archive package. Generate the source archive with scripts/package-source.sh.
 pkgname=sketchyup
 # pkgver must equal CMakeLists.txt project(VERSION); scripts/release-version.sh checks it.
-pkgver=1.2.0
+pkgver=1.3.0
 pkgrel=1
 pkgdesc='Native Linux face modeler'
 arch=('x86_64')
 url='https://github.com/zygote55/sketchyup'
-license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0')
+license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause')
 depends=('openssl' 'qt6-base' 'qt6-wayland' 'wayland' 'shared-mime-info' 'ttf-dejavu')
 optdepends=('libsecret: OpenAI credential storage through the desktop Secret Service'
             'blender: optional rendered images, animation frames and Blender handoff')

@@ -426,6 +426,20 @@ materials or hierarchy. Imported content becomes an unsaved native model; Save
 chooses its native destination. Keep multi-file OBJ/MTL/image packages together.
 Use the [format matrix](SUPPORT_MATRIX.md#exchange-boundaries) for losses and limits.
 
+**File → Export measured PDF/SVG** exports an orthographic drawing with explicit
+page size and scale. Technical lines produce vector geometry; current appearance
+is identified as raster content. Print at actual size to preserve the requested
+scale. The editing model and camera remain unchanged.
+
+**Camera → Render** uses an optional installed Blender executable and an immutable
+captured model. Results identify their source revision. Save image as writes the
+PNG separately from model Save. Jobs supports cancellation, retained results and
+explicit retries. Open scene in Blender produces a one-way `.blend` handoff.
+Scene animation exports a bounded PNG sequence and timing manifest; it does not
+encode a movie or resume an interrupted sequence automatically.
+
+## Terrain and site tools
+
 **File → Import terrain…** adds a terrain to the open model from a DXF with contours
 (LWPOLYLINE with elevation, 2D and 3D POLYLINE, LINE) or a CSV, TXT, XYZ or PTS point file. Choose
 the units first: Import stays disabled until you do (a DXF that declares its units offers them).
@@ -451,7 +465,12 @@ terrain budget; Cancel is the default, and Explode is unavailable when the faces
 To make a terrain from drawn contours, select their edges or curves, right-click in the view (or
 press the Menu key or Shift+F10) and choose **Create terrain from selection**; edges inside
 groups work too. Constant-height edges become contours and others breaklines; a refusal or any
-notices open the report. Modelling tools such as Push/pull, Offset and the drawing tools show a
+notices open the report. When the selection includes a closed loop or lies under more than one
+tag, a roles step opens first: it lists each tag (Untagged included) with Automatic (contours
+and breaklines by height, as above), Contour, Breakline, Boundary, Hole or Ignore, in the same
+role table as File → Import terrain…. A boundary must be one closed loop and holes closed
+loops; problems are named by tag and count, and Create is enabled once the command's own check
+passes. Other selections create the terrain in one click. Modelling tools such as Push/pull, Offset and the drawing tools show a
 not-allowed cursor over a terrain, and the status bar offers **Explode terrain…**; Select,
 Paint, tags, hiding and locking, and moving the whole terrain work as usual. The **Terrain** menu
 (between Draw and Camera) holds the terrain tools and, under the selected terrain's name,
@@ -584,17 +603,15 @@ coordinates** (off by default; disabled without an origin). It adds the origin b
 On the command line use `--dxf-site-coordinates`. STL, OBJ and the other exports keep model
 coordinates, and their reports say so.
 
-**File → Export measured PDF/SVG** exports an orthographic drawing with explicit
-page size and scale. Technical lines produce vector geometry; current appearance
-is identified as raster content. Print at actual size to preserve the requested
-scale. The editing model and camera remain unchanged.
-
-**Camera → Render** uses an optional installed Blender executable and an immutable
-captured model. Results identify their source revision. Save image as writes the
-PNG separately from model Save. Jobs supports cancellation, retained results and
-explicit retries. Open scene in Blender produces a one-way `.blend` handoff.
-Scene animation exports a bounded PNG sequence and timing manifest; it does not
-encode a movie or resume an interrupted sequence automatically.
+**Command line, MCP and the assistant.** `sketchyup-cli --import-terrain FILE` imports a terrain
+into `--input` (or a new model) and, with `--output`, writes a new native file. Options include `--terrain-units` (required for point
+files), `--origin E,N[,Z]`, `--terrain-crs`, `--terrain-roles` and the point-file options; on a
+terminal it shows the check's stages on stderr. A terrain source file can be up to 64 MiB. Automation sessions and MCP expose every site and
+terrain command and query, among them `terrain.import`, `terrain.create_from_edges`,
+`terrain.sculpt`, `terrain.edit_source`, `terrain.stamp_pad`, `terrain.drape` and
+`terrain.describe` (see the [tool reference](TOOL_REFERENCE.md)). The in-app assistant can read a
+terrain but not change one: it sees only `site.describe`, `terrain.describe` and
+`terrain.elevation_at`.
 
 ## Troubleshooting
 
