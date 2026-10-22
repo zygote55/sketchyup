@@ -11,7 +11,7 @@
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include "integrations/render_snapshot.hpp"
-#include "io/component_library.hpp"
+#include "io/assembly_placement.hpp"
 #include "io/drawing_view.hpp"
 #include "io/measured_export.hpp"
 #include <QElapsedTimer>
@@ -33,6 +33,8 @@ class QTabBar;
 class QTimer;
 class QVariantAnimation;
 namespace sketchy {
+struct ComponentBundle; // io/library_bundle.hpp
+class TerrainPreviewWorker; // app/terrain_preview_worker.hpp
 class Viewport : public QOpenGLWidget {
     Q_OBJECT
   public:

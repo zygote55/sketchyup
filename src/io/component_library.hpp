@@ -2,6 +2,7 @@
 #include "core/component_parameters.hpp"
 #include <QJsonObject>
 #include "core/components.hpp"
+#include "io/assembly_placement.hpp"
 #include <optional>
 #include "io/library_bundle.hpp"
 namespace sketchy {
@@ -18,18 +19,6 @@ LibraryInsertion insertLibraryComponent(Document &destination, const ComponentBu
 std::optional<ComponentAssembly> libraryAssemblyIdentity(const ComponentBundle &bundle);
 // The definition in `doc` that carries `identity` (the lowest ID when several do), or 0.
 Id findLibraryAssembly(const Document &doc, const ComponentAssembly &identity);
-// A gluing assembly placed on a host face, with component.attach's parameters: the anchor
-// and tangent are host-local, the inset a signed distance from the host plane.
-struct AssemblyHostFace {
-    Id host{}, face{};
-    Vec3 anchor{}, tangent{1, 0, 0};
-    double inset{};
-};
-struct AssemblyPlacement {
-    Transform transform{};               // free placement (ignored on a host face)
-    std::optional<AssemblyHostFace> host; // a gluing assembly attached to a face
-    Id parent{};
-};
 struct AssemblyPlacementResult {
     Id placement{}, definition{};
     bool reused{}; // the in-model definition with the bundle's assembly identity was reused
