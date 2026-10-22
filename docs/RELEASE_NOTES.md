@@ -1,5 +1,246 @@
 # SketchyUp release notes
 
+## 1.3.0
+
+SketchyUp 1.3.0 is a minor release. It adds terrain and site tools, Extended
+[scope row F03](SCOPE.md), in its own gated release ([M10 acceptance](M10_ACCEPTANCE.md)).
+Existing commands, queries and schemas keep their shapes; everything new is additive,
+as a minor version allows ([ADR 0162](decisions/0162-release-versioning.md)). The release
+record, with the release-candidate evidence, is [verification/F03-1.3.0.md](verification/F03-1.3.0.md).
+The [support matrix](SUPPORT_MATRIX.md) states what is supported.
+
+### Terrain import and surfaces
+
+A terrain is a surface triangulated from survey sources and kept with them: its contours,
+breaklines, spot points, boundary and holes. It is stored in tiles of at most 2,048
+triangles, up to 250,000 triangles a document, outside the 100,000-face modelling budget.
+The [user guide](USER_GUIDE.md#terrain-and-site-tools) walks through the workflow;
+[ADR 0168](decisions/0168-terrain-import-and-surfaces.md) defines the record, the sources and
+the limits.
+
+- **File → Import terrain…** reads a DXF with contours (LWPOLYLINE with elevation, 2D and
+  3D POLYLINE, LINE; arcs are segmented) or a CSV, TXT, XYZ or PTS point file (PNEZD,
+  PENZD, ENZ and XYZ presets, or a meaning per column; description codes as ground points
+  or breaklines). Choose the units first: Import stays disabled until you do, and a DXF that
+  declares its units offers them. The US survey foot is 1200/3937 m, and the conversion is
+  shown and reported. Each layer or code gets a role: contour, breakline, boundary, hole,
+  ground points or ignore. A live preview shows the sources or the triangulated surface. The
+  check shows its stages with a progress bar, and Cancel stops it at once.
+- **Bounded, located reports.** Crossing contours, conflicting duplicates and other invalid
+  input refuse the import and change nothing. The report counts every problem and locates
+  up to 32 of each kind (at most 64 KiB); choosing a location zooms the preview to it. Copy
+  or save the report.
+- **Create terrain from selection.** Select drawn edges or curves (inside groups too) and
+  choose it from the viewport's context menu (right click, Menu key or Shift+F10).
+  Constant-height edges become contours and the others breaklines. When the selection has a
+  closed loop or spans several tags, a roles step gives each tag Automatic, Contour,
+  Breakline, Boundary, Hole or Ignore, with the command's own check shown before Create.
+- **Working with a terrain.** The Info tab's **Terrain** section shows the triangles and
+  tiles, the source and its digest, the sources by role, the elevation range and the flat
+  triangles. **Terrain settings…** changes the boundary mode, maximum edge length,
+  flat-triangle flips and Steiner fill, with the result shown before it applies.
+  **Regenerate** rebuilds a terrain whose tiles no longer match its sources. **Explode
+  terrain…** turns it into ordinary geometry when the faces fit the modelling budget.
+  Push/pull, Offset, Follow Me, the Solid tools and the drawing tools show a not-allowed
+  cursor over a terrain, with Explode offered in the status bar; Select, Paint, tags,
+  hiding, locking and moving the whole terrain work as usual. A new **Terrain** menu,
+  between Draw and Camera, holds the terrain tools and actions.
+- **Display.** A new terrain uses the built-in **Terrain** material and draws as one smooth
+  surface, without tile seams. **Show contour lines** draws contours at a chosen interval
+  (every fifth an index line), and **Shading** can colour the surface by ten elevation
+  bands. These are display only: not geometry, and selection and snapping ignore them.
+
+### Site coordinates
+
+- **A site origin.** The first terrain import sets the model's site origin: the easting,
+  northing and elevation of the model origin, in metres, proposed as the data centre rounded
+  to 100 m, with an informational CRS label. **File → Site settings…** shows it and where it
+  came from, and **Re-anchor…** moves it without changing any site coordinate.
+- **Large coordinates stay exact.** Geometry is stored relative to the origin, so survey
+  coordinates keep their precision: on the UTM-scale test terrain every vertex is within
+  1e-9 m of its source ([R095.f](verification/R095f-terrain.md)).
+- **Site positions in the tools.** Entity info shows site coordinates, `@E, N[, Z]` in the
+  Measurements box types a site position for any tool that takes a point, and **View → Site
+  origin** marks the origin with a labelled crosshair.
+- **DXF export with site coordinates.** File → Export 2D DXF… offers **Write site
+  coordinates** (`--dxf-site-coordinates` on the command line). It adds the origin back to X
+  and Y, so an imported survey drawing round-trips at its own decimals. It is off by default
+  and needs a site origin; Z is not written. Other exports keep model coordinates, and their
+  reports say so.
+
+### Terrain editing, drape and stamp
+
+Every terrain change is one undoable edit, kept in the terrain's list of edits (up to
+4,096), so Regenerate and Terrain settings rebuild the terrain from its sources and replay
+the list. An edit replaces only the tiles it touches and leaves the rest of the terrain
+untouched. [ADR 0169](decisions/0169-terrain-editing-drape-stamp.md) defines the edits and
+their limits.
+
+- **Sculpt and Smooth** (**Terrain → Sculpt**, **Shift+S**, or the rail's **Terrain**
+  slot). A brush on the surface marks every vertex that will move. Press and drag to paint
+  a stroke, or click and move up or down to set an amount. **Ctrl** lowers, **Shift**
+  smooths, and **[** and **]** change the radius. Region scope uses a selected face or loop
+  or a clicked polygon with a falloff width. The change is shown in place before it is
+  applied, and Escape withdraws it. Typing a value after an edit revises it.
+- **Edit contours.** Draws the terrain's source contours, breaklines and spot points over
+  the faded display contours. Drag a vertex handle to move or insert a vertex, type an
+  elevation, or remove a vertex or a source. Add contour, Add breakline and Add spot add
+  sources, and **Promote** turns a display contour into a source contour. Only the
+  triangles around the change are re-triangulated. A change that would cross another
+  source, leave the outline or enter a pad is marked in red at the pointer, with its place
+  in site coordinates, and changes nothing.
+- **Stamp pad.** Flattens a footprint (a horizontal face, a group's or component's lowest
+  horizontal face, a closed loop or a clicked polygon) to a pad elevation. It grades the
+  ground around it by cut and fill slopes to daylight (default 1:2, up to 100 m) or by a
+  band of fixed width. The preview tints cut and fill and draws the slope rays and the
+  daylight line. A remembered **Pad offset** sets the pad below the footprint. Pads are
+  protected: sculpting leaves them, and contour edits and other pads that would enter one
+  are refused.
+- **Drape.** **Terrain → Drape** (or **Drape onto terrain** in the context menu) projects
+  selected edges, curves and faces vertically onto the terrain. **Imprint** adds them as
+  breaklines without changing the terrain's shape, and can paint each face's region with
+  its material on every rebuild. **Overlay** makes ordinary geometry lying on the terrain in
+  a new group instead. Parts outside the terrain are clipped and reported.
+- **Terrain edits.** With a terrain selected, the Info tab lists its changes. Select one to
+  outline it in the view, then **Remove** it, **Edit pad…**, **Restamp** a pad from its
+  building, or **Reset edits…**. The terrain is then replayed in the background with
+  progress and **Cancel**. A change that no longer applies is kept, marked **Skipped** with
+  the reason.
+- **Keyboard paths.** The brush, a source or a footprint can be placed by typing `[x, y]` (model
+  metres) or `@E, N` (site coordinates); F6 moves between the view, the tool strip and the
+  Measurements box.
+
+### Command line and automation
+
+- **New transaction operations:** `site.set`, `site.reanchor`, `terrain.import`,
+  `terrain.inspect_source` (a preview that changes nothing), `terrain.create_from_edges`,
+  `terrain.set_parameters`, `terrain.regenerate`, `terrain.set_display`, `terrain.explode`,
+  `terrain.sculpt`, `terrain.edit_source`, `terrain.add_source`, `terrain.remove_source`,
+  `terrain.stamp_pad`, `terrain.drape`, `terrain.update_edit`, `terrain.remove_edit` and
+  `terrain.reset_edits`.
+- **New inspection queries:** `site.describe`, `site.convert`, `terrain.describe` (which
+  lists a terrain's sources, edits, pads and paint regions) and `terrain.elevation_at`. MCP
+  and the headless session expose all of them.
+- **CLI:** `sketchyup-cli --import-terrain FILE` imports a terrain into `--input` (or a new
+  model), with `--terrain-units`, `--origin`, `--terrain-crs`, `--terrain-roles` and the
+  point-file options. On a terminal it shows the check's stages on stderr; its stdout and
+  JSON output do not change. `--export-dxf` gains `--dxf-site-coordinates`.
+- **The in-app assistant can read terrain but not change it.** It now sees `site.describe`,
+  `terrain.describe` and `terrain.elevation_at`, and no other site or terrain command. This
+  adds about 2.4–3.8 KB of tool schema to each assistant turn.
+- The schema files keep their names and versions (`transactions-v1`, `inspection-v1`, MCP
+  2026-07-28 and the others listed under 1.0.0). They gain these entries, and no existing
+  response shape changes.
+
+### Assistant
+
+When the model sends a complete reply that breaks one of the host's rules, the assistant
+now refuses it with a tool error that names the rule. Before, the whole task stopped
+([ADR 0167](decisions/0167-recoverable-provider-replies.md)). The model reads the error on
+its next turn and can try again. Unusable replies (transport errors, invalid or incomplete
+responses) and the task's budgets still stop the task. The ChatGPT-plan limits and the
+instructions are unchanged from 1.2.0. Because the assistant's tool lists changed, 1.3.0
+is evaluated against provider corpus **version 5** at the release candidate: the version 4
+tasks, prompts, limits and instructions with the new tool lists
+([ADR 0168, R095.g notes](decisions/0168-terrain-import-and-surfaces.md#implementation-notes-r095g)).
+
+### Other changes
+
+- **Face tessellation no longer hangs (D-042).** Faces larger than about 10 m (quads,
+  L-shapes, faces with holes) and section caps of similar size could send tessellation into
+  unbounded memory growth. That hung an edit, a load or a render until the system stopped
+  SketchyUp. The vendored Clipper2 triangulation now tests crossings exactly and bounds its
+  work. Faces that tessellated before give the same triangles.
+- **Annotations follow geometry.** Paper dimensions and leader labels on sheets survive
+  edge splits and Make component, and model dimensions and labels survive Make component
+  and Make group. Ambiguous cases still break, and **Reattach** repairs them. This lifts the
+  limitation disclosed in 1.1.0 and 1.2.0.
+- **Configurable components.** Painting inside a definition no longer marks its drivers
+  Changed (D-038). The unique-geometry check at many variant placements is faster (D-039).
+- **Tool rail.** Below 800 px the Model rail shows one group of tools behind a group button.
+  The rail is 88 px wide, with the short labels Tape and New face.
+- **Focus rings** keep their contrast next to the canvas, scroll bars and overflowing
+  controls (D-023), and snap to whole device pixels at fractional scale factors (D-032).
+- **Request validation.** The automation schema validator now checks `anyOf`, so an empty
+  `reference_image.update` or `text.update` is refused at the schema layer. Before, the
+  command refused it later with its own message. Published schemas are unchanged.
+
+### File format
+
+1.3.0 writes schema `sketchyup-document-v29` (container version 2, required feature
+`terrain-v1` after `component-parameters-v1`) **only when the document has a terrain or a
+site origin**. Otherwise it writes schema 28 (with component parameters), 27 (with sheets)
+or 26, as 1.2.0 does; these differ from a 1.2.0 save only in the writer string. A terrain's
+mesh is stored in a binary `terrain-mesh` chunk. SketchyUp 1.2.0 refuses a schema-29 file
+with "Unsupported container field" and leaves it unchanged (checked against the published
+1.2.0-1 package; [R095.f](verification/R095f-terrain.md)). Earlier releases read at most
+schema 28 and refuse it too. A terrain made from model edges needs no site origin, so
+exploding it returns the document to its lower schema; a document with a site origin
+stays at schema 29. 1.3.0 reads document versions 1 through 29. Terrain documents saved
+by development builds before 1.3.0 may need to be re-created, because schema 29 could
+still change until this release
+([ADR 0108](decisions/0108-public-native-format.md#schema-29-terrain-and-site-origin-r095a)).
+
+### Upgrade from 1.2.0-1
+
+Run `pacman -U sketchyup-1.3.0-1-x86_64.pkg.tar.zst`. pacman orders 1.3.0-1 after
+1.2.0-1. Package acceptance upgrades a 1.2.0-1 package built from the release source to
+1.3.0-1 and checks that preferences survive. In the package check, the published 1.2.0-1
+CLI must refuse a schema-29 file unchanged and open schema-28 files written by 1.3.0.
+
+To roll back, install `sketchyup-1.2.0-1-x86_64.pkg.tar.zst` with `pacman -U`. Documents
+without a terrain or a site origin open in 1.2.0; documents with one do not. When 1.3.0
+saves over an existing document, the previous bytes are kept as `NAME.sketchyup.bak`, which
+holds only one previous version. Copy any document you may need in 1.2.0 before you
+import a terrain into it.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.3.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch package | `sketchyup` 1.3.0-1, x86_64 |
+| Native document | Schema `sketchyup-document-v29` in SKUPDOC container version 2 for documents with a terrain or a site origin; v28 for documents with component parameters; v27 for documents with sheets; v26 otherwise. Reads versions 1 through 29. Saves record the writer `SketchyUp/1.3.0` |
+| MCP, inspection, transactions and other public schemas | Same versions as 1.0.0 (below), with the additive sheet (1.1.0), component parameter (1.2.0) and site and terrain (1.3.0) operations and queries |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the 1.2.0 limits. Evaluated at the release candidate against corpus v5; the results are in the release record |
+| New third-party code | CDT 2.0.0 (MPL-2.0, header-only) for terrain triangulation, listed in `THIRD_PARTY_NOTICES` |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.0.0.
+
+### Known limitations
+
+The 1.2.0, 1.1.0 and 1.0.0 limitations below still apply, except that F01, F02 and F03 are
+now delivered and the sheet-annotation limitation is lifted (above). For terrain and site
+tools:
+
+- **Sources.** DXF contours, point files and model edges only. No LandXML, GeoJSON,
+  GeoTIFF/DEM or LAS/LAZ import, and no LandXML export. The CRS label is informational:
+  there is no coordinate transform and no latitude/longitude input.
+- **One terrain, one outline.** Terrains are not merged, holes are not nested, and a
+  terrain cannot grow past its outline or gain base sources after it is created.
+- **Editing.** Sculpting moves existing vertices only, so sparse contour meshes look
+  faceted; there is no Flip Edge or Add Detail. Projection is vertical and onto terrain
+  only. A pad has one cut and one fill slope and no holes. There are no corridors,
+  retaining walls or cut and fill volumes, and a pad does not follow its building (use
+  **Restamp**).
+- **Paint on individual tiles is lost when they are rebuilt.** Regenerate asks first;
+  Drape's region paint is the way to keep paint across edits.
+- **Limits:** 250,000 terrain triangles a document, 2,048 a tile and 4,096 edits a terrain.
+  Terrain edits have their own 512 MiB undo history; when it fills, the oldest terrain
+  undo steps are dropped. A whole-terrain region paint keeps about 140–157 MB in memory
+  while it can be undone.
+- **Performance is measured on one AMD discrete GPU.** On an RX 6800 XT every one-tile
+  commit is within 100 ms (sculpt 55.6–74.0 ms, contour edit 90.2–92.3 ms, stamp 70.2–71.6
+  ms, drape 51.6–51.8 ms) and every preview within 21.9 ms
+  ([R096.g](verification/R096g-terrain-editing.md#budgets)). Under software rendering the
+  sculpt, contour-edit and stamp commits take longer than 100 ms. Intel graphics are untested
+  (waived, [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)).
+- **The in-app assistant cannot import, edit or explode a terrain**; MCP and the
+  transaction APIs can.
+
+The open-defect list is [R089.a](verification/R089a-defect-triage.md).
+Extended rows F04–F07 and the Investigate rows remain outside this release.
+
 ## 1.2.0
 
 SketchyUp 1.2.0 is a minor release. It adds configurable components, Extended

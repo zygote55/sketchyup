@@ -426,6 +426,20 @@ materials or hierarchy. Imported content becomes an unsaved native model; Save
 chooses its native destination. Keep multi-file OBJ/MTL/image packages together.
 Use the [format matrix](SUPPORT_MATRIX.md#exchange-boundaries) for losses and limits.
 
+**File → Export measured PDF/SVG** exports an orthographic drawing with explicit
+page size and scale. Technical lines produce vector geometry; current appearance
+is identified as raster content. Print at actual size to preserve the requested
+scale. The editing model and camera remain unchanged.
+
+**Camera → Render** uses an optional installed Blender executable and an immutable
+captured model. Results identify their source revision. Save image as writes the
+PNG separately from model Save. Jobs supports cancellation, retained results and
+explicit retries. Open scene in Blender produces a one-way `.blend` handoff.
+Scene animation exports a bounded PNG sequence and timing manifest; it does not
+encode a movie or resume an interrupted sequence automatically.
+
+## Terrain and site tools
+
 **File → Import terrain…** adds a terrain to the open model from a DXF with contours
 (LWPOLYLINE with elevation, 2D and 3D POLYLINE, LINE) or a CSV, TXT, XYZ or PTS point file. Choose
 the units first: Import stays disabled until you do (a DXF that declares its units offers them).
@@ -584,17 +598,15 @@ coordinates** (off by default; disabled without an origin). It adds the origin b
 On the command line use `--dxf-site-coordinates`. STL, OBJ and the other exports keep model
 coordinates, and their reports say so.
 
-**File → Export measured PDF/SVG** exports an orthographic drawing with explicit
-page size and scale. Technical lines produce vector geometry; current appearance
-is identified as raster content. Print at actual size to preserve the requested
-scale. The editing model and camera remain unchanged.
-
-**Camera → Render** uses an optional installed Blender executable and an immutable
-captured model. Results identify their source revision. Save image as writes the
-PNG separately from model Save. Jobs supports cancellation, retained results and
-explicit retries. Open scene in Blender produces a one-way `.blend` handoff.
-Scene animation exports a bounded PNG sequence and timing manifest; it does not
-encode a movie or resume an interrupted sequence automatically.
+**Command line, MCP and the assistant.** `sketchyup-cli --import-terrain FILE` imports a terrain
+into `--input` (or a new model) and writes `--output`, with `--terrain-units` (required for point
+files), `--origin E,N[,Z]`, `--terrain-crs`, `--terrain-roles` and the point-file options; on a
+terminal it shows the check's stages on stderr. Automation sessions and MCP expose every site and
+terrain command and query, among them `terrain.import`, `terrain.create_from_edges`,
+`terrain.sculpt`, `terrain.edit_source`, `terrain.stamp_pad`, `terrain.drape` and
+`terrain.describe` (see the [tool reference](TOOL_REFERENCE.md)). The in-app assistant can read a
+terrain but not change one: it sees only `site.describe`, `terrain.describe` and
+`terrain.elevation_at`.
 
 ## Troubleshooting
 
