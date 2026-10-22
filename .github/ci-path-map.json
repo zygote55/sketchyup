@@ -3,9 +3,11 @@
     "Blast-radius map for the CI fast tier (ADR 0170). scripts/ci-plan.py reads it.",
     "Each changed path collects the areas of every rule whose pattern matches it; the fast tier",
     "runs the union. '**' matches across directories, '*' within one path segment.",
-    "'@native-fixture-sources' stands for every source file CMakeLists.txt passes to",
-    "sketchyup_native_fixture(). A path that matches no rule selects the fallback areas, and",
-    "'ci-plan.py check' fails until a rule covers it.",
+    "'@native-fixture-sources' stands for the sources of every executable the full tier's",
+    "X11 1x lines run. ci-plan.py also adds one rule per slow group: the sources of its tests",
+    "(from CMakeLists.txt) select the group, so changing a slow test runs it.",
+    "A path that matches no rule selects the fallback areas, and 'ci-plan.py check' fails",
+    "until a rule covers it. The area 'full' switches the run to the full tier.",
     "The full tier ignores this map and runs everything."
   ],
   "areas": {
@@ -15,7 +17,8 @@
     "slow-core": "Slow core geometry and document CTest suites.",
     "slow-assistant": "The slow provider release corpus.",
     "blender": "The 'Blender interoperability' job.",
-    "package": "The 'Arch package acceptance' job."
+    "package": "The 'Arch package acceptance' job.",
+    "full": "Run the full tier: the path is a harness only full-tier jobs exercise."
   },
   "slow_tests": {
     "slow-terrain": [
@@ -220,6 +223,63 @@
         "build",
         "native"
       ]
+    },
+    {
+      "why": "Harnesses only full-tier jobs run (Wayland, sanitize client fix, accessibility bridge, keyboard layouts, M5/M6 offline acceptance, build-tree packing): run the full tier.",
+      "paths": [
+        "scripts/test-wayland.sh",
+        "scripts/ci-wayland-client.sh",
+        "scripts/wayland-*.patch",
+        "docs/verification/probes/**",
+        "tests/accessibility_bridge_test.py",
+        "scripts/test-keyboard-layout.sh",
+        "scripts/verify-m5-offline.sh",
+        "scripts/verify-m6-offline.sh",
+        "scripts/ci-pack-build.sh"
+      ],
+      "areas": [
+        "full"
+      ]
+    },
+    {
+      "why": "Exporter inputs the Blender verifiers check: sections, textures, materials, smoothing and solar.",
+      "paths": [
+        "src/core/sections*",
+        "src/core/section_records*",
+        "src/geometry/section*",
+        "src/core/face_textures*",
+        "src/core/texture_mapping*",
+        "src/core/materials*",
+        "src/core/material_records*",
+        "src/core/shading_normals*",
+        "src/solar/**",
+        "src/io/texture_image*"
+      ],
+      "areas": [
+        "blender"
+      ]
+    },
+    {
+      "why": "Desktop entry, MIME, icons and the bundled assemblies are validated by the package job.",
+      "paths": [
+        "resources/*.desktop",
+        "resources/*.xml",
+        "resources/*.svg",
+        "resources/assemblies/**"
+      ],
+      "areas": [
+        "package"
+      ]
+    },
+    {
+      "why": "Fixtures native tests read as well as CTest.",
+      "paths": [
+        "tests/fixtures/**"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
     }
   ],
   "examples": [
@@ -347,6 +407,41 @@
         "slow-terrain",
         "slow-core",
         "slow-assistant"
+      ]
+    },
+    {
+      "why": "Wayland harness (#356)",
+      "paths": [
+        "scripts/test-wayland.sh"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "full"
+      ]
+    },
+    {
+      "why": "a slow test's own source (#363)",
+      "paths": [
+        "CMakeLists.txt",
+        "tests/variant_edit_cost_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
+      ]
+    },
+    {
+      "why": "section export input",
+      "paths": [
+        "src/core/sections.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core",
+        "blender"
       ]
     }
   ]

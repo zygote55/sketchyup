@@ -46,7 +46,7 @@ with `tier=fast`). It is sized by the changed paths:
 | Job | Runs when | What |
 | --- | --- | --- |
 | Plan | always | inventory and map checks; tier and areas |
-| Fast tier: compile shard 1–16 | `build` and a *wide* change | each shard installs only the compile packages, compiles a sixteenth of the objects of `all` and exports only the compiler-cache entries it added |
+| Fast tier: compile shard 1–12 | `build` and a *wide* change | each shard installs only the compile packages, generates Qt's moc sources, runs the compile commands of a twelfth of the objects of `all` directly (through ninja, an object first waits for every library its target links, so each shard would recompile all libraries) and exports only the compiler-cache entries it added |
 | Fast tier: tests 1/4–4/4 | `build` | each restores the newest cache plus the shards' entries and builds everything (`ci-fast` preset; hits and links, about 25 seconds), then runs a quarter of CTest (`-I k,,4`, `--parallel 2`) without the slow suites the change does not reach. Shard 1 also runs `mcp` with the pinned MCP schema validation and every other repository check of the old development job (shipped recipes, generated reference and API schemas, glTF validator, DXF and PDF consumers, headless recipes) |
 | Fast tier: X11 1x 1/2–2/2 | `native` | builds the native fixtures and runs half of the full tier's X11 1x lines each, three at a time, each line with its own home, XDG directories and display range |
 | Blender interoperability | `blender` | the full-tier job |
@@ -70,9 +70,11 @@ CTest groups. In summary:
 | other `src/**`, `resources/**`, `examples/**`, `scripts/**`, `.github/**`, `CMakeLists.txt`, `CMakePresets.json` | build, native |
 | terrain sources and tests | adds the slow terrain suites |
 | assistant and provider sources, corpus and scorer | adds the provider release corpus |
-| `tests/**` | build; native fixture sources (`sketchyup_native_fixture()` in CMakeLists) and `tests/*.hpp` add native |
-| `src/integrations/**`, the Blender and glTF verifiers, the export fixtures | adds Blender interoperability |
-| `packaging/**`, package and release scripts | Arch package acceptance; `packaging/arch/mirrorlist` (it decides every package) selects all |
+| `tests/**` | build; the sources of the executables the X11 1x lines run, `tests/*.hpp` and `tests/fixtures/**` add native |
+| a slow test's own sources (derived from CMakeLists.txt) | add that slow group |
+| `src/integrations/**`, the exporter inputs the Blender verifiers check (sections, textures, materials, smoothing, solar), the Blender and glTF verifiers, the export fixtures | adds Blender interoperability |
+| `packaging/**`, package and release scripts, the desktop entry, MIME, icon and bundled assemblies | Arch package acceptance; `packaging/arch/mirrorlist` (it decides every package) selects all |
+| harnesses only full-tier jobs run: `scripts/test-wayland.sh`, `scripts/ci-wayland-client.sh` and its patch and probe, the accessibility bridge, `scripts/test-keyboard-layout.sh`, `scripts/verify-m5-offline.sh`, `scripts/verify-m6-offline.sh`, `scripts/ci-pack-build.sh` | `full`: the run becomes the full tier |
 | anything no rule covers | build, native and every slow suite (and `ci-plan.py check` fails until a rule covers it) |
 
 The slow suites (at least about 15 seconds each at `-O0`) carry 560 of the 765 seconds
@@ -83,10 +85,17 @@ variant_edit_cost, component_parameters) and `slow-assistant`
 (provider_release_corpus). Every other CTest test runs on every code change.
 
 `ci-plan.py check` keeps the map honest on every run: every tracked file matches a rule;
-every slow test exists in CMakeLists.txt and its group is selected by some rule; the
-examples, taken from merged PRs #364–#393, give their recorded areas; and every
-document CMakeLists.txt installs exists (a renamed ADR would otherwise fail only in
-package acceptance).
+every slow test exists in CMakeLists.txt, has source files and its group is selected by
+some rule; the examples, taken from merged PRs, give their recorded areas; and every
+document CMakeLists.txt installs or `scripts/package-source.sh` copies exists (a renamed
+document would otherwise fail only in package acceptance). The fast tier's `ctest` calls
+use `--no-tests=error`, so a renamed test cannot pass by selecting nothing.
+
+Edits to `native.yml` itself stay in the fast tier: the fast X11 job runs the same X11 1x
+lines as the full tier, so a new native fixture runs on its PR at 1x on X11; its other
+platforms and scales run nightly. Adding a label does not start a run (the workflow does
+not listen to `labeled`, so that other labels cannot restart or cancel runs); add
+`full-ci`, then push or re-run.
 
 ### Every test still runs in some tier
 
@@ -112,7 +121,7 @@ until a full-tier line runs it, and its source file selects the fast X11 job.
   `ccache-fast-v1-<commit>-<run>`; pull requests restore the newest one from their base
   branch. The plan compares that commit with the tested one: when headers, the build
   definition, vendored code or the mirror changed in between, or more than 24 sources,
-  the change is **wide** and sixteen shards compile first. Each shard lists the cache files
+  the change is **wide** and twelve shards compile first. Each shard lists the cache files
   before and after its build and uploads only the new ones; ccache is
   content-addressed, so merging entries can only add hits, never change an object.
   Otherwise the change is **narrow** and the test jobs compile their few misses

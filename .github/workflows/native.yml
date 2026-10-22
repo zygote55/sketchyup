@@ -97,7 +97,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     env:
       # ccache is content-addressed: the compiler binary, flags and every preprocessed
       # input are hashed, so a stale or partial cache can only miss, never mis-build.
@@ -162,11 +162,22 @@ jobs:
           SHARDS: ${{ strategy.job-total }}
         run: |
           cmake --preset ci-fast
-          # Every object file of the default build, dealt round-robin across the shards.
-          ninja -C build/dev -t inputs all | grep '\.o$' | sort > /tmp/objects
+          cd build/dev
+          # Qt's generated moc sources first. They build no object: ci-fast sets
+          # CMAKE_AUTOGEN_ORIGIN_DEPENDS=OFF, so autogen does not wait for linked libraries.
+          ninja -t targets all | sed -n 's/^\([A-Za-z0-9_.-]*_autogen\): phony$/\1/p' > /tmp/autogen
+          xargs -a /tmp/autogen ninja -j "$(nproc)" > /dev/null
+          # Every object file of the default build, dealt round-robin across the shards. The
+          # three compiled from rcc output include no project header; the test jobs build them.
+          ninja -t inputs all | grep '\.o$' | grep -v '/\.qt/rcc/' | sort > /tmp/objects
           awk -v n="$SHARDS" -v k="$SHARD" '(NR - 1) % n == k' /tmp/objects > /tmp/shard-objects
           echo "Shard $((SHARD + 1))/$SHARDS: $(wc -l < /tmp/shard-objects) of $(wc -l < /tmp/objects) objects"
-          xargs -a /tmp/shard-objects ninja -C build/dev -j "$(nproc)"
+          # Each object's own compile command (with the ccache launcher), run directly: through
+          # ninja, an object would first wait for every library its target links, so every
+          # shard would compile all the libraries again.
+          xargs -a /tmp/shard-objects dirname | sort -u | xargs mkdir -p
+          xargs -a /tmp/shard-objects ninja -t commands -s > /tmp/shard-commands
+          xargs -a /tmp/shard-commands -d '\n' -P "$(nproc)" -I{} sh -c '{}'
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
@@ -300,7 +311,7 @@ jobs:
         run: |
           exclude="^mcp\$"
           [ -z "$CTEST_EXCLUDE" ] || exclude="$exclude|$CTEST_EXCLUDE"
-          ctest --test-dir build/dev --output-on-failure --parallel 2 -I "$((SHARD + 1)),,$SHARDS" --exclude-regex "$exclude"
+          ctest --test-dir build/dev --output-on-failure --no-tests=error --parallel 2 -I "$((SHARD + 1)),,$SHARDS" --exclude-regex "$exclude"
       # Main (and the other non-pull-request runs) saves the cache the next runs start
       # from, keyed by commit: ci-plan.py diffs against it to choose wide or narrow. A pull
       # request saves its own only when nothing was restored, so it does not evict main's.
@@ -314,7 +325,7 @@ jobs:
         if: strategy.job-index == 0
         run: |
           rm -f build/mcp-transcript.jsonl
-          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --test-dir build/dev -R '^mcp$' --output-on-failure
+          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --test-dir build/dev -R '^mcp$' --output-on-failure --no-tests=error
           curl -fLsS https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/271ecc9accafdd9b83a3c869fa67c22953b2af80/schema/2026-07-28/schema.json -o build/mcp-schema.json
           python scripts/verify-mcp-schema.py build/mcp-schema.json build/mcp-transcript.jsonl > build/mcp-schema-validation.json
       - name: Shipped recipes reproduce measured geometry
@@ -337,10 +348,10 @@ jobs:
         run: |
           python -m venv build/dxf-oracle
           build/dxf-oracle/bin/pip install -r tests/dxf-oracle-requirements.txt
-          SKETCHYUP_DXF_TEST="$PWD/build/dxf-oracle/bin/python" ctest --test-dir build/dev -R '^dxf_export_real$' --output-on-failure
+          SKETCHYUP_DXF_TEST="$PWD/build/dxf-oracle/bin/python" ctest --test-dir build/dev -R '^dxf_export_real$' --output-on-failure --no-tests=error
       - name: Independent measured PDF consumer
         if: strategy.job-index == 0
-        run: SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm ctest --test-dir build/dev -R '^(measured_export_real|sheet_export_real)$' --output-on-failure
+        run: SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm ctest --test-dir build/dev -R '^(measured_export_real|sheet_export_real)$' --output-on-failure --no-tests=error
       - name: Headless recipe
         if: strategy.job-index == 0
         run: |

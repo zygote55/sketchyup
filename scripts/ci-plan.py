@@ -55,17 +55,48 @@ def glob_regex(pattern):
     return re.compile(out + r"\Z")
 
 
-def native_fixture_sources():
-    text = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
-    sources = set()
-    for match in re.finditer(r"sketchyup_native_fixture\(\s*\S+\s+([^)]*)\)", text):
-        sources.update(word for word in match.group(1).split() if "/" in word)
+def cmake_text():
+    return (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+
+
+def executable_sources():
+    """Source paths of every executable CMakeLists.txt declares, by target."""
+    sources = {}
+    pattern = r"(?:add_executable|sketchyup_native_fixture|target_sources)\(\s*(\S+)\s+([^)]*)\)"
+    for match in re.finditer(pattern, cmake_text()):
+        words = [w for w in match.group(2).split() if re.match(r"(src|tests|third_party)/", w)]
+        sources.setdefault(match.group(1), set()).update(words)
     return sources
 
 
+def native_fixture_sources():
+    """Sources of the executables the X11 1x lines run (the fast tier's native job)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import importlib
+    run_lines = importlib.import_module("ci-run-lines")
+    _, lines = run_lines.step_lines(str(ROOT / ".github" / "workflows" / "native.yml"), "x11-1x",
+                                    "Native interaction and OpenGL tests")
+    targets = {t for line in lines for t in re.findall(r"build/dev/([A-Za-z0-9_-]+)", line)}
+    by_target = executable_sources()
+    return set().union(*(by_target.get(target, set()) for target in targets))
+
+
 def ctest_names():
-    text = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
-    return set(re.findall(r"add_test\(\s*NAME\s+(\S+)", text))
+    return set(re.findall(r"add_test\(\s*NAME\s+(\S+)", cmake_text()))
+
+
+def ctest_sources():
+    """Source paths each CTest test runs: its executables' sources and named test files."""
+    by_target = executable_sources()
+    tests = {}
+    for match in re.finditer(r"add_test\(\s*NAME\s+(\S+)\s+COMMAND\s+((?:[^()]|\([^()]*\))*)\)",
+                             cmake_text()):
+        name, command = match.group(1), match.group(2)
+        paths = set(re.findall(r"\b((?:tests|scripts)/[A-Za-z0-9_./-]+)", command))
+        for target in re.findall(r"\$<TARGET_FILE:([^>]+)>", command) + command.split()[:1]:
+            paths |= by_target.get(target, set())
+        tests[name] = paths
+    return tests
 
 
 class PathMap:
@@ -73,6 +104,11 @@ class PathMap:
         self.data = data
         self.native_sources = native_fixture_sources()
         self.rules = []
+        # A slow test's own sources select its group, so a change to the test runs it.
+        sources = ctest_sources()
+        for area, names in data["slow_tests"].items():
+            paths = set().union(*(sources.get(name, set()) for name in names))
+            self.rules.append(([glob_regex(path) for path in sorted(paths)], {"build", area}))
         for rule in data["rules"]:
             patterns = []
             for pattern in rule["paths"]:
@@ -141,7 +177,17 @@ def check():
             if name not in tests:
                 errors.append(f"{area}: no CTest test named {name} in CMakeLists.txt")
     if not pm.native_sources:
-        errors.append("found no sketchyup_native_fixture() sources in CMakeLists.txt")
+        errors.append("found no sources for the X11 1x executables")
+    sources = ctest_sources()
+    for area, names in pm.data["slow_tests"].items():
+        for name in names:
+            if not sources.get(name):
+                errors.append(f"{area}: found no source files for CTest test {name}")
+    # The package job copies these; a rename would otherwise fail only there.
+    package_source = (ROOT / "scripts" / "package-source.sh").read_text(encoding="utf-8")
+    for path in sorted(set(re.findall(r"\b(docs/[A-Za-z0-9_./-]+)", package_source))):
+        if not (ROOT / path).exists():
+            errors.append(f"scripts/package-source.sh copies missing path {path}")
     tracked = git("ls-files").split("\n")
     for path in filter(None, tracked):
         if pm.match(path) is None:
@@ -250,8 +296,15 @@ def plan():
                 reasons.append("unmapped: " + ", ".join(unmatched[:10]))
         for name in ("build", "native", "blender", "package"):
             outputs[name] = name in areas
-        outputs["ctest_exclude"] = pm.ctest_exclude(areas)
-        if outputs["build"] or outputs["native"]:
+        if "full" in areas:
+            # Harnesses only the full tier runs: run it.
+            full = True
+            reasons.append("paths only the full tier exercises: full tier")
+            outputs.update(full=True, build=False, native=False, blender=True, package=True,
+                           ctest_exclude="")
+        if not full:
+            outputs["ctest_exclude"] = pm.ctest_exclude(areas)
+        if not full and (outputs["build"] or outputs["native"]):
             # Wide when the newest cache predates header or build-definition changes.
             cache_commit = newest_cache_commit(repo, cache_ref)
             since = None
