@@ -103,10 +103,9 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
     // group keeps random erases from releasing it, so loose edits and unique copies
     // reach the unique limit. placementBoundary covers the materialized limits,
     // which random sequences would need about 1,250 placements to reach.
-    // Ballast is setup, not an edit under test; sanitized builds skip the oracle
-    // while building it.
-    if constexpr (test::sanitized)
-        Document::setFullValidationOracle(false);
+    // Ballast is setup, not an edit under test; no build runs the oracle while
+    // building it (every step of the sequences below does).
+    Document::setFullValidationOracle(false);
     std::set<Id> ballast;
     for (int i = 0; i < 100; ++i) {
         std::vector<Vec3> loop;
@@ -291,11 +290,16 @@ void placementBoundary() {
     // unique geometry holds the definition once and stays far below its limits.
     static_assert(DocumentLimits::materialized.vertices == 600000);
     static_assert(DocumentLimits::materialized.edges == 900000);
+    // The fill is setup and runs without the oracle (it recounts the whole document on
+    // every apply); the placement that reaches the limit exactly runs under it.
     Document doc;
+    Document::setFullValidationOracle(false);
     const auto definition = createComponent(doc, prism(doc, 5000), "Boundary").definition;
     check(doc.materializedTotals().vertices == 10000, "Unexpected boundary fixture size");
-    for (int i = 1; i < 60; ++i)
+    for (int i = 1; i < 59; ++i)
         placeComponent(doc, definition, Transform::translation({3.0 * i, 0, 0}));
+    Document::setFullValidationOracle(true);
+    placeComponent(doc, definition, Transform::translation({3.0 * 59, 0, 0}));
     check(doc.materializedTotals().vertices == DocumentLimits::materialized.vertices &&
               doc.materializedTotals().edges == DocumentLimits::materialized.edges,
           "Placements up to the limit must succeed");
