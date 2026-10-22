@@ -1,0 +1,445 @@
+{
+ "layer": "R096.g",
+ "date": "2026-10-21",
+ "branch": "docs/r096g-acceptance",
+ "base": {
+  "main": "f1da21a3"
+ },
+ "commits": {
+  "checksBudgetsAndHardware": "f1da21a3",
+  "ciPr396Head": "5902f221"
+ },
+ "pullRequests": {
+  "record": null,
+  "compareTopology": 401
+ },
+ "ciRun": 39696132281,
+ "verdict": "accepted",
+ "r096Complete": true,
+ "pendingHardwareRows": [],
+ "verifyLine": {
+  "contoursConsistent": "pass",
+  "padHeightsConsistent": "pass",
+  "localEditPreservesDistantTerrain": "pass",
+  "undo": "pass",
+  "save": "pass"
+ },
+ "consistencyChecks": {
+  "C1": "pass",
+  "C2": "pass",
+  "C3": "pass",
+  "C4": "pass",
+  "C5": "pass",
+  "C6": "pass",
+  "C7": "pass"
+ },
+ "consistencyCheckedAfter": [
+  "every operation kind",
+  "Undo and Redo",
+  "save and reopen",
+  "Regenerate",
+  "a second document"
+ ],
+ "pinnedReplayDigests": {
+  "sculpt": "81f5fd22…3b688",
+  "stamp": "04bc036f…98ffc2",
+  "drape": "11e74534…22ddcb1a"
+ },
+ "verificationPlan": {
+  "contours": "pass",
+  "padHeights": "pass",
+  "distantTerrain": "pass",
+  "undo": "pass",
+  "save": "pass",
+  "reversiblePreviews": "pass",
+  "seams": "pass",
+  "imprintKeepsShape": "pass",
+  "determinism": "pass",
+  "limitsAndRefusals": "pass",
+  "cavityAdapter": "pass",
+  "editListDecoder": "pass"
+ },
+ "budgets": [
+  {
+   "row": "one-tile replacement, input to preview frame (R095.f row)",
+   "budgetMs": 100,
+   "llvmpipeP95Ms": {
+    "sculptPoints": [
+     93,
+     112
+    ],
+    "sculptContours": [
+     66,
+     67
+    ]
+   },
+   "amdP95Ms": {
+    "sculptPoints": [
+     21.5,
+     21.9
+    ],
+    "sculptContours": [
+     17.6,
+     18.8
+    ]
+   },
+   "result": "pass"
+  },
+  {
+   "row": "sculpt touching nine tiles",
+   "budget": "reported",
+   "llvmpipeP95Ms": {
+    "preview": [
+     138,
+     169
+    ],
+    "commit": [
+     341,
+     433
+    ]
+   },
+   "amdP95Ms": {
+    "preview": [
+     39.2,
+     63.3
+    ],
+    "commit": [
+     236.6,
+     406.0
+    ]
+   },
+   "result": "reported"
+  },
+  {
+   "row": "one-tile commit, sculpt",
+   "budgetMs": 100,
+   "llvmpipeP95Ms": [
+    106,
+    124
+   ],
+   "amdP95Ms": {
+    "points": [
+     55.6,
+     57.0
+    ],
+    "contours": [
+     68.1,
+     74.0
+    ]
+   },
+   "result": "pass"
+  },
+  {
+   "row": "one-tile commit, contour edit",
+   "budgetMs": 100,
+   "llvmpipeP95Ms": [
+    114,
+    171
+   ],
+   "amdP95Ms": [
+    90.2,
+    92.3
+   ],
+   "result": "pass",
+   "note": "8-10 ms headroom"
+  },
+  {
+   "row": "one-tile commit, stamp pad",
+   "budgetMs": 100,
+   "llvmpipeP95Ms": 102.2,
+   "amdP95Ms": [
+    70.2,
+    71.6
+   ],
+   "result": "pass"
+  },
+  {
+   "row": "one-tile commit, drape",
+   "budgetMs": 100,
+   "llvmpipeP95Ms": 81.7,
+   "amdP95Ms": [
+    51.6,
+    51.8
+   ],
+   "result": "pass"
+  },
+  {
+   "row": "contour-edit preview, cavity <= 2,048 triangles",
+   "budgetMs": 100,
+   "coreP95Ms": 16.1,
+   "llvmpipeP95Ms": [
+    53,
+    84
+   ],
+   "amdP95Ms": [
+    15.6,
+    16.6
+   ],
+   "addBreaklineAmdP95Ms": [
+    15.0,
+    15.1
+   ],
+   "result": "pass"
+  },
+  {
+   "row": "stamp of a 64-vertex footprint, preview",
+   "budget": "reported",
+   "coreP95Ms": [
+    7.9,
+    9.1
+   ],
+   "oneTilePadToFrame": {
+    "llvmpipeP95Ms": 60.6,
+    "amdP95Ms": [
+     20.4,
+     21.2
+    ]
+   },
+   "result": "reported"
+  },
+  {
+   "row": "replay of 1,000 entries",
+   "budgetS": 3,
+   "measuredS": {
+    "lifts": [
+     1.0,
+     1.1
+    ],
+    "sculpts": [
+     1.35,
+     1.66
+    ],
+    "pads": [
+     0.7,
+     0.9
+    ],
+    "drapes": [
+     0.64,
+     0.82
+    ]
+   },
+   "cancelMs": 52,
+   "editsListRemove256": {
+    "llvmpipeS": 1.69,
+    "amdS": [
+     1.086,
+     1.093
+    ],
+    "cancelMs": {
+     "llvmpipe": 22,
+     "amd": [
+      8.9,
+      10.0
+     ]
+    }
+   },
+   "result": "pass"
+  },
+  {
+   "row": "undo depth",
+   "budget": ">= 64 one-tile edits in 512 MiB",
+   "measured": {
+    "points": 525,
+    "contours": 590
+   },
+   "result": "pass"
+  },
+  {
+   "row": "added resident memory with the edit mesh cache",
+   "budgetMB": 200,
+   "editMeshMB": {
+    "points": 22.1,
+    "contours": 30.3
+   },
+   "estimatedTotalMB": [
+    122,
+    139
+   ],
+   "result": "pass"
+  },
+  {
+   "row": "complete frame with a preview visible",
+   "budget": "M9 frame budget",
+   "amdPreviewFrameP95Ms": [
+    12.2,
+    17.2
+   ],
+   "readbackIncluded": true,
+   "stampPreviewFrameP95Ms": [
+    16.3,
+    17.2
+   ],
+   "result": "pass at the 33.3 ms row; stamp preview marginal at 16.7 ms"
+  }
+ ],
+ "amdSession": {
+  "machine": "sketchyup-gpu",
+  "gpu": "AMD Radeon RX 6800 XT (radeonsi, navi21, ACO, DRM 3.64)",
+  "mesa": "mesa-git 26.3.0_devel.231096.74b69717c52-1",
+  "qt": "6.12.0",
+  "gcc": "16.2.1",
+  "kernel": "7.2.10-1-cachyos",
+  "source": "f1da21a33f8662251e24c1ff62983aa736cbf5e1",
+  "binarySha256": "d0abe91a8379fb0d634b5f5f28d0ddeaafbcb65311fe06b1e75972ace172b908",
+  "controls": "MemoryMax=4G MemorySwapMax=0 LimitCORE=0 CPUQuota=100% TasksMax=128 RuntimeMaxSec=900s, taskset -c 11, QT_QPA_PLATFORM=xcb",
+  "runs": [
+   "--sculpt-frames 64",
+   "--sculpt-frames 64 --terrain-section",
+   "--edit-frames 64"
+  ],
+  "rounds": 3,
+  "allExitZero": true,
+  "evidence": "sketchyup-gpu:/home/keith/sketchyup-verification/r096g-amd-terrain-edit-20261021/evidence/"
+ },
+ "compareTopology": {
+  "decision": "implemented",
+  "scope": "skip the adjacency maps when no edge ID is on both sides; validate each side in the same order",
+  "validationRemoved": false,
+  "declined": "skipping validation as well (relies on caller invariants)",
+  "tests": "topology_tests oneSidedComparisons: results and refusal messages equal the full path for created, erased and disjoint changes, seven defect kinds, both-sides-defective order, shared edges still compared",
+  "measuredP95Ms": {
+   "nineTileCore": {
+    "points": {
+     "base": [
+      70.7,
+      71.7
+     ],
+     "new": [
+      52.0,
+      54.6
+     ]
+    },
+    "contours": {
+     "base": [
+      51.6,
+      56.5
+     ],
+     "new": [
+      40.4,
+      43.7
+     ]
+    }
+   },
+   "nineTileDesktopCommand": {
+    "points": {
+     "base": [
+      232.8,
+      286.6
+     ],
+     "new": [
+      174.4,
+      175.2
+     ]
+    },
+    "contours": {
+     "base": [
+      163.6,
+      186.2
+     ],
+     "new": [
+      129.6,
+      133.2
+     ]
+    }
+   },
+   "oneTileDesktopCommand": {
+    "points": {
+     "base": [
+      29.2,
+      31.2
+     ],
+     "new": [
+      24.8,
+      28.4
+     ]
+    },
+    "contours": {
+     "base": [
+      36.1,
+      58.3
+     ],
+     "new": [
+      32.0,
+      32.4
+     ]
+    }
+   }
+  }
+ },
+ "nativeMatrix": {
+  "ci": {
+   "run": 39696132281,
+   "result": "all ten jobs pass"
+  },
+  "local": {
+   "image": "sketchyup-ci-pinned:r094a",
+   "preset": "dev",
+   "code": "f1da21a3 + compareTopology change",
+   "suites": {
+    "terrain_import_dialog_tests": {
+     "x11-1x": "pass",
+     "x11-2x": "pass",
+     "wayland-1x": "pass",
+     "wayland-2x": "pass"
+    },
+    "terrain_desktop_tests": {
+     "x11-1x": "pass",
+     "x11-2x": "pass",
+     "wayland-1x": "pass",
+     "wayland-2x": "pass"
+    },
+    "terrain_site_desktop_tests": {
+     "x11-1x": "pass",
+     "x11-2x": "pass",
+     "wayland-1x": "pass",
+     "wayland-2x": "pass"
+    },
+    "terrain_edit_input_tests": {
+     "x11-1x": "pass",
+     "x11-2x": "pass",
+     "wayland-1x": "pass",
+     "wayland-2x": "pass"
+    }
+   }
+  }
+ },
+ "fuzzing": {
+  "rerun": false,
+  "campaigns": [
+   {
+    "target": "parser_fuzz_terrain_cavity",
+    "inputs": 271021,
+    "seconds": 300,
+    "findings": 0
+   },
+   {
+    "target": "parser_fuzz_terrain_edits",
+    "inputs": 474260,
+    "seconds": 301,
+    "findings": 0,
+    "slice": "R096.e"
+   }
+  ]
+ },
+ "followUps": [
+  "contour-edit commit headroom (overlay about 14 ms a frame; cache rebuild 28 ms)",
+  "nine-tile commit outlier 406 ms (sculpt-section-2, points)",
+  "stamp preview frame without readback against 16.7 ms",
+  "per-point storage for large source edits (R096.c)",
+  "assistant terrain.describe edits clause (decision 9, deferred)"
+ ],
+ "defectsAdded": [],
+ "coreSuites": {
+  "tests": [
+   "topology",
+   "terrain_edit",
+   "terrain_replay",
+   "terrain_source_edit",
+   "terrain_sculpt",
+   "terrain_stamp",
+   "terrain_drape"
+  ],
+  "result": "7 of 7 pass",
+  "seconds": 195
+ }
+}
