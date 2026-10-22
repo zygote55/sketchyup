@@ -32,6 +32,8 @@ CACHE_PREFIX = "ccache-fast-v1-"
 # in parallel shards first.
 WIDE = re.compile(r"(\.(hpp|h|hh|inl|ipp|in)$|(^|/)CMakeLists\.txt$|^CMakePresets\.json$"
                   r"|^third_party/|^packaging/arch/mirrorlist$)")
+# Full-tier jobs that test the development build tree (the `build` job's artifact).
+DEV_BUILD_CONSUMERS = {"x11-1x", "x11-2x", "wayland-1x", "wayland-2x", "audit", "fractional"}
 # More changed sources than this also compile in shards.
 NARROW_SOURCE_LIMIT = 24
 
@@ -164,6 +166,12 @@ def check():
         for area in rule["areas"]:
             if area not in known:
                 errors.append(f"rule {rule['paths']} names unknown area {area}")
+    workflow = (ROOT / ".github" / "workflows" / "native.yml").read_text(encoding="utf-8")
+    for area in known:
+        if area.startswith("job:"):
+            job = area.split(":", 1)[1]
+            if f"contains(needs.plan.outputs.jobs, ',{job},')" not in workflow:
+                errors.append(f"area {area}: job {job} does not check needs.plan.outputs.jobs")
     for area in pm.data["fallback"]:
         if area not in known:
             errors.append(f"fallback names unknown area {area}")
@@ -272,7 +280,7 @@ def plan():
             full, reasons = True, ["release branch pull request"]
 
     outputs = {"full": full, "build": False, "native": False, "blender": False,
-               "package": False, "wide": False, "ctest_exclude": ""}
+               "package": False, "wide": False, "ctest_exclude": "", "jobs": ","}
     if full:
         outputs.update(blender=True, package=True)
     else:
@@ -296,12 +304,19 @@ def plan():
                 reasons.append("unmapped: " + ", ".join(unmatched[:10]))
         for name in ("build", "native", "blender", "package"):
             outputs[name] = name in areas
+        # Single full-tier jobs a harness change selects; the native ones need the dev build.
+        jobs = sorted(area.split(":", 1)[1] for area in areas if area.startswith("job:"))
+        if jobs:
+            if set(jobs) & DEV_BUILD_CONSUMERS:
+                jobs = sorted(set(jobs) | {"build"})
+            outputs["jobs"] = "," + ",".join(jobs) + ","
+            reasons.append("full-tier jobs " + ", ".join(jobs))
         if "full" in areas:
             # Harnesses only the full tier runs: run it.
             full = True
             reasons.append("paths only the full tier exercises: full tier")
             outputs.update(full=True, build=False, native=False, blender=True, package=True,
-                           ctest_exclude="")
+                           ctest_exclude="", jobs=",")
         if not full:
             outputs["ctest_exclude"] = pm.ctest_exclude(areas)
         if not full and (outputs["build"] or outputs["native"]):

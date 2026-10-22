@@ -65,6 +65,7 @@ jobs:
       package: ${{ steps.plan.outputs.package }}
       wide: ${{ steps.plan.outputs.wide }}
       ctest_exclude: ${{ steps.plan.outputs.ctest_exclude }}
+      jobs: ${{ steps.plan.outputs.jobs }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -501,7 +502,7 @@ jobs:
   build:
     name: Development build and checks
     needs: plan
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',build,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -690,7 +691,7 @@ jobs:
   x11-1x:
     name: "Native tests: X11 1x"
     needs: [plan, build]
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',x11-1x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -843,7 +844,7 @@ jobs:
   x11-2x:
     name: "Native tests: X11 2x"
     needs: [plan, build]
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',x11-2x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -991,7 +992,7 @@ jobs:
   wayland-1x:
     name: "Native tests: Wayland 1x"
     needs: [plan, build]
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',wayland-1x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -1131,7 +1132,7 @@ jobs:
   wayland-2x:
     name: "Native tests: Wayland 2x"
     needs: [plan, build]
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',wayland-2x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -1279,7 +1280,7 @@ jobs:
   audit:
     name: "Native tests: audit and accessibility"
     needs: [plan, build]
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',audit,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -1362,7 +1363,7 @@ jobs:
   fractional:
     name: "Native tests: fractional scaling, Blender worker and M5"
     needs: [plan, build]
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',fractional,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -1459,7 +1460,7 @@ jobs:
   blender:
     name: Blender interoperability
     needs: plan
-    if: needs.plan.outputs.full == 'true' || needs.plan.outputs.blender == 'true'
+    if: needs.plan.outputs.full == 'true' || needs.plan.outputs.blender == 'true' || contains(needs.plan.outputs.jobs, ',blender,')
     env:
       # ccache is content-addressed: the compiler binary, flags and every preprocessed
       # input are hashed, so a stale or partial cache can only miss, never mis-build.
@@ -1546,7 +1547,7 @@ jobs:
   sanitize:
     name: Sanitized builds
     needs: plan
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',sanitize,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -1730,7 +1731,7 @@ jobs:
   package:
     name: Arch package acceptance
     needs: plan
-    if: needs.plan.outputs.full == 'true' || needs.plan.outputs.package == 'true'
+    if: needs.plan.outputs.full == 'true' || needs.plan.outputs.package == 'true' || contains(needs.plan.outputs.jobs, ',package,')
     runs-on: ubuntu-latest
     container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 180
@@ -1821,6 +1822,7 @@ jobs:
               required.add("blender")
           if on("package"):
               required.add("package")
+          required.update(job for job in out.get("jobs", ",").split(",") if job)
           bad = []
           for job, info in sorted(needs.items()):
               result = info["result"]

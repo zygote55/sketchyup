@@ -51,6 +51,7 @@ with `tier=fast`). It is sized by the changed paths:
 | Fast tier: X11 1x 1/2–2/2 | `native` | builds the native fixtures and runs half of the full tier's X11 1x lines each, three at a time, each line with its own home, XDG directories and display range |
 | Blender interoperability | `blender` | the full-tier job |
 | Arch package acceptance | `package` | the full-tier job |
+| any other full-tier job | `job:<id>` | that job (and the development build it consumes) |
 | **CI verdict** | always | fails if any job failed or was cancelled, or if a job the plan selected did not succeed |
 
 **CI verdict is the single check a merge waits on.** A docs-only change runs Plan and
@@ -74,7 +75,8 @@ CTest groups. In summary:
 | a slow test's own sources (derived from CMakeLists.txt) | add that slow group |
 | `src/integrations/**`, the exporter inputs the Blender verifiers check (sections, textures, materials, smoothing, solar), the Blender and glTF verifiers, the export fixtures | adds Blender interoperability |
 | `packaging/**`, package and release scripts, the desktop entry, MIME, icon and bundled assemblies | Arch package acceptance; `packaging/arch/mirrorlist` (it decides every package) selects all |
-| harnesses only full-tier jobs run: `scripts/test-wayland.sh`, `scripts/ci-wayland-client.sh` and its patch and probe, the accessibility bridge, `scripts/test-keyboard-layout.sh`, `scripts/verify-m5-offline.sh`, `scripts/verify-m6-offline.sh`, `scripts/ci-pack-build.sh` | `full`: the run becomes the full tier |
+| harnesses most full-tier jobs share: `scripts/test-wayland.sh`, `scripts/ci-pack-build.sh` | `full`: the run becomes the full tier |
+| harnesses one full-tier job runs: the accessibility bridge and `scripts/test-keyboard-layout.sh` (audit), `scripts/verify-m5-offline.sh` (fractional), `scripts/ci-wayland-client.sh` with its patch and probe (sanitize) | `job:<id>`: that full-tier job runs in the fast tier, with the development build when it needs one |
 | anything no rule covers | build, native and every slow suite (and `ci-plan.py check` fails until a rule covers it) |
 
 The slow suites (at least about 15 seconds each at `-O0`) carry 560 of the 765 seconds
