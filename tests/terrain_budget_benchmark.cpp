@@ -37,8 +37,10 @@
 // from another thread, and reports the time from the cancel request until the run has
 // returned, overall and by the stage the run was in.
 #include "app/surface_format.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/terrain_section.hpp"
 #include "app/viewport.hpp"
+#include "automation/commands.hpp"
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_display.hpp"
@@ -63,6 +65,7 @@
 #include <thread>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <malloc.h>
 #include <numbers>
 #include <sys/resource.h>
@@ -988,6 +991,79 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
             }
         }
     }
+    // R096.f2 part 3, on the point terrain: an Edits-list replay as the Terrain edits section runs
+    // it (TerrainReplayJob: the request on the UI thread, the replay on a worker with progress,
+    // one edit applied), after `samples` x 4 one-tile sculpts: Remove of the first change, timed
+    // from the start to the frame showing the applied result, with the progress seen while it
+    // runs; then a cancel 300 ms into a second Remove, timed until the job has ended.
+    QJsonObject replay;
+    if (lines) {
+        const int edits = samples * 4;
+        for (int i = 0; i < edits; ++i) {
+            const auto &tile = tiles[std::size_t(i) % tiles.size()];
+            try {
+            const auto result = executeBatch(
+                doc, {{"apiVersion", 1},
+                      {"documentId", QString::fromStdString(doc.identity())},
+                      {"expectedRevision", QString::number(doc.revision())},
+                      {"commands", QJsonArray{QJsonObject{
+                                       {"command", "terrain.sculpt"},
+                                       {"terrain", QString::number(terrain)},
+                                       {"mode", "raise"},
+                                       {"path", QJsonArray{QJsonArray{tile.centre.x, tile.centre.y}}},
+                                       {"radius", 8.0},
+                                       {"amount", 0.05 * (1 + i % 3)}}}}},
+                BatchResponse::Changes);
+            (void)result;
+            } catch (const std::exception &) {
+                // A brush that reaches no vertex is left out.
+            }
+        }
+        view.refresh();
+        view.fit();
+        frame();
+        const auto entries = doc.bodies().at(terrain)->terrain->edits.size();
+        const auto first = doc.bodies().at(terrain)->terrain->edits.front()->id;
+        auto run = [&](bool cancel) {
+            const QJsonObject command{{"command", "terrain.remove_edit"},
+                                      {"terrain", QString::number(terrain)},
+                                      {"edit", double(first)}};
+            const auto revision = doc.revision();
+            std::set<int> progress;
+            const auto t0 = Clock::now();
+            auto *job = TerrainReplayJob::start(nullptr, doc, view, command, "Remove change");
+            const double start = ms(Clock::now() - t0);
+            std::optional<double> cancelledAt;
+            while (TerrainReplayJob::running()) {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+                if (const auto *running = TerrainReplayJob::running())
+                    progress.insert(running->control().permille.load());
+                if (cancel && !cancelledAt && ms(Clock::now() - t0) > 300) {
+                    cancelledAt = ms(Clock::now() - t0);
+                    job->cancel();
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            const double ended = ms(Clock::now() - t0);
+            frame();
+            const double total = ms(Clock::now() - t0);
+            QJsonObject json{{"entries", double(entries)}, {"startMs", start}, {"progressValues", double(progress.size())}};
+            if (cancel) {
+                json["cancelLatencyMs"] = ended - cancelledAt.value_or(ended);
+                json["unchanged"] = doc.revision() == revision;
+            } else {
+                check(doc.revision() == revision + 1, "the replay applied");
+                json["totalMs"] = total;
+                json["frameMs"] = view.completeFrameMs();
+                doc.undo();
+                view.refresh();
+                frame();
+            }
+            return json;
+        };
+        replay["remove"] = run(false);
+        replay["cancel"] = run(true);
+    }
     for (int i = 0; i < samples && !lines && i < int(tiles.size()); ++i) {
         const auto centre = tiles[std::size_t(i)].centre;
         // The source contour vertex nearest the tile's middle.
@@ -1128,7 +1204,8 @@ QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObj
             {"framebuffer", "1920x1080"},
             {lines ? "addBreakline" : "contourEdit", summary(lines ? breakline : contour)},
             {"stamp", summary(stamp)},
-            {"drape", summary(drape)}};
+            {"drape", summary(drape)},
+            {"replay", replay}};
 }
 
 int main(int argc, char **argv) {

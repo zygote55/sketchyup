@@ -2997,6 +2997,86 @@ worker. The one-tile stamp commit is p95 102.2 ms and the drape commit 81.7 ms e
 llvmpipe, of which the CPU part (command, refresh and cache rebuild) is about 77 and 61 ms; the
 software frame is the rest, as for the sculpt and contour commits (the AMD session, R096.g).
 
+### Part 3: the Terrain edits list
+
+Modules: `src/app/terrain_edits_section.*` (the section and Edit pad…), `src/app/terrain_replay_job.*`
+(the replay as a job, its status-bar chip), `src/app/viewport_terrain_edits.cpp` (the highlight,
+framing and skipped changes), the section's place after the Terrain section
+(`entity_info_panel.*`), and Reset edits… through the job (`terrain_actions.cpp`).
+
+**Rows (UX §15.6).** In list order: a glyph by kind (⌒ sculpt, ≈ smooth, ∿ source edits, ▭ pad,
+⤓ drape), the title, the key values on a second line and the change's ID. Titles and values:
+- sculpt "Sculpt · raise 1.80 m", "Radius 9.00 m · smooth falloff" (a region: "Region · falloff
+  width 2.00 m · …"); smooth "Smooth · strength 0.50", "2 passes · radius 6.00 m";
+- pad "Pad · Building A" (its source body's name, or its group's), "106.00 m · daylight, cut 1:2,
+  fill 1:2" or "… · fixed width 3.00 m";
+- drape "Drape · Paving, grey" (the first painted region's material) or "Drape · 3 lines",
+  "Imprint · 3 lines, 1 painted region";
+- source edits "Contour 105.00 m" with "Reshaped · 2 vertices moved", "Elevation from 104.00 m",
+  "Now a breakline", vertices added or removed, and the source; "Added contour 105.20 m" or "Added
+  breakline" with the points; "Removed contour 104.00 m". What an edit changed comes from one
+  forward pass over the current sources (only when the list has source edits).
+The header counts the changes, the caption gives the use ("5 of 4,096 changes", grouped by
+thousands). Each row's accessible text is the §15.7 sentence ("Change 3 of 5, Pad, Building A,
+106.00 metres, daylight, cut 1 to 2, fill 1 to 2"); a skipped row adds "Warning: skipped" and its
+reason, which is also its accessible description. The section is rebuilt when the terrain's body
+changes, not on every document change; its buttons follow every change (a building deleted, a
+lock).
+
+**Selection.** Selecting a row outlines the change in the viewport in the selection colour with
+its label ("Change 3 · Pad · Building A / 106.00 m · daylight, cut 1:2, fill 1:2"): a pad's outline
+and daylight line, a drape's runs, a source edit's line (a spot point's small square, a removed
+source's old box), a sculpt's swept brush or region on the surface, otherwise the kind's plan box.
+The outline shows only while its terrain is selected and the section is shown; it is rebuilt after
+a document change. Double-click or Enter frames it; Delete removes it. The status bar says so when
+the user selects a row.
+
+**Actions (one undoable edit each).**
+- *Remove* runs `terrain.remove_edit`, *Restamp* `terrain.update_edit {restamp}`, *Edit pad…*
+  `terrain.update_edit` with the edited fields, and *Reset edits…* (the window's action, asking
+  first with Cancel the default) `terrain.reset_edits`.
+- *The job.* Each runs as a `TerrainReplayJob`: `parseTerrainReplayRequest` on the UI thread (its
+  refusals reported at once), `runTerrainReplay` on a one-thread pool with a `TerrainRunControl`
+  (it reads only the request), and `applyTerrainReplay` on the UI thread when it ends, refused for
+  a terrain changed meanwhile. A chip in the status bar shows "Replaying 3 changes · 64 %"
+  ("Resetting …" for Reset edits) with Cancel; cancelling stops the worker at its next checkpoint
+  and applies nothing. One job runs at a time. A job whose document was replaced (opened, reverted,
+  new) is discarded, and replacing the document cancels it.
+- *Restamp* is unavailable, with the reason as its tooltip and accessible description, for a pad
+  stamped from edges or a polygon, for one whose source body is gone, and on a locked terrain.
+- *Edit pad…* shows the pad's elevation, its offset below the source footprint (when the footprint
+  has a height; editing either updates the other), the grading, Cut, Fill, Max distance and Width.
+  Only the fields the user typed in are sent; an untouched field keeps its exact stored value, so
+  rounding in the shown text never changes the pad, and Apply is unavailable while nothing changed.
+
+**Skipped changes and notices.** The replay now lists every skipped entry with its notice
+(`TerrainImportResult::skipped`; the report keeps a bounded number of locations). A skipped row is
+marked "⚠ Skipped" in the warning colour with its reason ("the lines now enter a pad", "the pad
+now leaves the terrain's outline", or the refusal's own words), and stays so while the list the
+replay produced is a prefix of the terrain's list in the same document: a later change keeps the
+mark, Undo of the replay or removing the change clears it. Regenerate and Terrain settings set the
+marks from their own reports. Stamps and drapes that did not apply are marked from their record
+alone. The last change's or replay's notices (changes skipped, paint removed from rebuilt tiles,
+source vertices clipped, parts clipped) show under the list in the warning style while the list is
+the one they were made for, with Show report, which opens the R095.c2 report tree.
+
+**Choices where the design is open, and deviations (part 3).**
+- The drape row's title names its first paint region's material or its line count; a drape entry
+  does not record its source body's name ("Drape · Drive" in the mockup).
+- A skipped row's reason names the kind of conflict ("the lines now enter a pad") rather than the
+  pad ("crosses Pad · Building A"): the replay's notice does not name the other change.
+- A source-edit row's values say what changed from the sources before it ("Reshaped · 2 vertices
+  moved", as the mockup), found by a forward pass over the list.
+- The replay chip reads "Resetting 5 changes · …" for Reset edits.
+- The notices box shows the last change's notices too ("⚠ Last change (Stamp pad): …"), not only
+  a replay's.
+
+**Measured (part 3).** On the point terrain of part 2 with 256 one-tile sculpts, a Remove of the
+first change through the job (as the section runs it) takes 1.69 s from the start to the frame
+showing the replayed terrain, reporting 65 progress values on the way (the request 11 ms on the UI
+thread); a cancel 300 ms into a second Remove ends the job within 22 ms and changes nothing.
+R096.a measured the replay alone at 1.0–1.1 s for 1,000 entries against the 3 s budget.
+
 ## Sources
 
 Retrieved by web search on 2026-10-19.

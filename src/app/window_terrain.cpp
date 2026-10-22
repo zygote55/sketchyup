@@ -2,6 +2,7 @@
 #include "app/site_dialogs.hpp"
 #include "app/terrain_actions.hpp"
 #include "app/terrain_import_dialog.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/terrain_tool_strip.hpp"
 #include "app/window.hpp"
 #include "io/terrain_source.hpp"
@@ -151,6 +152,10 @@ void Window::setupTerrainActions() {
     statusExplode_->hide();
     if (auto *footer = qobject_cast<QHBoxLayout *>(status_->parentWidget()->layout()))
         footer->insertWidget(footer->indexOf(status_) + 1, statusExplode_);
+    // R096.f2 (UX §15.6): a terrain replay's job chip ("Replaying 3 changes · 64 %", Cancel).
+    auto *chip = new TerrainReplayChip;
+    if (auto *footer = qobject_cast<QHBoxLayout *>(status_->parentWidget()->layout()))
+        footer->insertWidget(footer->indexOf(statusExplode_) + 1, chip);
     connect(statusExplode_, &QPushButton::clicked, this, [this] {
         run([this] {
             if (!isTerrain(doc_, statusExplodeTerrain_))

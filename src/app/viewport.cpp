@@ -1900,6 +1900,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     paintAssistantPreview(p);
     paintParameterOverlay(p);
     paintAssemblyOverlay(p);
+    paintTerrainEditHighlight(p); // R096.f2: the Terrain edits section's selected change
     paintTerrainBrush(p);
     if (hasFocus()) {
         p.setPen(QPen(colors_.canvasRing, 2));

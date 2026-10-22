@@ -16,7 +16,11 @@
 // - Hover refusals: off a terrain and with no terrain in the model.
 // `--screenshots DIR` saves the Terrain menu and a Sculpt stroke; `--text-percent N` runs
 // everything at that interface text size.
+#include "app/collapsible_section.hpp"
+#include "app/terrain_edits_section.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/terrain_tool_strip.hpp"
+#include "terrain_run_hold.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "automation/terrain_commands.hpp"
@@ -53,6 +57,9 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTabWidget>
+#include <QTreeWidget>
+#include <QListWidget>
 #include <QWidgetAction>
 #include <cmath>
 #include <iostream>
@@ -524,6 +531,7 @@ void menuAndRail(Window &window) {
               },
               [&] { action(window, "terrain.resetEdits")->trigger(); }),
           "Reset edits confirms");
+    check(TerrainReplayJob::waitForIdle(), "the Reset edits replay finishes");
     check(recordOf(window.document(), terrain).edits.empty() &&
               window.document().history().entries.back().label == "Reset terrain edits",
           "Reset edits is one edit");
@@ -2114,6 +2122,229 @@ void drapeImprintAndOverlay(Window &window) {
     view->setTerrainOptions(options);
     view->setTool(Viewport::Tool::Select);
 }
+// ---- R096.f2: the Terrain edits section (UX §15.6, §15.7) ----------------------------------------
+QJsonObject runBatch(Document &doc, const QJsonObject &command) {
+    return executeBatch(doc, {{"apiVersion", 1},
+                              {"documentId", QString::fromStdString(doc.identity())},
+                              {"expectedRevision", QString::number(doc.revision())},
+                              {"commands", QJsonArray{command}}});
+}
+TerrainEditsSection &editsSection(Window &window) {
+    auto *found = window.findChild<TerrainEditsSection *>("terrainEditsSection");
+    check(found != nullptr, "the Info tab has the Terrain edits section");
+    return *found;
+}
+void showInfo(Window &window, Id terrain) {
+    window.viewport()->setTool(Viewport::Tool::Select);
+    window.viewport()->setSelection(terrain);
+    changed(window);
+    // The Info tab shows the sections.
+    for (auto *tabs : window.findChildren<QTabWidget *>())
+        for (int i = 0; i < tabs->count(); ++i)
+            if (tabs->tabText(i) == "Info")
+                tabs->setCurrentIndex(i);
+    QTest::qWait(30);
+    changed(window);
+}
+int rowOf(TerrainEditsSection &section, std::uint32_t edit) {
+    for (int i = 0; i < section.list()->count(); ++i)
+        if (section.list()->item(i)->data(Qt::UserRole + 4).toULongLong() == edit)
+            return i;
+    return -1;
+}
+void editsList(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = hill(window);
+    auto *view = window.viewport();
+    // A sculpt, a pad from a group, a drape and an added breakline.
+    const auto group = building(window, 54.2, 12, 12, 5);
+    auto ok = [&](const QJsonObject &command) {
+        const auto result = runBatch(doc, command);
+        check(!result.contains("error"), "the fixture applies: " +
+                                             QJsonDocument(result).toJson().toStdString());
+        changed(window);
+    };
+    const auto id = QString::number(terrain);
+    ok({{"command", "terrain.sculpt"}, {"terrain", id}, {"mode", "raise"},
+        {"path", QJsonArray{QJsonArray{40, 40}, QJsonArray{46, 42}}}, {"radius", 4.0}, {"amount", 0.8}});
+    ok({{"command", "terrain.stamp_pad"}, {"terrain", id},
+        {"footprint", QJsonObject{{"body", QString::number(group)}}}, {"mode", "daylight"}});
+    const auto strip = doc.addFace({{{8, 30, 60}, {28, 30, 60}, {28, 31, 60}, {8, 31, 60}}});
+    changed(window);
+    ok({{"command", "terrain.drape"}, {"terrain", id}, {"mode", "imprint"},
+        {"faces", QJsonArray{QJsonObject{{"body", QString::number(strip)},
+                                         {"face", QString::number(doc.bodies().at(strip)->surface.faces.begin()->first)}}}}});
+    ok({{"command", "terrain.add_source"}, {"terrain", id}, {"role", "breakline"},
+        {"points", QJsonArray{QJsonArray{40.37, 20.21, *ground(doc, terrain, 40.37, 20.21)},
+                              QJsonArray{50.43, 22.17, *ground(doc, terrain, 50.43, 22.17)}}}});
+    showInfo(window, terrain);
+    auto &section = editsSection(window);
+    check(section.isVisible() && section.list()->count() == 4, "four rows, in the order they apply");
+    const auto &edits = recordOf(doc, terrain).edits;
+    const auto padEdit = edits[1]->id, drapeEdit = edits[2]->id;
+    auto text = [&](int row, int role) { return section.list()->item(row)->data(role).toString(); };
+    check(text(0, Qt::UserRole + 2) == "Sculpt · raise 0.80 m" &&
+              text(0, Qt::UserRole + 3) == "Radius 4.00 m · smooth falloff" &&
+              text(1, Qt::UserRole + 2) == "Pad · Building A" &&
+              text(1, Qt::UserRole + 3) == "54.20 m · daylight, cut 1:2, fill 1:2" &&
+              text(2, Qt::UserRole + 2).startsWith("Drape") && text(3, Qt::UserRole + 2) == "Added breakline",
+          "rows show the title and key values: " + text(1, Qt::UserRole + 3).toStdString());
+    check(text(1, Qt::UserRole + 1) == "▭" && text(1, Qt::UserRole + 4) == QString::number(padEdit),
+          "with a kind glyph and the ID");
+    check(text(1, Qt::AccessibleTextRole) ==
+              "Change 2 of 4, Pad, Building A, 54.20 metres, daylight, cut 1 to 2, fill 1 to 2",
+          "a row reads as a sentence: " + text(1, Qt::AccessibleTextRole).toStdString());
+    check(section.caption()->text() == "Applied top to bottom · 4 of 4,096 changes" &&
+              section.detail() == "4 changes",
+          "the header counts the changes and the caption gives the use: " +
+              section.caption()->text().toStdString() + " / " + section.detail().toStdString());
+    // Selecting a row outlines its region with a label; Restamp follows the pad's source body.
+    section.list()->setCurrentRow(1);
+    QTest::qWait(10);
+    check(view->terrainEditHighlight() == padEdit && view->terrainEditHighlightPoints() > 8,
+          "selecting a row outlines its region in the viewport");
+    check(status(window).startsWith(QString("Change %1 selected · Double-click frames it").arg(padEdit)),
+          "the status bar says what selecting it offers: " + status(window).toStdString());
+    check(section.editPadButton()->isEnabled() && section.restampButton()->isEnabled() &&
+              section.removeButton()->isEnabled(),
+          "a pad offers Edit pad…, Restamp and Remove");
+    // As the mockup shows them: Entity info and Terrain collapsed above Terrain edits.
+    auto collapse = [&](bool shut) {
+        for (const auto *name : {"entityInfoSection", "terrainSection"})
+            if (auto *other = dynamic_cast<CollapsibleSection *>(window.findChild<QWidget *>(name)))
+                other->setExpanded(!shut);
+        QTest::qWait(30);
+    };
+    collapse(true);
+    frame(view);
+    shot(window, "edits");
+    // Enter frames it.
+    section.list()->setFocus();
+    QTest::keyClick(section.list(), Qt::Key_Return);
+    check(status(window) == QString("Framed change %1").arg(padEdit), "Enter frames the change");
+    // A drape row: no Edit pad, Restamp unavailable with the reason.
+    section.list()->setCurrentRow(2);
+    QTest::qWait(10);
+    check(!section.editPadButton()->isEnabled() && !section.restampButton()->isEnabled() &&
+              section.restampButton()->toolTip().contains("select a pad"),
+          "Restamp is unavailable for a drape, with the reason");
+    // Remove (Delete) replays as a job; the change goes as one undoable edit.
+    const auto revision = doc.revision();
+    section.list()->setFocus();
+    QTest::keyClick(section.list(), Qt::Key_Delete);
+    check(TerrainReplayJob::waitForIdle(), "the replay finishes");
+    check(doc.revision() == revision + 1 && recordOf(doc, terrain).edits.size() == 3 &&
+              doc.history().entries.back().label == "Remove terrain change",
+          "Delete removes the change as one edit");
+    doc.undo();
+    changed(window);
+    check(recordOf(doc, terrain).edits.size() == 4, "Undo restores it");
+    // A replay with progress and Cancel: cancelling leaves the model as it was.
+    {
+        sketchy::test::TerrainRunHold hold;
+        const auto before = Snapshot::of(doc);
+        showInfo(window, terrain);
+        section.list()->setCurrentRow(rowOf(section, drapeEdit));
+        section.removeSelected();
+        QTest::qWait(30);
+        auto *chip = child<TerrainReplayChip>(window, "terrainReplayChip");
+        for (int i = 0; i < 200 && !hold.holding.load(); ++i)
+            QTest::qWait(10);
+        QTest::qWait(80);
+        check(chip->isVisible() && chip->text()->text().startsWith("Replaying 3 changes · "),
+              "a replay shows its job chip: " + chip->text()->text().toStdString());
+        QTest::mouseClick(chip->cancelButton(), Qt::LeftButton);
+        check(TerrainReplayJob::waitForIdle(), "the cancelled replay ends");
+        check(before.same(doc) && !chip->isVisible() &&
+                  status(window) == "Replay cancelled; nothing changed",
+              "cancelling leaves the model as it was: " + status(window).toStdString());
+    }
+    // Restamp after the building moved onto the drape's path: the drape now enters the pad and is
+    // skipped, kept in the list with its reason, and the replay's notices show.
+    doc.transform(group, Transform::translation({0, 14, 0}));
+    changed(window);
+    showInfo(window, terrain);
+    section.list()->setCurrentRow(rowOf(section, padEdit));
+    section.restampSelected();
+    check(TerrainReplayJob::waitForIdle(), "the Restamp replay finishes");
+    check(doc.history().entries.back().label == "Edit terrain change", "Restamp is one edit");
+    showInfo(window, terrain);
+    const int drapeRow = rowOf(section, drapeEdit);
+    check(drapeRow >= 0 && section.list()->item(drapeRow)->data(Qt::UserRole + 5).toBool() &&
+              text(drapeRow, Qt::UserRole + 3) == "⚠ Skipped: the lines now enter a pad" &&
+              text(drapeRow, Qt::AccessibleTextRole).contains("Warning: skipped"),
+          "the skipped drape stays marked with its reason: " + text(drapeRow, Qt::UserRole + 3).toStdString());
+    check(section.notice()->isVisible() && section.noticeText()->text().contains("Last replay") &&
+              section.noticeText()->text().contains("1 change skipped"),
+          "the replay's notices show: " + section.noticeText()->text().toStdString());
+    check(drive("terrainEditsReportDialog", [&](QWidget &dialog) {
+              check(dialog.findChild<QTreeWidget *>() != nullptr, "Show report opens the report tree");
+          }, [&] { QTest::mouseClick(section.showReportButton(), Qt::LeftButton); QTest::qWait(200); }),
+          "Show report opens the report");
+    shot(window, "edits-skipped");
+    collapse(false);
+    // Undo of the replay clears the mark.
+    doc.undo();
+    changed(window);
+    showInfo(window, terrain);
+    check(!section.list()->item(rowOf(section, drapeEdit))->data(Qt::UserRole + 5).toBool() &&
+              !section.notice()->isVisible(),
+          "Undo of the replay clears the skip and its notices");
+    // Edit pad…: the form changes the elevation, one edit.
+    section.list()->setCurrentRow(rowOf(section, padEdit));
+    QTest::qWait(10);
+    check(drive("terrainEditPadDialog", [&](QWidget &dialog) {
+              auto *elevation = child<QLineEdit>(dialog, "terrainPadElevation");
+              auto *offset = child<QLineEdit>(dialog, "terrainPadOffsetField");
+              check(elevation->text() == "54.20 m" && offset->isEnabled() && offset->text() == "0.00 m",
+                    "the form shows the elevation and the offset below the footprint: " +
+                        offset->text().toStdString());
+              offset->setText("0.3");
+              emit offset->textEdited("0.3");
+              check(elevation->text() == "53.90 m", "the offset sets the elevation");
+              QTest::mouseClick(child<QPushButton>(dialog, "terrainEditPadApply"), Qt::LeftButton);
+          }, [&] { QTest::mouseClick(section.editPadButton(), Qt::LeftButton); }),
+          "Edit pad… opens its form");
+    check(TerrainReplayJob::waitForIdle(), "the Edit pad replay finishes");
+    const auto &pad = dynamic_cast<const TerrainStampData &>(*recordOf(doc, terrain).edits[1]->data);
+    check(std::abs(doc.worldTransform(terrain).point({0, 0, pad.elevation}).z - 53.9) < 1e-9 &&
+              doc.history().entries.back().label == "Edit terrain change",
+          "Edit pad… changes the pad as one edit");
+    // Restamp is unavailable when the source body is gone, with the reason.
+    {
+        Edit erase{"Erase", {}};
+        for (const auto &[body, record] : doc.bodies())
+            if (body == group || record->parent == group)
+                erase.changes.push_back({body, record, nullptr});
+        doc.apply(std::move(erase), doc.revision());
+    }
+    changed(window);
+    showInfo(window, terrain);
+    section.list()->setCurrentRow(rowOf(section, padEdit));
+    QTest::qWait(10);
+    check(!section.restampButton()->isEnabled() &&
+              section.restampButton()->toolTip() == "The pad's source body no longer exists" &&
+              section.restampButton()->accessibleDescription() == section.restampButton()->toolTip(),
+          "Restamp says why it is unavailable: " + section.restampButton()->toolTip().toStdString());
+    // Accessible names on the section's controls (§15.7).
+    for (auto *control : section.findChildren<QWidget *>())
+        if (control->isVisibleTo(&section) && control->focusPolicy() != Qt::NoFocus) {
+            auto *accessible = QAccessible::queryAccessibleInterface(control);
+            check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+                  "every Terrain edits control has an accessible name: " +
+                      control->objectName().toStdString());
+        }
+    // Reset edits… from the section asks first, then replays as a job.
+    check(drive("terrainResetEditsDialog", [&](QWidget &dialog) {
+              QTest::mouseClick(child<QPushButton>(dialog, "terrainResetEditsConfirm"), Qt::LeftButton);
+          }, [&] { QTest::mouseClick(section.resetButton(), Qt::LeftButton); QTest::qWait(200); }),
+          "Reset edits… asks first");
+    check(TerrainReplayJob::waitForIdle() && recordOf(doc, terrain).edits.empty(),
+          "Reset edits replays to the base");
+    view->setSelection(0);
+    changed(window);
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -2158,7 +2389,8 @@ int main(int argc, char **argv) {
         {"contour protected sources", contourProtectedSources},
         {"pad preview, commit and amend", padPreviewCommitAmend},
         {"pad options and refusal", padOptionsAndRefusal},
-        {"drape imprint and overlay", drapeImprintAndOverlay}};
+        {"drape imprint and overlay", drapeImprintAndOverlay},
+        {"terrain edits list", editsList}};
     try {
         if (!shots.isEmpty()) {
             screenshots(window);

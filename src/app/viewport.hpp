@@ -318,6 +318,19 @@ class Viewport : public QOpenGLWidget {
     void rememberTerrainReport(Id terrain, const QJsonObject &batchResult);
     void setLastTerrainReport(Id terrain, const QJsonObject &report, const QString &title);
     QString lastTerrainReportTitle(Id terrain) const;
+    // ---- R096.f2: the Terrain edits section (viewport_terrain_edits.cpp; UX_DESIGN §15.6) ----
+    // The selected change outlined in the viewport in the selection colour with its label (edit 0:
+    // none), and framed.
+    void setTerrainEditHighlight(Id terrain, std::uint32_t edit, const QStringList &label);
+    std::uint32_t terrainEditHighlight() const { return editHighlight_.edit; }
+    std::size_t terrainEditHighlightPoints() const;
+    void frameTerrainEdit(Id terrain, std::uint32_t edit);
+    // The changes a replay skipped, with their reasons, while the list the replay produced is a
+    // prefix of the terrain's list (Undo of the replay, or removing one, clears them).
+    void setTerrainSkips(Id terrain, std::map<std::uint32_t, QString> skips);
+    std::map<std::uint32_t, QString> terrainSkips(Id terrain) const;
+    // Increases when a report or skips are recorded (the section's cache key).
+    std::uint64_t terrainReportGeneration() const { return terrainReportGeneration_; }
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
@@ -852,7 +865,30 @@ class Viewport : public QOpenGLWidget {
     bool drapeKey(QKeyEvent *event);
     bool drapeMeasurements(const QString &text);
     void paintDrapeTool(QPainter &painter);
-    std::map<Id, std::pair<QJsonObject, QString>> terrainReports_; // the last report, its title
+    struct TerrainReportRecord {
+        QJsonObject report;
+        QString title;
+        std::vector<TerrainEditPtr> edits; // the list it was made for (shown while it is current)
+        std::optional<Document::SaveStamp> document; // and its document
+    };
+    std::map<Id, TerrainReportRecord> terrainReports_;
+    struct TerrainSkipRecord {
+        std::vector<TerrainEditPtr> edits;
+        std::map<std::uint32_t, QString> skips;
+        std::optional<Document::SaveStamp> document;
+    };
+    std::map<Id, TerrainSkipRecord> terrainSkips_;
+    std::uint64_t terrainReportGeneration_{};
+    struct EditHighlight {
+        Id terrain{};
+        std::uint32_t edit{};
+        QStringList label;
+        std::vector<std::vector<Vec3>> lines; // model
+        std::string document;
+        std::uint64_t revision{};
+    } editHighlight_;
+    void buildTerrainEditHighlight();
+    void paintTerrainEditHighlight(QPainter &painter);
     SelectionSet boxBase_;
     QPointF selectionStart_, selectionEnd_, lastClickPosition_;
     bool selectionPressed_{}, selectingBox_{}, pickDirty_{true}, overlayDirty_{true};

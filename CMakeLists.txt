@@ -1062,7 +1062,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
   target_sources(sketchyup_desktop PRIVATE src/app/parameter_messages.cpp src/app/parameters_scope_dialog.cpp)
   # R095.e1 (ADR 0168): the Entity info Terrain section, terrain settings, Regenerate, Explode,
   # Create terrain from selection and the tools' refusal over terrain.
-  target_sources(sketchyup_desktop PRIVATE src/app/terrain_report_view.cpp src/app/terrain_role_table.cpp src/app/terrain_actions.cpp src/app/terrain_section.cpp src/app/viewport_terrain.cpp src/app/viewport_sculpt.cpp src/app/viewport_contours.cpp src/app/viewport_stamp.cpp src/app/viewport_drape.cpp src/app/viewport_terrain_preview.cpp src/app/terrain_preview_worker.cpp src/app/terrain_tool_strip.cpp src/app/site_dialogs.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/terrain_report_view.cpp src/app/terrain_role_table.cpp src/app/terrain_actions.cpp src/app/terrain_section.cpp src/app/viewport_terrain.cpp src/app/viewport_sculpt.cpp src/app/viewport_contours.cpp src/app/viewport_stamp.cpp src/app/viewport_drape.cpp src/app/viewport_terrain_preview.cpp src/app/viewport_terrain_edits.cpp src/app/terrain_preview_worker.cpp src/app/terrain_replay_job.cpp src/app/terrain_edits_section.cpp src/app/terrain_tool_strip.cpp src/app/site_dialogs.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1335,6 +1335,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
     # path, the strip, the Terrain menu and rail slot, amend and the keyboard path.
     add_executable(terrain_edit_input_tests tests/terrain_edit_input_tests.cpp)
     target_link_libraries(terrain_edit_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(terrain_edit_input_tests PRIVATE tests)
     add_test(NAME terrain_edit_input COMMAND terrain_edit_input_tests)
     set_tests_properties(terrain_edit_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()

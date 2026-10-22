@@ -15,6 +15,15 @@ their 1.2.0 schema.
   sessions and MCP (the in-app assistant sees only the three queries listed under R095.g). Generic topology tools refuse terrain tiles;
   Explode terrain turns a terrain into ordinary geometry. No importer or desktop UI yet.
 
+- Terrain edits list (R096.f2, [UX_DESIGN §15.6](docs/UX_DESIGN.md#156-terrain-edits),
+  [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f2)): with a
+  terrain selected, Info shows its **Terrain edits**: each change with its kind, title, values and
+  number, the selected one outlined in the view (double-click frames it), **Remove**, **Edit pad…**,
+  **Restamp** (unavailable with the reason when the building is gone) and **Reset edits…**. Removing,
+  editing or resetting replays the list in the background with progress and **Cancel** in the status
+  bar, as one undoable edit. Changes a replay skips stay listed, marked with the reason, and the last
+  change's or replay's notices show with **Show report**.
+
 - Terrain tools on the desktop, part 3: Stamp pad and Drape (R096.f2, [UX_DESIGN §15.4–15.5](docs/UX_DESIGN.md#154-stamp-pad),
   [ADR 0169](docs/decisions/0169-terrain-editing-drape-stamp.md#implementation-notes-r096f2)):
   **Terrain → Stamp pad** takes a selected or clicked face, group or component (a group's lowest

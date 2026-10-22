@@ -1,4 +1,5 @@
 #include "app/terrain_actions.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/accessible_names.hpp"
 #include "app/terrain_report_view.hpp"
 #include "app/terrain_role_table.hpp"
@@ -1089,9 +1090,13 @@ bool resetTerrainEditsInteractive(QWidget *parent, Document &doc, Viewport &view
     if (confirm.exec() != QDialog::Accepted || !isTerrain(doc, terrain))
         return false;
     try {
-        const auto operation = commitTerrain(
-            view, {{"command", "terrain.reset_edits"}, {"terrain", QString::number(terrain)}});
-        return operation["changed"].toBool();
+        // R096.f2 (UX §15.6): the replay runs as a job with progress and Cancel in the status
+        // bar; it applies one "Reset terrain edits" edit when it ends (returns at once).
+        TerrainReplayJob::start(parent ? parent->window() : nullptr, doc, view,
+                                {{"command", "terrain.reset_edits"},
+                                 {"terrain", QString::number(terrain)}},
+                                "Reset edits");
+        return false;
     } catch (const std::exception &error) {
         const auto report = refusalReport(error);
         if (report.isEmpty())

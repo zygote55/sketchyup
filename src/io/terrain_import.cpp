@@ -1235,6 +1235,8 @@ TerrainImportResult regenerateDryRun(const TerrainRecord &record,
         for (const auto &tile : replayed.tiles.tiles)
             triangles += tile->triangles.size();
         for (const auto &skip : replayed.skipped)
+            result.skipped.emplace_back(skip.edit, skip.notice);
+        for (const auto &skip : replayed.skipped)
             report.locate(Severity::Notice, "edit-skipped",
                           "Recorded terrain changes that no longer apply were skipped and kept "
                           "in the list.",

@@ -133,16 +133,26 @@ void Viewport::rememberTerrainReport(Id terrain, const QJsonObject &batchResult)
                                                                : "Terrain change";
     setLastTerrainReport(terrain, report, title);
 }
+// A report stays the terrain's last while its edit list is the one it was made for (an Undo or a
+// later change replaces or hides it).
 void Viewport::setLastTerrainReport(Id terrain, const QJsonObject &report, const QString &title) {
-    terrainReports_[terrain] = {report, title};
+    std::vector<TerrainEditPtr> edits;
+    if (isTerrain(doc_, terrain))
+        edits = doc_.bodies().at(terrain)->terrain->edits;
+    terrainReports_[terrain] = {report, title, std::move(edits), doc_.saveStamp()};
+    ++terrainReportGeneration_;
 }
 QJsonObject Viewport::lastTerrainReport(Id terrain) const {
     const auto found = terrainReports_.find(terrain);
-    return found == terrainReports_.end() ? QJsonObject{} : found->second.first;
+    if (found == terrainReports_.end() || !isTerrain(doc_, terrain) ||
+        !found->second.document || !doc_.owns(*found->second.document) ||
+        found->second.edits != doc_.bodies().at(terrain)->terrain->edits)
+        return {};
+    return found->second.report;
 }
 QString Viewport::lastTerrainReportTitle(Id terrain) const {
     const auto found = terrainReports_.find(terrain);
-    return found == terrainReports_.end() ? QString{} : found->second.second;
+    return found == terrainReports_.end() ? QString{} : found->second.title;
 }
 QString Viewport::sitePlace(const Vec3 &model) const {
     const auto units = doc_.displayUnits();
