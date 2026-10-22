@@ -47,7 +47,7 @@ with `tier=fast`). It is sized by the changed paths:
 | --- | --- | --- |
 | Plan | always | inventory and map checks; tier and areas |
 | Fast tier: compile shard 1–12 | `build` and a *wide* change | each shard installs only the compile packages, generates Qt's moc sources, runs the compile commands of a twelfth of the objects of `all` directly (through ninja, an object first waits for every library its target links, so each shard would recompile all libraries) and exports only the compiler-cache entries it added |
-| Fast tier: tests 1/4–4/4 | `build` | each restores the newest cache plus the shards' entries and builds everything (`ci-fast` preset; hits and links, about 25 seconds), then runs a quarter of CTest (`-I k,,4`, `--parallel 2`) without the slow suites the change does not reach. Shard 1 also runs `mcp` with the pinned MCP schema validation and every other repository check of the old development job (shipped recipes, generated reference and API schemas, glTF validator, DXF and PDF consumers, headless recipes) |
+| Fast tier: tests 1/5–5/5 | `build` | each restores the newest cache plus the shards' entries and builds everything (`ci-fast` preset; hits and links, about 25 seconds), then runs its fifth of CTest at `--parallel 2`, without the slow suites the change does not reach. `scripts/ci-ctest-shard.py` deals the tests longest-first by their known serial times (`test_seconds` in the map), so every test lands in exactly one shard. Shard 1 also runs `mcp` with the pinned MCP schema validation and every other repository check of the old development job (shipped recipes, generated reference and API schemas, glTF validator, DXF and PDF consumers, headless recipes) |
 | Fast tier: X11 1x 1/2–2/2 | `native` | builds the native fixtures and runs half of the full tier's X11 1x lines each, three at a time, each line with its own home, XDG directories and display range |
 | Blender interoperability | `blender` | the full-tier job |
 | Arch package acceptance | `package` | the full-tier job |
@@ -131,8 +131,8 @@ until a full-tier line runs it, and its source file selects the fast X11 job.
 - **Tests spread over runners, not threads.** A 4-vCPU runner has two physical cores: under
   `ctest --parallel 4` every test ran two to three times slower (terrain_history 95 s
   serially, 312 s at `--parallel 4`; the whole suite 765 s serially, 590 s in parallel).
-  CTest therefore runs in four jobs at `--parallel 2`, and the X11 lines in two jobs,
-  three at a time.
+  CTest therefore runs in five jobs at `--parallel 2`, balanced by known test times, and
+  the X11 lines in two jobs, three at a time.
 
 A prebuilt CI image on GHCR was considered: package installation from the existing
 pacman cache takes about 45 seconds per job, and pulling a 2–3 GB image would recover

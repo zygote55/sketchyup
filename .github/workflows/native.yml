@@ -195,11 +195,11 @@ jobs:
           path: ccache-delta.tar
           compression-level: 0
           retention-days: 1
-  # A 4-vCPU runner has two physical cores: tests slow down two to three times under
-  # `ctest --parallel 4`, so the suite is spread over runners instead. Every shard builds
-  # everything (cache hits and links); CTest's stride selection (-I k,,4) deals the tests.
+  # Tests slow down two to three times under `ctest --parallel 4` on a 4-vCPU runner, so
+  # the suite is spread over runners instead. Every shard builds everything (cache hits and
+  # links); scripts/ci-ctest-shard.py deals the tests by their known serial times.
   fast:
-    name: "Fast tier: tests ${{ matrix.shard }}/4"
+    name: "Fast tier: tests ${{ matrix.shard }}/5"
     needs: [plan, compile]
     if: >-
       !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true'
@@ -207,7 +207,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5]
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -311,7 +311,8 @@ jobs:
         run: |
           exclude="^mcp\$"
           [ -z "$CTEST_EXCLUDE" ] || exclude="$exclude|$CTEST_EXCLUDE"
-          ctest --test-dir build/dev --output-on-failure --no-tests=error --parallel 2 -I "$((SHARD + 1)),,$SHARDS" --exclude-regex "$exclude"
+          tests=$(python scripts/ci-ctest-shard.py build/dev "$SHARD" "$SHARDS" "$exclude")
+          ctest --test-dir build/dev --output-on-failure --no-tests=error --parallel 2 --tests-regex "$tests"
       # Main (and the other non-pull-request runs) saves the cache the next runs start
       # from, keyed by commit: ci-plan.py diffs against it to choose wide or narrow. A pull
       # request saves its own only when nothing was restored, so it does not evict main's.

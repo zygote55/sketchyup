@@ -444,5 +444,38 @@
         "blender"
       ]
     }
-  ]
+  ],
+  "test_seconds": {
+    "comment": "Serial seconds in the development build on a CI runner (run 39664036473, 2026-10-21). scripts/ci-ctest-shard.py balances the fast tier's CTest shards with them; an unlisted test counts as 1 s. Approximate is fine: it only affects balance.",
+    "document_limits": 29,
+    "component_parameters": 15,
+    "incremental_validation": 78,
+    "inference_equivalence": 7,
+    "variant_edit_cost": 22,
+    "parameter_expression_fuzz": 5,
+    "terrain_triangulation_tests": 6,
+    "terrain_import": 9,
+    "terrain_regenerate": 3,
+    "terrain_history": 95,
+    "terrain_edit": 19,
+    "terrain_replay": 22,
+    "terrain_source_edit": 49,
+    "terrain_sculpt": 53,
+    "terrain_stamp": 75,
+    "terrain_drape": 74,
+    "provider_release_corpus": 31,
+    "openai_provider": 4,
+    "document_limits_io": 5,
+    "texture_export": 6,
+    "site_recipe": 3,
+    "furniture_recipe": 6,
+    "outcome_store": 5,
+    "instanced_storage": 4,
+    "component_parameter_io": 6,
+    "commands": 42,
+    "shipped_recipes": 3,
+    "recovery_controller": 10,
+    "terrain_desktop": 3,
+    "terrain_edit_input": 14
+  }
 }
