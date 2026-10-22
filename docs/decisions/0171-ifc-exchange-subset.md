@@ -1,7 +1,8 @@
 # IFC exchange subset
 
-Status: **Accepted (2026-10-22)** for decisions 1 to 16; decisions 17 to 22 (how IfcOpenShell is
-packaged and run) are **proposed** and wait for the owner. Roadmap
+Status: **Accepted (2026-10-22)**: decisions 1 to 16, then decisions 17 to 22 (how IfcOpenShell is
+packaged and run), questions Q1 and Q2 and the reworded decisions 5, 12 and 14, all approved by the
+owner on 2026-10-22 ("Approve all"). Roadmap
 [R097](../PR_ROADMAP.md#r097) (M10, scope row [F04](../SCOPE.md)); the sibling
 [R098](../PR_ROADMAP.md#r098) covers STEP. Nothing in this ADR is implemented. Each section gives
 the options that were weighed and the recommendation. Facts about third-party projects were read
@@ -1086,9 +1087,10 @@ limits prove tight); MCP and assistant exposure.
 
 Decisions 1 to 16 were **approved by the owner on 2026-10-22** ("Just use IfcOpenShell. I don't want
 to build it. I approve all."); decision 1 is as the owner chose it, 2 to 16 as recommended.
-Decisions 17 to 22 are new, arise from shipping the library, and are proposed. Decisions 5, 12 and 14
-were reworded after the blanket approval because the library changes their mechanism; question Q2 asks
-the owner to re-confirm that wording.
+Decisions 17 to 22 arose from shipping the library and were **approved by the owner on 2026-10-22**
+("Approve all"). Decisions 5, 12 and 14 were reworded after the first blanket approval because the
+library changes their mechanism; the owner confirmed the rewording the same day (Q2). Q1 (the licence
+points) was confirmed by the owner the same day.
 
 1. **Library:** IfcOpenShell, vendored, shipped and linked dynamically; no in-house IFC reader,
    writer or geometry interpreter. *Approved 2026-10-22.*
@@ -1128,25 +1130,25 @@ the owner to re-confirm that wording.
     *Approved.*
 17. **How IfcOpenShell gets into the package:** vendor a trimmed, pinned source tree in
     `third_party/ifcopenshell/` and build it with our CMake as private shared libraries; not an AUR
-    dependency, not a build-time download. *Proposed.*
+    dependency, not a build-time download. *Decided 2026-10-22: "Approve all".*
 18. **OCCT (the geometry kernel's own dependency):** carry a **private copy of the OCCT libraries the kernel needs** (the geometry toolkits, about 37 to
     57 MB, copied from Arch's `opencascade` package at package-build time and installed beside the
     IfcOpenShell libraries), with OCCT's licence text and a written source offer; not a dependency on Arch's
     `opencascade` package (about 0.55 GiB installed for users, because it pulls VTK, Tcl and Tk), and not
     an optional dependency like Blender (which would leave extrusions and Booleans unreadable until the
-    user installs it). *Proposed.*
+    user installs it). *Decided 2026-10-22: "Approve all".*
 19. **Process isolation:** run IfcOpenShell only inside a separate helper process
     (`sketchyup-ifc-worker`) with resource limits, restart-on-crash with the culprit element excluded,
     and a bounded package format; a Landlock and seccomp sandbox as a later hardening where the kernel
-    allows it. *Proposed.*
+    allows it. *Decided 2026-10-22: "Approve all".*
 20. **Build time and CI:** accept the extra package-build time; give the fast tier a cached prefix
-    keyed by the vendored tree; build from source in the full tier and the package job. *Proposed.*
+    keyed by the vendored tree; build from source in the full tier and the package job. *Decided 2026-10-22: "Approve all".*
 21. **Version policy:** pin `ifcopenshell-v0.9.0`; upgrade only by an explicit change that re-runs
-    the checks; the project maintains the trim of the vendored tree. *Proposed.*
+    the checks; the project maintains the trim of the vendored tree. *Decided 2026-10-22: "Approve all".*
 22. **Package shape:** build IFC in by default in release packages (`SKETCHYUP_BUILD_IFC` on; off for
     developers who do not need it), shipped as a **separate optional package `sketchyup-ifc`** from the
     same PKGBUILD, so the default install stays small and the LGPL and OCCT obligations attach only to
-    it. *Proposed.*
+    it. *Decided 2026-10-22: "Approve all".*
 
 ## Implementation split
 
@@ -1220,25 +1222,27 @@ limits.
 14. **Budgets:** adopt 6.4, to be confirmed by measurement. *Decided 2026-10-22: approved (revised for the library).*
 15. **Desktop UX:** commission a UX design for the Import and Export IFC dialogs and the report before R097.e. *Decided 2026-10-22: approved.*
 16. **GlobalId stability:** deterministic GlobalIds from the document identity and the stable body ID; imported GlobalIds kept when valid and unique. *Decided 2026-10-22: approved.*
-17. **Packaging:** vendor a trimmed pinned source tree and build it ourselves; not the AUR, not a build-time download. *Proposed.*
-18. **OCCT:** carry a private copy of the OCCT libraries the kernel needs (about 37 to 57 MB) instead of depending on Arch's `opencascade` (about 0.53 GiB installed for users, because it pulls VTK, Tcl and Tk) or making it optional. *Proposed.*
-19. **Process isolation:** IfcOpenShell runs only in a separate helper process with resource limits, restarts after a crash with the culprit element excluded, and a sandbox (Landlock, seccomp) as a later hardening. *Proposed.*
-20. **Build time and CI:** accept the extra package-build time (about 15 minutes or more, paid twice by package acceptance) and use a cached prefix in the fast tier. *Proposed.*
-21. **Version policy:** pin 0.9.0; upgrade only by an explicit change that re-runs the checks; the project maintains the trim. *Proposed.*
-22. **Package shape:** IFC built into release packages by default, shipped as a separate optional package `sketchyup-ifc`. *Proposed.*
+17. **Packaging:** vendor a trimmed pinned source tree and build it ourselves; not the AUR, not a build-time download. *Decided 2026-10-22: "Approve all".*
+18. **OCCT:** carry a private copy of the OCCT libraries the kernel needs (about 37 to 57 MB) instead of depending on Arch's `opencascade` (about 0.53 GiB installed for users, because it pulls VTK, Tcl and Tk) or making it optional. *Decided 2026-10-22: "Approve all".*
+19. **Process isolation:** IfcOpenShell runs only in a separate helper process with resource limits, restarts after a crash with the culprit element excluded, and a sandbox (Landlock, seccomp) as a later hardening. *Decided 2026-10-22: "Approve all".*
+20. **Build time and CI:** accept the extra package-build time (about 15 minutes or more, paid twice by package acceptance) and use a cached prefix in the fast tier. *Decided 2026-10-22: "Approve all".*
+21. **Version policy:** pin 0.9.0; upgrade only by an explicit change that re-runs the checks; the project maintains the trim. *Decided 2026-10-22: "Approve all".*
+22. **Package shape:** IFC built into release packages by default, shipped as a separate optional package `sketchyup-ifc`. *Decided 2026-10-22: "Approve all".*
 
 ## Questions for the owner
 
-- **Q1. Licence confirmation.** Please confirm, with counsel if you wish, three points this ADR could
+Both were answered by the owner on 2026-10-22: "Approve all".
+
+- **Q1. Licence confirmation. *Confirmed by the owner, 2026-10-22.*** The owner was asked to confirm, with counsel if you wish, three points this ADR could
   not settle: that shipping IfcOpenShell as dynamically linked LGPL libraries beside an MIT
   application, with a written source offer, satisfies LGPL-3.0 and, for the bundled OCCT libraries,
   LGPL-2.1; that redistributing IfcOpenShell's generated schema code (made from buildingSMART's
   CC BY-ND EXPRESS schemas) is acceptable; and that crediting IFC and ifcXML as buildingSMART
   trademarks in the user guide and fixture notice is enough. Also the CC BY 4.0 fixtures.
-- **Q2. Re-confirm reworded decisions.** Decisions 5 (openings are now subtracted by the library, and
-  how a failure shows is still to be proven), 12 (the checks no longer use an IfcOpenShell oracle) and
-  14 (the budgets now describe a helper process) were reworded after your blanket approval. Please
-  confirm the new wording.
+- **Q2. Re-confirm reworded decisions. *Confirmed by the owner, 2026-10-22.*** Decisions 5 (openings are now subtracted by the library, and
+  how a failure shows is still to be proven in R097.a), 12 (the checks no longer use an IfcOpenShell oracle) and
+  14 (the budgets now describe a helper process) were reworded after the first blanket approval; the owner
+  confirmed the new wording.
 ## Appendix: evidence and sources
 
 All read on 2026-10-22 unless stated. `gh`/GitHub API and PyPI JSON were used for facts about
