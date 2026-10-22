@@ -6,6 +6,7 @@
 #include "app/unit_display.hpp"
 #include "app/terrain_replay_job.hpp"
 #include "app/viewport.hpp"
+#include "core/terrain_display.hpp"
 #include "core/terrain_sculpt.hpp"
 #include <QContextMenuEvent>
 #include <QPainter>
@@ -146,13 +147,13 @@ std::shared_ptr<const TerrainContours> Viewport::terrainContoursShown(Id terrain
 std::shared_ptr<const TerrainContours> Viewport::terrainContours(Id terrain) {
     if (!isTerrain(doc_, terrain) || terrainTiles(doc_, terrain).empty())
         return nullptr;
-    return contourCache_.get(doc_, terrain);
+    return contourCache_->get(doc_, terrain);
 }
 void Viewport::syncTerrainViews() {
     stats_.contourSegments = 0;
     std::erase_if(terrainViews_, [&](const auto &item) { return !isTerrain(doc_, item.first); });
-    contourCache_.prune(doc_);
-    surfaceCache_.prune(doc_);
+    contourCache_->prune(doc_);
+    surfaceCache_->prune(doc_);
     // R096.a: the shared edit mesh cache drops deleted terrains and a replaced document.
     if (terrainCacheIdentity_ != doc_.identity()) {
         if (!terrainCacheIdentity_.empty()) {
@@ -181,7 +182,7 @@ void Viewport::syncTerrainViews() {
             // R096.a: per-tile surfaces; after an edit only the rebuilt tiles and their seam
             // ring get new ones.
             view->surface = list.empty() ? std::make_shared<const TerrainTileSurfaces>()
-                                         : surfaceCache_.get(doc_, id);
+                                         : surfaceCache_->get(doc_, id);
             view->tiles = list;
             ++stats_.terrainSurfaces;
         }
@@ -190,7 +191,7 @@ void Viewport::syncTerrainViews() {
                        (opacity_.contains(id) && opacity_.at(id) == 0);
         std::shared_ptr<const TerrainContours> contours;
         if (body->terrain->display.contours && !list.empty())
-            contours = contourCache_.get(doc_, id);
+            contours = contourCache_->get(doc_, id);
         const auto world = doc_.worldTransform(id);
         if (contours != view->contours || world != view->world || colors_.dark != view->dark ||
             (contours && view->origin != renderOrigin_) || !view->built) {

@@ -9,6 +9,7 @@
 #include "core/model_style.hpp"
 #include "core/scene_records.hpp"
 #include "core/section_records.hpp"
+#include "core/site_origin.hpp"
 #include "core/units.hpp"
 #include <deque>
 #include <functional>

@@ -1,7 +1,7 @@
 #pragma once
 #include "core/asset_records.hpp"
 #include "core/body.hpp"
-#include "core/component_parameter_records.hpp"
+#include "core/component_parameter_types.hpp"
 #include "core/document_limits.hpp"
 #include "core/material_records.hpp"
 #include "core/tag_records.hpp"

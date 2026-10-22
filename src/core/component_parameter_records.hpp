@@ -7,6 +7,7 @@
 // Variants, values and driver states are derived, never stored. Schema 28 persists
 // the records, the overrides and the driver allocator (R093.c, ADR 0165 §5).
 #include "core/body.hpp"
+#include "core/component_parameter_types.hpp"
 #include "core/parameter_expression.hpp"
 #include <array>
 #include <cstdint>
@@ -96,10 +97,6 @@ struct ComponentParameters {
     std::optional<ComponentAssembly> assembly;  // optional library identity
     bool operator==(const ComponentParameters &) const = default;
 };
-using ComponentParametersPtr = std::shared_ptr<const ComponentParameters>;
-// Override values keyed by parameter name: SI quantities (finalized and quantized
-// like evaluated values), booleans or choice values.
-using ComponentOverrides = std::map<std::string, ParameterValue>;
 
 // ---- Errors ----
 // The codes are ADR 0165's: PARAMETER_SYNTAX, PARAMETER_NAME, PARAMETER_TYPE,

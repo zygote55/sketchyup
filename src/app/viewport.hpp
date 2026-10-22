@@ -1,14 +1,12 @@
 #pragma once
 #include "app/inference_worker.hpp"
-#include "app/terrain_preview_worker.hpp"
 #include "app/terrain_tool.hpp"
 #include "app/texture_cache.hpp"
 #include "app/theme.hpp"
 #include "app/tool_session.hpp"
 #include "core/model.hpp"
 #include "core/selection.hpp"
-#include "core/terrain_display.hpp"
-#include "core/terrain_edit_mesh.hpp"
+#include "core/terrain_fwd.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
@@ -1018,8 +1016,10 @@ class Viewport : public QOpenGLWidget {
         bool built{};
     };
     std::map<Id, std::unique_ptr<TerrainView>> terrainViews_;
-    TerrainContourCache contourCache_;
-    TerrainSurfaceCache surfaceCache_; // R096.a: per-tile surfaces, updated after edits
+    // Held indirectly so that this header does not include core/terrain_display.hpp
+    // (build fan-out, ADR 0170); the constructor creates both.
+    std::unique_ptr<TerrainContourCache> contourCache_;
+    std::unique_ptr<TerrainSurfaceCache> surfaceCache_; // R096.a: per-tile surfaces, updated after edits
     void syncTerrainViews();
     void drawTerrainContours();
     void paintSiteOrigin(QPainter &p);

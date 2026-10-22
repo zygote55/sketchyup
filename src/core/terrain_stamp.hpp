@@ -39,6 +39,7 @@
 // - Pads are protected (decision 6): `protects` gives the footprint and `protectedPoints` the
 //   outline's vertices.
 #include "core/terrain_edit.hpp"
+#include "core/terrain_fwd.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sources.hpp"
@@ -68,7 +69,6 @@ inline constexpr std::uint64_t terrainStampWalkWork = std::uint64_t(1) << 26;
 inline constexpr std::uint64_t terrainStampClassifyWork = std::uint64_t(1) << 27;
 inline constexpr std::uint64_t terrainStampPairWork = std::uint64_t(1) << 25;
 
-enum class TerrainStampMode { Daylight, Width };
 const char *terrainStampModeName(TerrainStampMode mode);
 
 struct TerrainStampRay {

@@ -6,6 +6,7 @@
 #include "core/component_regeneration.hpp"
 #include "core/hierarchy_changes.hpp"
 #include "core/shading_normals.hpp"
+#include "core/terrain_display.hpp"
 #include "core/terrain_sculpt.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
@@ -68,7 +69,9 @@ bool startsMeasurement(const QString &text) {
 }
 } // namespace
 Viewport::Viewport(Document &doc, QWidget *parent)
-    : QOpenGLWidget(parent), doc_(doc), session_(doc) {
+    : QOpenGLWidget(parent), doc_(doc), session_(doc),
+      contourCache_(std::make_unique<TerrainContourCache>()),
+      surfaceCache_(std::make_unique<TerrainSurfaceCache>()) {
     initializeSceneViews();
     initializeWalkNavigation();
     selection_.sync(doc_);
