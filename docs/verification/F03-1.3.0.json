@@ -1,0 +1,366 @@
+{
+ "layer": "F03 1.3.0 release record",
+ "date": "2026-10-21",
+ "procedure": "docs/M10_ACCEPTANCE.md (Required evidence at the RC; Release record)",
+ "row": "F03",
+ "version": "1.3.0",
+ "recordComplete": true,
+ "gateStatus": "awaiting tag",
+ "ownerApproval": {
+  "release": "approved 2026-10-21 (\"any time\"), relayed by the orchestrator",
+  "tag": "to be created on the RC after this record is reviewed",
+  "corpusGate": "accepted by the owner with the tag and the release (scorer output unedited, releaseAccepted=false)",
+  "corpusRun": "one approved run, plus two diagnostic probes and the rerun after the usage limit reset"
+ },
+ "tagCreated": false,
+ "releaseCreated": false,
+ "published": false,
+ "rc": {
+  "name": "RC3",
+  "commit": "d69c4402268fef7e78de5cced7496f12091f52ea",
+  "branch": "release/1.3.0",
+  "prHead": "PR #408 (D-047)",
+  "mergedIntoMainAs": "db3eb51fd883a88763671ae5bc1bac7ed5d42b2b",
+  "ancestorOfMain": true,
+  "sourceArchive": {
+   "file": "sketchyup-1.3.0.tar.gz",
+   "sha256": "31e838e7dfba82766bcf38afde3a9930d48547f8393a864b4a329d65da38ab5f"
+  },
+  "package": {
+   "file": "sketchyup-1.3.0-1-x86_64.pkg.tar.zst",
+   "name": "sketchyup",
+   "version": "1.3.0-1",
+   "sha256": "5f5c0cf8ca876d278e375304ff95257ac22decc8dc641096da4c62013cfa833b"
+  },
+  "thirdPartyNotices": {
+   "file": "THIRD_PARTY_NOTICES",
+   "sha256": "962d42ad4d269971bd99b8964d35784f859283d29df586a911a51475b140f031"
+  },
+  "sha256sumsSha256": "7f75a359a89d5e74b8a8a4f9a300502ee7d0b5b8d45a9ac918aebd889738b058",
+  "manifestSha256": "2462a21b059e39d8d997facdbdb8f9a2965a74bea426bcb2c816f67a7d3c4a17",
+  "manifestBuildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "priorRelease": {
+   "file": "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+   "source": "https://github.com/zygote55/sketchyup/releases/download/v1.2.0/sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+   "sha256": "b95fc18909040de68c8c8cb425f1bd01f3573249b48b4c3b61fe0be53d31295d",
+   "verified": true,
+   "equalsReleaseAssetDigest": true
+  },
+  "qt68ReferencePackageSha256": "d40c0042fef2ee71c244de6c85cb70b6acc9d1cfdb22827e6da8c31b4e0253b4",
+  "releaseArtifactsRuns": 2,
+  "archiveStableAcrossRuns": true,
+  "releaseVersionScript": "1.3.0",
+  "walkthrough": "docs/verification/F03-rc-1.3.0.md"
+ },
+ "images": {
+  "packageBuild": {
+   "tag": "sketchyup-build:20261002",
+   "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+  },
+  "pinned": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "fresh": {
+   "image": "archlinux:base-devel@sha256:3cbf69d2d5958d6a294f3722c5668e6187c4df8e00fa27f72352f0bf83e495e1",
+   "created": "2026-10-21T21:05:43Z",
+   "pulled": "2026-10-21",
+   "archiveDate": "2026-10-21"
+  },
+  "reference": {
+   "image": "archlinux:base-devel-20241013.0.269705",
+   "id": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+   "archiveDate": "2024-10-15",
+   "signatureTimeEvaluatedAt": "2024-10-16T00:00:00",
+   "package": {
+    "file": "sketchyup-1.3.0-1-x86_64.pkg.tar.zst",
+    "fromArchiveSha256": "31e838e7dfba82766bcf38afde3a9930d48547f8393a864b4a329d65da38ab5f",
+    "sha256": "d40c0042fef2ee71c244de6c85cb70b6acc9d1cfdb22827e6da8c31b4e0253b4",
+    "buildSeconds": 1176,
+    "logSha256": "a2e143016cb11fbe06ec53557a302136dcc0d2d2ee5f3bebbf2a251d231b4280"
+   }
+  }
+ },
+ "ciAtRc": {
+  "run": 39730790771,
+  "url": "https://github.com/zygote55/sketchyup/actions/runs/39730790771",
+  "event": "push",
+  "branch": "release/1.3.0",
+  "tier": "full",
+  "headSha": "d69c4402268fef7e78de5cced7496f12091f52ea",
+  "conclusion": "success",
+  "attempt": 1,
+  "completedAt": "2026-10-22T07:37:30Z",
+  "jobs": {
+   "Development build and checks": "success",
+   "Native tests: X11 1x": "success",
+   "Native tests: X11 2x": "success",
+   "Native tests: Wayland 1x": "success",
+   "Native tests: Wayland 2x": "success",
+   "Native tests: audit and accessibility": "success",
+   "Native tests: fractional scaling, Blender worker and M5": "success",
+   "Blender interoperability": "success",
+   "Sanitized builds": "success",
+   "Arch package acceptance": "success",
+   "CI verdict": "success"
+  },
+  "ctest": {
+   "dev": "228/228",
+   "dxfReal": "1/1",
+   "pdfReal": "2/2",
+   "blenderWorker": "9/9",
+   "sanitize": [
+    "71/71",
+    "119/119",
+    "7/7",
+    "1/1"
+   ],
+   "packageCheck": "228/228"
+  }
+ },
+ "frozenProviderInputs": {
+  "manifest": {
+   "file": "tests/provider-release-corpus-v5.json",
+   "sha256": "0a952e16a5661dfa02dc49d5982f00d519f9c0009b76ab4aca6d5edf990b7d9b"
+  },
+  "scorer": "6ae37758384ab0aedb45714702b75a686c74ed1866e037aac0dc415aef171ce7",
+  "providerTrial": "0b1a1723c6372092e3a3094bc94f94570842773cdc91f9c400bfe19c4f478baf",
+  "instructions": "313b9f911735f28e21bb1c9310d727416568d0c460971c43315faf4dd1f376be"
+ },
+ "supersededRcs": [
+  {
+   "name": "RC1",
+   "commit": "09b8a0617ac8d8222765246296bdf75f0f44e1ad",
+   "mergeOf": "PR #406",
+   "fullTier": {
+    "run": 39721695132,
+    "conclusion": "cancelled",
+    "note": "superseded by RC2 (D-046); full tier cancelled before completion"
+   },
+   "mainFastTier": {
+    "run": 39721671495,
+    "conclusion": "success"
+   },
+   "archiveSha256": "562eab71e3518d5dbb77daf21d5cffa7f48b6e9f832658730fd52b141d8afdaa",
+   "packageSha256": "6d7f20f17dff06d73d93ead04fb661573401ab6539b68f636feaffc2086b6fbb",
+   "packageAcceptance": "pass (CTest 228/228)",
+   "qt68ReferenceBuild": "stopped when superseded"
+  },
+  {
+   "name": "RC2",
+   "commit": "6ed335fb158e84d10683245423dba7a0a0a41b75",
+   "mergeOf": "PR #407",
+   "fullTier": {
+    "run": 39724677691,
+    "conclusion": "cancelled",
+    "note": "superseded by RC3 (D-047); full tier cancelled before completion",
+    "jobsPassedBeforeCancelHistoryOnly": [
+     "Development build and checks",
+     "Blender interoperability",
+     "Arch package acceptance",
+     "Native tests: X11 1x",
+     "Native tests: Wayland 1x",
+     "Native tests: Wayland 2x",
+     "Native tests: audit and accessibility",
+     "Native tests: fractional scaling, Blender worker and M5"
+    ],
+    "unfinished": [
+     "Native tests: X11 2x",
+     "Sanitized builds"
+    ]
+   },
+   "archiveSha256": "36bc0fa2e7ca8ad92c521753d43bdc4e277db1890a69656c060b2c4c1b9e1f4c",
+   "packageSha256": "fafb91b648987c65a13df719143946675d99dd1f3d6b71af856f46de2ed135fb",
+   "packageAcceptance": "pass (CTest 228/228)",
+   "cleanMachines": {
+    "pinned": "pass",
+    "fresh": "pass"
+   },
+   "qt68ReferenceBuild": "failed at step 630 of 809: tests/terrain_edit_input_tests.cpp:2165 invalid use of incomplete type QJsonDocument (D-047); ninja -k 0 of the same archive found no other error"
+  }
+ ],
+ "prs": {
+  "R095 ADR": [
+   365
+  ],
+  "R095.a-e3": [
+   367,
+   368,
+   369,
+   371,
+   372,
+   373,
+   374,
+   376
+  ],
+  "D-042, D-043, D-044": [
+   370,
+   375,
+   382
+  ],
+  "R095.f and AMD frame": [
+   377,
+   378
+  ],
+  "R095.g, R095.h": [
+   379,
+   380
+  ],
+  "R096 ADR and UX": [
+   381,
+   388
+  ],
+  "R096.a-f2": [
+   383,
+   384,
+   385,
+   386,
+   387,
+   389,
+   390,
+   391,
+   392,
+   393,
+   394,
+   395,
+   396
+  ],
+  "R096.g": [
+   401,
+   402
+  ],
+  "1.3.0 preparation (RC1)": [
+   406
+  ],
+  "D-046 (RC2)": [
+   407
+  ],
+  "D-047 (RC3)": [
+   408
+  ]
+ },
+ "ciAtMergedHeads": {
+  "everyPrHeadPassed": true,
+  "passedOnRerun": [
+   345,
+   346,
+   353,
+   382,
+   395
+  ],
+  "failedMainPushRuns": [
+   {
+    "merge": "fe441719",
+    "pr": 345,
+    "run": 39084157454,
+    "cause": "native test dependency install"
+   },
+   {
+    "merge": "d11d1a55",
+    "pr": 347,
+    "run": 39090387072,
+    "cause": "native test dependency install"
+   },
+   {
+    "merge": "ca9cca21",
+    "pr": 391,
+    "run": 39578886551,
+    "cause": "accessibility bridge step: invalid or excessive accessible child count"
+   }
+  ]
+ },
+ "provider": {
+  "profile": "chatgpt-astra",
+  "model": "gpt-6-astra",
+  "connection": "chatgpt-plan",
+  "record": "docs/verification/R086g-rc130-remote-evaluation.md",
+  "corpusVersion": 5,
+  "window": "2026-10-21T21:38:48-07:00/2026-10-21T21:50:22-07:00",
+  "elapsedMs": 692004,
+  "reportedTokens": 1520171,
+  "providerAttempts": 115,
+  "successfulResponses": 106,
+  "toolCalls": 149,
+  "largestRunReportedTokens": 160677,
+  "maximumProviderTurns": 9,
+  "maximumElapsedMs": 62556,
+  "monetaryCost": null,
+  "reviewer": "Claude (an automated receipt, geometry-oracle and final-text review by a savvy-flow worker); not independent human release sign-off",
+  "reviewBundleSha256": "ef73535d916a774341de03d5cc16b41c4f55f0d02c40aa780455576c2c05d1af",
+  "corpusPassed": true,
+  "blockers": [],
+  "releaseAccepted": false,
+  "ranAt": "09b8a0617ac8d8222765246296bdf75f0f44e1ad (RC1)",
+  "reliedOnAtRc3": true,
+  "reliedOnReason": "RC2 changes only the stream-error path (D-046) and RC3 adds a test include (D-047); every task's first ChatGPT-plan request body is byte-identical between the RC1 libraries and the D-046 codec and transport (offline dump, 8/8 tasks), and the RC1 dump equals the request RC1 sent"
+ },
+ "triage": {
+  "open": 22,
+  "releaseBlocking": 0,
+  "major": 0,
+  "minor": 8,
+  "limitation": 14,
+  "minorIds": [
+   "D-006",
+   "D-007",
+   "D-008",
+   "D-009",
+   "D-019",
+   "D-031",
+   "D-034",
+   "D-040"
+  ],
+  "limitationIds": [
+   "D-001",
+   "D-004",
+   "D-005",
+   "D-010",
+   "D-011",
+   "D-012",
+   "D-013",
+   "D-014",
+   "D-015",
+   "D-016",
+   "D-017",
+   "D-018",
+   "D-020",
+   "D-029"
+  ],
+  "newFromGate": [
+   {
+    "id": "D-046",
+    "class": "Minor",
+    "foundAt": "RC1",
+    "fixedBy": "PR #407 (RC2)"
+   },
+   {
+    "id": "D-047",
+    "class": "Major",
+    "foundAt": "RC2",
+    "fixedBy": "PR #408 (RC3)",
+    "verifiedBy": "Qt 6.8 reference build and lifecycle at RC3"
+   }
+  ]
+ },
+ "waivedAdr0161": [
+  "Intel campaigns and the sharing-off memory control",
+  "X11 output hotplug",
+  "suspend/resume",
+  "a physical 150% output",
+  "physical pointer capture",
+  "input methods",
+  "D-020 on Hyprland",
+  "automatic X11 output placement",
+  "an interactive Orca session",
+  "the manual walkthrough on the installed RC"
+ ],
+ "notRunAtRc": [
+  "native cells that no CI line runs (gen_cases.py)",
+  "dialog-audit cells that no CI line runs",
+  "local sanitized build (CI sanitize job covers it)",
+  "M5-M8 studies beyond CI",
+  "timing, GPU and display checks",
+  "ADR 0161 waived checks"
+ ],
+ "followUps": [
+  "Qt 6.8 compile job in CI (ADR 0170 follow-up, D-047)",
+  "retain a 1.3.0 schema-29 terrain fixture after the release"
+ ]
+}
