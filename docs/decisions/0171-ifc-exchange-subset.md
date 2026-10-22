@@ -1,6 +1,6 @@
 # IFC exchange subset
 
-Status: **Accepted (2026-10-22)** for decisions 1 to 16; decisions 17 to 21 (how IfcOpenShell is
+Status: **Accepted (2026-10-22)** for decisions 1 to 16; decisions 17 to 22 (how IfcOpenShell is
 packaged and run) are **proposed** and wait for the owner. Roadmap
 [R097](../PR_ROADMAP.md#r097) (M10, scope row [F04](../SCOPE.md)); the sibling
 [R098](../PR_ROADMAP.md#r098) covers STEP. Nothing in this ADR is implemented. Each section gives
@@ -138,32 +138,56 @@ IfcOpenShell is a family of libraries. Only these are needed:
 
 | Component | Needed for | Shipped |
 | --- | --- | --- |
-| `IfcParse` (`libifcopenshell.parse.so`) and the plugin loader (`libifcopenshell.plugin.so`) | Reading and **writing** IFC (the file model, typed entity classes, `IfcFile::write`, the hierarchy helper) | Yes |
+| `IfcParse` (`libifcopenshell.parse.so`) and the plugin loader (`libifcopenshell.plugin.so`) | Reading and **writing** IFC: the file model (`ifcopenshell::file`), typed entity classes per schema, writing through `operator<<(std::ostream&, const ifcopenshell::file&)`, the `hierarchy_helper<Schema>` template (project, site, building, storey, placements, owner history) and attribute traversal | Yes |
 | Schema libraries `parse_schema_ifc2x3`, `parse_schema_ifc4`, `parse_schema_ifc4x3_add2` | The three schemas of decision 2. Built with `SCHEMA_VERSIONS="2x3;4;4x3_add2"`. The default builds eight, including IFC4.1, 4.2 and the 4.3 release candidates, which are refused here | Yes (three) |
-| `IfcGeom` and **one geometry kernel plugin** | Import: turning extrusions, sweeps, Booleans, mapped items and breps into triangles; subtracting openings; styles and materials | Yes |
-| The IfcConvert tool and the `serializers` library | Converting to OBJ, glTF and others | **No** (a development tool only, used for the prototype measurements) |
-| CGAL kernel | An alternative kernel | **No**: CGAL's polygon-mesh and Nef parts are **GPL-3.0-or-later** (Arch lists `cgal` as GPL-3.0-or-later and LGPL-3.0-or-later); linking them would make the combined work GPL |
-| Python wrapper, Bonsai (GPL-3.0-or-later), IfcConvert glTF/USD/COLLADA output, HDF5, RocksDB, the viewer | Other front ends | **No** |
+| `IfcGeom`, the geometry mapping plugins for the three schemas and **one geometry kernel plugin** | Import: turning extrusions, sweeps, Booleans, mapped items and breps into triangles; subtracting openings; styles | Yes |
+| The IfcConvert tool, the `serializers` library and the OBJ, SVG, IGES, STEP, TTL, XML and IFC-writer plugins | Converting to other formats | **No** (IfcConvert was a development tool for the prototype measurements) |
+| CGAL kernel | An alternative kernel | **No**: Arch lists `cgal` as `GPL-3.0-or-later` and `LGPL-3.0-or-later`, and its polygon-mesh and Nef parts are GPL; linking them would make the combined work GPL |
+| Python wrapper, Bonsai (GPL-3.0-or-later), glTF/USD/COLLADA output, HDF5, RocksDB, the viewer | Other front ends | **No** |
 
-**Kernel choice.** `v0.9.0` has four kernel plugins in
-`src/ifcgeom/kernels`: `opencascade` (about 21,000 lines in the four directories together; the one
-IfcOpenShell is built around), `cgal` (GPL, above), `manifold` (a 2,286-line Boolean helper, off by
-default, `WITH_MANIFOLD`) and `passthrough` (a kernel for items that are already tessellated). The
-recommendation is the **OpenCASCADE kernel** for everything, with `passthrough` available for
-files that contain only tessellated items. OpenCASCADE (OCCT) is LGPL-2.1-or-later with the OCCT
-exception (Arch's `opencascade` 7.9.3-3: `LGPL-2.1-or-later` and `LicenseRef-LGPL-exception`).
-IfcOpenShell requires OCCT 7.5.1 or later; upstream OCCT is at V8.0.1 (2026-07-30), Arch has 7.9.3.
+**Kernel choice.** `v0.9.0` has four kernel plugins in `src/ifcgeom/kernels`: `opencascade` (about
+12,900 lines; the one IfcOpenShell is built around), `cgal` (GPL, above), `manifold` (about 2,400
+lines, a Boolean helper, off by default, `WITH_MANIFOLD`) and `passthrough` (items that are already
+tessellated: it supports no Boolean operations and, as far as I can see, emits no feature edges). The
+recommendation is the **OpenCASCADE kernel** for everything, with `passthrough` available for files
+that contain only tessellated items. OpenCASCADE (OCCT) is LGPL-2.1-or-later with the OCCT exception
+(Arch's `opencascade` 7.9.3-3: `LGPL-2.1-or-later` and `LicenseRef-LGPL-exception`). IfcOpenShell
+requires OCCT 7.5.1 or later; upstream OCCT is at V8.0.1 (2026-07-30), Arch has 7.9.3.
 
-**The geometry kernel replaces our own tessellation work.** The first draft of this ADR had
-R097.c write extrusion, revolution, half-space, Boolean and mapped-item interpretation on Clipper2
-and the R055 Manifold adapter. With IfcOpenShell that slice disappears: the iterator produces
-triangle meshes for the elements of a file, with the opening subtractions, representation
-selection, placement composition and style resolution done by the library. SketchyUp's part is the
-**adapter**: settings, receiving the triangles, rebuilding planar polygon faces from them, and the
-report. Decision 5 ("tessellate everything into editable faces; subtract openings when both solids
-are closed, else leave the host uncut and report") stands; the *mechanism* is now the library's:
-it subtracts openings by default (`DisableOpeningSubtractions` off, `MaxVoidsPerElement` bounded)
-and logs failures, which the worker captures into the report (section 4).
+**The geometry kernel replaces our own tessellation work.** The first draft of this ADR had R097.c
+write extrusion, revolution, half-space, Boolean and mapped-item interpretation on Clipper2 and the
+R055 Manifold adapter. With IfcOpenShell that slice disappears: the iterator produces triangle meshes
+for the elements of a file, with the opening subtractions, representation selection, placement
+composition and style resolution done by the library. SketchyUp's part is the **adapter**: settings,
+receiving the triangles, rebuilding planar polygon faces from them, reading what the library does not
+resolve (below), the properties, the limits and the report. Decision 5 ("tessellate everything into
+editable faces; subtract openings; report the ones that are not subtracted") stands; the *mechanism*
+is now the library's.
+
+**What the prototype did and did not exercise.** Every measurement in this ADR comes from
+`IfcConvert`, the command-line tool, not from the iterator, writer and settings API the worker will
+use; `IfcConvert` also applies its own defaults (it excludes `IfcOpeningElement` and `IfcSpace`
+unless told otherwise), so the prototype's meshes contain no spaces. R097.a therefore starts with a
+probe that drives the iterator and the writer through the worker and re-checks the claims below.
+Things I found in the source of `v0.9.0` that the design depends on:
+
+- The settings `ContextTypes` and `ContextIdentifiers` are documented "currently option has no
+  effect"; representation selection uses `ContextIds` or the ordered `ContextPriorities`.
+- `LengthUnit` is an internal setting that the library overwrites from the file's units; output in
+  metres is `ConvertBackUnits` off. With a missing length unit, or other than one `IfcProject`, the
+  library only logs a warning and assumes metres, so **the refusals of 3.5 are the worker's**, not the
+  library's. In the prototype the Reference View wall's OBJ came out in millimetres while the
+  Architecture files' OBJs came out in metres, although every file declares a millimetre length unit; I
+  did not isolate the cause. The adapter therefore **verifies every mesh against the file's units**
+  (check A1) instead of trusting the output unit.
+- `MaxVoidsPerElement` means "no voids will be processed for elements with more voids" (0 is
+  unlimited); it is a skip, not a bound on work, and it is silent apart from the log.
+- `IfcIndexedColourMap` is not read by the C++ geometry code (the prototype's per-face-colour sample
+  came out as one default material), so **per-face colours are read by the adapter**.
+- Feature edges come only from the OCCT kernel.
+- Output order from several threads differs from the single-threaded order.
+- The library's only fuzz harness is `ifcparse_fuzzer` (parse and re-serialise; upstream disables leak
+  detection because of a known leak).
 
 ### 1.3 Licence and LGPL-3.0 compliance
 
@@ -171,44 +195,66 @@ I have no legal opinion; this is an engineering reading for the owner to confirm
 
 - **The rule.** LGPL-3.0 §4 lets a combined work be distributed under terms of the author's choice,
   provided the combination does not restrict modification of the library and reverse engineering to
-  debug such modifications, and provided the distributor (a) gives notice and a copy of the GPL and
-  LGPL texts, and (b) either uses a **suitable shared-library mechanism** (a copy of the library
-  already present on the user's system at run time, which still works with a modified,
-  interface-compatible version) or supplies the minimal corresponding source and the application
-  code in a form that allows relinking. For a "User Product" (a consumer device) installation
-  information is also needed; an Arch package on a user's own machine imposes none of the
-  restrictions that clause is about.
-- **MIT application plus LGPL library is fine when linked dynamically.** MIT code may be combined
-  with LGPL code; the LGPL terms attach to the library, not to the MIT application. Static linking
-  would be possible too, since our source is public, but it needs the relinking information. Upstream
-  CMake states that `BUILD_SHARED_LIBS` is **required** (default ON), so dynamic is also the only
-  supported way to build it.
+  debug such modifications, and provided the distributor (a) gives notice that the library is used and
+  covered by the licence, including where the application displays copyright notices, (b) conveys a
+  copy of the GPL and LGPL texts, and (c) either uses a **suitable shared-library mechanism** (a copy
+  of the library already present on the user's system at run time, which still works with a modified,
+  interface-compatible version) or supplies the minimal corresponding source and the application code
+  in a form that allows relinking. For a "User Product" installation information is also needed; an
+  Arch package on a user's own machine puts no restriction on replacing a library. Conveying the
+  object code in a package also brings the source obligation (§4 and LGPL-2.1 §3 for OCCT): the source
+  must accompany it or be offered in writing.
+- **MIT application plus LGPL library is fine when linked dynamically.** MIT code may be combined with
+  LGPL code; the LGPL terms attach to the library, not to the MIT application. Static linking would be
+  possible too, since our source is public, but it needs the relinking information. Upstream CMake
+  states that `BUILD_SHARED_LIBS` is **required** (default ON), so dynamic is also the only supported
+  way to build it.
 - **Recommended shape.** Only one new executable links IfcOpenShell: a separate helper,
-  `sketchyup-ifc-worker` (decision 19). The SketchyUp application, its CLI and every other
-  executable do not link it, so the LGPL attaches only to the helper and to the libraries beside it.
-  The libraries are installed as shared objects in a private directory, `/usr/lib/sketchyup/`, and
-  the helper finds them through an `RUNPATH` of `$ORIGIN/../lib/sketchyup` (a `RUNPATH`, not an
-  `RPATH`, so `LD_LIBRARY_PATH` can override it: that is the "replace the library" path and a
-  check, L2).
+  `sketchyup-ifc-worker` (decision 19). The SketchyUp application, its CLI and every other executable
+  do not link it, so the LGPL attaches only to the helper and to the libraries beside it. Everything
+  is installed **flat in one private directory, `/usr/lib/sketchyup/`**: the helper, `IfcParse`,
+  `IfcGeom`, the plugin loader and every plugin. IfcOpenShell finds its plugins in the directory of
+  `libifcopenshell.plugin.so` and checks a compiler ABI tag, so the plugins must sit beside it. The
+  helper has a `RUNPATH` of `$ORIGIN` (a `RUNPATH`, not an `RPATH`, so `LD_LIBRARY_PATH` can override
+  it: that is the "replace the library" path and check L2).
 - **Notices and source.**
   - `share/licenses/sketchyup/IfcOpenShell-COPYING.LESSER` and `IfcOpenShell-COPYING` (the LGPL and
-    GPL texts upstream ships), and `OpenCASCADE-LICENSE` (the LGPL-2.1 text and the OCCT exception)
-    are installed, and `CMakeLists.txt` installs them like the current notices, so
-    `scripts/release-artifacts.sh` carries them into `THIRD_PARTY_NOTICES`.
+    GPL texts upstream ships), `OpenCASCADE-LICENSE` (the LGPL-2.1 text and the OCCT exception) and
+    the packaged notices of anything else bundled are installed. `scripts/release-artifacts.sh` builds
+    `THIRD_PARTY_NOTICES` only from `install(FILES ...)` lines for files **tracked in the repository**,
+    so the OCCT licence texts are copied into the vendored tree (`third_party/ifcopenshell/`), because
+    OCCT itself is not vendored.
   - The PKGBUILD `license` array gains `LGPL-3.0-or-later` and `LGPL-2.1-or-later`. (Bonsai and the
     GPL-3.0-or-later parts of the IfcOpenShell repository are not built.)
   - `dependencies.json` gains IfcOpenShell (version, commit, linkage `dynamic (private)`, licence,
     source, patches) and OCCT (system, or as decision 18 decides).
+  - The application shows no third-party notice list today (I found none in `src/app`); if one is
+    added, it names IfcOpenShell and OCCT (LGPL-3.0 §4 asks for the notice where notices are shown).
   - **Source.** The IfcOpenShell source is vendored unmodified in the source archive (1.4), which is
-    also the source of every release package, so the corresponding source accompanies each release.
-    If OCCT is bundled (decision 18, option B), its source or a written offer must accompany the
-    package too.
-  - `packaging/arch/README.md` gains a section "Replacing IfcOpenShell": build the same tag with
-    CMake, copy the `libifcopenshell*.so` files and the plugin libraries over those in
-    `/usr/lib/sketchyup/`, and run `sketchyup-ifc-worker --probe`.
-- **No upstream modification.** The vendored copy is trimmed (unneeded directories removed) but
-  not edited; any needed patch goes into `third_party/ifcopenshell/PATCHES.md`, as Clipper2's
-  does, and is published with the source.
+    also the source of every release package. `share/doc/sketchyup/IFC-SOURCE.txt` states where the
+    corresponding source of the IfcOpenShell and OCCT binaries in the package is (our release archive;
+    the upstream tags `ifcopenshell-v0.9.0` and `V7_9_3`; for OCCT, which is Arch's build, Arch's source
+    package) and carries a **written offer** to supply it for at least three years after the last
+    release that contains it.
+  - Redistributing OCCT's binaries may also redistribute code OCCT embeds (I infer fast_float and
+    rapidjson from Arch's build dependencies; not verified): the notices step in R097.a checks the
+    shipped OCCT libraries' own `LICENSE` and third-party lists.
+  - `packaging/arch/README.md` gains a section "Replacing IfcOpenShell": build the same tag with CMake,
+    copy the `libifcopenshell*.so` files and the plugin libraries over those in `/usr/lib/sketchyup/`,
+    and run `sketchyup-ifc-worker --probe`.
+- **No upstream modification.** The vendored copy is trimmed (unneeded directories removed) but not
+  edited; any needed patch goes into `third_party/ifcopenshell/PATCHES.md`, as Clipper2's does, and is
+  published with the source.
+- **Generated schema code and trademarks.** The shipped `Ifc*.cpp` and `.h` schema files are generated
+  by IfcOpenShell from buildingSMART's EXPRESS schemas and carry only IfcOpenShell's headers.
+  buildingSMART publishes the schemas and documentation under CC BY-ND 4.0 ("no derivatives"): the
+  `IFC4.3.x-development` repository's `LICENSE.md` opens with it, then adds a notice that the
+  technical documentation "may be photocopied, used in software development, or translated into
+  another computer language without prior written consent ... provided that full attribution is given",
+  with consent needed "if changes are made to the technical specification", and a trademark notice
+  asking that IFC(TM) and ifcXML(TM) be credited. IfcOpenShell itself distributes the generated code
+  under the LGPL; whether that settles it for us, and the trademark credit (user guide and fixture
+  notice), is for the owner or counsel to confirm (question Q1).
 
 ### 1.4 Getting it into the package
 
@@ -216,113 +262,158 @@ I have no legal opinion; this is an engineering reading for the owner to confirm
 | --- | --- |
 | **Official Arch repository** | Not available: a search of `extra` for `ifcopenshell` found nothing (checked 2026-10-22). |
 | **AUR `ifcopenshell` (0.9.0-2; also `ifcopenshell-stable` 0.8.5-4 and `-git`) as a dependency** | Rejected. It is the whole project (Python wrapper, Bonsai, its viewer and, as makedepends, `blender`, `qt6-base`, `qt6-svg`, `swig`, `cgal` and others), 3 votes. An official-style package cannot depend on the AUR, the pinned image and CI build only from official repositories, and the CGAL build brings GPL code. |
-| **Download and build at package time** (a makepkg `source` entry or CMake `ExternalProject`) | Rejected: it breaks "build from one source archive, no build-time download" (ADR 0109, the release scripts) and the dated-mirror reproducibility. |
-| **Vendor a trimmed source tree in `third_party/ifcopenshell/` and build it with our CMake** | **Recommended (decision 17).** The pattern every other dependency already follows. The needed directories (`src/ifcparse` with three schemas, `src/ifcgeom`, `src/plugin`, `cmake`) are about **19 MB** of source (the generated schema sources are 16 MB of it; the whole upstream `src/ifcparse/schemas` for all eight schemas is 68 MB). It is built as shared libraries by a CMake sub-project guarded by `SKETCHYUP_BUILD_IFC`, and installed under `lib/sketchyup/`. |
+| **Download and build at package time** (a makepkg `source` entry or CMake `ExternalProject` with a URL) | Rejected: it breaks "build from one source archive, no build-time download" (ADR 0109, the release scripts) and the dated-mirror reproducibility. |
+| **Vendor a trimmed source tree in `third_party/ifcopenshell/` and build it from there** | **Recommended (decision 17).** The pattern every other dependency already follows. The needed directories (`src/ifcparse` with three schemas, `src/ifcgeom`, `src/plugin`, `cmake`) are about **19 MB** of source (the generated schema sources are 16 MB of it; the whole upstream `src/ifcparse/schemas` for all eight schemas is 68 MB). |
+
+**How it is built.** Upstream's `cmake/CMakeLists.txt` is a top-level project (it reads `../src/*` and
+sets global options), and the root `CMakeLists.txt` already sets `BUILD_SHARED_LIBS` for the
+`SKETCHYUP_SHARED_LIBS` and sanitizer builds. The sub-project is therefore a **separate configure**
+(an `ExternalProject` or a second `cmake` invocation on the vendored tree, guarded by
+`SKETCHYUP_BUILD_IFC`), with `BUILD_IFCGEOM=ON`, `WITH_OPENCASCADE=ON`, `WITH_CGAL=OFF`,
+`BUILD_CONVERT=OFF`, `BUILD_IFCPYTHON=OFF`, `BUILD_GEOMSERVER=OFF`, `BUILD_EXAMPLES=OFF`, the upstream
+test options **off** (they fetch Catch2 over the network), `COLLADA_SUPPORT=OFF` and
+`SCHEMA_VERSIONS="2x3;4;4x3_add2"`, installing only the libraries and plugins of 1.2.
 
 **Pinned version.** `ifcopenshell-v0.9.0`, commit `7ba701972f7182322e0a00db8f0e1f3de5f69840`,
 published 2026-10-01; the PyPI library release is 0.9.0.post1. The tree records the commit, the trim
-list and the SHA-256 of the upstream tag archive in `third_party/ifcopenshell/README.sketchyup.md`,
-as `third_party/cdt` does. Upgrades are explicit changes with the checks of section 6 re-run.
-Upstream's API changed between 0.8 and 0.9 (the typed entity classes, the `express` namespace and
-the new `geometry` settings API are recent), so a floating dependency is not an option.
+list and the SHA-256 of the upstream tag archive in `third_party/ifcopenshell/README.sketchyup.md`, as
+`third_party/cdt` does. Upgrades are explicit changes with the checks of section 6 re-run. Upstream's
+API changed between 0.8 and 0.9 (the typed entity classes, the `express` namespace and the new
+`geometry` settings API are recent), so a floating dependency is not an option.
 
-**Run-time dependency.** The libraries record `libboost_program_options` and `libboost_container`,
-so the package depends on `boost-libs` (a small, common dependency; the two libraries are well under a
+**Run-time dependency.** The libraries record `libboost_program_options` and `libboost_container`, so
+the package depends on `boost-libs` (a small, common dependency; the two libraries are well under a
 megabyte).
 
-**Build dependencies in the pinned image.** `boost` (headers; 158 MB installed), `eigen` and, for
-the OCCT kernel, `opencascade` headers and libraries. `nlohmann-json` is required by CMake's
-configuration step. Arch's OCCT CMake configuration refuses to load without VTK's own
-dependencies, so the build passes `-DOCC_INCLUDE_DIR=/usr/include/opencascade
--DOCC_LIBRARY_DIR=/usr/lib` (the AUR package does the same). These are added to the image's package
-lists for the jobs that build the helper.
+**Build dependencies in the pinned image.** `boost` (headers; 158 MB installed), `eigen` and, for the
+OCCT kernel, `opencascade` headers and libraries. Arch's OCCT CMake configuration refuses to load
+without VTK's own dependencies (in the prototype `nlohmann-json` was needed only to get past VTK's
+configuration; whether it is still needed with the two variables below was not tested), so the build
+passes `-DOCC_INCLUDE_DIR=/usr/include/opencascade -DOCC_LIBRARY_DIR=/usr/lib` (the AUR package does
+the same). That shortcut skips an `--as-needed` block in upstream's `FindOpenCASCADE.cmake`, which
+matters for the next paragraph. `makepkg` runs without `-s` in the acceptance job, so these packages
+must be in the CI package lists, which feed the shared pacman cache key in `native.yml`; installing
+`opencascade` there also installs `vtk`, `tcl` and `tk` (about 0.55 GiB) into the build image.
 
-**OCCT at run time (decision 18).** Arch's `opencascade` package depends on `vtk` (406 MB
-installed), `tcl`, `tk`, `verdict` and `libxss`. Measured in the pinned image: installing it adds `tcl` (13 MiB), `tk` (12 MiB),
-`libxss`, `verdict`, `vtk` (363 MiB at the pinned snapshot, 387 MiB in the current repository) and
-`opencascade` itself (156 MiB): about 105 MB to download and **about 0.55 GiB installed**, for a
+**OCCT at run time (decision 18).** Arch's `opencascade` package depends on `vtk`, `tcl`, `tk`,
+`verdict` and `libxss`. Measured in the pinned image: installing it adds `tcl` (13 MiB), `tk` (12
+MiB), `libxss`, `verdict`, `vtk` (363 MiB at the pinned snapshot, 387 MiB in the current repository)
+and `opencascade` itself (156 MiB): about 105 MB to download and **about 0.53 GiB installed**, for a
 feature a user may never use. That is what an `opencascade` dependency would cost users who do not
-already have it. What the geometry kernel really needs is much smaller. As I built it (no makepkg
-flags) the kernel plugin records **29 OCCT libraries** as needed (56.5 MB), because IfcOpenShell links
-the whole `OpenCASCADE_LIBRARIES` list, including the STEP, IGES, XCAF and visualisation toolkits and,
-through them, `libX11`, `fontconfig` and `freetype`. The geometry work itself uses 17 toolkits
-(TKernel, TKMath, TKG2d, TKG3d, TKGeomBase, TKBRep, TKGeomAlgo, TKTopAlgo, TKPrim, TKBO, TKBool,
-TKShHealing, TKMesh, TKFillet, TKOffset, TKXSBase, TKHLR: **36.9 MB**), and Arch's `makepkg` default
-`LDFLAGS` include `--as-needed`, which should drop the unused ones; that must be checked in R097.a
-(check L6). Decision 18 chooses between depending on Arch's package, carrying a private copy of those
-libraries, and making OCCT optional.
+already have it. What the geometry kernel really needs is smaller, but I did not establish how much.
+As I built it (no makepkg flags, and the `OCC_*` shortcut) the kernel plugin records **20 OCCT
+libraries** directly (TKernel, TKMath, TKG2d, TKG3d, TKGeomBase, TKBRep, TKGeomAlgo, TKTopAlgo, TKPrim,
+TKBO, TKBool, TKShHealing, TKMesh, TKFillet, TKXSBase, TKOffset, TKHLR, TKBin, TKDESTEP, TKDEIGES) and
+29 with their dependencies (56.5 MB; the transitive set adds the XCAF, CAF and visualisation toolkits
+and, through them, `libX11`, `fontconfig` and `freetype`). The first 17 of those, which I expect to be
+the geometry's own, are **36.9 MB**; that expectation is unverified (no link or load test with only
+those was run, and upstream's own CMake carries a note that it is unsure when TKBin is needed). R097.a
+decides the set by linking with Arch's `makepkg` flags (which include `--as-needed`) and by loading
+the kernel with only those libraries present (check L6). Decision 18 chooses between depending on
+Arch's package, carrying a private copy of that set, and making OCCT optional.
+
+**Package shape (decision 22).** The libraries add about 22 MB (three schema libraries 13.6 MB, the
+mapping plugins 3.9 MB and the rest) plus the OCCT set of 37 to 57 MB, to a package whose present size
+I did not measure here. Arch allows a split package from one PKGBUILD (`pkgname=(sketchyup
+sketchyup-ifc)`), which keeps the default install small and confines the LGPL and OCCT obligations to
+the second package; the alternative is one package that always contains it.
 
 ### 1.5 Build time and CI
 
-**Prototype 2 (the recommended components).** In the pinned image with `boost`, `eigen`,
-`nlohmann-json` and `opencascade` installed, I built the same tag with IfcParse (schemas `2x3;4;4x3_add2`),
-IfcGeom, the OpenCASCADE kernel and IfcConvert, no CGAL, no Python (`-j4`, container limited to 4 CPUs
-and 10 GB):
+**Prototype 2 (the recommended components, with converters).** In the pinned image with `boost`,
+`eigen`, `nlohmann-json` and `opencascade` installed, I built the same tag with IfcParse (schemas
+`2x3;4;4x3_add2`), IfcGeom, the OpenCASCADE kernel **and IfcConvert with its plugins**, no CGAL, no
+Python (`-j4`, container limited to 4 CPUs and 10 GB):
 
 | Measure | Result |
 | --- | --- |
-| Build, 371 compile and link steps | **916 s (15.3 minutes)** |
+| Build, 401 compile and link steps | **916 s (15.3 minutes)** |
 | Compiler memory | 620 to 885 MB resident per compiler process (sampled) |
-| Staged install | 36 MB: about 22 MB of shared libraries (three schema libraries 13.6 MB, three geometry mapping plugins 3.9 MB, `IfcGeom` 1.5 MB, `IfcParse` 1.4 MB, the OCCT kernel 1.2 MB, the pass-through kernel 0.3 MB and others), about 12 MB of headers and 0.9 MB for IfcConvert |
-| `RUNPATH` | `$ORIGIN/../lib` (a `RUNPATH`: `LD_LIBRARY_PATH` can override it) |
-| Direct run-time dependencies | `libboost_program_options` and `libboost_container` (Boost's compiled libraries, so `boost-libs` is a run-time dependency), libstdc++, libm, libgcc, libc |
+| Staged install | 36 MB: about 22 MB of shared libraries (three schema libraries 13.6 MB, three geometry mapping plugins 3.9 MB, `IfcGeom` 1.5 MB, `IfcParse` 1.4 MB, the OCCT kernel 1.2 MB, the pass-through kernel 0.3 MB and others), about 10 MB of headers and 0.9 MB for IfcConvert |
+| `RUNPATH` | `$ORIGIN/../lib` for IfcConvert (a `RUNPATH`: `LD_LIBRARY_PATH` can override it) |
+| Direct run-time dependencies | `libboost_program_options` and `libboost_container`, libstdc++, libm, libgcc, libc |
 
-The build produced many plugins the package does not need (the OBJ, SVG, IGES, STEP, TTL, XML and
-IFC-writer converters, which are what pull in most of the OCCT toolkits); the sub-project installs only
-the parse, plugin, schema, geometry, mapping and kernel libraries and the helper, so the package's
-share is smaller than the prototype's and **at most about 15 minutes at `-j4` on a 4-CPU container**.
-On a CI runner (4 vCPUs, two physical cores; ADR 0170 measured tests running two to three times slower
-at full parallelism) a cold build should be about 20 to 30 minutes. The PKGBUILD's own comment puts
-the present package build at about 15 minutes, so a package build roughly doubles. Package acceptance
-therefore needs its own time allowance; the fast tier does not pay it (below).
+The recommended configuration (no IfcConvert, no converter plugins) was **not built**, so "at most
+about 15 minutes at `-j4` on a 4-CPU container" is an estimate (the schemas and mapping plugins, which
+dominate, are in both). On a CI runner (4 vCPUs, two physical cores; ADR 0170 measured tests running
+two to three times slower at full parallelism) a cold build should be 20 to 30 minutes. The PKGBUILD's
+own comment puts the present package build at about 15 minutes. **Package acceptance builds the
+package twice** (`packaging/arch/verify-package.sh` runs `makepkg` for the prior-release check at line
+109 and again for the current one at line 226) with `CMAKE_BUILD_PARALLEL_LEVEL` defaulting to 1, so the
+IFC cost is paid twice, and a user's default `makepkg` runs the sub-project at `-j1`: its CPU time is
+bounded above by 916 s × 4 CPUs, about an hour. Package acceptance (150-minute timeout in
+`native.yml`) and the package build need allowances for it, and the PKGBUILD should pass a parallelism
+to the sub-project.
 
 **How the tiers get it.** The helper is not needed by most changes, so it does not belong in every
 compile.
 
-- The IfcOpenShell sub-project builds into a **prefix** (`build/ifc-prefix`) from the vendored tree
-  only, so its output depends only on the vendored files, the image digest and the flags.
-- **Fast tier.** Pull requests that do not touch `third_party/ifcopenshell/**` restore the prefix
-  from an `actions/cache` entry keyed by the hash of the vendored tree, the image digest and the
-  build flags (a second cache beside ccache, because a 15- to 25-minute compile is not something to
-  recover through per-object ccache hits on a cold runner). A cache miss builds it once and saves
-  it; the nightly full tier keeps the entry warm. The path map gets an area `ifc` for
-  `third_party/ifcopenshell/**` (rebuild the prefix; run the IFC suites) and for `src/ifc/**` and
-  the IFC tests (run the IFC suites against the cached prefix). The other `src/**` rules are
-  unchanged and the app binary does not depend on the prefix.
+- The sub-project builds into a **prefix** (`build/ifc-prefix`) from the vendored tree only, so its
+  output depends only on the vendored files, the image's package set and the flags.
+- **Fast tier.** Pull requests that do not touch `third_party/ifcopenshell/**` restore the prefix from
+  an `actions/cache` entry keyed by the hash of the vendored tree, the image digest, the dated mirror
+  list and the installed package set (the inputs ADR 0170's package-cache key already uses) and the
+  build flags: a second cache beside ccache, because a 15- to 25-minute compile is not something to
+  recover through per-object ccache hits on a cold runner. A cache miss builds it once and saves it;
+  pushes to `main` and the nightly full tier keep the entry warm, and pull requests restore from
+  `main`. The first pull request after a change to the tree or the image pays the cold build, which is
+  well outside the five-minute target; that is accepted for a rare change. The path map gets an area
+  `ifc` for `third_party/ifcopenshell/**` (rebuild the prefix; run the IFC suites) and for `src/ifc/**`
+  and the IFC tests (run the IFC suites against the cached prefix). The other `src/**` rules are
+  unchanged and the application binary does not depend on the prefix.
 - **Full tier.** Builds the sub-project from source in the development build and in the sanitizer
-  job, so a cache problem cannot hide a defect, and runs the IFC suites on X11 and Wayland.
+  job, so a cache problem cannot hide a defect, and runs the IFC suites on X11 and Wayland. In the
+  sanitizer build the worker runs **without** `RLIMIT_AS` (ASan reserves a huge shadow mapping), the
+  system OCCT is not instrumented, and the sanitizer coverage of J3 is IfcOpenShell's own code.
 - **Package acceptance** builds the package from the source archive in the pinned container, so the
-  package build includes the sub-project: it is the cost in 1.5's table.
+  package build includes the sub-project, twice.
 - `ci-plan.py check` gains the rule so that every new path is covered, and the line inventory gains
   the IFC test lines.
 
 ### 1.6 Process isolation (decision 19)
 
 IfcOpenShell's parser is not bounded by us and its geometry kernel runs OCCT's Boolean and meshing
-algorithms on file-controlled shapes. Neither is fuzzed upstream for geometry (one libFuzzer
-harness, `ifcparse_fuzzer`, covers the parser). The in-house route would have given us limits; the
-shipped library gives us a **process boundary** instead. The recommendation follows ADR 0033:
+algorithms on file-controlled shapes. Upstream fuzzes the parser only. The in-house route would have
+given us limits; the shipped library gives us a **process boundary** instead. The recommendation
+follows ADR 0033 (`blender_job.cpp` already uses `QProcess::setChildProcessModifier` for
+`PR_SET_PDEATHSIG`):
 
-- `sketchyup-ifc-worker` is installed in `/usr/lib/sketchyup/` (not on `PATH`), run with a fixed
-  argv and no shell, in a private temporary directory, with its own process group.
-- The application checks the cheap things first, in its own bounded code: the file is a regular
-  file of at most 128 MiB, ends the P21 syntax at `END-ISO-10303-21;`, and its `FILE_SCHEMA` is one
-  of the three accepted values (a bounded header scan; `.ifczip` and `.ifcXML` are refused here too).
-- The worker runs with `RLIMIT_AS` (address space), `RLIMIT_CPU` and `RLIMIT_FSIZE`, a wall-clock
-  deadline enforced by the parent (terminate, then kill after one second), at most four geometry
-  threads, and `PR_SET_NO_NEW_PRIVS`. A crash, an out-of-memory kill or a timeout is a failed
-  import that leaves the application and the current document untouched. This is not an OS sandbox
-  for a hostile binary (ADR 0033's wording); it contains accidents and resource exhaustion, and
-  reduces what a parser defect can do to a short-lived helper with no document reference.
+- `sketchyup-ifc-worker` is installed in `/usr/lib/sketchyup/` (not on `PATH`), run with a fixed argv
+  and no shell, in a private temporary directory, in its own session (`setsid`) with
+  `PR_SET_PDEATHSIG`, so it dies with the application, and the directory is removed at start-up of the
+  next run if the application was killed. Its environment is scrubbed to a fixed set (the L2 test sets
+  `LD_LIBRARY_PATH` itself).
+- The application checks the cheap things first, in its own bounded code: the file is a regular file
+  of at most 128 MiB, it ends with `END-ISO-10303-21;`, and its `FILE_SCHEMA` is one of the three
+  accepted values (a bounded header scan; `.ifczip` and `.ifcXML` are refused here too). It then
+  **copies the file into the private directory and hashes the copy** (or passes an open descriptor),
+  so what is checked is what is read.
+- The worker runs with `RLIMIT_AS` (address space), `RLIMIT_CPU` (set to four times the deadline,
+  because four geometry threads use CPU time four times as fast as the wall clock) and `RLIMIT_FSIZE`,
+  a wall-clock deadline enforced by the parent (terminate, then kill after one second), at most four
+  geometry threads and `PR_SET_NO_NEW_PRIVS`. A crash, an out-of-memory kill or a timeout is a failed
+  import that leaves the application and the current document untouched. **This contains accidents
+  and resource exhaustion; it is not a sandbox.** The worker keeps the user's file and network access.
+  A real sandbox (Landlock restricting it to the private directory, and seccomp denying network
+  sockets) is possible on current kernels with a fallback to resource limits only; it is part of
+  decision 19's recommendation as a hardening step, not a requirement of R097.b.
+- **Crashes and hangs are per import, not per element.** The library has no per-element timeout (the
+  iterator uses `std::async`), so one hanging or crashing Boolean ends the whole run. The worker
+  reports the element it is on through a progress pipe; when it crashes or times out, the application
+  restarts it once or twice with that element excluded (the iterator takes an element filter), and
+  the report names the excluded elements and the reason. Failures the library reports (an exception,
+  an empty result) never refuse the import; a hang or crash costs a restart, and after three restarts
+  the import fails with the report so far.
 - Its output is **not** IfcOpenShell's data structures: it is a bounded, versioned **IFC conversion
   package** that the application decodes with its own checked decoder (a fuzz target, section 6):
-  a manifest (JSON, at most 32 MiB) with the units, georeference, spatial tree, elements,
-  properties, materials and report, and a binary mesh chunk (float64 positions and uint32 indices)
-  with a SHA-256 in the manifest. Imports and exports both go through it.
-- Progress is a short list of known phases; cancellation is the parent killing the worker.
+  a manifest (JSON, at most 32 MiB) with the units, georeference, spatial tree, elements, properties,
+  materials and report, and a binary mesh chunk (float64 positions and uint32 indices) with a SHA-256
+  in the manifest. Imports and exports both go through it.
+- Progress is a short list of known phases plus the current element; cancellation is the parent
+  killing the worker.
 
-This also answers the LGPL question tidily (1.3): the MIT application is not a combined work with
-the library; only the helper is.
+This also answers the LGPL question tidily (1.3): the MIT application is not a combined work with the
+library; only the helper is.
 
 ## 2. Schema and directions
 
@@ -381,7 +472,7 @@ the application builds.
 | `IfcElementAssembly` and `IfcRelAggregates` parts | Group containing the parts | Order follows `RelatedObjects` |
 | `IfcRelContainedInSpatialStructure` | The element's parent is the container's group | An element in no container goes under the project group, counted as a notice (`uncontainedElements`) |
 | `IfcRelNests`, `IfcRelDeclares`, `IfcProjectLibrary` | Not hierarchy | Counted as omitted; library type definitions are consumed only through types (below) |
-| `IfcZone`, `IfcSpatialZone`, `IfcSystem`, `IfcGroup` and `IfcRelAssignsToGroup` | Not groups | Membership is recorded on each member as the property `ifc.Groups` (a comma-joined list of at most 2,048 bytes), and the zone or system is counted as converted-to-properties |
+| `IfcZone`, `IfcSpatialZone`, `IfcSystem`, `IfcGroup` and `IfcRelAssignsToGroup` | Not groups | Membership is recorded on each member as the property `ifc.Groups` (a comma-joined list of at most 2,048 bytes), and the zone or system counts as `converted` (its membership was recorded) |
 | 4.3 `IfcFacility`, `IfcBridge`, `IfcRoad`, `IfcRailway` and other infrastructure spatial elements | A plain group if they contain at least one supported element; otherwise omitted | `ifc.Class` records the class; the notice states that infrastructure semantics are not interpreted |
 
 The group tree follows **containment and aggregation**, not the placement chain; the two often
@@ -435,10 +526,14 @@ the file's.
 
 **Openings.** `IfcOpeningElement` and `IfcRelVoidsElement` describe voids that most exporters do
 **not** subtract from the host's body. IfcOpenShell's kernel subtracts them by default
-(`MaxVoidsPerElement` bounds the work). The worker records, per host, how many voids the file
-declares and the library's log lines for failed subtractions (section 4), and the application
-reports `openingsDeclared`, `openingsNotApplied` (with the library's reason, bounded) and the
-elements affected. An opening that is not subtracted leaves the host uncut and the opening is
+(`DisableOpeningSubtractions` off). The worker records, per host, how many voids the file declares
+(from `IfcRelVoidsElement`) and the library's log lines for failed subtractions (section 4), and
+sets `MaxVoidsPerElement` to a bound that it reports: the library then processes **none** of the
+voids of a host that has more (a skip, not a cap on work), and those hosts are listed. The application
+reports `openingsDeclared`, `openingsNotApplied` (with the library's reason, bounded) and the elements
+affected. The prototype did not show how a failed subtraction appears, so R097.a includes a deliberately
+bad host and the worker detects "declared but not applied" by comparing declared voids with the log and,
+where the file carries a `NetVolume`, with the mesh volume. An opening that is not subtracted leaves the host uncut and the opening is
 imported **hidden on the tag `IFC Opening`** so the user can act on it; an applied opening is
 consumed, not imported. `IfcRelFillsElement` (a window in an opening) needs no action: the window's
 own placement puts it in the opening. Whether the library subtracted a void is **verified against
@@ -459,11 +554,13 @@ several occurrences share one `RepresentationMap`, the representation becomes a 
 Native faces are planar polygons; IFC solids are not. **Everything is tessellated** on import: the
 result is ordinary editable faces and edges, never a parametric record. The work of interpreting
 the representation items belongs to the library; the worker asks the iterator for the `Body`
-representation of each product in the `Model` context (settings: `ContextTypes` Model,
-`ContextIdentifiers` Body, the library's representation priority, `UseWorldCoords` off so that each
-element has its own local frame, `WeldVertices` on, the opening settings of 3.2, and a bounded
-mesher deflection), and receives, per element, a triangle mesh with a transformation, material
-indices and styles, item identifiers and feature edges.
+representation of each product in the `Model` context (settings: `ContextPriorities` ordered
+`Model/Body/MODEL_VIEW` first, because `ContextTypes` and `ContextIdentifiers` have no effect in
+`v0.9.0`; `UseWorldCoords` off so that each element has its own local frame; `WeldVertices` on; the
+opening settings of 3.2; and bounded mesher deflections), and receives, per element, a triangle mesh
+with a transformation, material indices and styles, and item identifiers; with the OCCT kernel also
+feature edges (the pass-through kernel emits none, so for tessellated items the adapter derives
+visible edges from face-normal angles instead).
 
 **What is claimed.** The library handles far more than this ADR can demonstrate. The claim is the
 **demonstrated** set, no more, and grows by adding fixtures:
@@ -567,8 +664,11 @@ unit is refused. **A file with no length unit is refused** (I did not verify whe
 `UnitsInContext` optional; either way, guessing would break the no-silent-scale rule that ADR 0168
 and the DXF importer already follow); the user can supply the length unit as an explicit override
 (`mm`, `cm`, `m`, `in`, `ft`), reported as an override. All native coordinates are metres: the worker
-asks the library for metre output (`LengthUnit`, `ConvertBackUnits` off) and the application checks
-the first and last coordinates of every mesh against `metresPerUnit`. Area and volume units are read
+asks the library for metre output (`ConvertBackUnits` off; `LengthUnit` is the library's own, not a
+setting we can use) and **verifies every mesh** against `metresPerUnit` computed from the file's units,
+because the library warns and assumes metres when the units are missing and the prototype's output unit
+differed between files that declare the same unit (1.2); an element whose mesh disagrees by more than
+1e-9 relative is not imported and is located. Area and volume units are read
 for quantity properties as described above; conversion-based area and volume units (square or cubic
 feet) use the same factor chain. `IfcPropertySingleValue.Unit` and `IfcPhysicalSimpleQuantity.Unit`
 override the project unit for that value: a recognised override (SI or a conversion-based unit of the
@@ -630,9 +730,12 @@ document has none.
 The iterator resolves styles: each mesh carries material indices and, per material, a diffuse
 colour, a transparency and a name, taken from the `IfcStyledItem` on the representation item
 (`IfcSurfaceStyle`, `IfcSurfaceStyleRendering.SurfaceColour`, with `Transparency` as 1 − opacity)
-and then from the `IfcMaterial`'s definition representation. Per-face colours from
-`IfcIndexedColourMap` arrive as per-triangle material indices and fill `Body.faceColors`. IFC does
-not define a colour space; values are treated as sRGB 0 to 1 and the report says so.
+and then from the `IfcMaterial`'s definition representation (the Architecture files' `.mtl` output in
+the prototype shows this working). **Per-face colours are not resolved by the library**:
+`IfcIndexedColourMap` is not read by the C++ geometry code (the prototype's sample with individual
+colours produced one default material), so the worker reads the colour map itself through IfcParse and
+the adapter fills `Body.faceColors` from it (check C6). IFC does not define a colour space; values are
+treated as sRGB 0 to 1 and the report says so.
 
 - **Materials.** An `IfcMaterial` becomes a native material of that name (shortened and made unique
   with a suffix, with a notice, as ADR 0110 does for glTF) carrying the colour and opacity. The
@@ -649,8 +752,8 @@ not define a colour space; values are treated as sRGB 0 to 1 and the report says
 
 The application captures the document into a bounded **export package** (the same container as the
 import package, 1.6); the worker builds the IFC4 file with IfcParse's typed entity classes and the
-hierarchy helper (`IfcFile::addEntity`, `IfcHierarchyHelper`: project, site, building, storey,
-placements, owner history), and writes it to a private temporary file; the application checks the
+`hierarchy_helper<Ifc4>` template (project, site, building, storey, placements, owner history), and
+writes it with `operator<<` on `ifcopenshell::file` to a private temporary file; the application checks the
 size and publishes it with the non-replacing publisher the other exporters use
 ([ADR 0114](0114-contained-obj-export-packages.md) and the DXF/STL exporters). No geometry kernel is
 used for export.
@@ -718,7 +821,7 @@ conversion was the library's.
   "properties": {"psets": 2, "properties": 6, "quantities": 25, "dropped": {}, "bytes": 0},
   "materials": {"materials": 8, "styledItems": 14, "layerSetsDescribed": 0},
   "accounting": {"entities": 371, "converted": 0, "supporting": 0, "omitted": 0},
-  "omittedEntities": {"IfcZone": 1},
+  "omittedEntities": {"IfcRelDeclares": 1},
   "losses": {"textures": 0, "materialLayering": 1},
   "kernelMessages": [{"category": "openingSubtraction", "count": 0}],
   "notices": [{"code": "georeferenceRotation", "count": 1, "message": "…"}],
@@ -747,7 +850,7 @@ most 128 kinds, with an `other` bucket past that, as in the DXF report.
 
 Refused with nothing created: a file over 128 MiB, an unsupported `FILE_SCHEMA`, a worker that ran
 out of its limits or time or crashed (reported as such, with its bounded log tail); more than the
-entity or geometry limits of 6.3; a missing or unsupported length unit (without an override); a
+entity or geometry limits of 6.4; a missing or unsupported length unit (without an override); a
 non-identity world coordinate system on the `Model` context; coordinates beyond ±1e6 m; and the
 document limits for the converted whole, named with counts. Per-element failures never refuse the
 import: the element is not imported and is located in the report.
@@ -803,7 +906,7 @@ All third-party data is **untrusted input** and is never executed. Fixtures live
 | Fixture | Source and licence | Purpose |
 | --- | --- | --- |
 | `bsi-ifc2x3-arch.ifc`, `bsi-ifc4-arch.ifc`, `bsi-ifc43-arch.ifc` (92,542, 142,325 and 141,965 bytes) | buildingSMART International, [Certification-datasets](https://github.com/buildingSMART/Certification-datasets) `Simple-Scene/Building-Architecture.ifc`, repository commit `80d976a9` (2026-09-04). **CC BY 4.0**, from the repository's `LICENSE` ("(C) buildingSMART International Ltd. … Creative Commons Attribution 4.0"). SHA-256 values in the appendix | The three-schema certification set: hierarchy (1 project, 1 building, 1 storey, 2 spaces, 4 walls, 3 slabs, 1 roof), faceted breps in 2x3 versus tessellated sets in IFC4 and 4.3, psets and quantity sets, material association, colours, classification reference, and the 60 degree map conversion |
-| `bsi-ifc4-landscaping.ifc`, `bsi-ifc4-road.ifc` (1,074,044 and 277,133 bytes) | Same repository and licence | Limits and refusal (a mid-size file); reporting of what the subset does not cover |
+| `bsi-ifc4-landscaping.ifc`, `bsi-ifc4-road.ifc` (1,074,044 and 277,133 bytes) | Same repository and licence | Limits and refusal (a mid-size file); reporting of what the subset does not cover; the road file's `IfcMapConversion` has no rotation (check F1) |
 | `rv-wall-with-opening-and-window.ifc`, `rv-basin-tessellation.ifc`, `rv-column-straight-rectangle-tessellation.ifc`, `rv-tessellated-item.ifc`, `rv-tessellation-with-individual-colors.ifc` (12,492, 12,131, 4,594, 5,199 and 2,593 bytes) | Same repository, folder `ISO Spec - ReferenceView_V1.2`, CC BY 4.0 by the repository licence. The file headers name another author (RDF Ltd., 2011). Decision 11 approved including them | Wall with opening and window (extrusions, `IfcRelVoidsElement`, `IfcRelFillsElement`), tessellation, per-face colours |
 | Original fixtures (MIT, generated by the test sources or hand-written P21): `units-mm.ifc`, `units-m.ifc`, `units-ft.ifc`, `units-missing.ifc`, `mapconv-zero-rotation.ifc`, `mapconv-60deg-scale.ifc`, `extrusion-profiles.ifc` (rectangle, circle, arbitrary, with voids, with hand-computed volumes), `clipped-wall.ifc`, `mapped-items.ifc`, `openings.ifc` (closed and open hosts), `psets-types-escapes.ifc`, `unsupported-all.ifc` (an advanced brep, an alignment, an unsupported placement, a cycle in placements), `far-from-origin.ifc`, `limits-*.ifc` generators | The project, MIT ([ADR 0001](0001-baseline.md): original examples) | Every claim not covered by buildingSMART's set, and every refusal |
 | `malformed/*.ifc` and fuzz seeds | The project | Truncation, a missing `ENDSEC`, unterminated string, bad escapes, deep nesting, a huge list, duplicate IDs, forward references, 1e308 coordinates, a 128 MiB + 1 byte file |
@@ -835,9 +938,10 @@ sources that do not share its code:
 4. **Round trips**: export, then import, then compare; and the glTF, OBJ and DXF import fixtures
    exported to IFC and read back. These check our adapter, not the library.
 5. **External validators, run by hand at acceptance**: the buildingSMART validation service on the
-   golden exports, and a second reader if one is available (web-ifc through Node, or IfcOpenShell's
-   own `ifcopenshell.validate`, which is the same engine and therefore only a consistency check).
-   Results are recorded in the acceptance record, not made CI gates.
+   golden exports, and a second reader if one is available (web-ifc through Node; IfcOpenShell's own
+   Python `ifcopenshell.validate` is the same engine and therefore only a consistency check, and the
+   wrapper is not part of the build). Results are recorded in the acceptance record, not made CI
+   gates.
 6. **Golden outputs**: the exports and the import reports of the fixtures are checked in, and CI
    compares bytes (with the timestamp injected), so a library or adapter regression shows as a diff
    even though CI has no second reader.
@@ -848,13 +952,13 @@ sources that do not share its code:
 | --- | --- |
 | Named fixtures preserve claimed units | A1: every vertex of the mm, m and ft fixtures is within 1e-9 m of `source × metresPerUnit` (exact for m), checked against hand-computed coordinates; the report states `metresPerUnit`, exactness and any override. A2: quantity values equal the raw-text scan's with the project's area and volume units (7 area, 7 volume and 11 length quantities in the IFC4 Architecture file). A3: a missing length unit is refused, and accepted with the override, reported as one. A4: a non-SI, non-inch, non-foot length unit is refused. A5: a property or quantity with its own `Unit` is converted or listed unconverted, and a conversion-based area or volume unit converts |
 | Named fixtures preserve claimed hierarchy | B1: on the three Architecture files and the Reference View wall, the group tree equals the raw-text scan's tree by `GlobalId` (project, site, building, storey, containment, aggregation), including both IFC4 sites; B2: counts per class equal the scan's; B3: the element order within a parent follows the file; B4: `ifc.Groups` equals the file's group, system and zone membership; B5: tags per class; B6: duplicate `GlobalId` in a file, two parents and a containment cycle are noticed or reported as specified; B7: a layer with `LayerOn` false imports its bodies hidden |
-| Named fixtures preserve claimed properties | C1: every `Pset.Property` and `Qto.Quantity` equals the raw-text scan's (strings, booleans, doubles) with type-level properties copied to occurrences unless overridden; C2: `\X2\` and `\S\` escapes decode; C3: the 128-per-body cap (provenance reserved), the 8 MiB aggregate cap and the chunk-remainder cap drop and count, deterministically, and a document whose geometry alone exceeds the chunk is refused; C4: `ifc.GlobalId`, `ifc.Class`, `ifc.Step`, `ifc.Representation` on every body; C5: the classification reference is retained with its URI |
+| Named fixtures preserve claimed properties | C1: every `Pset.Property` and `Qto.Quantity` equals the raw-text scan's (strings, booleans, doubles) with type-level properties copied to occurrences unless overridden; C2: `\X2\` and `\S\` escapes decode; C3: the 128-per-body cap (provenance reserved), the 8 MiB aggregate cap and the chunk-remainder cap drop and count, deterministically, and a document whose geometry alone exceeds the chunk is refused; C4: `ifc.GlobalId`, `ifc.Class`, `ifc.Step`, `ifc.Representation` on every body; C5: the classification reference is retained with its URI; C6: the per-face colours of `rv-tessellation-with-individual-colors.ifc` equal the file's `IfcIndexedColourMap` (read by the adapter, since the library does not) |
 | Unsupported entities are reported | D1: the accounting identity holds on every fixture (`converted + supporting + omitted = entities`, with the total from the raw-text scan); D2: `unsupported-all.ifc` lists each unsupported class, with at most 32 locations and complete counts; D3: an element with an unsupported placement, a cycle or no geometry is not imported and is located; **nothing is imported at the origin**; D4: a reference to an undefined ID is a notice, not a crash |
 | Converted geometry remains inspectable | E1: the whole document passes native validation (`decodeDocument(encodeDocument())`) and a save and reopen is bit-exact; E2: areas and volumes of tessellated sets and of polygonal-profile extrusions equal the hand-computed values to 1e-6 relative; a curved profile's volume is within the reported deflection of the analytic value; E3: the Reference View wall's volume equals the hand-computed value **with the opening subtracted** (and the same file with the subtraction disabled shows the larger volume, so the check is not vacuous); a host the library could not cut is left uncut with the opening hidden on its tag and located in the report; E4: coplanar triangles merge into polygon faces (a wall side is one face) and a non-planar case stays triangles and is counted; E5: a body is selectable, editable and undoable like any other (one edit makes the whole import one undo step); E6: each body's provenance properties resolve to the right source entity; E7: mesh volumes and areas agree with the files' own `NetVolume` and `GrossArea` quantities where present, within 1e-3 relative (they were computed by another program) |
-| Georeferencing (claimed only as far as shown) | F1: θ = 0 and matching scale set the site origin to the E, N and H within 1e-9 m and the label; the document is schema 29; F2: the 60 degree fixture imports with `keepAxes` and no site origin, with the full conversion in the report; with `grid`, each vertex equals the hand-computed mapped coordinate minus the translation to within 1e-9 m; F3: a model beyond ±1e6 m is refused naming the extent; F4: a `MapUnit` of US survey foot, a non-identity `WorldCoordinateSystem` and two map conversions are each handled as specified (reported, or the file refused) |
-| Export is demonstrated | G1: the golden exports pass the validators of 6.2 (the buildingSMART service by hand, `ifcopenshell.validate` and the raw-text scan in CI); entity, hierarchy, property, unit and georeference counts equal the document's; G2: an export of the glTF, OBJ and DXF import fixtures and of a document built from commands re-imports to the same bodies, vertex coordinates within 1e-9 m, hierarchy and properties; G3: two exports of one document with a fixed timestamp are byte-identical; G4: the report counts every non-exported kind; G5: a CRS label of authority-code form is required for `IfcMapConversion`, and its absence or a free-text label is reported; G6: golden exports are checked in and CI compares the bytes; G7: duplicate and invalid `ifc.GlobalId` values (a copied body) get derived identifiers and are counted |
+| Georeferencing (claimed only as far as shown) | F1: θ = 0 and matching scale set the site origin to the E, N and H within 1e-9 m and the label; the document is schema 29 (`bsi-ifc4-road.ifc` is a ready fixture: its `IfcMapConversion` is E 729011.2258823584, N 9063960.607644705, H 0, axis (1, 0), scale 0.001, millimetre units, `EPSG:32760`); F2: the 60 degree fixture imports with `keepAxes` and no site origin, with the full conversion in the report; with `grid`, each vertex equals the hand-computed mapped coordinate minus the translation to within 1e-9 m; F3: a model beyond ±1e6 m is refused naming the extent; F4: a `MapUnit` of US survey foot, a non-identity `WorldCoordinateSystem` and two map conversions are each handled as specified (reported, or the file refused) |
+| Export is demonstrated | G1: the golden exports pass the raw-text scan, re-read through the helper's own IfcParse (which type-checks attributes) and, by hand at acceptance, the buildingSMART validation service and `ifcopenshell.validate` (the Python wrapper is not built or shipped, so neither is a CI gate); entity, hierarchy, property, unit and georeference counts equal the document's; G2: an export of the glTF, OBJ and DXF import fixtures and of a document built from commands re-imports to the same bodies, vertex coordinates within 1e-9 m, hierarchy and properties; G3: two exports of one document with a fixed timestamp are byte-identical; G4: the report counts every non-exported kind; G5: a CRS label of authority-code form is required for `IfcMapConversion`, and its absence or a free-text label is reported; G6: golden exports are checked in and CI compares the bytes; G7: duplicate and invalid `ifc.GlobalId` values (a copied body) get derived identifiers and are counted |
 | Determinism | H1: two imports of every fixture give identical encodings (the worker is single-threaded in tests and the library's meshing is deterministic for a given input; any difference is a defect to report upstream or pin); H2: import of an input with its instances shuffled in file order gives the same document except for `ifc.Step` and the order that file order defines (B3) |
-| Limits and refusal | I1: the 128 MiB limit and an over-limit entity count refuse with the count and the limit named, creating no document; the geometry limits (100,001 faces, 10,001 bodies, 1,025 materials) refuse or report per element as specified; I2: messages ≤ 256 bytes; the report ≤ 64 KiB; I3: a worker that exceeds `RLIMIT_AS`, its CPU limit or its deadline, or is killed with SIGSEGV mid-run, gives a failed import with its log tail, leaves the application running, and creates no document; the generated 1,000,000-instance and 20,000-wall files of 6.4 are used to trigger the limits |
+| Limits and refusal | I1: the 128 MiB limit and an over-limit entity count refuse with the count and the limit named, creating no document; the geometry limits (100,001 faces, 10,001 bodies, 1,025 materials) refuse or report per element as specified; I2: messages ≤ 256 bytes; the report ≤ 64 KiB; I3: a worker that exceeds `RLIMIT_AS`, its CPU limit or its deadline, or is killed with SIGSEGV mid-run, is restarted with the element it was on excluded (at most three times) and then gives either a partial import that names the excluded elements or a failed import with its log tail; the application keeps running and the current document is unchanged; the generated 1,000,000-instance and 20,000-wall files of 6.4 are used to trigger the limits |
 | Library packaging and licence | L1: the SketchyUp binary, the CLI and every other executable have **no** dynamic dependency on any IfcOpenShell or OCCT library (`readelf`), and only `sketchyup-ifc-worker` does; L2: replacing `libifcopenshell.parse.so` and the plugin libraries with a rebuild of the same source in a scratch directory through `LD_LIBRARY_PATH` makes the worker use them (its `--probe` prints the loaded paths), which shows the shared-library mechanism works; L3: the package contains the notices of 1.3 and the vendored tree's commit equals the pinned one; L4: `THIRD_PARTY_NOTICES`, the PKGBUILD licence array and `dependencies.json` are updated; L5: no GPL-3.0-or-later library is linked (`ldd` and `readelf` over the helper and the installed libraries); L6: the OCCT libraries the kernel plugin records are exactly the geometry subset (the build uses Arch's `--as-needed` link flags), all are in the package, and with the kernel plugin or any one of them removed the helper's probe reports "kernel unavailable" (no abort, no core dump) while export and the pass-through kernel still work |
 | Parsers and fuzzing | J1: `parser_fuzz_ifc_package`, the application's decoder of the worker's output (manifest and mesh chunk), with seeds from the fixtures' packages: it must stay within its bounds and re-encode what it accepts; J2: `parser_fault_corpus_tests` mutates the certification files 512 times each through the worker's dry run **in a child process**; J3: the upstream `ifcparse_fuzzer` is built from the vendored tree with Clang and ASan/UBSan and run for at least five minutes per release, and a `worker` target (parse and geometry iteration of an input, run in the sanitizer job against the sanitizer build of the library) is run for the same time at acceptance, since upstream does not fuzz geometry; findings go upstream; J4: the harness runs every input twice and compares |
 | Support claims | K1: the support matrix row, user guide section and the exchange-boundaries table state exactly the claimed schemas and directions, and name the unsupported classes as listed in the report; K2: the fixture `NOTICE.md` carries the CC BY 4.0 attribution and the IFC trademark credit |
@@ -876,13 +980,21 @@ image; these show what the library does inside the limits):
 | 20,000 extruded rectangular walls (220,000 instances, 11 MB, 240,000 triangles) | 11.0 s on one thread, 6.5 s on four (24 s of CPU), 178 to 182 MiB resident; the same run under an address-space limit of 512 MiB still completes |
 | The five buildingSMART Reference View samples and the three Architecture files | 40 to 200 ms each |
 
+These are **not representative of real models**: the large parse files are unreferenced
+`IfcCartesianPoint` lines (the run exits with "no geometry", and the accounting traversal will touch
+every instance), the walls are 20,000 identical boxes without openings, the address-space experiment
+was single-threaded, and the four-thread output differed from the single-thread output in product
+order. They show the order of magnitude (about 0.25 GiB per million instances; about 0.5 ms per simple
+extruded element) and that the limits below have room on simple input; R097.a repeats them with the
+Architecture files multiplied into a large model with openings.
+
 Proposed limits (to be confirmed once the whole path, including the adapter, exists):
 
 | Limit | Value | Reason |
 | --- | --- | --- |
 | File size | 128 MiB, checked by the application before the helper starts | The glTF package bound (ADR 0109); measured parse of 114 MB is 1.5 s |
 | Entity instances | 2,000,000, counted by the worker after the parse | Measured: about 0.5 GiB resident at the limit |
-| Helper resource limits | Address space 4 GiB; CPU time 120 s; wall-clock deadline 120 s; output file 256 MiB; four geometry threads | The library has no limits of its own; these turn exhaustion into a failed import. The 512 MiB experiment above shows the margin on ordinary files |
+| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s and CPU time 480 s (four threads); output file 256 MiB; four geometry threads | The library has no limits of its own; these turn exhaustion into a failed import. The 512 MiB experiment above shows the margin on ordinary files |
 | Triangles from the kernel | 1,000,000 in total; 100,000 per element | The native per-body limit; the application merges coplanar triangles into far fewer faces |
 | Package | Manifest at most 32 MiB; mesh chunk at most 128 MiB | Bounds the decoder |
 | Geometry after conversion | The native document limits (100,000 vertices and faces, 10,000 body records, 600,000 faces materialized, 1,024 materials) | A larger file is refused with the count and the limit, or, element by element, imported partially and reported; **no IFC-specific widening of the modelling limits** |
@@ -918,25 +1030,36 @@ limits prove tight); MCP and assistant exposure.
 - **Packaging weight and shape.** The helper, three schema libraries and a geometry kernel arrive
   with every package, plus OCCT in one of the three ways of decision 18. This is the main cost of the
   owner's choice and is quantified in section 1.
-- **Build time.** Roughly 15 minutes at `-j4` added to a package build that is about 15 minutes
-  now (estimates in 1.5). The prefix cache keeps it out of the fast tier; a change to the vendored tree
-  or to the image rebuilds it. The first full-tier run after this lands needs time allowances.
+- **Build time.** An estimated 15 minutes at `-j4` (up to an hour of CPU at `-j1`) added to a package
+  build that is about 15 minutes now, **paid twice** by package acceptance (estimates in 1.5). The prefix
+  cache keeps it out of the fast tier; a change to the vendored tree or to the image rebuilds it, and the
+  first pull request after such a change pays a cold build far beyond the five-minute target. The first
+  full-tier run after this lands needs time allowances.
 - **Unbounded library.** IfcOpenShell's parser and OCCT's algorithms have no limits that we set, and
-  geometry is not fuzzed upstream. Mitigation: the process boundary and resource limits (1.6), a
-  bounded decoder in the application, and our own fuzz and crash tests. A parser defect can still
-  crash the helper or consume its limits; it cannot, by design, touch the document.
+  geometry is not fuzzed upstream. Mitigation: the process boundary and resource limits (1.6), restart
+  with the culprit excluded, a bounded decoder in the application, and our own fuzz and crash tests. A
+  defect can still crash the helper or consume its limits; it cannot, by design, touch the document. It
+  is **not** a sandbox: the helper has the user's file and network access until the Landlock and seccomp
+  hardening of decision 19 exists, and one hung element costs a restart.
+- **The library's silent behaviours.** Found in the prototype and the source: output units that differed
+  between files declaring the same unit; a warning-only fallback to metres for missing units; no
+  per-face colours; the pass-through kernel returning empty geometry for an extruded wall without
+  saying so; thread-dependent output order. The adapter verifies units, reads colour maps itself,
+  treats empty output as "no geometry" and sorts by `#id`; each has a check. Others will exist that
+  the prototype, which used `IfcConvert` rather than the API, could not show.
 - **API and ABI churn.** The typed entity API and the geometry settings changed between 0.8 and 0.9;
   the schema and kernel plugins load by name at run time from a directory. The version is pinned and
   the plugin directory is private; an upgrade is a deliberate slice with the checks re-run.
-- **OCCT and the Arch package graph.** Arch's `opencascade` package pulls in VTK, Tcl and Tk (about 0.55 GiB installed). Depending on it
+- **OCCT and the Arch package graph.** Arch's `opencascade` package pulls in VTK, Tcl and Tk (about 0.53 GiB installed). Depending on it
   is simple and costs users that much; carrying a private subset (decision 18) avoids it but makes us
   distributors of OCCT (a source offer, a licence text, a rebuild when OCCT's ABI moves between
   snapshots; the pinned image makes that deterministic); making it optional leaves extrusions and
   Booleans unreadable until the user installs it. The OCCT version is also a pin: Arch has 7.9.3,
   upstream is at V8.0.1; IfcOpenShell requires 7.5.1 or later and I did not test V8.
-  The library also **aborts** instead of failing cleanly when the OCCT kernel plugin cannot be loaded
-  (prototype: an uncaught `boost::wrapexcept<std::system_error>` and a core dump in IfcConvert), so the
-  helper must probe for the kernel before use and treat its absence as a normal state.
+  `IfcConvert` **aborts** instead of failing cleanly when the OCCT kernel plugin cannot be loaded
+  (prototype: an uncaught `boost::wrapexcept<std::system_error>` and a core dump); whether the API the
+  worker uses throws something catchable was not tested, so the worker probes for the kernel before use
+  and treats its absence as a normal state.
 - **Opening and Boolean failures.** OCCT Booleans fail on some real exporter output;
   `openingsNotApplied` could be common on messy models. The library's log is captured so the user is
   told, and the fixtures include a deliberately bad host.
@@ -951,10 +1074,9 @@ limits prove tight); MCP and assistant exposure.
   report and the user guide say so; exporting does not require it.
 - **Property volume.** A full property load can exceed the 32 MiB model chunk. The 8 MiB cap and the
   serialized-size check are the guard; the cap may need tuning.
-- **Licences.** The LGPL reading of 1.3 and the CC BY 4.0 and trademark duties of the fixtures need
-  the owner's confirmation; no legal opinion is claimed. The IFC specification's CC BY-ND wording
-  matters only if code is generated from it, which this design no longer does (the library carries
-  its own generated schema code, under its own licence).
+- **Licences.** The LGPL reading of 1.3, the redistribution of IfcOpenShell's generated schema code
+  (made from buildingSMART's CC BY-ND schemas), the IFC trademark credit and the CC BY 4.0 duties of
+  the fixtures need the owner's confirmation (Q1); no legal opinion is claimed.
 - **Colour space.** IFC does not define one; treating values as sRGB may shift appearance.
 - **Upstream health.** 2,054 open issues, a single main maintainer line and a rapid release cadence
   (0.8.5 in 2026, 0.9.0 on 2026-10-01). The pin protects us from churn; it also means security fixes
@@ -964,7 +1086,9 @@ limits prove tight); MCP and assistant exposure.
 
 Decisions 1 to 16 were **approved by the owner on 2026-10-22** ("Just use IfcOpenShell. I don't want
 to build it. I approve all."); decision 1 is as the owner chose it, 2 to 16 as recommended.
-Decisions 17 to 21 are new, arise from shipping the library, and are proposed.
+Decisions 17 to 22 are new, arise from shipping the library, and are proposed. Decisions 5, 12 and 14
+were reworded after the blanket approval because the library changes their mechanism; question Q2 asks
+the owner to re-confirm that wording.
 
 1. **Library:** IfcOpenShell, vendored, shipped and linked dynamically; no in-house IFC reader,
    writer or geometry interpreter. *Approved 2026-10-22.*
@@ -976,7 +1100,7 @@ Decisions 17 to 21 are new, arise from shipping the library, and are proposed.
    of parametric solids. *Approved.*
 5. **Import geometry:** tessellate everything into editable faces; openings are subtracted (now by
    the library's kernel) and reported when they are not, with the host uncut and the opening hidden.
-   *Approved; the mechanism is IfcOpenShell's.*
+   *Approved; wording revised for decision 1 (Q2).*
 6. **Georeferencing with a rotated or scaled map conversion:** keep the project axes and report
    (default), with an opt-in grid-aligned mode; a site rotation is a separate row. *Approved.*
 7. **Models beyond ±1e6 m:** refuse with the extent stated; shifting (with or without setting a site
@@ -992,11 +1116,11 @@ Decisions 17 to 21 are new, arise from shipping the library, and are proposed.
 12. **Checking the result:** originally an IfcOpenShell oracle; the library is now the component
     shipped, so the checks use independent sources (6.2): a raw-text scan, published expectations and
     the files' own quantities, hand-computed fixtures, round trips, external validators by hand and
-    golden outputs. *Approved; revised for decision 1.*
+    golden outputs. *Approved; wording revised for decision 1 (Q2).*
 13. **Assistant and MCP:** no new commands, queries or assistant tools; assistant exposure needs a
     new corpus version. *Approved.*
 14. **Budgets:** adopt the table in 6.4, to be confirmed by measurement before they are frozen.
-    *Approved; revised for the library.*
+    *Approved; wording revised for the library (Q2).*
 15. **Desktop UX:** commission and approve a UX design before R097.f starts (best commissioned once
     R097.b lands and the report is real). *Approved.*
 16. **GlobalId stability:** deterministic derivation from the document identity (already stored in
@@ -1005,18 +1129,24 @@ Decisions 17 to 21 are new, arise from shipping the library, and are proposed.
 17. **How IfcOpenShell gets into the package:** vendor a trimmed, pinned source tree in
     `third_party/ifcopenshell/` and build it with our CMake as private shared libraries; not an AUR
     dependency, not a build-time download. *Proposed.*
-18. **OCCT (the geometry kernel's own dependency):** carry a **private copy of the OCCT libraries the kernel needs** (about 17 toolkits, about 37
-    MB, copied from Arch's `opencascade` package at package-build time and installed beside the
+18. **OCCT (the geometry kernel's own dependency):** carry a **private copy of the OCCT libraries the kernel needs** (the geometry toolkits, about 37 to
+    57 MB, copied from Arch's `opencascade` package at package-build time and installed beside the
     IfcOpenShell libraries), with OCCT's licence text and a written source offer; not a dependency on Arch's
     `opencascade` package (about 0.55 GiB installed for users, because it pulls VTK, Tcl and Tk), and not
     an optional dependency like Blender (which would leave extrusions and Booleans unreadable until the
     user installs it). *Proposed.*
 19. **Process isolation:** run IfcOpenShell only inside a separate helper process
-    (`sketchyup-ifc-worker`) with resource limits, speaking a bounded package format. *Proposed.*
+    (`sketchyup-ifc-worker`) with resource limits, restart-on-crash with the culprit element excluded,
+    and a bounded package format; a Landlock and seccomp sandbox as a later hardening where the kernel
+    allows it. *Proposed.*
 20. **Build time and CI:** accept the extra package-build time; give the fast tier a cached prefix
     keyed by the vendored tree; build from source in the full tier and the package job. *Proposed.*
 21. **Version policy:** pin `ifcopenshell-v0.9.0`; upgrade only by an explicit change that re-runs
-    the checks. *Proposed.*
+    the checks; the project maintains the trim of the vendored tree. *Proposed.*
+22. **Package shape:** build IFC in by default in release packages (`SKETCHYUP_BUILD_IFC` on; off for
+    developers who do not need it), shipped as a **separate optional package `sketchyup-ifc`** from the
+    same PKGBUILD, so the default install stays small and the LGPL and OCCT obligations attach only to
+    it. *Proposed.*
 
 ## Implementation split
 
@@ -1027,9 +1157,13 @@ limits.
 
 - **R097.a: Library, helper skeleton and packaging.** Vendor the trimmed tree with the pin and
   notices; the `SKETCHYUP_BUILD_IFC` CMake sub-project (three schemas, one kernel, shared libraries,
-  `RUNPATH`); `sketchyup-ifc-worker --probe` (versions, loaded libraries, kernel); the PKGBUILD,
+  `RUNPATH`, flat private directory); `sketchyup-ifc-worker --probe` (versions, loaded libraries, kernel
+  availability), and a **probe of the iterator, settings and writer API** that re-checks every library
+  claim of 1.2 (units, voids, colours, per-element failure); the PKGBUILD (and the split package of
+  decision 22),
   `dependencies.json`, notices, packaging README section and CI integration (prefix cache, path-map
-  area, image packages, line inventory). **Verify:** L1–L6, the prefix builds in the pinned image and
+  area, image packages, line inventory). **Verify:** L1–L5 and the kernel-probe part of L6 (the export
+  and pass-through parts of L6 run when slices d and b land), the prefix builds in the pinned image and
   in the fast tier from the cache, the package acceptance job builds and installs the package with the
   helper, nothing else changes (every existing test passes), and the build-time and size numbers are
   recorded.
@@ -1038,7 +1172,8 @@ limits.
   materials, the accounting traversal, library messages) with its resource limits and deadline; the
   application's conversion (planar-patch merge, tags, properties caps, new unsaved document in one
   edit, native validation); the report v1; `--import-ifc`. **Verify:** A1–A5, B1–B7, C1–C5, D1–D4,
-  E1–E7, H1, H2, I1–I3, J1, J2 on the certification set and the originals; the whole import is one
+  E1–E7, H1, H2, I1–I3, J1, J2 on the certification set and the originals, including the crash-and-
+  restart path of 1.6; the whole import is one
   undo step; the claimed representations of 3.3 each have a passing fixture.
 - **R097.c: Georeferencing.** `IfcMapConversion` and `IfcProjectedCRS` in the worker, the site-origin
   mapping, the rotation decision and grid mode, far-from-origin refusal, schema-29 notice. **Verify:**
@@ -1086,12 +1221,24 @@ limits.
 15. **Desktop UX:** commission a UX design for the Import and Export IFC dialogs and the report before R097.e. *Decided 2026-10-22: approved.*
 16. **GlobalId stability:** deterministic GlobalIds from the document identity and the stable body ID; imported GlobalIds kept when valid and unique. *Decided 2026-10-22: approved.*
 17. **Packaging:** vendor a trimmed pinned source tree and build it ourselves; not the AUR, not a build-time download. *Proposed.*
-18. **OCCT:** carry a private copy of the OCCT libraries the kernel needs (about 37 MB) instead of
-    depending on Arch's `opencascade` (about 0.55 GiB installed for users) or making it optional. *Proposed.*
-19. **Process isolation:** IfcOpenShell runs only in a separate helper process with resource limits. *Proposed.*
-20. **Build time and CI:** accept the extra package-build time and use a cached prefix in the fast tier. *Proposed.*
-21. **Version policy:** pin 0.9.0; upgrade only by an explicit change. *Proposed.*
+18. **OCCT:** carry a private copy of the OCCT libraries the kernel needs (about 37 to 57 MB) instead of depending on Arch's `opencascade` (about 0.53 GiB installed for users, because it pulls VTK, Tcl and Tk) or making it optional. *Proposed.*
+19. **Process isolation:** IfcOpenShell runs only in a separate helper process with resource limits, restarts after a crash with the culprit element excluded, and a sandbox (Landlock, seccomp) as a later hardening. *Proposed.*
+20. **Build time and CI:** accept the extra package-build time (about 15 minutes or more, paid twice by package acceptance) and use a cached prefix in the fast tier. *Proposed.*
+21. **Version policy:** pin 0.9.0; upgrade only by an explicit change that re-runs the checks; the project maintains the trim. *Proposed.*
+22. **Package shape:** IFC built into release packages by default, shipped as a separate optional package `sketchyup-ifc`. *Proposed.*
 
+## Questions for the owner
+
+- **Q1. Licence confirmation.** Please confirm, with counsel if you wish, three points this ADR could
+  not settle: that shipping IfcOpenShell as dynamically linked LGPL libraries beside an MIT
+  application, with a written source offer, satisfies LGPL-3.0 and, for the bundled OCCT libraries,
+  LGPL-2.1; that redistributing IfcOpenShell's generated schema code (made from buildingSMART's
+  CC BY-ND EXPRESS schemas) is acceptable; and that crediting IFC and ifcXML as buildingSMART
+  trademarks in the user guide and fixture notice is enough. Also the CC BY 4.0 fixtures.
+- **Q2. Re-confirm reworded decisions.** Decisions 5 (openings are now subtracted by the library, and
+  how a failure shows is still to be proven), 12 (the checks no longer use an IfcOpenShell oracle) and
+  14 (the budgets now describe a helper process) were reworded after your blanket approval. Please
+  confirm the new wording.
 ## Appendix: evidence and sources
 
 All read on 2026-10-22 unless stated. `gh`/GitHub API and PyPI JSON were used for facts about
@@ -1128,9 +1275,10 @@ pages and are marked as such.
   -DBUILD_GEOMSERVER=OFF -DBUILD_EXAMPLES=OFF -DCOLLADA_SUPPORT=OFF -DBUILD_BONSAIVIEWER=OFF
   -DSCHEMA_VERSIONS="2x3;4;4x3_add2"` (without the two `OCC_*` variables Arch's OCCT CMake
   configuration fails to load, because it refers to VTK's own dependencies), then
-  `cmake --build --parallel 4` in a container limited to 10 GB and 4 CPUs: 916 s, 371 steps.
+  `cmake --build --parallel 4` in a container limited to 10 GB and 4 CPUs: 916 s, 401 steps.
   Results used in sections 1 and 6: staged install 36 MB; `RUNPATH $ORIGIN/../lib`; the OCCT
-  kernel records 29 OCCT libraries (56.5 MB, 17 of them the 36.9 MB geometry subset); `IfcConvert`
+  kernel records 20 OCCT libraries directly and 29 with their dependencies (56.5 MB; the 17 I expect to
+  be the geometry's own are 36.9 MB, unverified); `IfcConvert`
   on the buildingSMART samples (OBJ output): the Reference View wall gives a wall volume of exactly
   1.5e9 mm³, which is the hand-computed 3000 × 300 × 2000 − 1000 × 300 × 1000, and 1.8e9 mm³ with
   `--disable-opening-subtractions`, so the library subtracts the opening; the window is 2e8 mm³; the
