@@ -16,18 +16,28 @@
 // - Hover refusals: off a terrain and with no terrain in the model.
 // `--screenshots DIR` saves the Terrain menu and a Sculpt stroke; `--text-percent N` runs
 // everything at that interface text size.
+#include "app/collapsible_section.hpp"
+#include "app/terrain_edits_section.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/terrain_tool_strip.hpp"
+#include "terrain_run_hold.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "core/terrain_source_edit.hpp"
+#include "core/terrain_sources.hpp"
 #include "core/terrain_stamp.hpp"
+#include "core/terrain_drape.hpp"
+#include "core/groups.hpp"
+#include "core/materials.hpp"
 #include "io/document_io.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDialog>
@@ -47,9 +57,13 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTabWidget>
+#include <QTreeWidget>
+#include <QListWidget>
 #include <QWidgetAction>
 #include <cmath>
 #include <iostream>
+#include <numbers>
 using namespace sketchy;
 namespace {
 QString shots;
@@ -161,6 +175,44 @@ Id hill(Window &window, int n = 61, double height = 4) {
     view->fit();
     QTest::qWait(30);
     return terrain;
+}
+// R096.f2: a hill of closed elliptic contour rings 3 m apart, 0.5 m lower each (ring k: radius
+// 10 + 3 k along y, 1.3 times that along x, at 105 - 0.5 k m), as terrain_sculpt_tests builds it.
+Id rings(Window &window, int count = 8, int vertices = 48) {
+    QByteArray out = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\n"
+                     "ENDSEC\n0\nSECTION\n2\nENTITIES\n";
+    for (int k = 0; k < count; ++k) {
+        const double r = 10 + 3 * k, z = 105 - 0.5 * k;
+        out += "0\nLWPOLYLINE\n5\n" + QByteArray::number(0x100 + k, 16).toUpper() +
+               "\n8\nCONTOURS\n90\n" + QByteArray::number(vertices) + "\n70\n1\n38\n" +
+               QByteArray::number(z, 'f', 4) + '\n';
+        for (int i = 0; i < vertices; ++i) {
+            const double t = 2 * std::numbers::pi * i / vertices + 0.05 * k;
+            out += "10\n" + QByteArray::number(r * std::cos(t) * 1.3, 'f', 4) + "\n20\n" +
+                   QByteArray::number(r * std::sin(t), 'f', 4) + '\n';
+        }
+    }
+    out += "0\nENDSEC\n0\nEOF\n";
+    const QJsonObject options{{"format", "dxf"}, {"units", "header"}, {"name", "Rings"}};
+    const auto terrain =
+        importTerrainSource(window.document(), out, options)["terrain"].toString().toULongLong();
+    changed(window);
+    auto *view = window.viewport();
+    view->standardView(1); // top
+    view->fit();
+    QTest::qWait(30);
+    return terrain;
+}
+// The current source of a ring (k from the top), in model coordinates.
+const TerrainSource &ringSource(const Document &doc, Id terrain, int k) {
+    const auto state = terrainSourceState(*doc.bodies().at(terrain)->terrain);
+    static std::shared_ptr<const TerrainSourceState> held;
+    held = state;
+    for (const auto *source : state->sources())
+        if (source->role == TerrainSourceRole::Contour && !source->points.empty() &&
+            source->points.front().z == 105 - 0.5 * k)
+            return *source;
+    throw std::runtime_error("no ring " + std::to_string(k));
 }
 std::optional<double> ground(const Document &doc, Id terrain, double x, double y) {
     const auto found = terrainElevationAt(doc, terrain, {{x, y}});
@@ -315,14 +367,15 @@ void menuAndRail(Window &window) {
     for (auto *entry : terrainMenu->actions())
         if (!entry->isSeparator())
             entries << entry->text();
-    for (const auto *name : {"Sculpt", "Smooth", "Terrain settings…", "Regenerate terrain",
-                             "Reset edits…", "Explode terrain…", "Create terrain from selection"})
+    for (const auto *name : {"Sculpt", "Smooth", "Edit contours", "Stamp pad", "Drape",
+                             "Terrain settings…", "Regenerate terrain", "Reset edits…",
+                             "Explode terrain…", "Create terrain from selection"})
         check(entries.contains(name), std::string("the Terrain menu has ") + name);
-    for (const auto *name : {"Edit contours", "Stamp pad", "Drape"})
-        check(!entries.contains(name),
-              std::string("tools not built yet are not shown (f2): ") + name);
     check(action(window, "tool.29")->shortcut() == QKeySequence("Shift+S") &&
-              action(window, "tool.30")->shortcut().isEmpty(),
+              action(window, "tool.30")->shortcut().isEmpty() &&
+              action(window, "tool.31")->shortcut().isEmpty() &&
+              action(window, "tool.32")->shortcut().isEmpty() &&
+              action(window, "tool.33")->shortcut().isEmpty(),
           "only Sculpt has a default shortcut, Shift+S");
     // The shortcut editor's conflict check: Shift+S is Sculpt's alone where it can be live, and
     // no command uses a plain [ or ].
@@ -436,7 +489,8 @@ void menuAndRail(Window &window) {
                           if (!entry->isSeparator())
                               items << entry->text();
                       for (const auto *name :
-                           {"Sculpt", "Smooth", "Terrain settings…", "Explode terrain…"})
+                           {"Sculpt", "Smooth", "Edit contours", "Stamp pad", "Drape",
+                            "Terrain settings…", "Explode terrain…"})
                           check(items.contains(name),
                                 std::string("the context menu offers ") + name + ": " +
                                     items.join(", ").toStdString());
@@ -477,6 +531,7 @@ void menuAndRail(Window &window) {
               },
               [&] { action(window, "terrain.resetEdits")->trigger(); }),
           "Reset edits confirms");
+    check(TerrainReplayJob::waitForIdle(), "the Reset edits replay finishes");
     check(recordOf(window.document(), terrain).edits.empty() &&
               window.document().history().entries.back().label == "Reset terrain edits",
           "Reset edits is one edit");
@@ -1187,15 +1242,1121 @@ void incrementalDisplay(Window &window) {
               !terrainChangedSinceGenerated(doc, terrain),
           "the deferred digest is the committed tiles' digest");
 }
+// ---- R096.f2: Edit contours (UX §15.3, §15.7) ------------------------------------------------
+QPoint at(Window &window, const Vec3 &model) { return window.viewport()->project(model).toPoint(); }
+void idle(Viewport *view) {
+    check(view->terrainPreviewWorker().waitForIdle(20000), "the preview worker finishes");
+    QTest::qWait(5);
+}
+// The worker candidate's tiles equal the document's tiles with their keys, bit for bit.
+void checkCommittedEdit(const Document &doc, Id terrain, const TerrainCommandPreview &preview,
+                        const std::string &when) {
+    check(preview.candidate.has_value() && !preview.refused(), when + ": the candidate applies");
+    const auto tiles = tileContents(doc, terrain);
+    for (const auto &tile : preview.candidate->region.tiles)
+        check(tiles.contains(tile->key) && tiles.at(tile->key)->sameMesh(*tile),
+              when + ": the committed tiles equal the previewed candidate bit for bit");
+    for (const auto &key : preview.candidate->region.replaced) {
+        const bool rebuilt = std::any_of(preview.candidate->region.tiles.begin(),
+                                         preview.candidate->region.tiles.end(),
+                                         [&](const auto &tile) { return tile->key == key; });
+        check(rebuilt || !tiles.contains(key), when + ": a dropped tile is gone");
+    }
+}
+struct Snapshot {
+    QByteArray encoding;
+    std::uint64_t revision{};
+    std::size_t history{};
+    bool dirty{};
+    static Snapshot of(const Document &doc) {
+        return {encodeDocument(doc), doc.revision(), doc.history().total, doc.dirty()};
+    }
+    bool same(const Document &doc) const {
+        return doc.revision() == revision && doc.history().total == history &&
+               doc.dirty() == dirty && encodeDocument(doc) == encoding;
+    }
+};
+const TerrainSourceEditData &lastSourceEdit(const Document &doc, Id terrain) {
+    return dynamic_cast<const TerrainSourceEditData &>(*recordOf(doc, terrain).edits.back()->data);
+}
+const TerrainSource *currentSource(const Document &doc, Id terrain, std::uint32_t id) {
+    static std::shared_ptr<const TerrainSourceState> held;
+    held = terrainSourceState(recordOf(doc, terrain));
+    return held->find(id);
+}
+void startContours(Window &window) {
+    action(window, "tool.31")->trigger();
+    QTest::qWait(10);
+}
+// Selects ring k by clicking beside its vertex; returns the vertex's model position.
+Vec3 selectRing(Window &window, Id terrain, int k, std::size_t vertex = 0) {
+    auto *view = window.viewport();
+    const auto &source = ringSource(window.document(), terrain, k);
+    const auto world = window.document().worldTransform(terrain);
+    const auto point = world.point(source.points[vertex]);
+    const auto between = world.point((source.points[vertex] * 0.75 + source.points[vertex + 1] * 0.25));
+    hover(view, at(window, between));
+    press(view, at(window, between));
+    release(view, at(window, between));
+    check(view->contourTool().selected == source.id,
+          "a click selects the source (ring " + std::to_string(k) + ")");
+    return point;
+}
+
+void contoursShownAndSelected(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    check(view->tool() == Viewport::Tool::Contours, "Edit contours starts");
+    auto &bar = strip(window);
+    check(bar.toolButton(int(Viewport::Tool::Contours))->isChecked() &&
+              bar.contourButton("Add contour")->isVisible() &&
+              bar.contourButton("Promote")->isVisible() && bar.roleField()->isVisibleTo(&bar) &&
+              !bar.radiusField()->isVisible(),
+          "the strip shows the Contours options");
+    for (auto *control : bar.findChildren<QWidget *>())
+        if (control->isVisibleTo(&bar) && control->focusPolicy() != Qt::NoFocus) {
+            auto *accessible = QAccessible::queryAccessibleInterface(control);
+            check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+                  "every Contours control has an accessible name: " +
+                      control->objectName().toStdString());
+        }
+    auto tool = view->contourTool();
+    check(tool.terrain == terrain && tool.sources == 8, "the terrain's eight source contours show");
+    // Hovering names a source.
+    const auto &ring = ringSource(doc, terrain, 2);
+    const auto world = doc.worldTransform(terrain);
+    const auto middle = world.point((ring.points[5] + ring.points[6]) * 0.5);
+    hover(view, at(window, middle));
+    tool = view->contourTool();
+    check(tool.hovered == ring.id &&
+              tool.hoverLabel == QString("Contour 104.00 m · source %1").arg(ring.id),
+          "hovering names the source: " + tool.hoverLabel.toStdString());
+    check(status(window).startsWith("Contour 104.00 m · source"), "the status bar names it too");
+    // Off the terrain the cursor is not-allowed.
+    hover(view, {4, 4});
+    check(view->cursor().shape() == Qt::ForbiddenCursor &&
+              status(window) == "Point at a terrain to edit its contours",
+          "off the terrain the tool refuses: " + status(window).toStdString());
+    // A click selects it: square handles on its vertices, round ones at its midpoints.
+    hover(view, at(window, middle));
+    press(view, at(window, middle));
+    release(view, at(window, middle));
+    tool = view->contourTool();
+    check(tool.selected == ring.id && tool.handles == 2 * 48 &&
+              tool.selectedName == "Contour 104.00 m" && tool.elevation == 104.0 && tool.editable,
+          "a click selects the source with 48 vertex and 48 midpoint handles");
+    check(bar.sourceSummary()->text().contains("Contour 104.00 m") &&
+              bar.elevationField()->text() == "104.00 m" &&
+              bar.roleField()->currentText() == "Contour" && bar.roleField()->isEnabled(),
+          "the strip names the source with its role and elevation: " +
+              bar.elevationField()->text().toStdString());
+    check(step(window) == "Elevation", "the box is labelled Elevation with a source selected");
+    // Tab moves between its handles (§15.7).
+    view->setFocus();
+    QTest::keyClick(view, Qt::Key_Tab);
+    check(view->contourTool().focus == 0, "Tab focuses the first vertex");
+    QTest::keyClick(view, Qt::Key_Tab);
+    check(view->contourTool().focus == 1, "Tab moves to the next handle (a midpoint)");
+    QTest::keyClick(view, Qt::Key_Tab, Qt::ShiftModifier);
+    check(view->contourTool().focus == 0, "Shift+Tab moves back");
+    QTest::keyClick(view, Qt::Key_Escape);
+    check(view->contourTool().selected == 0 && view->tool() == Viewport::Tool::Contours,
+          "Escape clears the selection first");
+    // Delete with no source selected never reaches the window's Delete (the terrain is the
+    // model selection).
+    view->setSelection(terrain);
+    changed(window);
+    const auto revision = doc.revision();
+    window.activateWindow();
+    view->setFocus();
+    QTest::keyClick(view, Qt::Key_Delete);
+    QTest::qWait(10);
+    check(doc.revision() == revision && isTerrain(doc, terrain) &&
+              status(window) == "Select a source contour, breakline or spot point first",
+          "Delete without a source deletes nothing: " + status(window).toStdString());
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourDragPreviewAndCommit(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    const auto vertex = selectRing(window, terrain, 3, 6);
+    const auto id = view->contourTool().selected;
+    const auto before = Snapshot::of(doc);
+    // Drag vertex 6 outward by 1 m: between ring 3 and ring 4, 3 m out.
+    const Vec3 direction = normalized(Vec3{vertex.x, vertex.y, 0});
+    const auto target = vertex + direction * 1.0;
+    auto dragTo = [&](const Vec3 &to) {
+        press(view, at(window, vertex));
+        for (int i = 1; i <= 6; ++i)
+            drag(view, at(window, vertex + (to - vertex) * (i / 6.0)));
+        idle(view);
+        frame(view);
+    };
+    dragTo(target);
+    auto tool = view->contourTool();
+    auto shown = view->terrainEditPreviewShown();
+    check(tool.dragging && shown && view->terrainEditPreviewCurrent() && shown->candidate &&
+              !shown->refused(),
+          "the drag previews the re-triangulated cavity on the worker");
+    check(!shown->outline.empty(), "the changed region is outlined");
+    if (view->rendererReady())
+        check(!view->terrainPreviewHiddenTiles().empty(),
+              "the candidate is drawn in place of the tiles it replaces");
+    check(before.same(doc), "the preview changes nothing");
+    // Escape leaves no trace.
+    key(view, Qt::Key_Escape);
+    release(view, at(window, target));
+    check(before.same(doc), "Escape leaves revision, history, dirty state and encoding unchanged");
+    check(!view->terrainEditPreviewShown() && view->terrainPreviewHiddenTiles().empty(),
+          "Escape withdraws the candidate");
+    check(view->contourTool().selected == id, "Escape of a drag keeps the source selected");
+    // The drag again, released: one "Edit contour" edit equal to the previewed candidate.
+    dragTo(target);
+    shown = view->terrainEditPreviewShown();
+    check(shown && view->terrainEditPreviewCurrent() && shown->candidate, "the drag previews again");
+    const auto command = view->terrainEditRequested();
+    release(view, at(window, target));
+    check(doc.revision() == before.revision + 1 && doc.history().total == before.history + 1 &&
+              doc.history().entries.back().label == "Edit contour",
+          "release commits one Edit contour edit");
+    checkCommittedEdit(doc, terrain, *shown, "contour drag");
+    check(command == shown->command, "the commit runs the previewed command");
+    const auto &data = lastSourceEdit(doc, terrain);
+    check(data.source == id && data.points.size() == 49, "the moved ring is stored");
+    check(view->contourTool().selected == id && view->contourTool().focus == 12,
+          "the source stays selected with the moved vertex focused");
+    check(!view->terrainEditPreviewShown() && view->terrainPreviewHiddenTiles().empty(),
+          "after the commit the tiles draw themselves");
+    // A round handle inserts a vertex.
+    const auto world = doc.worldTransform(terrain);
+    const auto *moved = currentSource(doc, terrain, id);
+    const auto midpoint = world.point((moved->points[20] + moved->points[21]) * 0.5);
+    hover(view, at(window, midpoint));
+    press(view, at(window, midpoint));
+    const auto out = midpoint + normalized(Vec3{midpoint.x, midpoint.y, 0}) * 0.8;
+    for (int i = 1; i <= 4; ++i)
+        drag(view, at(window, midpoint + (out - midpoint) * (i / 4.0)));
+    idle(view);
+    release(view, at(window, out));
+    check(lastSourceEdit(doc, terrain).points.size() == 50 &&
+              doc.history().entries.back().label == "Edit contour",
+          "dragging a round handle inserts a vertex");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourRefusal(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    {
+        // Display contours (drawn faded in Edit contours) between the source rings.
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        display.contours = true;
+        display.contourInterval = 0.25;
+        setTerrainDisplay(doc, terrain, display);
+        changed(window);
+    }
+    auto *view = window.viewport();
+    startContours(window);
+    view->setFocus();
+    hover(view, {4, 4});
+    frame(view);
+    const auto before = Snapshot::of(doc);
+    const auto image = view->rendererReady() ? view->grabFramebuffer() : QImage();
+    const auto vertex = selectRing(window, terrain, 3, 6);
+    // Across ring 4 (3 m out): the moved run is refused at the pointer.
+    const auto target = vertex + normalized(Vec3{vertex.x, vertex.y, 0}) * 4.5;
+    press(view, at(window, vertex));
+    for (int i = 1; i <= 6; ++i)
+        drag(view, at(window, vertex + (target - vertex) * (i / 6.0)));
+    idle(view);
+    frame(view);
+    auto tool = view->contourTool();
+    const auto shown = view->terrainEditPreviewShown();
+    check(shown && shown->refused() && !shown->candidate && view->terrainEditPreviewCurrent(),
+          "a drag across another contour is refused and its preview withdrawn");
+    check(tool.refused && tool.failure == "Crosses contour 103.00 m" && tool.failureAt,
+          "the failure label names the crossed contour: " + tool.failure.toStdString());
+    check(status(window).startsWith("Crosses contour 103.00 m at ") &&
+              status(window).endsWith("Release to cancel, or move back."),
+          "the status bar repeats it with the location: " + status(window).toStdString());
+    check(child<QLabel>(window, "statusMessage")->property("terrainFailure").toBool(),
+          "in the failure style");
+    if (view->rendererReady())
+        check(view->terrainPreviewHiddenTiles().empty(), "nothing is drawn in place of the tiles");
+    shot(window, "contours");
+    release(view, at(window, target));
+    check(before.same(doc), "releasing a refused drag changes nothing");
+    check(status(window).startsWith("Nothing changed: Crosses contour 103.00 m"),
+          "the status bar says nothing changed: " + status(window).toStdString());
+    // The frame is the one before (the selection cleared, the pointer off the terrain).
+    view->setFocus();
+    key(view, Qt::Key_Escape);
+    hover(view, {4, 4});
+    frame(view);
+    if (!image.isNull())
+        check(view->grabFramebuffer() == image, "the refused drag leaves the frame as it was");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourKeyboardAndStrip(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    const auto world = doc.worldTransform(terrain);
+    // A typed position selects the source passing nearest it.
+    const auto &ring = ringSource(doc, terrain, 5);
+    const auto id = ring.id;
+    const auto onRing = world.point(ring.points[10]);
+    enter(window, QString("[%1,%2]").arg(onRing.x + 0.3).arg(onRing.y));
+    check(view->contourTool().selected == id, "a typed position selects the nearest source");
+    // A typed elevation sets it: one Edit contour edit.
+    const auto revision = doc.revision();
+    enter(window, "102.70");
+    check(doc.revision() == revision + 1 && lastSourceEdit(doc, terrain).source == id &&
+              lastSourceEdit(doc, terrain).points.front().z ==
+                  world.inverse().point({0, 0, 102.7}).z &&
+              doc.history().entries.back().label == "Edit contour",
+          "a typed number sets the selected source's elevation");
+    check(view->contourTool().selected == id &&
+              strip(window).elevationField()->text() == "102.70 m",
+          "the strip shows the new elevation");
+    // With no source selected, a typed elevation changes nothing and says why.
+    view->selectTerrainSource(terrain, 0);
+    const auto refused = Snapshot::of(doc);
+    enter(window, "103");
+    check(refused.same(doc) && status(window).contains("Select a source contour or breakline"),
+          "an elevation needs a selected source: " + status(window).toStdString());
+    enter(window, QString("[%1,%2]").arg(onRing.x + 0.3).arg(onRing.y));
+    check(view->contourTool().selected == id, "the typed position selects it again");
+    // Tab to a vertex, a typed position moves it (UX §15.7).
+    view->setFocus();
+    for (int i = 0; i < 9; ++i)
+        QTest::keyClick(view, Qt::Key_Tab); // vertex 0, midpoint 0, ..., vertex 4
+    check(view->contourTool().focus == 8, "Tab reaches vertex 4");
+    const auto *source = currentSource(doc, terrain, id);
+    check(source != nullptr, "ring 5 is current");
+    const auto v4 = world.point(source->points[4]);
+    const auto movedTo = v4 + normalized(Vec3{v4.x, v4.y, 0}) * 0.5;
+    enter(window, QString("[%1,%2]").arg(movedTo.x, 0, 'f', 6).arg(movedTo.y, 0, 'f', 6));
+    const auto &moved = lastSourceEdit(doc, terrain);
+    check(moved.source == id && std::abs(world.point(moved.points[4]).x - movedTo.x) < 1e-6 &&
+              std::abs(world.point(moved.points[4]).y - movedTo.y) < 1e-6,
+          "a typed position moves the focused vertex");
+    // Delete removes the focused vertex; Shift+Delete removes the source.
+    view->setFocus();
+    const auto points = moved.points.size();
+    QTest::keyClick(view, Qt::Key_Delete);
+    check(lastSourceEdit(doc, terrain).points.size() == points - 1, "Delete removes the vertex");
+    auto *bar = &strip(window);
+    // Role: a contour becomes a breakline and back.
+    bar->roleField()->setCurrentIndex(1);
+    emit bar->roleField()->activated(1);
+    QTest::qWait(10);
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Breakline &&
+              view->contourTool().role == TerrainSourceRole::Breakline,
+          "Role switches the contour to a breakline");
+    bar->roleField()->setCurrentIndex(0);
+    emit bar->roleField()->activated(0);
+    QTest::qWait(10);
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Contour, "and back");
+    view->setFocus();
+    const auto edits = recordOf(doc, terrain).edits.size();
+    QTest::keyClick(view, Qt::Key_Delete, Qt::ShiftModifier);
+    check(recordOf(doc, terrain).edits.size() == edits + 1 &&
+              recordOf(doc, terrain).edits.back()->kind == terrainRemoveSourceKind &&
+              view->contourTool().selected == 0 &&
+              doc.history().entries.back().label == "Remove contour",
+          "Shift+Delete removes the source");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void contourAddAndPromote(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    auto terrain = rings(window);
+    auto *view = window.viewport();
+    startContours(window);
+    auto &bar = strip(window);
+    // Add contour: clicks inside the innermost ring, an elevation typed first, Enter finishes.
+    QTest::mouseClick(bar.contourButton("Add contour"), Qt::LeftButton);
+    check(view->contourMode() == Viewport::ContourMode::AddContour &&
+              bar.contourButton("Add contour")->isChecked() && step(window) == "Elevation",
+          "Add contour waits for points, with the box labelled Elevation");
+    enter(window, "105.2");
+    view->setFocus();
+    for (const auto &[x, y] : std::vector<std::pair<double, double>>{{-4, -1}, {0, 1.5}, {4, -1}}) {
+        hover(view, screen(window, terrain, x, y));
+        press(view, screen(window, terrain, x, y));
+        release(view, screen(window, terrain, x, y));
+    }
+    idle(view);
+    const auto shown = view->terrainEditPreviewShown();
+    check(shown && shown->candidate && view->terrainEditPreviewCurrent() &&
+              view->contourTool().adding.size() == 3,
+          "the new contour previews on the worker");
+    const auto revision = doc.revision();
+    key(view, Qt::Key_Return);
+    const auto &added = lastSourceEdit(doc, terrain);
+    check(doc.revision() == revision + 1 && doc.history().entries.back().label == "Add contour" &&
+              added.role == TerrainSourceRole::Contour && added.points.size() == 3 &&
+              doc.worldTransform(terrain).point(added.points.front()).z == 105.2,
+          "Enter adds the contour at the typed elevation");
+    checkCommittedEdit(doc, terrain, *shown, "add contour");
+    check(view->contourMode() == Viewport::ContourMode::Edit &&
+              view->contourTool().selected == added.source,
+          "the new contour is selected");
+    // Add breakline: points take the surface's elevation.
+    QTest::mouseClick(bar.contourButton("Add breakline"), Qt::LeftButton);
+    view->setFocus();
+    for (const auto &[x, y] : std::vector<std::pair<double, double>>{{-5, -5}, {5, -5.5}}) {
+        hover(view, screen(window, terrain, x, y));
+        press(view, screen(window, terrain, x, y));
+        release(view, screen(window, terrain, x, y));
+    }
+    idle(view);
+    key(view, Qt::Key_Return);
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Breakline &&
+              doc.history().entries.back().label == "Add contour",
+          "Add breakline draws a breakline");
+    // Add spot: a click places it, a typed elevation adds it.
+    QTest::mouseClick(bar.contourButton("Add spot"), Qt::LeftButton);
+    view->setFocus();
+    hover(view, screen(window, terrain, 2, 4));
+    press(view, screen(window, terrain, 2, 4));
+    release(view, screen(window, terrain, 2, 4));
+    check(step(window) == "Elevation", "a placed spot waits for its elevation");
+    enter(window, "105.6");
+    check(lastSourceEdit(doc, terrain).role == TerrainSourceRole::Points &&
+              doc.worldTransform(terrain).point(lastSourceEdit(doc, terrain).points.front()).z == 105.6,
+          "a typed elevation adds the spot point");
+    view->setTool(Viewport::Tool::Select);
+    // Promote on a terrain made from points (no source contours).
+    fresh(window);
+    terrain = hill(window);
+    auto display = doc.bodies().at(terrain)->terrain->display;
+    display.contours = true;
+    display.contourInterval = 0.5;
+    setTerrainDisplay(doc, terrain, display);
+    changed(window);
+    startContours(window);
+    check(view->contourTool().sources == 1, "a point terrain has only its spot points");
+    QTest::mouseClick(strip(window).contourButton("Promote"), Qt::LeftButton);
+    view->setFocus();
+    hover(view, screen(window, terrain, 40, 30));
+    idle(view);
+    const auto promoted = view->terrainEditPreviewShown();
+    const auto level = view->contourTool().promoteLevel;
+    check(level && promoted && promoted->candidate && !promoted->points.empty(),
+          "Promote previews the display contour under the pointer");
+    check(std::abs(*level * 2 - std::round(*level * 2)) < 1e-9, "at a display contour level");
+    press(view, screen(window, terrain, 40, 30));
+    release(view, screen(window, terrain, 40, 30));
+    const auto &made = lastSourceEdit(doc, terrain);
+    check(recordOf(doc, terrain).edits.back()->kind == terrainAddSourceKind &&
+              made.role == TerrainSourceRole::Contour &&
+              doc.worldTransform(terrain).point(made.points.front()).z == *level,
+          "a click promotes it to a source contour at its level");
+    checkCommittedEdit(doc, terrain, *promoted, "promote");
+    view->setTool(Viewport::Tool::Select);
+}
+
+// A pad protects its lines: its outline is shown as the pad's and cannot be moved.
+void contourProtectedSources(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    auto *view = window.viewport();
+    QJsonArray polygon;
+    for (const auto &[x, y] : std::vector<std::pair<double, double>>{{30, -3}, {34, -3}, {34, 3}, {30, 3}})
+        polygon.append(QJsonArray{x, y});
+    const QJsonObject stamp{{"command", "terrain.stamp_pad"},
+                            {"terrain", QString::number(terrain)},
+                            {"footprint", QJsonObject{{"polygon", polygon}}},
+                            {"elevation", 102.0},
+                            {"mode", "daylight"}};
+    executeBatch(doc, {{"apiVersion", 1},
+                       {"documentId", QString::fromStdString(doc.identity())},
+                       {"expectedRevision", QString::number(doc.revision())},
+                       {"commands", QJsonArray{stamp}}});
+    changed(window);
+    check(recordOf(doc, terrain).edits.size() == 1, "the pad is stamped");
+    startContours(window);
+    // Select the pad's outline by a typed position on it.
+    enter(window, "[30,0]");
+    auto tool = view->contourTool();
+    check(tool.selected && !tool.editable && tool.selectedName == "Pad outline" &&
+              tool.selectedDetail.startsWith("change #1"),
+          "a pad's outline is shown as the pad's: " + tool.selectedName.toStdString());
+    auto &bar = strip(window);
+    check(!bar.roleField()->isEnabled() && !bar.elevationField()->isEnabled() &&
+              !bar.contourButton("Remove")->isEnabled(),
+          "its Role, Elevation and Remove are unavailable");
+    // Dragging its vertex is refused at the pointer and changes nothing.
+    const auto before = Snapshot::of(doc);
+    const auto world = doc.worldTransform(terrain);
+    const auto *outline = currentSource(doc, terrain, tool.selected);
+    check(outline != nullptr, "the outline is a current source");
+    const auto corner = world.point(outline->points.front());
+    view->setFocus();
+    hover(view, at(window, corner));
+    press(view, at(window, corner));
+    for (int i = 1; i <= 4; ++i)
+        drag(view, at(window, corner + Vec3{0.3 * i, 0.1 * i, 0}));
+    idle(view);
+    tool = view->contourTool();
+    check(tool.refused && tool.failure.contains("Pad (change #1)"),
+          "moving a pad's outline is refused, naming the pad: " + tool.failure.toStdString());
+    release(view, at(window, corner + Vec3{1.2, 0.4, 0}));
+    check(before.same(doc), "and changes nothing");
+    view->setTool(Viewport::Tool::Select);
+}
+
+// The worker plans the newest request and never one a newer request replaced (latest wins).
+void previewWorkerLatestWins(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = rings(window);
+    const auto &ring = ringSource(doc, terrain, 3);
+    const auto world = doc.worldTransform(terrain);
+    TerrainPreviewWorker worker;
+    std::vector<std::pair<qulonglong, std::shared_ptr<const TerrainCommandPreview>>> results;
+    QObject::connect(&worker, &TerrainPreviewWorker::finished,
+                     [&](qulonglong generation, std::shared_ptr<const TerrainCommandPreview> p) {
+                         results.emplace_back(generation, std::move(p));
+                     });
+    std::vector<QJsonObject> commands;
+    for (int i = 1; i <= 5; ++i) {
+        QJsonArray points;
+        for (std::size_t j = 0; j < ring.points.size(); ++j) {
+            auto p = world.point(ring.points[j]);
+            if (j == 6)
+                p = p + normalized(Vec3{p.x, p.y, 0}) * (0.2 * i);
+            points.append(QJsonArray{p.x, p.y});
+        }
+        commands.push_back({{"command", "terrain.edit_source"},
+                            {"terrain", QString::number(terrain)},
+                            {"source", double(ring.id)},
+                            {"points", points}});
+    }
+    for (const auto &command : commands)
+        worker.request(prepareTerrainEditPreview(doc, command));
+    check(worker.started() == 1 && worker.busy(), "the first request runs; the others wait");
+    check(worker.waitForIdle(20000), "the worker finishes");
+    check(worker.started() == 2, "only the newest waiting request is planned next");
+    check(!results.empty() && results.back().first == worker.latest() &&
+              results.back().second->command == commands.back(),
+          "the newest plan is delivered last");
+    for (std::size_t i = 1; i < results.size(); ++i)
+        check(results[i].first > results[i - 1].first, "results are delivered newest last");
+    // Cancel withdraws everything requested before it.
+    results.clear();
+    worker.request(prepareTerrainEditPreview(doc, commands.front()));
+    worker.cancel();
+    check(worker.waitForIdle(20000) && results.empty(), "a cancelled request is never delivered");
+}
+// ---- R096.f2: Stamp pad (UX §15.4, §15.7) --------------------------------------------------------
+// A box "Building A" in a group, its base `base` m up over the hill's middle.
+Id building(Window &window, double base = 54.2, double x0 = 27, double y0 = 27, double size = 6) {
+    auto &doc = window.document();
+    const auto body = doc.addFace(
+        {{{x0, y0, base}, {x0 + size, y0, base}, {x0 + size, y0 + size, base}, {x0, y0 + size, base}}});
+    doc.extrude(body, doc.bodies().at(body)->surface.faces.begin()->first, 3);
+    const auto group = createGroup(doc, {body}, "Building A");
+    changed(window);
+    return group;
+}
+const TerrainStampData &lastPad(const Document &doc, Id terrain) {
+    return dynamic_cast<const TerrainStampData &>(*recordOf(doc, terrain).edits.back()->data);
+}
+void startPad(Window &window) {
+    action(window, "tool.32")->trigger();
+    QTest::qWait(10);
+}
+
+void padPreviewCommitAmend(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = hill(window);
+    const auto group = building(window);
+    auto *view = window.viewport();
+    view->setSelection(group);
+    changed(window);
+    auto options = view->terrainOptions();
+    options.padOffset = 0;
+    view->setTerrainOptions(options);
+    const auto before = Snapshot::of(doc);
+    startPad(window);
+    auto &bar = strip(window);
+    check(view->tool() == Viewport::Tool::Pad && bar.toolButton(int(Viewport::Tool::Pad))->isChecked(),
+          "Stamp pad starts with the Pad switcher entry");
+    check(bar.padSummary()->text().contains("Building A") && bar.legend()->isVisible() &&
+              bar.cutField()->isVisible() && !bar.padWidthField()->isVisible() &&
+              bar.cutField()->text() == "1:2" && bar.fillField()->text() == "1:2",
+          "the strip names the footprint, with Daylight's Cut and Fill (1:2) and the legend: " +
+              bar.padSummary()->text().toStdString());
+    for (auto *control : bar.findChildren<QWidget *>())
+        if (control->isVisibleTo(&bar) && control->focusPolicy() != Qt::NoFocus) {
+            auto *accessible = QAccessible::queryAccessibleInterface(control);
+            check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+                  "every Pad control has an accessible name: " + control->objectName().toStdString());
+        }
+    idle(view);
+    auto pad = view->padTool();
+    auto shown = view->terrainEditPreviewShown();
+    check(pad.footprint && pad.name == "Building A" && std::abs(pad.elevation - 54.2) < 1e-9 &&
+              shown && shown->candidate && !shown->refused() && pad.rays > 0 && pad.cut + pad.fill > 0,
+          "the group's lowest face is the footprint, previewed at its height with cut and fill");
+    check(step(window) == "Elevation" && status(window).startsWith("Stamp pad · Building A"),
+          "the box is labelled Elevation and the status bar instructs: " + status(window).toStdString());
+    check(before.same(doc), "the preview changes nothing");
+    if (view->rendererReady())
+        check(!view->terrainPreviewHiddenTiles().empty(), "the candidate is drawn in place");
+    // Moving up raises the pad.
+    const auto centre = at(window, {30, 30, 54.2});
+    hover(view, centre);
+    hover(view, centre - QPoint(0, 30));
+    idle(view);
+    pad = view->padTool();
+    check(pad.elevation > 54.2, "moving up raises the pad");
+    // Escape leaves no trace.
+    view->setFocus();
+    key(view, Qt::Key_Escape);
+    check(before.same(doc) && !view->terrainEditPreviewShown() && !view->padTool().footprint,
+          "Escape withdraws the pad and changes nothing");
+    check(bar.padSummary()->text().contains("No footprint"), "and the strip forgets it");
+    // Choose it again (hover and click) with a 0.4 m pad offset (cut over the hill's top, fill
+    // around it), seen from above at an angle; then Enter stamps the previewed pad.
+    options.padOffset = 0.4;
+    view->setTerrainOptions(options);
+    view->standardView(0);
+    view->frameBounds({18, 18, 48}, {42, 42, 58});
+    frame(view);
+    if (view->rendererReady()) {
+        // Hover and click (picking needs the renderer).
+        hover(view, at(window, {30, 30, 57.2}));
+        pad = view->padTool();
+        check(pad.hovering && pad.name == "Building A", "hovering the group highlights its footprint");
+        press(view, at(window, {30, 30, 57.2}));
+        release(view, at(window, {30, 30, 57.2}));
+    } else {
+        view->setSelection(group);
+        changed(window);
+        view->setTool(Viewport::Tool::Select);
+        startPad(window);
+    }
+    idle(view);
+    shown = view->terrainEditPreviewShown();
+    check(view->padTool().footprint && shown && shown->candidate,
+          std::string("a click chooses it: footprint ") + (view->padTool().footprint ? "yes" : "no") +
+              ", preview " + (shown ? shown->code + " " + shown->message : std::string("none")) +
+              ", status " + status(window).toStdString());
+    shot(window, "stamp");
+    const auto command = view->terrainEditRequested();
+    view->setFocus();
+    key(view, Qt::Key_Return);
+    check(doc.revision() == before.revision + 1 && doc.history().entries.back().label == "Stamp pad" &&
+              lastPad(doc, terrain).sourceBody == group,
+          "Enter stamps one Stamp pad edit");
+    checkCommittedEdit(doc, terrain, *shown, "stamp");
+    check(command == shown->command, "the commit is the previewed command");
+    // A typed elevation or slope revises the same entry (UX §4.3).
+    const auto total = doc.history().total;
+    check(step(window) == "Elevation" && status(window).contains("Type a new elevation or slope"),
+          "after the stamp a typed value revises it: " + status(window).toStdString());
+    options.padOffset = 0;
+    view->setTerrainOptions(options);
+    enter(window, "54.0");
+    check(doc.history().total == total && recordOf(doc, terrain).edits.size() == 1 &&
+              std::abs(doc.worldTransform(terrain).point({0, 0, lastPad(doc, terrain).elevation}).z - 54) < 1e-9,
+          "a typed elevation amends the stamp");
+    enter(window, "1:3");
+    check(doc.history().total == total && std::abs(lastPad(doc, terrain).cutSlope - 1.0 / 3) < 1e-12 &&
+              std::abs(lastPad(doc, terrain).fillSlope - 1.0 / 3) < 1e-12,
+          "a typed slope amends it too");
+    check(checkTerrainPadConsistency(doc, terrain).ok(), "C3 holds after the amends");
+    // After Undo the stamp can no longer be revised: a typed value changes nothing.
+    doc.undo();
+    changed(window);
+    const auto undone = Snapshot::of(doc);
+    enter(window, "54.5");
+    check(undone.same(doc) && view->terrainAmendable().isEmpty(),
+          "after Undo a typed value revises nothing: " + status(window).toStdString());
+    // A document change while a footprint is chosen ends the operation.
+    view->setSelection(group);
+    changed(window);
+    view->setTool(Viewport::Tool::Select);
+    startPad(window);
+    check(view->padTool().footprint, "the footprint is chosen again");
+    doc.addFace({{{2, 2, 70}, {4, 2, 70}, {4, 4, 70}, {2, 4, 70}}});
+    changed(window);
+    check(!view->padTool().footprint && !view->terrainEditPreviewShown(),
+          "a document change ends the chosen footprint and its preview");
+    view->setTool(Viewport::Tool::Select);
+}
+
+void padOptionsAndRefusal(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = hill(window);
+    building(window);
+    auto *view = window.viewport();
+    startPad(window);
+    auto &bar = strip(window);
+    // Pad offset: typed once and remembered.
+    auto *offset = bar.padOffsetField();
+    offset->setFocus();
+    offset->selectAll();
+    QTest::keyClicks(offset, "15cm");
+    QTest::keyClick(offset, Qt::Key_Return);
+    check(std::abs(view->terrainOptions().padOffset - 0.15) < 1e-12 &&
+              std::abs(QSettings("SketchyUp", "SketchyUp").value("terrainPadOffset").toDouble() - 0.15) < 1e-12,
+          "the pad offset is set and remembered");
+    QTest::keyClick(offset, Qt::Key_Escape);
+    // Fixed width replaces the slopes with Width.
+    QTest::mouseClick(bar.padModeButton(TerrainStampMode::Width), Qt::LeftButton);
+    check(view->terrainOptions().padMode == TerrainStampMode::Width && bar.padWidthField()->isVisible() &&
+              !bar.cutField()->isVisible(),
+          "Fixed width shows Width instead of the slopes");
+    auto *slope = bar.cutField();
+    QTest::mouseClick(bar.padModeButton(TerrainStampMode::Daylight), Qt::LeftButton);
+    slope->setFocus();
+    slope->selectAll();
+    QTest::keyClicks(slope, "26.565°");
+    QTest::keyClick(slope, Qt::Key_Return);
+    check(std::abs(view->terrainOptions().cutSlope - 0.5) < 1e-4 && slope->text() == "1:2",
+          "an angle is a slope: " + slope->text().toStdString());
+    slope->selectAll();
+    QTest::keyClicks(slope, "steep");
+    QTest::keyClick(slope, Qt::Key_Return);
+    check(slope->property("invalid").toBool() && !slope->accessibleDescription().isEmpty(),
+          "an unreadable slope is marked and says why");
+    QTest::keyClick(slope, Qt::Key_Escape);
+    // The keyboard path: a typed position picks the footprint there, the offset applies.
+    view->setFocus();
+    enter(window, "[30,30]");
+    idle(view);
+    auto pad = view->padTool();
+    check(pad.footprint && pad.name == "Building A" && std::abs(pad.elevation - (54.2 - 0.15)) < 1e-9,
+          "a typed position picks the footprint, less the pad offset");
+    // A pad far above the ground finds no daylight within a short maximum distance: refused.
+    auto options = view->terrainOptions();
+    options.maxDistance = 0.5;
+    view->setTerrainOptions(options);
+    idle(view);
+    const auto before = Snapshot::of(doc);
+    enter(window, "70");
+    pad = view->padTool();
+    (void)pad;
+    check(before.same(doc), "a typed elevation the solver refuses changes nothing");
+    view->setTool(Viewport::Tool::Select);
+    startPad(window);
+    enter(window, "[30,30]");
+    hover(view, at(window, {30, 30, 54}));
+    hover(view, at(window, {30, 30, 54}) - QPoint(0, 400));
+    idle(view);
+    pad = view->padTool();
+    check(pad.refused && !pad.failure.isEmpty() && pad.failureAt,
+          "a pad that finds no daylight is refused at the pointer: " + pad.failure.toStdString());
+    view->setFocus();
+    key(view, Qt::Key_Return);
+    check(before.same(doc), "Enter is refused until it changes");
+    options.maxDistance = 100;
+    view->setTerrainOptions(options);
+    options.padOffset = 0;
+    view->setTerrainOptions(options);
+    view->setTool(Viewport::Tool::Select);
+    (void)terrain;
+}
+
+// ---- R096.f2: Drape (UX §15.5) --------------------------------------------------------------
+// Selects the first face of each body.
+void selectFaces(Window &window, const std::vector<std::pair<Id, int>> &bodies) {
+    SelectionSet set;
+    for (const auto &[body, unused] : bodies)
+        set.insert({body, SelectionKind::Face,
+                    window.document().bodies().at(body)->surface.faces.begin()->first});
+    window.viewport()->setTool(Viewport::Tool::Select);
+    window.viewport()->selectEntities(set);
+    changed(window);
+}
+void startDrape(Window &window) {
+    action(window, "tool.33")->trigger();
+    QTest::qWait(10);
+}
+void drapeImprintAndOverlay(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = hill(window);
+    auto *view = window.viewport();
+    // A path above the terrain, in a group, partly outside it; with a material.
+    const auto face = doc.addFace({{{20, 24, 60}, {38, 24, 60}, {38, 27, 60}, {20, 27, 60}}});
+    const auto outside = doc.addFace({{{50, 40, 60}, {70, 40, 60}, {70, 44, 60}, {50, 44, 60}}});
+    changed(window);
+    const auto material = createMaterial(doc, "Paving, grey", {0.6f, 0.6f, 0.58f});
+    assignMaterial(doc, face, doc.bodies().at(face)->surface.faces.begin()->first, material);
+    changed(window);
+    // Nothing selected: the tool says what to select.
+    startDrape(window);
+    check(status(window).startsWith("Select edges, curves or faces first"),
+          "with nothing selected Drape says what to select: " + status(window).toStdString());
+    view->setTool(Viewport::Tool::Select);
+    selectFaces(window, {{face, 0}, {outside, 0}});
+    check(action(window, "terrain.drapeSelection")->isEnabled(),
+          "Drape onto terrain is offered for selected faces");
+    // Right-clicking the terrain keeps the faces selected and offers Drape onto terrain (Qt's
+    // Wayland popups need a compositor serial synthetic input cannot give: checked on X11).
+    if (QGuiApplication::platformName() != "wayland" && view->rendererReady()) {
+        frame(view);
+        const auto onTerrain = screen(window, terrain, 10, 50);
+        check(drive(
+                  "viewportContextMenu",
+                  [&](QWidget &shown) {
+                      QStringList items;
+                      for (auto *entry : qobject_cast<QMenu *>(&shown)->actions())
+                          if (!entry->isSeparator())
+                              items << entry->text();
+                      check(items.contains("Drape onto terrain") && items.contains("Drape") &&
+                                !items.contains("Terrain settings…"),
+                            "the context menu offers Drape onto terrain: " +
+                                items.join(", ").toStdString());
+                  },
+                  [&] { emit view->contextMenuRequested(onTerrain); }),
+              "the context menu opens");
+        check(view->selectionState().entities().size() == 2, "and keeps the faces selected");
+    }
+    const auto before = Snapshot::of(doc);
+    action(window, "terrain.drapeSelection")->trigger();
+    QTest::qWait(10);
+    check(view->tool() == Viewport::Tool::Drape, "Drape onto terrain starts Drape");
+    auto &bar = strip(window);
+    check(bar.drapeModeButton(false)->isChecked() && bar.paintRegionsField()->isChecked() &&
+              !bar.liftField()->isEnabled(),
+          "Imprint is the default with Paint regions on and Lift unavailable");
+    idle(view);
+    auto drape = view->drapeTool();
+    auto shown = view->terrainEditPreviewShown();
+    check(drape.faces == 2 && shown && shown->candidate && !shown->refused() && drape.runs > 0,
+          "the selection previews lying on the surface");
+    check(drape.clipped == 1 && drape.summary.contains("2 faces") && drape.summary.contains("1 edge clipped") &&
+              bar.drapeSummary()->text() == drape.summary && !shown->clippedParts.empty(),
+          "the part outside the terrain is clipped and counted: " + drape.summary.toStdString());
+    check(shown->drape && shown->drape->paint.size() == 1, "the painted face paints its region");
+    check(status(window).contains("Click the terrain or press Enter") &&
+              status(window).contains("outside the terrain is clipped"),
+          "the status bar instructs: " + status(window).toStdString());
+    check(before.same(doc), "the preview changes nothing");
+    // The input follows the selection while the tool is active.
+    view->selectEntities({{face, SelectionKind::Face, doc.bodies().at(face)->surface.faces.begin()->first}});
+    QTest::qWait(10);
+    check(view->tool() == Viewport::Tool::Drape && view->drapeTool().faces == 1,
+          "a changed selection is what Drape takes");
+    view->selectEntities({{face, SelectionKind::Face, doc.bodies().at(face)->surface.faces.begin()->first},
+                          {outside, SelectionKind::Face,
+                           doc.bodies().at(outside)->surface.faces.begin()->first}});
+    idle(view);
+    shown = view->terrainEditPreviewShown();
+    check(view->drapeTool().faces == 2 && shown && shown->candidate, "and previews again");
+    view->standardView(0);
+    view->frameBounds({14, 14, 46}, {60, 50, 62});
+    frame(view);
+    shot(window, "drape");
+    // A document change asks for the preview again (the plan belongs to its revision).
+    doc.addFace({{{2, 2, 70}, {4, 2, 70}, {4, 4, 70}, {2, 4, 70}}});
+    changed(window);
+    idle(view);
+    shown = view->terrainEditPreviewShown();
+    check(view->tool() == Viewport::Tool::Drape && shown && shown->candidate &&
+              shown->revision == doc.revision(),
+          "after a document change Drape previews again");
+    doc.undo();
+    changed(window);
+    idle(view);
+    const auto beforeEscape = Snapshot::of(doc);
+    key(view, Qt::Key_Escape);
+    check(beforeEscape.same(doc) && view->tool() == Viewport::Tool::Select,
+          "Escape leaves the tool and changes nothing");
+    // Again: Enter drapes; the terrain is selected afterwards, the tool returns to Select.
+    selectFaces(window, {{face, 0}, {outside, 0}});
+    startDrape(window);
+    idle(view);
+    shown = view->terrainEditPreviewShown();
+    view->setFocus();
+    key(view, Qt::Key_Return);
+    check(doc.revision() == beforeEscape.revision + 1 && doc.history().entries.back().label == "Drape on terrain" &&
+              recordOf(doc, terrain).edits.back()->kind == terrainDrapeKind,
+          "Enter drapes as one edit");
+    checkCommittedEdit(doc, terrain, *shown, "drape");
+    check(view->tool() == Viewport::Tool::Select && view->selectedBody() == terrain,
+          "after an imprint the terrain is selected");
+    doc.undo();
+    changed(window);
+    // Overlay: a new group lifted above the surface, selected afterwards; the terrain unchanged.
+    selectFaces(window, {{face, 0}});
+    startDrape(window);
+    QTest::mouseClick(bar.drapeModeButton(true), Qt::LeftButton);
+    check(view->terrainOptions().drapeOverlay && bar.liftField()->isEnabled() &&
+              !bar.paintRegionsField()->isEnabled(),
+          "Overlay enables Lift");
+    idle(view);
+    const auto record = doc.bodies().at(terrain)->terrain->edits.size();
+    view->setFocus();
+    key(view, Qt::Key_Return);
+    const auto selected = view->selectedBody();
+    check(doc.history().entries.back().label == "Drape on terrain" &&
+              doc.bodies().at(terrain)->terrain->edits.size() == record && selected &&
+              doc.bodies().at(selected)->kind == BodyKind::Group &&
+              doc.bodies().at(selected)->name == "Drape",
+          "an overlay makes a new group, selected afterwards, and leaves the terrain");
+    auto options = view->terrainOptions();
+    options.drapeOverlay = false;
+    view->setTerrainOptions(options);
+    view->setTool(Viewport::Tool::Select);
+}
+// ---- R096.f2: the Terrain edits section (UX §15.6, §15.7) ----------------------------------------
+QJsonObject runBatch(Document &doc, const QJsonObject &command) {
+    return executeBatch(doc, {{"apiVersion", 1},
+                              {"documentId", QString::fromStdString(doc.identity())},
+                              {"expectedRevision", QString::number(doc.revision())},
+                              {"commands", QJsonArray{command}}});
+}
+TerrainEditsSection &editsSection(Window &window) {
+    auto *found = window.findChild<TerrainEditsSection *>("terrainEditsSection");
+    check(found != nullptr, "the Info tab has the Terrain edits section");
+    return *found;
+}
+void showInfo(Window &window, Id terrain) {
+    window.viewport()->setTool(Viewport::Tool::Select);
+    window.viewport()->setSelection(terrain);
+    changed(window);
+    // The Info tab shows the sections.
+    for (auto *tabs : window.findChildren<QTabWidget *>())
+        for (int i = 0; i < tabs->count(); ++i)
+            if (tabs->tabText(i) == "Info")
+                tabs->setCurrentIndex(i);
+    QTest::qWait(30);
+    changed(window);
+}
+int rowOf(TerrainEditsSection &section, std::uint32_t edit) {
+    for (int i = 0; i < section.list()->count(); ++i)
+        if (section.list()->item(i)->data(Qt::UserRole + 4).toULongLong() == edit)
+            return i;
+    return -1;
+}
+void editsList(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    const auto terrain = hill(window);
+    auto *view = window.viewport();
+    // A sculpt, a pad from a group, a drape and an added breakline.
+    const auto group = building(window, 54.2, 12, 12, 5);
+    auto ok = [&](const QJsonObject &command) {
+        const auto result = runBatch(doc, command);
+        check(!result.contains("error"), "the fixture applies: " +
+                                             QJsonDocument(result).toJson().toStdString());
+        changed(window);
+    };
+    const auto id = QString::number(terrain);
+    ok({{"command", "terrain.sculpt"}, {"terrain", id}, {"mode", "raise"},
+        {"path", QJsonArray{QJsonArray{40, 40}, QJsonArray{46, 42}}}, {"radius", 4.0}, {"amount", 0.8}});
+    ok({{"command", "terrain.stamp_pad"}, {"terrain", id},
+        {"footprint", QJsonObject{{"body", QString::number(group)}}}, {"mode", "daylight"}});
+    const auto strip = doc.addFace({{{8, 30, 60}, {28, 30, 60}, {28, 31, 60}, {8, 31, 60}}});
+    changed(window);
+    ok({{"command", "terrain.drape"}, {"terrain", id}, {"mode", "imprint"},
+        {"faces", QJsonArray{QJsonObject{{"body", QString::number(strip)},
+                                         {"face", QString::number(doc.bodies().at(strip)->surface.faces.begin()->first)}}}}});
+    ok({{"command", "terrain.add_source"}, {"terrain", id}, {"role", "breakline"},
+        {"points", QJsonArray{QJsonArray{40.37, 20.21, *ground(doc, terrain, 40.37, 20.21)},
+                              QJsonArray{50.43, 22.17, *ground(doc, terrain, 50.43, 22.17)}}}});
+    showInfo(window, terrain);
+    auto &section = editsSection(window);
+    check(section.isVisible() && section.list()->count() == 4, "four rows, in the order they apply");
+    const auto &edits = recordOf(doc, terrain).edits;
+    const auto padEdit = edits[1]->id, drapeEdit = edits[2]->id;
+    auto text = [&](int row, int role) { return section.list()->item(row)->data(role).toString(); };
+    check(text(0, Qt::UserRole + 2) == "Sculpt · raise 0.80 m" &&
+              text(0, Qt::UserRole + 3) == "Radius 4.00 m · smooth falloff" &&
+              text(1, Qt::UserRole + 2) == "Pad · Building A" &&
+              text(1, Qt::UserRole + 3) == "54.20 m · daylight, cut 1:2, fill 1:2" &&
+              text(2, Qt::UserRole + 2).startsWith("Drape") && text(3, Qt::UserRole + 2) == "Added breakline",
+          "rows show the title and key values: " + text(1, Qt::UserRole + 3).toStdString());
+    check(text(1, Qt::UserRole + 1) == "▭" && text(1, Qt::UserRole + 4) == QString::number(padEdit),
+          "with a kind glyph and the ID");
+    check(text(1, Qt::AccessibleTextRole) ==
+              "Change 2 of 4, Pad, Building A, 54.20 metres, daylight, cut 1 to 2, fill 1 to 2",
+          "a row reads as a sentence: " + text(1, Qt::AccessibleTextRole).toStdString());
+    check(section.caption()->text() == "Applied top to bottom · 4 of 4,096 changes" &&
+              section.detail() == "4 changes",
+          "the header counts the changes and the caption gives the use: " +
+              section.caption()->text().toStdString() + " / " + section.detail().toStdString());
+    // Selecting a row outlines its region with a label; Restamp follows the pad's source body.
+    section.list()->setCurrentRow(1);
+    QTest::qWait(10);
+    check(view->terrainEditHighlight() == padEdit && view->terrainEditHighlightPoints() > 8,
+          "selecting a row outlines its region in the viewport");
+    check(status(window).startsWith(QString("Change %1 selected · Double-click frames it").arg(padEdit)),
+          "the status bar says what selecting it offers: " + status(window).toStdString());
+    check(section.editPadButton()->isEnabled() && section.restampButton()->isEnabled() &&
+              section.removeButton()->isEnabled(),
+          "a pad offers Edit pad…, Restamp and Remove");
+    // As the mockup shows them: Entity info and Terrain collapsed above Terrain edits.
+    auto collapse = [&](bool shut) {
+        for (const auto *name : {"entityInfoSection", "terrainSection"})
+            if (auto *other = dynamic_cast<CollapsibleSection *>(window.findChild<QWidget *>(name)))
+                other->setExpanded(!shut);
+        QTest::qWait(30);
+    };
+    collapse(true);
+    frame(view);
+    shot(window, "edits");
+    // Enter frames it.
+    section.list()->setFocus();
+    QTest::keyClick(section.list(), Qt::Key_Return);
+    check(status(window) == QString("Framed change %1").arg(padEdit), "Enter frames the change");
+    // A drape row: no Edit pad, Restamp unavailable with the reason.
+    section.list()->setCurrentRow(2);
+    QTest::qWait(10);
+    check(!section.editPadButton()->isEnabled() && !section.restampButton()->isEnabled() &&
+              section.restampButton()->toolTip().contains("select a pad"),
+          "Restamp is unavailable for a drape, with the reason");
+    // Remove (Delete) replays as a job; the change goes as one undoable edit.
+    const auto revision = doc.revision();
+    section.list()->setFocus();
+    QTest::keyClick(section.list(), Qt::Key_Delete);
+    check(TerrainReplayJob::waitForIdle(), "the replay finishes");
+    check(doc.revision() == revision + 1 && recordOf(doc, terrain).edits.size() == 3 &&
+              doc.history().entries.back().label == "Remove terrain change",
+          "Delete removes the change as one edit");
+    doc.undo();
+    changed(window);
+    check(recordOf(doc, terrain).edits.size() == 4, "Undo restores it");
+    // A replay with progress and Cancel: cancelling leaves the model as it was.
+    {
+        sketchy::test::TerrainRunHold hold;
+        const auto before = Snapshot::of(doc);
+        showInfo(window, terrain);
+        section.list()->setCurrentRow(rowOf(section, drapeEdit));
+        section.removeSelected();
+        QTest::qWait(30);
+        auto *chip = child<TerrainReplayChip>(window, "terrainReplayChip");
+        for (int i = 0; i < 200 && !hold.holding.load(); ++i)
+            QTest::qWait(10);
+        QTest::qWait(80);
+        check(chip->isVisible() && chip->text()->text().startsWith("Replaying 3 changes · "),
+              "a replay shows its job chip: " + chip->text()->text().toStdString());
+        QTest::mouseClick(chip->cancelButton(), Qt::LeftButton);
+        check(TerrainReplayJob::waitForIdle(), "the cancelled replay ends");
+        check(before.same(doc) && !chip->isVisible() &&
+                  status(window) == "Replay cancelled; nothing changed",
+              "cancelling leaves the model as it was: " + status(window).toStdString());
+    }
+    // Restamp after the building moved onto the drape's path: the drape now enters the pad and is
+    // skipped, kept in the list with its reason, and the replay's notices show.
+    doc.transform(group, Transform::translation({0, 14, 0}));
+    changed(window);
+    showInfo(window, terrain);
+    section.list()->setCurrentRow(rowOf(section, padEdit));
+    section.restampSelected();
+    check(TerrainReplayJob::waitForIdle(), "the Restamp replay finishes");
+    check(doc.history().entries.back().label == "Edit terrain change", "Restamp is one edit");
+    showInfo(window, terrain);
+    const int drapeRow = rowOf(section, drapeEdit);
+    check(drapeRow >= 0 && section.list()->item(drapeRow)->data(Qt::UserRole + 5).toBool() &&
+              text(drapeRow, Qt::UserRole + 3) == "⚠ Skipped: the lines now enter a pad" &&
+              text(drapeRow, Qt::AccessibleTextRole).contains("Warning: skipped"),
+          "the skipped drape stays marked with its reason: " + text(drapeRow, Qt::UserRole + 3).toStdString());
+    check(section.notice()->isVisible() && section.noticeText()->text().contains("Last replay") &&
+              section.noticeText()->text().contains("1 change skipped"),
+          "the replay's notices show: " + section.noticeText()->text().toStdString());
+    check(drive("terrainEditsReportDialog", [&](QWidget &dialog) {
+              check(dialog.findChild<QTreeWidget *>() != nullptr, "Show report opens the report tree");
+          }, [&] { QTest::mouseClick(section.showReportButton(), Qt::LeftButton); QTest::qWait(200); }),
+          "Show report opens the report");
+    shot(window, "edits-skipped");
+    collapse(false);
+    // Undo of the replay clears the mark.
+    doc.undo();
+    changed(window);
+    showInfo(window, terrain);
+    check(!section.list()->item(rowOf(section, drapeEdit))->data(Qt::UserRole + 5).toBool() &&
+              !section.notice()->isVisible(),
+          "Undo of the replay clears the skip and its notices");
+    // Edit pad…: the form changes the elevation, one edit.
+    section.list()->setCurrentRow(rowOf(section, padEdit));
+    QTest::qWait(10);
+    check(drive("terrainEditPadDialog", [&](QWidget &dialog) {
+              auto *elevation = child<QLineEdit>(dialog, "terrainPadElevation");
+              auto *offset = child<QLineEdit>(dialog, "terrainPadOffsetField");
+              check(elevation->text() == "54.20 m" && offset->isEnabled() && offset->text() == "0.00 m",
+                    "the form shows the elevation and the offset below the footprint: " +
+                        offset->text().toStdString());
+              offset->setText("0.3");
+              emit offset->textEdited("0.3");
+              check(elevation->text() == "53.90 m", "the offset sets the elevation");
+              QTest::mouseClick(child<QPushButton>(dialog, "terrainEditPadApply"), Qt::LeftButton);
+          }, [&] { QTest::mouseClick(section.editPadButton(), Qt::LeftButton); }),
+          "Edit pad… opens its form");
+    check(TerrainReplayJob::waitForIdle(), "the Edit pad replay finishes");
+    const auto &pad = dynamic_cast<const TerrainStampData &>(*recordOf(doc, terrain).edits[1]->data);
+    check(std::abs(doc.worldTransform(terrain).point({0, 0, pad.elevation}).z - 53.9) < 1e-9 &&
+              doc.history().entries.back().label == "Edit terrain change",
+          "Edit pad… changes the pad as one edit");
+    // Restamp is unavailable when the source body is gone, with the reason.
+    {
+        Edit erase{"Erase", {}};
+        for (const auto &[body, record] : doc.bodies())
+            if (body == group || record->parent == group)
+                erase.changes.push_back({body, record, nullptr});
+        doc.apply(std::move(erase), doc.revision());
+    }
+    changed(window);
+    showInfo(window, terrain);
+    section.list()->setCurrentRow(rowOf(section, padEdit));
+    QTest::qWait(10);
+    check(!section.restampButton()->isEnabled() &&
+              section.restampButton()->toolTip() == "The pad's source body no longer exists" &&
+              section.restampButton()->accessibleDescription() == section.restampButton()->toolTip(),
+          "Restamp says why it is unavailable: " + section.restampButton()->toolTip().toStdString());
+    // Accessible names on the section's controls (§15.7).
+    for (auto *control : section.findChildren<QWidget *>())
+        if (control->isVisibleTo(&section) && control->focusPolicy() != Qt::NoFocus) {
+            auto *accessible = QAccessible::queryAccessibleInterface(control);
+            check(accessible && !accessible->text(QAccessible::Name).isEmpty(),
+                  "every Terrain edits control has an accessible name: " +
+                      control->objectName().toStdString());
+        }
+    // Reset edits… from the section asks first, then replays as a job.
+    check(drive("terrainResetEditsDialog", [&](QWidget &dialog) {
+              QTest::mouseClick(child<QPushButton>(dialog, "terrainResetEditsConfirm"), Qt::LeftButton);
+          }, [&] { QTest::mouseClick(section.resetButton(), Qt::LeftButton); QTest::qWait(200); }),
+          "Reset edits… asks first");
+    check(TerrainReplayJob::waitForIdle() && recordOf(doc, terrain).edits.empty(),
+          "Reset edits replays to the base");
+    view->setSelection(0);
+    changed(window);
+}
 } // namespace
 
 int main(int argc, char **argv) {
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
     QApplication app(argc, argv);
+    QString only; // --only TEXT runs the tests whose name contains TEXT
     for (int i = 1; i + 1 < argc; ++i) {
         if (QString(argv[i]) == "--screenshots")
             shots = argv[i + 1];
+        if (QString(argv[i]) == "--only")
+            only = argv[i + 1];
         if (QString(argv[i]) == "--text-percent")
             QSettings("SketchyUp", "SketchyUp")
                 .setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
@@ -1218,13 +2379,26 @@ int main(int argc, char **argv) {
         {"empty brush and pads", emptyBrushAndPads},
         {"hover refusals", hoverRefusals},
         {"review regressions", reviewRegressions},
-        {"incremental display", incrementalDisplay}};
+        {"incremental display", incrementalDisplay},
+        {"preview worker, latest wins", previewWorkerLatestWins},
+        {"contours shown and selected", contoursShownAndSelected},
+        {"contour drag, preview and commit", contourDragPreviewAndCommit},
+        {"contour refusal", contourRefusal},
+        {"contour keyboard and strip", contourKeyboardAndStrip},
+        {"contour add and promote", contourAddAndPromote},
+        {"contour protected sources", contourProtectedSources},
+        {"pad preview, commit and amend", padPreviewCommitAmend},
+        {"pad options and refusal", padOptionsAndRefusal},
+        {"drape imprint and overlay", drapeImprintAndOverlay},
+        {"terrain edits list", editsList}};
     try {
         if (!shots.isEmpty()) {
             screenshots(window);
             std::cout << "screenshots\n" << std::flush;
         }
         for (const auto &[name, test] : tests) {
+            if (!only.isEmpty() && !QString(name).contains(only))
+                continue;
             test(window);
             std::cout << name << "\n" << std::flush;
         }

@@ -48,6 +48,15 @@ Id terrainOfBody(const Document &doc, Id body);
 Id selectedTerrain(const Document &doc, const Selection &selection);
 // The selected edges (curves select their edges) as terrain.create_from_edges references.
 QJsonArray selectedTerrainEdges(const Selection &selection);
+// R096.f2 (UX §15.5): what Drape takes from a selection: its edges (curves select theirs), faces
+// and the faces of selected groups and components, never a terrain's own; as terrain.drape's
+// `edges` and `faces`.
+struct TerrainDrapeInput {
+    QJsonArray edges, faces;
+    bool empty() const { return edges.isEmpty() && faces.isEmpty(); }
+    bool operator==(const TerrainDrapeInput &) const = default;
+};
+TerrainDrapeInput terrainDrapeInput(const Document &doc, const Selection &selection);
 // Flat triangles left in the mesh: three contour vertices at one elevation (within 1e-9 m), the
 // triangulation's own definition, with their planar area in square metres.
 struct TerrainFlatArea {

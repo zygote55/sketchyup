@@ -91,6 +91,9 @@ struct TerrainImportResult {
     std::optional<TerrainTileSet> tileSet;
     // The source report with a bounded "terrain" object; at most 64 KiB in all.
     QJsonObject report;
+    // R096.f2: the entries a replay skipped (id, its notice), all of them (the report lists at
+    // most a bounded number of locations).
+    std::vector<std::pair<std::uint32_t, std::string>> skipped;
 };
 struct TerrainImportProvenance {
     std::string sourceName; // file name for the site provenance

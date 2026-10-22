@@ -6,7 +6,11 @@
 // assistantVisible); MCP exposes all of them. R095.e2 adds the batch
 // command terrain.set_display (contour lines, interval, shading; the mesh is untouched).
 #include "core/model.hpp"
+#include "core/terrain_drape.hpp"
+#include "core/terrain_edit.hpp"
 #include "core/terrain_records.hpp"
+#include "core/terrain_source_edit.hpp"
+#include "core/terrain_stamp.hpp"
 #include "io/terrain_import.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
@@ -120,6 +124,79 @@ TerrainImportResult runTerrainReplay(const TerrainReplayRequest &request,
                                      TerrainProgress *progress = nullptr);
 QJsonObject applyTerrainReplay(Document &doc, const TerrainReplayRequest &request,
                                TerrainImportResult result, ChangeReport *changes = nullptr);
+// ---- R096.f2: the desktop preview of the worker-planned commands (ADR 0169 §5) -------------
+// terrain.edit_source, terrain.add_source, terrain.remove_source, terrain.stamp_pad and
+// terrain.drape plan on a one-thread worker, latest wins. prepareTerrainEditPreview checks and
+// parses `command` on the document exactly as the command does (it throws the command's
+// TerrainError or TerrainImportError for a request the command refuses before planning) and keeps
+// every input of the plan: the terrain's record, its cached edit mesh, its current sources and the
+// document's terrain triangle total. runTerrainEditPreview reads no document and is safe on a
+// worker: it runs the command's own dry run on those inputs and builds the candidate tiles
+// (replaceTerrainRegion). Committing the same command at the same revision commits these tiles
+// bit for bit. A refusal is returned with its located problems, not thrown; a cancellation through
+// `progress` gives the code CANCELLED.
+struct TerrainEditPreviewRequest;
+struct TerrainCommandPreview {
+    QJsonObject command;
+    QString name; // the command's name
+    Id terrain{};
+    std::string document; // Document::identity() and revision when prepared
+    std::uint64_t revision{};
+    Transform world;      // the terrain frame in model coordinates
+    std::string kind;     // editSource, addSource, removeSource, stamp or drape
+    bool overlay{};       // a drape in overlay mode (no terrain change)
+    std::uint32_t edit{}; // the ID the entry would take
+    // The candidate tiles (none for an overlay, or when refused).
+    std::optional<TerrainEditPreview> candidate;
+    // The changed region's outline: the boundary loops of the triangles the change adds (terrain
+    // frame), for the hatched band the tools draw around it.
+    std::vector<std::vector<Vec3>> outline;
+    // Stamps: the triangles the change adds (terrain frame), tinted as pad, cut or fill.
+    std::vector<std::array<Vec3, 3>> added;
+    // A refusal: the command's code ("INVALID_REQUEST", "LIMIT_EXCEEDED", "CANCELLED", ...) and
+    // message, with its located problems (terrain frame). Empty when the change applies.
+    std::string code, message;
+    std::vector<TerrainEditProblem> problems;
+    bool refused() const { return !code.empty(); }
+    // For each problem location of kind "crossing-constraints", the current source whose line
+    // passes through it (0 when none: a pad's grading ray), in problem and location order.
+    std::vector<std::vector<std::uint32_t>> crossed;
+    // The current sources the change was planned against (to name sources and pads).
+    std::shared_ptr<const TerrainSourceState> sources;
+    // Source edits: the source and its geometry as the commit stores it (terrain frame).
+    std::uint32_t source{};
+    TerrainSourceRole role{TerrainSourceRole::Contour};
+    std::vector<Vec3> points;
+    // Stamps: the pad with its resolved outline, rays and daylight line.
+    std::shared_ptr<const TerrainStampData> pad;
+    std::size_t rays{}, cut{}, fill{}, touching{}, dropped{};
+    // Drapes: the runs on the surface, their input lines, and the parts outside the outline or
+    // in a hole (approximate: sampled along each line), with their lines.
+    std::shared_ptr<const TerrainDrapeData> drape;
+    std::vector<std::vector<Vec3>> runs;
+    std::vector<std::uint32_t> runLines;
+    std::vector<std::vector<Vec3>> clippedParts;
+    std::vector<std::uint32_t> clippedLines;
+    std::size_t clipped{}, faces{}, edgeLines{};
+    TerrainDrapeOverlay overlayGeometry; // overlay: the lifted geometry
+    double planMs{};                     // the dry run and the candidate, on the worker
+};
+std::shared_ptr<const TerrainEditPreviewRequest>
+prepareTerrainEditPreview(const Document &doc, const QJsonObject &command);
+TerrainCommandPreview runTerrainEditPreview(const TerrainEditPreviewRequest &request,
+                                            TerrainProgress *progress = nullptr);
+// R096.f2 (UX §15.4): the footprint terrain.stamp_pad would read from `footprint` ({body, face},
+// {body}, {edges} or {polygon}), in model coordinates: its outline (cleaned, counter-clockwise from
+// its smallest point, at its height or at 0 when it has none), its height when it has one, and the
+// source body and face. Throws the command's TerrainError for a footprint it refuses.
+struct TerrainPadFootprint {
+    std::vector<Vec3> outline;
+    std::optional<double> z;
+    Id body{}, face{};
+};
+TerrainPadFootprint terrainPadFootprint(const Document &doc, const QJsonValue &footprint);
+// The command a request was prepared from.
+const QJsonObject &terrainEditPreviewCommand(const TerrainEditPreviewRequest &request);
 // terrain.describe's `edits`: count, bytes and at most 200 entries {id, kind, bounds} (bounds in
 // the terrain frame, when the kind gives them), with the rest counted.
 QJsonObject terrainEditsJson(const TerrainRecord &record);

@@ -2744,6 +2744,339 @@ Skipping the adjacency for one-sided changes would save about 45–65 ms per nin
 change no validation outcome. It is a change to the shared report code, though, not to the
 duplicate run. It is recorded for R096.g as a separate decision.
 
+## Implementation notes (R096.f2)
+
+R096.f2 delivers the rest of R096.f in three stacked parts: (1) the preview worker and Edit
+contours, (2) Stamp pad and Drape, (3) the Terrain edits list. This section records part 1; the
+other parts add their own subsections.
+
+### Part 1: the preview worker and Edit contours
+
+Modules:
+- `src/app/terrain_preview_worker.*`: the one-thread, latest-wins worker.
+- `src/app/viewport_terrain_preview.cpp`: requesting, showing, committing and naming refusals.
+- `src/app/viewport_contours.cpp`: the tool.
+- `prepareTerrainEditPreview` and `runTerrainEditPreview` in `src/automation/terrain_commands.*`.
+- The strip's Contours panel (`terrain_tool_strip.*`) and the menu, rail and context-menu entry
+  (`window_terrain.cpp`, `tool.31`, no default shortcut).
+
+**The worker preview (§5).**
+- *One parse, one plan.* A tool asks for the preview of the exact command it would commit.
+  `prepareTerrainEditPreview` runs the command's own parse on the UI thread
+  (`terrain.edit_source`, `terrain.add_source`, `terrain.remove_source`; part 2 adds
+  `terrain.stamp_pad` and `terrain.drape`) and keeps every input of the plan: the terrain's
+  record (its `BodyPtr`), the cached edit mesh, the current sources and the document's terrain
+  triangle total. A request the command refuses before planning (an unknown source, a locked
+  terrain, a boundary source) is refused at once, with the command's message, and nothing is
+  planned.
+- *Shared dry runs.* The commands' dry runs were factored so the preview runs the same code:
+  `dryRunSourceEdit` (the plan, the merge of new vertices into existing ones and the second plan
+  with the resolved points), `resolvePromotion` (a promotion's line is now found by the dry run,
+  on the mesh, instead of during parsing, so the worker finds it), `parseStamp` and `parseDrape`,
+  and `overTerrainLimit` for the `triangle-budget` refusal. The commands' behaviour and refusals
+  are unchanged (the R096.c, R096.d and R096.e suites pass unchanged).
+- *On the worker.* `runTerrainEditPreview` reads no document. It plans on the kept inputs, checks
+  what `applyTerrainEdit` checks before its commit (a full list, the 8 MiB bound, the triangle
+  limit) and builds the candidate tiles with `replaceTerrainRegion`. A refusal is returned with its
+  located problems, not thrown. For each `crossing-constraints` location it also finds the current
+  source passing through it, so the label can name it ("Crosses contour 106.00 m").
+- *Thread safety.* Everything the worker reads is immutable and held by the request: the tile
+  records, the edit mesh (built with its topology before it is returned; the cache copies rather
+  than updates a mesh someone else holds) and the current sources (likewise copied, not extended in
+  place, while held). The worker's progress carries a cancel flag. The viewport deletes the worker
+  first in its destructor, which waits for a running plan, before forgetting its meshes.
+- *Latest wins.* At most one plan runs. A request made while one runs waits, and a newer request
+  replaces it unseen, so the worker plans the newest request next and never one a newer request
+  replaced. A result is delivered when it is newer than every result delivered before; an older
+  one is dropped. A continuous drag therefore keeps showing the plan of a recent position instead
+  of none (dropping every stale result would show nothing while the pointer moves faster than a
+  plan). `cancel()` (Escape, a tool change, a commit, a refusal before planning) withdraws
+  everything requested so far and stops the running plan at its next checkpoint.
+- *Shown and drawn.* The viewport shows a delivered plan only for the document and revision it was
+  planned at. Its candidate goes through R096.f1's display path (the candidate tiles in place of
+  those they replace, seam-ring normals, per-tile contours); its refusal is marked at the pointer.
+  The changed region's outline is the boundary of the triangles the change adds, drawn as f1's
+  hatched band.
+- *Commit.* A release (or Enter, or a typed value) commits the newest command through the batch API
+  (`ToolSession`, a new edit, never an amend) as one labelled edit. It is the command whose plan
+  is shown when the plan is current; a refused current plan is not committed. The committed tiles
+  equal the previewed candidate's bit for bit (tested from real input for a drag, an added contour
+  and a promotion).
+
+**Edit contours (UX §15.3, §15.7).**
+- *Shown.* The current sources of the selected terrain (else of the terrain under the pointer, or
+  the first in the open context) in model coordinates, cached per terrain record: contours solid at
+  1.5 px, breaklines dash-dot, spot points as crosses (at most 20,000 drawn). Boundary and hole
+  sources are not drawn. Display contours fade (a constant blend alpha of 0.3, never in exports).
+  Many points are projected with one matrix (`ScreenProjector`).
+- *Hover, select, handles.* Sources within 6 px of the pointer, nearest first; Tab cycles them
+  (§4.2). A click selects; handles: squares on vertices, rounds at midpoints (a closed ring's
+  repeated start is one vertex). With a source selected, Tab and Shift+Tab move the focused handle
+  (§15.7). A click on a handle focuses it.
+- *Drag.* A drag moves the vertex in the horizontal plane at its own elevation (a contour keeps its
+  level; a breakline vertex its Z); a round handle inserts a vertex at the midpoint and moves it.
+  Each move requests the preview of `terrain.edit_source` with the source's new points (contours
+  as `[x, y]`, so the command keeps their one elevation). Release commits "Edit contour" and keeps
+  the source selected with the moved vertex focused.
+- *Refusals at the pointer.* A refused plan withdraws the candidate and draws the moved run (the
+  dragged vertex and its neighbours) red and dashed, a red square at the vertex, an × at the first
+  problem location, and a failure label; the status bar repeats it with the place in site
+  coordinates (`E …, N …`, or model `x, y` without a site), in the failure style. Labels by kind:
+  `crossing-constraints` "Crosses contour 106.00 m" (or a breakline, a pad's outline, a draped line
+  or a grading ray), `outside-outline` "Leaves the terrain's outline", `inside-pad` "Enters Pad
+  (change #N)", `crossed-by-change` the UX sentence ("This contour is crossed by Drape (change #4);
+  remove that change to re-elevate it alone"), `pad-source` and `drape-source` naming the change,
+  `conflicting-duplicate` and `triangle-budget`. Releasing a refused drag changes nothing.
+- *Typing, keys, strip.* A number sets the selected contour's or breakline's elevation (model Z,
+  the box labelled Elevation); a typed position (`[x, y]` or `@E, N`) moves the focused handle (a
+  midpoint inserts a vertex), or, with nothing focused, selects the source passing nearest it within
+  2 m. Delete removes the focused vertex, Shift+Delete (or Remove) the source; Delete and Backspace
+  are taken from the window's shortcuts only while they act here. The strip shows the selected
+  source ("Contour 105.00 m · source 17"), its Role (Contour or Breakline) and Elevation; a pad's
+  or a drape's line shows its change, with Role, Elevation and Remove unavailable.
+- *Adding.* Add contour, Add breakline and Add spot draw as the Line tool: clicks (or typed
+  positions) on the surface, Enter finishes, a contour's first point closes it, Backspace removes the
+  last point. A new contour takes its first point's elevation unless one is typed first; a spot
+  point the typed elevation, or the surface's on Enter. With two points (one for a spot) the
+  addition previews on the worker. Promote previews the display contour under the pointer (the
+  display level nearest the surface there, from the interval and the site offset) and a click
+  commits `terrain.add_source {level, at}`. After adding a contour or breakline the tool returns to
+  editing with the new source selected.
+
+**Choices where the design is open, and deviations (part 1).**
+- The mockup's strip has a Remove button besides Add contour, Add breakline, Add spot and Promote;
+  it is built (Shift+Delete does the same).
+- A typed elevation is model Z, as the Terrain section and the Elevation field report.
+- Adding a contour or breakline ends in editing mode with the new source selected, so a typed
+  elevation adjusts it; Add spot stays in its mode for the next point.
+- Tab: with a source selected it moves between the source's handles (§15.7); otherwise it cycles the
+  sources under the pointer (§4.2).
+- A refused typed elevation or strip action is reported in the status bar ("Nothing changed: …"),
+  not at the pointer, since there is no drag; a refused typed elevation also marks the Elevation
+  field or the Measurements box.
+- An imported point file (a spot-point source of more than 20,000 points) is drawn only while
+  hovered: as the base of a points terrain it would cover the view, and drawing it costs the
+  frame. Fewer than 2,000 points in view are crosses, more are dots.
+- A release, a commit and a refusal message stay in the status bar until the pointer moves or a
+  key acts, so the tool's instruction does not replace them at once.
+
+**Measured (part 1)** from the input event to the presented frame, with f1's harness and
+conditions (`terrain_budget_benchmark --edit-frames 64`; Release, the pinned image's Xvfb at
+1920 × 1080 with host llvmpipe, `--cpus=4`, 10 GiB, load average 2–7 from other sessions). The
+contour drag uses the 416-ring terrain (249,298 triangles, 3,169 tiles): three 0.1 m steps
+outward of the source vertex nearest the middle of each of the 64 largest tiles, the view framing
+16 m around it. Each step is timed from the move event to the completed frame showing the worker's
+candidate for that step; the release from its event to the frame showing the committed tiles. The
+Add breakline row uses the point terrain built from 2 % fewer points (244,970 triangles, as R096.d
+and R096.e measured, since additions add triangles): two clicks 5 to 40 m apart through the middle
+of each of the 64 largest tiles, timed from the second click; the budget row keeps the samples
+whose touched tiles hold at most 2,048 triangles (63 of 64). Figures are the best of three runs,
+with the range.
+
+| Operation | p50 / p95 (max) | of which, p95: event, wait for the worker (plan), display build, frame | Cavity; touched triangles (max) |
+| --- | ---: | --- | --- |
+| Contour drag preview (192 steps) | 47.2 / 52.6 ms (55.6); runs 52.6–83.6 | 2.1, 0.7 (0.5), 11.0, 48.8 ms | 16; 942 |
+| Add breakline preview (63) | 44.6 / 57.0 ms (64.8) | 0.8, 0.8 (0.6), 29.4, 53.6 ms | 43; 2,006 |
+| Contour edit commit, one tile (64) | 103.1 / 113.6 ms (116.0); runs 113.6–170.9 | event 56.8, cache rebuild 19.1, frame 53.9 ms | |
+
+- **Contour-edit preview, p95 ≤ 100 ms for cavities up to 2,048 triangles:** met under llvmpipe,
+  at 53–84 ms across the runs (57 ms for added breaklines). The worker's plan is under 1 ms
+  (R096.c measured cavities of up to 1,975 triangles at ≤ 16.1 ms in the core) and its delivery
+  under 1 ms more; the rest is the software frame (about 49 ms without a candidate) and the
+  candidate's display build. Two things were needed to get here:
+  - The viewport no longer repaints on a pointer move while the plan it asked for is on the worker
+    (at most 40 ms): the frame that follows the input shows the candidate. Before, the move's own
+    frame and then the plan's frame both came after the input, and the preview measured
+    135–153 ms p95, two software frames.
+  - The tool draws only the runs of source lines in view, and a point source of more than 20,000
+    points only while hovered; before, drawing every source (124,800 ring vertices, or 122,500
+    spot-point crosses) cost the frame 80 ms to 1.4 s.
+  The cavities in these samples are small (a vertex moved within its neighbours, a short line);
+  the frame does not grow with the cavity but with the touched tiles, which the budget bounds.
+- **One-tile contour commit:** p95 114–171 ms, as R096.f1b's sculpt commit (106–117 ms): the
+  command and refresh (57–74 ms) and the commit frame's rebuild (19–26 ms) are the CPU part, the
+  rest the software frame. The AMD session (R096.g) judges it on hardware.
+
+### Part 2: Stamp pad and Drape
+
+Modules: `src/app/viewport_stamp.cpp`, `src/app/viewport_drape.cpp`, the strip's Pad and Drape
+panels, `tool.32` (Stamp pad) and `tool.33` (Drape) with no default shortcuts, the context menu's
+**Drape onto terrain** (`terrain.drapeSelection`), and `terrainPadFootprint` in
+`src/automation/terrain_commands.*` (the footprint `terrain.stamp_pad` would read, for the
+highlight and the strip). Both tools plan on part 1's worker.
+
+**Stamp pad (UX §15.4).**
+- *Footprint.* From the selection when the tool starts: one horizontal face (`{body, face}`), a
+  group or component (`{body}`: its lowest horizontal face, as the command chooses it), or a closed
+  edge loop (`{edges}`). Otherwise the face, group or component under the pointer (`selectionAt`,
+  so the open context decides) is highlighted with its footprint and a click chooses it. A typed
+  `[x, y]` or `@E, N` chooses the footprint in the open context that holds the position in plan
+  (the highest, when several do). The strip names it ("Building A footprint"); a face's footprint
+  takes its group's name. The terrain is the one under the footprint.
+- *Elevation.* The footprint's height less the Pad offset; moving the pointer up or down adds the
+  height at the footprint's depth, in centimetres. Each change asks the worker for the preview of
+  `terrain.stamp_pad` with the strip's grading. The pad offset (0 to 100 m) is stored in the
+  settings and read when a viewport starts.
+- *Preview.* Part 1's candidate path draws the surface. The overlay tints the triangles the stamp
+  adds: those at the pad elevation are the pad (white, light), those above it are cut (brown with a
+  diagonal hatch), those below it fill (teal with a dot pattern); the strip's legend shows the same
+  swatches with their names. Rays are thin lines from the outline to their daylight points, the
+  daylight line is dashed and labelled "Daylight", and "Cut 1:2" and "Fill 1:2" label the areas.
+  The pad's label reads "Pad 106.00 m / Building A − 0.15 m offset".
+- *Refusals.* The worker's located problems give "Ray at E …, N … leaves the terrain" (outside the
+  outline), "… finds no daylight within the maximum distance" (`daylight-distance`), "Overlaps Pad
+  (change #N)" (`inside-pad`) and the triangle limit; an × marks the place and a red dashed line
+  joins it to the nearest footprint corner. Enter and a click are refused while the shown plan for
+  the current command is refused.
+- *Commit and amend (UX §4.3).* Enter or a click commits the previewed command as one "Stamp pad"
+  edit. The tool then waits for the next footprint; until another operation starts, a typed length
+  revises the elevation and a typed slope (with `:` or `°`) both slopes, through `executeAmend`'s
+  `AmendPolicy::TerrainTiles` (`terrain.stamp_pad` was already in it): one History entry, its label
+  kept, the replacement re-stamped on the state before the stamp. Fixed-width pads refuse a slope.
+- *Strip.* Daylight or Fixed width; Cut and Fill (`1:2`, `0.5` or `26.6°`; shown as rise:run),
+  Max distance, Width and Pad offset (lengths in the box's syntax); the legend.
+
+**Drape (UX §15.5).**
+- *Input.* The selected edges (curves select theirs), faces, and the faces of selected groups and
+  components; never a terrain's own. Drape onto terrain is offered in the context menu while the
+  selection has such edges or faces and the model has a terrain, and right-clicking the terrain
+  then keeps that selection. With nothing to drape the tool says what to select.
+- *Preview.* With one terrain in the open context the tool asks at once; otherwise the terrain
+  under the pointer (or a typed position) is the target. The runs are drawn on the surface
+  (`runs`), the split triangles' boundary as a band, a painted face's loops filled with its
+  material's colour on the surface (Imprint with Paint regions on), and an overlay's lifted faces in
+  the selection colour. The parts outside the outline are red and dashed with "Clipped: outside the
+  terrain": `runTerrainEditPreview` samples each input line against the mesh (at most 64 pieces a
+  segment) to find them, for display; the plan clips exactly. The strip counts the lines with a
+  clipped part ("1 edge clipped").
+- *Commit.* A click on the terrain or Enter commits `terrain.drape` with the strip's mode: Imprint
+  with `paintRegions`, Overlay with `lift` and `context` (the open context). Afterwards the terrain
+  (Imprint) or the new group (Overlay) is selected, and the tool returns to Select.
+
+**Shared.** Each tool's status, refusal and result messages follow part 1 (the failure style, a
+message held until the pointer moves). A frame after a pointer move waits for the plan it asked
+for, as for contours.
+
+**Choices where the design is open, and deviations (part 2).**
+- The strip wraps to two rows at 1280 px with every Pad field shown (the mockup fits one row and a
+  half); the fields keep the strip's field widths.
+- The pad label, Cut, Fill and Daylight labels are placed by the overlay's own geometry (the cut
+  area's lowest triangle on screen, the fill area's leftmost), not hand-placed as in the mockup.
+- A typed slope after a stamp revises both slopes; the strip sets them apart.
+- The Drape tool returns to Select after a drape, since its input (the selection) has become the
+  terrain or the new group.
+- Drape's preview label at the pointer ("Imprint · 1 face, 5 edges / Paint: Paving, grey") sits
+  beside the first draped line when the target came from the keyboard.
+- Right-clicking the terrain with lines to drape selected keeps them selected; the menu then offers
+  the terrain's tools and Drape onto terrain, and leaves out Terrain settings… and Explode
+  terrain…, which act on a selected terrain.
+- An overlay in a component's context is refused by the command (`terrain_drape_tests` covers the
+  refusal); the desktop suite does not repeat it.
+
+**Measured (part 2)** with part 1's harness and conditions (`terrain_budget_benchmark
+--edit-frames 64`, Release, llvmpipe at 1920 × 1080, 4 CPUs), on the point terrain built from
+2 % fewer points (244,970 triangles; stamps and drapes add triangles), one sample per tile of the
+64 largest, the view framing 60 m around the tile's middle; samples whose touched tiles hold more
+than 2,048 triangles are left out of the rows (1 and 2 of 64).
+- *Stamp:* a selected square face a quarter of a tile across, 0.2 m above the ground at the
+  tile's middle; Stamp pad starts with it, three 12 px pointer steps up are timed as the contour
+  drag (to the frame showing that step's candidate), then Enter to the committed frame.
+- *Drape:* a selected 1 m wide strip 36 m long, 3 m above the ground; Drape is started (with one
+  terrain the tool asks at once) and timed to the frame showing the candidate, then Enter to the
+  committed frame.
+
+| Operation (one tile) | p50 / p95 (max) | of which, p95: event, worker wait (plan), display build, frame | Touched triangles p95 (max) |
+| --- | ---: | --- | ---: |
+| Stamp preview (189 steps) | 50.7 / 60.6 ms (77.2) | 0.3, 5.8 (5.6), 26.3, 53.5 ms | 1,883 (1,953) |
+| Stamp commit (63) | 70.7 / 102.2 ms (114.1) | event 49.3, cache rebuild 27.8, frame 50.5 ms | |
+| Drape preview (62) | 44.6 / 49.7 ms (55.8) | 0.3, 1.6 (1.5), 22.5, 46.9 ms | 1,251 (1,291) |
+| Drape commit (62) | 72.8 / 81.7 ms (86.6) | event 32.9, cache rebuild 27.8, frame 49.3 ms | |
+
+The previews are within 100 ms; the stamp's plan (rays, walk, repair, cavity) is 5.6 ms p95 on the
+worker. The one-tile stamp commit is p95 102.2 ms and the drape commit 81.7 ms end to end under
+llvmpipe, of which the CPU part (command, refresh and cache rebuild) is about 77 and 61 ms; the
+software frame is the rest, as for the sculpt and contour commits (the AMD session, R096.g).
+
+### Part 3: the Terrain edits list
+
+Modules: `src/app/terrain_edits_section.*` (the section and Edit pad…), `src/app/terrain_replay_job.*`
+(the replay as a job, its status-bar chip), `src/app/viewport_terrain_edits.cpp` (the highlight,
+framing and skipped changes), the section's place after the Terrain section
+(`entity_info_panel.*`), and Reset edits… through the job (`terrain_actions.cpp`).
+
+**Rows (UX §15.6).** In list order: a glyph by kind (⌒ sculpt, ≈ smooth, ∿ source edits, ▭ pad,
+⤓ drape), the title, the key values on a second line and the change's ID. Titles and values:
+- sculpt "Sculpt · raise 1.80 m", "Radius 9.00 m · smooth falloff" (a region: "Region · falloff
+  width 2.00 m · …"); smooth "Smooth · strength 0.50", "2 passes · radius 6.00 m";
+- pad "Pad · Building A" (its source body's name, or its group's), "106.00 m · daylight, cut 1:2,
+  fill 1:2" or "… · fixed width 3.00 m";
+- drape "Drape · Paving, grey" (the first painted region's material) or "Drape · 3 lines",
+  "Imprint · 3 lines, 1 painted region";
+- source edits "Contour 105.00 m" with "Reshaped · 2 vertices moved", "Elevation from 104.00 m",
+  "Now a breakline", vertices added or removed, and the source; "Added contour 105.20 m" or "Added
+  breakline" with the points; "Removed contour 104.00 m". What an edit changed comes from one
+  forward pass over the current sources (only when the list has source edits).
+The header counts the changes, the caption gives the use ("5 of 4,096 changes", grouped by
+thousands). Each row's accessible text is the §15.7 sentence ("Change 3 of 5, Pad, Building A,
+106.00 metres, daylight, cut 1 to 2, fill 1 to 2"); a skipped row adds "Warning: skipped" and its
+reason, which is also its accessible description. The section is rebuilt when the terrain's body
+changes, not on every document change; its buttons follow every change (a building deleted, a
+lock).
+
+**Selection.** Selecting a row outlines the change in the viewport in the selection colour with
+its label ("Change 3 · Pad · Building A / 106.00 m · daylight, cut 1:2, fill 1:2"): a pad's outline
+and daylight line, a drape's runs, a source edit's line (a spot point's small square, a removed
+source's old box), a sculpt's swept brush or region on the surface, otherwise the kind's plan box.
+The outline shows only while its terrain is selected and the section is shown; it is rebuilt after
+a document change. Double-click or Enter frames it; Delete removes it. The status bar says so when
+the user selects a row.
+
+**Actions (one undoable edit each).**
+- *Remove* runs `terrain.remove_edit`, *Restamp* `terrain.update_edit {restamp}`, *Edit pad…*
+  `terrain.update_edit` with the edited fields, and *Reset edits…* (the window's action, asking
+  first with Cancel the default) `terrain.reset_edits`.
+- *The job.* Each runs as a `TerrainReplayJob`: `parseTerrainReplayRequest` on the UI thread (its
+  refusals reported at once), `runTerrainReplay` on a one-thread pool with a `TerrainRunControl`
+  (it reads only the request), and `applyTerrainReplay` on the UI thread when it ends, refused for
+  a terrain changed meanwhile. A chip in the status bar shows "Replaying 3 changes · 64 %"
+  ("Resetting …" for Reset edits) with Cancel; cancelling stops the worker at its next checkpoint
+  and applies nothing. One job runs at a time. A job whose document was replaced (opened, reverted,
+  new) is discarded, and replacing the document cancels it.
+- *Restamp* is unavailable, with the reason as its tooltip and accessible description, for a pad
+  stamped from edges or a polygon, for one whose source body is gone, and on a locked terrain.
+- *Edit pad…* shows the pad's elevation, its offset below the source footprint (when the footprint
+  has a height; editing either updates the other), the grading, Cut, Fill, Max distance and Width.
+  Only the fields the user typed in are sent; an untouched field keeps its exact stored value, so
+  rounding in the shown text never changes the pad, and Apply is unavailable while nothing changed.
+
+**Skipped changes and notices.** The replay now lists every skipped entry with its notice
+(`TerrainImportResult::skipped`; the report keeps a bounded number of locations). A skipped row is
+marked "⚠ Skipped" in the warning colour with its reason ("the lines now enter a pad", "the pad
+now leaves the terrain's outline", or the refusal's own words), and stays so while the list the
+replay produced is a prefix of the terrain's list in the same document: a later change keeps the
+mark, Undo of the replay or removing the change clears it. Regenerate and Terrain settings set the
+marks from their own reports. Stamps and drapes that did not apply are marked from their record
+alone. The last change's or replay's notices (changes skipped, paint removed from rebuilt tiles,
+source vertices clipped, parts clipped) show under the list in the warning style while the list is
+the one they were made for, with Show report, which opens the R095.c2 report tree.
+
+**Choices where the design is open, and deviations (part 3).**
+- The drape row's title names its first paint region's material or its line count; a drape entry
+  does not record its source body's name ("Drape · Drive" in the mockup).
+- A skipped row's reason names the kind of conflict ("the lines now enter a pad") rather than the
+  pad ("crosses Pad · Building A"): the replay's notice does not name the other change.
+- A source-edit row's values say what changed from the sources before it ("Reshaped · 2 vertices
+  moved", as the mockup), found by a forward pass over the list.
+- The replay chip reads "Resetting 5 changes · …" for Reset edits.
+- The notices box shows the last change's notices too ("⚠ Last change (Stamp pad): …"), not only
+  a replay's.
+
+**Measured (part 3).** On the point terrain of part 2 with 256 one-tile sculpts, a Remove of the
+first change through the job (as the section runs it) takes 1.69 s from the start to the frame
+showing the replayed terrain, reporting 65 progress values on the way (the request 11 ms on the UI
+thread); a cancel 300 ms into a second Remove ends the job within 22 ms and changes nothing.
+R096.a measured the replay alone at 1.0–1.1 s for 1,000 entries against the 3 s budget.
+
 ## Sources
 
 Retrieved by web search on 2026-10-19.

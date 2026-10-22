@@ -7,7 +7,8 @@ Lists the build's tests (ctest --show-only=json-v1), drops those EXCLUDE_REGEX m
 (searched like ctest --exclude-regex), and deals the rest over SHARDS shards, longest first
 to the least loaded shard, by the serial seconds in .github/ci-path-map.json
 ("test_seconds"; unlisted tests count 1 s). Every test lands in exactly one shard.
-Prints shard SHARD's tests (0-based) as an anchored --tests-regex, and writes CTest's cost
+Shard 0 starts with 60 s of load for the repository checks it also runs. Prints shard
+SHARD's tests (0-based) as an anchored --tests-regex, and writes CTest's cost
 file for them, so `ctest --parallel` starts the longest first.
 """
 import json
@@ -33,7 +34,8 @@ def main(argv):
         names = [name for name in names if not exclude.search(name)]
     seconds = json.loads((ROOT / ".github" / "ci-path-map.json").read_text())["test_seconds"]
     cost = {name: float(seconds.get(name, 1)) for name in names}
-    loads = [0.0] * shards
+    # Shard 1 (index 0) also runs mcp and the repository checks after CTest: about a minute.
+    loads = [60.0] + [0.0] * (shards - 1)
     mine = []
     for name in sorted(names, key=lambda n: (-cost[n], n)):
         target = min(range(shards), key=lambda i: (loads[i], i))
@@ -48,7 +50,7 @@ def main(argv):
     (temporary / "CTestCostData.txt").write_text(
         "".join(f"{name} 1 {cost[name]}\n" for name in mine) + "---\n")
     print(f"shard {shard + 1}/{shards}: {len(mine)} of {len(names)} tests, "
-          f"~{loads[shard]:.0f} s serial", file=sys.stderr)
+          f"~{loads[shard]:.0f} s serial (with any head start)", file=sys.stderr)
     print("^(" + "|".join(re.escape(name) for name in mine) + ")$")
     return 0
 

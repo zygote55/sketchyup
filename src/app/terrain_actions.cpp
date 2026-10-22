@@ -1,4 +1,5 @@
 #include "app/terrain_actions.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/accessible_names.hpp"
 #include "app/terrain_report_view.hpp"
 #include "app/terrain_role_table.hpp"
@@ -125,6 +126,38 @@ QJsonArray selectedTerrainEdges(const Selection &selection) {
             edges.append(QJsonObject{{"body", QString::number(entity.body)},
                                      {"edge", QString::number(entity.entity)}});
     return edges;
+}
+TerrainDrapeInput terrainDrapeInput(const Document &doc, const Selection &selection) {
+    TerrainDrapeInput input;
+    std::set<std::pair<Id, Id>> faces;
+    for (const auto &entity : selection.entities()) {
+        const auto found = doc.bodies().find(entity.body);
+        if (found == doc.bodies().end() || terrainOfBody(doc, entity.body))
+            continue;
+        if (entity.kind == SelectionKind::Edge)
+            input.edges.append(QJsonObject{{"body", QString::number(entity.body)},
+                                           {"edge", QString::number(entity.entity)}});
+        else if (entity.kind == SelectionKind::Face)
+            faces.insert({entity.body, entity.entity});
+        else if (entity.kind == SelectionKind::Body)
+            for (const auto &[id, body] : doc.bodies()) {
+                if (body->kind != BodyKind::Geometry || body->terrainTile)
+                    continue;
+                bool inside = false;
+                for (Id at = id; at && !inside;) {
+                    inside = at == entity.body;
+                    const auto parent = doc.bodies().find(at);
+                    at = parent == doc.bodies().end() ? 0 : parent->second->parent;
+                }
+                if (inside)
+                    for (const auto &[face, record] : body->surface.faces)
+                        faces.insert({id, face});
+            }
+    }
+    for (const auto &[body, face] : faces)
+        input.faces.append(
+            QJsonObject{{"body", QString::number(body)}, {"face", QString::number(face)}});
+    return input;
 }
 namespace {
 using ContourPoints = std::set<std::tuple<double, double, double>>;
@@ -1057,9 +1090,13 @@ bool resetTerrainEditsInteractive(QWidget *parent, Document &doc, Viewport &view
     if (confirm.exec() != QDialog::Accepted || !isTerrain(doc, terrain))
         return false;
     try {
-        const auto operation = commitTerrain(
-            view, {{"command", "terrain.reset_edits"}, {"terrain", QString::number(terrain)}});
-        return operation["changed"].toBool();
+        // R096.f2 (UX §15.6): the replay runs as a job with progress and Cancel in the status
+        // bar; it applies one "Reset terrain edits" edit when it ends (returns at once).
+        TerrainReplayJob::start(parent ? parent->window() : nullptr, doc, view,
+                                {{"command", "terrain.reset_edits"},
+                                 {"terrain", QString::number(terrain)}},
+                                "Reset edits");
+        return false;
     } catch (const std::exception &error) {
         const auto report = refusalReport(error);
         if (report.isEmpty())

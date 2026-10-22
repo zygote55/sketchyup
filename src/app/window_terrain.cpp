@@ -2,6 +2,7 @@
 #include "app/site_dialogs.hpp"
 #include "app/terrain_actions.hpp"
 #include "app/terrain_import_dialog.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/terrain_tool_strip.hpp"
 #include "app/window.hpp"
 #include "io/terrain_source.hpp"
@@ -20,6 +21,29 @@
 #include <QToolButton>
 #include <QWidgetAction>
 namespace sketchy {
+namespace {
+// R096.f2 (UX §15.1): the terrain tools' actions in menu order, and each tool's name on the rail
+// slot and in the strip's switcher (the mockup's "Contours ▸", "Pad ▸", "Drape ▸").
+const std::vector<const char *> &terrainToolActionIds() {
+    static const std::vector<const char *> ids{"tool.29", "tool.30", "tool.31", "tool.32",
+                                               "tool.33"};
+    return ids;
+}
+QString terrainToolRailName(Viewport::Tool tool) {
+    switch (tool) {
+    case Viewport::Tool::Smooth:
+        return "Smooth";
+    case Viewport::Tool::Contours:
+        return "Contours";
+    case Viewport::Tool::Pad:
+        return "Pad";
+    case Viewport::Tool::Drape:
+        return "Drape";
+    default:
+        return "Sculpt";
+    }
+}
+} // namespace
 // R095.d (ADR 0168 "Decisions > Interaction design"): File > Import terrain…. Unlike the other
 // importers, terrain import adds to the open document (owner decision 11).
 void Window::importTerrainDialog() {
@@ -128,6 +152,10 @@ void Window::setupTerrainActions() {
     statusExplode_->hide();
     if (auto *footer = qobject_cast<QHBoxLayout *>(status_->parentWidget()->layout()))
         footer->insertWidget(footer->indexOf(status_) + 1, statusExplode_);
+    // R096.f2 (UX §15.6): a terrain replay's job chip ("Replaying 3 changes · 64 %", Cancel).
+    auto *chip = new TerrainReplayChip;
+    if (auto *footer = qobject_cast<QHBoxLayout *>(status_->parentWidget()->layout()))
+        footer->insertWidget(footer->indexOf(statusExplode_) + 1, chip);
     connect(statusExplode_, &QPushButton::clicked, this, [this] {
         run([this] {
             if (!isTerrain(doc_, statusExplodeTerrain_))
@@ -162,6 +190,9 @@ void Window::syncTerrainActions() {
     const bool model = workspace_ == Workspace::Model && !assistantFenced_;
     findChild<QAction *>("terrain.createFromSelection")
         ->setEnabled(model && !selectedTerrainEdges(selection).isEmpty());
+    if (auto *drape = findChild<QAction *>("terrain.drapeSelection"))
+        drape->setEnabled(model && !terrainDrapeInput(doc_, selection).empty() &&
+                          doc_.materializedTotals().terrainTriangles > 0);
     const auto selected = model ? selectedTerrain(doc_, selection) : 0;
     const bool terrain = selected != 0;
     for (const auto *id : {"terrain.settings", "terrain.regenerate", "terrain.explode"})
@@ -170,7 +201,7 @@ void Window::syncTerrainActions() {
         ->setEnabled(terrain && !doc_.bodies().at(selected)->terrain->edits.empty());
     // The terrain tools need a terrain in the model to act on; without one they still start and
     // say so (UX §15.1), so they stay enabled.
-    for (const auto *id : {"tool.29", "tool.30"})
+    for (const auto *id : terrainToolActionIds())
         if (auto *tool = findChild<QAction *>(id))
             tool->setEnabled(model);
     if (statusExplode_ && statusExplodeTerrain_ && !isTerrain(doc_, statusExplodeTerrain_))
@@ -186,7 +217,12 @@ void Window::showViewportMenu(const QPoint &position) {
     Id terrain = 0;
     if (const auto [body, face] = viewport_->pick(position); body)
         terrain = terrainOfBody(doc_, body);
-    if (terrain && selectedTerrain(doc_, viewport_->selectionState()) != terrain &&
+    // R096.f2: with lines to drape selected, right-clicking the terrain keeps them selected, so
+    // the menu can offer Drape onto terrain.
+    syncTerrainActions();
+    const auto *drape = findChild<QAction *>("terrain.drapeSelection");
+    const bool drapeable = drape && drape->isEnabled();
+    if (terrain && !drapeable && selectedTerrain(doc_, viewport_->selectionState()) != terrain &&
         !viewport_->selectionState().context()) {
         viewport_->setSelection(terrain);
         sync();
@@ -209,13 +245,19 @@ void Window::showViewportMenu(const QPoint &position) {
         heading->setDefaultWidget(label);
         heading->setEnabled(false);
         menu.addAction(heading);
-        for (const auto *id : {"tool.29", "tool.30"})
+        for (const auto *id : terrainToolActionIds())
             menu.addAction(findChild<QAction *>(id));
         menu.addSeparator();
-        menu.addAction(findChild<QAction *>("terrain.settings"));
-        menu.addAction(findChild<QAction *>("terrain.explode"));
-        menu.addSeparator();
+        // Settings and Explode act on the selected terrain; with lines to drape selected instead,
+        // they would be unavailable, so the menu leaves them out.
+        if (selectedTerrain(doc_, viewport_->selectionState()) == terrain) {
+            menu.addAction(findChild<QAction *>("terrain.settings"));
+            menu.addAction(findChild<QAction *>("terrain.explode"));
+            menu.addSeparator();
+        }
     }
+    if (auto *drape = findChild<QAction *>("terrain.drapeSelection"); drape && drape->isEnabled())
+        menu.addAction(drape);
     menu.addAction(findChild<QAction *>("terrain.createFromSelection"));
     menu.exec(viewport_->mapToGlobal(position));
 }
@@ -234,6 +276,16 @@ void Window::setupTerrainTools(QActionGroup *group, QToolBar *rail) {
     // the shortcut editor.
     add("Sculpt", "Shift+S", Viewport::Tool::Sculpt);
     add("Smooth", "", Viewport::Tool::Smooth);
+    // R096.f2 (UX §15.1): no default shortcuts; they can be assigned in the shortcut editor.
+    add("Edit contours", "", Viewport::Tool::Contours)->setProperty("command", "terrain.edit_source");
+    add("Stamp pad", "", Viewport::Tool::Pad)->setProperty("command", "terrain.stamp_pad");
+    add("Drape", "", Viewport::Tool::Drape)->setProperty("command", "terrain.drape");
+    // UX §15.1: with edges or faces selected, the context menu offers Drape onto terrain.
+    auto *drape = action("terrain.drapeSelection", "Drape onto terrain", {}, [this] {
+        tool(Viewport::Tool::Drape, {});
+    });
+    drape->setProperty("command", "terrain.drape");
+    drape->setProperty("requiresSelection", true);
     // The rail's Terrain slot: one control in its own group after Tape. It shows the last
     // terrain tool used ("Terrain" until one is, as the approved mockup draws it) and starts it
     // (Sculpt at first). Like the other groups it has no separator on the wide rail, which has
@@ -281,8 +333,7 @@ void Window::setupTerrainMenu() {
         return entry;
     };
     heading("Tools", "terrainMenuToolsHeading");
-    // Edit contours, Stamp pad and Drape join the tools with R096.f2.
-    for (const auto *id : {"tool.29", "tool.30"})
+    for (const auto *id : terrainToolActionIds())
         terrainMenu_->addAction(findChild<QAction *>(id));
     terrainMenu_->addSeparator();
     terrainHeading_ = heading("No terrain selected", "terrainMenuTerrainHeading");
@@ -310,7 +361,7 @@ void Window::syncTerrainTools() {
         lastTerrainTool_ = mode;
         terrainToolUsed_ = true;
     }
-    const QString name = lastTerrainTool_ == Viewport::Tool::Smooth ? "Smooth" : "Sculpt";
+    const QString name = terrainToolRailName(lastTerrainTool_);
     terrainRail_->setText((terrainToolUsed_ ? name : QString("Terrain")) + " ▸");
     const auto *entry = findChild<QAction *>("tool." + QString::number(int(lastTerrainTool_)));
     const auto key = entry ? entry->shortcut().toString(QKeySequence::NativeText) : QString();

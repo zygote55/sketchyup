@@ -3,6 +3,7 @@
 #include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/terrain_edits_section.hpp"
 #include "app/terrain_section.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
@@ -158,6 +159,9 @@ EntityInfoPanel::EntityInfoPanel(Document &doc, Viewport &view, QWidget *parent)
     // R095.e1: the Terrain section, under Entity info while a terrain is selected.
     terrain_ = new TerrainSection(doc_, view_);
     stack->addWidget(terrain_);
+    // R096.f2 (UX §15.6): Terrain edits follows the Terrain section.
+    edits_ = new TerrainEditsSection(doc_, view_);
+    stack->addWidget(edits_);
     parameters_ = new ComponentParametersSection(doc_, view_);
     stack->addWidget(parameters_);
     definition_ = new ComponentDefinitionSection(doc_, view_);
@@ -188,6 +192,7 @@ void EntityInfoPanel::refresh() {
     if (!isVisible())
         return;
     terrain_->refresh();
+    edits_->refresh();
     const auto &selected = view_.selectionState().entities();
     if (selected.size() != 1) {
         entity_.reset();

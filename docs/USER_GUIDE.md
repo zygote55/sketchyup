@@ -487,6 +487,74 @@ type the points one by one and the first point again to close. Over anything but
 cursor is not-allowed and the status bar says to point at a terrain; with no terrain in the model
 it says how to import one.
 
+**Edit contours.** Choose **Terrain → Edit contours** (or **Contours** in the strip). The
+terrain's source contours are drawn solid, breaklines dash-dot and spot points as small crosses,
+while the display contour lines fade. Hovering a source highlights it and names it ("Contour
+105.00 m · source 17"); when several lie under the pointer, **Tab** chooses another. Click a source
+to select it: its vertices get square handles and its segments round handles at their middles, and
+the strip shows its **Role** (Contour or Breakline) and **Elevation**. **Drag a square handle** to
+move a vertex (a contour keeps its elevation) or a **round one** to insert a vertex there; the
+re-triangulated surface is shown in place, outlined by a black and white band, and releasing
+applies it as one undoable edit ("Edit contour"). A move that would cross another source, leave the
+terrain's outline or enter a pad is refused at the pointer instead: the moved part turns red and
+dashed, an × marks the first conflict, a label says what it crosses ("Crosses contour 106.00 m ·
+Release to cancel, or move back"), and the status bar gives the place in site coordinates; releasing
+then changes nothing. With a source selected, **type a number** to set its elevation, press
+**Delete** to remove the focused vertex and **Shift+Delete** (or **Remove**) to remove the source.
+**Add contour**, **Add breakline** and **Add spot** draw new sources on the terrain as the Line tool
+does: click points, press **Enter** to finish (click a contour's first point to close it, and
+**Backspace** removes the last point). A new contour takes its first point's elevation unless you
+type one first; a spot point takes the elevation you type, or the surface's when you press Enter.
+**Promote** turns the display contour under the pointer into a source contour at its level, which
+is how a terrain made from points becomes editable. A pad's outline and daylight line, and a draped
+line, belong to their change: select them to see which, and change them in Terrain edits. Without
+a pointer, type `[x, y]` or `@E, N` to select the source nearest that position, **Tab** between its
+handles, and type a position to move the focused one.
+
+**Stamp a building pad.** Select a horizontal face, a group or component (its lowest horizontal face
+is used) or a closed loop of edges, and choose **Terrain → Stamp pad** (**Pad** in the strip); or
+start the tool, point at a face, group or component, whose footprint is highlighted, and click.
+The strip names the footprint. The pad starts at the footprint's height less the **Pad offset**
+(0 m at first; type a slab build-up such as `15cm` once and it is remembered). Move the pointer up
+or down, or type the pad's elevation, and press **Enter** or click to stamp it as one undoable
+edit ("Stamp pad"). The preview shows the graded surface in place: **cut** tinted brown with a
+diagonal hatch, **fill** teal with dots (the strip's legend names both), the pad flat and light,
+the slope rays as thin lines and the dashed **Daylight** line where the slopes meet the ground.
+**Daylight** grading (the default) takes **Cut** and **Fill** slopes as rise:run (`1:2`; `0.5` and
+`26.6°` also work) and a **Max distance** (100 m); **Fixed width** takes a **Width** instead. A pad
+that cannot be stamped (a slope ray that leaves the terrain or finds no ground within the maximum
+distance, a slope that overlaps another pad) is marked in red with an × and its place, and Enter
+does nothing until you change it. Right after stamping, typing a new elevation (`106.2`) or slope
+(`1:3`, `26.6°`) revises the same edit. Without a pointer, type the footprint's position as
+`[x, y]` or `@E, N`, then its elevation.
+
+**Drape lines and paths.** Select edges, curves or faces (in groups too, above or below the terrain)
+and choose **Terrain → Drape**, or right-click and choose **Drape onto terrain**. Point at the
+terrain: the lines are shown lying on the surface, a painted face's region in its material when
+**Paint regions with their material** is on, and parts outside the terrain red and dashed, counted
+in the strip ("1 edge clipped"). Click the terrain or press **Enter** to drape, as one undoable edit
+("Drape on terrain"). **Imprint** (the default) leaves the terrain's shape unchanged and adds the
+lines to it as breaklines, so later sculpting and pads respect them, and paints the regions on every
+rebuild; afterwards the terrain is selected. **Overlay** instead makes ordinary geometry in a new
+group in the open context, lifted by **Lift** (0.01 m), and selects that group. The tool then
+returns to Select.
+
+**Terrain edits.** With a terrain selected, the **Terrain edits** section follows the Terrain section
+on the Info tab. It lists the terrain's changes in the order they apply, each with its kind, its
+title ("Pad · Building A"), its key values ("106.00 m · daylight, cut 1:2, fill 1:2") and its number;
+the header counts them and the caption gives the use ("5 of 4,096 changes"). Selecting a change
+outlines its region in the view with a label; double-click or Enter frames it. **Remove** (or
+Delete) removes the change and replays the ones after it; **Edit pad…** changes a pad's elevation (or
+its offset below the footprint), grading, slopes or width; **Restamp** re-reads a pad's footprint
+from its building (unavailable, with the reason, when the building is gone or the pad was stamped
+from edges or a polygon); **Reset edits…** asks first and rebuilds the terrain from its sources.
+Each is one undoable edit, replayed in the background while the status bar shows its progress
+("Replaying 3 changes · 64 %") with **Cancel**, which leaves the model as it was. A change that no
+longer applies after a replay stays in the list, marked **⚠ Skipped** with the reason, until you
+remove it or undo the replay. The notices of the last change or replay (changes skipped, paint
+removed from rebuilt tiles, sources clipped) show under the list with **Show report**, which opens
+the full report.
+
 **Terrain display.** A new terrain uses the **Terrain** material and draws as one smooth
 surface: the seams between its tiles and its interior edges are not drawn (Show hidden geometry
 shows them dashed). Under **Display** in its Terrain section, **Show contour lines** draws

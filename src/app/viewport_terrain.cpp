@@ -4,6 +4,7 @@
 // pointer feedback before a click.
 #include "app/terrain_actions.hpp"
 #include "app/unit_display.hpp"
+#include "app/terrain_replay_job.hpp"
 #include "app/viewport.hpp"
 #include "core/terrain_sculpt.hpp"
 #include <QContextMenuEvent>
@@ -14,6 +15,17 @@ QJsonObject Viewport::commitTerrainCommand(const QJsonObject &command) {
     // Terrain commands name top-level bodies or model edges; they never run in a component
     // scope's definition frame.
     auto result = commitCommands(QJsonArray{command}, false);
+    // R096.f2: a replay outside the Terrain edits job (Regenerate, Terrain settings) decides
+    // afresh which changes are skipped; its report is the last.
+    const auto name = command["command"].toString();
+    if (name == "terrain.regenerate" || name == "terrain.set_parameters") {
+        const auto terrain = Id(command["terrain"].toString().toULongLong());
+        rememberTerrainReport(terrain, result);
+        const auto operations = result["terrainOperations"].toArray();
+        setTerrainSkips(terrain, operations.isEmpty()
+                                     ? std::map<std::uint32_t, QString>{}
+                                     : terrainReportSkips(operations.last().toObject()["terrainReport"].toObject()));
+    }
     refresh();
     emit changed();
     return result;
@@ -266,6 +278,14 @@ void Viewport::drawTerrainContours() {
     // Contours lie on the surface; surfaces are drawn with a polygon offset, so the lines pass
     // the depth test where the surface is visible and are hidden behind nearer ground.
     gl_->glDepthMask(GL_FALSE);
+    // R096.f2 (UX §15.3): in Edit contours the display contours fade, so the source contours drawn
+    // over them stand out. Exports never fade them.
+    const bool fade = tool_ == Tool::Contours && rasterSize_.isEmpty();
+    if (fade) {
+        gl_->glEnable(GL_BLEND);
+        gl_->glBlendColor(0, 0, 0, 0.3f);
+        gl_->glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+    }
     for (auto &[id, view] : terrainViews_) {
         if (view->hidden || !view->contours)
             continue;
@@ -323,6 +343,8 @@ void Viewport::drawTerrainContours() {
         }
         shader_->setUniformValue("pixelOffset", QVector2D{});
     }
+    if (fade)
+        gl_->glDisable(GL_BLEND);
     gl_->glDepthMask(GL_TRUE);
 }
 void Viewport::setSiteOriginVisible(bool visible) {

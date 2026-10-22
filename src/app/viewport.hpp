@@ -1,5 +1,6 @@
 #pragma once
 #include "app/inference_worker.hpp"
+#include "app/terrain_preview_worker.hpp"
 #include "app/terrain_tool.hpp"
 #include "app/texture_cache.hpp"
 #include "app/theme.hpp"
@@ -79,7 +80,10 @@ class Viewport : public QOpenGLWidget {
         Walk = 28,
         // R096.f1 (UX_DESIGN §15): the terrain tools. f2 adds Contours, Pad and Drape.
         Sculpt = 29,
-        Smooth = 30
+        Smooth = 30,
+        Contours = 31,
+        Pad = 32,
+        Drape = 33
     };
     void setTool(Tool tool);
     void setSceneTransitionDuration(int milliseconds);
@@ -200,7 +204,12 @@ class Viewport : public QOpenGLWidget {
     // tile seams and interior edges are not (nor picked or snapped while not drawn).
     bool terrainEdgeDrawn(Id tile, Id edge) const;
     // ---- R096.f1: the terrain tools (viewport_sculpt.cpp; UX_DESIGN §15.1–15.2, §15.7) ----
-    static bool terrainTool(Tool tool) { return tool == Tool::Sculpt || tool == Tool::Smooth; }
+    static bool terrainTool(Tool tool) {
+        return tool == Tool::Sculpt || tool == Tool::Smooth || tool == Tool::Contours ||
+               tool == Tool::Pad || tool == Tool::Drape;
+    }
+    // The brush tools of R096.f1; the others plan on the worker (R096.f2).
+    static bool sculptTool(Tool tool) { return tool == Tool::Sculpt || tool == Tool::Smooth; }
     const TerrainToolOptions &terrainOptions() const { return terrainOptions_; }
     // Options from the strip: clamped to their bounds; a change refreshes a shown preview.
     void setTerrainOptions(const TerrainToolOptions &options);
@@ -235,6 +244,93 @@ class Viewport : public QOpenGLWidget {
     std::set<Id> terrainPreviewHiddenTiles() const;
     // The amendable terrain command (after a commit, while a typed value revises it), or empty.
     QJsonObject terrainAmendable() const;
+    // ---- R096.f2: the worker preview (viewport_terrain_preview.cpp; ADR 0169 §5) ----
+    // The worker preview shown (a candidate drawn in place of its tiles, or a refusal marked at
+    // the pointer), null when none. It is the plan of the newest request delivered.
+    std::shared_ptr<const TerrainCommandPreview> terrainEditPreviewShown() const;
+    // The command of the newest request (empty when none), and whether its plan is shown.
+    const QJsonObject &terrainEditRequested() const { return terrainEditRequest_.command; }
+    bool terrainEditPreviewCurrent() const;
+    TerrainPreviewWorker &terrainPreviewWorker() { return *terrainWorker_; }
+    // The status-bar text of a refusal at the pointer while one is shown (the window draws it in
+    // the failure style), else empty.
+    const QString &terrainFailureStatus() const { return terrainFailureStatus_; }
+    // ---- R096.f2: Edit contours (viewport_contours.cpp; UX_DESIGN §15.3, §15.7) ----
+    enum class ContourMode { Edit, AddContour, AddBreakline, AddSpot, Promote };
+    void setContourMode(ContourMode mode);
+    ContourMode contourMode() const { return contourTool_.mode; }
+    // The selected source's role (Contour or Breakline) and elevation (model Z), from the strip;
+    // Remove (Shift+Delete). Each is one "Edit contour" or "Remove contour" edit; a refusal changes
+    // nothing and is reported.
+    void setSelectedSourceRole(TerrainSourceRole role);
+    void setSelectedSourceElevation(double elevation);
+    void removeSelectedSource();
+    // Selects a current source of the terrain (0: none), as a click does.
+    void selectTerrainSource(Id terrain, std::uint32_t source);
+    struct ContourToolView {
+        ContourMode mode{ContourMode::Edit};
+        Id terrain{};
+        std::uint32_t hovered{}, selected{};
+        QString hoverLabel;      // "Contour 105.00 m · source 17"
+        QString selectedName;    // "Contour 105.00 m", "Breakline", "Spot points"
+        QString selectedDetail;  // "source 17", or why it cannot be edited here
+        TerrainSourceRole role{TerrainSourceRole::Contour};
+        std::optional<double> elevation; // a contour's (model Z)
+        bool editable{};         // not a pad's or a drape's line
+        std::size_t sources{}, handles{};
+        int focus{-1};           // the focused handle: 2 i a vertex, 2 i + 1 the midpoint after it
+        bool dragging{}, previewShown{}, refused{};
+        QString failure;         // the failure label at the pointer ("Crosses contour 106.00 m")
+        std::optional<Vec3> failureAt; // the first conflict (model)
+        std::vector<Vec3> adding;      // a new source's points so far (model)
+        std::optional<double> promoteLevel; // the display contour level under the pointer
+    };
+    ContourToolView contourTool() const;
+    // ---- R096.f2: Stamp pad (viewport_stamp.cpp; UX_DESIGN §15.4) ----
+    struct PadToolView {
+        Id terrain{};
+        bool footprint{};          // a footprint is chosen (else `outline` is the hovered one's)
+        bool hovering{};
+        QString name;              // "Building A"
+        std::vector<Vec3> outline; // the footprint (model)
+        double footprintZ{}, elevation{}; // model Z
+        QString refusal;
+        bool previewShown{}, refused{};
+        QString failure;
+        std::optional<Vec3> failureAt;
+        std::size_t cut{}, fill{}, rays{};
+    };
+    PadToolView padTool() const;
+    // ---- R096.f2: Drape (viewport_drape.cpp; UX_DESIGN §15.5) ----
+    struct DrapeToolView {
+        Id terrain{};
+        std::size_t faces{}, edges{}, runs{}, clipped{};
+        QString summary; // "1 face, 5 edges · 1 edge clipped"
+        QString refusal;
+        bool previewShown{}, refused{};
+        QString failure;
+        std::optional<Vec3> failureAt;
+    };
+    DrapeToolView drapeTool() const;
+    // R096.f2: the bounded terrain report of the last terrain change or replay committed for a
+    // terrain from the desktop (its "terrainReport"), for the Terrain edits notices.
+    QJsonObject lastTerrainReport(Id terrain) const;
+    void rememberTerrainReport(Id terrain, const QJsonObject &batchResult);
+    void setLastTerrainReport(Id terrain, const QJsonObject &report, const QString &title);
+    QString lastTerrainReportTitle(Id terrain) const;
+    // ---- R096.f2: the Terrain edits section (viewport_terrain_edits.cpp; UX_DESIGN §15.6) ----
+    // The selected change outlined in the viewport in the selection colour with its label (edit 0:
+    // none), and framed.
+    void setTerrainEditHighlight(Id terrain, std::uint32_t edit, const QStringList &label);
+    std::uint32_t terrainEditHighlight() const { return editHighlight_.edit; }
+    std::size_t terrainEditHighlightPoints() const;
+    void frameTerrainEdit(Id terrain, std::uint32_t edit);
+    // The changes a replay skipped, with their reasons, while the list the replay produced is a
+    // prefix of the terrain's list (Undo of the replay, or removing one, clears them).
+    void setTerrainSkips(Id terrain, std::map<std::uint32_t, QString> skips);
+    std::map<std::uint32_t, QString> terrainSkips(Id terrain) const;
+    // Increases when a report or skips are recorded (the section's cache key).
+    std::uint64_t terrainReportGeneration() const { return terrainReportGeneration_; }
     Id selectedBody() const { return selected_; }
     Id selectedFace() const { return selectedFace_; }
     void refresh();
@@ -321,6 +417,8 @@ class Viewport : public QOpenGLWidget {
         // R096.f1b (benchmark instrumentation): the last terrain commit's command and refresh,
         // and the last rebuild's terrain display update (surfaces, contours, their uploads).
         double terrainCommandMs{}, terrainRefreshMs{}, terrainViewsMs{};
+        // R096.f2: the last worker preview's plan and candidate (on the worker).
+        double terrainPlanMs{};
         // R096.f1b: seam-ring tiles whose normals were patched in place instead of rebuilt.
         std::uint64_t terrainNormalPatches{};
     };
@@ -601,7 +699,196 @@ class Viewport : public QOpenGLWidget {
         std::vector<Vec3> ring, halfRing;
     } terrainOverlay_;
     void emitTerrainStatus();
-    QString terrainStatusShown_;
+    QString terrainStatusShown_, terrainFailureStatus_;
+    // R096.f2: the worker preview (viewport_terrain_preview.cpp).
+    TerrainPreviewWorker *terrainWorker_{};
+    struct TerrainEditRequest {
+        QJsonObject command;        // the newest command asked for
+        std::uint64_t generation{}; // its worker generation (0: refused before planning)
+        QString error;              // a refusal before planning (the command's parse)
+        std::string document;       // the document and revision it was made at
+        std::uint64_t revision{};
+    } terrainEditRequest_;
+    std::shared_ptr<const TerrainCommandPreview> terrainEditShown_;
+    // While a plan the pointer asked for is on the worker, the next frame waits for it (at most
+    // 40 ms), so the frame that follows an input shows its candidate rather than one frame
+    // without it and the next with it.
+    QTimer *terrainEditPaintWait_{};
+    void updateAfterTerrainEdit();
+    void requestTerrainEditPreview(const QJsonObject &command);
+    void withdrawTerrainEditPreview();
+    void terrainEditPreviewFinished(qulonglong generation,
+                                    std::shared_ptr<const TerrainCommandPreview> preview);
+    // Commits a worker-planned command as one labelled edit (ToolSession); a refusal changes
+    // nothing and is reported. Returns whether it committed.
+    bool commitTerrainEdit(const QJsonObject &command, const QString &done,
+                           QString *error = nullptr);
+    // Keeps a message in the status bar until the pointer moves or a key acts (a refusal or a
+    // result would otherwise be replaced at once by the tool's instruction).
+    void holdTerrainStatus(const QString &text);
+    bool terrainStatusHeld_{};
+    // The refusal of `preview` at the pointer: its label, the first location (model) and the
+    // status bar's sentence with the location in site coordinates.
+    struct TerrainEditFailure {
+        QString label, status;
+        std::optional<Vec3> at;
+    };
+    TerrainEditFailure terrainEditFailure(const TerrainCommandPreview &preview) const;
+    QString terrainSourceName(const TerrainCommandPreview &preview, std::uint32_t source) const;
+    QString sitePlace(const Vec3 &model) const;
+    void paintTerrainEditPreview(QPainter &painter);
+    // R096.f2: Edit contours (viewport_contours.cpp).
+    struct ContourToolState {
+        ContourMode mode{ContourMode::Edit};
+        Id terrain{};
+        std::uint32_t hovered{}, selected{};
+        std::vector<std::uint32_t> candidates; // sources under the pointer (Tab cycles them)
+        int focus{-1};                         // the focused handle (ContourToolView::focus)
+        int pressedHandle{-1};
+        bool pressed{}, dragging{};
+        QPointF pressPosition;
+        std::vector<Vec3> dragPoints;          // the selected source with the drag (model)
+        int dragVertex{-1};
+        std::vector<Vec3> adding;              // a new source's points (model)
+        std::optional<double> addElevation;    // a typed elevation for a new contour or spot
+        std::optional<Vec3> pointer;           // the pointer on the surface (model)
+        std::optional<double> promoteLevel;
+        QPointF promoteAt, screen;
+        QString refusal;
+    } contourTool_;
+    struct ContourSource {
+        std::uint32_t id{};
+        TerrainSourceRole role{TerrainSourceRole::Contour};
+        std::vector<Vec3> points; // model
+        bool closed{}, pad{}, drape{};
+        std::uint32_t owner{};    // the pad's or drape's change
+    };
+    struct ContourSources {
+        BodyPtr body;                                // the terrain record they come from
+        std::shared_ptr<const TerrainSourceState> state;
+        std::vector<ContourSource> sources;          // contours, breaklines, spot points
+    };
+    mutable ContourSources contourSources_;
+    // project() for many points: the matrix built once.
+    struct ScreenProjector {
+        QMatrix4x4 matrix;
+        Vec3 origin;
+        double width{}, height{};
+        QPointF operator()(const Vec3 &p) const {
+            const auto v = matrix * QVector4D(float(p.x - origin.x), float(p.y - origin.y),
+                                              float(p.z - origin.z), 1);
+            if (std::abs(v.w()) < 1e-9)
+                return {};
+            const auto n = v.toVector3DAffine();
+            return {(n.x() + 1) * width / 2, (1 - n.y()) * height / 2};
+        }
+    };
+    ScreenProjector screenProjector() const {
+        return {matrix(), renderOrigin_, double(renderWidth()), double(renderHeight())};
+    }
+    const ContourSources &currentContourSources() const;
+    const ContourSource *contourSource(std::uint32_t id) const;
+    std::vector<std::uint32_t> contourSourcesAt(QPointF point) const;
+    int contourHandleAt(QPointF point) const;
+    std::vector<Vec3> contourHandles(const ContourSource &source) const;
+    QString contourSourceLabel(const ContourSource &source) const;
+    QJsonObject contourPointsCommand(const ContourSource &source, const std::vector<Vec3> &points) const;
+    QJsonObject contourAddCommand() const;
+    std::optional<Vec3> contourPlanePoint(QPointF point, double z) const;
+    void contourHover(QPointF point);
+    bool contourPress(QMouseEvent *event);
+    bool contourMove(QMouseEvent *event);
+    bool contourRelease(QMouseEvent *event);
+    bool contourKey(QKeyEvent *event);
+    bool contourMeasurements(const QString &text);
+    QString contourMeasurementLabel() const;
+    void beginContourTool();
+    void cancelContourOperation();
+    void finishContourAdd(bool close);
+    void emitContourStatus();
+    void paintContourTool(QPainter &painter);
+    // R096.f2: Stamp pad (viewport_stamp.cpp).
+    struct PadFootprint {
+        QJsonObject footprint; // terrain.stamp_pad's footprint
+        QString name, error;
+        std::vector<Vec3> outline; // model
+        double z{};
+    };
+    struct PadToolState {
+        Id terrain{};
+        QJsonObject footprint;
+        QString name;
+        std::vector<Vec3> outline;
+        double footprintZ{}, delta{};
+        std::optional<QPointF> anchor;
+        PadFootprint hover;
+        QPointF screen;
+        QString refusal;
+    } padTool_;
+    double padElevation() const;
+    QJsonObject padCommand(double elevation) const;
+    bool padFootprintOf(const SelectedEntity &entity, PadFootprint &out) const;
+    Id padTerrainUnder(const std::vector<Vec3> &outline) const;
+    void choosePadFootprint(PadFootprint footprint);
+    void beginPadTool();
+    void cancelPadOperation();
+    QString padMeasurementLabel() const;
+    void emitPadStatus();
+    void padHover(QPointF point);
+    bool padPress(QMouseEvent *event);
+    void commitPad(std::optional<double> elevation = std::nullopt);
+    void amendPad(const QJsonObject &command, const QString &done);
+    bool padKey(QKeyEvent *event);
+    bool padMeasurements(const QString &text);
+    void paintPadTool(QPainter &painter);
+    // The stamp's tint, built once per preview.
+    struct PadTint {
+        std::weak_ptr<const TerrainCommandPreview> preview;
+        std::vector<std::array<Vec3, 3>> cut, fill, flat; // model
+    } padTint_;
+    // R096.f2: Drape (viewport_drape.cpp).
+    struct DrapeToolState {
+        QJsonArray edges, faces;
+        Id terrain{};
+        std::optional<QPointF> screen; // the pointer, once it has moved over the view
+        QString refusal;
+        std::weak_ptr<const TerrainCommandPreview> paintFor; // the preview the paint loops are for
+        std::vector<std::pair<QColor, std::vector<Vec3>>> paint;
+    } drapeTool_;
+    QJsonObject drapeCommand() const;
+    void beginDrapeTool();
+    void syncDrapeTool();
+    void emitDrapeStatus();
+    void drapeHover(QPointF point);
+    bool drapePress(QMouseEvent *event);
+    void commitDrape();
+    bool drapeKey(QKeyEvent *event);
+    bool drapeMeasurements(const QString &text);
+    void paintDrapeTool(QPainter &painter);
+    struct TerrainReportRecord {
+        QJsonObject report;
+        QString title;
+        std::vector<TerrainEditPtr> edits; // the list it was made for (shown while it is current)
+        std::optional<Document::SaveStamp> document; // and its document
+    };
+    std::map<Id, TerrainReportRecord> terrainReports_;
+    struct TerrainSkipRecord {
+        std::vector<TerrainEditPtr> edits;
+        std::map<std::uint32_t, QString> skips;
+        std::optional<Document::SaveStamp> document;
+    };
+    std::map<Id, TerrainSkipRecord> terrainSkips_;
+    std::uint64_t terrainReportGeneration_{};
+    struct EditHighlight {
+        Id terrain{};
+        std::uint32_t edit{};
+        QStringList label;
+        std::vector<std::vector<Vec3>> lines; // model
+        std::string document;
+        std::uint64_t revision{};
+    } editHighlight_;
+    void buildTerrainEditHighlight();
+    void paintTerrainEditHighlight(QPainter &painter);
     SelectionSet boxBase_;
     QPointF selectionStart_, selectionEnd_, lastClickPosition_;
     bool selectionPressed_{}, selectingBox_{}, pickDirty_{true}, overlayDirty_{true};
