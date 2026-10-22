@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run the command lines of one workflow step in parallel (ADR 0170).
 
-  ci-run-lines.py run [--jobs N] WORKFLOW JOB STEP
-      Run every command line of the step, N at a time, and fail if any fails.
+  ci-run-lines.py run [--jobs N] [--shard K/M] WORKFLOW JOB STEP
+      Run every command line of the step (or, with --shard, lines K, K+M, K+2M, ...
+      counting from 1), N at a time, and fail if any fails.
   ci-run-lines.py targets WORKFLOW JOB STEP
       Print the build/dev executables the step's lines run, for `cmake --build --target`.
 
@@ -65,7 +66,11 @@ def run_line(index, line, env, slot_base):
 
 def run(args):
     env, lines = step_lines(args.workflow, args.job, args.step)
-    order = sorted(range(len(lines)), key=lambda i: -deadline(lines[i]))
+    shard, shards = (int(part) for part in args.shard.split("/"))
+    if not 1 <= shard <= shards:
+        raise SystemExit(f"bad --shard {args.shard}")
+    mine = [i for i in range(len(lines)) if i % shards == shard - 1]
+    order = sorted(mine, key=lambda i: -deadline(lines[i]))
     failures = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         # Display numbers 100, 120, ... : one search range per submitted line.
@@ -81,7 +86,8 @@ def run(args):
                 failures.append((index, line, status))
     for index, line, status in sorted(failures):
         print(f"::error::line {index + 1} exited {status}: {line}")
-    print(f"{len(lines) - len(failures)} of {len(lines)} lines passed.")
+    print(f"{len(mine) - len(failures)} of {len(mine)} lines passed "
+          f"(shard {shard}/{shards} of {len(lines)} lines).")
     return 1 if failures else 0
 
 
@@ -97,6 +103,7 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command", choices=("run", "targets"))
     parser.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
+    parser.add_argument("--shard", default="1/1")
     parser.add_argument("workflow")
     parser.add_argument("job")
     parser.add_argument("step")

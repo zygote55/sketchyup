@@ -38,7 +38,7 @@ PLUMBING_STEPS = re.compile(
     r"|Pack the development build tree|Unpack the development build tree"
     r"|Check the blast-radius map|Plan the run|Compile this shard's objects"
     r"|Export the new compiler-cache entries|Every selected job succeeded"
-    r"|Keep the test timings with the compiler cache|Install compile dependencies)$"
+    r"|Install compile dependencies)$"
 )
 # Native fixtures no CI tier runs: interactive or timing tools whose evidence is manual.
 MANUAL_FIXTURES = {"native_provider_trial", "terrain_budget_benchmark", "real_model_benchmark"}

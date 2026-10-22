@@ -184,12 +184,19 @@ jobs:
           path: ccache-delta.tar
           compression-level: 0
           retention-days: 1
+  # A 4-vCPU runner has two physical cores: tests slow down two to three times under
+  # `ctest --parallel 4`, so the suite is spread over runners instead. Every shard builds
+  # everything (cache hits and links); CTest's stride selection (-I k,,4) deals the tests.
   fast:
-    name: "Fast tier: build and tests"
+    name: "Fast tier: tests ${{ matrix.shard }}/4"
     needs: [plan, compile]
     if: >-
       !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true'
       && (needs.compile.result == 'success' || needs.compile.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -242,7 +249,7 @@ jobs:
       - name: Save the package cache
         # The fast tier fills the shared entry when the package lists change; the key never
         # changes for a snapshot, so a hit has nothing to add.
-        if: success() && steps.package-cache.outputs.cache-hit != 'true'
+        if: strategy.job-index == 0 && success() && steps.package-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: |
@@ -272,6 +279,7 @@ jobs:
           rm -rf /tmp/ccache-deltas
           ccache --zero-stats
       - name: Configure desktop tests without the optional CLI
+        if: strategy.job-index == 0
         run: |
           cmake -S . -B build/configure-desktop-no-cli -G Ninja -DSKETCHYUP_BUILD_DESKTOP=ON -DSKETCHYUP_BUILD_CLI=OFF -DBUILD_TESTING=ON
       - name: Configure and build
@@ -283,50 +291,58 @@ jobs:
         if: always()
         run: ccache --show-stats --verbose
       - name: Geometry, document and persistence tests
-        # Slow suites outside the changed areas are left to the full tier (ci-path-map.json).
-        # The cached CTest timings make --parallel start the longest tests first.
+        # This shard's share of CTest. Slow suites outside the changed areas are left to the
+        # full tier (ci-path-map.json); mcp runs in shard 1 with the schema validation.
         env:
+          SHARD: ${{ strategy.job-index }}
+          SHARDS: ${{ strategy.job-total }}
           CTEST_EXCLUDE: ${{ needs.plan.outputs.ctest_exclude }}
         run: |
-          mkdir -p build/dev/Testing/Temporary
-          [ ! -f /ccache/ctest-cost.txt ] || cp /ccache/ctest-cost.txt build/dev/Testing/Temporary/CTestCostData.txt
-          rm -f build/mcp-transcript.jsonl
-          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --test-dir build/dev --output-on-failure --parallel "$(nproc)" ${CTEST_EXCLUDE:+--exclude-regex "$CTEST_EXCLUDE"}
-      - name: Keep the test timings with the compiler cache
-        if: always() && steps.build.outcome == 'success'
-        run: cp build/dev/Testing/Temporary/CTestCostData.txt /ccache/ctest-cost.txt || true
+          exclude="^mcp\$"
+          [ -z "$CTEST_EXCLUDE" ] || exclude="$exclude|$CTEST_EXCLUDE"
+          ctest --test-dir build/dev --output-on-failure --parallel 2 -I "$((SHARD + 1)),,$SHARDS" --exclude-regex "$exclude"
       # Main (and the other non-pull-request runs) saves the cache the next runs start
       # from, keyed by commit: ci-plan.py diffs against it to choose wide or narrow. A pull
       # request saves its own only when nothing was restored, so it does not evict main's.
       - name: Save the compiler cache
-        if: always() && steps.build.outcome == 'success' && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
+        if: strategy.job-index == 0 && success() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@v5
         with:
           path: /ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
-      - name: Pinned MCP protocol schema validation
+      - name: MCP tests and the pinned protocol schema validation
+        if: strategy.job-index == 0
         run: |
+          rm -f build/mcp-transcript.jsonl
+          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --test-dir build/dev -R '^mcp$' --output-on-failure
           curl -fLsS https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/271ecc9accafdd9b83a3c869fa67c22953b2af80/schema/2026-07-28/schema.json -o build/mcp-schema.json
           python scripts/verify-mcp-schema.py build/mcp-schema.json build/mcp-transcript.jsonl > build/mcp-schema-validation.json
       - name: Shipped recipes reproduce measured geometry
+        if: strategy.job-index == 0
         run: python scripts/verify-shipped-recipes.py --cli build/dev/sketchyup-cli --examples examples
       - name: Generated reference matches live registries
+        if: strategy.job-index == 0
         run: python scripts/generate-tool-reference.py --cli build/dev/sketchyup-cli --root . --check
       - name: Generated API schemas match live registries
+        if: strategy.job-index == 0
         run: python scripts/generate-api-schemas.py --cli build/dev/sketchyup-cli --app build/dev/sketchyup --root . --check
       - name: Install the glTF validator
+        if: strategy.job-index == 0
         run: |
           mkdir -p build/gltf-validator
           cp tests/gltf-validator/package*.json build/gltf-validator/
           npm ci --prefix build/gltf-validator --ignore-scripts --no-audit --no-fund
       - name: Independent DXF consumer
+        if: strategy.job-index == 0
         run: |
           python -m venv build/dxf-oracle
           build/dxf-oracle/bin/pip install -r tests/dxf-oracle-requirements.txt
           SKETCHYUP_DXF_TEST="$PWD/build/dxf-oracle/bin/python" ctest --test-dir build/dev -R '^dxf_export_real$' --output-on-failure
       - name: Independent measured PDF consumer
+        if: strategy.job-index == 0
         run: SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm ctest --test-dir build/dev -R '^(measured_export_real|sheet_export_real)$' --output-on-failure
       - name: Headless recipe
+        if: strategy.job-index == 0
         run: |
           build/dev/sketchyup-cli --script examples/asserted-solid.json --output /tmp/asserted-solid.sketchyup
           build/dev/sketchyup-cli --input /tmp/asserted-solid.sketchyup
@@ -377,11 +393,15 @@ jobs:
           build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
           build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
   fast-x11:
-    name: "Fast tier: X11 1x"
+    name: "Fast tier: X11 1x ${{ matrix.shard }}/2"
     needs: [plan, compile]
     if: >-
       !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.native == 'true'
       && (needs.compile.result == 'success' || needs.compile.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -460,7 +480,9 @@ jobs:
         run: ccache --show-stats
       - name: Native interaction and OpenGL tests, in parallel
         # The full tier's X11 1x lines, read from that job so the two cannot drift.
-        run: python scripts/ci-run-lines.py run --jobs "$(nproc)" .github/workflows/native.yml x11-1x "Native interaction and OpenGL tests"
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python scripts/ci-run-lines.py run --jobs 3 --shard "$SHARD/2" .github/workflows/native.yml x11-1x "Native interaction and OpenGL tests"
   # ---------------------------------------------------------------------------------------
   # Full tier. Each job runs when the plan selects the full tier; Blender interoperability
   # and Arch package acceptance also run in the fast tier when their paths change.
