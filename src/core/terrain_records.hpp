@@ -1,4 +1,7 @@
 #pragma once
+#include "core/site_origin.hpp"
+#include "core/terrain_fwd.hpp"
+#include "core/terrain_tile_key.hpp"
 #include "geometry/surface.hpp"
 #include <array>
 #include <atomic>
@@ -20,7 +23,6 @@ namespace sketchy {
 // A source polyline or point set in the terrain's local frame (the terrain body's
 // frame, which its tiles share), with the reference that names it in the source
 // file: a DXF entity handle, a CSV line number or a model edge ID.
-enum class TerrainSourceRole { Contour, Breakline, Boundary, Hole, Points };
 //
 // R096.a (ADR 0169 §4.2, §7): every source has a stable `id`, unique within the terrain and
 // never zero: 1..n in canonical order at creation (createTerrain assigns them to a record
@@ -110,20 +112,6 @@ struct TerrainTileGrid {
     double originX{}, originY{}, cell{};
     bool operator==(const TerrainTileGrid &) const = default;
 };
-// A tile's place in the grid: row and column (negative outside the original extent), the
-// sub-cell path (quadrant digits '0'..'3', digit = 2 x upper half + right half, at most
-// terrainTileMaxDepth deep) and the part number of a cluster. Tiles are ordered by key
-// (row, column, path, part): row-major, as at creation, so for a terrain that was never edited
-// key order is ID order.
-struct TerrainTileKey {
-    std::int64_t row{}, column{};
-    std::string path;
-    std::uint32_t part{};
-    auto operator<=>(const TerrainTileKey &) const = default;
-    bool operator==(const TerrainTileKey &) const = default;
-};
-inline constexpr std::size_t terrainTileMaxDepth = 24;
-inline constexpr std::int64_t terrainTileKeyLimit = std::int64_t(1) << 53; // |row|, |column|
 // R096.a edit list (ADR 0169 §2, §7). An entry is immutable and shared between records (an
 // edit copies pointers). Its kind-specific parameters and resolved geometry are a
 // TerrainEditData of its kind; kinds are registered (core/terrain_edit.hpp) and encoded by
@@ -289,20 +277,4 @@ std::size_t terrainRecordChangeBytes(const TerrainRecord *before, const TerrainR
 // Sum of the edit entries' storage (the 8 MiB bound), and one entry's share of it.
 std::size_t terrainEditBytes(const std::vector<TerrainEditPtr> &edits);
 std::size_t terrainEditEntryBytes(const TerrainEdit &edit);
-// Document site origin (ADR 0168 §4): projected metres; the CRS is a label only.
-struct SiteProvenance {
-    std::string source, sha256;
-    bool operator==(const SiteProvenance &) const = default;
-};
-struct SiteOrigin {
-    double easting{}, northing{}, elevation{};
-    std::string crs;
-    SiteProvenance established;
-    bool operator==(const SiteOrigin &) const = default;
-};
-// Site coordinates are bounded so that model = site - origin stays exact to well
-// below the 1e-7 m tolerance; projected CRSs stay far inside this range.
-inline constexpr double siteCoordinateLimit = 1e8;
-inline constexpr std::size_t siteCrsBytes = 64, siteSourceBytes = 256;
-void validateSiteOrigin(const SiteOrigin &origin);
 } // namespace sketchy

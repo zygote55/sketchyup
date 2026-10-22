@@ -1,4 +1,5 @@
 #include "io/native_format.hpp"
+#include "core/component_parameter_records.hpp"
 #include "io/document_io.hpp"
 #include "io/native_limits.hpp"
 #include "io/new_file.hpp"

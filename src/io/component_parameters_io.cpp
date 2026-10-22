@@ -1,4 +1,5 @@
 #include "io/component_parameters_io.hpp"
+#include "core/component_parameter_records.hpp"
 #include <QJsonObject>
 #include <QStringList>
 #include <algorithm>

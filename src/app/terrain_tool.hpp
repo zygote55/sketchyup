@@ -3,8 +3,7 @@
 // the viewport (viewport_sculpt.cpp), the tool options strip (terrain_tool_strip.cpp) and the
 // window. Values are model metres; the strip and the Measurements box parse them with the box's
 // syntax and units.
-#include "core/terrain_sculpt.hpp"
-#include "core/terrain_stamp.hpp"
+#include "core/terrain_fwd.hpp"
 #include <QString>
 namespace sketchy {
 struct TerrainToolOptions {

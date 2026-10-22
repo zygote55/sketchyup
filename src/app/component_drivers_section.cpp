@@ -1,6 +1,7 @@
 #include "app/component_drivers_section.hpp"
 #include "app/formula_field.hpp"
 #include "app/parameter_value_field.hpp"
+#include "core/component_parameter_records.hpp"
 #include "geometry/surface.hpp"
 #include <QComboBox>
 #include <QFormLayout>

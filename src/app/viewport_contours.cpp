@@ -20,6 +20,7 @@
 #include "app/unit_display.hpp"
 #include "app/viewport.hpp"
 #include "automation/measurements.hpp"
+#include "core/terrain_display.hpp"
 #include "core/terrain_sources.hpp"
 #include <QKeyEvent>
 #include <QLineF>

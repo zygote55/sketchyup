@@ -18,10 +18,12 @@
 #include "app/viewport.hpp"
 #include "automation/commands.hpp"
 #include "automation/measurements.hpp"
+#include "automation/terrain_commands.hpp"
 #include "core/material_records.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_drape.hpp"
+#include "core/terrain_stamp.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLineF>

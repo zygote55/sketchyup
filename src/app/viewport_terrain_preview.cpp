@@ -10,6 +10,7 @@
 // - A commit runs the same command through the batch API (ToolSession) as one labelled edit, so
 //   the committed tiles are the previewed candidate's (the plan is a pure function of the mesh,
 //   the current sources and the command).
+#include "app/terrain_preview_worker.hpp"
 #include "app/unit_display.hpp"
 #include "app/viewport.hpp"
 #include "automation/commands.hpp"

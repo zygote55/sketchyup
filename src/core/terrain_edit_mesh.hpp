@@ -14,6 +14,7 @@
 // Nothing observable may depend on them: callers order by tile key and triangle index
 // (TerrainTriangleRef ordering) or by position.
 #include "core/model.hpp"
+#include "core/terrain_records.hpp"
 #include <array>
 #include <cstdint>
 #include <map>

@@ -4,6 +4,9 @@
 #include "app/unit_display.hpp"
 #include "app/viewport.hpp"
 #include "automation/measurements.hpp"
+#include "core/terrain_drape.hpp"
+#include "core/terrain_sculpt.hpp"
+#include "core/terrain_stamp.hpp"
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QPainter>

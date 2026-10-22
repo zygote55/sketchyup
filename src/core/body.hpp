@@ -1,7 +1,8 @@
 #pragma once
 #include "core/texture_mapping.hpp"
 #include "core/reference_image.hpp"
-#include "core/terrain_records.hpp"
+#include "core/indirect_optional.hpp"
+#include "core/terrain_tile_key.hpp"
 #include "core/text_source.hpp"
 #include "core/transform.hpp"
 #include "geometry/cleanup.hpp"
@@ -15,6 +16,7 @@
 #include <string>
 #include <variant>
 namespace sketchy {
+struct TerrainRecord; // core/terrain_records.hpp
 // Terrain is a container (it behaves like a group) that carries a TerrainRecord;
 // its children are geometry tiles (ADR 0168 §2).
 enum class BodyKind { Geometry, Group, ReferenceImage, Terrain };
@@ -52,8 +54,9 @@ struct Body {
     std::map<std::string, std::variant<bool, double, std::string>> properties;
     std::optional<TextSource> textSource;
     std::optional<ReferenceImage> referenceImage;
-    // Present exactly on BodyKind::Terrain.
-    std::optional<TerrainRecord> terrain;
+    // Present exactly on BodyKind::Terrain. Behaves as std::optional<TerrainRecord>; held
+    // indirectly so that this header does not include core/terrain_records.hpp.
+    IndirectOptional<TerrainRecord> terrain;
     // A geometry body that is one tile of its parent terrain: triangles only, no
     // wires, curves or guides, identity transform, implied edge appearance.
     bool terrainTile{};

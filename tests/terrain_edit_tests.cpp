@@ -3,6 +3,7 @@
 // the edit mesh and its grid index (terrainElevationAt), stable tiling and local tile
 // replacement, the generalised tile-ID rule and the seam checker. The test-only kinds of
 // terrain_edit_test_kinds.hpp stand in for R096.b–e's operations.
+#include "core/component_parameter_records.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"

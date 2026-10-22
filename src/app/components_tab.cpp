@@ -2,6 +2,7 @@
 #include "app/collapsible_section.hpp"
 #include "app/parameter_value_field.hpp"
 #include "automation/component_parameter_commands.hpp"
+#include "io/component_library.hpp"
 #include "io/library_catalog.hpp"
 #include <QApplication>
 #include <QComboBox>

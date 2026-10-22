@@ -24,6 +24,7 @@
 //   an id from terrainSplitSourceId; runs of one vertex are dropped. Boundary and hole sources
 //   are not clipped: they define the outline, whose plan the edits never change.
 #include "core/terrain_edit.hpp"
+#include "core/terrain_fwd.hpp"
 #include "core/terrain_sources.hpp"
 #include <array>
 #include <cstdint>
@@ -47,7 +48,6 @@ inline constexpr int terrainSmoothIterationsMax = 8;
 inline constexpr std::uint32_t terrainSculptPiecesPerEdit = 4096;
 inline constexpr std::uint32_t terrainSculptSplitEdits = 1u << 18;
 
-enum class TerrainFalloff { Smooth, Linear, Constant };
 const char *terrainFalloffName(TerrainFalloff falloff);
 std::optional<TerrainFalloff> terrainFalloffOf(const std::string &name);
 // f(t) for t = d / radius: 1 at 0, 0 at 1 and beyond. Smooth is 1 - t^2 (3 - 2t); linear 1 - t;

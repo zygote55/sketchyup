@@ -1,11 +1,13 @@
 #include "app/viewport.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/terrain_preview_worker.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"
 #include "core/component_regeneration.hpp"
 #include "core/hierarchy_changes.hpp"
 #include "core/shading_normals.hpp"
+#include "core/terrain_display.hpp"
 #include "core/terrain_sculpt.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
@@ -68,7 +70,9 @@ bool startsMeasurement(const QString &text) {
 }
 } // namespace
 Viewport::Viewport(Document &doc, QWidget *parent)
-    : QOpenGLWidget(parent), doc_(doc), session_(doc) {
+    : QOpenGLWidget(parent), doc_(doc), session_(doc),
+      contourCache_(std::make_unique<TerrainContourCache>()),
+      surfaceCache_(std::make_unique<TerrainSurfaceCache>()) {
     initializeSceneViews();
     initializeWalkNavigation();
     selection_.sync(doc_);

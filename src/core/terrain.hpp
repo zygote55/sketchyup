@@ -3,6 +3,7 @@
 // TerrainRecord holds the sources, and whose children are ordinary geometry tiles of at
 // most 2,048 triangles; the document site origin and model <-> site conversion.
 // Triangulation is not here: callers pass an already-triangulated mesh.
+#include "core/terrain_records.hpp"
 #include "core/model.hpp"
 #include "geometry/terrain_progress.hpp"
 #include <array>
