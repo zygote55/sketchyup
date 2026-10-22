@@ -10,7 +10,7 @@
   "ciPr396Head": "5902f221"
  },
  "pullRequests": {
-  "record": null,
+  "record": 402,
   "compareTopology": 401
  },
  "ciRun": 39696132281,
@@ -48,14 +48,14 @@
  "verificationPlan": {
   "contours": "pass",
   "padHeights": "pass",
-  "distantTerrain": "pass",
+  "distantTerrain": "pass up to 60,000 triangles; gap at 250k",
   "undo": "pass",
   "save": "pass",
   "reversiblePreviews": "pass",
   "seams": "pass",
   "imprintKeepsShape": "pass",
   "determinism": "pass",
-  "limitsAndRefusals": "pass",
+  "limitsAndRefusals": "pass; gap: history-budget refusal untested for R096 kinds",
   "cavityAdapter": "pass",
   "editListDecoder": "pass"
  },
@@ -201,19 +201,19 @@
    "row": "replay of 1,000 entries",
    "budgetS": 3,
    "measuredS": {
-    "lifts": [
+    "lifts1000": [
      1.0,
      1.1
     ],
-    "sculpts": [
+    "sculpts1000": [
      1.35,
      1.66
     ],
-    "pads": [
+    "pads15and27": [
      0.7,
      0.9
     ],
-    "drapes": [
+    "drapes90to100": [
      0.64,
      0.82
     ]
@@ -239,10 +239,11 @@
    "row": "undo depth",
    "budget": ">= 64 one-tile edits in 512 MiB",
    "measured": {
-    "points": 525,
-    "contours": 590
+    "points": 520,
+    "contours": 585
    },
-   "result": "pass"
+   "result": "pass",
+   "basis": "one one-tile edit's charge after the record's one-time ~3 MB"
   },
   {
    "row": "added resident memory with the edit mesh cache",
@@ -252,10 +253,20 @@
     "contours": 30.3
    },
    "estimatedTotalMB": [
-    122,
-    139
+    127,
+    144
    ],
-   "result": "pass"
+   "result": "pass for terrain and edit mesh; large-edit history disclosed",
+   "historyNotCounted": {
+    "wholeTerrainPaintResidentGrowthMB": [
+     140,
+     157
+    ],
+    "chargedToTerrainHistoryMB": [
+     137,
+     148
+    ]
+   }
   },
   {
    "row": "complete frame with a preview visible",
@@ -289,7 +300,18 @@
   ],
   "rounds": 3,
   "allExitZero": true,
-  "evidence": "sketchyup-gpu:/home/keith/sketchyup-verification/r096g-amd-terrain-edit-20261021/evidence/"
+  "evidence": "sketchyup-gpu:/home/keith/sketchyup-verification/r096g-amd-terrain-edit-20261021/evidence/",
+  "nineTileBreakdownP95Ms": {
+   "command": [
+    103.6,
+    159.1
+   ],
+   "rebuild": [
+    102.4,
+    144.5
+   ],
+   "rebuildOutlier": 226.6
+  }
  },
  "compareTopology": {
   "decision": "implemented",
@@ -425,6 +447,9 @@
   "contour-edit commit headroom (overlay about 14 ms a frame; cache rebuild 28 ms)",
   "nine-tile commit outlier 406 ms (sculpt-section-2, points)",
   "stamp preview frame without readback against 16.7 ms",
+  "C5 at 250k with 10,000 elevation_at points (gap)",
+  "history-budget refusal untested for R096 kinds (gap)",
+  "resident memory held by a whole-terrain region paint's history (140-157 MB)",
   "per-point storage for large source edits (R096.c)",
   "assistant terrain.describe edits clause (decision 9, deferred)"
  ],

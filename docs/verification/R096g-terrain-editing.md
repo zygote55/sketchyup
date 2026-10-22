@@ -41,22 +41,25 @@ This record checks them against:
   keeps distant terrain unchanged (C5). Undo and save work, and Regenerate is a no-op after any
   sequence of edits (C7).
 - **ADR §6 checks:** C1–C7 each pass after every operation kind, Undo and Redo, save and reopen,
-  and Regenerate. Every row of §9's verification table also passes.
+  and Regenerate. Every row of §9's verification table also passes, with two test gaps:
+  - C5 is proven on terrains up to 60,000 triangles, not on the 250k fixtures;
+  - the history-budget refusal is not driven by an R096 edit.
 - **Budgets measured on the AMD RX 6800 XT** (three runs each, p95 from the input event to the
   presented frame):
   - every one-tile commit is within 100 ms: sculpt 55.6–74.0 ms, contour edit 90.2–92.3 ms,
     stamp pad 70.2–71.6 ms, drape 51.6–51.8 ms;
-  - every preview is at most 21.9 ms.
+  - every one-tile preview is at most 21.9 ms.
 - **Budgets measured in software:** the contour-edit preview in the core is ≤ 16.1 ms. Replaying
   1,000 entries takes 1.0–1.7 s, against 3 s. At least 525 one-tile edits stay undoable, against
   64.
-- **R095.f's one-tile replacement row** (p95 ≤ 100 ms to the preview frame) is closed: 15.0–21.9 ms
+- **R095.f's one-tile replacement row** (p95 ≤ 100 ms to the preview frame) is closed: 17.6–21.9 ms
   on hardware.
 - **Under llvmpipe:**
   - The previews pass: sculpt on the contours terrain, contour edit, added breakline, stamp and
     drape are all within 100 ms.
-  - The one-tile commits and the sculpt preview on the points terrain do not pass (p95 about
-    102–171 ms), because llvmpipe's software frame alone takes 42–82 ms.
+  - The sculpt, contour-edit and stamp one-tile commits (p95 102–171 ms) and the sculpt preview on
+    the points terrain (93–112 ms) do not pass, because llvmpipe's software frame alone takes
+    42–82 ms. The drape commit passes at 81.7 ms.
   - As in R095.f, software rendering does not judge a frame budget; the AMD session does.
 - **Complete frame with a preview visible:** the frame part is p95 12.2–17.2 ms on hardware,
   including a framebuffer readback that the M9 harness does not do.
@@ -76,7 +79,7 @@ region preserves distant terrain and supports undo/save."
 | --- | --- | --- |
 | Contours remain consistent | C1 and C2 after every operation kind and after scripted sequences of all of them ([Checks](#the-consistency-checks-6)) | pass |
 | Pad heights remain consistent | C3 on the square, L-shaped, tile-corner and fixed-width pads, after later sculpts near the pad, refused contour edits into it, Restamp and `terrain.update_edit` | pass |
-| Editing a local region preserves distant terrain | C5 on the gridded, 12,000-point and 250k terrains: untouched tiles are pointer-identical with their IDs, and elevations outside the region are bit-equal | pass |
+| Editing a local region preserves distant terrain | C5 on the gridded, 12,000-point and 60,000-triangle terrains: untouched tiles are pointer-identical with their IDs, and elevations outside the region are bit-equal (2,000 and 1,600 points). C5 at 250k is a gap: see "Gaps and follow-ups" | pass |
 | Supports undo | Each operation: Undo restores the record and tiles pointer-identical; Redo restores the edit; N Undos give the original encoding (80 lifts in `terrain_edit`) | pass |
 | Supports save | Save and reopen bit for bit, including the edit list, keys and tiling; C7 after reopen; a pending deferred digest is saved as its final value | pass |
 
@@ -127,14 +130,14 @@ The pinned replay digests are the same in Debug and Release builds.
 | --- | --- | --- |
 | Contours remain consistent | C1 and C2 after each kind and after scripted sequences of all of them, on the contour fixture and the hill (`terrain_source_edit`, `terrain_sculpt`, `terrain_drape`) | pass |
 | Pad heights remain consistent | C3 on the L-shape and tile-corner pads, after later sculpts near the pad (protected vertices unchanged), a refused contour edit into the pad (nothing changed) and a Restamp (`terrain_stamp`) | pass |
-| Local edit preserves distant terrain | C5 on the gridded, 12,000-point and 60,000-triangle terrains; at 250k, `terrain_edit_benchmark` checks C1 over the 416 contours and C6 after its commits | pass |
+| Local edit preserves distant terrain | C5 on the gridded, 12,000-point and 60,000-triangle terrains, with 1,600–2,000 elevations outside the region bit-equal. At 250k, `terrain_edit_benchmark` checks only C1 (over the 416 contours) and C6 after its commits. §9's C5 on the 250k fixtures, with 10,000 `elevation_at` points, is not run: a gap | pass, with a gap at 250k |
 | Undo | Undo restores the record and tiles pointer-identical, and the encoding bit for bit; Redo restores the edit; after N edits, N Undos give the original encoding (`terrain_edit`: 80 lifts) | pass |
 | Save | Save and reopen bit for bit, with the edit list, keys and tiling (`terrain_edit` format round trip, every suite); C7 after reopen; the deferred digest is saved as its final value (`terrain_sculpt` "deferred digest") | pass |
 | Reversible previews | A preview leaves the revision, history, dirty state and encoding unchanged, and Escape restores the frame (`terrain_edit_input`). Committed tiles equal the previewed candidate bit for bit: for a sculpt stroke, a contour drag, an added contour, a promotion, a stamp and a drape, from real input (`terrain_edit_input`) and in the core (every suite) | pass |
 | Seams | C6 after every operation, on the tile-corner fixture and the 250k contours terrain (79-triangle tiles) | pass |
 | Imprint keeps shape | C4 at 10,000 random points, worst 2.8e-14 m | pass |
 | Determinism | The same operation on two documents gives identical records and IDs; replay digests are pinned per fixture | pass |
-| Limits and refusals | Triangle limit (stamps, imprints, contour edits: `triangle-budget`, `LIMIT_EXCEEDED`); locked terrain; outside the outline; into a pad; crossing contour edit (located, bounded report); full edit list (4,096 entries or 8 MiB); hostile regions, combs and zigzags. Each changes nothing | pass |
+| Limits and refusals | Triangle limit (stamps, imprints, contour edits: `triangle-budget`, `LIMIT_EXCEEDED`); locked terrain; outside the outline; into a pad; crossing contour edit (located, bounded report); full edit list (4,096 entries or 8 MiB); hostile regions, combs and zigzags. Each changes nothing. The history-budget refusal (`LIMIT_EXCEEDED` for one edit over the 512 MiB terrain history) is not tested for an R096 kind: the largest single R096 edit measured, a whole-terrain region paint, is charged 137–148 MB | pass, with a gap (history-budget refusal) |
 | Cavity adapter | `terrain_triangulation_tests` (the cavity API and 3,000 generated cavities through the `terrain-cavity` harness); `parser_fuzz_terrain_cavity` 271,021 inputs in 300 s with no finding | pass |
 | Edit-list decoder | `parser_fault_corpus_tests`; `parser_fuzz_terrain_edits` with all production kinds in its seeds, 474,260 inputs in 301 s (R096.e, 2026-10-20) with no finding | pass |
 
@@ -154,7 +157,7 @@ at `f1da21a3` (in the `compareTopology` measurement below) agree with them.
 
 | Operation (250k triangles) | Budget | llvmpipe (pinned image) | AMD RX 6800 XT, 3 runs | Result |
 | --- | --- | --- | --- | --- |
-| One-tile replacement: input to preview frame (R095.f row), sculpt | p95 ≤ 100 ms | points 93–112 ms, contours 66–67 ms (the software frame alone 45–82 ms) | points 21.5–21.9 ms, contours 17.6–18.8 ms (with and without the Terrain section) | **pass** (hardware) |
+| One-tile replacement: input to preview frame (R095.f row), sculpt | p95 ≤ 100 ms | points 93–112 ms, contours 66–67 ms (the software frame alone 42–82 ms) | points 21.5–21.9 ms, contours 17.6–18.8 ms (with and without the Terrain section) | **pass** (hardware) |
 | Sculpt touching nine tiles: preview / commit | measured and reported | preview 138–169 ms; commit 341–433 ms | preview 39.2–63.3 ms; commit 236.6–406.0 ms | reported |
 | One-tile edit: release to committed frame, sculpt | p95 ≤ 100 ms | 106–124 ms (CPU part 51–64 ms) | points 55.6–57.0 ms, contours 68.1–74.0 ms | **pass** (hardware) |
 | The same: contour edit | p95 ≤ 100 ms | 114–171 ms | 90.2–92.3 ms | **pass** (hardware; 8–10 ms of headroom) |
@@ -163,9 +166,9 @@ at `f1da21a3` (in the `compareTopology` measurement below) agree with them.
 | Contour-edit cavity of ≤ 2,048 triangles: preview | p95 ≤ 100 ms | core ≤ 16.1 ms (R096.c); input to frame 53–84 ms; added breakline 57 ms | 15.6–16.6 ms; added breakline 15.0–15.1 ms | **pass** |
 | Stamp of a 64-vertex footprint: preview | measured and reported | core 7.9–9.1 ms (R096.d); a one-tile pad to frame 60.6 ms | a one-tile pad to frame 20.4–21.2 ms | reported |
 | Drape preview, one tile | (R095.f row, reported) | 49.7 ms | 16.1 ms | pass |
-| Regenerate, Terrain settings, update or remove an entry, replaying 1,000 entries | ≤ 3 s, with progress and cancel | 1,000 lifts 1.0–1.1 s, 1,000 sculpts 1.35–1.66 s, pads 0.7–0.9 s, drapes 0.64–0.82 s; cancel within 52 ms; the Edits list's Remove of 256 changes 1.69 s to the frame, with progress, and its cancel within 22 ms | Remove of 256 changes 1.09 s to the frame; cancel 8.9–10.0 ms | **pass** |
-| Undo depth | ≥ 64 one-tile edits within the 512 MiB terrain history | at `f1da21a3`: 525 (points) and 590 (contours) at the largest one-tile charge (1.02 and 0.91 MB); a whole-terrain region paint still leaves room for over 360 | — | **pass** |
-| Added resident memory with the edit mesh cache | within the ≤ 200 MB row | the edit mesh is 22.1 and 30.3 MB at `f1da21a3`, on top of R095.f's 99.8–108.6 MiB: about 122–139 MB | — | **pass** |
+| Regenerate, Terrain settings, update or remove an entry, replaying 1,000 entries | ≤ 3 s, with progress and cancel | 1,000 lifts 1.0–1.1 s, 1,000 sculpts 1.35–1.66 s; with fewer entries, 15 and 27 pads 0.7–0.9 s and 90–100 drapes 0.64–0.82 s; cancel within 52 ms; the Edits list's Remove of 256 changes 1.69 s to the frame, with progress, and its cancel within 22 ms | Remove of 256 changes 1.09 s to the frame; cancel 8.9–10.0 ms | **pass** |
+| Undo depth | ≥ 64 one-tile edits within the 512 MiB terrain history | at `f1da21a3`: about 520 (points) and 585 (contours), from one one-tile edit's charge (1.02 and 0.91 MB) after the record's one-time charge of about 3 MB; a whole-terrain region paint still leaves room for over 360 | — | **pass** |
+| Added resident memory with the edit mesh cache | within the ≤ 200 MB row | the edit mesh is 22.1 and 30.3 MB at `f1da21a3`, on top of R095.f's 99.8–108.6 MiB (104.6–113.9 MB): about 127–144 MB. History is not counted here: a whole-terrain region paint keeps 140–157 MB more resident at `f1da21a3` (243 and 151 MB in R096.e) while it is undoable, charged to the 512 MiB terrain history | — | **pass** for the terrain and its edit mesh; large edits' history disclosed (see the follow-ups) |
 | Complete frame with the terrain and a preview visible | within the M9 frame budget | not judged in software | the frame part with a preview visible is 12.2–17.2 ms (readback included); the terrain without a candidate is 1.4–5.4 ms, or 14.0–14.5 ms with the Edit contours overlay | **pass** at the 33.3 ms row; marginal at the 16.7 ms row for the stamp preview (see the follow-ups) |
 
 **The one-tile commits under llvmpipe.**
@@ -263,15 +266,17 @@ The preview frames, p95 over the three runs (ms, readback included):
 
 | Frame | Sculpt (points) | Sculpt (contours) | Contour edit | Add breakline | Stamp pad | Drape |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Preview frame | 13.3–13.5 | 12.2–12.6 | 13.7–14.5 | 13.4–13.6 | 16.3–17.2 | 14.1–14.2 |
+| Preview frame | 13.3–13.6 | 12.2–12.8 | 13.7–14.5 | 13.4–13.6 | 16.3–17.2 | 14.1–14.2 |
 
 - **The GPU part is small on hardware.** A frame without a candidate is 1.4–5.4 ms, against
   42–82 ms under llvmpipe. What remains is CPU work: the command, the refresh and the cache rebuild.
 - **The contour-edit commit has the least headroom, 8–10 ms.** About 75 ms of it is CPU: the event
   takes 47–48 ms and the rebuild 28 ms. The tool's source-line overlay adds about 14 ms to every
   frame.
-- **Nine-tile commits** (reported only, 237–406 ms) are dominated by the command (104–158 ms) and
-  the rebuild (102–141 ms). These are the costs the R096.f1c notes record.
+- **Nine-tile commits** (reported only, 237–406 ms) are dominated by the command (103.6–159.1 ms) and
+  the rebuild (102.4–144.5 ms, or 226.6 ms in the outlier run). The command's cost is the one the
+  R096.f1c notes record. The rebuild re-tessellates up to 13 rebuilt tiles; since R096.f1b, seam-ring
+  tiles only have their normals patched.
   - With 16 strokes, p95 is the maximum, so one slow stroke sets it. The 406.0 ms in
     `sculpt-section-2` (points) is one such outlier; the other runs of that case are
     317.0–320.7 ms.
@@ -350,11 +355,15 @@ The table gives p95 in ms, as a range over the runs.
 | One tile, desktop command | 29.2–31.2 | 24.8–28.4 | 36.1–58.3 | 32.0–32.4 |
 | One tile, input to frame (llvmpipe) | 123.6–126.2 | 116.3–121.6 | 113.4–182.6 | 102.1–112.5 |
 
-- **Nine tiles:** each `applyEdit` run is about 11–19 ms faster.
-  - The desktop command, which runs `applyEdit` twice, drops by 34–58 ms when comparing the best
-    runs, or 21–25 %. That is in line with R096.f1c's estimate of 45–65 ms.
+- **Nine tiles:** each `applyEdit` run in the core is about 11–19 ms faster.
+  - The desktop command, which runs `applyEdit` twice, drops by 34 ms (contours) and 58 ms
+    (points) when comparing the best runs, or 21–25 %.
+  - The points figure is more than twice the core saving. The desktop runs are noisy under
+    llvmpipe, and the batch's staged run compares more tiles. The R096.f1c estimate was 45–65 ms;
+    contours came in below it.
   - The AMD session's nine-tile commits (237–406 ms, measured at `f1da21a3`, without this change)
-    spend 104–158 ms in the command, so they should fall by about the same amount.
+    spend 103.6–159.1 ms in the command, so they should fall by a similar amount. They were not
+    re-measured on hardware.
 - **One tile:** the change saves 1–5 ms. A one-tile commit replaces one or two tiles, so there is
   less adjacency to skip.
 - **Outcome:** the change is implemented. The one-tile budgets above, measured without it, are
@@ -432,8 +441,11 @@ None blocks acceptance. Each is recorded from the ADR 0169 notes or from this re
 
 | Item | Kind | Status |
 | --- | --- | --- |
+| C5 at 250k with 10,000 `elevation_at` points (§9) | Gap (test) | C5 is proven on terrains up to 60,000 triangles with 1,600–2,000 points. At 250k, the benchmark checks C1 and C6 only. Add the 250k C5 check to `terrain_edit_benchmark` |
+| History-budget refusal for an R096 edit (§9 limits row) | Gap (test) | The terrain history refuses one edit over 512 MiB (`LIMIT_EXCEEDED`, D-043). No R096 test drives it: the largest single R096 edit measured is charged 137–148 MB |
+| Resident memory held by a large edit's history | Follow-up (disclosure) | A whole-terrain region paint keeps 140–157 MB resident while it is undoable (at `f1da21a3`), so the process can sit above the 200 MB added-memory row. It is charged to the 512 MiB terrain history, which bounds it |
 | Contour-edit commit headroom on hardware: 90.2–92.3 ms against 100 ms | Follow-up (performance) | The levers are the tool's source-line overlay, about 14 ms on every frame (draw it from a cached GPU batch instead of per frame), and the commit's cache rebuild of 28 ms. Re-measure on the AMD GPU after any change to the contour tool or the display path |
-| Nine-tile sculpt commit outlier: 406.0 ms in one run (`sculpt-section-2`, points) against 313–321 ms in the others | Follow-up (reported row, no budget) | With 16 strokes, p95 is the maximum, so one slow stroke sets it. The nine-tile costs are the command (104–158 ms, two `applyEdit` runs) and the rebuild (102–141 ms, seam-ring re-tessellation). Use more strokes if the row gets a budget |
+| Nine-tile sculpt commit outlier: 406.0 ms in one run (`sculpt-section-2`, points) against 313–321 ms in the others | Follow-up (reported row, no budget) | With 16 strokes, p95 is the maximum, so one slow stroke sets it. The nine-tile costs are the command (103.6–159.1 ms, two `applyEdit` runs) and the rebuild (102.4–144.5 ms, re-tessellating up to 13 rebuilt tiles). Use more strokes if the row gets a budget |
 | Stamp-pad preview frame 16.3–17.2 ms with readback against the stricter 16.7 ms row | Follow-up (measurement) | Passes the 33.3 ms row. Measure the frame without the readback, as the M9 harness does, before any 16.7 ms claim |
 | The duplicated edit validation of a batch (staged, then published) | Declined (R096.f1c) | Removing either run would weaken the validation contract |
 | Skipping validation as well as the adjacency for one-sided changes | Declined (this record) | It would depend on the caller's invariant (the freeze validated the new side, the old side is stored) |
