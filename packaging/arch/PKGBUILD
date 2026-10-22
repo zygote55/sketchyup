@@ -1,22 +1,32 @@
 # Release archive package. Generate the source archive with scripts/package-source.sh.
-pkgname=sketchyup
+# One source, two packages (ADR 0171 decision 22): sketchyup, the application, and
+# sketchyup-ifc, the optional IFC helper with private copies of IfcOpenShell and the OpenCASCADE
+# libraries it needs, so the LGPL and OCCT obligations attach only to the second package.
+pkgbase=sketchyup
+pkgname=('sketchyup' 'sketchyup-ifc')
+# Package acceptance builds the preceding package only to test install and upgrade; it sets this
+# to skip the IfcOpenShell build and the second package (scripts and README: packaging/arch).
+_with_ifc=ON
+if [[ ${SKETCHYUP_PACKAGE_WITHOUT_IFC:-} == 1 ]]; then
+  _with_ifc=OFF
+  pkgname=('sketchyup')
+fi
 # pkgver must equal CMakeLists.txt project(VERSION); scripts/release-version.sh checks it.
 pkgver=1.3.0
 pkgrel=1
-pkgdesc='Native Linux face modeler'
 arch=('x86_64')
 url='https://github.com/zygote55/sketchyup'
-license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause')
-depends=('openssl' 'qt6-base' 'qt6-wayland' 'wayland' 'shared-mime-info' 'ttf-dejavu')
-optdepends=('libsecret: OpenAI credential storage through the desktop Secret Service'
-            'blender: optional rendered images, animation frames and Blender handoff')
-# CMake configures Python-based recipe/reference checks when BUILD_TESTING is on.
-makedepends=('cmake' 'ninja' 'gcc' 'pkgconf' 'python')
+# The licences of everything the two packages carry; each package function narrows it.
+license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause' 'LGPL-3.0-or-later' 'LGPL-2.1-or-later')
+# CMake configures Python-based recipe/reference checks when BUILD_TESTING is on. boost, eigen,
+# opencascade and patchelf build IfcOpenShell (third_party/ifcopenshell) and copy the OpenCASCADE
+# libraries its kernel needs; opencascade pulls vtk, tcl and tk into the build environment only.
+makedepends=('cmake' 'ninja' 'gcc' 'pkgconf' 'python' 'boost' 'eigen' 'opencascade' 'patchelf')
 # makepkg's default LTO re-optimizes the static core for each of ~200 linked
 # executables, turning a 15-minute build into hours. No debug split package ships.
 options=('!lto' '!debug')
 # Source directory/archive name; package acceptance builds its prior package from it.
-_srcname=$pkgname-$pkgver
+_srcname=$pkgbase-$pkgver
 source=("$_srcname.tar.gz")
 sha256sums=('REPLACE_WITH_SOURCE_SHA256') # Filled by package-source.sh.
 
@@ -27,11 +37,17 @@ build() {
   if [[ "$CFLAGS $CXXFLAGS $LDFLAGS" == *-flto* ]]; then
     link_flags+=' -flto=1'
   fi
+  # IfcOpenShell is a separate CMake project built inside this build (about 400 compile steps,
+  # 0.9 GB per compiler process). The rest of the build defaults to one job, but this step gets
+  # CMAKE_BUILD_PARALLEL_LEVEL, else the CPU count, at most four: at one job it takes about an hour.
+  local ifc_jobs=${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}
+  (( ifc_jobs <= 4 )) || ifc_jobs=4
   cmake -S "$srcdir/$_srcname" -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_EXE_LINKER_FLAGS="$link_flags" \
     -DCMAKE_SHARED_LINKER_FLAGS="$link_flags" \
-    -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF
+    -DSKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF \
+    -DSKETCHYUP_BUILD_IFC="$_with_ifc" -DSKETCHYUP_IFC_JOBS="$ifc_jobs"
   cmake --build build --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-1}"
 }
 
@@ -39,6 +55,23 @@ check() {
   ctest --test-dir build --output-on-failure
 }
 
-package() {
-  DESTDIR="$pkgdir" cmake --install build
+package_sketchyup() {
+  pkgdesc='Native Linux face modeler'
+  license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause')
+  depends=('openssl' 'qt6-base' 'qt6-wayland' 'wayland' 'shared-mime-info' 'ttf-dejavu')
+  optdepends=('libsecret: OpenAI credential storage through the desktop Secret Service'
+              'blender: optional rendered images, animation frames and Blender handoff'
+              'sketchyup-ifc: IFC helper (IfcOpenShell); the application uses it for IFC exchange once that ships')
+  # Everything except the ifc component, which sketchyup-ifc carries.
+  DESTDIR="$pkgdir" cmake --install build --component Unspecified
+}
+
+package_sketchyup-ifc() {
+  pkgdesc='IFC helper for SketchyUp: IfcOpenShell and the OpenCASCADE libraries it needs (private copies)'
+  license=('MIT' 'LGPL-3.0-or-later' 'LGPL-2.1-or-later' 'LicenseRef-OCCT-LGPL-exception')
+  depends=("sketchyup=$pkgver" 'boost-libs' 'gcc-libs' 'glibc')
+  # /usr/lib/sketchyup/sketchyup-ifc-worker, libifcopenshell*.so, the ifcopenshell_*.so plugins and
+  # the libTK*.so libraries, all in one flat private directory (a RUNPATH of $ORIGIN); the notices
+  # and the written source offer (share/doc/sketchyup/IFC-SOURCE.txt).
+  DESTDIR="$pkgdir" cmake --install build --component ifc
 }

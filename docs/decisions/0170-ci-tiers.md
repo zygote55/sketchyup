@@ -218,6 +218,24 @@ Follow-ups (2026-10-22):
   signatures are not checked (`SigLevel = Never`): the 2024 packager keys have expired, and the
   archive is fetched over HTTPS by date. CI verdict requires it whenever the full tier runs.
 
+- **IFC library and helper (R097.a, [ADR 0171](0171-ifc-exchange-subset.md) section 1.5).** The
+  vendored IfcOpenShell tree is built by its own job, not by `ci-fast`: area `job:ifc` (a changed
+  path under `third_party/ifcopenshell/`, `src/ifc/`, `tests/ifc*`, `tests/fixtures/ifc/` or the two
+  IFC scripts) runs `IFC library and helper`, and nothing else selects it, so an ordinary pull request
+  plans, builds and tests exactly what it did before. The job installs `CI_IFC_PACKAGES` (it adds
+  `opencascade`, which pulls VTK, Tcl and Tk, 0.55 GiB, so it has its own package-cache entry and no
+  other job's key or install changed), restores the prefix `build/ifc-prefix` from a cache keyed by the
+  image's packages, the mirror, the vendored tree and `src/ifc/IfcOpenShellPrefix.cmake`, builds the helper
+  (seconds) and runs `ctest -R '^ifc_'`: the API probe and checks L1 to L6 of ADR 0171 on a scratch
+  install. A miss builds the prefix from source (13 minutes with four jobs on four CPUs in the pinned
+  image; see the R097.a notes) and saves it. The full tier skips the cache restore, builds the prefix from source,
+  saves it when run on `main` (the nightly run keeps the entry warm), and runs the helper again under ASan
+  and UBSan. `third_party/**` no longer selects `build`, `native` and `slow-core` for the IFC tree (only the
+  libraries the application links do), and its headers, sources and CMake files do not make a later plan
+  wide (`NOT_IN_FAST_BUILD` in `scripts/ci-plan.py`). Arch package acceptance installs `boost`, `eigen`,
+  `opencascade` and `patchelf` on top of `CI_PACKAGES` (the PKGBUILD's makedepends) and builds
+  IfcOpenShell once: the preceding package, which only tests install and upgrade, skips it.
+
 ## Test cleanup
 
 Coverage-preserving trims of the slowest suites, each keeping its assertion:

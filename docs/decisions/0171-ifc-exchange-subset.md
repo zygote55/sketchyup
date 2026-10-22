@@ -4,10 +4,12 @@ Status: **Accepted (2026-10-22)**: decisions 1 to 16, then decisions 17 to 22 (h
 packaged and run), questions Q1 and Q2 and the reworded decisions 5, 12 and 14, all approved by the
 owner on 2026-10-22 ("Approve all"). Roadmap
 [R097](../PR_ROADMAP.md#r097) (M10, scope row [F04](../SCOPE.md)); the sibling
-[R098](../PR_ROADMAP.md#r098) covers STEP. Nothing in this ADR is implemented. Each section gives
+[R098](../PR_ROADMAP.md#r098) covers STEP. Only R097.a is implemented (see the end of this paragraph). Each section gives
 the options that were weighed and the recommendation. Facts about third-party projects were read
 on 2026-10-22 and are cited in the [appendix](#appendix-evidence-and-sources); anything not
-verified is marked as such.
+verified is marked as such. **R097.a is implemented** (library, helper skeleton, packaging, CI):
+its measurements and the corrections its API probe made to this text are in the
+[implementation notes](#implementation-notes-r097a); the other slices are not.
 
 **Owner decision, 2026-10-22, verbatim:** "Just use IfcOpenShell. I don't want to build it. I
 approve all." This settles decision 1: SketchyUp uses and ships IfcOpenShell, and writes no IFC
@@ -180,9 +182,13 @@ Things I found in the source of `v0.9.0` that the design depends on:
   library's. In the prototype the Reference View wall's OBJ came out in millimetres while the
   Architecture files' OBJs came out in metres, although every file declares a millimetre length unit; I
   did not isolate the cause. The adapter therefore **verifies every mesh against the file's units**
-  (check A1) instead of trusting the output unit.
+  (check A1) instead of trusting the output unit. *R097.a isolated the cause: the library reads the
+  units only when the file has exactly one `IfcContext`, and in IFC4 an `IfcProjectLibrary` is one too
+  ([note F1](#implementation-notes-r097a)); "other than one IfcProject" above is therefore wrong for IFC4
+  and later.*
 - `MaxVoidsPerElement` means "no voids will be processed for elements with more voids" (0 is
-  unlimited); it is a skip, not a bound on work, and it is silent apart from the log.
+  unlimited); it is a skip, not a bound on work, and it is silent apart from the log. *(R097.a:
+  confirmed; the log line is warning GEO403, naming the host.)*
 - `IfcIndexedColourMap` is not read by the C++ geometry code (the prototype's per-face-colour sample
   came out as one default material), so **per-face colours are read by the adapter**.
 - Feature edges come only from the OCCT kernel.
@@ -284,7 +290,8 @@ API changed between 0.8 and 0.9 (the typed entity classes, the `express` namespa
 
 **Run-time dependency.** The libraries record `libboost_program_options` and `libboost_container`, so
 the package depends on `boost-libs` (a small, common dependency; the two libraries are well under a
-megabyte).
+megabyte). *(R097.a: linked with `--as-needed` they record no Boost library, and the package does not
+depend on `boost-libs`, [note F9](#implementation-notes-r097a).)*
 
 **Build dependencies in the pinned image.** `boost` (headers; 158 MB installed), `eigen` and, for the
 OCCT kernel, `opencascade` headers and libraries. Arch's OCCT CMake configuration refuses to load
@@ -534,7 +541,8 @@ voids of a host that has more (a skip, not a cap on work), and those hosts are l
 reports `openingsDeclared`, `openingsNotApplied` (with the library's reason, bounded) and the elements
 affected. The prototype did not show how a failed subtraction appears, so R097.a includes a deliberately
 bad host and the worker detects "declared but not applied" by comparing declared voids with the log and,
-where the file carries a `NetVolume`, with the mesh volume. An opening that is not subtracted leaves the host uncut and the opening is
+where the file carries a `NetVolume`, with the mesh volume. *(R097.a: how failures show, and what an
+open host does, is in [note F5](#implementation-notes-r097a); an open host is not always left uncut.)* An opening that is not subtracted leaves the host uncut and the opening is
 imported **hidden on the tag `IFC Opening`** so the user can act on it; an applied opening is
 consumed, not imported. `IfcRelFillsElement` (a window in an opening) needs no action: the window's
 own placement puts it in the opening. Whether the library subtracted a void is **verified against
@@ -556,7 +564,8 @@ Native faces are planar polygons; IFC solids are not. **Everything is tessellate
 result is ordinary editable faces and edges, never a parametric record. The work of interpreting
 the representation items belongs to the library; the worker asks the iterator for the `Body`
 representation of each product in the `Model` context (settings: `ContextPriorities` ordered
-`Model/Body/MODEL_VIEW` first, because `ContextTypes` and `ContextIdentifiers` have no effect in
+`Model/Body/MODEL_VIEW` first (*R097.a: that spelling matches nothing; the grammar is
+`Body[ContextType=Model,TargetView=MODEL_VIEW]`, [note F2](#implementation-notes-r097a)*), because `ContextTypes` and `ContextIdentifiers` have no effect in
 `v0.9.0`; `UseWorldCoords` off so that each element has its own local frame; `WeldVertices` on; the
 opening settings of 3.2; and bounded mesher deflections), and receives, per element, a triangle mesh
 with a transformation, material indices and styles, and item identifiers; with the OCCT kernel also

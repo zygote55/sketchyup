@@ -106,8 +106,10 @@ sed -i -e "s/^pkgver=$package_version$/pkgver=$prior_version/" \
   -e "s/^_srcname=.*$/_srcname=sketchyup-$package_version/" PKGBUILD
 # check() runs ctest; drawing_sheet_io_tests, component_parameter_io_tests and
 # terrain_io_tests also drive the released CLI when set.
+# The preceding package exists to test install and upgrade, so it skips IfcOpenShell (about 15 to
+# 30 minutes of compiling) and the sketchyup-ifc package; the current package builds both.
 runuser -u builder -- env CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" \
-  SKETCHYUP_PRIOR_CLI="$prior_release_cli" makepkg --noconfirm --force
+  SKETCHYUP_PRIOR_CLI="$prior_release_cli" SKETCHYUP_PACKAGE_WITHOUT_IFC=1 makepkg --noconfirm --force
 grep -qx "project(SketchyUp VERSION $package_version LANGUAGES CXX)" "$source_dir/CMakeLists.txt" || {
   echo "CMakeLists.txt in the source archive does not declare version $package_version." >&2
   exit 1
@@ -294,6 +296,51 @@ for key in ('packageSentinel', 'theme', 'interfaceTextPercent', 'reducedMotion',
     if before['General'][key] != after['General'][key]:
         raise SystemExit('Upgrade changed preference: ' + key)
 PYPREFS
+# ADR 0171 decision 22 (R097.a): sketchyup-ifc is a separate package from the same PKGBUILD. The
+# application package carries none of IfcOpenShell or OpenCASCADE; the second package installs
+# the helper and the private libraries in /usr/lib/sketchyup and nothing links them but the helper.
+ifc_package=sketchyup-ifc-$package_version-$package_release-x86_64.pkg.tar.zst
+[[ -s $ifc_package ]]
+if pacman -Qlq sketchyup | grep -qE 'ifcopenshell|libTK|sketchyup-ifc-worker|IfcOpenShell|OpenCASCADE|IFC-SOURCE'; then
+  echo 'The sketchyup package contains IfcOpenShell or OpenCASCADE files.' >&2
+  exit 1
+fi
+pacman -U --noconfirm "$ifc_package"
+pacman -Qkk sketchyup-ifc
+[[ $(pacman -Q sketchyup-ifc) == "sketchyup-ifc $package_version-$package_release" ]]
+[[ $(runuser -u builder -- /usr/lib/sketchyup/sketchyup-ifc-worker --version) == "sketchyup-ifc-worker $package_version" ]]
+runuser -u builder -- /usr/lib/sketchyup/sketchyup-ifc-worker --probe > /work/acceptance/ifc-probe.json
+jq -e --arg v "$package_version" '.worker.version == $v and .ifcopenshell.version == "0.9.0"
+  and .kernelAvailable and .kernelStatus == "available"
+  and ([.schemas[] | select(.available)] | length == 3)
+  and ([.loadedLibraries[] | select(test("ifcopenshell|libTK"))] | all(startswith("/usr/lib/sketchyup/")))' \
+  /work/acceptance/ifc-probe.json > /dev/null
+# L1 to L6 of ADR 0171 section 6.3 on the installed files: the application, the CLI and every other
+# worker have no dynamic dependency on IfcOpenShell or OpenCASCADE; RUNPATH $ORIGIN and a replaced
+# copy of the libraries; the notices and the source offer; no GPL-3.0-or-later library; and the
+# kernel plugin reports "kernel unavailable" (no abort) when it or any OpenCASCADE library is gone.
+runuser -u builder -- python -I "$source_dir/scripts/verify-ifc-library.py" package --prefix /usr \
+  --source-dir "$source_dir" --other-executables /usr/bin/sketchyup /usr/bin/sketchyup-cli \
+  /usr/lib/sketchyup/sketchyup-extension-worker /usr/lib/sketchyup/sketchyup-text-worker
+# The API probe against the installed helper: units, voids, colours and failures as the library really behaves.
+runuser -u builder -- python -I "$source_dir/tests/ifc_worker_probe_tests.py" \
+  /usr/lib/sketchyup/sketchyup-ifc-worker "$source_dir/tests/fixtures/ifc"
+{
+  printf 'Package sizes (compressed file, installed):\n'
+  ls -l -- sketchyup-*"$package_version-$package_release"-x86_64.pkg.tar.zst
+  pacman -Qi sketchyup sketchyup-ifc | grep -E '^(Name|Version|Installed Size|Depends On|Licenses)'
+  printf 'Private directory /usr/lib/sketchyup:\n'
+  du -sh /usr/lib/sketchyup
+  du -ch /usr/lib/sketchyup/libifcopenshell* /usr/lib/sketchyup/ifcopenshell_* | tail -1
+  du -ch /usr/lib/sketchyup/libTK*.so.* | tail -1
+} | tee /work/acceptance/package-sizes.txt
+pacman -Qlq sketchyup-ifc > /work/acceptance/ifc-owned-paths.txt
+pacman -R --noconfirm sketchyup-ifc
+while IFS= read -r path; do
+  [[ $path == */ ]] || [[ ! -e $path && ! -L $path ]]
+done < /work/acceptance/ifc-owned-paths.txt
+[[ ! -e /usr/lib/sketchyup/sketchyup-ifc-worker && -e /usr/lib/sketchyup/sketchyup-text-worker ]]
+[[ $(pacman -Q sketchyup) == "sketchyup $package_version-$package_release" ]]
 pacman -Qlq sketchyup > /work/acceptance/package-owned-paths.txt
 pacman -R --noconfirm sketchyup
 while IFS= read -r path; do

@@ -31,7 +31,8 @@ shopt -s nullglob
 packages=()
 for path in "$output"/*.pkg.tar.zst; do
   name=${path##*/}
-  [[ $name == sketchyup-$version-$pkgrel-*.pkg.tar.zst || $name == sketchyup-debug-$version-$pkgrel-*.pkg.tar.zst ]] ||
+  [[ $name == sketchyup-$version-$pkgrel-*.pkg.tar.zst || $name == sketchyup-ifc-$version-$pkgrel-*.pkg.tar.zst ||
+     $name == sketchyup-debug-$version-$pkgrel-*.pkg.tar.zst ]] ||
     fail "$name is not a $version-$pkgrel package; use a fresh OUTPUT_DIR"
   packages+=("$name")
 done
@@ -55,8 +56,8 @@ untracked=$(LC_ALL=C comm -23 \
 notices=$output/THIRD_PARTY_NOTICES
 {
   printf 'SketchyUp %s third-party notices\n' "$version"
-  printf 'Collected from the files installed to /usr/share/licenses/sketchyup.\n'
-  sed -n 's|^install(FILES \([^ ]*\) DESTINATION share/licenses/sketchyup\( RENAME \([^ )]*\)\)\{0,1\})$|\1 \3|p' \
+  printf 'Collected from the files installed to /usr/share/licenses/sketchyup (both packages).\n'
+  sed -n 's|^install(FILES \([^ ]*\) DESTINATION share/licenses/sketchyup\( RENAME \([^ )]*\)\)\{0,1\}\( COMPONENT [A-Za-z]*\)\{0,1\})$|\1 \3|p' \
     "$root/CMakeLists.txt" |
     while read -r source installed; do
       [[ -f $root/$source ]] || fail "license file $source is missing"

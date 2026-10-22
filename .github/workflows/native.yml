@@ -48,6 +48,10 @@ env:
   # What packaging/arch/verify-package.sh installs with pacman -S. The jobs that fill the
   # package cache also download these, so package acceptance needs no mirror on a hit.
   CI_PACKAGE_CHECK_PACKAGES: desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
+  # What the IFC job (ADR 0171) installs, and Arch package acceptance on top of CI_PACKAGES:
+  # IfcOpenShell's build dependencies. opencascade pulls vtk, tcl and tk (about 0.55 GiB), so no
+  # other job installs them and none of the package-cache keys above includes this list.
+  CI_IFC_PACKAGES: cmake ninja pkgconf python boost eigen opencascade patchelf
   # What the fast tier's compile shards need: the build tools and the headers and
   # pkg-config files configure finds; nothing the tests run. A subset of the lists above,
   # so it changes neither the package cache nor the compile commands.
@@ -1728,6 +1732,109 @@ jobs:
         with:
           path: /ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
+  # ---------------------------------------------------------------------------------------
+  # IFC (ADR 0171). IfcOpenShell is built as private shared libraries into a prefix that
+  # depends only on the vendored tree (third_party/ifcopenshell), the image's packages and the
+  # flags in src/ifc/IfcOpenShellPrefix.cmake. The fast tier restores the prefix from a cache
+  # keyed by exactly those inputs (a 15- to 30-minute compile is not something to recover
+  # through compiler-cache hits on a cold runner), so a change to src/ifc or the API probe
+  # builds only the helper, in seconds; the first change to the tree or the flags pays the cold
+  # build once and saves the prefix. A pushed `main` run and the nightly full tier keep the entry
+  # warm. The full tier builds the prefix from source, so a cache problem cannot hide a defect,
+  # and runs the helper under ASan and UBSan. Nothing else depends on this job: the application
+  # does not link IfcOpenShell, and only changes to its paths select the job (ci-path-map.json).
+  ifc:
+    name: IFC library and helper
+    needs: plan
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',ifc,')
+    runs-on: ubuntu-latest
+    container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # Its own entry, keyed on the image's packages, the dated mirror and the IFC list: this job
+        # needs packages (opencascade, vtk) that no other job installs.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_IFC_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-ifc-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+          echo "sum=$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Install build dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_IFC_PACKAGES; then
+            exit 0
+          fi
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_IFC_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Save the package cache
+        if: success() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc boost eigen opencascade patchelf
+      - name: Vendored tree equals the pinned upstream tag, trimmed
+        # The pin is the upstream commit and the bytes of every vendored file (ADR 0171 decision 21):
+        # no network at build time, but this check downloads the tag archive once to prove the tree.
+        run: |
+          python scripts/vendor-ifcopenshell.py fetch /tmp/ifcopenshell-upstream
+          python scripts/vendor-ifcopenshell.py check /tmp/ifcopenshell-upstream/ifcopenshell-v0.9.0.tar.gz
+      - name: Key the IfcOpenShell prefix cache
+        id: prefix-key
+        # The vendored tree and the flags (IfcOpenShellPrefix.cmake) on top of what the package
+        # cache key already covers: the image, the mirror and the package list.
+        run: |
+          sum=$(find third_party/ifcopenshell src/ifc/IfcOpenShellPrefix.cmake src/ifc/WriteStamp.cmake -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-32)
+          echo "key=ifc-prefix-v1-${{ steps.package-cache-key.outputs.sum }}-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the IfcOpenShell prefix
+        id: prefix
+        if: needs.plan.outputs.full != 'true'
+        uses: actions/cache/restore@v5
+        with:
+          path: build/ifc-prefix
+          key: ${{ steps.prefix-key.outputs.key }}
+      - name: Build the helper and, when it is not cached, the IfcOpenShell prefix
+        run: |
+          cmake --preset ifc
+          cmake --build --preset ifc --parallel "$(nproc)"
+      - name: Save the IfcOpenShell prefix
+        if: success() && steps.prefix.outputs.cache-hit != 'true' && (needs.plan.outputs.full != 'true' || github.ref == 'refs/heads/main')
+        uses: actions/cache/save@v5
+        with:
+          path: build/ifc-prefix
+          key: ${{ steps.prefix-key.outputs.key }}
+      - name: Helper, API probe and library checks
+        run: ctest --test-dir build/ifc -R '^ifc_' --output-on-failure --no-tests=error --parallel 2
+      - name: Helper under the sanitizers
+        # The helper's own code under ASan and UBSan against the uninstrumented library.
+        if: needs.plan.outputs.full == 'true'
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: |
+          cmake --preset ifc-sanitize
+          cmake --build --preset ifc-sanitize --parallel "$(nproc)"
+          ctest --test-dir build/ifc-sanitize -R '^ifc_worker_probe$' --output-on-failure --no-tests=error
   package:
     name: Arch package acceptance
     needs: plan
@@ -1759,17 +1866,19 @@ jobs:
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
           # A cache hit restores this snapshot's databases and every package file: install
           # without -y, so pacman needs no mirror and still verifies every signature.
-          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES; then
+          # The IFC build packages (boost, eigen, opencascade, patchelf: the PKGBUILD's makedepends
+          # for third_party/ifcopenshell) are not in the shared cache entry; pacman fetches them.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES $CI_IFC_PACKAGES; then
             exit 0
           fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_IFC_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
       - name: Record toolchain
-        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa
+        run: pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa boost eigen opencascade patchelf
       - name: Download the previous release package
         # Public release asset (~10 MiB); no token is needed. verify-package.sh also
         # checks the SHA-256 it pins for this file name.
@@ -1890,7 +1999,7 @@ jobs:
   verdict:
     name: CI verdict
     if: always()
-    needs: [plan, compile, fast, fast-x11, build, x11-1x, x11-2x, wayland-1x, wayland-2x, audit, fractional, blender, sanitize, package, qt68]
+    needs: [plan, compile, fast, fast-x11, build, x11-1x, x11-2x, wayland-1x, wayland-2x, audit, fractional, blender, sanitize, ifc, package, qt68]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1905,7 +2014,7 @@ jobs:
           out = plan.get("outputs", {})
           on = lambda name: out.get(name) == "true"
           full_jobs = ["build", "x11-1x", "x11-2x", "wayland-1x", "wayland-2x", "audit",
-                       "fractional", "blender", "sanitize", "package", "qt68"]
+                       "fractional", "blender", "sanitize", "ifc", "package", "qt68"]
           required = {"plan"}
           if on("build"):
               required.add("fast")
