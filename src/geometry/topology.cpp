@@ -114,16 +114,29 @@ TopologyChanges compareTopology(const Surface &before, const Topology &beforeTop
                            compare(before.faces, after.faces),
                            {},
                            {}};
-    const auto oldAdjacency = beforeTopology.adjacency(before);
-    const auto nextAdjacency = afterTopology.adjacency(after);
-    for (const auto &[id, edge] : beforeTopology.edges) {
-        if (!afterTopology.edges.contains(id))
-            continue;
-        const auto &next = afterTopology.edges.at(id);
-        if (before.vertices.at(edge.a) != after.vertices.at(next.a) ||
-            before.vertices.at(edge.b) != after.vertices.at(next.b) ||
-            oldAdjacency.edgeFaces.at(id) != nextAdjacency.edgeFaces.at(id))
-            result.edges.modified.push_back(id);
+    // R096.g: the adjacency maps only decide whether an edge both sides hold is modified. When
+    // no edge ID is on both sides (a created or erased body, such as a replaced terrain tile),
+    // they cannot report one, so each side is only validated, in the same order: the same
+    // checks run and the same defects throw, without building the maps.
+    const bool shared = std::any_of(beforeTopology.edges.begin(), beforeTopology.edges.end(),
+                                    [&](const auto &entry) {
+                                        return afterTopology.edges.contains(entry.first);
+                                    });
+    if (!shared) {
+        beforeTopology.validate(before);
+        afterTopology.validate(after);
+    } else {
+        const auto oldAdjacency = beforeTopology.adjacency(before);
+        const auto nextAdjacency = afterTopology.adjacency(after);
+        for (const auto &[id, edge] : beforeTopology.edges) {
+            if (!afterTopology.edges.contains(id))
+                continue;
+            const auto &next = afterTopology.edges.at(id);
+            if (before.vertices.at(edge.a) != after.vertices.at(next.a) ||
+                before.vertices.at(edge.b) != after.vertices.at(next.b) ||
+                oldAdjacency.edgeFaces.at(id) != nextAdjacency.edgeFaces.at(id))
+                result.edges.modified.push_back(id);
+        }
     }
     std::sort(result.edges.modified.begin(), result.edges.modified.end());
     result.edges.modified.erase(
