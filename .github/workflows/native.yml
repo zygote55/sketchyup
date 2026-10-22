@@ -1787,13 +1787,110 @@ jobs:
           scripts/package-source.sh /work/package
           cp packaging/arch/verify-package.sh /work/package/
           SKETCHYUP_PACKAGE_SANDBOX=1 bash /work/package/verify-package.sh
+  # The declared minimum, Qt 6.8.0, compiles (ADR 0170): the other jobs build on the pinned
+  # Qt 6.11.2, whose transitive includes hide a missing #include (D-047). This job builds
+  # every target (`all` and the EXCLUDE_FROM_ALL benchmarks and trial) on the release
+  # walkthrough's reference snapshot and runs no tests; the Clang fuzzers (off at configure,
+  # they need clang) are not built.
+  qt68:
+    name: Qt 6.8 reference compile
+    needs: plan
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',qt68,')
+    env:
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      # The 2024-10-15 Arch Linux Archive is the first snapshot with qt6-base 6.8.0
+      # (2024-10-14 still has 6.7.3); GCC 14.2.1, CMake 3.30.5.
+      QT68_ARCHIVE: https://archive.archlinux.org/repos/2024/10/15
+      QT68_PACKAGES: cmake ninja pkgconf openssl qt6-base qt6-wayland wayland mesa python ccache mold
+    runs-on: ubuntu-latest
+    container: mirror.gcr.io/library/archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        run: |
+          sum=$({ printf '%s\n' "$QT68_ARCHIVE" "$QT68_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-qt68-v1-29119837-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Install build dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
+        run: |
+          echo "Server = $QT68_ARCHIVE/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
+          # The 2024 packager keys have since expired or been retired, so today's clock
+          # rejects packages that were valid in the snapshot (the walkthrough checks them
+          # as of 2024-10-16). The archive is fetched over HTTPS, pinned by date.
+          sed -i 's/^SigLevel.*/SigLevel = Never/' /etc/pacman.conf
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $QT68_PACKAGES; then
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $QT68_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Save the package cache
+        if: success() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Record toolchain
+        id: toolchain
+        run: |
+          pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa ccache mold
+          test "$(pacman -Q qt6-base | cut -d' ' -f2 | cut -d- -f1)" = 6.8.0
+          echo "gcc=$(pacman -Q gcc | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Restore the compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-qt68-v1-29119837-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-qt68-v1-29119837-${{ steps.toolchain.outputs.gcc }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json') }}-
+            ccache-qt68-v1-29119837-${{ steps.toolchain.outputs.gcc }}-
+      - name: Prepare the compiler cache
+        run: |
+          ccache --zero-stats
+          ccache --show-config
+      - name: Compile all targets on Qt 6.8.0
+        # -k 0 keeps going past errors, so one run lists every break. The fast preset
+        # (no debug info, shared libraries, mold) compiles the same sources as `dev`.
+        run: |
+          cmake --preset ci-fast
+          cmake --build --preset ci-fast --parallel 4 --target all terrain_triangulation_benchmark terrain_edit_benchmark assistant_workflow_trial native_persistence_benchmark component_placement_scaling component_placement_scaling_raised_limits -- -k 0
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats --verbose
+      - name: Save the compiler cache
+        # A failed build still saves its objects, so the rerun after a fix starts warm.
+        if: ${{ !cancelled() && steps.ccache-restore.outcome == 'success' && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '') }}
+        uses: actions/cache/save@v5
+        with:
+          path: /ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
   # ---------------------------------------------------------------------------------------
   # The one check merges wait on. It fails when any job failed or was cancelled, and when a
   # job the plan selected did not succeed (so a wrong condition cannot skip tests silently).
   verdict:
     name: CI verdict
     if: always()
-    needs: [plan, compile, fast, fast-x11, build, x11-1x, x11-2x, wayland-1x, wayland-2x, audit, fractional, blender, sanitize, package]
+    needs: [plan, compile, fast, fast-x11, build, x11-1x, x11-2x, wayland-1x, wayland-2x, audit, fractional, blender, sanitize, package, qt68]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1808,7 +1905,7 @@ jobs:
           out = plan.get("outputs", {})
           on = lambda name: out.get(name) == "true"
           full_jobs = ["build", "x11-1x", "x11-2x", "wayland-1x", "wayland-2x", "audit",
-                       "fractional", "blender", "sanitize", "package"]
+                       "fractional", "blender", "sanitize", "package", "qt68"]
           required = {"plan"}
           if on("build"):
               required.add("fast")
