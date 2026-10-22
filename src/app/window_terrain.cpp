@@ -387,3 +387,4 @@ void Window::siteSettings() {
     viewport_->setFocus(Qt::OtherFocusReason);
 }
 } // namespace sketchy
+// CI timing probe (R097.a): a comment-only change, not to be merged.
