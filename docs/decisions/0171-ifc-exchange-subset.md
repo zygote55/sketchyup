@@ -1316,7 +1316,7 @@ Pinned image `sketchyup-ci-pinned:r094a` plus `boost`, `eigen`, `opencascade` an
 | IfcOpenShell prefix from the vendored tree (the recommended components, no converter), 361 steps | **788 s (13.1 minutes)**; with the helper and the configure of the main project 793 s (`cmake --build --preset ifc`, ExternalProject). Prototype 2 (with IfcConvert, 401 steps): 916 s |
 | The same on a GitHub runner (4 vCPUs), cold, full-tier job | **13 min 2 s** for configure and build (prefix and helper), 14 min 28 s for the whole job, including the proof that the tree equals the upstream tag (11 s) and the sanitizer run (20 s). The estimate of 20 to 30 minutes in 1.5 was pessimistic |
 | The same job on a fast-tier pull request, cache miss | 15 min 40 s (the build step 14 min 36 s), then the prefix is saved (about 12 MB compressed) |
-| The same job, cache hit | CACHED_JOB_TBD |
+| The same job, cache hit (fast tier) | **1 min 21 s**: restore 1 s, helper build 15 s, tests 5 s, the proof of the tree 19 s |
 | `makepkg` of both packages, `-j4`, application and IfcOpenShell together, `--nocheck`, same container | **1,428 s (23.8 minutes)** |
 | Staged prefix | 32 MB (about 22 MB of IfcOpenShell libraries and plugins, the rest headers, CMake files and the tree and serializer plugins that are not shipped) |
 | Compiler memory | 0.9 GB per compiler process at most (the 10 GB cap held at `-j4`) |
@@ -1335,7 +1335,7 @@ An `src/app`-only pull request (a comment in `src/app/window_terrain.cpp`, narro
 - **F1's rescale rule** (the Reference View wall): the adapter must rescale rather than refuse, or the certified fixture cannot import. Owner to confirm.
 - **Open hosts** (F5): the worker's handling (untrusted GEO191, re-run uncut and report) is proposed, not decided.
 - The loader's compiled-in plugin path (F13) stays a string in the binary; makepkg warns about `$srcdir` for `libifcopenshell.plugin.so`.
-- Package acceptance builds IfcOpenShell once (the preceding package skips it): CI time is PACKAGE_TBD.
+- Package acceptance builds IfcOpenShell once (the preceding package skips it): the acceptance job took 43 min 46 s in its first run (the preceding package with its 229 CTest tests 25.5 minutes, the current package with IfcOpenShell 16 minutes, then the install checks), against about 30 minutes for the same job before this slice (run 39707993131).
 - The prefix cache lives only as long as GitHub keeps it (seven days without use); `main` keeps it warm only when an IFC path changes or the nightly full tier runs, and the first IFC pull request after an eviction pays about 15 minutes.
 - Check L2 shows the replacement mechanism with a copy of the libraries, not a rebuild from source in a scratch directory (a 13-minute build); the packaging README documents the real procedure.
 - Not done here, by design: the helper's resource limits, the conversion package, the Landlock/seccomp sandbox and every import or export code path (R097.b to d); fuzz target J3 (the vendored `src/ifcfuzz` is in the tree and not built).
