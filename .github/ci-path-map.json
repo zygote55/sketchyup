@@ -70,7 +70,7 @@
       ]
     },
     {
-      "why": "Core geometry and document model: everything depends on it, so every slow suite runs too.",
+      "why": "Core geometry and document model: everything builds and the native tests run; the slow core suites run too. The slow terrain and provider suites wait for their own paths or the full tier.",
       "paths": [
         "src/core/**",
         "src/geometry/**",
@@ -81,9 +81,7 @@
       "areas": [
         "build",
         "native",
-        "slow-terrain",
-        "slow-core",
-        "slow-assistant"
+        "slow-core"
       ]
     },
     {
@@ -261,8 +259,7 @@
         "build",
         "native",
         "slow-terrain",
-        "slow-core",
-        "slow-assistant"
+        "slow-core"
       ]
     },
     {
@@ -274,9 +271,7 @@
       "areas": [
         "build",
         "native",
-        "slow-terrain",
-        "slow-core",
-        "slow-assistant"
+        "slow-core"
       ]
     },
     {

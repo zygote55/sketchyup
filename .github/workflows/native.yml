@@ -48,6 +48,10 @@ env:
   # What packaging/arch/verify-package.sh installs with pacman -S. The jobs that fill the
   # package cache also download these, so package acceptance needs no mirror on a hit.
   CI_PACKAGE_CHECK_PACKAGES: desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
+  # What the fast tier's compile shards need: the build tools and the headers and
+  # pkg-config files configure finds; nothing the tests run. A subset of the lists above,
+  # so it changes neither the package cache nor the compile commands.
+  CI_COMPILE_PACKAGES: cmake ninja pkgconf openssl qt6-base qt6-wayland wayland mesa python ccache mold
 jobs:
   plan:
     name: Plan
@@ -93,7 +97,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     env:
       # ccache is content-addressed: the compiler binary, flags and every preprocessed
       # input are hashed, so a stale or partial cache can only miss, never mis-build.
@@ -123,19 +127,19 @@ jobs:
             /var/cache/pacman/pkg
             /var/lib/pacman/sync
           key: ${{ steps.package-cache-key.outputs.key }}
-      - name: Install build and software-rendering dependencies
+      - name: Install compile dependencies
         env:
           PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
         run: |
           cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
           # A cache hit restores this snapshot's databases and every package file: install
           # without -y, so pacman needs no mirror and still verifies every signature.
-          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES; then
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_COMPILE_PACKAGES; then
             exit 0
           fi
           # The pinned archive mirror occasionally stalls; retry the whole sync.
           for attempt in 1 2 3; do
-            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
+            pacman -Syyuu --noconfirm --needed $CI_COMPILE_PACKAGES && break
             [ "$attempt" -lt 3 ] || exit 1
             sleep $((attempt * 30))
           done
@@ -271,28 +275,35 @@ jobs:
         run: |
           cmake -S . -B build/configure-desktop-no-cli -G Ninja -DSKETCHYUP_BUILD_DESKTOP=ON -DSKETCHYUP_BUILD_CLI=OFF -DBUILD_TESTING=ON
       - name: Configure and build
+        id: build
         run: |
           cmake --preset ci-fast
           cmake --build --preset ci-fast --parallel "$(nproc)"
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats --verbose
+      - name: Geometry, document and persistence tests
+        # Slow suites outside the changed areas are left to the full tier (ci-path-map.json).
+        # The cached CTest timings make --parallel start the longest tests first.
+        env:
+          CTEST_EXCLUDE: ${{ needs.plan.outputs.ctest_exclude }}
+        run: |
+          mkdir -p build/dev/Testing/Temporary
+          [ ! -f /ccache/ctest-cost.txt ] || cp /ccache/ctest-cost.txt build/dev/Testing/Temporary/CTestCostData.txt
+          rm -f build/mcp-transcript.jsonl
+          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --test-dir build/dev --output-on-failure --parallel "$(nproc)" ${CTEST_EXCLUDE:+--exclude-regex "$CTEST_EXCLUDE"}
+      - name: Keep the test timings with the compiler cache
+        if: always() && steps.build.outcome == 'success'
+        run: cp build/dev/Testing/Temporary/CTestCostData.txt /ccache/ctest-cost.txt || true
       # Main (and the other non-pull-request runs) saves the cache the next runs start
       # from, keyed by commit: ci-plan.py diffs against it to choose wide or narrow. A pull
       # request saves its own only when nothing was restored, so it does not evict main's.
       - name: Save the compiler cache
-        if: success() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
+        if: always() && steps.build.outcome == 'success' && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@v5
         with:
           path: /ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
-      - name: Geometry, document and persistence tests
-        # Slow suites outside the changed areas are left to the full tier (ci-path-map.json).
-        env:
-          CTEST_EXCLUDE: ${{ needs.plan.outputs.ctest_exclude }}
-        run: |
-          rm -f build/mcp-transcript.jsonl
-          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --test-dir build/dev --output-on-failure --parallel "$(nproc)" ${CTEST_EXCLUDE:+--exclude-regex "$CTEST_EXCLUDE"}
       - name: Pinned MCP protocol schema validation
         run: |
           curl -fLsS https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/271ecc9accafdd9b83a3c869fa67c22953b2af80/schema/2026-07-28/schema.json -o build/mcp-schema.json
