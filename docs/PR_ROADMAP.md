@@ -39,6 +39,11 @@ Implementation evidence is linked below. Roadmap identifiers are never GitHub PR
 8. Track real PR URL, status, owner and fixture/evidence links as entries start.
    An unsupported compatibility investigation closes its research outcome only;
    its capability stays unsupported. Calendar estimates follow M0/M2/M5 evidence.
+9. CI has two tiers ([ADR 0170](decisions/0170-ci-tiers.md)). A PR merges when the
+   **CI verdict** check is green; that check covers the fast tier the PR's changed
+   paths select. Label a risky PR `full-ci` to run the full tier on it. A release needs
+   a green full tier at the release-candidate commit; the nightly full run on `main`
+   catches regressions in between.
 
 This roadmap contains 108 entries: 89 through the 1.0 gate and
 19 for expanded workflows/conditional compatibility. All 73 scope rows

@@ -346,9 +346,13 @@ required acceptance row is failing, even if its UI is present.
 | Rendering/exchange | Geometry, units, camera and material assertions plus tolerant image comparisons; no exact cross-GPU pixel equality requirement |
 | Packaging | Clean Arch builds, install/upgrade/uninstall, desktop/MIME integration and launch from both a terminal and application launcher |
 
-CI should run headless core/schema tests per PR and native compile/package checks
-on a controlled Arch build environment. Run sanitizers and geometry fuzzing in
-scheduled jobs. GPU/Wayland/Omarchy acceptance needs actual desktop evidence;
+CI runs in two tiers ([ADR 0170](decisions/0170-ci-tiers.md)) on a controlled Arch
+build environment. The fast tier runs per PR and per push to `main`: it builds
+everything and runs the core, schema and repository checks plus the native X11 suites
+that the changed paths reach. The full tier (sanitizers, the whole native X11/Wayland
+and scale matrix, accessibility audit, Blender interoperability and package acceptance)
+runs nightly, on release branches and tags, and on request; it must pass at a release
+candidate. GPU/Wayland/Omarchy acceptance needs actual desktop evidence;
 a headless test passing does not prove native interaction works.
 
 ### Initial performance budgets
@@ -397,6 +401,9 @@ Test against current Arch as well as the release baseline to detect rolling
 updates that break the app. Define supported Qt/Blender version ranges in release
 notes and test minimum/latest supported versions where practical. Do not claim
 bit-for-bit reproducible packages until that has actually been checked.
+
+A release candidate needs a green full CI tier at its exact commit
+([ADR 0170](decisions/0170-ci-tiers.md)).
 
 Release artifacts need checksums, dependency/license notices, a changelog, format
 migration notes, tested hardware/platform information and known limitations.

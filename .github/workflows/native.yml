@@ -1,12 +1,31 @@
 name: Native build
+# Two tiers (ADR 0170). The fast tier runs on every pull request and every push to main,
+# sized by the changed paths (.github/ci-path-map.json); "CI verdict" is the check merges
+# wait on. The full tier is every job below "Full tier" and runs on release tags (v*),
+# release/* branches and pull requests from or to them, pull requests labelled full-ci,
+# the nightly schedule against main, and workflow_dispatch (tier=full). A release needs a
+# green full tier at the release-candidate commit.
 on:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
+    tags: ["v*"]
   pull_request:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "fast (blast radius against the previous commit) or full (everything)"
+        type: choice
+        options: [full, fast]
+        default: full
 permissions:
   contents: read
-# Superseded pull request heads are canceled. Each main push gets a unique
-# group: a shared group would still let a newer pending run replace an older one.
+  # scripts/ci-plan.py lists the compiler caches and reads the pull request's labels.
+  actions: read
+  pull-requests: read
+# Superseded pull request heads are canceled. Each other run gets a unique group: a
+# shared group would still let a newer pending run replace an older one.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -18,8 +37,8 @@ env:
     xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema
     nodejs npm blender ffmpeg poppler at-spi2-core gdb
   # Added to CI_PACKAGES where a job compiles; python-yaml reads this workflow for
-  # scripts/ci-line-inventory.py.
-  CI_BUILD_PACKAGES: ccache python-yaml
+  # scripts/ci-line-inventory.py and scripts/ci-run-lines.py; the fast tier links with mold.
+  CI_BUILD_PACKAGES: ccache python-yaml mold
   # Native test jobs run prebuilt binaries: CI_PACKAGES without the build-only and
   # Node tools. Blender, Poppler and FFmpeg stay, because the application probes for
   # them and the tests' behaviour depends on what it finds.
@@ -29,11 +48,461 @@ env:
   # What packaging/arch/verify-package.sh installs with pacman -S. The jobs that fill the
   # package cache also download these, so package acceptance needs no mirror on a hit.
   CI_PACKAGE_CHECK_PACKAGES: desktop-file-utils xdg-utils perl-file-mimeinfo jq ttf-dejavu
-# Every job must pass. The development build runs once; the native test jobs reuse its
-# build tree (the dev-build artifact) and run in parallel.
+  # What the fast tier's compile shards need: the build tools and the headers and
+  # pkg-config files configure finds; nothing the tests run. A subset of the lists above,
+  # so it changes neither the package cache nor the compile commands.
+  CI_COMPILE_PACKAGES: cmake ninja pkgconf openssl qt6-base qt6-wayland wayland mesa python ccache mold
 jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      full: ${{ steps.plan.outputs.full }}
+      build: ${{ steps.plan.outputs.build }}
+      native: ${{ steps.plan.outputs.native }}
+      blender: ${{ steps.plan.outputs.blender }}
+      package: ${{ steps.plan.outputs.package }}
+      wide: ${{ steps.plan.outputs.wide }}
+      ctest_exclude: ${{ steps.plan.outputs.ctest_exclude }}
+      jobs: ${{ steps.plan.outputs.jobs }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The whole history without file contents: ci-plan.py diffs against merge bases
+          # and against the commit of the newest compiler cache.
+          fetch-depth: 0
+          filter: blob:none
+      - name: Check the test-line inventory
+        # Every test line of the workflow, with its job's tier, container and environment,
+        # must match the checked-in inventory, and every test must run in some tier.
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || pip install --quiet --user --break-system-packages pyyaml
+          python3 scripts/ci-line-inventory.py check .github/workflows/native.yml .github/ci-line-inventory.txt
+      - name: Check the blast-radius map
+        run: python3 scripts/ci-plan.py check
+      - name: Plan the run
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci-plan.py plan
+  # ---------------------------------------------------------------------------------------
+  # Fast tier. Wide changes (headers, build definition) first compile every object in
+  # parallel shards; each shard exports only the compiler-cache entries it added. The test
+  # jobs then restore the newest cache plus every shard's entries, so their build is cache
+  # hits and links. Narrow changes skip the shards: the few misses compile in place.
+  compile:
+    name: "Fast tier: compile shard ${{ matrix.shard }}"
+    needs: plan
+    if: needs.plan.outputs.build == 'true' && needs.plan.outputs.wide == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    env:
+      # ccache is content-addressed: the compiler binary, flags and every preprocessed
+      # input are hashed, so a stale or partial cache can only miss, never mis-build.
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 4G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    runs-on: ubuntu-latest
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Install compile dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_COMPILE_PACKAGES; then
+            exit 0
+          fi
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_COMPILE_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc mold qt6-base qt6-wayland mesa ccache
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-fast-v1-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: ccache-fast-v1-
+      - name: Prepare the compiler cache
+        run: |
+          mkdir -p /ccache
+          ccache --zero-stats
+          find /ccache -type f -printf '%i %P\n' | sort > /tmp/ccache-before
+      - name: Compile this shard's objects
+        env:
+          SHARD: ${{ strategy.job-index }}
+          SHARDS: ${{ strategy.job-total }}
+        run: |
+          cmake --preset ci-fast
+          cd build/dev
+          # Qt's generated moc sources first. They build no object: ci-fast sets
+          # CMAKE_AUTOGEN_ORIGIN_DEPENDS=OFF, so autogen does not wait for linked libraries.
+          ninja -t targets all | sed -n 's/^\([A-Za-z0-9_.-]*_autogen\): phony$/\1/p' > /tmp/autogen
+          xargs -a /tmp/autogen ninja -j "$(nproc)" > /dev/null
+          # Every object file of the default build, dealt round-robin across the shards. The
+          # three compiled from rcc output include no project header; the test jobs build them.
+          ninja -t inputs all | grep '\.o$' | grep -v '/\.qt/rcc/' | sort > /tmp/objects
+          awk -v n="$SHARDS" -v k="$SHARD" '(NR - 1) % n == k' /tmp/objects > /tmp/shard-objects
+          echo "Shard $((SHARD + 1))/$SHARDS: $(wc -l < /tmp/shard-objects) of $(wc -l < /tmp/objects) objects"
+          # Each object's own compile command (with the ccache launcher), run directly: through
+          # ninja, an object would first wait for every library its target links, so every
+          # shard would compile all the libraries again.
+          xargs -a /tmp/shard-objects dirname | sort -u | xargs mkdir -p
+          xargs -a /tmp/shard-objects ninja -t commands -s > /tmp/shard-commands
+          xargs -a /tmp/shard-commands -d '\n' -P "$(nproc)" -I{} sh -c '{}'
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats
+      - name: Export the new compiler-cache entries
+        # ccache writes each new entry as a new file (a hit only touches its time), so the
+        # paths and inodes not present before the build are exactly this shard's additions.
+        run: |
+          find /ccache -type f -printf '%i %P\n' | sort > /tmp/ccache-after
+          comm -13 /tmp/ccache-before /tmp/ccache-after | cut -d' ' -f2- | grep -vE '(^|/)(stats|.*\.lock|.*\.tmp\..*)$' > /tmp/ccache-new || true
+          echo "$(wc -l < /tmp/ccache-new) new cache files"
+          tar -C /ccache -cf ccache-delta.tar -T /tmp/ccache-new
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ccache-delta-${{ matrix.shard }}
+          path: ccache-delta.tar
+          compression-level: 0
+          retention-days: 1
+  # Tests slow down two to three times under `ctest --parallel 4` on a 4-vCPU runner, so
+  # the suite is spread over runners instead. Every shard builds everything (cache hits and
+  # links); scripts/ci-ctest-shard.py deals the tests by their known serial times.
+  fast:
+    name: "Fast tier: tests ${{ matrix.shard }}/5"
+    needs: [plan, compile]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true'
+      && (needs.compile.result == 'success' || needs.compile.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 4G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Install build and software-rendering dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES; then
+            exit 0
+          fi
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES &&
+              pacman -Sw --noconfirm $CI_PACKAGE_CHECK_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Save the package cache
+        # The fast tier fills the shared entry when the package lists change; the key never
+        # changes for a snapshot, so a hit has nothing to add.
+        if: strategy.job-index == 0 && success() && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc mold qt6-base qt6-wayland mesa ccache
+      - name: Restore the compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-fast-v1-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: ccache-fast-v1-
+      - uses: actions/download-artifact@v7
+        if: needs.compile.result == 'success'
+        with:
+          pattern: ccache-delta-*
+          path: /tmp/ccache-deltas
+      - name: Prepare the compiler cache
+        run: |
+          mkdir -p /ccache
+          for delta in /tmp/ccache-deltas/*/ccache-delta.tar; do
+            [ -e "$delta" ] && tar -C /ccache -xf "$delta"
+          done
+          rm -rf /tmp/ccache-deltas
+          ccache --zero-stats
+      - name: Configure desktop tests without the optional CLI
+        if: strategy.job-index == 0
+        run: |
+          cmake -S . -B build/configure-desktop-no-cli -G Ninja -DSKETCHYUP_BUILD_DESKTOP=ON -DSKETCHYUP_BUILD_CLI=OFF -DBUILD_TESTING=ON
+      - name: Configure and build
+        id: build
+        run: |
+          cmake --preset ci-fast
+          cmake --build --preset ci-fast --parallel "$(nproc)"
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats --verbose
+      - name: Geometry, document and persistence tests
+        # This shard's share of CTest. Slow suites outside the changed areas are left to the
+        # full tier (ci-path-map.json); mcp runs in shard 1 with the schema validation.
+        env:
+          SHARD: ${{ strategy.job-index }}
+          SHARDS: ${{ strategy.job-total }}
+          CTEST_EXCLUDE: ${{ needs.plan.outputs.ctest_exclude }}
+        run: |
+          exclude="^mcp\$"
+          [ -z "$CTEST_EXCLUDE" ] || exclude="$exclude|$CTEST_EXCLUDE"
+          tests=$(python scripts/ci-ctest-shard.py build/dev "$SHARD" "$SHARDS" "$exclude")
+          ctest --test-dir build/dev --output-on-failure --no-tests=error --parallel 2 --tests-regex "$tests"
+      # Main (and the other non-pull-request runs) saves the cache the next runs start
+      # from, keyed by commit: ci-plan.py diffs against it to choose wide or narrow. A pull
+      # request saves its own only when nothing was restored, so it does not evict main's.
+      - name: Save the compiler cache
+        if: strategy.job-index == 0 && success() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
+        uses: actions/cache/save@v5
+        with:
+          path: /ccache
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
+      - name: MCP tests and the pinned protocol schema validation
+        if: strategy.job-index == 0
+        run: |
+          rm -f build/mcp-transcript.jsonl
+          SKETCHYUP_MCP_TRANSCRIPT="$PWD/build/mcp-transcript.jsonl" ctest --test-dir build/dev -R '^mcp$' --output-on-failure --no-tests=error
+          curl -fLsS https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/271ecc9accafdd9b83a3c869fa67c22953b2af80/schema/2026-07-28/schema.json -o build/mcp-schema.json
+          python scripts/verify-mcp-schema.py build/mcp-schema.json build/mcp-transcript.jsonl > build/mcp-schema-validation.json
+      - name: Shipped recipes reproduce measured geometry
+        if: strategy.job-index == 0
+        run: python scripts/verify-shipped-recipes.py --cli build/dev/sketchyup-cli --examples examples
+      - name: Generated reference matches live registries
+        if: strategy.job-index == 0
+        run: python scripts/generate-tool-reference.py --cli build/dev/sketchyup-cli --root . --check
+      - name: Generated API schemas match live registries
+        if: strategy.job-index == 0
+        run: python scripts/generate-api-schemas.py --cli build/dev/sketchyup-cli --app build/dev/sketchyup --root . --check
+      - name: Install the glTF validator
+        if: strategy.job-index == 0
+        run: |
+          mkdir -p build/gltf-validator
+          cp tests/gltf-validator/package*.json build/gltf-validator/
+          npm ci --prefix build/gltf-validator --ignore-scripts --no-audit --no-fund
+      - name: Independent DXF consumer
+        if: strategy.job-index == 0
+        run: |
+          python -m venv build/dxf-oracle
+          build/dxf-oracle/bin/pip install -r tests/dxf-oracle-requirements.txt
+          SKETCHYUP_DXF_TEST="$PWD/build/dxf-oracle/bin/python" ctest --test-dir build/dev -R '^dxf_export_real$' --output-on-failure --no-tests=error
+      - name: Independent measured PDF consumer
+        if: strategy.job-index == 0
+        run: SKETCHYUP_PDF_TEST=/usr/bin/pdftoppm ctest --test-dir build/dev -R '^(measured_export_real|sheet_export_real)$' --output-on-failure --no-tests=error
+      - name: Headless recipe
+        if: strategy.job-index == 0
+        run: |
+          build/dev/sketchyup-cli --script examples/asserted-solid.json --output /tmp/asserted-solid.sketchyup
+          build/dev/sketchyup-cli --input /tmp/asserted-solid.sketchyup
+          build/dev/sketchyup-cli --script examples/planar-offset.json --output /tmp/offset.sketchyup
+          build/dev/sketchyup-cli --input /tmp/offset.sketchyup --query document.describe
+          build/dev/sketchyup-cli --input examples/m4-room-study.sketchyup --query document.describe
+          build/dev/sketchyup-cli --script examples/document-units.json --output /tmp/units.sketchyup
+          build/dev/sketchyup-cli --input /tmp/units.sketchyup --query document.describe
+          build/dev/sketchyup-cli --import-formline tests/fixtures/formline-v1.formline --output /tmp/formline.sketchyup
+          build/dev/sketchyup-cli --input /tmp/formline.sketchyup --query entity.inspect --context 2
+          build/dev/sketchyup-cli --script examples/managed-assets.json --output /tmp/managed-assets.sketchyup
+          build/dev/sketchyup-cli --input /tmp/managed-assets.sketchyup --query assets.describe
+          build/dev/sketchyup-cli --script examples/materials.json --output /tmp/materials.sketchyup
+          build/dev/sketchyup-cli --script examples/texture-mapping.json --output /tmp/texture-mapping.sketchyup
+          mkdir -p build/texture-command-fixtures
+          build/dev/sketchyup-cli --input /tmp/texture-mapping.sketchyup --export-glb build/texture-command-fixtures/mapped
+          node scripts/verify-glb.mjs build/gltf-validator build/texture-command-fixtures 1 > build/texture-command-glb-validation.json
+          build/dev/sketchyup-cli --input /tmp/materials.sketchyup --query materials.describe
+          build/dev/sketchyup-cli --script examples/entity-info.json --output /tmp/entity-info.sketchyup
+          build/dev/sketchyup-cli --input /tmp/entity-info.sketchyup --query entity.inspect --context 1
+          build/dev/sketchyup-cli --script examples/room-shell.json --output /tmp/room.sketchyup
+          build/dev/sketchyup-cli --input /tmp/room.sketchyup
+          build/dev/sketchyup-cli --script examples/colored-explode.json --output /tmp/colored-explode.sketchyup
+          build/dev/sketchyup-cli --input /tmp/colored-explode.sketchyup
+          build/dev/sketchyup-cli --script examples/tags.json --output /tmp/tags.sketchyup
+          build/dev/sketchyup-cli --input /tmp/tags.sketchyup --query tags.describe
+          build/dev/sketchyup-cli --script examples/components.json --output /tmp/components.sketchyup
+          build/dev/sketchyup-cli --input /tmp/components.sketchyup
+          build/dev/sketchyup-cli --script examples/groups.json --output /tmp/groups.sketchyup
+          build/dev/sketchyup-cli --input /tmp/groups.sketchyup
+          build/dev/sketchyup-cli --script examples/copy-arrays.json --output /tmp/arrays.sketchyup
+          build/dev/sketchyup-cli --script examples/face-orientation.json --output /tmp/face-orientation.sketchyup
+          build/dev/sketchyup-cli --input /tmp/face-orientation.sketchyup
+          build/dev/sketchyup-cli --script examples/solid-trim.json --output /tmp/solid-trim.sketchyup
+          build/dev/sketchyup-cli --input /tmp/solid-trim.sketchyup
+          build/dev/sketchyup-cli --script examples/solid-split.json --output /tmp/solid-split.sketchyup
+          build/dev/sketchyup-cli --input /tmp/solid-split.sketchyup
+          build/dev/sketchyup-cli --script examples/solid-outer-shell.json --output /tmp/solid-outer-shell.sketchyup
+          build/dev/sketchyup-cli --input /tmp/solid-outer-shell.sketchyup
+          build/dev/sketchyup-cli --script examples/enclosed-cavity.json --output /tmp/enclosed-cavity.sketchyup
+          build/dev/sketchyup-cli --input /tmp/enclosed-cavity.sketchyup
+          build/dev/sketchyup-cli --script examples/solid-boolean.json --output /tmp/solid-boolean.sketchyup
+          build/dev/sketchyup-cli --input /tmp/solid-boolean.sketchyup
+          build/dev/sketchyup-cli --script examples/face-intersection.json --output /tmp/face-intersection.sketchyup
+          build/dev/sketchyup-cli --input /tmp/face-intersection.sketchyup
+          build/dev/sketchyup-cli --script examples/profile-sweep.json --output /tmp/profile-sweep.sketchyup
+          build/dev/sketchyup-cli --input /tmp/profile-sweep.sketchyup
+          build/dev/sketchyup-cli --script examples/guides.json --output /tmp/guides.sketchyup
+          build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
+  fast-x11:
+    name: "Fast tier: X11 1x ${{ matrix.shard }}/2"
+    needs: [plan, compile]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.native == 'true'
+      && (needs.compile.result == 'success' || needs.compile.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      # Qt logs to journald when it has no terminal; CI has no journald, so fatal
+      # platform errors vanished (D-033). Force them onto stderr.
+      QT_FORCE_STDERR_LOGGING: "1"
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 4G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    runs-on: ubuntu-latest
+    # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+      options: --cap-add=SYS_PTRACE
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # One shared entry for every job, keyed on all that decides its files: the base
+        # image's packages (the pinned digest), the dated mirror and every package list.
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_PACKAGES" "$CI_BUILD_PACKAGES" "$CI_TEST_PACKAGES" "$CI_PACKAGE_CHECK_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Install build and software-rendering dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES; then
+            exit 0
+          fi
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_PACKAGES $CI_BUILD_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc mold qt6-base qt6-wayland mesa weston ccache
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-fast-v1-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: ccache-fast-v1-
+      - uses: actions/download-artifact@v7
+        if: needs.compile.result == 'success'
+        with:
+          pattern: ccache-delta-*
+          path: /tmp/ccache-deltas
+      - name: Prepare the compiler cache
+        run: |
+          mkdir -p /ccache
+          for delta in /tmp/ccache-deltas/*/ccache-delta.tar; do
+            [ -e "$delta" ] && tar -C /ccache -xf "$delta"
+          done
+          rm -rf /tmp/ccache-deltas
+          ccache --zero-stats
+      - name: Build the native test fixtures
+        run: |
+          cmake --preset ci-fast
+          cmake --build --preset ci-fast --parallel "$(nproc)" --target $(python scripts/ci-run-lines.py targets .github/workflows/native.yml x11-1x "Native interaction and OpenGL tests")
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats
+      - name: Native interaction and OpenGL tests, in parallel
+        # The full tier's X11 1x lines, read from that job so the two cannot drift.
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python scripts/ci-run-lines.py run --jobs 3 --shard "$SHARD/2" .github/workflows/native.yml x11-1x "Native interaction and OpenGL tests"
+  # ---------------------------------------------------------------------------------------
+  # Full tier. Each job runs when the plan selects the full tier; Blender interoperability
+  # and Arch package acceptance also run in the fast tier when their paths change.
   build:
     name: Development build and checks
+    needs: plan
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',build,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -101,10 +570,6 @@ jobs:
         run: |
           pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa ccache
           echo "gcc=$(pacman -Q gcc | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
-      - name: Check the test-line inventory
-        # Every test line of the former single job must appear exactly once across the
-        # split jobs, with the same container and environment.
-        run: python scripts/ci-line-inventory.py check .github/workflows/native.yml .github/ci-line-inventory.txt
       - name: Restore the compiler cache
         id: ccache-restore
         uses: actions/cache/restore@v5
@@ -128,10 +593,10 @@ jobs:
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats --verbose
-      # Pushes to main refresh the shared cache; a pull request saves its own only when
-      # nothing was restored, so pull requests do not evict main's entries.
+      # Full-tier runs on main (nightly, dispatch) refresh the shared cache; a pull request
+      # saves its own only when nothing was restored, so it does not evict main's entries.
       - name: Save the compiler cache
-        if: success() && (github.event_name == 'push' || steps.ccache-restore.outputs.cache-matched-key == '')
+        if: success() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@v5
         with:
           path: /ccache
@@ -225,7 +690,8 @@ jobs:
           build/dev/sketchyup-cli --input /tmp/guides.sketchyup --query geometry.inspect --context 1
   x11-1x:
     name: "Native tests: X11 1x"
-    needs: build
+    needs: [plan, build]
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',x11-1x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -377,7 +843,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 40 build/dev/shell_tests
   x11-2x:
     name: "Native tests: X11 2x"
-    needs: build
+    needs: [plan, build]
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',x11-2x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -524,7 +991,8 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 60 build/dev/offset_input_tests
   wayland-1x:
     name: "Native tests: Wayland 1x"
-    needs: build
+    needs: [plan, build]
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',wayland-1x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -663,7 +1131,8 @@ jobs:
           scripts/test-wayland.sh build/dev/array_input_tests
   wayland-2x:
     name: "Native tests: Wayland 2x"
-    needs: build
+    needs: [plan, build]
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',wayland-2x,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -810,7 +1279,8 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/sketchyup --smoke
   audit:
     name: "Native tests: audit and accessibility"
-    needs: build
+    needs: [plan, build]
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',audit,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -892,7 +1362,8 @@ jobs:
           done
   fractional:
     name: "Native tests: fractional scaling, Blender worker and M5"
-    needs: build
+    needs: [plan, build]
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',fractional,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -988,6 +1459,8 @@ jobs:
           if-no-files-found: ignore
   blender:
     name: Blender interoperability
+    needs: plan
+    if: needs.plan.outputs.full == 'true' || needs.plan.outputs.blender == 'true' || contains(needs.plan.outputs.jobs, ',blender,')
     env:
       # ccache is content-addressed: the compiler binary, flags and every preprocessed
       # input are hashed, so a stale or partial cache can only miss, never mis-build.
@@ -1073,6 +1546,8 @@ jobs:
         run: ccache --show-stats --verbose
   sanitize:
     name: Sanitized builds
+    needs: plan
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',sanitize,')
     env:
       # Qt logs to journald when it has no terminal; CI has no journald, so fatal
       # platform errors vanished (D-033). Force them onto stderr.
@@ -1245,16 +1720,18 @@ jobs:
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats --verbose
-      # Pushes to main refresh the shared cache; a pull request saves its own only when
-      # nothing was restored, so pull requests do not evict main's entries.
+      # Full-tier runs on main (nightly, dispatch) refresh the shared cache; a pull request
+      # saves its own only when nothing was restored, so it does not evict main's entries.
       - name: Save the compiler cache
-        if: success() && (github.event_name == 'push' || steps.ccache-restore.outputs.cache-matched-key == '')
+        if: success() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@v5
         with:
           path: /ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
   package:
     name: Arch package acceptance
+    needs: plan
+    if: needs.plan.outputs.full == 'true' || needs.plan.outputs.package == 'true' || contains(needs.plan.outputs.jobs, ',package,')
     runs-on: ubuntu-latest
     container: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
     timeout-minutes: 180
@@ -1310,3 +1787,51 @@ jobs:
           scripts/package-source.sh /work/package
           cp packaging/arch/verify-package.sh /work/package/
           SKETCHYUP_PACKAGE_SANDBOX=1 bash /work/package/verify-package.sh
+  # ---------------------------------------------------------------------------------------
+  # The one check merges wait on. It fails when any job failed or was cancelled, and when a
+  # job the plan selected did not succeed (so a wrong condition cannot skip tests silently).
+  verdict:
+    name: CI verdict
+    if: always()
+    needs: [plan, compile, fast, fast-x11, build, x11-1x, x11-2x, wayland-1x, wayland-2x, audit, fractional, blender, sanitize, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every selected job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS"])
+          plan = needs["plan"]
+          out = plan.get("outputs", {})
+          on = lambda name: out.get(name) == "true"
+          full_jobs = ["build", "x11-1x", "x11-2x", "wayland-1x", "wayland-2x", "audit",
+                       "fractional", "blender", "sanitize", "package"]
+          required = {"plan"}
+          if on("build"):
+              required.add("fast")
+              if on("wide"):
+                  required.add("compile")
+          if on("native"):
+              required.add("fast-x11")
+          if on("full"):
+              required.update(full_jobs)
+          if on("blender"):
+              required.add("blender")
+          if on("package"):
+              required.add("package")
+          required.update(job for job in out.get("jobs", ",").split(",") if job)
+          bad = []
+          for job, info in sorted(needs.items()):
+              result = info["result"]
+              wanted = job in required
+              print(f"{job:12} {result:10} {'required' if wanted else ''}")
+              if result in ("failure", "cancelled") or (wanted and result != "success"):
+                  bad.append(job)
+          if bad:
+              print(f"::error::Not green: {', '.join(bad)}")
+              sys.exit(1)
+          print("All selected jobs succeeded.")
+          PY
