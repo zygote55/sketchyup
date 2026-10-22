@@ -1,6 +1,7 @@
 #pragma once
 #include "app/theme.hpp"
 #include "app/viewport.hpp"
+#include "core/component_parameter_records.hpp"
 #include <QJsonObject>
 #include <QPointer>
 #include <QWidget>

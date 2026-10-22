@@ -7,6 +7,8 @@
 #include "core/component_glue.hpp"
 #include "core/component_placement.hpp"
 #include "core/hosted_components.hpp"
+#include "io/component_library.hpp"
+#include "io/library_bundle.hpp"
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>

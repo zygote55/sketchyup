@@ -1,5 +1,6 @@
 #include "app/viewport.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/terrain_preview_worker.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/appearance.hpp"

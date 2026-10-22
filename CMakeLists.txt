@@ -109,6 +109,10 @@ add_executable(component_placement_scaling_raised_limits EXCLUDE_FROM_ALL tests/
 target_link_libraries(component_placement_scaling_raised_limits PRIVATE sketchyup_core_benchmark_limits)
 include(CTest)
 if(BUILD_TESTING)
+  # ADR 0170: the heap-held optional that keeps core/body.hpp from including terrain records.
+  add_executable(indirect_optional_tests tests/indirect_optional_tests.cpp)
+  target_link_libraries(indirect_optional_tests PRIVATE sketchyup_core)
+  add_test(NAME indirect_optional COMMAND indirect_optional_tests)
   add_executable(measured_view_tests tests/measured_view_tests.cpp)
   target_link_libraries(measured_view_tests PRIVATE sketchyup_core)
   add_test(NAME measured_view COMMAND measured_view_tests)

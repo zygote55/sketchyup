@@ -1,5 +1,6 @@
 #include "core/material_records.hpp"
 #include "core/appearance.hpp"
+#include "core/terrain_records.hpp"
 #include <set>
 namespace sketchy {
 void validateMaterialRecords(const MaterialRecords &materials, Id next) {

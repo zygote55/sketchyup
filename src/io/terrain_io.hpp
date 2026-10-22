@@ -2,6 +2,7 @@
 // R095.a terrain persistence (ADR 0168 §2): the TerrainRecord and site origin in the
 // model JSON, and the binary terrain-mesh chunk that stores every tile's mesh.
 #include "core/body.hpp"
+#include "core/terrain_records.hpp"
 #include <QByteArray>
 #include <QJsonObject>
 #include <QJsonValue>

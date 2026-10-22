@@ -18,8 +18,10 @@
 // everything at that interface text size.
 #include "app/collapsible_section.hpp"
 #include "app/terrain_edits_section.hpp"
+#include "app/terrain_preview_worker.hpp"
 #include "app/terrain_replay_job.hpp"
 #include "app/terrain_tool_strip.hpp"
+#include "core/terrain_display.hpp"
 #include "terrain_run_hold.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"

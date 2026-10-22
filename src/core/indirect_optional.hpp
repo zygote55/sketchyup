@@ -5,7 +5,9 @@
 // compare operations are captured where a value is stored (where T is complete), so a widely
 // included record such as Body can hold a large, often-edited type without including its
 // header (build fan-out, ADR 0170). Reading the value needs T's definition.
+#include <concepts>
 #include <optional>
+#include <type_traits>
 #include <utility>
 namespace sketchy {
 template <class T> class IndirectOptional {
@@ -32,13 +34,21 @@ template <class T> class IndirectOptional {
     using value_type = T;
     IndirectOptional() noexcept = default;
     IndirectOptional(std::nullopt_t) noexcept {}
-    IndirectOptional(const T &value) : value_(new T(value)), operations_(operations()) {}
-    IndirectOptional(T &&value) : value_(new T(std::move(value))), operations_(operations()) {}
-    IndirectOptional(const std::optional<T> &value) {
+    // The converting members are templates constrained on T itself, so that overload
+    // resolution against other types (std::nullopt, say) never needs T's definition.
+    template <class U>
+        requires std::same_as<std::remove_cvref_t<U>, T>
+    IndirectOptional(U &&value)
+        : value_(new T(std::forward<U>(value))), operations_(operations()) {}
+    template <class U>
+        requires std::same_as<U, T>
+    IndirectOptional(const std::optional<U> &value) {
         if (value)
             adopt(new T(*value));
     }
-    IndirectOptional(std::optional<T> &&value) {
+    template <class U>
+        requires std::same_as<U, T>
+    IndirectOptional(std::optional<U> &&value) {
         if (value)
             adopt(new T(std::move(*value)));
     }
@@ -69,21 +79,18 @@ template <class T> class IndirectOptional {
         reset();
         return *this;
     }
-    IndirectOptional &operator=(const T &value) {
+    template <class U>
+        requires std::same_as<std::remove_cvref_t<U>, T>
+    IndirectOptional &operator=(U &&value) {
         if (value_)
-            *value_ = value;
+            *value_ = std::forward<U>(value);
         else
-            adopt(new T(value));
+            adopt(new T(std::forward<U>(value)));
         return *this;
     }
-    IndirectOptional &operator=(T &&value) {
-        if (value_)
-            *value_ = std::move(value);
-        else
-            adopt(new T(std::move(value)));
-        return *this;
-    }
-    IndirectOptional &operator=(const std::optional<T> &value) {
+    template <class U>
+        requires std::same_as<U, T>
+    IndirectOptional &operator=(const std::optional<U> &value) {
         if (value)
             *this = *value;
         else
@@ -115,7 +122,11 @@ template <class T> class IndirectOptional {
             throw std::bad_optional_access();
         return *value_;
     }
-    operator std::optional<T>() const { return value_ ? std::optional<T>(*value_) : std::nullopt; }
+    template <class U>
+        requires std::same_as<U, T>
+    operator std::optional<U>() const {
+        return value_ ? std::optional<U>(*value_) : std::nullopt;
+    }
     friend bool operator==(const IndirectOptional &a, const IndirectOptional &b) {
         if (!a.value_ || !b.value_)
             return !a.value_ && !b.value_;
