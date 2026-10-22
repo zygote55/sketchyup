@@ -37,6 +37,12 @@ class TerrainToolStrip final : public QFrame {
     QComboBox *falloffField() const { return falloff_; }
     QToolButton *toolButton(int tool) const;
     QToolButton *scopeButton(TerrainToolOptions::Scope scope) const;
+    // R096.f2 (UX §15.3): Edit contours: the selected source, its Role and Elevation, and the
+    // Add contour, Add breakline, Add spot, Promote and Remove buttons.
+    QLabel *sourceSummary() const { return sourceSummary_; }
+    QComboBox *roleField() const { return role_; }
+    QLineEdit *elevationField() const { return elevation_; }
+    QToolButton *contourButton(const QString &name) const;
 
   signals:
     // The switcher asked for a terrain tool (a Viewport::Tool value).
@@ -53,6 +59,7 @@ class TerrainToolStrip final : public QFrame {
   private:
     void apply(QLineEdit *field);
     QString lengthText(double metres) const;
+    QString elevationText(double metres) const;
     Viewport &viewport_;
     QButtonGroup *tools_{}, *scopes_{};
     QWidget *radiusBox_{}, *widthBox_{}, *amountBox_{}, *strengthBox_{}, *passesBox_{};
@@ -60,6 +67,13 @@ class TerrainToolStrip final : public QFrame {
     QSpinBox *passes_{};
     QComboBox *falloff_{};
     QLabel *hint_{};
+    // R096.f2: Edit contours.
+    QList<QWidget *> sculptControls_, contourControls_;
+    QLabel *sourceSummary_{};
+    QComboBox *role_{};
+    QLineEdit *elevation_{};
+    QWidget *roleBox_{}, *elevationBox_{};
+    QToolButton *addContour_{}, *addBreakline_{}, *addSpot_{}, *promote_{}, *removeSource_{};
     bool syncing_{};
 };
 } // namespace sketchy

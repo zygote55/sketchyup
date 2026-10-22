@@ -1094,7 +1094,16 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     connect(viewport_, &Viewport::changed, this, &Window::sync);
     connect(viewport_, &Viewport::assemblyPlacementEnded, this,
             [this] { syncParameterMeasurement(); });
-    connect(viewport_, &Viewport::message, status_, &QLabel::setText);
+    connect(viewport_, &Viewport::message, this, [this](const QString &text) {
+        status_->setText(text);
+        // R096.f2 (UX §15.3): a terrain tool's refusal at the pointer reads in the failure style.
+        const bool failure = !text.isEmpty() && text == viewport_->terrainFailureStatus();
+        if (status_->property("terrainFailure").toBool() != failure) {
+            status_->setProperty("terrainFailure", failure);
+            status_->style()->unpolish(status_);
+            status_->style()->polish(status_);
+        }
+    });
     connect(viewport_, &Viewport::selected, this, [this](qulonglong, qulonglong) { sync(); });
     connect(viewport_, &Viewport::measurementsRequested, this, [this](const QString &text) {
         measurements_->setFocus();
@@ -1216,6 +1225,7 @@ QMenu {border:1px solid $border;padding:5px;} QMenu::item {padding:7px 22px;}
 #header {border-bottom:1px solid $border;} #brand {font-weight:800;letter-spacing:2px;padding:8px 12px;}
 #tray {border-left:1px solid $border;} #section,#overlayHeading {font-size:$sectionPx;font-weight:700;letter-spacing:2px;padding:14px 0 8px;}
 #hint {color:$muted;font-size:$hintPx;padding:12px 0;} #footer {border-top:1px solid $border;}
+#statusMessage[terrainFailure="true"] {color:$failure;font-weight:700;}
 QToolBar {border:1px solid transparent;border-right:1px solid $border;spacing:6px;padding:9px 5px 9px 4px;}
 QToolButton {padding:11px 4px;border:1px solid transparent;border-radius:4px;}
 #railGroupButton {padding:11px 0;}
@@ -1518,6 +1528,7 @@ void Window::tool(Viewport::Tool t, const QString &text) {
         : t == Viewport::Tool::CenterArc || t == Viewport::Tool::Pie ? "radius, angle (deg) or 24s"
         : t == Viewport::Tool::TwoPointArc                           ? "signed bulge or 24s"
         : t == Viewport::Tool::ThreePointArc                         ? "[x,y,z] or 24s"
+        : t == Viewport::Tool::Contours ? "elevation, [x,y] or @E,N"
         : Viewport::terrainTool(t) ? "radius, [x,y] or @E,N, then a value"
                                                                      : "width, depth");
 }

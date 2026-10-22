@@ -29,6 +29,8 @@
 // budget is the one-tile row); each stroke is undone afterwards (outside the timing). It also
 // times a nine-tile brush: a click at a tile's middle, radius 1.1 cells, then a drag.
 //
+// R096.f2: --edit-frames [N] measures the worker-planned tools the same way (see editFrames).
+//
 // D-044: --cancel measures the cancel latency of the same dry run instead (parse, prepare,
 // triangulate and tile with a TerrainProgress): it checks that a run with progress gives the
 // same mesh, then cancels TRIALS runs (default 100) at times spread evenly over the dry run,
@@ -40,6 +42,7 @@
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_display.hpp"
+#include "core/terrain_sources.hpp"
 #include "io/document_io.hpp"
 #include <QApplication>
 #include <QElapsedTimer>
@@ -669,6 +672,320 @@ QJsonObject sculptFrames(const char *name, const QByteArray &bytes, const QJsonO
             {"nineTiles", summary(nine)}};
 }
 
+// ---- R096.f2: input event to presented frame for the worker-planned tools -------------------------
+// --edit-frames [N] measures Edit contours (and, with R096.f2b, Stamp pad and Drape) as
+// --sculpt-frames measures Sculpt: the same viewport, terrains, contour lines and harness.
+// - Contour edit preview: a drag of a source contour vertex nearest the middle of one of the N
+//   largest tiles, outward in three steps of 0.1 m (between its neighbours, 0.9 m apart); each step
+//   is timed from the event sent to the viewport until the frame showing the worker's candidate for
+//   that step is complete (the event, the plan on the worker, the candidate's display and upload,
+//   the draw, glFinish and the readback). Samples whose cavity holds more than 2,048 triangles are
+//   reported apart (the budget's row).
+// - Contour edit commit: the release, until the frame showing the committed tiles.
+// Each edit is undone afterwards, outside the timing.
+QJsonObject editFrames(const char *name, const QByteArray &bytes, const QJsonObject &command,
+                       int samples, bool lines) {
+    auto doc = baseDocument();
+    const auto imported = importTerrainSource(doc, bytes, command);
+    const Id terrain = imported["terrain"].toString().toULongLong();
+    {
+        auto display = doc.bodies().at(terrain)->terrain->display;
+        display.contours = true;
+        display.contourInterval = 1;
+        setTerrainDisplay(doc, terrain, display);
+    }
+    QWidget host;
+    host.setWindowTitle("SketchyUp terrain edit benchmark");
+    host.resize(1920, 1080);
+    TimedViewport view(doc, &host);
+    view.resize(1920, 1080);
+    view.setSynchronousFrameTiming(true);
+    host.show();
+    check(QTest::qWaitForWindowExposed(&host), "viewport exposed");
+    bool sized{};
+    for (int attempt = 0; attempt < 100 && !sized; ++attempt) {
+        view.setFixedSize(qRound(1920 / view.devicePixelRatioF()),
+                          qRound(1080 / view.devicePixelRatioF()));
+        QTest::qWait(25);
+        sized = view.grabFramebuffer().size() == QSize(1920, 1080);
+    }
+    check(sized, "a 1920 x 1080 framebuffer");
+    view.standardView(1);
+    view.fit();
+    QCoreApplication::processEvents();
+    auto frame = [&] {
+        const auto before = view.renderStats().frames;
+        const auto image = view.grabFramebuffer();
+        check(!image.isNull() && view.renderStats().frames > before, "a fresh frame");
+    };
+    for (int i = 0; i < 3; ++i)
+        frame();
+    using Clock = std::chrono::steady_clock;
+    auto ms = [](Clock::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
+    auto send = [&](QEvent::Type type, QPointF point, Qt::MouseButton button,
+                    Qt::MouseButtons buttons) {
+        QMouseEvent event(type, point, view.mapToGlobal(point), button, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(&view, &event);
+    };
+    // Waits for the worker's plan of the newest request (the pointer's last position).
+    auto planned = [&] {
+        QElapsedTimer waited;
+        waited.start();
+        // Only the worker's delivery (a call queued to the application) is processed: the frame
+        // that shows the plan is the one timed next, not one painted while waiting.
+        while (!view.terrainEditPreviewCurrent() && waited.elapsed() < 20000) {
+            QCoreApplication::sendPostedEvents(qApp, QEvent::MetaCall);
+            if (!view.terrainEditPreviewCurrent())
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+        return view.terrainEditPreviewCurrent();
+    };
+    const auto world = doc.worldTransform(terrain);
+    struct Tile {
+        std::size_t triangles;
+        Vec3 centre;
+    };
+    std::vector<Tile> tiles;
+    for (const auto id : terrainTiles(doc, terrain)) {
+        const auto &body = *doc.bodies().at(id);
+        Vec3 low{1e300, 1e300, 0}, high{-1e300, -1e300, 0};
+        for (const auto &[vertex, p] : body.surface.vertices) {
+            const auto m = world.point(p);
+            low = {std::min(low.x, m.x), std::min(low.y, m.y), 0};
+            high = {std::max(high.x, m.x), std::max(high.y, m.y), 0};
+        }
+        tiles.push_back({body.surface.faces.size(), (low + high) * 0.5});
+    }
+    std::stable_sort(tiles.begin(), tiles.end(),
+                     [](const Tile &a, const Tile &b) { return a.triangles > b.triangles; });
+    struct Samples {
+        std::vector<double> preview, commit, previewEvent, previewPlan, previewBuild, commitEvent,
+            commitRebuild, cavity, previewWait, previewFrame, commitFrame, baseline, touched,
+            selectBaseline;
+        std::size_t excluded{}, refused{};
+    };
+    Samples contour, breakline;
+    view.setTool(Viewport::Tool::Contours);
+    // On the point terrain: Add breakline, two clicks 10 m to 120 m apart through the middle of
+    // one of the largest tiles, the view framing the line's neighbourhood; timed from the second
+    // click to the frame showing its candidate; each is cancelled, not committed. The budget row
+    // keeps the samples whose touched tiles hold at most 2,048 triangles in all (ADR 0169 §5).
+    if (lines) {
+        Vec3 low{1e300, 1e300, 0}, high{-1e300, -1e300, 0};
+        for (const auto &tile : tiles) {
+            low = {std::min(low.x, tile.centre.x), std::min(low.y, tile.centre.y), 0};
+            high = {std::max(high.x, tile.centre.x), std::max(high.y, tile.centre.y), 0};
+        }
+        const auto middle = (low + high) * 0.5;
+        const auto onGround = [&](Vec3 p) {
+            const auto found = terrainElevationAt(doc, terrain, {{p.x, p.y}});
+            return Vec3{p.x, p.y, found.empty() || !found.front().found ? 0 : found.front().elevation};
+        };
+        view.fit();
+        frame();
+        (void)middle;
+        for (int i = 0; i < samples && i < int(tiles.size()); ++i) {
+            const double length = 5 + 35.0 * i / std::max(1, samples - 1);
+            const double angle = 0.37 + 2.399963 * i; // golden-angle turns
+            const Vec3 half{std::cos(angle) * length / 2, std::sin(angle) * length / 2, 0};
+            const auto centre = tiles[std::size_t(i)].centre;
+            const auto a = onGround(centre - half), b = onGround(centre + half);
+            view.frameBounds(onGround(centre) - Vec3{length, length, 1},
+                             onGround(centre) + Vec3{length, length, 1});
+            frame();
+            // The same view in the Select tool: the frame without the tool's overlay and fading.
+            view.setTool(Viewport::Tool::Select);
+            frame();
+            breakline.selectBaseline.push_back(view.completeFrameMs());
+            view.setTool(Viewport::Tool::Contours);
+            if (view.contourMode() != Viewport::ContourMode::AddBreakline)
+                view.setContourMode(Viewport::ContourMode::AddBreakline);
+            send(QEvent::MouseMove, view.project(a), Qt::NoButton, Qt::NoButton);
+            send(QEvent::MouseButtonPress, view.project(a), Qt::LeftButton, Qt::LeftButton);
+            send(QEvent::MouseButtonRelease, view.project(a), Qt::LeftButton, Qt::NoButton);
+            frame();
+            const double baseline = view.completeFrameMs();
+            send(QEvent::MouseMove, view.project(b), Qt::NoButton, Qt::NoButton);
+            frame();
+            const auto t0 = Clock::now();
+            send(QEvent::MouseButtonPress, view.project(b), Qt::LeftButton, Qt::LeftButton);
+            const double event = ms(Clock::now() - t0);
+            const auto t1 = Clock::now();
+            const bool done = planned();
+            const double wait = ms(Clock::now() - t1);
+            frame();
+            const double total = ms(Clock::now() - t0);
+            send(QEvent::MouseButtonRelease, view.project(b), Qt::LeftButton, Qt::NoButton);
+            const auto shown = view.terrainEditPreviewShown();
+            std::size_t touched = 0;
+            if (shown && shown->candidate)
+                for (const auto &tile : shown->candidate->region.tiles)
+                    touched += tile->triangles.size();
+            if (!done || !shown || !shown->candidate) {
+                ++breakline.refused;
+                std::cerr << "breakline " << length << " m not previewed: "
+                          << (done ? "" : "no plan; ")
+                          << (shown ? shown->message : view.terrainEditRequested().isEmpty()
+                                                           ? std::string("no request")
+                                                           : std::string("no preview"))
+                          << '\n';
+            } else if (touched > 2048)
+                ++breakline.excluded;
+            else {
+                breakline.preview.push_back(total);
+                breakline.previewEvent.push_back(event);
+                breakline.previewWait.push_back(wait);
+                breakline.previewPlan.push_back(view.renderStats().terrainPlanMs);
+                breakline.previewBuild.push_back(view.renderStats().terrainPreviewMs);
+                breakline.previewFrame.push_back(view.completeFrameMs());
+                breakline.cavity.push_back(double(shown->candidate->removedTriangles));
+                breakline.touched.push_back(double(touched));
+                breakline.baseline.push_back(baseline);
+            }
+            view.cancel();
+            view.setTool(Viewport::Tool::Contours);
+            frame();
+        }
+    }
+    for (int i = 0; i < samples && !lines && i < int(tiles.size()); ++i) {
+        const auto centre = tiles[std::size_t(i)].centre;
+        // The source contour vertex nearest the tile's middle.
+        const auto state = terrainSourceState(*doc.bodies().at(terrain)->terrain);
+        std::uint32_t source = 0;
+        Vec3 vertex;
+        double best = std::numeric_limits<double>::infinity();
+        for (const auto *s : state->sources())
+            if (s->role == TerrainSourceRole::Contour)
+                for (const auto &p : s->points) {
+                    const auto m = world.point(p);
+                    const double d = std::hypot(m.x - centre.x, m.y - centre.y);
+                    if (d < best) {
+                        best = d;
+                        source = s->id;
+                        vertex = m;
+                    }
+                }
+        if (!source || best > 50) {
+            ++contour.excluded;
+            continue;
+        }
+        view.frameBounds(vertex - Vec3{8, 8, 1}, vertex + Vec3{8, 8, 1});
+        view.selectTerrainSource(terrain, source);
+        frame();
+        send(QEvent::MouseMove, view.project(vertex), Qt::NoButton, Qt::NoButton);
+        send(QEvent::MouseButtonPress, view.project(vertex), Qt::LeftButton, Qt::LeftButton);
+        frame();
+        const auto outward = normalized(Vec3{vertex.x, vertex.y, 0});
+        // The first move past the drag threshold starts the drag without a plan.
+        send(QEvent::MouseMove, view.project(vertex + outward * 0.02) + QPointF(4, 4),
+             Qt::NoButton, Qt::LeftButton);
+        planned();
+        frame();
+        std::vector<double> preview, events, plans, builds, cavities, waits, frames, touchedTriangles;
+        bool refused = false;
+        const double baseline = view.completeFrameMs();
+        for (int step = 1; step <= 3 && !refused; ++step) {
+            const auto p = vertex + outward * (0.1 * step);
+            const auto t0 = Clock::now();
+            send(QEvent::MouseMove, view.project(p), Qt::NoButton, Qt::LeftButton);
+            events.push_back(ms(Clock::now() - t0));
+            const auto t1 = Clock::now();
+            check(planned(), "the worker plans the step");
+            waits.push_back(ms(Clock::now() - t1));
+            frame();
+            preview.push_back(ms(Clock::now() - t0));
+            frames.push_back(view.completeFrameMs());
+            builds.push_back(view.renderStats().terrainPreviewMs);
+            plans.push_back(view.renderStats().terrainPlanMs);
+            const auto shown = view.terrainEditPreviewShown();
+            refused = !shown || !shown->candidate;
+            if (!refused) {
+                cavities.push_back(double(shown->candidate->removedTriangles));
+                std::size_t touched = 0;
+                for (const auto &tile : shown->candidate->region.tiles)
+                    touched += tile->triangles.size();
+                touchedTriangles.push_back(double(touched));
+            }
+        }
+        if (refused) {
+            ++contour.refused;
+            view.cancel();
+            view.setTool(Viewport::Tool::Contours);
+            continue;
+        }
+        const auto revision = doc.revision();
+        const auto t0 = Clock::now();
+        send(QEvent::MouseButtonRelease, view.project(vertex + outward * 0.3), Qt::LeftButton,
+             Qt::NoButton);
+        const double commitEvent = ms(Clock::now() - t0);
+        frame();
+        const double commit = ms(Clock::now() - t0);
+        check(doc.revision() == revision + 1, "the contour edit committed");
+        if (*std::max_element(touchedTriangles.begin(), touchedTriangles.end()) > 2048)
+            ++contour.excluded;
+        else {
+            contour.preview.insert(contour.preview.end(), preview.begin(), preview.end());
+            contour.previewEvent.insert(contour.previewEvent.end(), events.begin(), events.end());
+            contour.previewPlan.insert(contour.previewPlan.end(), plans.begin(), plans.end());
+            contour.previewBuild.insert(contour.previewBuild.end(), builds.begin(), builds.end());
+            contour.cavity.insert(contour.cavity.end(), cavities.begin(), cavities.end());
+            contour.touched.insert(contour.touched.end(), touchedTriangles.begin(),
+                                   touchedTriangles.end());
+            contour.previewWait.insert(contour.previewWait.end(), waits.begin(), waits.end());
+            contour.previewFrame.insert(contour.previewFrame.end(), frames.begin(), frames.end());
+            contour.commitFrame.push_back(view.completeFrameMs());
+            contour.baseline.push_back(baseline);
+            contour.commit.push_back(commit);
+            contour.commitEvent.push_back(commitEvent);
+            contour.commitRebuild.push_back(view.renderStats().rebuildMs);
+        }
+        doc.undo();
+        view.refresh();
+        frame();
+    }
+    auto summary = [&](const Samples &s) {
+        QJsonObject json{{"edits", double(s.preview.size())},
+                         {"excluded", double(s.excluded)},
+                         {"refused", double(s.refused)}};
+        if (s.preview.empty())
+            return json;
+        auto maxOf = [](const std::vector<double> &v) { return *std::max_element(v.begin(), v.end()); };
+        json["previewP50Ms"] = median(s.preview);
+        json["previewP95Ms"] = p95(s.preview);
+        json["previewMaxMs"] = maxOf(s.preview);
+        json["previewEventP95Ms"] = p95(s.previewEvent);
+        json["previewPlanP95Ms"] = p95(s.previewPlan);
+        json["previewBuildP95Ms"] = p95(s.previewBuild);
+        json["previewWaitP95Ms"] = p95(s.previewWait);
+        json["previewFrameP95Ms"] = p95(s.previewFrame);
+        json["baselineFrameP95Ms"] = p95(s.baseline);
+        json["cavityTrianglesP95"] = p95(s.cavity);
+        json["cavityTrianglesMax"] = maxOf(s.cavity);
+        json["touchedTrianglesP95"] = p95(s.touched);
+        if (!s.selectBaseline.empty())
+            json["selectToolFrameP95Ms"] = p95(s.selectBaseline);
+        json["touchedTrianglesMax"] = maxOf(s.touched);
+        if (s.commit.empty())
+            return json;
+        json["commitP50Ms"] = median(s.commit);
+        json["commitP95Ms"] = p95(s.commit);
+        json["commitMaxMs"] = maxOf(s.commit);
+        json["commitEventP95Ms"] = p95(s.commitEvent);
+        json["commitRebuildP95Ms"] = p95(s.commitRebuild);
+        json["commitFrameP95Ms"] = p95(s.commitFrame);
+        return json;
+    };
+    const auto *renderer = reinterpret_cast<const char *>(
+        view.context()->functions()->glGetString(GL_RENDERER));
+    return {{"source", name},
+            {"triangles", double(doc.materializedTotals().terrainTriangles)},
+            {"tiles", double(tiles.size())},
+            {"renderer", renderer ? renderer : ""},
+            {"platform", QGuiApplication::platformName()},
+            {"framebuffer", "1920x1080"},
+            {lines ? "addBreakline" : "contourEdit", summary(lines ? breakline : contour)}};
+}
+
 int main(int argc, char **argv) {
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -680,7 +997,7 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", settings.path().toUtf8());
     qputenv("XDG_DATA_HOME", settings.path().toUtf8());
     bool frame = false;
-    int repeat = 3, cancelTrials = 0, sculptStrokes = 0;
+    int repeat = 3, cancelTrials = 0, sculptStrokes = 0, editSamples = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--frame")
@@ -690,6 +1007,12 @@ int main(int argc, char **argv) {
             sculptStrokes = 64;
             if (i + 1 < argc && std::atoi(argv[i + 1]) > 0)
                 sculptStrokes = std::atoi(argv[++i]);
+        }
+        else if (arg == "--edit-frames") {
+            frame = true;
+            editSamples = 64;
+            if (i + 1 < argc && std::atoi(argv[i + 1]) > 0)
+                editSamples = std::atoi(argv[++i]);
         }
         else if (arg == "--cancel") {
             cancelTrials = 100;
@@ -718,6 +1041,22 @@ int main(int argc, char **argv) {
                 sculptFrames("contours", contourSource(416, 300), contoursCommand, sculptStrokes));
             QJsonObject out{{"benchmark", "terrain_budget_benchmark --sculpt-frames"},
                             {"terrainSection", withTerrainSection},
+#ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
+                            {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
+#endif
+                            {"cpus", int(::sysconf(_SC_NPROCESSORS_ONLN))},
+                            {"sources", sources}};
+            std::cout << QJsonDocument(out).toJson().toStdString();
+            return 0;
+        }
+        if (editSamples) {
+            QJsonArray sources;
+            sources.append(
+                editFrames("contours", contourSource(416, 300), contoursCommand, editSamples, false));
+            // 2 % fewer points, as R096.d and R096.e measured: additions add triangles.
+            sources.append(
+                editFrames("points", pointSource(122500), pointsCommand, editSamples, true));
+            QJsonObject out{{"benchmark", "terrain_budget_benchmark --edit-frames"},
 #ifdef SKETCHYUP_BENCHMARK_BUILD_TYPE
                             {"buildType", SKETCHYUP_BENCHMARK_BUILD_TYPE},
 #endif

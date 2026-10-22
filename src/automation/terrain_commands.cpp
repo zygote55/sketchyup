@@ -4,6 +4,7 @@
 #include "core/terrain_display.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
+#include "core/terrain_mesh_view.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
 #include "core/terrain_drape.hpp"
@@ -14,6 +15,7 @@
 #include "core/terrain_sources.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
+#include <QElapsedTimer>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -358,6 +360,10 @@ struct SourceEditCommand {
     Transform world;
     TerrainPolylineCleaning cleaning;
     bool promoted{};
+    // R096.f2: a promotion's level and pick point (terrain frame), resolved against the mesh by
+    // resolvePromotion (on a worker for the desktop preview).
+    std::optional<double> level;
+    std::optional<std::array<double, 2>> near;
 };
 std::uint32_t sourceIdOf(const QJsonValue &value) {
     if (!value.isDouble() || value.toDouble() != std::floor(value.toDouble()) ||
@@ -568,8 +574,10 @@ SourceEditCommand parseSourceEdit(const Document &doc, const QJsonObject &comman
                 const auto local = toLocal.point({coordinate(at[0]), coordinate(at[1]), 0});
                 near = std::array<double, 2>{local.x, local.y};
             }
-            const auto mesh = terrainEditMeshCache().get(doc, parsed.terrain, true);
-            points = terrainContourAtLevel(*mesh, zLocal(coordinate(command["level"])), near);
+            // R096.f2: the line is found on the mesh by resolvePromotion, so the desktop preview
+            // can find it on its worker.
+            parsed.level = zLocal(coordinate(command["level"]));
+            parsed.near = near;
             parsed.promoted = true;
         } else if (hasPoints) {
             points = localPoints(command["points"], toLocal);
@@ -596,17 +604,35 @@ SourceEditCommand parseSourceEdit(const Document &doc, const QJsonObject &comman
             if (points.size() > terrainSourceEditPoints)
                 reject("LIMIT_EXCEEDED", "A source edit has at most 20,000 points");
         }
-        elevations(points, data->role, contourZ);
-        data->points = cleanPoints(std::move(points), data->role, parsed.cleaning);
+        if (!parsed.level) {
+            elevations(points, data->role, contourZ);
+            data->points = cleanPoints(std::move(points), data->role, parsed.cleaning);
+        }
         data->source = terrainAddedSourceId(parsed.state->maxBaseId(), record.nextEditId);
     }
+    if (!parsed.level)
+        try {
+            validateTerrainSourceEditData(parsed.kind, *data);
+        } catch (const std::invalid_argument &error) {
+            reject("INVALID_REQUEST", error.what());
+        }
+    parsed.data = std::move(data);
+    return parsed;
+}
+// R096.f2: a promotion's points, the surface's contour line at its level on `mesh` (the cached
+// edit mesh of the terrain), cleaned and checked as the other points of an added source.
+void resolvePromotion(SourceEditCommand &parsed, const TerrainEditMesh &mesh) {
+    if (!parsed.level)
+        return;
+    auto points = terrainContourAtLevel(mesh, *parsed.level, parsed.near);
+    elevations(points, parsed.data->role, std::nullopt);
+    parsed.data->points = cleanPoints(std::move(points), parsed.data->role, parsed.cleaning);
     try {
-        validateTerrainSourceEditData(parsed.kind, *data);
+        validateTerrainSourceEditData(parsed.kind, *parsed.data);
     } catch (const std::invalid_argument &error) {
         reject("INVALID_REQUEST", error.what());
     }
-    parsed.data = std::move(data);
-    return parsed;
+    parsed.level.reset();
 }
 // The bounded report (the import's shape) with locations in model coordinates.
 QJsonObject sourceEditReport(const TerrainReport &report, QJsonObject envelope) {
@@ -633,22 +659,64 @@ void addProblems(TerrainReport &report, const std::vector<TerrainEditProblem> &p
     }
 }
 // R096.d: an edit that would pass the document's terrain triangle limit is refused before the
-// commit, located at the change, with the counts and the remedies.
+// commit, located at the change, with the counts and the remedies. R096.f2: the message alone
+// (empty when the change fits), for the desktop preview, which knows the document's total.
+std::string overTerrainLimit(std::size_t total, std::ptrdiff_t added, const std::string &what) {
+    if (added <= 0 || total + std::size_t(added) <= TerrainLimits::triangles)
+        return {};
+    return what + " refused; nothing was changed. The document's terrains have " +
+           groupedCount(total) + " of " + groupedCount(TerrainLimits::triangles) +
+           " triangles and this change needs " + groupedCount(std::size_t(added)) +
+           " more. Make the change smaller, raise the maximum edge length in Terrain settings, or "
+           "Explode terrain to keep the surface as ordinary geometry.";
+}
 void refuseOverTerrainLimit(const Document &doc, std::ptrdiff_t added, std::array<double, 2> at,
                             const std::string &what) {
-    const auto total = doc.materializedTotals().terrainTriangles;
-    if (added <= 0 || total + std::size_t(added) <= TerrainLimits::triangles)
+    const auto message = overTerrainLimit(doc.materializedTotals().terrainTriangles, added, what);
+    if (message.empty())
         return;
-    const std::string message =
-        what + " refused; nothing was changed. The document's terrains have " +
-        groupedCount(total) + " of " + groupedCount(TerrainLimits::triangles) +
-        " triangles and this change needs " + groupedCount(std::size_t(added)) +
-        " more. Make the change smaller, raise the maximum edge length in Terrain settings, or "
-        "Explode terrain to keep the surface as ordinary geometry.";
     TerrainReport report;
     report.locate(TerrainReport::Severity::Refusal, "triangle-budget", message, {"edit", {}, at});
     throw TerrainImportError("LIMIT_EXCEEDED", message.substr(0, 256),
                              sourceEditReport(report, {}), "terrainReport");
+}
+// R096.f2: the source edit's dry run, shared by the command and the desktop preview: the plan of
+// the parsed change on `mesh` and the current sources, with new vertices that merge into existing
+// ones stored where the mesh holds them (so C1 holds exactly) and the change planned again with
+// those points. Throws TerrainEditRefused.
+struct SourceEditDryRun {
+    TerrainSourceEditPlan plan;
+    std::uint64_t merged{};
+};
+SourceEditDryRun dryRunSourceEdit(SourceEditCommand &parsed, const TerrainEditMesh &mesh,
+                                  const TerrainParameters &parameters,
+                                  TerrainProgress *progress = nullptr,
+                                  std::uint64_t *mergedOut = nullptr) {
+    SourceEditDryRun run;
+    TerrainSource next;
+    next.id = parsed.data->source;
+    next.role = parsed.data->role;
+    next.points = parsed.data->points;
+    const TerrainEditContext context{mesh, *parsed.state, parameters, progress};
+    run.plan = planTerrainSourceEdit(context, parsed.before,
+                                     parsed.kind == terrainRemoveSourceKind ? nullptr : &next);
+    if (parsed.kind != terrainRemoveSourceKind && run.plan.resolved != parsed.data->points) {
+        for (std::size_t i = 0; i < run.plan.resolved.size(); ++i)
+            run.merged += run.plan.resolved[i] != parsed.data->points[i];
+        parsed.data->points = run.plan.resolved;
+        if (mergedOut)
+            *mergedOut = run.merged; // reported even when the second plan is refused
+        // The commit plans the resolved points, which can give another cavity: plan them.
+        next.points = parsed.data->points;
+        run.plan = planTerrainSourceEdit(context, parsed.before, &next);
+    }
+    return run;
+}
+// The triangle count a dry run adds and where it is located (terrain frame).
+Vec3 sourceEditPlace(const SourceEditCommand &parsed, const TerrainSourceEditPlan &plan) {
+    return !plan.change.added.empty() ? plan.change.added.front()[0]
+           : !parsed.data->points.empty() ? parsed.data->points.front()
+                                          : Vec3{};
 }
 QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeReport &changes) {
     auto parsed = parseSourceEdit(doc, command);
@@ -674,38 +742,22 @@ QJsonObject editTerrainSource(Document &doc, const QJsonObject &command, ChangeR
     TerrainSourceEditPlan plan;
     {
         const auto mesh = terrainEditMeshCache().get(doc, parsed.terrain, true);
-        TerrainSource next;
-        next.id = parsed.data->source;
-        next.role = parsed.data->role;
-        next.points = parsed.data->points;
+        std::uint64_t merged = 0;
         try {
-            plan = planTerrainSourceEdit({*mesh, *parsed.state, record.parameters}, parsed.before,
-                                         parsed.kind == terrainRemoveSourceKind ? nullptr : &next);
+            resolvePromotion(parsed, *mesh);
+            plan = dryRunSourceEdit(parsed, *mesh, record.parameters, nullptr, &merged).plan;
         } catch (const TerrainEditRefused &error) {
+            if (merged)
+                report.add(TerrainReport::Severity::Notice, "merged-duplicates", merged,
+                           "Vertices within 1e-7 m of existing ones were merged into them.");
             refused(error);
         }
-        if (parsed.kind != terrainRemoveSourceKind && plan.resolved != parsed.data->points) {
-            std::uint64_t moved = 0;
-            for (std::size_t i = 0; i < plan.resolved.size(); ++i)
-                moved += plan.resolved[i] != parsed.data->points[i];
-            parsed.data->points = plan.resolved;
-            report.add(TerrainReport::Severity::Notice, "merged-duplicates", moved,
+        if (merged)
+            report.add(TerrainReport::Severity::Notice, "merged-duplicates", merged,
                        "Vertices within 1e-7 m of existing ones were merged into them.");
-            // The commit plans the resolved points, which can give another cavity: report that.
-            next.points = parsed.data->points;
-            try {
-                plan = planTerrainSourceEdit({*mesh, *parsed.state, record.parameters},
-                                             parsed.before, &next);
-            } catch (const TerrainEditRefused &error) {
-                refused(error);
-            }
-        }
     }
     {
-        const auto &first = !plan.change.added.empty() ? plan.change.added.front()[0]
-                            : !parsed.data->points.empty() ? parsed.data->points.front()
-                                                           : Vec3{};
-        const auto at = parsed.world.point(first);
+        const auto at = parsed.world.point(sourceEditPlace(parsed, plan));
         refuseOverTerrainLimit(doc,
                                std::ptrdiff_t(plan.change.added.size()) -
                                    std::ptrdiff_t(plan.change.removed.size()),
@@ -1403,7 +1455,13 @@ std::uint32_t updatedStamp(const Document &doc, Id terrain, const QJsonObject &c
     *found = std::make_shared<const TerrainEdit>(TerrainEdit{id, terrainStampKind, data});
     return id;
 }
-QJsonObject stampTerrain(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+// terrain.stamp_pad's request checked and parsed on the document (R096.f2: shared with the
+// desktop preview).
+struct StampCommand {
+    Id terrain{};
+    std::shared_ptr<TerrainStampData> data;
+};
+StampCommand parseStamp(const Document &doc, const QJsonObject &command) {
     onlyFields(command, {"command", "terrain", "footprint", "elevation", "mode", "cutSlope",
                          "fillSlope", "maxDistance", "width"});
     const auto terrain = identity(command["terrain"]);
@@ -1433,7 +1491,12 @@ QJsonObject stampTerrain(Document &doc, const QJsonObject &command, ChangeReport
     data->elevation = toLocal.point({0, 0, elevation}).z + 0.0;
     gradingFields(command, *data, false);
     validateStamp(*data);
-    return applyStamp(doc, terrain, std::move(data), command["command"].toString(), changes);
+    return {terrain, std::move(data)};
+}
+QJsonObject stampTerrain(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+    auto parsed = parseStamp(doc, command);
+    return applyStamp(doc, parsed.terrain, std::move(parsed.data), command["command"].toString(),
+                      changes);
 }
 
 // ---- R096.e: terrain.drape ---------------------------------------------------------------------
@@ -1835,16 +1898,26 @@ QJsonObject drapeOverlay(Document &doc, Id terrain, const QJsonObject &command, 
             {"changed", true},
             {"terrainReport", sourceEditReport(report, envelope)}};
 }
-QJsonObject drapeTerrain(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+// terrain.drape's request checked and parsed on the document (R096.f2: shared with the desktop
+// preview).
+struct DrapeCommand {
+    Id terrain{};
+    bool overlay{};
+    double lift{terrainDrapeLiftDefault};
+    Id context{};
+    DrapeInput input;
+};
+DrapeCommand parseDrape(const Document &doc, const QJsonObject &command) {
     onlyFields(command, {"command", "terrain", "edges", "faces", "mode", "paintRegions", "lift",
                          "context"});
-    const auto terrain = identity(command["terrain"]);
+    DrapeCommand parsed;
+    const auto terrain = parsed.terrain = identity(command["terrain"]);
     if (!isTerrain(doc, terrain))
         reject("NOT_FOUND", "Terrain body does not exist");
     const auto mode = command["mode"].toString();
     if (!command["mode"].isString() || (mode != "imprint" && mode != "overlay"))
         reject("INVALID_REQUEST", "mode is imprint or overlay");
-    const bool overlay = mode == "overlay";
+    const bool overlay = parsed.overlay = mode == "overlay";
     bool paintRegions = false;
     if (command.contains("paintRegions")) {
         if (overlay)
@@ -1853,7 +1926,6 @@ QJsonObject drapeTerrain(Document &doc, const QJsonObject &command, ChangeReport
             reject("INVALID_REQUEST", "paintRegions is true or false");
         paintRegions = command["paintRegions"].toBool();
     }
-    double lift = terrainDrapeLiftDefault;
     if (command.contains("lift")) {
         if (!overlay)
             reject("INVALID_REQUEST", "lift applies to overlay");
@@ -1861,22 +1933,21 @@ QJsonObject drapeTerrain(Document &doc, const QJsonObject &command, ChangeReport
         if (!value.isDouble() || !std::isfinite(value.toDouble()) || value.toDouble() < 0 ||
             value.toDouble() > terrainDrapeLiftMax)
             reject("INVALID_REQUEST", "lift is 0 to 1,000 m");
-        lift = value.toDouble();
+        parsed.lift = value.toDouble();
     }
-    Id context = 0;
     if (command.contains("context")) {
         if (!overlay)
             reject("INVALID_REQUEST", "context applies to overlay (the group's parent)");
         if (command["context"].toString() != "0") {
-            context = identity(command["context"]);
-            const auto found = doc.bodies().find(context);
+            parsed.context = identity(command["context"]);
+            const auto found = doc.bodies().find(parsed.context);
             if (found == doc.bodies().end())
                 reject("NOT_FOUND", "The context does not exist");
             if (found->second->kind != BodyKind::Group)
                 reject("UNSUPPORTED_TARGET", "The context is a group (or 0 for the model)");
-            if (persistentlyLocked(doc, context))
+            if (persistentlyLocked(doc, parsed.context))
                 reject("INVALID_OPERATION", "Cannot edit a locked entity or its contents");
-            if (componentBound(doc, context))
+            if (componentBound(doc, parsed.context))
                 reject("UNSUPPORTED_TARGET", "Open the component's own context to add geometry "
                                              "to a component; overlay adds to a group or the "
                                              "model");
@@ -1886,11 +1957,345 @@ QJsonObject drapeTerrain(Document &doc, const QJsonObject &command, ChangeReport
         requireUnlockedTerrain(doc, terrain);
     requireLevelTerrain(doc, terrain);
     const auto toLocal = doc.worldTransform(terrain).inverse();
-    auto input = drapeInput(doc, command, toLocal, paintRegions);
-    return overlay ? drapeOverlay(doc, terrain, command, std::move(input), lift, context, changes)
-                   : drapeImprint(doc, terrain, command, std::move(input), changes);
+    parsed.input = drapeInput(doc, command, toLocal, paintRegions);
+    return parsed;
+}
+QJsonObject drapeTerrain(Document &doc, const QJsonObject &command, ChangeReport &changes) {
+    auto parsed = parseDrape(doc, command);
+    return parsed.overlay ? drapeOverlay(doc, parsed.terrain, command, std::move(parsed.input),
+                                         parsed.lift, parsed.context, changes)
+                          : drapeImprint(doc, parsed.terrain, command, std::move(parsed.input),
+                                         changes);
 }
 } // namespace
+
+// ---- R096.f2: the desktop preview (ADR 0169 §5) ------------------------------------------------
+struct TerrainEditPreviewRequest {
+    QJsonObject command;
+    QString name;
+    Id terrain{};
+    std::string document;
+    std::uint64_t revision{};
+    Transform world;
+    BodyPtr body; // holds the record
+    std::shared_ptr<const TerrainEditMesh> mesh;
+    std::shared_ptr<const TerrainSourceState> state;
+    std::size_t totalTriangles{};
+    std::optional<SourceEditCommand> source;
+    std::optional<StampCommand> stamp;
+    std::optional<DrapeCommand> drape;
+    std::size_t overlayRoom{};
+};
+const QJsonObject &terrainEditPreviewCommand(const TerrainEditPreviewRequest &request) {
+    return request.command;
+}
+std::shared_ptr<const TerrainEditPreviewRequest>
+prepareTerrainEditPreview(const Document &doc, const QJsonObject &command) {
+    auto request = std::make_shared<TerrainEditPreviewRequest>();
+    request->command = command;
+    request->name = command["command"].toString();
+    if (request->name == "terrain.edit_source" || request->name == "terrain.add_source" ||
+        request->name == "terrain.remove_source") {
+        request->source = parseSourceEdit(doc, command);
+        request->terrain = request->source->terrain;
+    } else if (request->name == "terrain.stamp_pad") {
+        request->stamp = parseStamp(doc, command);
+        request->terrain = request->stamp->terrain;
+    } else if (request->name == "terrain.drape") {
+        request->drape = parseDrape(doc, command);
+        request->terrain = request->drape->terrain;
+        if (request->drape->overlay) {
+            const auto budget = terrainExplodeBudget(doc, request->terrain);
+            request->overlayRoom =
+                budget.faceLimit > budget.modelFaces ? budget.faceLimit - budget.modelFaces : 0;
+        }
+    } else
+        reject("INVALID_REQUEST", "Only contour edits, pads and drapes preview on the worker");
+    request->document = doc.identity();
+    request->revision = doc.revision();
+    request->world = doc.worldTransform(request->terrain);
+    request->body = doc.bodies().at(request->terrain);
+    request->mesh = terrainEditMeshCache().get(doc, request->terrain, true);
+    request->state =
+        request->source ? request->source->state : terrainSourceState(*request->body->terrain);
+    request->totalTriangles = doc.materializedTotals().terrainTriangles;
+    return request;
+}
+namespace {
+// The elevation of the surface at a plan point (terrain frame) in a containing triangle.
+std::optional<double> previewSurfaceAt(const TerrainMeshView &view, TerrainVec2 p) {
+    const auto found = view.containing(p);
+    if (found.empty())
+        return std::nullopt;
+    const auto c = view.corners(found.front());
+    const double d = (c[1].y - c[2].y) * (c[0].x - c[2].x) + (c[2].x - c[1].x) * (c[0].y - c[2].y);
+    if (d == 0)
+        return (c[0].z + c[1].z + c[2].z) / 3;
+    const double a = ((c[1].y - c[2].y) * (p.x - c[2].x) + (c[2].x - c[1].x) * (p.y - c[2].y)) / d;
+    const double b = ((c[2].y - c[0].y) * (p.x - c[2].x) + (c[0].x - c[2].x) * (p.y - c[2].y)) / d;
+    return a * c[0].z + b * c[1].z + (1 - a - b) * c[2].z;
+}
+// The parts of a drape's input lines outside the outline or in a hole, sampled at most 64 pieces
+// a segment (display only; the plan clips exactly). Each part takes the surface's height where it
+// leaves the terrain.
+void previewClippedParts(TerrainCommandPreview &preview, const TerrainEditMesh &mesh,
+                         const TerrainDrapeData &data, TerrainProgress *progress) {
+    const TerrainMeshView view(mesh);
+    const double cell = mesh.grid().cell > 0 ? mesh.grid().cell : 10.0;
+    double low = std::numeric_limits<double>::infinity();
+    for (const auto &run : data.runs)
+        for (const auto &p : run)
+            low = std::min(low, p.z);
+    for (std::uint32_t line = 0; line < data.lines.size(); ++line) {
+        if (progress)
+            progress->check();
+        const auto &points = data.lines[line].points;
+        const std::size_t count = points.size() + (data.lines[line].closed ? 1 : 0);
+        std::vector<Vec3> part;
+        std::optional<double> last;
+        auto finish = [&] {
+            if (part.size() >= 2) {
+                preview.clippedParts.push_back(part);
+                preview.clippedLines.push_back(line);
+            }
+            part.clear();
+        };
+        for (std::size_t i = 0; i + 1 < count; ++i) {
+            const auto a = points[i], b = points[(i + 1) % points.size()];
+            const double length = std::hypot(b[0] - a[0], b[1] - a[1]);
+            const auto steps = std::size_t(std::clamp(std::ceil(length / (cell / 16)), 1.0, 64.0));
+            for (std::size_t k = 0; k < steps; ++k) {
+                const double t0 = double(k) / double(steps), t1 = double(k + 1) / double(steps);
+                const TerrainVec2 p0{a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0},
+                    p1{a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1},
+                    middle{(p0.x + p1.x) / 2, (p0.y + p1.y) / 2};
+                const auto z = previewSurfaceAt(view, middle);
+                if (z) {
+                    last = z;
+                    finish();
+                    continue;
+                }
+                const double height = last ? *last : std::isfinite(low) ? low : 0.0;
+                if (part.empty())
+                    part.push_back({p0.x, p0.y, height});
+                part.push_back({p1.x, p1.y, height});
+            }
+        }
+        finish();
+    }
+    std::set<std::uint32_t> lines(preview.clippedLines.begin(), preview.clippedLines.end());
+    preview.clipped = lines.size();
+}
+// The current source whose line passes nearest `at` (terrain frame), other than `self`.
+std::uint32_t crossedSource(const TerrainSourceState &state, TerrainVec2 at, std::uint32_t self) {
+    std::uint32_t best = 0;
+    double bestDistance = 1e-6 * std::max({1.0, std::abs(at.x), std::abs(at.y)});
+    for (const auto *source : state.sources()) {
+        if (source->id == self || source->role == TerrainSourceRole::Points ||
+            source->points.size() < 2)
+            continue;
+        for (std::size_t i = 0; i + 1 < source->points.size(); ++i) {
+            const auto &a = source->points[i], &b = source->points[i + 1];
+            const double dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy;
+            double t = length2 > 0 ? ((at.x - a.x) * dx + (at.y - a.y) * dy) / length2 : 0;
+            t = std::clamp(t, 0.0, 1.0);
+            const double d = std::hypot(a.x + t * dx - at.x, a.y + t * dy - at.y);
+            if (d < bestDistance) {
+                bestDistance = d;
+                best = source->id;
+            }
+        }
+    }
+    return best;
+}
+// The boundary loops of a set of counter-clockwise triangles: the directed edges no other added
+// triangle uses in reverse, chained (each loop closed, its start not repeated).
+std::vector<std::vector<Vec3>> previewOutline(const std::vector<std::array<Vec3, 3>> &triangles) {
+    using Key = std::array<std::uint64_t, 3>;
+    const auto keyOf = [](const Vec3 &p) {
+        const auto k = TerrainPositionKey::of(p);
+        return Key{k.x, k.y, k.z};
+    };
+    std::map<std::pair<Key, Key>, int> uses;
+    std::map<Key, Vec3> at;
+    for (const auto &t : triangles)
+        for (int i = 0; i < 3; ++i) {
+            const auto a = keyOf(t[std::size_t(i)]), b = keyOf(t[std::size_t((i + 1) % 3)]);
+            at.try_emplace(a, t[std::size_t(i)]);
+            ++uses[{a, b}];
+        }
+    std::multimap<Key, Key> next;
+    for (const auto &[edge, count] : uses)
+        if (!uses.contains({edge.second, edge.first}))
+            next.emplace(edge.first, edge.second);
+    std::vector<std::vector<Vec3>> loops;
+    while (!next.empty() && loops.size() < 256) {
+        auto it = next.begin();
+        const auto start = it->first;
+        std::vector<Vec3> loop{at.at(start)};
+        auto current = it->second;
+        next.erase(it);
+        while (!(current == start) && loop.size() < 1000000) {
+            loop.push_back(at.at(current));
+            const auto found = next.find(current);
+            if (found == next.end())
+                break;
+            current = found->second;
+            next.erase(found);
+        }
+        if (loop.size() >= 3)
+            loops.push_back(std::move(loop));
+    }
+    return loops;
+}
+void previewRefused(TerrainCommandPreview &preview, std::string code, std::string message,
+                    std::vector<TerrainEditProblem> problems = {}) {
+    preview.code = std::move(code);
+    preview.message = std::move(message);
+    preview.problems = std::move(problems);
+    preview.candidate.reset();
+}
+} // namespace
+TerrainCommandPreview runTerrainEditPreview(const TerrainEditPreviewRequest &request,
+                                            TerrainProgress *progress) {
+    QElapsedTimer timing;
+    timing.start();
+    TerrainCommandPreview preview;
+    preview.command = request.command;
+    preview.name = request.name;
+    preview.terrain = request.terrain;
+    preview.document = request.document;
+    preview.revision = request.revision;
+    preview.world = request.world;
+    preview.sources = request.state;
+    const auto &record = *request.body->terrain;
+    const auto &mesh = *request.mesh;
+    preview.edit = record.nextEditId;
+    // The checks applyTerrainEdit makes before its commit.
+    auto checkList = [&](const TerrainEdit &entry) {
+        if (record.edits.size() >= TerrainLimits::edits)
+            reject("LIMIT_EXCEEDED", "The terrain's edit list is full (4,096 changes); use Reset "
+                                     "edits, or Explode terrain to keep the surface as ordinary "
+                                     "geometry");
+        if (record.nextEditId == std::numeric_limits<std::uint32_t>::max())
+            reject("LIMIT_EXCEEDED", "The terrain has used every change ID; use Reset edits, or "
+                                     "Explode terrain to keep the surface as ordinary geometry");
+        if (terrainEditBytes(record.edits) + terrainEditEntryBytes(entry) > TerrainLimits::editBytes)
+            reject("LIMIT_EXCEEDED", "The terrain's edit list would exceed 8 MiB; use Reset "
+                                     "edits, or Explode terrain to keep the surface as ordinary "
+                                     "geometry");
+    };
+    // The terrain triangle limit, located at `at` (terrain frame).
+    auto checkTriangles = [&](std::ptrdiff_t added, const Vec3 &at, const std::string &what) {
+        const auto message = overTerrainLimit(request.totalTriangles, added, what);
+        if (message.empty())
+            return true;
+        previewRefused(preview, "LIMIT_EXCEEDED", message.substr(0, 256),
+                       {{"triangle-budget", message, 1, {{{at.x, at.y}, 0, 0}}}});
+        return false;
+    };
+    std::optional<TerrainRegionChange> change;
+    try {
+        if (request.source) {
+            auto parsed = *request.source;
+            preview.kind = parsed.kind;
+            parsed.data = std::make_shared<TerrainSourceEditData>(*request.source->data);
+            resolvePromotion(parsed, mesh);
+            auto run = dryRunSourceEdit(parsed, mesh, record.parameters, progress);
+            preview.source = parsed.data->source;
+            preview.role = parsed.data->role;
+            preview.points = parsed.data->points;
+            // The command checks the triangle limit, then applyTerrainEdit the list.
+            if (checkTriangles(std::ptrdiff_t(run.plan.change.added.size()) -
+                                   std::ptrdiff_t(run.plan.change.removed.size()),
+                               sourceEditPlace(parsed, run.plan), "Contour edit")) {
+                checkList({record.nextEditId, parsed.kind, parsed.data});
+                change = std::move(run.plan.change);
+            }
+        } else if (request.stamp) {
+            preview.kind = terrainStampKind;
+            const auto &data = request.stamp->data;
+            const TerrainEdit entry{record.nextEditId, terrainStampKind, data};
+            auto plan =
+                planTerrainStamp({mesh, *request.state, record.parameters, progress}, entry);
+            preview.pad = plan.resolved;
+            preview.rays = plan.rays;
+            preview.cut = plan.cut;
+            preview.fill = plan.fill;
+            preview.touching = plan.touching;
+            preview.dropped = plan.dropped;
+            const auto &first = data->footprint.front();
+            if (checkTriangles(std::ptrdiff_t(plan.addedTriangles) -
+                                   std::ptrdiff_t(plan.cavityTriangles),
+                               {first[0], first[1], 0}, "Stamp pad")) {
+                checkList({record.nextEditId, terrainStampKind, plan.resolved});
+                change = std::move(plan.change);
+            }
+        } else if (request.drape) {
+            preview.kind = terrainDrapeKind;
+            preview.overlay = request.drape->overlay;
+            const auto &input = request.drape->input;
+            preview.faces = input.faceCount;
+            preview.edgeLines = std::size_t(
+                std::count(input.edgeLines.begin(), input.edgeLines.end(), true));
+            if (!preview.overlay && !input.data->paint.empty())
+                checkPaintBands(*input.data, record, request.world);
+            try {
+                validateTerrainDrapeData(*input.data);
+            } catch (const std::invalid_argument &error) {
+                reject("INVALID_REQUEST", error.what());
+            }
+            const TerrainEdit entry{record.nextEditId, terrainDrapeKind, input.data};
+            auto plan = planTerrainDrape({mesh, *request.state, record.parameters, progress},
+                                         entry, preview.overlay);
+            preview.drape = plan.resolved;
+            preview.runs = plan.resolved->runs;
+            preview.runLines = plan.runLines;
+            previewClippedParts(preview, mesh, *input.data, progress);
+            if (preview.overlay) {
+                const double liftLocal = request.world.inverse().vector({0, 0, request.drape->lift}).z;
+                preview.overlayGeometry =
+                    terrainDrapeOverlay(mesh, plan, input.edgeLines, input.faces, liftLocal,
+                                        std::min<std::size_t>(request.overlayRoom, 100000), progress);
+                if (preview.overlayGeometry.faces.empty() && preview.overlayGeometry.edges.empty())
+                    reject("INVALID_REQUEST", "Nothing to overlay: the faces cover no terrain "
+                                              "triangle and no edge lies on the terrain");
+            } else {
+                if (checkTriangles(std::ptrdiff_t(plan.change.added.size()) -
+                                       std::ptrdiff_t(plan.change.removed.size()),
+                                   plan.resolved->runs.front().front(), "Drape on terrain")) {
+                    checkList({record.nextEditId, terrainDrapeKind, plan.resolved});
+                    change = std::move(plan.change);
+                }
+            }
+        }
+        if (change)
+            preview.outline = previewOutline(change->added);
+        if (change)
+            preview.candidate = TerrainEditPreview{record.nextEditId,
+                                                   replaceTerrainRegion(mesh, *change),
+                                                   change->removed.size(), change->added.size(),
+                                                   change->lifted.size()};
+    } catch (const TerrainEditRefused &error) {
+        previewRefused(preview, error.code(), error.what(), error.problems());
+    } catch (const TerrainCancelled &) {
+        previewRefused(preview, "CANCELLED", "The preview was replaced by a newer one");
+    } catch (const TerrainError &error) {
+        previewRefused(preview, error.code(), error.what());
+    } catch (const std::exception &error) {
+        previewRefused(preview, "INVALID_REQUEST", error.what());
+    }
+    // Name the lines a refused change crosses.
+    for (const auto &problem : preview.problems) {
+        std::vector<std::uint32_t> crossed;
+        if (problem.kind == "crossing-constraints")
+            for (const auto &location : problem.locations)
+                crossed.push_back(crossedSource(*request.state, location.xy, preview.source));
+        preview.crossed.push_back(std::move(crossed));
+    }
+    preview.planMs = double(timing.nsecsElapsed()) / 1e6;
+    return preview;
+}
 TerrainReplayRequest parseTerrainReplayRequest(const Document &doc, const QJsonObject &command) {
     const auto name = command["command"].toString();
     TerrainReplayRequest request;

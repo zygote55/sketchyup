@@ -1062,7 +1062,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
   target_sources(sketchyup_desktop PRIVATE src/app/parameter_messages.cpp src/app/parameters_scope_dialog.cpp)
   # R095.e1 (ADR 0168): the Entity info Terrain section, terrain settings, Regenerate, Explode,
   # Create terrain from selection and the tools' refusal over terrain.
-  target_sources(sketchyup_desktop PRIVATE src/app/terrain_report_view.cpp src/app/terrain_role_table.cpp src/app/terrain_actions.cpp src/app/terrain_section.cpp src/app/viewport_terrain.cpp src/app/viewport_sculpt.cpp src/app/terrain_tool_strip.cpp src/app/site_dialogs.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/terrain_report_view.cpp src/app/terrain_role_table.cpp src/app/terrain_actions.cpp src/app/terrain_section.cpp src/app/viewport_terrain.cpp src/app/viewport_sculpt.cpp src/app/viewport_contours.cpp src/app/viewport_terrain_preview.cpp src/app/terrain_preview_worker.cpp src/app/terrain_tool_strip.cpp src/app/site_dialogs.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)

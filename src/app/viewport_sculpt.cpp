@@ -136,6 +136,8 @@ void Viewport::stepTerrainRadius(bool larger) {
 QString Viewport::terrainMeasurementLabel() const {
     if (!terrainToolActive())
         return {};
+    if (tool_ == Tool::Contours)
+        return contourMeasurementLabel();
     // The value step follows the mode: a Sculpt stroke with Shift held, or committed that way, is
     // a smooth and takes a strength.
     if (!terrainAmendable().isEmpty() && !brush_.stroking && !brush_.anchored && !brush_.regionClosed)
@@ -233,6 +235,8 @@ std::optional<double> Viewport::terrainElevation(Id terrain, double x, double y)
 void Viewport::emitTerrainStatus() {
     if (!terrainToolActive())
         return;
+    if (tool_ == Tool::Contours)
+        return emitContourStatus();
     const bool region = terrainOptions_.scope == TerrainToolOptions::Scope::Region;
     const auto name = tool_ == Tool::Smooth ? QString("Smooth") : QString("Sculpt");
     QString text;
@@ -273,6 +277,8 @@ void Viewport::emitTerrainStatus() {
     emit message(text);
 }
 void Viewport::beginTerrainTool() {
+    if (tool_ == Tool::Contours)
+        return beginContourTool();
     brush_ = {};
     terrainCandidate_.reset();
     terrainCandidateShown_ = false;
@@ -364,6 +370,15 @@ void Viewport::beginTerrainTool() {
     update();
 }
 void Viewport::cancelTerrainOperation(bool keepAmend) {
+    // R096.f2: the worker tools' operation (a drag, a new source) and preview.
+    cancelContourOperation();
+    if (!sculptTool(tool_)) {
+        if (!keepAmend) {
+            terrainSession_.cancel();
+            terrainCommitted_ = {};
+        }
+        return;
+    }
     const bool was = brush_.pressed || brush_.stroking || brush_.anchored || !brush_.region.empty() ||
                      terrainCandidateShown_;
     brush_.path.clear();
@@ -459,6 +474,8 @@ void Viewport::terrainHover(QPointF point) {
     update();
 }
 bool Viewport::terrainPress(QMouseEvent *event) {
+    if (tool_ == Tool::Contours)
+        return contourPress(event);
     const auto point = event->position();
     if (brush_.anchored) {
         commitTerrain(); // the previewed spot, whatever the modifiers on this click
@@ -517,6 +534,8 @@ bool Viewport::terrainPress(QMouseEvent *event) {
     return true;
 }
 bool Viewport::terrainMove(QMouseEvent *event) {
+    if (tool_ == Tool::Contours)
+        return contourMove(event);
     brush_.modifiers = event->modifiers();
     if (brush_.pressed && !brush_.stroking && event->buttons().testFlag(Qt::LeftButton) &&
         (event->position() - brush_.pressPosition).manhattanLength() >= 4) {
@@ -528,6 +547,8 @@ bool Viewport::terrainMove(QMouseEvent *event) {
     return true;
 }
 bool Viewport::terrainRelease(QMouseEvent *event) {
+    if (tool_ == Tool::Contours)
+        return contourRelease(event);
     brush_.modifiers = event->modifiers();
     if (!brush_.pressed)
         return true;
@@ -551,6 +572,8 @@ bool Viewport::terrainRelease(QMouseEvent *event) {
     return true;
 }
 bool Viewport::terrainKey(QKeyEvent *event) {
+    if (tool_ == Tool::Contours)
+        return contourKey(event);
     const auto modifiers = event->modifiers();
     if (event->key() == Qt::Key_Control || event->key() == Qt::Key_Shift) {
         brush_.modifiers = modifiers;
@@ -615,6 +638,8 @@ bool Viewport::terrainKey(QKeyEvent *event) {
     return false;
 }
 void Viewport::terrainKeyRelease(QKeyEvent *event) {
+    if (!sculptTool(tool_))
+        return;
     if (event->key() != Qt::Key_Control && event->key() != Qt::Key_Shift)
         return;
     brush_.modifiers = event->modifiers();
@@ -885,6 +910,8 @@ void Viewport::amendTerrain(double value) {
 
 // ---- Measurements box (UX §15.2, §15.7) ----------------------------------------------------
 bool Viewport::terrainMeasurements(const QString &text) {
+    if (tool_ == Tool::Contours)
+        return contourMeasurements(text);
     const auto unit = inputUnit(doc_.displayUnits());
     const auto locale = QLocale();
     QString typed = text;
@@ -1018,14 +1045,23 @@ void Viewport::rebuildTerrainPreview() {
 }
 void Viewport::uploadTerrainPreview() {
     auto &gpu = terrainPreviewGpu_;
-    const auto candidate = terrainPreviewShown();
-    if (!candidate || !candidate->edit || terrainCandidateDocument_ != doc_.identity() ||
-        terrainCandidateRevision_ != doc_.revision() || !isTerrain(doc_, brush_.terrain))
+    // The brush's candidate (R096.f1), or the worker's (R096.f2: contour edits, stamps, drapes).
+    const TerrainRegionResult *region = nullptr;
+    Id terrain = 0;
+    if (const auto candidate = terrainPreviewShown();
+        candidate && candidate->edit && terrainCandidateDocument_ == doc_.identity() &&
+        terrainCandidateRevision_ == doc_.revision()) {
+        region = &candidate->edit->region;
+        terrain = brush_.terrain;
+    } else if (const auto shown = terrainEditPreviewShown(); shown && shown->candidate) {
+        region = &shown->candidate->region;
+        terrain = shown->terrain;
+    }
+    if (!region || !isTerrain(doc_, terrain))
         return;
-    const auto terrain = brush_.terrain;
     const auto &record = *doc_.bodies().at(terrain);
     const auto mesh = terrainEditMeshCache().get(doc_, terrain, true);
-    const auto display = terrainPreviewDisplay(*mesh, candidate->edit->region);
+    const auto display = terrainPreviewDisplay(*mesh, *region);
     const auto world = doc_.worldTransform(terrain);
     const bool bands = record.terrain->display.shading == TerrainShading::ElevationBands &&
                        doc_.style().mode != ModelStyleMode::Monochrome;
@@ -1043,12 +1079,12 @@ void Viewport::uploadTerrainPreview() {
     for (const auto &key : display.hidden)
         if (const auto body = bodyOf(key))
             gpu.hidden.insert(body->id);
-    for (const auto &key : candidate->edit->region.replaced)
+    for (const auto &key : region->replaced)
         if (const auto body = bodyOf(key))
             gpu.hiddenContours.insert(body->id);
     BodyPtr fallback;
-    if (!candidate->edit->region.replaced.empty())
-        fallback = bodyOf(candidate->edit->region.replaced.front());
+    if (!region->replaced.empty())
+        fallback = bodyOf(region->replaced.front());
     for (const auto &tile : display.tiles) {
         const auto &content = *tile.content;
         auto body = bodyOf(content.key);
@@ -1117,7 +1153,7 @@ void Viewport::uploadTerrainPreview() {
                                                         : std::array<float, 3>{.42f, .31f, .20f};
         const auto interval = record.terrain->display.contourInterval;
         const auto offset = terrainElevationOffset(doc_, terrain);
-        for (const auto &tile : candidate->edit->region.tiles)
+        for (const auto &tile : region->tiles)
             for (const auto &segment : terrainTileContours(*tile, interval, offset))
                 for (const auto point : {segment.a, segment.b}) {
                     const auto p = world.point(point);
@@ -1145,6 +1181,8 @@ void Viewport::drawTerrainPreview() {
 void Viewport::paintTerrainBrush(QPainter &p) {
     if (!terrainToolActive())
         return;
+    if (tool_ == Tool::Contours)
+        return paintContourTool(p);
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
     const auto terrain = isTerrain(doc_, brush_.terrain) ? brush_.terrain : Id{};

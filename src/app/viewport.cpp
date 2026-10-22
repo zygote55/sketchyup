@@ -76,6 +76,14 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     setMouseTracking(true);
     setMinimumSize(160, 160);
     setAccessibleName("3D model viewport");
+    // R096.f2 (ADR 0169 §5): contour edits, stamps and drapes plan on a one-thread worker.
+    terrainWorker_ = new TerrainPreviewWorker(this);
+    terrainEditPaintWait_ = new QTimer(this);
+    terrainEditPaintWait_->setSingleShot(true);
+    terrainEditPaintWait_->setInterval(40);
+    connect(terrainEditPaintWait_, &QTimer::timeout, this, [this] { update(); });
+    connect(terrainWorker_, &TerrainPreviewWorker::finished, this,
+            &Viewport::terrainEditPreviewFinished);
     inferenceWorker_.request(doc_);
     auto *inferenceTimer = new QTimer(this);
     inferenceTimer->setInterval(25);
@@ -110,6 +118,8 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     inferenceTimer->start();
 }
 Viewport::~Viewport() {
+    delete terrainWorker_; // waits for a running plan, which holds this document's mesh
+    terrainWorker_ = nullptr;
     if (!terrainCacheIdentity_.empty())
         terrainEditMeshCache().forget(terrainCacheIdentity_);
     forgetRememberedTerrainSculptPlan(); // it may hold this document's terrain and mesh
@@ -2198,6 +2208,18 @@ void Viewport::refresh() {
         terrainCandidateShown_ = false;
         terrainPreviewDirty_ = true;
     }
+    // R096.f2: a worker preview belongs to the revision it was planned at.
+    if (terrainEditShown_ && (terrainEditShown_->document != doc_.identity() ||
+                              terrainEditShown_->revision != doc_.revision())) {
+        terrainEditShown_.reset();
+        terrainPreviewDirty_ = true;
+    }
+    // A request made at another revision is asked for again when the tool next asks.
+    if (terrainEditRequest_.document != doc_.identity() ||
+        terrainEditRequest_.revision != doc_.revision())
+        terrainEditRequest_ = {};
+    if (tool_ == Tool::Contours)
+        contourSources_ = {}; // the current sources may have changed
     if (terrainToolActive())
         buildTerrainOverlay(); // the surface under the brush may have changed
     if (selectionDocument_ != doc_.identity()) {
@@ -3017,6 +3039,11 @@ bool Viewport::event(QEvent *event) {
             event->accept();
             return true;
         }
+        // R096.f2 (UX §15.3, §15.7): in Edit contours, Tab moves between the selected source's
+        // handles, or cycles the sources under the pointer.
+        if (tool_ == Tool::Contours && (key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) &&
+            contourKey(key))
+            return true;
         if (key->key() == Qt::Key_Tab && !key->modifiers() &&
             (drawingTool() || tool_ == Tool::Move) && inferenceCount() &&
             !directionLocks_.current() && !heldPoint_) {
@@ -3035,6 +3062,14 @@ bool Viewport::event(QEvent *event) {
     }
     if (event->type() == QEvent::ShortcutOverride) {
         const auto *key = static_cast<QKeyEvent *>(event);
+        // R096.f2: Delete and Shift+Delete act on the selected source in Edit contours (not on the
+        // model selection), and Backspace removes the last point of a new source.
+        if (tool_ == Tool::Contours &&
+            (key->key() == Qt::Key_Delete ||
+             (key->key() == Qt::Key_Backspace && !contourTool_.adding.empty()))) {
+            event->accept();
+            return true;
+        }
         if (key->key() != Qt::Key_Control) {
             guideControlPending_ = false;
             pushControlPending_ = false;
@@ -3066,6 +3101,17 @@ bool Viewport::event(QEvent *event) {
         // R096.f1: a terrain stroke in progress is withdrawn; an anchored spot stays.
         if (brush_.stroking)
             cancelTerrainOperation();
+        // R096.f2: so is a contour drag (typing moves focus to the Measurements box).
+        if (contourTool_.dragging || contourTool_.pressed) {
+            contourTool_.pressed = contourTool_.dragging = false;
+            contourTool_.dragPoints.clear();
+            contourTool_.dragVertex = contourTool_.pressedHandle = -1;
+            withdrawTerrainEditPreview();
+            terrainSession_.cancel();
+            terrainStatusShown_.clear();
+            emitTerrainStatus();
+            emit terrainToolChanged();
+        }
         brush_.pressed = false;
         brush_.modifiers = Qt::NoModifier;
         dragging_ = false;
@@ -3304,7 +3350,9 @@ void Viewport::mouseMoveEvent(QMouseEvent *e) {
         clearTerrainHover();
     else
         updateTerrainHover(e->position());
-    update();
+    // R096.f2: while the worker plans what this move asked for, the frame waits for it.
+    if (!(terrainToolActive() && terrainEditPaintWait_->isActive()))
+        update();
 }
 void Viewport::mouseReleaseEvent(QMouseEvent *e) {
     if (stretchRelease(e))

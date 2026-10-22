@@ -2744,6 +2744,159 @@ Skipping the adjacency for one-sided changes would save about 45–65 ms per nin
 change no validation outcome. It is a change to the shared report code, though, not to the
 duplicate run. It is recorded for R096.g as a separate decision.
 
+## Implementation notes (R096.f2)
+
+R096.f2 delivers the rest of R096.f in three stacked parts: (1) the preview worker and Edit
+contours, (2) Stamp pad and Drape, (3) the Terrain edits list. This section records part 1; the
+other parts add their own subsections.
+
+### Part 1: the preview worker and Edit contours
+
+Modules:
+- `src/app/terrain_preview_worker.*`: the one-thread, latest-wins worker.
+- `src/app/viewport_terrain_preview.cpp`: requesting, showing, committing and naming refusals.
+- `src/app/viewport_contours.cpp`: the tool.
+- `prepareTerrainEditPreview` and `runTerrainEditPreview` in `src/automation/terrain_commands.*`.
+- The strip's Contours panel (`terrain_tool_strip.*`) and the menu, rail and context-menu entry
+  (`window_terrain.cpp`, `tool.31`, no default shortcut).
+
+**The worker preview (§5).**
+- *One parse, one plan.* A tool asks for the preview of the exact command it would commit.
+  `prepareTerrainEditPreview` runs the command's own parse on the UI thread
+  (`terrain.edit_source`, `terrain.add_source`, `terrain.remove_source`; part 2 adds
+  `terrain.stamp_pad` and `terrain.drape`) and keeps every input of the plan: the terrain's
+  record (its `BodyPtr`), the cached edit mesh, the current sources and the document's terrain
+  triangle total. A request the command refuses before planning (an unknown source, a locked
+  terrain, a boundary source) is refused at once, with the command's message, and nothing is
+  planned.
+- *Shared dry runs.* The commands' dry runs were factored so the preview runs the same code:
+  `dryRunSourceEdit` (the plan, the merge of new vertices into existing ones and the second plan
+  with the resolved points), `resolvePromotion` (a promotion's line is now found by the dry run,
+  on the mesh, instead of during parsing, so the worker finds it), `parseStamp` and `parseDrape`,
+  and `overTerrainLimit` for the `triangle-budget` refusal. The commands' behaviour and refusals
+  are unchanged (the R096.c, R096.d and R096.e suites pass unchanged).
+- *On the worker.* `runTerrainEditPreview` reads no document. It plans on the kept inputs, checks
+  what `applyTerrainEdit` checks before its commit (a full list, the 8 MiB bound, the triangle
+  limit) and builds the candidate tiles with `replaceTerrainRegion`. A refusal is returned with its
+  located problems, not thrown. For each `crossing-constraints` location it also finds the current
+  source passing through it, so the label can name it ("Crosses contour 106.00 m").
+- *Thread safety.* Everything the worker reads is immutable and held by the request: the tile
+  records, the edit mesh (built with its topology before it is returned; the cache copies rather
+  than updates a mesh someone else holds) and the current sources (likewise copied, not extended in
+  place, while held). The worker's progress carries a cancel flag. The viewport deletes the worker
+  first in its destructor, which waits for a running plan, before forgetting its meshes.
+- *Latest wins.* At most one plan runs. A request made while one runs waits, and a newer request
+  replaces it unseen, so the worker plans the newest request next and never one a newer request
+  replaced. A result is delivered when it is newer than every result delivered before; an older
+  one is dropped. A continuous drag therefore keeps showing the plan of a recent position instead
+  of none (dropping every stale result would show nothing while the pointer moves faster than a
+  plan). `cancel()` (Escape, a tool change, a commit, a refusal before planning) withdraws
+  everything requested so far and stops the running plan at its next checkpoint.
+- *Shown and drawn.* The viewport shows a delivered plan only for the document and revision it was
+  planned at. Its candidate goes through R096.f1's display path (the candidate tiles in place of
+  those they replace, seam-ring normals, per-tile contours); its refusal is marked at the pointer.
+  The changed region's outline is the boundary of the triangles the change adds, drawn as f1's
+  hatched band.
+- *Commit.* A release (or Enter, or a typed value) commits the newest command through the batch API
+  (`ToolSession`, a new edit, never an amend) as one labelled edit. It is the command whose plan
+  is shown when the plan is current; a refused current plan is not committed. The committed tiles
+  equal the previewed candidate's bit for bit (tested from real input for a drag, an added contour
+  and a promotion).
+
+**Edit contours (UX §15.3, §15.7).**
+- *Shown.* The current sources of the selected terrain (else of the terrain under the pointer, or
+  the first in the open context) in model coordinates, cached per terrain record: contours solid at
+  1.5 px, breaklines dash-dot, spot points as crosses (at most 20,000 drawn). Boundary and hole
+  sources are not drawn. Display contours fade (a constant blend alpha of 0.3, never in exports).
+  Many points are projected with one matrix (`ScreenProjector`).
+- *Hover, select, handles.* Sources within 6 px of the pointer, nearest first; Tab cycles them
+  (§4.2). A click selects; handles: squares on vertices, rounds at midpoints (a closed ring's
+  repeated start is one vertex). With a source selected, Tab and Shift+Tab move the focused handle
+  (§15.7). A click on a handle focuses it.
+- *Drag.* A drag moves the vertex in the horizontal plane at its own elevation (a contour keeps its
+  level; a breakline vertex its Z); a round handle inserts a vertex at the midpoint and moves it.
+  Each move requests the preview of `terrain.edit_source` with the source's new points (contours
+  as `[x, y]`, so the command keeps their one elevation). Release commits "Edit contour" and keeps
+  the source selected with the moved vertex focused.
+- *Refusals at the pointer.* A refused plan withdraws the candidate and draws the moved run (the
+  dragged vertex and its neighbours) red and dashed, a red square at the vertex, an × at the first
+  problem location, and a failure label; the status bar repeats it with the place in site
+  coordinates (`E …, N …`, or model `x, y` without a site), in the failure style. Labels by kind:
+  `crossing-constraints` "Crosses contour 106.00 m" (or a breakline, a pad's outline, a draped line
+  or a grading ray), `outside-outline` "Leaves the terrain's outline", `inside-pad` "Enters Pad
+  (change #N)", `crossed-by-change` the UX sentence ("This contour is crossed by Drape (change #4);
+  remove that change to re-elevate it alone"), `pad-source` and `drape-source` naming the change,
+  `conflicting-duplicate` and `triangle-budget`. Releasing a refused drag changes nothing.
+- *Typing, keys, strip.* A number sets the selected contour's or breakline's elevation (model Z,
+  the box labelled Elevation); a typed position (`[x, y]` or `@E, N`) moves the focused handle (a
+  midpoint inserts a vertex), or, with nothing focused, selects the source passing nearest it within
+  2 m. Delete removes the focused vertex, Shift+Delete (or Remove) the source; Delete and Backspace
+  are taken from the window's shortcuts only while they act here. The strip shows the selected
+  source ("Contour 105.00 m · source 17"), its Role (Contour or Breakline) and Elevation; a pad's
+  or a drape's line shows its change, with Role, Elevation and Remove unavailable.
+- *Adding.* Add contour, Add breakline and Add spot draw as the Line tool: clicks (or typed
+  positions) on the surface, Enter finishes, a contour's first point closes it, Backspace removes the
+  last point. A new contour takes its first point's elevation unless one is typed first; a spot
+  point the typed elevation, or the surface's on Enter. With two points (one for a spot) the
+  addition previews on the worker. Promote previews the display contour under the pointer (the
+  display level nearest the surface there, from the interval and the site offset) and a click
+  commits `terrain.add_source {level, at}`. After adding a contour or breakline the tool returns to
+  editing with the new source selected.
+
+**Choices where the design is open, and deviations (part 1).**
+- The mockup's strip has a Remove button besides Add contour, Add breakline, Add spot and Promote;
+  it is built (Shift+Delete does the same).
+- A typed elevation is model Z, as the Terrain section and the Elevation field report.
+- Adding a contour or breakline ends in editing mode with the new source selected, so a typed
+  elevation adjusts it; Add spot stays in its mode for the next point.
+- Tab: with a source selected it moves between the source's handles (§15.7); otherwise it cycles the
+  sources under the pointer (§4.2).
+- A refused typed elevation or strip action is reported in the status bar ("Nothing changed: …"),
+  not at the pointer, since there is no drag; a refused typed elevation also marks the Elevation
+  field or the Measurements box.
+- An imported point file (a spot-point source of more than 20,000 points) is drawn only while
+  hovered: as the base of a points terrain it would cover the view, and drawing it costs the
+  frame. Fewer than 2,000 points in view are crosses, more are dots.
+- A release, a commit and a refusal message stay in the status bar until the pointer moves or a
+  key acts, so the tool's instruction does not replace them at once.
+
+**Measured (part 1)** from the input event to the presented frame, with f1's harness and
+conditions (`terrain_budget_benchmark --edit-frames 64`; Release, the pinned image's Xvfb at
+1920 × 1080 with host llvmpipe, `--cpus=4`, 10 GiB, load average 2–7 from other sessions). The
+contour drag uses the 416-ring terrain (249,298 triangles, 3,169 tiles): three 0.1 m steps
+outward of the source vertex nearest the middle of each of the 64 largest tiles, the view framing
+16 m around it. Each step is timed from the move event to the completed frame showing the worker's
+candidate for that step; the release from its event to the frame showing the committed tiles. The
+Add breakline row uses the point terrain built from 2 % fewer points (244,970 triangles, as R096.d
+and R096.e measured, since additions add triangles): two clicks 5 to 40 m apart through the middle
+of each of the 64 largest tiles, timed from the second click; the budget row keeps the samples
+whose touched tiles hold at most 2,048 triangles (63 of 64). Figures are the best of three runs,
+with the range.
+
+| Operation | p50 / p95 (max) | of which, p95: event, wait for the worker (plan), display build, frame | Cavity; touched triangles (max) |
+| --- | ---: | --- | --- |
+| Contour drag preview (192 steps) | 47.2 / 52.6 ms (55.6); runs 52.6–83.6 | 2.1, 0.7 (0.5), 11.0, 48.8 ms | 16; 942 |
+| Add breakline preview (63) | 44.6 / 57.0 ms (64.8) | 0.8, 0.8 (0.6), 29.4, 53.6 ms | 43; 2,006 |
+| Contour edit commit, one tile (64) | 103.1 / 113.6 ms (116.0); runs 113.6–170.9 | event 56.8, cache rebuild 19.1, frame 53.9 ms | |
+
+- **Contour-edit preview, p95 ≤ 100 ms for cavities up to 2,048 triangles:** met under llvmpipe,
+  at 53–84 ms across the runs (57 ms for added breaklines). The worker's plan is under 1 ms
+  (R096.c measured cavities of up to 1,975 triangles at ≤ 16.1 ms in the core) and its delivery
+  under 1 ms more; the rest is the software frame (about 49 ms without a candidate) and the
+  candidate's display build. Two things were needed to get here:
+  - The viewport no longer repaints on a pointer move while the plan it asked for is on the worker
+    (at most 40 ms): the frame that follows the input shows the candidate. Before, the move's own
+    frame and then the plan's frame both came after the input, and the preview measured
+    135–153 ms p95, two software frames.
+  - The tool draws only the runs of source lines in view, and a point source of more than 20,000
+    points only while hovered; before, drawing every source (124,800 ring vertices, or 122,500
+    spot-point crosses) cost the frame 80 ms to 1.4 s.
+  The cavities in these samples are small (a vertex moved within its neighbours, a short line);
+  the frame does not grow with the cavity but with the touched tiles, which the budget bounds.
+- **One-tile contour commit:** p95 114–171 ms, as R096.f1b's sculpt commit (106–117 ms): the
+  command and refresh (57–74 ms) and the commit frame's rebuild (19–26 ms) are the CPU part, the
+  rest the software frame. The AMD session (R096.g) judges it on hardware.
+
 ## Sources
 
 Retrieved by web search on 2026-10-19.
