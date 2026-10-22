@@ -1789,7 +1789,8 @@ jobs:
           SKETCHYUP_PACKAGE_SANDBOX=1 bash /work/package/verify-package.sh
   # The declared minimum, Qt 6.8.0, compiles (ADR 0170): the other jobs build on the pinned
   # Qt 6.11.2, whose transitive includes hide a missing #include (D-047). This job builds
-  # every target on the release walkthrough's reference snapshot and runs no tests.
+  # every default target (`all`) on the release walkthrough's reference snapshot and runs
+  # no tests; the EXCLUDE_FROM_ALL benchmarks and the Clang fuzzers are not built.
   qt68:
     name: Qt 6.8 reference compile
     needs: plan
@@ -1850,7 +1851,7 @@ jobs:
       - name: Record toolchain
         id: toolchain
         run: |
-          pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa ccache
+          pacman -Q cmake ninja gcc qt6-base qt6-wayland mesa ccache mold
           test "$(pacman -Q qt6-base | cut -d' ' -f2 | cut -d- -f1)" = 6.8.0
           echo "gcc=$(pacman -Q gcc | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
       - name: Restore the compiler cache
@@ -1866,7 +1867,7 @@ jobs:
         run: |
           ccache --zero-stats
           ccache --show-config
-      - name: Compile every target on Qt 6.8.0
+      - name: Compile all targets on Qt 6.8.0
         # -k 0 keeps going past errors, so one run lists every break. The fast preset
         # (no debug info, shared libraries, mold) compiles the same sources as `dev`.
         run: |
@@ -1876,7 +1877,8 @@ jobs:
         if: always()
         run: ccache --show-stats --verbose
       - name: Save the compiler cache
-        if: success() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '')
+        # A failed build still saves its objects, so the rerun after a fix starts warm.
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || steps.ccache-restore.outputs.cache-matched-key == '') }}
         uses: actions/cache/save@v5
         with:
           path: /ccache
