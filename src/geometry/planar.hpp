@@ -19,4 +19,5 @@ struct PlanarResult {
 // void. Newly closed regions form faces; unrelated open networks remain wires.
 PlanarResult insertPlanarEdges(const Surface &source, Vec3 origin, Vec3 normal,
                                const std::vector<std::array<Vec3, 2>> &edges, bool heal = false);
+inline constexpr int ciTimingProbe = 1; // TEMP CI timing probe
 } // namespace sketchy
