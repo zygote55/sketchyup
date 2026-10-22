@@ -4,7 +4,9 @@
 
 A minor release that adds terrain and site tools (scope row F03). Additive: existing
 commands, queries and schemas keep their shapes. The summary is in the
-[1.3.0 release notes](docs/RELEASE_NOTES.md). The entries under "Details" are the changes on
+[1.3.0 release notes](docs/RELEASE_NOTES.md), which also list the fixes since 1.2.0 that
+have no entry below (ADR 0167 recoverable replies, D-038, D-039, D-023, D-032, `anyOf`
+validation and the 88 px tool rail). The entries under "Details" are the other changes on
 `main` since 1.2.0.
 
 - Terrain: import from DXF contours and point files, or from model edges, as a tiled
@@ -109,7 +111,7 @@ Details:
   a new `terrain.stamp_pad` command (automation sessions and MCP; hidden from the in-app
   assistant) flattens a footprint (a horizontal face, the lowest horizontal face of a group or
   component, a closed edge loop or a polygon) to a pad elevation and grades the ground around it
-  by cut and fill slopes to where they meet the ground (default 1:2, up to 100 m) or by a band of
+  by cut and fill slopes to where they meet the ground (default 1:2, within a 100 m maximum distance by default) or by a band of
   fixed width. The pad, its slopes and the daylight line are one undoable edit ("Stamp pad")
   recorded in the terrain's edit list, so Regenerate reproduces it; grading rays that cross at
   tight corners are dropped and reported. Pads are protected: sculpt and smooth leave them, and

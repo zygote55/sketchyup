@@ -41,8 +41,9 @@ the limits.
   flat-triangle flips and Steiner fill, with the result shown before it applies.
   **Regenerate** rebuilds a terrain whose tiles no longer match its sources. **Explode
   terrain…** turns it into ordinary geometry when the faces fit the modelling budget.
-  Push/pull, Offset, Follow Me, the Solid tools and the drawing tools show a not-allowed
-  cursor over a terrain, with Explode offered in the status bar; Select, Paint, tags,
+  Push/pull, Offset, Follow Me, the Solid tools and Face orientation (and, inside an open
+  terrain, the drawing, guide and transform tools) show a not-allowed cursor over a terrain,
+  with Explode offered in the status bar; Select, Paint, tags,
   hiding, locking and moving the whole terrain work as usual. A new **Terrain** menu,
   between Draw and Camera, holds the terrain tools and actions.
 - **Display.** A new terrain uses the built-in **Terrain** material and draws as one smooth
@@ -70,8 +71,8 @@ the limits.
 
 ### Terrain editing, drape and stamp
 
-Every terrain change is one undoable edit, kept in the terrain's list of edits (up to
-4,096), so Regenerate and Terrain settings rebuild the terrain from its sources and replay
+Every change to a terrain's shape, sources or paint is one undoable edit, kept in the
+terrain's list of edits (up to 4,096 entries or 8 MiB), so Regenerate and Terrain settings rebuild the terrain from its sources and replay
 the list. An edit replaces only the tiles it touches and leaves the rest of the terrain
 untouched. [ADR 0169](decisions/0169-terrain-editing-drape-stamp.md) defines the edits and
 their limits.
@@ -91,7 +92,8 @@ their limits.
   in site coordinates, and changes nothing.
 - **Stamp pad.** Flattens a footprint (a horizontal face, a group's or component's lowest
   horizontal face, a closed loop or a clicked polygon) to a pad elevation. It grades the
-  ground around it by cut and fill slopes to daylight (default 1:2, up to 100 m) or by a
+  ground around it by cut and fill slopes to daylight (default 1:2, with a 100 m maximum
+  distance by default) or by a
   band of fixed width. The preview tints cut and fill and draws the slope rays and the
   daylight line. A remembered **Pad offset** sets the pad below the footprint. Pads are
   protected: sculpting leaves them, and contour edits and other pads that would enter one
@@ -150,7 +152,8 @@ tasks, prompts, limits and instructions with the new tool lists
   L-shapes, faces with holes) and section caps of similar size could send tessellation into
   unbounded memory growth. That hung an edit, a load or a render until the system stopped
   SketchyUp. The vendored Clipper2 triangulation now tests crossings exactly and bounds its
-  work. Faces that tessellated before give the same triangles.
+  work, refusing a face it cannot triangulate instead of growing. Faces that tessellated
+  before give the same triangles.
 - **Annotations follow geometry.** Paper dimensions and leader labels on sheets survive
   edge splits and Make component, and model dimensions and labels survive Make component
   and Make group. Ambiguous cases still break, and **Reattach** repairs them. This lifts the
@@ -173,8 +176,8 @@ site origin**. Otherwise it writes schema 28 (with component parameters), 27 (wi
 or 26, as 1.2.0 does; these differ from a 1.2.0 save only in the writer string. A terrain's
 mesh is stored in a binary `terrain-mesh` chunk. SketchyUp 1.2.0 refuses a schema-29 file
 with "Unsupported container field" and leaves it unchanged (checked against the published
-1.2.0-1 package; [R095.f](verification/R095f-terrain.md)). Earlier releases read at most
-schema 28 and refuse it too. A terrain made from model edges needs no site origin, so
+1.2.0-1 package; [R095.f](verification/R095f-terrain.md)). SketchyUp 1.1.x and 1.0.x read
+at most schema 27 and 26 and refuse it too. A terrain made from model edges needs no site origin, so
 exploding it returns the document to its lower schema; a document with a site origin
 stays at schema 29. 1.3.0 reads document versions 1 through 29. Terrain documents saved
 by development builds before 1.3.0 may need to be re-created, because schema 29 could
@@ -203,15 +206,17 @@ import a terrain into it.
 | Native document | Schema `sketchyup-document-v29` in SKUPDOC container version 2 for documents with a terrain or a site origin; v28 for documents with component parameters; v27 for documents with sheets; v26 otherwise. Reads versions 1 through 29. Saves record the writer `SketchyUp/1.3.0` |
 | MCP, inspection, transactions and other public schemas | Same versions as 1.0.0 (below), with the additive sheet (1.1.0), component parameter (1.2.0) and site and terrain (1.3.0) operations and queries |
 | Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the 1.2.0 limits. Evaluated at the release candidate against corpus v5; the results are in the release record |
-| New third-party code | CDT 2.0.0 (MPL-2.0, header-only) for terrain triangulation, listed in `THIRD_PARTY_NOTICES` |
+| New third-party code | CDT 2.0.0 (MPL-2.0, header-only, with bundled BSD-3-Clause and Apache-2.0-with-LLVM-exception files) for terrain triangulation. Its licenses install to `/usr/share/licenses/sketchyup` and are in the release's `THIRD_PARTY_NOTICES` |
 
 Qt, OpenGL and Blender requirements are unchanged from 1.0.0.
 
 ### Known limitations
 
 The 1.2.0, 1.1.0 and 1.0.0 limitations below still apply, except that F01, F02 and F03 are
-now delivered and the sheet-annotation limitation is lifted (above). For terrain and site
-tools:
+now delivered and these are lifted (see "Other changes"): the sheet-annotation limitation of
+1.1.0 and 1.2.0, the focus-ring contrast residuals (D-023, 1.0.0), the fractional-scale focus
+ring (D-032, 1.1.0) and the extra cost of moving variant placements (D-039, 1.2.0). For terrain
+and site tools:
 
 - **Sources.** DXF contours, point files and model edges only. No LandXML, GeoJSON,
   GeoTIFF/DEM or LAS/LAZ import, and no LandXML export. The CRS label is informational:
@@ -225,14 +230,18 @@ tools:
   **Restamp**).
 - **Paint on individual tiles is lost when they are rebuilt.** Regenerate asks first;
   Drape's region paint is the way to keep paint across edits.
-- **Limits:** 250,000 terrain triangles a document, 2,048 a tile and 4,096 edits a terrain.
+- **Limits:** 250,000 terrain triangles a document, 2,048 a tile and 4,096 edits (8 MiB) a
+  terrain. The proof that an edit leaves distant terrain untouched was run on terrains of up
+  to 60,000 triangles, not at the 250,000 limit.
   Terrain edits have their own 512 MiB undo history; when it fills, the oldest terrain
   undo steps are dropped. A whole-terrain region paint keeps about 140–157 MB in memory
   while it can be undone.
 - **Performance is measured on one AMD discrete GPU.** On an RX 6800 XT every one-tile
   commit is within 100 ms (sculpt 55.6–74.0 ms, contour edit 90.2–92.3 ms, stamp 70.2–71.6
-  ms, drape 51.6–51.8 ms) and every preview within 21.9 ms
-  ([R096.g](verification/R096g-terrain-editing.md#budgets)). Under software rendering the
+  ms, drape 51.6–51.8 ms) and every one-tile preview within 21.9 ms
+  ([R096.g](verification/R096g-terrain-editing.md#budgets)). The contour-edit commit has only
+  8–10 ms of headroom. Larger edits take longer and have no budget: a sculpt that touches nine
+  tiles previews in 39.2–63.3 ms and commits in 236.6–406.0 ms. Under software rendering the
   sculpt, contour-edit and stamp commits take longer than 100 ms. Intel graphics are untested
   (waived, [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md)).
 - **The in-app assistant cannot import, edit or explode a terrain**; MCP and the
