@@ -1,5 +1,6 @@
 #include "core/model.hpp"
 #include "geometry/arrangement.hpp"
+#include <functional>
 #include <iostream>
 #include <random>
 #include <set>
@@ -42,6 +43,149 @@ void adjacency(const Body &body) {
         for (auto edge : edges)
             check(topology.edges.at(edge).a == id || topology.edges.at(edge).b == id,
                   "Vertex incidence");
+}
+// R096.g: compareTopology builds the adjacency maps only when an edge ID is on both sides. These
+// references are the full path (adjacency on both sides, in order): every one-sided or disjoint
+// comparison must give the same changes and refuse with the same message.
+std::string refusal(const std::function<void()> &f) {
+    try {
+        f();
+    } catch (const std::exception &error) {
+        return error.what();
+    }
+    return {};
+}
+std::vector<Id> referenceModified(const Surface &before, const Topology &beforeTopology,
+                                  const Surface &after, const Topology &afterTopology) {
+    const auto oldAdjacency = beforeTopology.adjacency(before);
+    const auto nextAdjacency = afterTopology.adjacency(after);
+    std::vector<Id> modified;
+    for (const auto &[id, edge] : beforeTopology.edges) {
+        if (!afterTopology.edges.contains(id))
+            continue;
+        const auto &next = afterTopology.edges.at(id);
+        if (before.vertices.at(edge.a) != after.vertices.at(next.a) ||
+            before.vertices.at(edge.b) != after.vertices.at(next.b) ||
+            oldAdjacency.edgeFaces.at(id) != nextAdjacency.edgeFaces.at(id))
+            modified.push_back(id);
+    }
+    return modified;
+}
+bool sameEntities(const EntityChanges &a, const EntityChanges &b) {
+    return a.created == b.created && a.deleted == b.deleted && a.modified == b.modified &&
+           a.descendants == b.descendants;
+}
+void oneSidedComparisons() {
+    // Two tiles of a terrain-like mesh: the second replaces the first with new IDs throughout.
+    Surface tile;
+    for (int row = 0; row < 3; ++row)
+        for (int column = 0; column < 3; ++column) {
+            const double x = column, y = row;
+            tile.addFace({{{x, y, 0.1 * row}, {x + 1, y, 0.1 * row}, {x + 1, y + 1, 0.1 * row + 0.1}}});
+            tile.addFace({{{x, y, 0.1 * row}, {x + 1, y + 1, 0.1 * row + 0.1}, {x, y + 1, 0.1 * row + 0.1}}});
+        }
+    const auto tileTopology = Topology::rebuild(tile, {});
+    Surface rebuilt;
+    rebuilt.nextId = tile.nextId;
+    for (const auto &[id, face] : tile.faces) {
+        std::vector<Vec3> points;
+        for (auto vertex : face.loops.front())
+            points.push_back(tile.vertices.at(vertex) + Vec3{0, 0, 0.5});
+        rebuilt.addFace({points});
+    }
+    const auto rebuiltTopology = Topology::rebuild(rebuilt, {}, tileTopology.nextId);
+    for (const auto &[id, edge] : rebuiltTopology.edges)
+        check(!tileTopology.edges.contains(id), "The rebuilt tile shares no edge ID");
+    const Surface empty;
+    const Topology none;
+    struct Case {
+        const Surface &before;
+        const Topology &beforeTopology;
+        const Surface &after;
+        const Topology &afterTopology;
+    };
+    const std::vector<Case> cases{{empty, none, tile, tileTopology},
+                                  {tile, tileTopology, empty, none},
+                                  {tile, tileTopology, rebuilt, rebuiltTopology}};
+    for (const auto &c : cases)
+        for (bool infer : {true, false}) {
+            const auto changes =
+                compareTopology(c.before, c.beforeTopology, c.after, c.afterTopology, infer);
+            check(changes.edges.modified ==
+                      referenceModified(c.before, c.beforeTopology, c.after, c.afterTopology),
+                  "A one-sided comparison reports the full path's modified edges");
+            check(changes.edges.modified.empty(), "No edge is modified across disjoint IDs");
+            const auto again =
+                compareTopology(c.before, c.beforeTopology, c.after, c.afterTopology, infer);
+            check(sameEntities(changes.vertices, again.vertices) &&
+                      sameEntities(changes.edges, again.edges) &&
+                      sameEntities(changes.faces, again.faces),
+                  "Deterministic one-sided comparison");
+        }
+    check(compareTopology(empty, none, tile, tileTopology).edges.created.size() ==
+              tileTopology.edges.size(),
+          "A created tile's edges are all created");
+    check(compareTopology(tile, tileTopology, empty, none).edges.deleted.size() ==
+              tileTopology.edges.size(),
+          "An erased tile's edges are all deleted");
+    // Each defect validation catches, on either side of a one-sided or disjoint comparison, is
+    // still refused, with the full path's message (the before side first).
+    std::vector<std::pair<std::string, Topology>> defects;
+    auto missing = tileTopology;
+    missing.edges.erase(missing.edges.begin());
+    defects.emplace_back("missing edge record", missing);
+    auto wire = tileTopology;
+    wire.edges.begin()->second.wire = true;
+    defects.emplace_back("wrong wire flag", wire);
+    auto allocator = tileTopology;
+    allocator.nextId = 0;
+    defects.emplace_back("zero allocator", allocator);
+    auto stale = tileTopology;
+    stale.nextId = stale.edges.rbegin()->first;
+    defects.emplace_back("allocator below an ID", stale);
+    auto reversed = tileTopology;
+    std::swap(reversed.edges.begin()->second.a, reversed.edges.begin()->second.b);
+    defects.emplace_back("reversed endpoints", reversed);
+    auto foreign = tileTopology;
+    foreign.edges.begin()->second.b = rebuilt.vertices.rbegin()->first;
+    defects.emplace_back("unknown endpoint", foreign);
+    auto rebuiltMissing = rebuiltTopology;
+    rebuiltMissing.edges.erase(rebuiltMissing.edges.begin());
+    Surface degenerate = tile;
+    degenerate.vertices.begin()->second = std::next(degenerate.vertices.begin())->second;
+    for (const auto &[name, defect] : defects) {
+        const auto message = refusal([&] { defect.adjacency(tile); });
+        check(!message.empty(), "The defect is one validation refuses");
+        auto expect = [&](const std::function<void()> &f, const std::string &want) {
+            if (refusal(f) != want)
+                throw std::runtime_error("One-sided comparison changed the refusal of " + name);
+        };
+        expect([&] { compareTopology(empty, none, tile, defect); }, message);
+        expect([&] { compareTopology(tile, defect, empty, none); }, message);
+        expect([&] { compareTopology(tile, defect, rebuilt, rebuiltTopology); }, message);
+        expect([&] { compareTopology(tile, defect, tile, tileTopology); },
+               refusal([&] { referenceModified(tile, defect, tile, tileTopology); }));
+        const auto rebuiltMessage =
+            refusal([&] { referenceModified(rebuilt, rebuiltTopology, tile, defect); });
+        expect([&] { compareTopology(rebuilt, rebuiltTopology, tile, defect); }, rebuiltMessage);
+        // Both sides defective: the before side's message, as before.
+        expect([&] { compareTopology(tile, defect, rebuilt, rebuiltMissing); }, message);
+    }
+    const auto degenerateMessage = refusal([&] { tileTopology.adjacency(degenerate); });
+    check(!degenerateMessage.empty(), "A degenerate edge is refused");
+    check(refusal([&] { compareTopology(empty, none, degenerate, tileTopology); }) ==
+              degenerateMessage,
+          "A created degenerate edge is refused as before");
+    check(refusal([&] { compareTopology(degenerate, tileTopology, empty, none); }) ==
+              degenerateMessage,
+          "An erased degenerate edge is refused as before");
+    // An edge on both sides still uses the adjacency: a moved vertex modifies its edges.
+    auto moved = tile;
+    moved.vertices.begin()->second.z += 0.25;
+    const auto changes = compareTopology(tile, tileTopology, moved, tileTopology);
+    check(!changes.edges.modified.empty() &&
+              changes.edges.modified == referenceModified(tile, tileTopology, moved, tileTopology),
+          "Shared edges are still compared through the adjacency");
 }
 int main() {
     try {
@@ -153,6 +297,7 @@ int main() {
             check(wires.bodies().at(context)->topology.nextId >= previousFloor,
                   "Monotonic edge allocation");
         }
+        oneSidedComparisons();
         std::cout
             << "Persistent edge records, radial adjacency, lineage and 120 seeded edits passed\n";
         return 0;
