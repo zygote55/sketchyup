@@ -1805,7 +1805,7 @@ jobs:
       QT68_ARCHIVE: https://archive.archlinux.org/repos/2024/10/15
       QT68_PACKAGES: cmake ninja pkgconf openssl qt6-base qt6-wayland wayland mesa python ccache mold
     runs-on: ubuntu-latest
-    container: mirror.gcr.io/library/archlinux@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2
+    container: mirror.gcr.io/library/archlinux:base-devel-20241013.0.269705@sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
