@@ -28,6 +28,7 @@
 #include <algorithm>
 namespace sketchy {
 namespace {
+[[maybe_unused]] constexpr int ciTimingProbe = 1; // TEMP CI timing probe
 constexpr const char *railGroupNames[] = {"Select", "Draw",    "Modify",
                                           "Measure", "Terrain", "Camera"};
 // The tool rail's group button (§3.3): the shown group's name and a down-chevron after it,
