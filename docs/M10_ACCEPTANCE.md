@@ -8,7 +8,7 @@ record. The first is scope row F01, documentation sheets ([SCOPE.md](SCOPE.md)),
 released as SketchyUp 1.1.0. Its record is `docs/verification/F01-1.1.0.md`. The second
 is scope row F02, configurable components, released as SketchyUp 1.2.0 on 2026-10-17. Its record
 is `docs/verification/F02-1.2.0.md`. The third is scope row F03, terrain and site tools, released as
-SketchyUp 1.3.0. Its record is `docs/verification/F03-1.3.0.md`.
+SketchyUp 1.3.0 on 2026-10-22. Its record is `docs/verification/F03-1.3.0.md`.
 
 The gate builds on the accepted 1.0 gate ([M9 acceptance](M9_ACCEPTANCE.md),
 [record](verification/M9.md)). It does not re-audit M0–M9. It shows that the

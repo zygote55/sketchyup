@@ -8,9 +8,9 @@ Arch/Omarchy is the primary development environment.
 
 ## Current build
 
-**[SketchyUp 1.2.0](https://github.com/zygote55/sketchyup/releases/tag/v1.2.0) is the current release**
+**[SketchyUp 1.3.0](https://github.com/zygote55/sketchyup/releases/tag/v1.3.0) is the current release**
 ([release notes](docs/RELEASE_NOTES.md)). It covers the 1.0 Core scope and adds documentation
-sheets (scope row F01) and configurable components (scope row F02), not full SketchUp parity; see the [support matrix](docs/SUPPORT_MATRIX.md). Draw lines,
+sheets (scope row F01), configurable components (scope row F02) and terrain and site tools (scope row F03), not full SketchUp parity; see the [support matrix](docs/SUPPORT_MATRIX.md). Draw lines,
 freehand strokes, rectangles, polygons, circles, arcs and pie sectors on explicit or hovered planes, select
 faces, push/pull planar regions, move/rotate/scale/flip selected geometry, copy and
 color objects, undo/redo, and save/reopen native `.sketchyup` files. Faces retain

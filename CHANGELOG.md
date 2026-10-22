@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 — unreleased
+## 1.3.0 — 2026-10-22
 
 A minor release that adds terrain and site tools (scope row F03). Additive: existing
 commands, queries and schemas keep their shapes. The summary is in the
@@ -23,6 +23,8 @@ and other provider stream errors are named with their code and message (D-046). 
 - Format: schema 29 (`terrain-v1`) is written only for documents with a terrain or a site
   origin. SketchyUp 1.2.0 refuses those files unchanged.
 - Package: Arch `sketchyup` 1.3.0-1, upgrading from 1.2.0-1.
+
+Tag `v1.3.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.3.0).
 
 Details:
 
