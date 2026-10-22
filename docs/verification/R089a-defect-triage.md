@@ -126,6 +126,14 @@ parse, preparation, triangulation and tiling now report stage progress and stop 
 the import dialog and the roles step of Create terrain from selection show the stage with a
 progress bar, and Cancel, closing the dialog or a changed setting stops the running dry run within
 55 ms at 250,000 triangles; see "Closed by the D-044 fix" below and the counts.
+**Updated 2026-10-21 (D-046 added and fixed; branch `fix/provider-stream-error-detail`).** The
+owner-approved corpus v5 run at the first 1.3.0 release candidate (`09b8a061`) stopped after its
+first five tasks, each failing in 4–5 s with "Provider returned an incomplete or invalid
+response". Two owner-approved diagnostic requests showed the cause: the ChatGPT account had
+reached its plan usage limit, and the service streams an `error` event with code
+`subscription_sharing_usage_limit_exceeded` before `response.failed`. The usage-limit message
+was recognised only on `response.failed`, so the generic diagnostic won. Added as D-046 (Minor)
+and fixed on the same branch; see "Closed by the D-046 fix" below and the counts.
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -188,6 +196,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-043 | Terrain edits over about 76,000–151,000 triangles exceed the 64 MiB history budget | This PR (branch `fix/d043-terrain-history-budget`); found by the R095.e2 worker (PR #374) | Terrain (R095): `terrain.import`, `terrain.create_from_edges`, `terrain.regenerate`, `terrain.set_parameters`, `terrain.explode`, the import and settings dialogs | **Fixed 2026-10-19** (see "Closed by the D-043 fix"). Was: a terrain is created, regenerated or exploded as one edit whose tile bodies are charged at about 440 B per triangle, and `Document::applyEdit` refused any edit over the 64 MiB `historyLimit` with a raw `runtime_error` ("Edit exceeds the 64 MiB history budget"). Create and import refused above 151,250 triangles (275 × 275 grid), Regenerate and Explode above 76,050 (their before and after are both charged), well under the 250,000-triangle document limit (ADR 0168 decision 3). Commands and sessions reported it as `INVALID_OPERATION`, the CLI as a failed `INVALID_OPERATION`, and the import dialog showed the raw text after a successful dry run | Major | A broken workflow inside the declared terrain limit, with a workaround (a coarser or split terrain); nothing was changed by the refusal | Fixed: terrain's own history budget (`Document::terrainHistoryLimit`, 512 MiB charged) for the record, tile and lineage changes of terrain edits; general history unchanged |
 | D-044 | Terrain import parse and triangulation show no progress and cannot be cancelled | [R095.f](R095f-terrain.md#gaps-and-defects); ADR 0168 §6 Budgets | Terrain (R095): File → Import terrain…, Create terrain from selection's roles step, `sketchyup-cli --import-terrain` | **Fixed 2026-10-19** (see "Closed by the D-044 fix"). Was: ADR 0168 §6 budgets parse and triangulate at "≤ 3 s, with progress and cancel". The import dialog ran the dry run on a worker and showed only "Checking…" in its footer and the preview; its Cancel closed the dialog, and the dialog's destructor waited for the running dry run (`pool_.waitForDone()`), because `runTerrainImport` and `triangulateTerrain` took no cancellation or progress callback. The CLI printed one result at the end. The dry run took 0.36–0.50 s at 250,000 triangles, so the wait was short. | Minor | A missing part of a performance budget whose time limit is met; no wrong result, and closing the dialog changed nothing | Fixed: a `TerrainProgress` (stage progress and cancellation) through parsing, preparation, triangulation (with CDT's upstream abort hook) and tiling; stage text and a determinate bar in both dialogs; Cancel, closing and a changed setting cancel the run; CLI stage progress on a terminal |
 | D-045 | A 250,000-triangle terrain grows its file by about 12 MB, over the 8 MB file-growth budget | [R095.f](R095f-terrain.md#budgets); ADR 0168 §6 Budgets | Terrain (R095): persistence | **Closed (2026-10-19): budget restated by the owner.** Budget: "File growth ≤ 8 MB (binary mesh chunk)". Measured (Release, `terrain_budget_benchmark`): the `terrain-mesh` chunk is 6.31 MB for 249,970 triangles from 125,000 points and 7.57 MB for 249,298 triangles from 416 contour rings (3,169 tiles), within 8 MB; the whole file grows by 12.51 MB and 12.26 MB, because the document chunk also holds the terrain record's stored sources as JSON text (6.08 MB and 3.13 MB) and the tile body records. Open and save stay within their 2 s budgets. | Minor | A size budget missed by about half with no functional effect; the sources are stored by design (decision 7 and R095.c2's Regenerate). Whether the budget covers only the chunk, as its parenthesis says, is an owner question | Closed: the owner restated the budget as the `terrain-mesh` chunk (ADR 0168 §6, 2026-10-19); the stored sources are measured and reported, not budgeted. No format change |
+| D-046 | A ChatGPT-plan usage limit is reported as an incomplete or invalid response | [F03-rc-1.3.0](F03-rc-1.3.0.md) (1.3.0 RC1 corpus run, owner-approved diagnostic requests) | A04, A05 (Assistant panel, ChatGPT-plan connection) | **Fixed 2026-10-21** (see "Closed by the D-046 fix"). Was: the plan service answers HTTP 200 and streams `error` (`error.code` `subscription_sharing_usage_limit_exceeded`) before `response.failed`. `completedOpenAiStream` mapped the usage-limit codes to the "Manage ChatGPT usage" message only on `response.failed`, so the `error` event ended the task with the generic "Provider returned an incomplete or invalid response", and neither the panel nor `provider_trial` said why. Present since the usage-limit handling; 1.2.0 has it | Minor | A wrong diagnostic: the task stops as it should, nothing is applied and the document is unchanged | Fixed: the usage-limit codes are recognised on the `error` event too; any other stream error ends with "Provider returned an error: CODE: MESSAGE" from sanitized fields (ADR 0034 addendum), and `provider_trial` records them as `streamError` |
 | D-040 | Weston 15.0.1 segfaulted in `weston_view_animation_destroy` during a CI Wayland 2× line | [main run 38920762782](https://github.com/zygote55/sketchyup/actions/runs/38920762782) (job 117047789178, `9d3a786c`) | N03 (test harness) | **Mitigated (unconfirmed) 2026-10-18; stays open** until CI has run a reasonable period without the crash. Once on `main` (2026-10-16): after `section_viewport_tests` passed, the next line (`style_input_tests`, Wayland 2×) ended when the isolated Weston received SIGSEGV; the D-034 trace shows `wl_list_remove` ← `weston_view_animation_destroy` ← `wl_event_loop_dispatch_idle` in Weston's main thread. No SketchyUp check failed. Later `main` runs passed the line. **Cause narrowed (not reproduced).** In Weston 15.0.1, `libweston/animation.c` frees a finished view animation from an idle source (`idle_animation_destroy`, a tail call, so the trace shows `wl_event_loop_dispatch_idle` directly; an `LD_PRELOAD` probe records that caller for every such destroy). The startup fade's idle callback (`do_shell_fade_startup`) only starts a fade and destroys nothing, so it does not match the stack as such (the PR #356 lead). A `wl_list_remove` fault there means the animation was destroyed twice. The only session-time code that destroys a view animation directly, without cancelling its queued idle destroy, is `show_input_panel_surface()` in `desktop-shell/input-panel.c` (the focus animation is off, and shell teardown runs after the loop); upstream `main` is unchanged. The tests reach it: Qt's text-input-v1 shows the `weston-keyboard` panel, and in a 2× run the crashing line, `style_input_tests`, started 5 panel slides and `text_input_tests` 6. With the idle destroy delayed by fault injection, the probe recorded the panel destroying a slide whose idle destroy was still queued. A crash also needs the replacement slide not to reuse the freed block, as when the panel is shown while no surface has keyboard focus. Focus-toggle, window-churn and timed hide/show clients (18 sessions) did not crash Weston. **Mitigation:** `scripts/test-wayland.sh` starts Weston with a generated `weston.ini` holding `[input-method]` `path=` instead of `--no-config`, so `weston-keyboard` never starts and no panel slide runs; no test uses the input method, and removing the helper costs nothing. The other shell animations (startup and close fades) remain, but no direct destroy of them was found during a session. | Minor | An external compositor crash in the isolated test session, like D-020 and D-031; no product frame is involved | [R085](../PR_ROADMAP.md#r085) (test-only): watch CI for recurrence; keep the core dump; close after a clean period. Upstream: report the input-panel double destroy to Weston |
 | D-010 | System Wayland 1.26 client leaks a destroyed-proxy reference | [R062.b proxy](R062b-wayland-proxy.md), [R058.c](R058c-native-diagnostics.md) | N01 | **Open (external).** The leak is reproduced standalone without Qt or SketchyUp. Only sanitized CI uses the patched private client (`scripts/ci-wayland-client.sh`); users get the system library. | Limitation | A 96-byte leak per affected dialog event, in a third-party library. Disclosed in R062.b as "a documented external limitation until a fixed distribution library is available". | [R085](../PR_ROADMAP.md#r085): track the distribution fix |
 | D-011 | Qt Wayland client-decoration framebuffer leak | [R050](R050-native-render-ui.md) | N01 | **Open (external).** Sanitized Wayland steps still set `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` (`.github/workflows/native.yml`). | Limitation | Upstream Qt allocation, with no application frame in the stack. Disclosed in R050 as a test-environment workaround. | [R085](../PR_ROADMAP.md#r085): track upstream |
@@ -396,6 +405,32 @@ Closed by the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`):
   1.5× and 2× and on Wayland at 1× and 2×; `native_accessibility_audit` and every
   `--dialogs-keyboard` group pass on X11 at 1× and 2×; and every other line of the
   fractional-scaling job (1.5× and 1.75×, X11 and Wayland) passes.
+
+Closed by the D-046 fix (2026-10-21, branch `fix/provider-stream-error-detail`):
+
+- **D-046** (a ChatGPT-plan usage limit is reported as an incomplete or invalid response).
+  Class: **Minor** (new and fixed). **Found** by the 1.3.0 RC1 corpus run; the cause was settled
+  by two owner-approved single-request probes (the failing request, and the same request without
+  the three R095.g terrain tools), which got the same `error` and `response.failed` events, so
+  the terrain tools were not involved. **Mechanism.** `completedOpenAiStream`
+  (`src/integrations/openai_provider.cpp`) now reads the error fields of an `error`,
+  `response.failed`, `response.incomplete` or untyped event: `error.*` or the event's own `code`,
+  `message` and `param`, the response `status`, `incomplete_details` and `status_details`. The
+  usage-limit codes on `error` or `response.failed` throw `ProviderUsageLimit` (the existing
+  "Manage ChatGPT usage" message); every other such event throws `ProviderStreamError`
+  (`src/integrations/provider_transport.hpp`), whose fields are bounded (message 512 characters,
+  code and param 128, details 256), have control characters replaced and credential-shaped text
+  (`sk-…`, JWTs, bearer values) redacted. The transport ends the task with "Provider returned an
+  error: CODE: MESSAGE"; `provider_trial` records the fields as `streamError` in the exchange.
+  Raw bodies are still never shown or logged ([ADR 0034 addendum](../decisions/0034-openai-provider.md#addendum-2026-10-21-stream-error-fields-d-046)).
+  **Tests.** `openai_provider_tests` replays the RC1 sequence (`response.created`,
+  `response.in_progress`, `response.metadata`, `error`, `response.failed`) and a flat
+  usage-unavailable `error` (both the usage limit, also through the provider, whose status names
+  "Manage ChatGPT usage"), an `error` with type, code, param and a message holding a newline, a
+  bearer value, an `sk-` key and a JWT (all redacted), a 2,000-character message (bounded), a
+  `response.incomplete` and a `response.failed` with their details, an untyped event, and a
+  `model_not_found` stream through the provider whose status is "Provider returned an error:
+  model_not_found: The model does not exist.".
 
 Closed by the D-044 fix (2026-10-19, branch `fix/d044-terrain-import-progress`):
 
@@ -910,10 +945,10 @@ Closed by the D-028 fix (2026-10-18, branch `test/d027-d028-tooling`):
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 9 | D-006–D-009, D-019, D-031, D-034, D-040, D-044 |
+| Minor | 8 | D-006–D-009, D-019, D-031, D-034, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **23** | |
-| Fixed since the 2026-10-11 refresh | 19 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-027 and D-028 (Minor, added at the RC and fixed 2026-10-18), D-022 (Minor, fixed 2026-10-18 in the fuzz harness), D-023 (Minor, fixed 2026-10-18), D-042 (Release-blocking, added and fixed 2026-10-18), D-043 (Major, added and fixed 2026-10-19), D-045 (Minor, added by R095.f and closed 2026-10-19 by restating the budget) |
+| **Total open** | **22** | |
+| Fixed since the 2026-10-11 refresh | 19 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-027 and D-028 (Minor, added at the RC and fixed 2026-10-18), D-022 (Minor, fixed 2026-10-18 in the fuzz harness), D-023 (Minor, fixed 2026-10-18), D-042 (Release-blocking, added and fixed 2026-10-18), D-043 (Major, added and fixed 2026-10-19), D-045 (Minor, added by R095.f and closed 2026-10-19 by restating the budget), D-044 (Minor, added by R095.f and fixed 2026-10-19), D-046 (Minor, added at the 1.3.0 RC1 and fixed 2026-10-21) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -950,6 +985,11 @@ release-blocking, 0 Major, 8 Minor, 14 Limitation). D-043 was added and fixed on
 After R095.f (2026-10-19, branch `docs/r095f-terrain-acceptance`): 23 open (0 release-blocking,
 0 Major, 9 Minor, 14 Limitation). R095.f added D-044 and D-045 (Minor); D-045 was closed on the
 same branch when the owner restated the file-growth budget as the mesh chunk.
+After the D-044 fix (2026-10-19): 22 open (0 release-blocking, 0 Major, 8 Minor, 14
+Limitation). This line and the table were brought up to date on 2026-10-21; the D-044 row
+already said fixed.
+After the D-046 fix (2026-10-21, branch `fix/provider-stream-error-detail`): 22 open (0
+release-blocking, 0 Major, 8 Minor, 14 Limitation). D-046 was added and fixed on the same branch.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

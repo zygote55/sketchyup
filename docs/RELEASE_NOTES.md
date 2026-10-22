@@ -140,7 +140,12 @@ When the model sends a complete reply that breaks one of the host's rules, the a
 now refuses it with a tool error that names the rule. Before, the whole task stopped
 ([ADR 0167](decisions/0167-recoverable-provider-replies.md)). The model reads the error on
 its next turn and can try again. Unusable replies (transport errors, invalid or incomplete
-responses) and the task's budgets still stop the task. The ChatGPT-plan limits and the
+responses) and the task's budgets still stop the task. When the ChatGPT plan's usage limit is
+reached, the panel now says so and points to Manage ChatGPT usage; 1.2.0 reported "Provider
+returned an incomplete or invalid response" instead (D-046). Any other error the service reports
+in its reply ends the task with "Provider returned an error:" and the service's code and message,
+bounded and with anything shaped like a credential removed
+([ADR 0034 addendum](decisions/0034-openai-provider.md#addendum-2026-10-21-stream-error-fields-d-046)). The ChatGPT-plan limits and the
 instructions are unchanged from 1.2.0. Because the assistant's tool lists changed, 1.3.0
 is evaluated against provider corpus **version 5** at the release candidate: the version 4
 tasks, prompts, limits and instructions with the new tool lists

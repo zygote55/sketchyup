@@ -33,6 +33,45 @@ uint64_t tokens(QJsonValue value, bool positive) {
             "Missing or invalid provider usage");
     return uint64_t(number);
 }
+// D-046 and the ADR 0034 addendum: bounded text with control characters replaced and
+// anything shaped like a credential (API keys, JWTs, bearer values) redacted.
+QString sanitizedProviderText(QString text, int limit) {
+    static const QRegularExpression secret(
+        R"((sk-[A-Za-z0-9_\-]{6,}|eyJ[A-Za-z0-9_\-]{6,}(?:\.[A-Za-z0-9_\-]*)*|[Bb]earer\s+\S+))");
+    text.replace(secret, "[redacted]");
+    for (auto &c : text)
+        if (!c.isPrint())
+            c = ' ';
+    if (text.size() > limit)
+        text = text.left(limit) + QString::fromUtf8("…");
+    return text;
+}
+// The error fields of a streamed error, response.failed or response.incomplete event. An
+// error event carries them in `error` or at its top level; a failed or incomplete response
+// in response.error, response.incomplete_details and response.status_details.
+QJsonObject streamFailure(const QJsonObject &event, const QString &type) {
+    QJsonObject failure{
+        {"event", type.isEmpty() ? QString("(none)") : sanitizedProviderText(type, 64)}};
+    const auto response = event.value("response").toObject();
+    auto error = event.value("error").toObject();
+    if (error.isEmpty())
+        error = response.value("error").toObject();
+    const bool flat = error.isEmpty() && type == "error";
+    const auto &source = flat ? event : error;
+    if (!flat && source.value("type").isString())
+        failure["errorType"] = sanitizedProviderText(source.value("type").toString(), 64);
+    for (const auto &[key, limit] : {std::pair{"code", 128}, {"message", 512}, {"param", 128}})
+        if (source.value(key).isString())
+            failure[key] = sanitizedProviderText(source.value(key).toString(), limit);
+    if (response.value("status").isString())
+        failure["status"] = sanitizedProviderText(response.value("status").toString(), 32);
+    for (const auto &[key, name] : {std::pair{"incomplete_details", "incompleteDetails"},
+                                    {"status_details", "statusDetails"}})
+        if (response.value(key).isObject())
+            failure[name] =
+                sanitizedProviderText(QString::fromUtf8(json(response.value(key).toObject())), 256);
+    return failure;
+}
 } // namespace
 AssistantTask::Limits chatGptAssistantLimits() {
     AssistantTask::Limits limits;
@@ -221,15 +260,18 @@ QByteArray completedOpenAiStream(const QByteArray &stream) {
         require(!terminal, "Unexpected event after completion");
         const auto event = parse(data);
         const auto type = event.value("type").toString();
-        const auto errorCode =
-            event.value("response").toObject().value("error").toObject().value("code").toString();
-        if (type == "response.failed" &&
-            (errorCode == "subscription_sharing_usage_limit_exceeded" ||
-             errorCode == "subscription_sharing_usage_unavailable"))
-            throw ProviderUsageLimit();
-        require(!type.isEmpty() && type != "error" && type != "response.failed" &&
-                    type != "response.incomplete",
-                "OpenAI stream did not complete");
+        if (type.isEmpty() || type == "error" || type == "response.failed" ||
+            type == "response.incomplete") {
+            const auto failure = streamFailure(event, type);
+            const auto errorCode = failure.value("code").toString();
+            // D-046: the plan service sends an `error` event before response.failed, so the
+            // usage-limit codes are recognised on either.
+            if ((type == "error" || type == "response.failed") &&
+                (errorCode == "subscription_sharing_usage_limit_exceeded" ||
+                 errorCode == "subscription_sharing_usage_unavailable"))
+                throw ProviderUsageLimit();
+            throw ProviderStreamError(failure);
+        }
         if (type == "response.created") {
             require(responseId.isEmpty(), "Duplicate response start");
             responseId = event.value("response").toObject().value("id").toString();

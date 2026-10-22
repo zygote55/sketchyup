@@ -134,6 +134,11 @@ class TrialNetwork : public QNetworkAccessManager {
                     try {
                         (*record)["response"] =
                             QJsonDocument::fromJson(completedOpenAiStream(*bytes)).object();
+                    } catch (const ProviderStreamError &error) {
+                        // D-046: the provider's sanitized error fields, never the raw body.
+                        (*record)["streamIncomplete"] = true;
+                        (*record)["streamFailure"] = QString::fromUtf8(error.what());
+                        (*record)["streamError"] = error.detail();
                     } catch (const std::exception &error) {
                         (*record)["streamIncomplete"] = true;
                         (*record)["streamFailure"] = QString::fromUtf8(error.what());
