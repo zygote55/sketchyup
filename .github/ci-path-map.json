@@ -1,0 +1,517 @@
+{
+  "comment": [
+    "Blast-radius map for the CI fast tier (ADR 0170). scripts/ci-plan.py reads it.",
+    "Each changed path collects the areas of every rule whose pattern matches it; the fast tier",
+    "runs the union. '**' matches across directories, '*' within one path segment.",
+    "'@native-fixture-sources' stands for the sources of every executable the full tier's",
+    "X11 1x lines run. ci-plan.py also adds one rule per slow group: the sources of its tests",
+    "(from CMakeLists.txt) select the group, so changing a slow test runs it.",
+    "A path that matches no rule selects the fallback areas, and 'ci-plan.py check' fails",
+    "until a rule covers it. The area 'full' switches the run to the full tier; 'job:<id>' adds that full-tier job.",
+    "The full tier ignores this map and runs everything."
+  ],
+  "areas": {
+    "build": "Build everything (ci-fast preset), run CTest except unselected slow tests, and the repository checks.",
+    "native": "The X11 1x native display tests (the full tier's 'Native tests: X11 1x' lines), in parallel.",
+    "slow-terrain": "Slow terrain CTest suites.",
+    "slow-core": "Slow core geometry and document CTest suites.",
+    "slow-assistant": "The slow provider release corpus.",
+    "blender": "The 'Blender interoperability' job.",
+    "package": "The 'Arch package acceptance' job.",
+    "full": "Run the full tier: the path is a harness most full-tier jobs share.",
+    "job:audit": "Run the full tier's 'Native tests: audit and accessibility' job (with the development build).",
+    "job:fractional": "Run the full tier's fractional-scaling, Blender worker and M5 job (with the development build).",
+    "job:sanitize": "Run the full tier's 'Sanitized builds' job."
+  },
+  "slow_tests": {
+    "slow-terrain": [
+      "terrain_history",
+      "terrain_stamp",
+      "terrain_drape",
+      "terrain_sculpt",
+      "terrain_source_edit",
+      "terrain_replay",
+      "terrain_edit",
+      "terrain_edit_input"
+    ],
+    "slow-core": [
+      "incremental_validation",
+      "document_limits",
+      "variant_edit_cost",
+      "component_parameters"
+    ],
+    "slow-assistant": [
+      "provider_release_corpus"
+    ]
+  },
+  "fallback": [
+    "build",
+    "native",
+    "slow-terrain",
+    "slow-core",
+    "slow-assistant"
+  ],
+  "rules": [
+    {
+      "why": "Prose only. Nothing builds or reads these.",
+      "paths": [
+        "docs/**",
+        "*.md",
+        "LICENSE",
+        ".clang-format",
+        ".gitignore",
+        ".dockerignore"
+      ],
+      "areas": []
+    },
+    {
+      "why": "Published schemas and the generated reference: tests read them and the fast tier checks them against the live registries.",
+      "paths": [
+        "docs/api/**",
+        "docs/TOOL_REFERENCE.md"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "Core geometry and document model: everything builds and the native tests run; the slow core suites run too. The slow terrain and provider suites wait for their own paths or the full tier.",
+      "paths": [
+        "src/core/**",
+        "src/geometry/**",
+        "src/sketchyup/**",
+        "src/solar/**",
+        "third_party/**"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
+      ]
+    },
+    {
+      "why": "Application, automation, I/O and integration code.",
+      "paths": [
+        "src/**",
+        "resources/**",
+        "examples/**"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "Build definition: build and run everything fast, native included.",
+      "paths": [
+        "CMakeLists.txt",
+        "CMakePresets.json",
+        "dependencies.json"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "Terrain code and suites select the slow terrain suites.",
+      "paths": [
+        "src/**/terrain*",
+        "src/app/*sculpt*",
+        "src/app/site_dialogs*",
+        "tests/terrain*",
+        "third_party/cdt/**"
+      ],
+      "areas": [
+        "build",
+        "slow-terrain"
+      ]
+    },
+    {
+      "why": "Assistant and provider code selects the provider release corpus.",
+      "paths": [
+        "src/automation/*assistant*",
+        "src/integrations/*provider*",
+        "src/integrations/chatgpt_auth*",
+        "src/integrations/credential_store*",
+        "scripts/score-provider-release.py",
+        "tests/provider*",
+        "tests/assistant*"
+      ],
+      "areas": [
+        "build",
+        "slow-assistant"
+      ]
+    },
+    {
+      "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
+      "paths": [
+        "tests/**"
+      ],
+      "areas": [
+        "build"
+      ]
+    },
+    {
+      "why": "Native display fixtures and the headers they share.",
+      "paths": [
+        "@native-fixture-sources",
+        "tests/*.hpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "Glb, texture, section and smooth exports and the render integrations are what the Blender job verifies.",
+      "paths": [
+        "src/integrations/**",
+        "scripts/*blender*",
+        "scripts/verify-glb.mjs",
+        "tests/gltf-validator/**",
+        "tests/*blender*",
+        "tests/glb_export_tests.cpp",
+        "tests/texture_export_tests.cpp",
+        "tests/section_export_tests.cpp",
+        "tests/smooth_export_tests.cpp",
+        "tests/render_environment*"
+      ],
+      "areas": [
+        "blender"
+      ]
+    },
+    {
+      "why": "Scripts the fast tier runs: test wrappers, verifiers and generators.",
+      "paths": [
+        "scripts/**"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "Packaging and release scripts are what the package job verifies.",
+      "paths": [
+        "packaging/**",
+        "scripts/package-source.sh",
+        "scripts/release-*",
+        "scripts/verify-package-upgrade.py",
+        "scripts/verify-installed-migrations.py"
+      ],
+      "areas": [
+        "package"
+      ]
+    },
+    {
+      "why": "The pinned mirror decides every CI package, so everything conditional runs.",
+      "paths": [
+        "packaging/arch/mirrorlist"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "blender",
+        "package"
+      ]
+    },
+    {
+      "why": "CI definition: rerun the fast tier on itself. The plan job always checks the inventory and this map.",
+      "paths": [
+        ".github/**"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "Exporter inputs the Blender verifiers check: sections, textures, materials, smoothing and solar.",
+      "paths": [
+        "src/core/sections*",
+        "src/core/section_records*",
+        "src/geometry/section*",
+        "src/core/face_textures*",
+        "src/core/texture_mapping*",
+        "src/core/materials*",
+        "src/core/material_records*",
+        "src/core/shading_normals*",
+        "src/solar/**",
+        "src/io/texture_image*"
+      ],
+      "areas": [
+        "blender"
+      ]
+    },
+    {
+      "why": "Desktop entry, MIME, icons and the bundled assemblies are validated by the package job.",
+      "paths": [
+        "resources/*.desktop",
+        "resources/*.xml",
+        "resources/*.svg",
+        "resources/assemblies/**"
+      ],
+      "areas": [
+        "package"
+      ]
+    },
+    {
+      "why": "Fixtures native tests read as well as CTest.",
+      "paths": [
+        "tests/fixtures/**"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "Harnesses most full-tier jobs share (the Wayland runner, the build-tree packing): run the full tier.",
+      "paths": [
+        "scripts/test-wayland.sh",
+        "scripts/ci-pack-build.sh"
+      ],
+      "areas": [
+        "full"
+      ]
+    },
+    {
+      "why": "Harnesses one full-tier job runs: that job (and the development build it needs) runs in the fast tier.",
+      "paths": [
+        "tests/accessibility_bridge_test.py",
+        "scripts/test-keyboard-layout.sh"
+      ],
+      "areas": [
+        "job:audit"
+      ]
+    },
+    {
+      "why": "M5 offline acceptance runs in the fractional-scaling job.",
+      "paths": [
+        "scripts/verify-m5-offline.sh"
+      ],
+      "areas": [
+        "job:fractional"
+      ]
+    },
+    {
+      "why": "The private Wayland client fix is built and checked by the sanitize job.",
+      "paths": [
+        "scripts/ci-wayland-client.sh",
+        "scripts/wayland-*.patch",
+        "docs/verification/probes/**"
+      ],
+      "areas": [
+        "job:sanitize"
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "why": "docs-only PR (#388)",
+      "paths": [
+        "docs/PR_ROADMAP.md",
+        "docs/UX_DESIGN.md",
+        "docs/decisions/0169-terrain-editing-drape-stamp.md",
+        "docs/mockups/terrain.html"
+      ],
+      "areas": []
+    },
+    {
+      "why": "app and desktop test PR (#393)",
+      "paths": [
+        "CHANGELOG.md",
+        "src/app/window_terrain.cpp",
+        "tests/terrain_desktop_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-terrain"
+      ]
+    },
+    {
+      "why": "core terrain PR (#389)",
+      "paths": [
+        ".github/workflows/native.yml",
+        "CMakeLists.txt",
+        "src/core/terrain_stamp.cpp",
+        "src/io/terrain_io.cpp",
+        "tests/terrain_stamp_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-terrain",
+        "slow-core"
+      ]
+    },
+    {
+      "why": "vendored geometry library (#370)",
+      "paths": [
+        "third_party/clipper2/src/clipper.engine.cpp",
+        "tests/core_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
+      ]
+    },
+    {
+      "why": "assistant PR (#379)",
+      "paths": [
+        "scripts/score-provider-release.py",
+        "src/automation/assistant.cpp",
+        "tests/provider-release-corpus-v5.json"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-assistant"
+      ]
+    },
+    {
+      "why": "native fixture only (#364 test half)",
+      "paths": [
+        "tests/visible_focus_input_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "core-only test",
+      "paths": [
+        "tests/boolean_tests.cpp"
+      ],
+      "areas": [
+        "build"
+      ]
+    },
+    {
+      "why": "packaging",
+      "paths": [
+        "packaging/arch/PKGBUILD"
+      ],
+      "areas": [
+        "package"
+      ]
+    },
+    {
+      "why": "Blender verifier",
+      "paths": [
+        "scripts/verify-blender-textures.py"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "blender"
+      ]
+    },
+    {
+      "why": "manual session tool",
+      "paths": [
+        "scripts/session-orca-check.sh"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "unknown top-level path falls back",
+      "paths": [
+        "newdir/file.txt"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-terrain",
+        "slow-core",
+        "slow-assistant"
+      ]
+    },
+    {
+      "why": "Wayland harness (#356)",
+      "paths": [
+        "scripts/test-wayland.sh"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "full"
+      ]
+    },
+    {
+      "why": "a slow test's own source (#363)",
+      "paths": [
+        "CMakeLists.txt",
+        "tests/variant_edit_cost_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
+      ]
+    },
+    {
+      "why": "section export input",
+      "paths": [
+        "src/core/sections.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core",
+        "blender"
+      ]
+    },
+    {
+      "why": "accessibility bridge (#355)",
+      "paths": [
+        "tests/accessibility_bridge_test.py"
+      ],
+      "areas": [
+        "build",
+        "job:audit"
+      ]
+    }
+  ],
+  "test_seconds": {
+    "comment": "Serial seconds in the development build on a CI runner (run 39664036473, 2026-10-21). scripts/ci-ctest-shard.py balances the fast tier's CTest shards with them; an unlisted test counts as 1 s. Approximate is fine: it only affects balance.",
+    "document_limits": 29,
+    "component_parameters": 15,
+    "incremental_validation": 78,
+    "inference_equivalence": 7,
+    "variant_edit_cost": 22,
+    "parameter_expression_fuzz": 5,
+    "terrain_triangulation_tests": 6,
+    "terrain_import": 9,
+    "terrain_regenerate": 3,
+    "terrain_history": 95,
+    "terrain_edit": 19,
+    "terrain_replay": 22,
+    "terrain_source_edit": 49,
+    "terrain_sculpt": 53,
+    "terrain_stamp": 75,
+    "terrain_drape": 74,
+    "provider_release_corpus": 31,
+    "openai_provider": 4,
+    "document_limits_io": 5,
+    "texture_export": 6,
+    "site_recipe": 3,
+    "furniture_recipe": 6,
+    "outcome_store": 5,
+    "instanced_storage": 4,
+    "component_parameter_io": 6,
+    "commands": 42,
+    "shipped_recipes": 3,
+    "recovery_controller": 10,
+    "terrain_desktop": 3,
+    "terrain_edit_input": 14
+  }
+}
