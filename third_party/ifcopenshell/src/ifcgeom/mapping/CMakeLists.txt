@@ -1,0 +1,43 @@
+find_package(Eigen3 ${EIGEN_MIN_VERSION} REQUIRED)
+
+set(mapping_plugin_runtime_dir "$<TARGET_FILE_DIR:IfcGeom>")
+
+if (NOT WASM_BUILD)
+# wasm-ld (?) trips up on multiple defined symbols. IfcParse already brings
+# in plugin so we skip it here.
+set(plugin_when_not_wasm plugin)
+endif()
+
+foreach(schema ${SCHEMA_VERSIONS})
+    file(GLOB IFCGEOM_I_FILES *.i)
+    file(GLOB IFCGEOM_H_FILES *.h)
+    file(GLOB IFCGEOM_CPP_FILES *.cpp)
+    set(IFCGEOM_FILES ${IFCGEOM_CPP_FILES} ${IFCGEOM_H_FILES} ${IFCGEOM_I_FILES})
+
+    add_library(geometry_mapping_ifc${schema} SHARED ${IFCGEOM_FILES})
+    set_target_properties(geometry_mapping_ifc${schema} PROPERTIES
+        COMPILE_FLAGS "-DIfcSchema=Ifc${schema}"
+        OUTPUT_NAME "ifcopenshell_geometry_mapping_ifc${schema}"
+        RUNTIME_OUTPUT_DIRECTORY "${mapping_plugin_runtime_dir}"
+        LIBRARY_OUTPUT_DIRECTORY "${mapping_plugin_runtime_dir}"
+    )
+
+    ifcopenshell_wasm_plugin_link_options(geometry_mapping_ifc${schema} ifcopenshell_register_mapping_plugin_v1)
+    if(WASM_BUILD)
+        target_link_options(geometry_mapping_ifc${schema} PRIVATE "SHELL:-s ERROR_ON_UNDEFINED_SYMBOLS=0")
+    endif()
+
+    if(NOT WASM_BUILD)
+        set(schema_plugin_library parse_schema_ifc${schema})
+    else()
+        set(schema_plugin_library)
+    endif()
+
+    target_link_libraries(geometry_mapping_ifc${schema} PRIVATE ${plugin_when_not_wasm} IfcGeom IfcParse ${schema_plugin_library} Eigen3::Eigen)
+
+    list(APPEND mapping_libraries geometry_mapping_ifc${schema})
+
+    install(TARGETS geometry_mapping_ifc${schema} EXPORT ${IFCOPENSHELL_EXPORT_TARGETS})
+endforeach()
+
+set(mapping_libraries ${mapping_libraries} PARENT_SCOPE)

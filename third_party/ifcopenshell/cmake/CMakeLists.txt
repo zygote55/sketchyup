@@ -1,0 +1,823 @@
+################################################################################
+#                                                                              #
+# This file is part of IfcOpenShell.                                           #
+#                                                                              #
+# IfcOpenShell is free software: you can redistribute it and/or modify         #
+# it under the terms of the Lesser GNU General Public License as published by  #
+# the Free Software Foundation, either version 3.0 of the License, or          #
+# (at your option) any later version.                                          #
+#                                                                              #
+# IfcOpenShell is distributed in the hope that it will be useful,              #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of               #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the                 #
+# Lesser GNU General Public License for more details.                          #
+#                                                                              #
+# You should have received a copy of the Lesser GNU General Public License     #
+# along with this program. If not, see <http://www.gnu.org/licenses/>.         #
+#                                                                              #
+################################################################################
+
+cmake_minimum_required(VERSION 3.21)
+if (NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 17)
+endif()
+if (CMAKE_CXX_STANDARD LESS 17)
+    message(FATAL_ERROR "C++17 or newer is required.")
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON) # not necessary, but encouraged
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+file(READ "../VERSION" "RELEASE_VERSION_")
+string(STRIP "${RELEASE_VERSION_}" RELEASE_VERSION)
+message(STATUS "Detected version '${RELEASE_VERSION}'")
+
+# CMake's project(VERSION) only accepts numeric components. Keep the complete
+# release identifier for build information, but use its numeric release part
+# for PROJECT_VERSION, SOVERSION, and generated CMake package metadata.
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" PROJECT_VERSION_NUMERIC "${RELEASE_VERSION}")
+if(NOT PROJECT_VERSION_NUMERIC)
+    message(FATAL_ERROR "VERSION must start with a numeric major.minor.patch version: '${RELEASE_VERSION}'")
+endif()
+
+add_definitions(-D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+
+if(POLICY CMP0135) # 3.24
+  # FetchContent/ExternalProject URL downloads use extraction-time timestamps.
+  cmake_policy(SET CMP0135 NEW)
+endif()
+if(POLICY CMP0141) # 3.25+
+  cmake_policy(SET CMP0141 NEW) # Support for `CMAKE_MSVC_DEBUG_INFORMATION_FORMAT`.
+endif()
+if(POLICY CMP0144) # 3.27
+    cmake_policy(SET CMP0144 NEW) # find_package() uses upper-case <PACKAGENAME>_ROOT variables.
+endif()
+if(POLICY CMP0167) # 3.30
+    # find_package(Boost) to use BoostConfig instead of FindBoost.
+    cmake_policy(SET CMP0167 OLD)
+endif()
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+# Include utility macros and functions
+include(utilities.cmake)
+
+# Use a SemVer-compatible spelling for CPack artifact names. A trailing
+# alphabetic label and number is separated from the numeric version by a
+# hyphen: for example, 0.9.0alpha0 becomes 0.9.0-alpha0.
+if(NOT DEFINED EXTRA_VERSION)
+    if(RELEASE_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+([A-Za-z]+)([0-9]+)$")
+        set(EXTRA_VERSION "-${CMAKE_MATCH_1}${CMAKE_MATCH_2}")
+    else()
+        set(EXTRA_VERSION "")
+    endif()
+endif()
+
+option(MINIMAL_BUILD "The build is to make a minimal version of IFC converter from OCCT into IFC." OFF)
+option(WASM_BUILD "Build a WebAssembly binary." OFF)
+
+option(ENABLE_BUILD_OPTIMIZATIONS "Enable certain compiler and linker optimizations on RelWithDebInfo and Release builds." OFF)
+option(BUILD_SHARED_LIBS "Build IfcOpenShell as shared libraries (required)." ON)
+option(MSVC_PARALLEL_BUILD "Multi-threaded compilation in Microsoft Visual Studio (/MP)" OFF)
+option(USE_VLD "Use Visual Leak Detector for debugging memory leaks, MSVC-only." OFF)
+option(USE_MMAP "Adds a command line options to parse IFC files from memory mapped files using Boost.Iostreams" OFF)
+option(NO_WARN "Disable all warnings" OFF)
+option(CREATE_BUNDLE "Copy .so files and don't create RPATHS or SOVERSION symlinks" OFF)
+
+option(BUILD_IFCGEOM "Build IfcGeom." ON)
+option(BUILD_IFCPYTHON "Build IfcPython." ON)
+option(BUILD_IFCPARSE_EXPERIMENTAL_WRAPPER "Build the experimental Clang-generated ifcparse Python wrapper." OFF)
+option(BUILD_CONVERT "Build IfcConvert executable." ON)
+option(BUILD_DOCUMENTATION "Build IfcOpenShell Documentation." OFF)
+option(BUILD_EXAMPLES "Build example applications." ON)
+option(BUILD_GEOMSERVER "Build IfcGeomServer executable (Open CASCADE is required)." ON)
+option(BUILD_IFCMAX "Build IfcMax, a 3ds Max plug-in, Windows-only." OFF)
+option(BUILD_BONSAIVIEWER "Build Bonsai Viewer" OFF) # Requires Qt6 + OpenGL 4.5
+option(BUILD_IFCOPENSHELL_PARSE_TESTS "Build C++ unit tests for IfcParse (fetches Catch2 v3)" OFF)
+option(BUILD_IFCOPENSHELL_GEOMETRY_TESTS "Build C++ unit tests for IfcGeom (fetches Catch2 v3)" OFF)
+option(BUILD_BONSAIVIEWER_TESTS "Build unit tests for Bonsai Viewer core (fetches Catch2 v3)" OFF)
+option(BUILD_BONSAIVIEWER_WGPU "Build the experimental wgpu backend (fetches wgpu-native binary release)" OFF)
+# IfcViewer (the GL static lib) now links against IfcViewerWgpu because
+# SceneLoader drives the wgpu viewport. Auto-enable the wgpu subproject
+# whenever BUILD_BONSAIVIEWER is on so the link target exists.
+if(BUILD_BONSAIVIEWER AND NOT BUILD_BONSAIVIEWER_WGPU)
+    message(STATUS "BUILD_BONSAIVIEWER implies BUILD_BONSAIVIEWER_WGPU "
+                   "(SceneLoader uses ViewportWindow); auto-enabling.")
+    set(BUILD_BONSAIVIEWER_WGPU ON)
+endif()
+# TODO: still needed?
+option(BUILD_PACKAGE "Install the Python module to lib/python3/dist-packages under the install prefix" OFF)
+
+option(
+    BUILD_FUZZERS
+    "Build libFuzzer security-fuzzing harnesses. Requires a Clang toolchain configured with -fsanitize=fuzzer (typically also address,undefined) via CMAKE_CXX_FLAGS."
+    OFF
+)
+option(
+    IFCOPENSHELL_DEPLOY_QT_RUNTIME
+    "Deploy Qt runtime dependencies for installed Qt applications."
+    ON
+)
+option(
+    IFCOPENSHELL_DEPLOY_QT_TRANSLATIONS
+    "Deploy Qt translation catalogs with installed Qt applications."
+    OFF
+)
+
+option(WITH_OPENCASCADE "Enable geometry interpretation using Open CASCADE" ON)
+option(WITH_CGAL "Enable geometry interpretation using CGAL" ON)
+option(WITH_MANIFOLD "Enable geometry interpretation using Manifold" OFF)
+option(COLLADA_SUPPORT "Build IfcConvert with COLLADA support (requires OpenCOLLADA)." ON)
+option(GLTF_SUPPORT "Build IfcConvert with glTF support (requires json.hpp)." OFF)
+option(WITH_PROJ "Enable output of Earth-Centered Earth-Fixed glTF output using the PROJ library" OFF)
+option(USD_SUPPORT "Build IfcConvert with USD support (requires pixar's USD library)." OFF)
+option(WITH_ROCKSDB "Support a RocksDB key-value store as a file backend in IfcOpenShell" OFF)
+option(WITH_ZSTD "Use Zstd compression in RocksDB writes" OFF)
+
+option(USERSPACE_PYTHON_PREFIX "Installs IfcPython for the current user only instead of system-wide." OFF)
+option(USE_DEBUG_PYTHON "Use debug binaries when building Debug IfcPython on Windows." OFF)
+option(ADD_COMMIT_SHA "Add commit sha and branch in version number, requires git" OFF)
+option(VERSION_OVERRIDE "Use VERSION as the branch label when commit information is embedded" OFF)
+option(USE_CCACHE "Use ccache as a compiler launcher if it is found" OFF)
+
+set(
+    PYTHON_MODULE_INSTALL_DIR
+    "" CACHE PATH
+    "Directory to install IfcPython package to. By default package is installed in found Python's site-packages."
+)
+
+project(IfcOpenShell VERSION ${PROJECT_VERSION_NUMERIC})
+
+# Make sure CMake modules in this project are found first
+list(PREPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
+
+# Catch2 is fetched only when an explicit C++ test family is enabled, so the
+# default build remains offline-capable.
+if(BUILD_IFCOPENSHELL_PARSE_TESTS OR BUILD_IFCOPENSHELL_GEOMETRY_TESTS OR BUILD_BONSAIVIEWER_TESTS)
+    include(FetchContent)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.5.4
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(Catch2)
+    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+    include(CTest)
+    include(Catch)
+    enable_testing()
+endif()
+
+if(MINIMAL_BUILD)
+    message(STATUS "Setting options for minimal build")
+    set(BUILD_GEOMSERVER OFF)
+    set(BUILD_IFCPYTHON OFF)
+    set(WITH_CGAL OFF)
+    set(COLLADA_SUPPORT OFF)
+    set(GLTF_SUPPORT OFF)
+    set(USD_SUPPORT OFF)
+endif()
+
+if((BUILD_CONVERT OR BUILD_GEOMSERVER OR BUILD_IFCPYTHON) AND(NOT BUILD_IFCGEOM))
+    message(STATUS "'IfcGeom' is required with current outputs")
+    set(BUILD_IFCGEOM ON)
+endif()
+
+if(USE_CCACHE)
+    find_program(CCACHE_FOUND ccache)
+    if(CCACHE_FOUND)
+        message(STATUS "`USE_CCACHE` is enabled and `ccache` is found, using it as a compiler launcher.")
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_FOUND}")
+        if(MSVC)
+            # By default Visual Studio generators will use /Zi which is not compatible
+            # with ccache, so tell Visual Studio to use /Z7 instead.
+            set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+            # Not needed for Ninja.
+            if(CMAKE_GENERATOR MATCHES "Visual Studio")
+                file(COPY_FILE
+                    ${CCACHE_FOUND} ${CMAKE_BINARY_DIR}/cl.exe
+                    ONLY_IF_DIFFERENT)
+                set(CMAKE_VS_GLOBALS
+                    "CLToolExe=cl.exe"
+                    "CLToolPath=${CMAKE_BINARY_DIR}"
+                    "UseMultiToolTask=true"
+                )
+            endif()
+        endif()
+    endif()
+else()
+    message(STATUS "ccache usage is disabled, set `USE_CCACHE=ON` to enable it.")
+endif()
+
+if(MSVC AND MSVC_PARALLEL_BUILD)
+    add_definitions("/MP")
+endif()
+
+if(NO_WARN)
+    if(MSVC)
+        add_compile_options("/w")
+    else()
+        add_compile_options("-w")
+    endif()
+endif()
+
+include(GNUInstallDirs)
+
+set(IFCOPENSHELL_EXPORT_TARGETS "${PROJECT_NAME}Targets")
+
+if(NOT INCLUDEDIR)
+    set(INCLUDEDIR include)
+endif()
+if(NOT IS_ABSOLUTE ${INCLUDEDIR})
+    set(INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR})
+endif()
+message(STATUS "INCLUDEDIR: ${INCLUDEDIR}")
+
+# On Windows Release and Debug binaries are not compatible.
+# So we add a postfix to avoid issues and allow release and debug installations to coexist.
+if(WIN32)
+    set(CMAKE_DEBUG_POSTFIX "_d")
+endif()
+
+if(MSVC)
+    # C4521: 'identifier' : class 'type' needs to have dll-interface to be used by clients of class 'type2'
+    # There will be couple hundreds of these so suppress them away, https://msdn.microsoft.com/en-us/library/esew7y1w.aspx
+    add_definitions(-wd4251)
+endif()
+
+UNIFY_ENVVARS_AND_CACHE(BOOST_ROOT)
+UNIFY_ENVVARS_AND_CACHE(BOOST_LIBRARYDIR)
+
+if(NOT MINIMAL_BUILD)
+    UNIFY_ENVVARS_AND_CACHE(PYTHON_INCLUDE_DIR)
+    UNIFY_ENVVARS_AND_CACHE(PYTHON_LIBRARY)
+    UNIFY_ENVVARS_AND_CACHE(PYTHON_EXECUTABLE)
+endif()
+
+# Get a list of all OPTION flags from the CMakeLists.txt
+get_all_option_flags(option_flags)
+
+# Loop through the list of OPTION flags and convert the corresponding environment variables
+foreach(option_flag IN LISTS option_flags)
+    convert_env_var_to_bool("${option_flag}")
+endforeach()
+
+set(SWIG_DEFINES "")
+
+if(WITH_CGAL)
+    # 5.4 is the version shipped with Ubuntu 22.04.
+    set(CGAL_MIN_VERSION 5.4)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
+        # https://github.com/CGAL/cgal/issues/8313
+        set(CGAL_MIN_VERSION 5.6.2)
+    endif()
+    find_package(CGAL ${CGAL_MIN_VERSION} REQUIRED)
+    set(SWIG_DEFINES ${SWIG_DEFINES} -DIFOPSH_WITH_CGAL)
+    list(APPEND GEOMETRY_KERNELS cgal)
+endif()
+
+if(BUILD_IFCGEOM AND WITH_OPENCASCADE)
+    # 7.5.1 is the version shipped with Ubuntu 22.04.
+    set(OPENCASCADE_MIN_VERSION 7.5.1)
+    find_package(OpenCASCADE REQUIRED)
+    # OpenCASCADEConfigVersion.cmake only accepts an exact version match.
+    check_min_version(OpenCASCADE "${OpenCASCADE_VERSION}" "${OPENCASCADE_MIN_VERSION}")
+    # Map OpenCASCADE_LIBRARIES variable from OpenCASCADEConfig.cmake to OpenCASCADE_LIBRARIES used by kernel generic cmake file
+    set(OpenCASCADE_LIBRARIES ${OpenCASCADE_LIBRARIES})
+    set(SWIG_DEFINES ${SWIG_DEFINES} -DIFOPSH_WITH_OPENCASCADE)
+    list(APPEND GEOMETRY_KERNELS opencascade)
+endif()
+
+message(STATUS "BUILD_IFCGEOM WITH_MANIFOLD: ${BUILD_IFCGEOM} ${WITH_MANIFOLD}")
+
+if(BUILD_IFCGEOM AND WITH_MANIFOLD)
+    set(MANIFOLD_MIN_VERSION 3.2.1)
+    find_package(manifold ${MANIFOLD_MIN_VERSION} CONFIG REQUIRED)
+    if(TARGET manifold::manifold)
+        set(MANIFOLD_LIBRARIES manifold::manifold)
+    elseif(TARGET manifold)
+        set(MANIFOLD_LIBRARIES manifold)
+    else()
+        message(FATAL_ERROR "Unable to determine manifold target")
+    endif()
+    list(APPEND GEOMETRY_KERNELS manifold)
+endif()
+
+if(BUILD_IFCGEOM)
+    list(APPEND GEOMETRY_KERNELS passthrough)
+endif()
+
+if(GLTF_SUPPORT)
+    # 3.6.1 is the version currently used on the Windows build.
+    # 3.10.5 is the version shipped with Ubuntu 22.04.
+    find_package(nlohmann_json 3.6.1 REQUIRED)
+endif()
+
+if(WITH_PROJ)
+    set(PROJ_MIN_VERSION 9.4.1)
+endif()
+
+# Add USD support to serializers
+if(USD_SUPPORT)
+    find_package(USD REQUIRED)
+endif(USD_SUPPORT)
+
+if (WITH_ROCKSDB)
+    # 1.5.5 is the version shipped with Ubuntu 24.04.
+    # Not referencing the zstd/RocksDB versions from 22.04 as they lack CMake configs.
+    set(ZSTD_MIN_VERSION 1.5.5)
+
+    # 8.9.1 is the version shipped with Ubuntu 24.04.
+    set(ROCKSDB_MIN_VERSION 8.9.1)
+
+    # Temporaily mess with CMAKE_FIND_PACKAGE_PREFER_CONFIG to help RocksDB
+    # find it's zstd dependency on Windows.
+    # Only do it on Windows, otherwise it might create problems as
+    # findzstd and zstd-config target names do not match.
+    if(WIN32)
+        set(TEMP CMAKE_FIND_PACKAGE_PREFER_CONFIG)
+        set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
+    endif()
+    find_package(RocksDB CONFIG REQUIRED)
+    if(WIN32)
+        set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ${TEMP})
+    endif()
+    message(STATUS "RocksDB: found at '${RocksDB_DIR}'.")
+    # RocksDBConfigVersion.cmake only accepts a compatible version within the same major version.
+    check_min_version(RocksDB "${RocksDB_VERSION}" "${ROCKSDB_MIN_VERSION}")
+    add_library(IFCOPENSHELL_RocksDB INTERFACE)
+    set(IFCOPENSHELL_ROCKSDB_TARGET IFCOPENSHELL_RocksDB)
+    set(ROCKSDB_LIBRARIES "IFCOPENSHELL_RocksDB")
+    target_compile_definitions(IFCOPENSHELL_RocksDB INTERFACE IFOPSH_WITH_ROCKSDB)
+    set(SWIG_DEFINES ${SWIG_DEFINES} -DIFOPSH_WITH_ROCKSDB)
+    # See https://github.com/facebook/rocksdb/issues/981.
+    if(TARGET RocksDB::rocksdb)
+        set(IFCOPENSHELL_ROCKSDB_IMPORTED_TARGET RocksDB::rocksdb)
+    elseif(TARGET RocksDB::rocksdb-shared)
+        set(IFCOPENSHELL_ROCKSDB_IMPORTED_TARGET RocksDB::rocksdb-shared)
+    else()
+        message(FATAL_ERROR "RocksDB found but neither RocksDB::rocksdb nor RocksDB::rocksdb-shared target exists")
+    endif()
+    avoid_debug_imported_config_fallback(${IFCOPENSHELL_ROCKSDB_IMPORTED_TARGET})
+    target_link_libraries(IFCOPENSHELL_RocksDB INTERFACE ${IFCOPENSHELL_ROCKSDB_IMPORTED_TARGET})
+
+    if (WITH_ZSTD)
+        # @todo do we actually need the zstd include dir or rather just pass
+        # the libzstd.a along with the rocksdb library when needed and feature
+        # detect based on rocksdb API?
+        # Same exact-major-version caveat as RocksDB above.
+        find_package(zstd CONFIG REQUIRED)
+        message(STATUS "zstd: found at '${zstd_DIR}'.")
+        check_min_version(zstd "${zstd_VERSION}" "${ZSTD_MIN_VERSION}")
+    endif()
+
+    install(TARGETS IFCOPENSHELL_RocksDB EXPORT ${IFCOPENSHELL_EXPORT_TARGETS})
+endif()
+
+# When running conda-build we pick what conda prepared for us.
+if(WIN32 AND NOT DEFINED ENV{CONDA_BUILD})
+    set(Boost_USE_STATIC_RUNTIME OFF)
+    set(Boost_USE_MULTITHREADED ON)
+
+    # Disable Boost's autolinking as the libraries to be linked to are supplied
+    # already by CMake, and wrong libraries would be asked for when code is
+    # compiled with a toolset different from default.
+    if(MSVC)
+        add_definitions(-DBOOST_ALL_NO_LIB)
+    endif()
+else()
+    # Disable Boost's autolinking as the libraries to be linked to are supplied
+    # already by CMake, and it's going to conflict if there are multiple, as is
+    # the case in conda-forge's libboost feedstock.
+    add_definitions(-DBOOST_ALL_NO_LIB)
+endif()
+
+if(WASM_BUILD)
+    set(BOOST_COMPONENTS)
+else()
+    set(BOOST_COMPONENTS "")
+    if(BUILD_IFCGEOM OR BUILD_CONVERT)
+        set(BOOST_COMPONENTS ${BOOST_COMPONENTS} program_options)
+    endif()
+    # TODO: drop `regex` once BOOST_MIN_VERSION >= 1.76, since then it became header-only.
+    if(BUILD_IFCGEOM)
+        set(BOOST_COMPONENTS ${BOOST_COMPONENTS} regex)
+    endif()
+endif()
+
+if(USE_MMAP)
+    set(BOOST_COMPONENTS ${BOOST_COMPONENTS} iostreams)
+endif()
+
+# 3.3.9 is the version currently used on the Windows build.
+# 3.4.0 is the version shipped with Ubuntu 22.04.
+set(EIGEN_MIN_VERSION 3.3.9)
+
+# 1.74 is the version shipped with Ubuntu 22.04.
+set(BOOST_MIN_VERSION 1.74)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+    # https://github.com/boostorg/math/issues/992
+    set(BOOST_MIN_VERSION 1.83)
+endif()
+find_package(Boost ${BOOST_MIN_VERSION} REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+# TODO: drop this whole `if` (and the `regex` component above) once BOOST_MIN_VERSION >= 1.76.
+if(Boost_VERSION VERSION_GREATER_EQUAL 1.76)
+    list(REMOVE_ITEM Boost_LIBRARIES ${Boost_REGEX_LIBRARY} Boost::regex)
+endif()
+# This is only needed for FindBoost, when libraries are just paths to the library files on the disk.
+# If Boost is found using cmake config, then all its Boost_LIBRARIES are targets
+# and automatically depend on the headers.
+list(APPEND Boost_LIBRARIES Boost::headers)
+message(STATUS "Boost include files found in ${Boost_INCLUDE_DIRS}")
+message(STATUS "Boost libraries found in ${Boost_LIBRARIES}")
+
+if(COLLADA_SUPPORT)
+    # OpenCOLLADA is ancient and never properly hardcodes its version to any of the installed files.
+    # Version used in header is partial, -version.cmake hardcodes "0.1.0".
+    # So we don't set any minimal version and just take whatever there is.
+    find_package(OpenCOLLADA REQUIRED)
+endif()
+
+if(ENABLE_BUILD_OPTIMIZATIONS)
+    if(MSVC)
+        # NOTE: RelWithDebInfo and Release use O2 (= /Ox /Gl /Gy/ = Og /Oi /Ot /Oy /Ob2 /Gs /GF /Gy) by default,
+        # with the exception with RelWithDebInfo has /Ob1 instead. /Ob2 has been observed to improve the performance
+        # of IfcConvert significantly.
+        # TODO Setting of /GL and /LTCG don't seem to apply for static libraries (IfcGeom, IfcParse)
+        # C++
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ob2 /GL")
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+
+        # Linker
+        # /OPT:REF enables also /OPT:ICF and disables INCREMENTAL
+        set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF")
+
+        # /OPT:NOICF is recommended when /DEBUG is used (http://msdn.microsoft.com/en-us/library/xe4t6fc1.aspx)
+        set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:NOICF")
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF")
+        set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /OPT:NOICF")
+    else()
+        # GCC-like: Release should use O3 but RelWithDebInfo 02 so enforce 03. Anything other useful that could be added here?
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+    endif()
+endif(ENABLE_BUILD_OPTIMIZATIONS)
+
+if(MSVC)
+    # warning due to virtual inheritance
+    add_definitions(-wd4250)
+    # warning due to select definitions in the schema being redundant
+    add_definitions(-wd4584)
+
+    # didn't work well on ifcopenbot, @todo make configurable
+    # add_definitions(/MP)
+
+    # Enable solution folders (free VS versions prior to 2012 don't support solution folders)
+    if(MSVC_VERSION GREATER 1600)
+        set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+    endif()
+
+    if(USE_VLD)
+        add_definitions(-DUSE_VLD)
+    endif()
+
+    # Enforce Unicode for CRT and Win32 API calls
+    add_definitions(-D_UNICODE -DUNICODE)
+
+    # Disable warnings about unsafe C functions; we could use the safe C99 & C11 versions if we have no need for supporting old compilers.
+    add_definitions(-D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS)
+    add_definitions(-bigobj) # required for building the big ifcXXX.objs, https://msdn.microsoft.com/en-us/library/ms173499.aspx
+
+    # Bump up the warning level from the default 3 to 4.
+    add_definitions(-W4)
+
+    if(MSVC_VERSION GREATER 1800) # > 2013
+        # Disable overeager and false positives causing C4458 ("declaration of 'indentifier' hides class member"), at least for now.
+        add_definitions(-wd4458)
+    endif()
+
+    # Enforce standards-conformance on VS > 2015, older Boost versions fail to compile with this
+    if(MSVC_VERSION GREATER 1900 AND(Boost_MAJOR_VERSION GREATER 1 OR Boost_MINOR_VERSION GREATER 66))
+        add_definitions(-permissive-)
+    endif()
+
+	add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
+	# See #5158.
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.40)
+		add_definitions(-D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+	endif()
+else()
+    add_definitions(-Wall -Wextra)
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_definitions(-Wno-tautological-constant-out-of-range-compare)
+    else()
+        add_definitions(-Wno-maybe-uninitialized)
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0 OR CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL 9.0))
+        # OpenCascade spews a lot of deprecated-copy warnings
+        add_definitions(-Wno-deprecated-copy)
+    endif()
+
+    # -fPIC is not relevant on Windows and creates pointless warnings
+    if(UNIX)
+        add_definitions(-fPIC)
+    endif()
+endif(MSVC)
+
+if(NOT SCHEMA_VERSIONS)
+    if(WASM_BUILD)
+        # super arbitrarily try to keep size down at least a little bit
+        set(SCHEMA_VERSIONS "2x3" "4" "4x3_add2")
+    else()
+        set(SCHEMA_VERSIONS "2x3" "4" "4x1" "4x2" "4x3" "4x3_tc1" "4x3_add1" "4x3_add2")
+    endif()
+endif()
+
+message(STATUS "IFC SCHEMA_VERSIONS that will be used for the build: ${SCHEMA_VERSIONS}.")
+
+if(COMPILE_SCHEMA)
+    # @todo, this appears to be untested at the moment
+    find_package(PythonInterp)
+
+    if(NOT PYTHONINTERP_FOUND)
+        message(FATAL_ERROR "A Python interpreter is necessary when COMPILE_SCHEMA is enabled. Disable COMPILE_SCHEMA or fix Python paths to proceed.")
+    endif()
+
+    set(IFC_RELEASE_NOT_USED ${SCHEMA_VERSIONS})
+
+    # Install pyparsing if necessary
+    execute_process(COMMAND ${PYTHON_EXECUTABLE} -m pip freeze OUTPUT_VARIABLE PYTHON_PACKAGE_LIST)
+
+    if("${PYTHON_PACKAGE_LIST}" STREQUAL "")
+        execute_process(COMMAND pip freeze OUTPUT_VARIABLE PYTHON_PACKAGE_LIST)
+
+        if("${PYTHON_PACKAGE_LIST}" STREQUAL "")
+            message(WARNING "Failed to find pip. Pip is required to automatically install pyparsing")
+        endif()
+    endif()
+
+    string(FIND "${PYTHON_PACKAGE_LIST}" pyparsing PYPARSING_FOUND)
+
+    if("${PYPARSING_FOUND}" STREQUAL "-1")
+        message(STATUS "Installing pyparsing")
+        execute_process(COMMAND ${PYTHON_EXECUTABLE} -m pip "install" --user pyparsing RESULT_VARIABLE SUCCESS)
+
+        if(NOT "${SUCCESS}" STREQUAL "0")
+            execute_process(COMMAND pip "install" --user pyparsing RESULT_VARIABLE SUCCESS)
+
+            if(NOT "${SUCCESS}" STREQUAL "0")
+                message(WARNING "Failed to automatically install pyparsing. Please install manually")
+            endif()
+        endif()
+    else()
+        message(STATUS "Python interpreter with pyparsing found")
+    endif()
+
+    # Bootstrap the parser
+    message(STATUS "Compiling schema, this will take a while...")
+    execute_process(
+        COMMAND ${PYTHON_EXECUTABLE} bootstrap.py
+        WORKING_DIRECTORY ../src/ifcopenshell-python/ifcopenshell/express
+        OUTPUT_FILE express_parser.py
+        RESULT_VARIABLE SUCCESS)
+
+    if(NOT "${SUCCESS}" STREQUAL "0")
+        message(FATAL_ERROR "Failed to bootstrap parser. Make sure pyparsing is installed")
+    endif()
+
+    # Generate code
+    execute_process(
+        COMMAND ${PYTHON_EXECUTABLE} ../ifcopenshell-python/ifcopenshell/express/express_parser.py ../../${COMPILE_SCHEMA}
+        WORKING_DIRECTORY ../src/ifcparse
+        OUTPUT_VARIABLE COMPILED_SCHEMA_NAME)
+
+    # Prevent the schema that had just been compiled from being excluded
+    foreach(schema ${SCHEMA_VERSIONS})
+        if("${COMPILED_SCHEMA_NAME}" STREQUAL "${schema}")
+            list(REMOVE_ITEM IFC_RELEASE_NOT_USED "${schema}")
+        endif()
+    endforeach()
+endif(COMPILE_SCHEMA)
+
+# Boost >= 1.58 requires BOOST_OPTIONAL_USE_OLD_DEFINITION_OF_NONE to build on some Linux distros.
+if(NOT Boost_VERSION LESS 105800)
+    add_definitions(-DBOOST_OPTIONAL_USE_OLD_DEFINITION_OF_NONE)
+endif()
+
+add_subdirectory(../src/plugin plugin)
+
+add_subdirectory(../src/ifcparse ifcparse)
+set(IFCOPENSHELL_LIBRARIES IfcParse)
+if(BUILD_IFCOPENSHELL_PARSE_TESTS)
+    add_subdirectory(../src/ifcparse/tests ifcparse/tests)
+endif()
+
+if(BUILD_EXAMPLES OR BUILD_BONSAIVIEWER)
+    add_subdirectory(../src/helpers helpers)
+endif()
+
+if(BUILD_IFCPARSE_EXPERIMENTAL_WRAPPER)
+    add_subdirectory(../src/wrappergen wrappergen)
+endif()
+
+if(BUILD_IFCGEOM)
+    # CGAL::CGAL target already has dependencies resolved.
+    if(WITH_CGAL)
+        set(CGAL_LIBRARIES CGAL::CGAL)
+    endif()
+
+    add_subdirectory(../src/ifcgeom ifcgeom)
+    if(BUILD_IFCOPENSHELL_GEOMETRY_TESTS)
+        add_subdirectory(../src/ifcgeom/tests ifcgeom/tests)
+    endif()
+elseif(BUILD_IFCOPENSHELL_GEOMETRY_TESTS)
+    message(FATAL_ERROR "BUILD_IFCOPENSHELL_GEOMETRY_TESTS requires BUILD_IFCGEOM=ON.")
+endif(BUILD_IFCGEOM)
+
+if(BUILD_CONVERT OR BUILD_IFCPYTHON OR BUILD_BONSAIVIEWER)
+    add_subdirectory(../src/serializers serializers)
+endif(BUILD_CONVERT OR BUILD_IFCPYTHON OR BUILD_BONSAIVIEWER)
+
+if(BUILD_CONVERT)
+    add_subdirectory(../src/ifcconvert ifcconvert)
+endif(BUILD_CONVERT)
+
+# IfcGeomServer
+if(BUILD_GEOMSERVER)
+    add_subdirectory(../src/ifcgeomserver ifcgeomserver)
+endif(BUILD_GEOMSERVER)
+
+if(ADD_COMMIT_SHA)
+    find_package(Git)
+
+    if(NOT GIT_FOUND)
+        message(FATAL_ERROR "Failed to find Git for ADD_COMMIT_SHA option.")
+    endif()
+
+    if(GIT_FOUND)
+        if (VERSION_OVERRIDE)
+            set (git_branch ${RELEASE_VERSION})
+        else()
+            message("git found: ${GIT_EXECUTABLE} with version ${GIT_VERSION_STRING}")
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} branch -a --contains HEAD
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                OUTPUT_VARIABLE git_branches
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            string(REPLACE "\n" ";" git_branch_list "${git_branches}")
+
+            foreach(git_branch_candidate IN ITEMS ${git_branch_list})
+		        string(REPLACE "*" "" git_branch_candidate_temp "${git_branch_candidate}")
+		        string(STRIP "${git_branch_candidate_temp}" git_branch_candidate_2)
+                if(NOT git_branch_candidate_2 MATCHES "^HEAD$")
+                    string(REPLACE "/" ";" git_branch_candidate_2_list "${git_branch_candidate_2}")
+                    list(GET git_branch_candidate_2_list -1 git_branch)
+                endif()
+            endforeach()
+        endif()
+
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE git_sha
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+
+        message(STATUS "IfcOpenShell branch: \"${git_branch}\"")
+        message(STATUS "IfcOpenShell commit: \"${git_sha}\"")
+
+        if ("${git_branch}" STREQUAL "" OR "${git_sha}" STREQUAL "")
+            message(FATAL_ERROR "Unable to determine commit sha and/or branch")
+        endif()
+
+        target_compile_definitions(IfcParse PRIVATE
+            -DIFCOPENSHELL_BRANCH=${git_branch}
+            -DIFCOPENSHELL_COMMIT=${git_sha}
+        )
+    endif()
+endif(ADD_COMMIT_SHA)
+
+target_compile_definitions(IfcParse PRIVATE IFCOPENSHELL_VERSION_STRING=${RELEASE_VERSION})
+
+if(MSVC)
+    # @todo still needs to be understood better, but the cgal and cgal-simple kernel cause multiply defined boost lambda placeholders _1 ... _3
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /FORCE:MULTIPLE")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /FORCE:MULTIPLE")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /FORCE:MULTIPLE")
+endif()
+
+# Documentation
+if(BUILD_DOCUMENTATION)
+    add_subdirectory(../docs/cpp-api docs/cpp-api)
+endif()
+
+if(BUILD_EXAMPLES)
+    add_subdirectory(../src/examples examples)
+endif()
+
+if(BUILD_IFCMAX)
+    add_subdirectory(../src/ifcmax ifcmax)
+endif()
+
+if(WITH_CGAL)
+    add_subdirectory(../src/svgfill svgfill)
+endif()
+
+if(BUILD_IFCPYTHON)
+    add_subdirectory(../src/ifcwrap ifcwrap)
+endif()
+
+if(BUILD_IFCGEOM)
+    # install(FILES ${IFCGEOM_H_FILES}
+    #     DESTINATION ${INCLUDEDIR}/ifcgeom
+    # )
+
+    file(GLOB SERIALIZATION_H_FILES ../src/ifcgeom/serialization/*.h)
+    install(FILES ${SERIALIZATION_H_FILES}
+        DESTINATION ${INCLUDEDIR}/ifcgeom/serialization
+    )
+
+    foreach(kernel ${GEOMETRY_KERNELS})
+        file(GLOB IFCGEOM_H_FILES ../src/ifcgeom/kernels/${kernel}/*.h)
+         install(FILES ${IFCGEOM_H_FILES}
+            DESTINATION ${INCLUDEDIR}/ifcgeom/kernels/${kernel}
+        )
+    endforeach()
+
+    install(
+        TARGETS ${kernel_libraries} IfcGeom
+        EXPORT ${IFCOPENSHELL_EXPORT_TARGETS}
+    )
+endif(BUILD_IFCGEOM)
+if(BUILD_BONSAIVIEWER)
+    # IfcViewer is the unified scene + render lib since the wgpu/ifcviewer
+    # merge — wgpu-native is fetched inside its CMakeLists.txt.
+    add_subdirectory(../src/ifcviewer ifcviewer)
+    if(BUILD_BONSAIVIEWER_WGPU)
+        add_subdirectory(../src/ifcviewer-minimal ifcviewer-minimal)
+    endif()
+    add_subdirectory(../src/bonsaiviewer bonsaiviewer)
+endif()
+
+if(BUILD_FUZZERS)
+    add_subdirectory(../src/ifcfuzz ifcfuzz)
+endif()
+
+# Cmake uninstall target
+if(NOT TARGET uninstall)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+        IMMEDIATE @ONLY)
+
+    add_custom_target(uninstall
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+endif()
+
+# Packaging
+list(APPEND CPACK_SOURCE_IGNORE_FILES
+    "/\\\\.git"
+    "/build/"
+    "/.pytest_cache/"
+    "/__pycache__/"
+)
+set(CPACK_SOURCE_INSTALLED_DIRECTORIES "${CMAKE_SOURCE_DIR}/..;/")
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}${EXTRA_VERSION}")
+set(CPACK_SOURCE_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}${EXTRA_VERSION}")
+SET(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}${EXTRA_VERSION}-${CMAKE_SYSTEM_NAME}")
+set(CPACK_PACKAGE_DIRECTORY "${PROJECT_BINARY_DIR}/assets")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "IfcOpenShell")
+set(CPACK_PACKAGE_DESCRIPTION "IfcOpenShell.")
+set(CPACK_PACKAGE_VENDOR "Cemosis")
+set(CPACK_PACKAGE_CONTACT "Christophe Prud'homme <christophe.prudhomme@cemosis.fr>")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+
+set(CPACK_GENERATOR "TGZ;DEB")
+set(CPACK_SOURCE_GENERATOR "TGZ")
+
+set(BOOST_DEPS "")
+foreach(COMPONENT IN ITEMS ${BOOST_COMPONENTS})
+    string(REPLACE "_" "-" COMP ${COMPONENT})
+    set(BOOST_DEPS "${BOOST_DEPS}, libboost-${COMP}-dev")
+endforeach(COMPONENT)
+
+set(CPACK_DEBIAN_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3, libxml2, libocct-foundation-dev, libocct-modeling-algorithms-dev, libocct-modeling-data-dev, libocct-ocaf-dev, libocct-visualization-dev, libocct-data-exchange-dev, libpython3-dev, python3-pytest ${BOOST_DEPS}")
+set(CPACK_DEBIAN_PACKAGE_DESCRIPTION_SUMMARY "${CPACK_PACKAGE_DESCRIPTION_SUMMARY}")
+set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+set(CPACK_DEBIAN_PACKAGE_SECTION "science")
+set(CPACK_DEBIAN_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}${EXTRA_VERSION}")
+set(CPACK_DEBIAN_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+# set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_SOURCE_DIR}/cmake/debian/postinst")
+
+include(CPack)
+
+include(package_export.cmake)

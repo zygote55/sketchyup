@@ -1,0 +1,50 @@
+# The trim of the IfcOpenShell source tree (ADR 0171 decision 21). scripts/vendor-ifcopenshell.py
+# reads this file: each rule is `keep PATH` or `drop PATTERN`, applied in order to every file of
+# the upstream tag archive, and the last rule that matches a file decides. A file that no rule
+# matches is not vendored. Patterns: `**` crosses directories, `*` does not.
+# What remains is byte for byte upstream; any change to it belongs in PATCHES.md instead.
+
+# Licence texts and the version file the top-level build reads.
+keep VERSION
+keep COPYING
+keep COPYING.LESSER
+keep README.md
+
+# The build definition (a top-level project: it reads ../src/*).
+keep cmake/
+
+# The libraries: IfcParse, the plugin loader, IfcGeom and the two small serializer-runtime files
+# IfcGeom compiles. src/ifcfuzz is upstream's libFuzzer parser harness (J3).
+keep src/ifcparse/
+keep src/ifcgeom/
+keep src/plugin/
+keep src/serializers/
+keep src/ifcfuzz/
+
+# Upstream's own tests fetch Catch2 over the network and are not built.
+drop src/ifcparse/tests/**
+drop src/ifcgeom/tests/**
+
+# Three schemas (IFC2X3, IFC4, IFC4X3_ADD2) and the STEP header schema; the other eight
+# generated schemas are 50 MB and are not accepted (decision 2).
+drop src/ifcparse/schemas/**
+keep src/ifcparse/schemas/Header_section_schema.cpp
+keep src/ifcparse/schemas/Header_section_schema.h
+keep src/ifcparse/schemas/Header_section_schema-schema.cpp
+keep src/ifcparse/schemas/Ifc2x3.cpp
+keep src/ifcparse/schemas/Ifc2x3.h
+keep src/ifcparse/schemas/Ifc2x3-definitions.h
+keep src/ifcparse/schemas/Ifc2x3-schema.cpp
+keep src/ifcparse/schemas/Ifc4.cpp
+keep src/ifcparse/schemas/Ifc4.h
+keep src/ifcparse/schemas/Ifc4-definitions.h
+keep src/ifcparse/schemas/Ifc4-schema.cpp
+keep src/ifcparse/schemas/Ifc4x3_add2.cpp
+keep src/ifcparse/schemas/Ifc4x3_add2.h
+keep src/ifcparse/schemas/Ifc4x3_add2-definitions.h
+keep src/ifcparse/schemas/Ifc4x3_add2-schema.cpp
+
+# The OpenCASCADE and pass-through kernels are built. CGAL (GPL-3.0-or-later parts) is never
+# linked and Manifold is off by default.
+drop src/ifcgeom/kernels/cgal/**
+drop src/ifcgeom/kernels/manifold/**

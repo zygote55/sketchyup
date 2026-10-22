@@ -1,0 +1,50 @@
+SketchyUp IFC support: where the source of the libraries is
+============================================================
+
+The package sketchyup-ifc contains the helper program sketchyup-ifc-worker and the libraries it
+uses, all in /usr/lib/sketchyup. The SketchyUp application itself does not contain or link any of
+them. These libraries are free software under the GNU Lesser General Public License; you may
+replace them with versions you build yourself (see "Replacing the libraries" below).
+
+IfcOpenShell (LGPL-3.0-or-later)
+  Files: libifcopenshell.parse.so, libifcopenshell.plugin.so, libifcopenshell.geometry.so and the
+  plugins ifcopenshell_parse_schema_*.so, ifcopenshell_geometry_mapping_*.so and
+  ifcopenshell_geometry_kernel_*.so.
+  Version: 0.9.0, upstream tag ifcopenshell-v0.9.0, commit
+  7ba701972f7182322e0a00db8f0e1f3de5f69840, unmodified.
+  Upstream: https://github.com/IfcOpenShell/IfcOpenShell
+  Corresponding source: the directory third_party/ifcopenshell of the SketchyUp source archive of
+  the release that contains this package (sketchyup-VERSION.tar.gz, published with the release).
+  It is the upstream tag trimmed of the parts that are not built; third_party/ifcopenshell/
+  README.sketchyup.md lists the trim and scripts/vendor-ifcopenshell.py checks it against the
+  upstream archive.
+  The licence texts are installed as /usr/share/licenses/sketchyup/IfcOpenShell-COPYING.LESSER and
+  IfcOpenShell-COPYING.
+
+Open CASCADE Technology (LGPL-2.1-or-later with the Open CASCADE exception)
+  Files: the libTK*.so libraries in /usr/lib/sketchyup. This product includes software developed
+  by, and is based on facilities provided by, Open CASCADE Technology (https://dev.opencascade.org).
+  Version: as built by Arch Linux in its package opencascade; the version is in the file name of
+  libTKernel.so.X.Y.Z.
+  Corresponding source: the upstream tag V7_9_3 (https://github.com/Open-Cascade-SAS/OCCT) and the
+  source package of Arch Linux's opencascade package (https://gitlab.archlinux.org/archlinux/
+  packaging/packages/opencascade).
+  The licence texts are installed as /usr/share/licenses/sketchyup/OpenCASCADE-LICENSE and
+  OpenCASCADE-LGPL-EXCEPTION.
+
+Written offer
+  For at least three years after the last SketchyUp release that contains these libraries, you may
+  ask for the complete corresponding source of the IfcOpenShell and Open CASCADE libraries in the
+  package, on a physical medium or by download, for no more than the cost of providing it, by
+  writing to the maintainer at https://github.com/zygote55/sketchyup (open an issue named "IFC
+  source request" or write to the address in the package's url).
+
+Replacing the libraries
+  1. Build IfcOpenShell 0.9.0 (the same tag) from third_party/ifcopenshell with CMake, for example
+     with the options in src/ifc/IfcOpenShellPrefix.cmake.
+  2. Copy libifcopenshell*.so* and the ifcopenshell_*.so plugins from its install tree over the
+     files in /usr/lib/sketchyup, or put them in a directory of your own and run the helper with
+     LD_LIBRARY_PATH set to that directory: the helper finds its libraries through a RUNPATH of
+     $ORIGIN, which LD_LIBRARY_PATH overrides.
+  3. Run: /usr/lib/sketchyup/sketchyup-ifc-worker --probe
+     It prints the version of the libraries and the paths of every library it loaded.
