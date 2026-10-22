@@ -188,6 +188,26 @@ What still costs most, and the next levers, in order:
   shards would trade wall time for runner time.
 - **Slow suites.** The terrain suites dominate CTest; the follow-up [PR #403](https://github.com/zygote55/sketchyup/pull/403) trims duplicated work in them.
 
+## Test cleanup
+
+Coverage-preserving trims of the slowest suites, each keeping its assertion:
+
+- `terrain_history_tests` `explode`: the over-limit refusal uses a 235 x 235 grid (110,450
+  faces) instead of 353 x 353; the 250,000-triangle create/regenerate/worst-case cases
+  (ADR 0168) are unchanged.
+- `incremental_validation_tests`: the full-validation oracle is off for the ballast setup
+  in every build (was sanitized only) and for the 59 setup placements of the 600,000-vertex
+  boundary; the placement that reaches the limit and every later edit still run under it.
+- `terrain_stamp_tests`: `hostile` runs the comb stamp once (refusal, no change and timing
+  together); `triangleLimit` takes its report from the one refusal that is checked.
+- `terrain_drape_tests` `triangleLimit`: one refusal run serves the no-change check and the
+  located-report assertions.
+- `terrain_sculpt_tests`: the 19,999-corner comb is refused once, not twice; the brute-force
+  star check uses 600 probes instead of 1,500 (about 225 inside, against the `> 150` bound).
+- `provider_release_corpus`: the 24 replayed `provider_trial` runs execute on four threads
+  (independent report paths, retained files and journals); results are checked serially in
+  task order and the run count is unchanged.
+
 ## Consequences
 
 - A regression that only the full tier sees (a sanitizer finding, Wayland, 2× or

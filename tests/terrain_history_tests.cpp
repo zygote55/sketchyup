@@ -103,7 +103,7 @@ void createAndRegenerate() {
     doc.verifyIncrementalState();
 }
 // Core: Explode is the largest terrain edit within the 100,000-face modelling limit
-// (99,458 tile faces before and after); a 250k terrain refuses on the face limit.
+// (99,458 tile faces before and after); a terrain over 100,000 faces refuses.
 void explode() {
     Document doc;
     const auto mesh = grid(223, 223);
@@ -113,7 +113,9 @@ void explode() {
     check(!isTerrain(doc, terrain) && doc.history().total == 2, "explode is one edit");
     undoRedo(doc, before, bodies(doc), "explode");
     Document large;
-    const auto big = grid(353, 353);
+    // 235 x 235 cells is 110,450 faces: over the limit with margin, and far cheaper than the
+    // 250k terrain, which the cases above and `commands` already cover.
+    const auto big = grid(235, 235);
     const auto bigTerrain = createTerrain(large, big, record(big)).terrain;
     const auto revision = large.revision();
     std::string code, message;
@@ -126,7 +128,7 @@ void explode() {
     check(code == "LIMIT_EXCEEDED" && message.find("100,000-face modelling limit") !=
                                           std::string::npos &&
               large.revision() == revision && isTerrain(large, bigTerrain),
-          "explode of a 250k terrain refuses on the modelling face limit: " + message);
+          "explode of a 110k-face terrain refuses on the modelling face limit: " + message);
 }
 // The worst a 250,000-triangle terrain can charge: disjoint triangles (three vertices and
 // three boundary edges each, the most per triangle) and a record at its source limits.

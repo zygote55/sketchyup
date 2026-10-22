@@ -645,7 +645,8 @@ void weights() {
     const TerrainSculptInfluence index(star);
     std::uniform_real_distribution<double> u(-60, 60);
     std::size_t in = 0, near = 0;
-    for (int i = 0; i < 1500; ++i) {
+    // 600 probes: about 225 inside the star (37% of the square), against the > 150 below.
+    for (int i = 0; i < 600; ++i) {
         const double px = u(random), py = u(random);
         int winding = 0;
         double best = 1e300;
@@ -1409,16 +1410,20 @@ void hostileRegion() {
     QJsonObject fields{{"mode", "smooth"},
                        {"region", planPoints(doc, terrain, hostile)},
                        {"falloffWidth", 5}};
-    const auto started = std::chrono::steady_clock::now();
-    const auto refused = refusal([&] { direct(doc, sculptCommand(terrain, fields)); });
-    const double seconds =
-        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-    check(refused.code == "LIMIT_EXCEEDED" && !refused.report.isEmpty() &&
+    // One run: refused with LIMIT_EXCEEDED, changing nothing; the refusal itself is timed.
+    Refusal refused;
+    double seconds = 0;
+    checkUnchanged(doc, "a comb region", [&] {
+        const auto started = std::chrono::steady_clock::now();
+        refused = refusal([&] { direct(doc, sculptCommand(terrain, fields)); });
+        seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+        if (!refused.code.empty())
+            throw TerrainError(refused.code, refused.message);
+    }, "LIMIT_EXCEEDED");
+    check(!refused.report.isEmpty() &&
               refused.message.find("horizontal band") != std::string::npos,
           "a comb region is refused with LIMIT_EXCEEDED and a located report");
     check(seconds < 5, "the comb is refused quickly");
-    checkUnchanged(doc, "a comb region", [&] { direct(doc, sculptCommand(terrain, fields)); },
-                   "LIMIT_EXCEEDED");
     TerrainSculptData data;
     data.region = hostile;
     data.width = 5;

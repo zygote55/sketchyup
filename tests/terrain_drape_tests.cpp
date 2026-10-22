@@ -1631,8 +1631,13 @@ void triangleLimit() {
         zig.push_back({c.x - 60 + 0.3 * i, c.y + (i % 2 ? 9.0 : -9.0)});
     const auto line = addPolyline(doc, modelLine(doc, terrain, zig));
     const auto drape = [&] { direct(doc, drapeCommand(terrain, {{"edges", edgesOf(doc, line)}})); };
-    checkUnchanged(doc, "a drape past the triangle limit", drape, "LIMIT_EXCEEDED");
-    const auto r = refusal(drape);
+    // One run: the refusal is checked for LIMIT_EXCEEDED and no change, and its report kept.
+    Refusal r;
+    checkUnchanged(doc, "a drape past the triangle limit", [&] {
+        r = refusal(drape);
+        if (!r.code.empty())
+            throw TerrainError(r.code, r.message);
+    }, "LIMIT_EXCEEDED");
     const auto refusals = r.report["terrain"].toObject()["refusals"].toArray();
     check(!refusals.isEmpty() && refusals.at(0).toObject()["kind"] == "triangle-budget" &&
               !refusals.at(0).toObject()["locations"].toArray().isEmpty() &&
