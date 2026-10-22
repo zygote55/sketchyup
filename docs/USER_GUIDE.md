@@ -544,3 +544,4 @@ When reporting a problem, include the build/source version, Qt/display backend,
 the operation and its visible error. A small synthetic reproducer is preferable
 to a private model. Raw provider exchanges and credentials are not public support
 artifacts.
+
