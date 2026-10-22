@@ -1,6 +1,6 @@
 # SketchyUp native Linux build plan
 
-Status: M0–M9 gates are accepted; M9 is accepted at the 1.0.0 release candidate ([record](verification/M9.md)), and 1.0.0 is released. The first M10 release, F01 as 1.1.0, is released ([record](verification/F01-1.1.0.md)); the 1.1.1 patch release, which fixes D-036, is released ([record](verification/F01a-1.1.1-patch.md)); the second M10 release, F02 as 1.2.0, is released ([record](verification/F02-1.2.0.md)). Delivered entries, evidence and remaining gates are recorded in [the roadmap](PR_ROADMAP.md). Updated: 2026-10-17.
+Status: M0–M9 gates are accepted; M9 is accepted at the 1.0.0 release candidate ([record](verification/M9.md)), and 1.0.0 is released. The first M10 release, F01 as 1.1.0, is released ([record](verification/F01-1.1.0.md)); the 1.1.1 patch release, which fixes D-036, is released ([record](verification/F01a-1.1.1-patch.md)); the second M10 release, F02 as 1.2.0, is released ([record](verification/F02-1.2.0.md)); the third, F03 as 1.3.0, has its release record at the release candidate `d69c4402` and awaits the owner's tag ([record](verification/F03-1.3.0.md)). Delivered entries, evidence and remaining gates are recorded in [the roadmap](PR_ROADMAP.md). Updated: 2026-10-21.
 
 This document defines intended behavior and acceptance gates. It does not claim
 that the native application, proposed commands, packages, or integrations exist.

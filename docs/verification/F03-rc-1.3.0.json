@@ -1,0 +1,366 @@
+{
+ "layer": "F03 RC walkthrough 1.3.0 (third candidate)",
+ "date": "2026-10-21",
+ "procedure": "docs/M10_ACCEPTANCE.md (RC text)",
+ "result": "RC3 passes every re-run check and the full CI tier; the provider corpus (R086.g, run at RC1) is relied on unchanged",
+ "rc": {
+  "name": "RC3",
+  "commit": "d69c4402268fef7e78de5cced7496f12091f52ea",
+  "branch": "release/1.3.0",
+  "prHead": "PR #408 (D-047)",
+  "mergedIntoMainAs": "db3eb51fd883a88763671ae5bc1bac7ed5d42b2b",
+  "ancestorOfMain": true,
+  "sourceArchive": {
+   "file": "sketchyup-1.3.0.tar.gz",
+   "sha256": "31e838e7dfba82766bcf38afde3a9930d48547f8393a864b4a329d65da38ab5f"
+  },
+  "package": {
+   "file": "sketchyup-1.3.0-1-x86_64.pkg.tar.zst",
+   "name": "sketchyup",
+   "version": "1.3.0-1",
+   "sha256": "5f5c0cf8ca876d278e375304ff95257ac22decc8dc641096da4c62013cfa833b"
+  },
+  "thirdPartyNotices": {
+   "file": "THIRD_PARTY_NOTICES",
+   "sha256": "962d42ad4d269971bd99b8964d35784f859283d29df586a911a51475b140f031"
+  },
+  "sha256sumsSha256": "7f75a359a89d5e74b8a8a4f9a300502ee7d0b5b8d45a9ac918aebd889738b058",
+  "manifestSha256": "2462a21b059e39d8d997facdbdb8f9a2965a74bea426bcb2c816f67a7d3c4a17",
+  "manifestBuildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "priorRelease": {
+   "file": "sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+   "source": "https://github.com/zygote55/sketchyup/releases/download/v1.2.0/sketchyup-1.2.0-1-x86_64.pkg.tar.zst",
+   "sha256": "b95fc18909040de68c8c8cb425f1bd01f3573249b48b4c3b61fe0be53d31295d",
+   "verified": true,
+   "equalsReleaseAssetDigest": true
+  },
+  "qt68ReferencePackageSha256": "d40c0042fef2ee71c244de6c85cb70b6acc9d1cfdb22827e6da8c31b4e0253b4",
+  "releaseArtifactsRuns": 2,
+  "archiveStableAcrossRuns": true,
+  "releaseVersionScript": "1.3.0"
+ },
+ "images": {
+  "packageBuild": {
+   "tag": "sketchyup-build:20261002",
+   "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+  },
+  "pinned": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+  "fresh": {
+   "image": "archlinux:base-devel@sha256:3cbf69d2d5958d6a294f3722c5668e6187c4df8e00fa27f72352f0bf83e495e1",
+   "created": "2026-10-21T21:05:43Z",
+   "pulled": "2026-10-21",
+   "archiveDate": "2026-10-21"
+  },
+  "reference": {
+   "image": "archlinux:base-devel-20241013.0.269705",
+   "id": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+   "archiveDate": "2024-10-15",
+   "signatureTimeEvaluatedAt": "2024-10-16T00:00:00",
+   "package": {
+    "file": "sketchyup-1.3.0-1-x86_64.pkg.tar.zst",
+    "fromArchiveSha256": "31e838e7dfba82766bcf38afde3a9930d48547f8393a864b4a329d65da38ab5f",
+    "sha256": "d40c0042fef2ee71c244de6c85cb70b6acc9d1cfdb22827e6da8c31b4e0253b4",
+    "buildSeconds": 1176,
+    "logSha256": "a2e143016cb11fbe06ec53557a302136dcc0d2d2ee5f3bebbf2a251d231b4280"
+   }
+  }
+ },
+ "ciAtRc": {
+  "run": 39730790771,
+  "url": "https://github.com/zygote55/sketchyup/actions/runs/39730790771",
+  "event": "push",
+  "branch": "release/1.3.0",
+  "tier": "full",
+  "headSha": "d69c4402268fef7e78de5cced7496f12091f52ea",
+  "conclusion": "success",
+  "attempt": 1,
+  "completedAt": "2026-10-22T07:37:30Z",
+  "jobs": {
+   "Development build and checks": "success",
+   "Native tests: X11 1x": "success",
+   "Native tests: X11 2x": "success",
+   "Native tests: Wayland 1x": "success",
+   "Native tests: Wayland 2x": "success",
+   "Native tests: audit and accessibility": "success",
+   "Native tests: fractional scaling, Blender worker and M5": "success",
+   "Blender interoperability": "success",
+   "Sanitized builds": "success",
+   "Arch package acceptance": "success",
+   "CI verdict": "success"
+  },
+  "ctest": {
+   "dev": "228/228",
+   "dxfReal": "1/1",
+   "pdfReal": "2/2",
+   "blenderWorker": "9/9",
+   "sanitize": [
+    "71/71",
+    "119/119",
+    "7/7",
+    "1/1"
+   ],
+   "packageCheck": "228/228"
+  }
+ },
+ "localRuns": {
+  "packageAcceptance": {
+   "run": "rc130c-package-acceptance",
+   "result": "pass",
+   "ctest": "228/228",
+   "priorReads": 28,
+   "newerFixturesRefused": 0,
+   "migrations": 32,
+   "assembliesByteIdentical": 6
+  },
+  "cleanMachines": {
+   "pinned": {
+    "passed": true,
+    "steps": {
+     "network-isolated": "true",
+     "install-and-closure": "pass",
+     "cli-open-save": "pass",
+     "offscreen-launch": "pass",
+     "xvfb-launch": "pass",
+     "migrations": "32",
+     "sheets-preflight-blocks": "pass",
+     "sheets-cli-smoke": "pass",
+     "mcp-sheet-queries": "pass",
+     "assemblies-rebuild-identical": "6",
+     "f02-parameter-fixture": "save-v28-validate-pass,reopen-inspection-pass",
+     "mcp-parameter-queries": "pass",
+     "f03-terrain-import": "save-v29-validate-pass,reopen-inspection-pass",
+     "f03-terrain-xvfb": "pass",
+     "mcp-terrain-queries": "pass",
+     "remove-clean": "pass",
+     "upgrade-preferences-remove": "pass",
+     "lifecycle": "pass"
+    },
+    "installedVersions": {
+     "pacman": "7.1.0.r9.g54d9411-2",
+     "glibc": "2.44+r50+g1848099f063e-1",
+     "qt6-base": "6.11.2-3",
+     "qt6-wayland": "6.11.2-1",
+     "mesa": "1:26.2.3-2"
+    }
+   },
+   "fresh": {
+    "passed": true,
+    "steps": {
+     "network-isolated": "true",
+     "install-and-closure": "pass",
+     "cli-open-save": "pass",
+     "offscreen-launch": "pass",
+     "xvfb-launch": "pass",
+     "migrations": "32",
+     "sheets-preflight-blocks": "pass",
+     "sheets-cli-smoke": "pass",
+     "mcp-sheet-queries": "pass",
+     "assemblies-rebuild-identical": "6",
+     "f02-parameter-fixture": "save-v28-validate-pass,reopen-inspection-pass",
+     "mcp-parameter-queries": "pass",
+     "f03-terrain-import": "save-v29-validate-pass,reopen-inspection-pass",
+     "f03-terrain-xvfb": "pass",
+     "mcp-terrain-queries": "pass",
+     "remove-clean": "pass",
+     "upgrade-preferences-remove": "pass",
+     "lifecycle": "pass"
+    },
+    "installedVersions": {
+     "pacman": "7.1.0.r9.g54d9411-3",
+     "glibc": "2.44+r50+g1848099f063e-1",
+     "qt6-base": "6.12.0-3",
+     "qt6-wayland": "6.12.0-1",
+     "mesa": "1:26.2.5-1"
+    }
+   },
+   "reference": {
+    "passed": true,
+    "steps": {
+     "network-isolated": "true",
+     "install-and-closure": "pass",
+     "cli-open-save": "pass",
+     "offscreen-launch": "pass",
+     "xvfb-launch": "pass",
+     "migrations": "32",
+     "sheets-preflight-blocks": "pass",
+     "sheets-cli-smoke": "pass",
+     "mcp-sheet-queries": "pass",
+     "assemblies-rebuild-identical": "6",
+     "f02-parameter-fixture": "save-v28-validate-pass,reopen-inspection-pass",
+     "mcp-parameter-queries": "pass",
+     "f03-terrain-import": "save-v29-validate-pass,reopen-inspection-pass",
+     "f03-terrain-xvfb": "pass",
+     "mcp-terrain-queries": "pass",
+     "remove-clean": "pass",
+     "upgrade-preferences-remove": "pass",
+     "lifecycle": "pass"
+    },
+    "installedVersions": {
+     "pacman": "7.0.0.r3.g7736133-1",
+     "glibc": "2.40+r16+gaa533d58ff-2",
+     "qt6-base": "6.8.0-1",
+     "qt6-wayland": "6.8.0-1",
+     "mesa": "1:24.2.4-1"
+    }
+   }
+  },
+  "qt68Compat": {
+   "result": "pass",
+   "d036Pdfs": "0 syntax errors, qpdf --check clean",
+   "prior120": "refuses schema 29 unchanged; opens 28, 27, 26",
+   "prior111": "refuses schema 29 and 28 unchanged; opens 27, 26"
+  }
+ },
+ "notRunAtRc": [
+  "native cells that no CI line runs (gen_cases.py)",
+  "dialog-audit cells that no CI line runs",
+  "local sanitized build (CI sanitize job covers it)",
+  "M5-M8 studies beyond CI",
+  "timing, GPU and display checks",
+  "ADR 0161 waived checks"
+ ],
+ "providerCorpus": {
+  "record": "docs/verification/R086g-rc130-remote-evaluation.md",
+  "corpusVersion": 5,
+  "ranAt": "09b8a0617ac8d8222765246296bdf75f0f44e1ad (RC1)",
+  "manifestSha256": "0a952e16a5661dfa02dc49d5982f00d519f9c0009b76ab4aca6d5edf990b7d9b",
+  "providerTrialSha256": "0b1a1723c6372092e3a3094bc94f94570842773cdc91f9c400bfe19c4f478baf",
+  "scorerSha256": "6ae37758384ab0aedb45714702b75a686c74ed1866e037aac0dc415aef171ce7",
+  "instructionsSha256": "313b9f911735f28e21bb1c9310d727416568d0c460971c43315faf4dd1f376be",
+  "corpusPassed": true,
+  "blockers": [],
+  "undoRestores": "24/24",
+  "recoveryRestores": "24/24",
+  "releaseAccepted": false,
+  "reliedOnAtRc3": true,
+  "reliedOnReason": "RC2 changes only the stream-error path (D-046) and RC3 adds a test include (D-047); every task's first ChatGPT-plan request body is byte-identical between the RC1 libraries and the D-046 codec and transport (offline dump, 8/8 tasks), and the RC1 dump equals the request RC1 sent",
+  "wireComparison": {
+   "tasks": 8,
+   "identical": 8,
+   "bytesRange": [
+    31705,
+    61682
+   ],
+   "fixCommit": "46e0ac352007a8422788d554fc3690ce4798bb14"
+  },
+  "stoppedFirstAttempt": {
+   "recordedTasks": 5,
+   "cause": "ChatGPT plan usage limit (error event subscription_sharing_usage_limit_exceeded before response.failed), established by two owner-approved probes; misreported by the app (D-046)",
+   "counted": false
+  }
+ },
+ "triage": {
+  "open": 22,
+  "releaseBlocking": 0,
+  "major": 0,
+  "minor": 8,
+  "limitation": 14,
+  "minorIds": [
+   "D-006",
+   "D-007",
+   "D-008",
+   "D-009",
+   "D-019",
+   "D-031",
+   "D-034",
+   "D-040"
+  ],
+  "limitationIds": [
+   "D-001",
+   "D-004",
+   "D-005",
+   "D-010",
+   "D-011",
+   "D-012",
+   "D-013",
+   "D-014",
+   "D-015",
+   "D-016",
+   "D-017",
+   "D-018",
+   "D-020",
+   "D-029"
+  ],
+  "newFromGate": [
+   {
+    "id": "D-046",
+    "class": "Minor",
+    "foundAt": "RC1",
+    "fixedBy": "PR #407 (RC2)"
+   },
+   {
+    "id": "D-047",
+    "class": "Major",
+    "foundAt": "RC2",
+    "fixedBy": "PR #408 (RC3)",
+    "verifiedBy": "Qt 6.8 reference build and lifecycle at RC3"
+   }
+  ]
+ },
+ "superseded": [
+  {
+   "name": "RC1",
+   "commit": "09b8a0617ac8d8222765246296bdf75f0f44e1ad",
+   "mergeOf": "PR #406",
+   "fullTier": {
+    "run": 39721695132,
+    "conclusion": "cancelled",
+    "note": "superseded by RC2 (D-046); full tier cancelled before completion"
+   },
+   "mainFastTier": {
+    "run": 39721671495,
+    "conclusion": "success"
+   },
+   "archiveSha256": "562eab71e3518d5dbb77daf21d5cffa7f48b6e9f832658730fd52b141d8afdaa",
+   "packageSha256": "6d7f20f17dff06d73d93ead04fb661573401ab6539b68f636feaffc2086b6fbb",
+   "packageAcceptance": "pass (CTest 228/228)",
+   "qt68ReferenceBuild": "stopped when superseded"
+  },
+  {
+   "name": "RC2",
+   "commit": "6ed335fb158e84d10683245423dba7a0a0a41b75",
+   "mergeOf": "PR #407",
+   "fullTier": {
+    "run": 39724677691,
+    "conclusion": "cancelled",
+    "note": "superseded by RC3 (D-047); full tier cancelled before completion",
+    "jobsPassedBeforeCancelHistoryOnly": [
+     "Development build and checks",
+     "Blender interoperability",
+     "Arch package acceptance",
+     "Native tests: X11 1x",
+     "Native tests: Wayland 1x",
+     "Native tests: Wayland 2x",
+     "Native tests: audit and accessibility",
+     "Native tests: fractional scaling, Blender worker and M5"
+    ],
+    "unfinished": [
+     "Native tests: X11 2x",
+     "Sanitized builds"
+    ]
+   },
+   "archiveSha256": "36bc0fa2e7ca8ad92c521753d43bdc4e277db1890a69656c060b2c4c1b9e1f4c",
+   "packageSha256": "fafb91b648987c65a13df719143946675d99dd1f3d6b71af856f46de2ed135fb",
+   "packageAcceptance": "pass (CTest 228/228)",
+   "cleanMachines": {
+    "pinned": "pass",
+    "fresh": "pass"
+   },
+   "qt68ReferenceBuild": "failed at step 630 of 809: tests/terrain_edit_input_tests.cpp:2165 invalid use of incomplete type QJsonDocument (D-047); ninja -k 0 of the same archive found no other error"
+  }
+ ],
+ "logsSha256": {
+  "packageAcceptanceRc3": "01657aa7fd844fd93d1e41b40e51f2567c51694844de28cbff98b56703cc49a0",
+  "releaseArtifacts1": "6a9a87ab70630f956b7a53fb41e48cf2d9b8ccdb5de0a2edbd4d7e28466deabf",
+  "releaseArtifacts2": "8db19d6e4ed935b2c93060137797a61a11cdbd04903e687ba46ba52f1f2e9226",
+  "lifecyclePinned": "d31c09897e2ba9f7e4de33604f655f6ac77aa5eaa586ae5bf86669dab52fe1a1",
+  "lifecycleFresh": "cb7ebc4fe15423175b29d8f60bd3a2cfb2f8fea5ded282d88e2161782d3d9650",
+  "lifecycleReference": "edd2eb0429aa2cc64af66295dbadd8e4020a5c8190492258105b2633a98ee9e1",
+  "qt68Compat": "17a601ab2c4bfd625d4c9e406732d95b729b1da0d983bef3f59d697e71c32220",
+  "qt68Build": "a2e143016cb11fbe06ec53557a302136dcc0d2d2ee5f3bebbf2a251d231b4280",
+  "cleanSummary": "9fd4c480d9b10d819bf355e704ea2ac56f286db6d101fc9b1c6197308a8edd45",
+  "rc2Qt68BuildFailure": "cb68c2ed94fe7f3468a0c92a7affa34c742ab45254bfb29989347f07ef403a36",
+  "rc2KeepGoing": "0371d1f4c8f7dd66937d73fc9707b82cf88ca09d5ec62d1c5241889e69ff092f",
+  "wireCompare": "2b965ccb0e798219091578ecd5bebd9ca4589e3bf1706436b2d473449e71cad9"
+ }
+}

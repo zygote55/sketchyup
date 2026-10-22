@@ -205,6 +205,13 @@ Follow-ups (2026-10-22):
   "Initialize containers" on each of three runners, against about 65 s for today's base
   image plus the cached package installation (about 25 s in the compile shards).
 - **Slow suites.** The terrain suites dominate CTest; the follow-up [PR #403](https://github.com/zygote55/sketchyup/pull/403) trims duplicated work in them.
+- **A Qt 6.8 compile job (not implemented).** Every CI job builds on the pinned Qt 6.11.2, so a
+  source that compiles only through Qt 6.11's transitive includes reaches a release candidate:
+  the 1.3.0 RC2 did not build on Qt 6.8.0, the declared minimum, because a test file lacked
+  `#include <QJsonDocument>` ([D-047](../verification/R089a-defect-triage.md), found by the RC's
+  Qt 6.8 reference build). Add a compile-only job on the Qt 6.8 reference snapshot
+  (`archlinux:base-devel-20241013.0.269705`, 2024-10-15 archive), every target with
+  `ninja -k 0`, to the full tier or the nightly run.
 
 ## Test cleanup
 
