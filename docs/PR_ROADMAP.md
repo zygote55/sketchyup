@@ -1409,7 +1409,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R097 — Deliver a documented IFC exchange subset
 
-**Status:** Planned. **Track:** Interchange. **Scope:** F04. **UX:** —.
+**Status:** Design proposed ([ADR 0171](decisions/0171-ifc-exchange-subset.md)), awaiting owner decisions. **Track:** Interchange. **Scope:** F04. **UX:** —.
 
 **Requires:** [R089](#r089), [R074](#r074); milestone gate rule above.
 
