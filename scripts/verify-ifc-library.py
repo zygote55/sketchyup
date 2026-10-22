@@ -105,9 +105,11 @@ def check_l1(prefix, others, problems):
     if not links_ifc(dynamic(worker)[0]):
         problems.append("L1: the worker does not link libifcopenshell")
     candidates = list(others)
+    # SketchyUp's own executables: /usr/bin is shared with other packages (OpenCASCADE's own tools
+    # link OpenCASCADE, rightly, where the machine has it installed).
     for directory in (prefix / "bin", private):
         if directory.is_dir():
-            candidates += [p for p in directory.iterdir() if p.is_file()]
+            candidates += [p for p in directory.iterdir() if p.is_file() and p.name.startswith("sketchyup")]
     checked = 0
     for path in candidates:
         if path.name == WORKER or not is_elf(path):
