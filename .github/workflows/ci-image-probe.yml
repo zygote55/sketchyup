@@ -1,0 +1,31 @@
+name: CI image probe (temporary)
+on: pull_request
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and push
+        run: |
+          cp packaging/arch/mirrorlist .github/ci-image-probe/
+          PACKAGES="cmake ninja meson pkgconf openssl qt6-base qt6-wayland wayland mesa xorg-server-xvfb xorg-xauth ttf-dejavu weston curl python-pip python-jsonschema nodejs npm blender ffmpeg poppler at-spi2-core gdb ccache python-yaml mold"
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build --build-arg PACKAGES="$PACKAGES" -t ghcr.io/zygote55/sketchyup-ci:probe .github/ci-image-probe
+          docker images ghcr.io/zygote55/sketchyup-ci:probe
+          time docker push ghcr.io/zygote55/sketchyup-ci:probe
+  use:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        n: [1, 2, 3]
+    container:
+      image: ghcr.io/zygote55/sketchyup-ci:probe
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+    steps:
+      - run: pacman -Q | wc -l; pacman -Q gcc mold blender
