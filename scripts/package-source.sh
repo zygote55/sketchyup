@@ -13,7 +13,7 @@ epoch=${SOURCE_DATE_EPOCH:-$(git -C "$root" log -1 --format=%ct 2>/dev/null || d
 tar -C "$root" --transform="s,^,sketchyup-$version/," \
   --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner \
   -cf - \
-  CMakeLists.txt CMakePresets.json LICENSE src tests scripts third_party resources examples docs/api docs/decisions docs/M5_ACCEPTANCE.md docs/M6_ACCEPTANCE.md docs/M7_ACCEPTANCE.md docs/M8_ACCEPTANCE.md docs/M9_ACCEPTANCE.md docs/M10_ACCEPTANCE.md docs/TOOL_REFERENCE.md docs/AI_MODELING.md docs/USER_GUIDE.md docs/SUPPORT_MATRIX.md \
+  CMakeLists.txt CMakePresets.json dependencies.json LICENSE src tests scripts third_party resources examples docs/api docs/decisions docs/M5_ACCEPTANCE.md docs/M6_ACCEPTANCE.md docs/M7_ACCEPTANCE.md docs/M8_ACCEPTANCE.md docs/M9_ACCEPTANCE.md docs/M10_ACCEPTANCE.md docs/TOOL_REFERENCE.md docs/AI_MODELING.md docs/USER_GUIDE.md docs/SUPPORT_MATRIX.md \
   | gzip -n > "$output/$archive"
 cp -- "$root/packaging/arch/PKGBUILD" "$output/PKGBUILD"
 digest=$(sha256sum "$output/$archive" | cut -d ' ' -f 1)

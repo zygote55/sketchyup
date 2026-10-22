@@ -1409,7 +1409,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R097 — Deliver a documented IFC exchange subset
 
-**Status:** Design accepted 2026-10-22 ([ADR 0171](decisions/0171-ifc-exchange-subset.md)); R097.a next. **Track:** Interchange. **Scope:** F04. **UX:** —.
+**Status:** Design accepted 2026-10-22 ([ADR 0171](decisions/0171-ifc-exchange-subset.md)). R097.a (library, helper skeleton and packaging) delivered in #413 and #414: IfcOpenShell 0.9.0 vendored and built as private shared libraries (13 minutes at four jobs), `sketchyup-ifc-worker --probe`, an API probe that re-checked every library claim of the ADR (it corrected the units, context-priorities, failed-subtraction and run-time-dependency text; [implementation notes](decisions/0171-ifc-exchange-subset.md#implementation-notes-r097a)), the split package `sketchyup-ifc` (18.0 MB compressed) and a cached-prefix CI job that leaves ordinary pull requests unchanged; R097.b next. **Track:** Interchange. **Scope:** F04. **UX:** —.
 
 **Requires:** [R089](#r089), [R074](#r074); milestone gate rule above.
 

@@ -21,7 +21,8 @@
     "full": "Run the full tier: the path is a harness most full-tier jobs share.",
     "job:audit": "Run the full tier's 'Native tests: audit and accessibility' job (with the development build).",
     "job:fractional": "Run the full tier's fractional-scaling, Blender worker and M5 job (with the development build).",
-    "job:sanitize": "Run the full tier's 'Sanitized builds' job."
+    "job:sanitize": "Run the full tier's 'Sanitized builds' job.",
+    "job:ifc": "Run the 'IFC library and helper' job (ADR 0171): IfcOpenShell prefix, sketchyup-ifc-worker, the API probe and the packaging checks. The fast tier restores the cached prefix; the full tier builds it from source."
   },
   "slow_tests": {
     "slow-terrain": [
@@ -76,13 +77,16 @@
       ]
     },
     {
-      "why": "Core geometry and document model: everything builds and the native tests run; the slow core suites run too. The slow terrain and provider suites wait for their own paths or the full tier.",
+      "why": "Core geometry and document model: everything builds and the native tests run; the slow core suites run too. The slow terrain and provider suites wait for their own paths or the full tier. third_party/ifcopenshell is not here: only sketchyup-ifc-worker links it (rule below).",
       "paths": [
         "src/core/**",
         "src/geometry/**",
         "src/sketchyup/**",
         "src/solar/**",
-        "third_party/**"
+        "third_party/clipper2/**",
+        "third_party/manifold/**",
+        "third_party/cgltf/**",
+        "third_party/cdt/**"
       ],
       "areas": [
         "build",
@@ -100,6 +104,22 @@
       "areas": [
         "build",
         "native"
+      ]
+    },
+    {
+      "why": "IFC (ADR 0171): the vendored IfcOpenShell tree, the helper that links it, its API probe, fixtures and library checks, and the files that pin and describe it. The application does not link the library, so the vendored tree alone selects only the IFC job, which restores the cached prefix (the tree and src/ifc/IfcOpenShellPrefix.cmake key the cache); src, scripts and tests paths also select build and native through the generic rules.",
+      "paths": [
+        "third_party/ifcopenshell/**",
+        "src/ifc/**",
+        "tests/ifc*",
+        "tests/fixtures/ifc/**",
+        "scripts/vendor-ifcopenshell.py",
+        "scripts/verify-ifc-library.py",
+        "dependencies.json",
+        "CMakePresets.json"
+      ],
+      "areas": [
+        "job:ifc"
       ]
     },
     {
@@ -478,6 +498,40 @@
       "areas": [
         "build",
         "job:audit"
+      ]
+    },
+    {
+      "why": "vendored IfcOpenShell tree only (R097.a)",
+      "paths": [
+        "third_party/ifcopenshell/src/ifcparse/file.cpp",
+        "third_party/ifcopenshell/TRIM.txt"
+      ],
+      "areas": [
+        "job:ifc"
+      ]
+    },
+    {
+      "why": "IFC helper source and its probe test (R097.a)",
+      "paths": [
+        "src/ifc/probe_geometry.cpp",
+        "tests/ifc_worker_probe_tests.py",
+        "tests/fixtures/ifc/units-mm.ifc"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "job:ifc"
+      ]
+    },
+    {
+      "why": "IFC library check script",
+      "paths": [
+        "scripts/verify-ifc-library.py"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "job:ifc"
       ]
     }
   ],

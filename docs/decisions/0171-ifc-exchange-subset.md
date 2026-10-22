@@ -4,10 +4,12 @@ Status: **Accepted (2026-10-22)**: decisions 1 to 16, then decisions 17 to 22 (h
 packaged and run), questions Q1 and Q2 and the reworded decisions 5, 12 and 14, all approved by the
 owner on 2026-10-22 ("Approve all"). Roadmap
 [R097](../PR_ROADMAP.md#r097) (M10, scope row [F04](../SCOPE.md)); the sibling
-[R098](../PR_ROADMAP.md#r098) covers STEP. Nothing in this ADR is implemented. Each section gives
+[R098](../PR_ROADMAP.md#r098) covers STEP. Only R097.a is implemented (see the end of this paragraph). Each section gives
 the options that were weighed and the recommendation. Facts about third-party projects were read
 on 2026-10-22 and are cited in the [appendix](#appendix-evidence-and-sources); anything not
-verified is marked as such.
+verified is marked as such. **R097.a is implemented** (library, helper skeleton, packaging, CI):
+its measurements and the corrections its API probe made to this text are in the
+[implementation notes](#implementation-notes-r097a); the other slices are not.
 
 **Owner decision, 2026-10-22, verbatim:** "Just use IfcOpenShell. I don't want to build it. I
 approve all." This settles decision 1: SketchyUp uses and ships IfcOpenShell, and writes no IFC
@@ -180,9 +182,13 @@ Things I found in the source of `v0.9.0` that the design depends on:
   library's. In the prototype the Reference View wall's OBJ came out in millimetres while the
   Architecture files' OBJs came out in metres, although every file declares a millimetre length unit; I
   did not isolate the cause. The adapter therefore **verifies every mesh against the file's units**
-  (check A1) instead of trusting the output unit.
+  (check A1) instead of trusting the output unit. *R097.a isolated the cause: the library reads the
+  units only when the file has exactly one `IfcContext`, and in IFC4 an `IfcProjectLibrary` is one too
+  ([note F1](#implementation-notes-r097a)); "other than one IfcProject" above is therefore wrong for IFC4
+  and later.*
 - `MaxVoidsPerElement` means "no voids will be processed for elements with more voids" (0 is
-  unlimited); it is a skip, not a bound on work, and it is silent apart from the log.
+  unlimited); it is a skip, not a bound on work, and it is silent apart from the log. *(R097.a:
+  confirmed; the log line is warning GEO403, naming the host.)*
 - `IfcIndexedColourMap` is not read by the C++ geometry code (the prototype's per-face-colour sample
   came out as one default material), so **per-face colours are read by the adapter**.
 - Feature edges come only from the OCCT kernel.
@@ -284,7 +290,8 @@ API changed between 0.8 and 0.9 (the typed entity classes, the `express` namespa
 
 **Run-time dependency.** The libraries record `libboost_program_options` and `libboost_container`, so
 the package depends on `boost-libs` (a small, common dependency; the two libraries are well under a
-megabyte).
+megabyte). *(R097.a: linked with `--as-needed` they record no Boost library, and the package does not
+depend on `boost-libs`, [note F9](#implementation-notes-r097a).)*
 
 **Build dependencies in the pinned image.** `boost` (headers; 158 MB installed), `eigen` and, for the
 OCCT kernel, `opencascade` headers and libraries. Arch's OCCT CMake configuration refuses to load
@@ -534,7 +541,8 @@ voids of a host that has more (a skip, not a cap on work), and those hosts are l
 reports `openingsDeclared`, `openingsNotApplied` (with the library's reason, bounded) and the elements
 affected. The prototype did not show how a failed subtraction appears, so R097.a includes a deliberately
 bad host and the worker detects "declared but not applied" by comparing declared voids with the log and,
-where the file carries a `NetVolume`, with the mesh volume. An opening that is not subtracted leaves the host uncut and the opening is
+where the file carries a `NetVolume`, with the mesh volume. *(R097.a: how failures show, and what an
+open host does, is in [note F5](#implementation-notes-r097a); an open host is not always left uncut.)* An opening that is not subtracted leaves the host uncut and the opening is
 imported **hidden on the tag `IFC Opening`** so the user can act on it; an applied opening is
 consumed, not imported. `IfcRelFillsElement` (a window in an opening) needs no action: the window's
 own placement puts it in the opening. Whether the library subtracted a void is **verified against
@@ -556,7 +564,8 @@ Native faces are planar polygons; IFC solids are not. **Everything is tessellate
 result is ordinary editable faces and edges, never a parametric record. The work of interpreting
 the representation items belongs to the library; the worker asks the iterator for the `Body`
 representation of each product in the `Model` context (settings: `ContextPriorities` ordered
-`Model/Body/MODEL_VIEW` first, because `ContextTypes` and `ContextIdentifiers` have no effect in
+`Model/Body/MODEL_VIEW` first (*R097.a: that spelling matches nothing; the grammar is
+`Body[ContextType=Model,TargetView=MODEL_VIEW]`, [note F2](#implementation-notes-r097a)*), because `ContextTypes` and `ContextIdentifiers` have no effect in
 `v0.9.0`; `UseWorldCoords` off so that each element has its own local frame; `WeldVertices` on; the
 opening settings of 3.2; and bounded mesher deflections), and receives, per element, a triangle mesh
 with a transformation, material indices and styles, and item identifiers; with the OCCT kernel also
@@ -1243,6 +1252,94 @@ Both were answered by the owner on 2026-10-22: "Approve all".
   how a failure shows is still to be proven in R097.a), 12 (the checks no longer use an IfcOpenShell oracle) and
   14 (the budgets now describe a helper process) were reworded after the first blanket approval; the owner
   confirmed the new wording.
+## Implementation notes (R097.a)
+
+R097.a ships the library, the helper skeleton, the packaging and the CI integration, and re-checks every
+library claim of section 1.2 against the real C++ API. It is delivered in two stacked pull requests (#413: the vendored tree; #414: everything that uses it). Nothing else changes:
+the application, the CLI and every existing test are untouched (the application never links the library, decision 19).
+
+### What was built
+
+- **Vendored tree** `third_party/ifcopenshell/`: `ifcopenshell-v0.9.0` (`7ba70197`), trimmed by `TRIM.txt`
+  to `cmake/`, IfcParse with three schemas, IfcGeom with the OpenCASCADE and pass-through kernels, the plugin loader, the
+  two serializer-runtime files IfcGeom compiles and the libFuzzer parser harness: 326 files, 18.6 MB (the upstream
+  archive is 137 MB; the three schemas are 16 MB of it), byte for byte upstream. `scripts/vendor-ifcopenshell.py` fetches the tag
+  archive, checks it (the commit it records, its SHA-256 `9e6a5fb2...c4b`) and proves the tree equals the trimmed archive
+  file by file; CI runs it on every IFC run. `README.sketchyup.md`, `PATCHES.md` (none), `IFC-SOURCE.txt` (the written offer) and
+  `occt/` (the two OpenCASCADE licence texts, copied from Arch's package so that tracked files exist for the notices) are ours.
+- **CMake** `SKETCHYUP_BUILD_IFC` (default OFF) adds `src/ifc`. `IfcOpenShellPrefix.cmake` builds the tree as a separate
+  project (`ExternalProject`) with three schemas, IfcGeom, the OpenCASCADE and pass-through kernels, no CGAL, converter, Python,
+  examples or upstream tests, `Release`, and `-Wl,--as-needed -Wl,--enable-new-dtags`, into `build/ifc-prefix`; or
+  uses a prefix in `SKETCHYUP_IFC_PREFIX` whose stamp file matches the pin and the flag version (the CI cache restores one).
+  The helper `sketchyup-ifc-worker` is the only target that links it; its `INSTALL_RPATH` is `$ORIGIN` (a `RUNPATH`, which
+  `LD_LIBRARY_PATH` overrides). Everything installs flat into `lib/sketchyup` under the install component `ifc`; an install-time
+  script copies the OpenCASCADE libraries the kernel plugin records (read from its `DT_NEEDED`, transitively) and gives each
+  `RUNPATH $ORIGIN` with `patchelf`. Presets `ifc` and `ifc-sanitize` configure only the prefix and the helper (no Qt).
+- **Helper** `--probe` (versions, loaded libraries, schemas, kernels: each kernel is tried with a plain `dlopen` first, so a
+  missing OpenCASCADE library reports "kernel unavailable" instead of the abort the prototype saw), `--probe-api`
+  (iterator and settings), `--probe-write` (typed IFC4 writer) and `--version`; the probes are developer tools, not the import
+  interface of R097.b.
+- **Packaging**: the PKGBUILD is a split package (`sketchyup`, `sketchyup-ifc`); see `packaging/arch/README.md` ("IFC helper
+  package", "Replacing IfcOpenShell"). `scripts/verify-ifc-library.py` implements checks L1 to L6; `ifc_library_install` runs it on a
+  scratch install, and package acceptance runs it on the installed package.
+- **CI**: the job `IFC library and helper`, area `job:ifc`, the cache and the plan changes are described in
+  [ADR 0170](0170-ci-tiers.md#follow-ups).
+
+### What the API probe found
+
+`tests/ifc_worker_probe_tests.py` (CTest `ifc_worker_probe`; 1.6 s) drives the iterator, the settings API and the writer
+through the helper and checks each claim against hand-computed values and a raw-text scan that shares no code with the library.
+It asserts what the library *does*, so an upgrade that changes any row fails there.
+
+| # | Claim of section 1.2 / 3 | Result | Consequence |
+| --- | --- | --- | --- |
+| F1 | `LengthUnit` is overwritten from the file; output in metres with `ConvertBackUnits` off; "with a missing length unit, or other than one `IfcProject`, the library only logs a warning and assumes metres"; the prototype's millimetre OBJ for the Reference View wall was not explained | **Confirmed** for millimetre, metre, foot and inch (conversion-based) units, and for a missing length unit (warning GEO312, metres assumed). The caller's `settings` keeps `LengthUnit` 1: the iterator works on a copy, so the worker reads the unit from the file itself. A second, unassigned `IfcSiUnit` length unit (the Architecture files have one) has no effect. **Contradicted** as to the cause of the inconsistency: the library reads units only when the file has exactly one `IfcContext`, and in IFC4 an `IfcProjectLibrary` is one too. A file with both (the Reference View wall has) logs GEO308 "Not a single project or context in file" and GEO309, reports the unit `METER` and returns the file's raw numbers: the wall is 3,000 × 300 × 2,000 long, not 3 × 0.3 × 2. The Architecture files have one `IfcProject` and come out in metres | A1's mesh check catches it, but the Reference View wall is a certified fixture and must import: **proposed** (owner to confirm; it refines 3.5's "not imported"): when GEO308 or GEO309 is logged and the worker has read a valid unit from the `IfcProject` itself, the adapter rescales by `fileMetresPerUnit / unit_magnitude()` (the unit the library assumed) and reports it; otherwise it refuses as 3.5 says. `units-mm-projectlibrary.ifc` reproduces it |
+| F2 | Representation selection by `ContextPriorities` ordered `Model/Body/MODEL_VIEW`; `ContextTypes` and `ContextIdentifiers` have no effect | **Confirmed** that both have no effect, and that `ContextIds` selects (the Body sub-context's step id works). **Contradicted**: `Model/Body/MODEL_VIEW` matches nothing: the iterator does not initialise (GEO051 "No representations encountered"). The grammar is `IDENTIFIER[Attribute=Value,...]`, the first word being the `ContextIdentifier` and the attributes those of `IfcGeometricRepresentationSubContext`: `Body[ContextType=Model,TargetView=MODEL_VIEW]` selects the Body representation. With no setting the default already picks only the Body representation of the Model context (Axis, Box and FootPrint are skipped) | 3.3 says `Body[ContextType=Model,TargetView=MODEL_VIEW]` (or leaves the default) |
+| F3 | (not claimed) priorities fall back to the next context | A priority list does not fall back: with `Box;Body` the Box representation (a bounding box, removed by default) is chosen and the product converts to nothing | The worker passes exactly one query |
+| F4 | `IfcConvert` excludes `IfcOpeningElement` and `IfcSpace`; the iterator does not | **Confirmed**: by default the iterator emits `IfcOpeningElement`, `IfcSpace`, `IfcSpatialZone` and every other product with a Body. With `dimensionality` 2 (curves, surfaces and solids) a product is emitted once per representation (Body, Axis and FootPrint), so one product can appear several times | The worker filters by class and counts emissions per product |
+| F5 | Voids: the kernel subtracts them (`DisableOpeningSubtractions` off); `MaxVoidsPerElement` is a silent skip; how a failed subtraction appears was not shown | **Confirmed**: one, two and through openings cut a mm host by the hand-computed volumes (2.4, 1.8 and 0.84 m³) and with the subtraction disabled the hosts are whole (3.0); the Reference View wall is 1.5e9 raw mm³ cut and 1.8e9 uncut (the prototype's values). `MaxVoidsPerElement` 1 leaves a two-opening host whole and logs warning GEO403 naming the host (so not silent). **Failures**: an opening that does not touch its host fails: the host is emitted **uncut**, the opening is not emitted, and the log has errors GEO033 "Error processing openings" (the host as instance) and GEO327. **Contradicted**: "an open host is left uncut": an open-shell faceted brep that the kernel reads as an extrusion is cut as if closed (GEO191 warning), and an *open tessellated host* is cut into **wrong geometry** (0.49 m³, extent 1.1 m on a 1 m cube, instead of 0.84) with only warnings GEO191 and GEO188 | "Declared but not applied" is not enough: the worker treats GEO033 as not applied, and **GEO191/GEO188 on a host that has voids as an untrusted result** (it re-runs that host with `DisableOpeningSubtractions` and reports it, as 3.2 says for a failed cut). The `NetVolume` check of E3 and E7 stays the oracle. `openings.ifc` and `openings-hard.ifc` |
+| F6 | Per-element failure: "the iterator takes an element filter"; failures the library reports never refuse the import | **Confirmed**: failures never throw and the other elements come out (`failures.ifc`: three of four products fail, one emits). Messages are structured (`log_messages()`: code, severity, text, instance, product). Mapping-stage failures (GEO089 non-positive extrusion, GEO283 zero-size profile, GEO326 and GEO327 "Failed to convert") name the failing **representation item and representation**, and leave `product` empty; GEO033, GEO191 and GEO403 carry the host in `product`. An empty body representation is dropped **silently**. `SYS027` "Created N tasks for M products" gives the counts. `had_error_processing_elements()` is true for the opening failure and false when three of four products fail: it is no signal; `logger::max_severity()` is. The exclusion filter (`instance_id_filter(false, false, ids)`) works | The worker maps a failing representation back to its product through `IfcProductDefinitionShape`'s inverse and reconciles "expected minus emitted" with the messages. It uses `max_severity()`, not `had_error_processing_elements()` |
+| F7 | Styles resolve; `IfcIndexedColourMap` is not read by the C++ code | **Confirmed**: surface styles resolve to materials named `IfcSurfaceStyleRendering-<step>` with the file's colour (the Architecture file's blue (0, 0.569, 0.788) for spaces; every colour is an `IfcColourRgb` of the file); unstyled products get `DefaultMaterial` (0.7 grey) with warning GEO031. The per-face-colour sample (three colours in `IfcColourRgbList`, 11 face indices) comes out as 12 triangles of one default material | The adapter reads `IfcIndexedColourMap` (C6) |
+| F8 | Feature edges only from the OpenCASCADE kernel; output order from several threads differs; the pass-through kernel does no Booleans | **Confirmed**: 18 feature edges against 0 from the pass-through kernel on a 12-triangle item. Four threads emit the same elements in another order; one thread is deterministic and in file order. The pass-through kernel meshes plain extrusions (12 triangles) but returns **empty meshes with no message** for hosts with voids | The pass-through kernel is no fallback for files with voids |
+| F9 | The libraries record `libboost_program_options` and `libboost_container`; the kernel records 20 OpenCASCADE libraries, 17 expected to be the geometry's own (36.9 MB) | Linked with `--as-needed` **no** shipped library records a Boost library, and the kernel plugin records 14 OpenCASCADE libraries directly and 15 with their dependencies (the closure adds `libTKFillet`), 36.5 MB, each depending only on libstdc++, libm, libgcc and libc | `sketchyup-ifc` depends on `sketchyup`, `gcc-libs` and `glibc`, not on `boost-libs` |
+| F10 | (export) The writer: `hierarchy_helper<Ifc4>` and `operator<<` | **Confirmed**: the typed API writes a valid IFC4 STEP file in millimetres (project, site, building, storey, wall, opening, `IfcRelVoidsElement`), and it reads back with the wall at 2.64 m³ (3.0 − 0.36). It declares `ViewDefinition [CoordinationView]` in `FILE_DESCRIPTION` and stamps the current time into `FILE_NAME` and `IfcOwnerHistory` | R097.d sets the description (section 2 says "SketchyUp export, tessellated geometry", no view) and the times (G3's byte-identical exports) |
+| F11 | A missing OpenCASCADE library aborts the process (prototype: uncaught `boost::wrapexcept<std::system_error>`, core dump, from `IfcConvert`) | The abort was `IfcConvert`'s. Through the library API `kernels::construct` throws a **catchable** `std::exception` (`boost::dll::shared_library::load() failed ... libTKBO.so.7.9.gone: cannot open shared object file`). The helper still tries a plain `dlopen` of the plugin first and reports "kernel unavailable" with the loader's message; checks L6 removes the plugin and each of the 15 libraries in turn (by renaming the dependency, since the machine has OpenCASCADE installed) | Nothing to change; the worker catches the exception per run |
+| F12 | Upstream's own fuzz harness disables leak detection because of a known leak | **Confirmed**: under ASan IfcParse leaks the instance data and header entities of every file it parses, so the sanitizer runs use `detect_leaks=0`; ASan and UBSan are otherwise clean on the whole probe (`UBSAN_OPTIONS=halt_on_error=1`) | J3's `worker` target uses `detect_leaks=0` too |
+| F13 | (not claimed) the plugin directory is the directory of `libifcopenshell.plugin.so` | The loader **also** searches the install directory compiled into `libifcopenshell.plugin.so` (`CMAKE_INSTALL_FULL_LIBDIR` of the sub-project: the build tree's `ifc-prefix/lib`, or in a package the build directory), loading plugins from both when both exist; so `LD_LIBRARY_PATH` replacement (L2) replaced only some of them, and makepkg warns "reference to $srcdir" for that library. The worker calls `ifcopenshell::plugin::set_search_paths({directory of the loaded libifcopenshell.plugin.so})` first, which makes the loader use that one directory | R097.b's worker does the same before anything else; the library's compiled-in path stays in the binary (a harmless string; upstream is not patched) |
+
+### Measurements
+
+Pinned image `sketchyup-ci-pinned:r094a` plus `boost`, `eigen`, `opencascade` and `patchelf` from the same dated archive (GCC 16.2.1, OpenCASCADE 7.9.3, Boost 1.92.0), container limited to 4 CPUs and 10 GB, `-j4`:
+
+| What | Result |
+| --- | --- |
+| IfcOpenShell prefix from the vendored tree (the recommended components, no converter), 361 steps | **788 s (13.1 minutes)**; with the helper and the configure of the main project 793 s (`cmake --build --preset ifc`, ExternalProject). Prototype 2 (with IfcConvert, 401 steps): 916 s |
+| The same on a GitHub runner (4 vCPUs), cold, full-tier job | **13 min 2 s** for configure and build (prefix and helper), 14 min 28 s for the whole job, including the proof that the tree equals the upstream tag (11 s) and the sanitizer run (20 s). The estimate of 20 to 30 minutes in 1.5 was pessimistic |
+| The same job on a fast-tier pull request, cache miss | 15 min 40 s (the build step 14 min 36 s), then the prefix is saved (about 12 MB compressed) |
+| The same job, cache hit (fast tier) | **1 min 21 s**: restore 1 s, helper build 15 s, tests 5 s, the proof of the tree 19 s |
+| `makepkg` of both packages, `-j4`, application and IfcOpenShell together, `--nocheck`, same container | **1,428 s (23.8 minutes)** |
+| Staged prefix | 32 MB (about 22 MB of IfcOpenShell libraries and plugins, the rest headers, CMake files and the tree and serializer plugins that are not shipped) |
+| Compiler memory | 0.9 GB per compiler process at most (the 10 GB cap held at `-j4`) |
+| Vendored tree | 326 files, 18.6 MB; the source archive is 7.2 MB compressed |
+| Package `sketchyup-ifc` | **18.0 MB compressed, 55.2 MB installed**: IfcOpenShell libraries and plugins 22.3 MB, **15 OpenCASCADE libraries 36.5 MB** (the kernel records 14; `libTKFillet` comes with `libTKOffset`), the helper 0.35 MB, notices and the source offer 0.1 MB. Depends on `sketchyup`, `gcc-libs`, `glibc` |
+| Package `sketchyup` | 20.1 MB compressed, 53.9 MB installed (unchanged by this slice apart from ADR 0171 and the optional dependency) |
+
+The ADR's estimate of the package "22 MB of libraries plus 37 to 57 MB of OpenCASCADE" was 59 to 79 MB installed; it is 55 MB, and a user who does not install `sketchyup-ifc` pays nothing.
+
+### CI and ordinary pull requests
+
+An `src/app`-only pull request (a comment in `src/app/window_terrain.cpp`, narrow compile, five test shards and two X11 shards, no other job) took **4 min 24 s** into `main` before this change (run 39820437948) and **3 min 48 s** into the R097.a branch with its own compiler cache standing in for `main`'s, as in ADR 0170's measurements (run 39821459893, the plan and the job set identical: 1 changed path, narrow, build and native). No job was added to such a plan, no package-cache key changed, and the plan job's extra work is a path map of 25 rules over 3,289 files (the check takes under a second). A pull request that changes only `third_party/ifcopenshell/**` runs only the IFC job.
+
+### Open questions and risks
+
+- **F1's rescale rule** (the Reference View wall): the adapter must rescale rather than refuse, or the certified fixture cannot import. Owner to confirm.
+- **Open hosts** (F5): the worker's handling (untrusted GEO191, re-run uncut and report) is proposed, not decided.
+- The loader's compiled-in plugin path (F13) stays a string in the binary; makepkg warns about `$srcdir` for `libifcopenshell.plugin.so`.
+- Package acceptance builds IfcOpenShell once (the preceding package skips it): the acceptance job took 43 min 46 s in its first run (the preceding package with its 229 CTest tests 25.5 minutes, the current package with IfcOpenShell 16 minutes, then the install checks), against about 30 minutes for the same job before this slice (run 39707993131).
+- The prefix cache lives only as long as GitHub keeps it (seven days without use); `main` keeps it warm only when an IFC path changes or the nightly full tier runs, and the first IFC pull request after an eviction pays about 15 minutes.
+- Check L2 shows the replacement mechanism with a copy of the libraries, not a rebuild from source in a scratch directory (a 13-minute build); the packaging README documents the real procedure.
+- Not done here, by design: the helper's resource limits, the conversion package, the Landlock/seccomp sandbox and every import or export code path (R097.b to d); fuzz target J3 (the vendored `src/ifcfuzz` is in the tree and not built).
+
 ## Appendix: evidence and sources
 
 All read on 2026-10-22 unless stated. `gh`/GitHub API and PyPI JSON were used for facts about

@@ -36,6 +36,10 @@ WIDE = re.compile(r"(\.(hpp|h|hh|inl|ipp|in)$|(^|/)CMakeLists\.txt$|^CMakePreset
 DEV_BUILD_CONSUMERS = {"x11-1x", "x11-2x", "wayland-1x", "wayland-2x", "audit", "fractional"}
 # More changed sources than this also compile in shards.
 NARROW_SOURCE_LIMIT = 24
+# Paths whose headers, sources and CMake files no fast-tier object depends on: IfcOpenShell and the
+# helper that links it are built by the IFC job (ADR 0171) from their own prefix, never by the
+# `ci-fast` build. Counting them would plan every pull request wide after the vendored tree changes.
+NOT_IN_FAST_BUILD = ("third_party/ifcopenshell/", "src/ifc/")
 
 
 def glob_regex(pattern):
@@ -334,11 +338,12 @@ def plan():
                 outputs["wide"] = True
                 reasons.append(f"no usable compiler cache on {cache_ref}: wide compile")
             else:
-                wide_paths = [p for p in since if WIDE.search(p)]
-                sources = [p for p in since if p.endswith(".cpp")]
+                relevant = [p for p in since if not p.startswith(NOT_IN_FAST_BUILD)]
+                wide_paths = [p for p in relevant if WIDE.search(p)]
+                sources = [p for p in relevant if p.endswith(".cpp")]
                 outputs["wide"] = bool(wide_paths) or len(sources) > NARROW_SOURCE_LIMIT
                 reasons.append(
-                    f"cache {cache_commit[:10]}: {len(since)} path(s) since, "
+                    f"cache {cache_commit[:10]}: {len(since)} path(s) since ({len(since) - len(relevant)} not in the fast build), "
                     f"{len(wide_paths)} header/build, {len(sources)} sources -> "
                     + ("wide" if outputs["wide"] else "narrow") + " compile")
     summary = "; ".join(reasons)

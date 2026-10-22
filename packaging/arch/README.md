@@ -5,16 +5,21 @@ Clipper2 retains BSL-1.0, Manifold Apache-2.0, cgltf MIT and the header-only CDT
 triangulation library MPL-2.0 (with its BSD-3-Clause exact predicates). Third-party notices
 ship in `/usr/share/licenses/sketchyup`.
 Build inputs are pinned by `Dockerfile.build` and the dated Arch archive mirror.
+The PKGBUILD builds two packages from one source, `sketchyup` and the optional `sketchyup-ifc`
+(see [IFC helper](#ifc-helper-package-sketchyup-ifc)); the application package carries none of the
+LGPL libraries of the second.
 The 1.0 native format and versioning rules are in [ADR 0108](../../docs/decisions/0108-public-native-format.md)
 and [ADR 0162](../../docs/decisions/0162-release-versioning.md).
 
-On an Arch workstation with the documented build dependencies installed:
+On an Arch workstation with the documented build dependencies installed (`makepkg -s` installs
+them; for the IFC helper they are `boost`, `eigen`, `opencascade` and `patchelf`):
 
 ```sh
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
 sudo pacman -U sketchyup-1.3.0-1-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-ifc-1.3.0-1-x86_64.pkg.tar.zst   # optional: IFC helper
 ```
 
 The version has one source: `project(SketchyUp VERSION ...)` in `CMakeLists.txt`
@@ -49,7 +54,9 @@ SKETCHYUP_CHECK_PACKAGE_DIR="$PWD/build/package-acceptance" \
 docker cp sketchyup-check-package-acceptance:/work/acceptance build/package-evidence
 ```
 
-Use an existing local image built from the pinned Dockerfile; the runner never
+Use an existing local image built from the pinned Dockerfile (`Dockerfile.build` installs the
+IFC helper's build packages `boost`, `eigen`, `opencascade` and `patchelf` since R097.a, so an image
+built before that must be rebuilt under a new tag); the runner never
 pulls an image implicitly. Use a fresh output directory/run name for each run.
 The checkout is mounted read-only at `/source`; package work is writable at
 `/work/package`. Logs, capture/config/data/cache and container `/tmp` use persistent
@@ -132,6 +139,78 @@ build defaults to one job; override `CMAKE_BUILD_PARALLEL_LEVEL` when needed.
 Blender and Secret Service credential support are optional; core modeling and
 file operations do not require either service.
 
+## IFC helper package (`sketchyup-ifc`)
+
+[ADR 0171](../../docs/decisions/0171-ifc-exchange-subset.md) decision 22: the PKGBUILD is a split
+package (`pkgbase=sketchyup`, `pkgname=(sketchyup sketchyup-ifc)`). `sketchyup` is installed with
+`cmake --install --component Unspecified` and `sketchyup-ifc` with `--component ifc`, so the default
+install stays small and the LGPL and OpenCASCADE obligations attach only to the second package.
+
+What `sketchyup-ifc` contains, all in the flat private directory `/usr/lib/sketchyup` (no new
+`PATH` or `ld.so` entry):
+
+- `sketchyup-ifc-worker`, the one executable that links IfcOpenShell (decision 19), with a
+  `RUNPATH` of `$ORIGIN`;
+- the IfcOpenShell 0.9.0 libraries built from `third_party/ifcopenshell` (`libifcopenshell.parse`,
+  `.plugin`, `.geometry`, the three schema libraries, the three geometry mapping plugins and the
+  OpenCASCADE and pass-through kernels), also `RUNPATH $ORIGIN`;
+- a private copy of the OpenCASCADE libraries the kernel plugin records (the `libTK*` closure; decision
+  18), copied from Arch's `opencascade` package at package-build time and given `RUNPATH $ORIGIN`
+  with `patchelf` (a library finds its dependencies through its own `RUNPATH`, not the executable's),
+  so users need not install `opencascade`, which pulls in VTK, Tcl and Tk (about 0.55 GiB);
+- `share/licenses/sketchyup/IfcOpenShell-COPYING.LESSER`, `IfcOpenShell-COPYING`,
+  `OpenCASCADE-LICENSE` and `OpenCASCADE-LGPL-EXCEPTION`, and `share/doc/sketchyup/IFC-SOURCE.txt`,
+  the written offer of the corresponding source and the instructions for replacing the libraries.
+
+It depends on `sketchyup`, `gcc-libs` and `glibc` (the libraries record no Boost library when linked
+with `--as-needed`). `sketchyup` lists it as an optional dependency. The package's `license` array is
+`MIT LGPL-3.0-or-later LGPL-2.1-or-later LicenseRef-OCCT-LGPL-exception`; the application package's
+stays as before. The `LicenseRef` is for the Open CASCADE exception, which Arch's own package also
+names `LicenseRef-LGPL-exception`.
+
+The IfcOpenShell build is a separate CMake project inside this build
+(`src/ifc/IfcOpenShellPrefix.cmake`): about 360 compile steps and 0.9 GB per compiler process, so
+it takes 13 minutes with four jobs on four CPUs and about an hour with one. The PKGBUILD gives it
+`CMAKE_BUILD_PARALLEL_LEVEL`, else the CPU count, at most four, whatever the main build uses.
+`SKETCHYUP_BUILD_IFC` is `OFF` by default for developers; the PKGBUILD turns it on.
+`SKETCHYUP_PACKAGE_WITHOUT_IFC=1` in the environment makes `makepkg` skip it and build only
+`sketchyup`; package acceptance sets it for the preceding package, which exists only to test install
+and upgrade, so the IfcOpenShell build is paid once per acceptance run, not twice.
+
+Acceptance (`verify-package.sh`) installs `sketchyup-ifc` after the upgrade and checks, with
+`scripts/verify-ifc-library.py package`, the installed files against checks L1 to L6 of ADR 0171
+section 6.3: no other executable links IfcOpenShell or OpenCASCADE; `RUNPATH`s and a replacement
+directory found through `LD_LIBRARY_PATH`; the notices and the source offer; no GPL-3.0-or-later
+library; the OpenCASCADE closure installed exactly, and `--probe` reporting `kernel unavailable`
+(without aborting) when the kernel plugin or any one of those libraries is removed. It then runs
+the API probe `tests/ifc_worker_probe_tests.py` against the installed helper, records the package
+sizes in `/work/acceptance/package-sizes.txt`, and removes `sketchyup-ifc` before `sketchyup`.
+
+### Replacing IfcOpenShell
+
+LGPL-3.0 section 4 and LGPL-2.1 section 6 entitle you to run the application with a modified
+version of these libraries. The helper finds every library through its `RUNPATH`, a `RUNPATH` and not
+an `RPATH`, so either way below works with no relinking:
+
+```sh
+# Build the same tag with CMake (the options are in src/ifc/IfcOpenShellPrefix.cmake)
+cmake -S third_party/ifcopenshell/cmake -B build-ifcopenshell -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DSCHEMA_VERSIONS='2x3;4;4x3_add2' -DWITH_OPENCASCADE=ON -DWITH_CGAL=OFF \
+  -DOCC_INCLUDE_DIR=/usr/include/opencascade -DOCC_LIBRARY_DIR=/usr/lib -DEIGEN_DIR=/usr/include/eigen3 \
+  -DBUILD_CONVERT=OFF -DBUILD_IFCPYTHON=OFF -DBUILD_GEOMSERVER=OFF -DBUILD_EXAMPLES=OFF \
+  -DCOLLADA_SUPPORT=OFF -DCMAKE_SHARED_LINKER_FLAGS='-Wl,--as-needed' -DCMAKE_INSTALL_PREFIX="$PWD/ifc-prefix"
+cmake --build build-ifcopenshell --parallel 4 && cmake --install build-ifcopenshell
+
+# Either copy libifcopenshell*.so* and ifcopenshell_*.so from ifc-prefix/lib over /usr/lib/sketchyup,
+# or run the helper against a directory of your own:
+LD_LIBRARY_PATH="$PWD/ifc-prefix/lib" /usr/lib/sketchyup/sketchyup-ifc-worker --probe
+```
+
+`--probe` prints the version of the libraries and the path of every library the helper loaded, so
+you can see which copy it used. The same procedure applies to the OpenCASCADE libraries: put your
+build's `libTK*.so` files in the directory on `LD_LIBRARY_PATH`. `IFC-SOURCE.txt` lists where the
+corresponding source is.
+
 ## Release artifacts
 
 From a clean checkout of the commit to release:
@@ -144,8 +223,10 @@ The script refuses a dirty or untracked working tree. It writes, into the output
 directory, the source archive and PKGBUILD from `package-source.sh`; `THIRD_PARTY_NOTICES`
 with a header for each file `CMakeLists.txt` installs into `share/licenses/sketchyup`
 (the SketchyUp license, Clipper2, Manifold license and authors, cgltf, CDT and its
-predicates notice); `SHA256SUMS`
-for the archive, the notices and any `sketchyup-VERSION-PKGREL-*.pkg.tar.zst` already
+predicates notice, and for `sketchyup-ifc` the IfcOpenShell LGPL and GPL texts and the
+OpenCASCADE licence and exception); `SHA256SUMS`
+for the archive, the notices and any `sketchyup-VERSION-PKGREL-*.pkg.tar.zst` or
+`sketchyup-ifc-VERSION-PKGREL-*.pkg.tar.zst` already
 in the directory; and `MANIFEST.json` with the version, `pkgver`/`pkgrel`, Git commit,
 SHA-256 values, the package job's pinned image digest from
 `.github/workflows/native.yml`, and the date (`SOURCE_DATE_EPOCH` if set). It does not
