@@ -32,3 +32,12 @@ certified by buildingSMART and claims no view or certification (ADR 0171, sectio
 with `python3 -I`, one output directory argument); the volumes the tests expect are computed by hand
 in its comments. `tests/ifc_worker_probe_tests.py` regenerates them and fails if a checked-in file
 differs.
+
+## Packages (derived from the files above)
+
+`packages/*.skifc` are IFC conversion packages (`src/io/ifc_package.hpp`) that `sketchyup-ifc-worker --import
+FILE --output PACKAGE --threads 1` writes from `rv-wall-with-opening-and-window.ifc`, `rv-tessellated-item.ifc`
+and `rv-tessellation-with-individual-colors.ifc`: the geometry, names and properties of those buildingSMART
+files (CC BY 4.0, (C) buildingSMART International Ltd.) in the package form, converted to metres. They are the
+real inputs of the package decoder test and of the fuzz seeds; `ifc_import_worker` fails when the helper's
+output differs, and the files are then regenerated on purpose.

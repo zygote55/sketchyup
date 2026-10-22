@@ -34,6 +34,20 @@ one, a rejected list one entry over the bound, a rejected contour at two elevati
 smooth of nine iterations, a rejected pad whose rays run backwards and a rejected drape whose
 split names its segment's larger end first; `parser_fault_corpus_tests` mutates the valid list
 (with two source edits, a sculpt, a smooth, a pad and a drape) 512 times.
+One more covers the R097.b IFC conversion package decoder (`ifc-package`;
+[ADR 0171 section 1.6](decisions/0171-ifc-exchange-subset.md#16-process-isolation-decision-19)): the bounded,
+versioned container the isolated IFC helper writes and the application decodes (a manifest of at most 32 MiB,
+a mesh chunk of at most 128 MiB with its SHA-256). The harness decodes with the digest check off, so mutated
+meshes reach the structural checks, and again with it on; an accepted package must be within every bound
+(1,000,000 triangles, 100,000 per mesh, node and mesh references in range, parents before children, a tree at
+most 128 deep), must re-encode to a package that decodes to an equal one, and the two decodes must agree.
+Its seeds are `tests/ifc_package_fixtures.hpp`'s sample package, an empty one, the three packages the helper
+wrote from buildingSMART samples (`tests/fixtures/ifc/packages`) and three rejected ones (truncated, bad magic,
+a parent after its child); `parser_fault_corpus_tests` mutates the sample and a real package 512 times each.
+The helper itself (IfcOpenShell's parser and OpenCASCADE's geometry) is not in a libFuzzer target: its
+input is the IFC file, it runs in a child process, and `tests/ifc_worker_fault_corpus.py` mutates the ten
+buildingSMART files 512 times each through its dry run (J2); the upstream `ifcparse_fuzzer` and a `worker`
+target are the J3 campaigns of the acceptance record.
 Existing deterministic parser-fault and transaction tests remain required.
 
 Configure a separate build and generate valid, deterministic seeds:
