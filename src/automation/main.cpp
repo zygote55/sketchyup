@@ -13,6 +13,7 @@
 #include "io/dxf_export.hpp"
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
+#include "io/ifc_export.hpp"
 #include "io/ifc_worker.hpp"
 #include "io/measured_request.hpp"
 #include "io/new_file.hpp"
@@ -24,9 +25,11 @@
 #include "sketchyup/version.hpp"
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QTimeZone>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <cmath>
@@ -164,8 +167,16 @@ int main(int argc, char **argv) {
                       "IFC import: keep (default) leaves the project axes and reports the map conversion; grid "
                       "rotates the model to the map grid and sets the site origin",
                       "mode"});
-    parser.addOption({"ifc-deadline", "IFC import: seconds the helper may run per attempt (default 120)", "seconds"});
-    parser.addOption({"ifc-worker", "IFC import: path of the helper (development and tests)", "path"});
+    parser.addOption({"export-ifc",
+                      "Export the --input model to a new IFC4 file (tessellated geometry, no certification claim) "
+                      "through the isolated IFC helper",
+                      "path"});
+    parser.addOption({"ifc-timestamp",
+                      "IFC export: the time stamped into the file, UTC seconds since the epoch or YYYY-MM-DDTHH:MM:SS "
+                      "(default SOURCE_DATE_EPOCH, else the clock); a fixed value makes two exports identical",
+                      "time"});
+    parser.addOption({"ifc-deadline", "IFC import and export: seconds the helper may run per attempt (default 120)", "seconds"});
+    parser.addOption({"ifc-worker", "IFC import and export: path of the helper (development and tests)", "path"});
     parser.addOption(
         {"export-obj", "Export all model geometry to a new OBJ package directory", "directory"});
     parser.addOption({"obj-unit", "Explicit OBJ coordinate unit: mm, cm, m, in or ft", "unit"});
@@ -647,6 +658,62 @@ int main(int argc, char **argv) {
             std::cout << QJsonDocument(report).toJson(QJsonDocument::Compact).toStdString() << '\n';
             return 0;
         }
+        if (parser.isSet("export-ifc")) {
+            auto invalid = [](const std::string &message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            if (!parser.positionalArguments().isEmpty())
+                invalid("IFC export requires named paths");
+            const QStringList allowed{"export-ifc", "input", "ifc-timestamp", "ifc-deadline", "ifc-worker"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("IFC export is a standalone operation");
+            if (!parser.isSet("input"))
+                invalid("IFC export requires a native --input");
+            sketchy::IfcExportOptions options;
+            if (parser.isSet("ifc-timestamp")) {
+                const auto text = parser.value("ifc-timestamp").trimmed();
+                bool ok{};
+                qint64 epoch = text.toLongLong(&ok);
+                if (!ok) {
+                    // YYYY-MM-DDTHH:MM:SS (optionally ending in Z), read as UTC: a zone with daylight saving has no say.
+                    auto clock = text.endsWith('Z') ? text.chopped(1) : text;
+                    const auto parts = clock.split('T');
+                    const auto date = parts.size() == 2 ? QDate::fromString(parts[0], "yyyy-MM-dd") : QDate();
+                    const auto time = parts.size() == 2 ? QTime::fromString(parts[1], "HH:mm:ss") : QTime();
+                    if (!date.isValid() || !time.isValid() || parts[0].size() != 10 || parts[1].size() != 8)
+                        invalid("--ifc-timestamp is UTC seconds since the epoch or YYYY-MM-DDTHH:MM:SS");
+                    epoch = QDateTime(date, time, QTimeZone::utc()).toSecsSinceEpoch();
+                }
+                if (epoch < 0 || epoch > 253402300799LL)
+                    invalid("--ifc-timestamp is between 1970 and 9999");
+                options.timestamp = epoch;
+            }
+            sketchy::IfcWorkerOptions worker;
+            if (parser.isSet("ifc-deadline")) {
+                bool ok{};
+                worker.deadlineSeconds = parser.value("ifc-deadline").toInt(&ok);
+                if (!ok || worker.deadlineSeconds < 1 || worker.deadlineSeconds > 3600)
+                    invalid("--ifc-deadline is 1 to 3600 seconds");
+            }
+            if (parser.isSet("ifc-worker"))
+                worker.workerPath = parser.value("ifc-worker");
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            QJsonObject result;
+            try {
+                const auto exported = sketchy::exportIfcFile(document, parser.value("export-ifc"), options, worker);
+                result = {{"status", "exported"}, {"exportReport", exported.report}};
+            } catch (const sketchy::IfcExportError &error) {
+                const std::string code = error.code();
+                const bool limit = code == "packageTooLarge" || code == "documentTooLarge" || code == "outputTooLarge";
+                const bool request = code == "destinationExists" || code == "destination" || code == "badTimestamp" || code == "emptyModel";
+                throw sketchy::InspectionError(limit ? "LIMIT_EXCEEDED" : request ? "INVALID_REQUEST" : "INPUT_ERROR", error.what(),
+                                               QJsonObject{{"ifcCode", QString::fromStdString(code)},
+                                                           {"exportReport", error.report()}});
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
         if (parser.isSet("import-ifc")) {
             auto invalid = [](const std::string &message) {
                 throw sketchy::InspectionError("INVALID_REQUEST", message);
@@ -715,7 +782,7 @@ int main(int argc, char **argv) {
         }
         for (const auto &option : parser.optionNames())
             if (option.startsWith("ifc-"))
-                throw sketchy::InspectionError("INVALID_REQUEST", "IFC options require --import-ifc");
+                throw sketchy::InspectionError("INVALID_REQUEST", "IFC options require --import-ifc or --export-ifc");
         if (parser.isSet("import-gltf")) {
             if (!parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",

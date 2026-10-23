@@ -4,14 +4,17 @@ Status: **Accepted (2026-10-22)**: decisions 1 to 16, then decisions 17 to 22 (h
 packaged and run), questions Q1 and Q2 and the reworded decisions 5, 12 and 14, all approved by the
 owner on 2026-10-22 ("Approve all"). Roadmap
 [R097](../PR_ROADMAP.md#r097) (M10, scope row [F04](../SCOPE.md)); the sibling
-[R098](../PR_ROADMAP.md#r098) covers STEP. R097.a and R097.b are implemented (see the end of this paragraph). Each section gives
+[R098](../PR_ROADMAP.md#r098) covers STEP. R097.a to R097.d are implemented (see the end of this paragraph). Each section gives
 the options that were weighed and the recommendation. Facts about third-party projects were read
 on 2026-10-22 and are cited in the [appendix](#appendix-evidence-and-sources); anything not
 verified is marked as such. **R097.a is implemented** (library, helper skeleton, packaging, CI):
 its measurements and the corrections its API probe made to this text are in the
 [implementation notes](#implementation-notes-r097a). **R097.b is implemented** (the import: package, helper,
 conversion, report, command line): see its [implementation notes](#implementation-notes-r097b), which also settle
-the two questions R097.a left open; the other slices are not.
+the two questions R097.a left open. **R097.c is implemented** (georeferencing on import,
+[implementation notes](#implementation-notes-r097c)) and **R097.d is implemented** (the IFC4 export, [implementation
+notes](#implementation-notes-r097d): checks G1 to G7 pass and the export claim can be made, with the hosted validation service still
+to be run by a person); R097.e and R097.f are not.
 
 **Owner decision, 2026-10-22, verbatim:** "Just use IfcOpenShell. I don't want to build it. I
 approve all." This settles decision 1: SketchyUp uses and ships IfcOpenShell, and writes no IFC
@@ -1201,6 +1204,7 @@ limits.
 - **R097.d: IFC4 export.** The export package, the worker's writer, the mapping of 3.8, `GlobalId`,
   georeference, the export report, `--export-ifc`, the golden exports. **Verify:** G1–G7 including the
   validators; the claim is **not made** if G1 fails.
+  *Implemented; see the [implementation notes](#implementation-notes-r097d).*
 - **R097.e: Desktop workflow.** Import and Export dialogs, the report sheet, progress and cancel, the
   dirty-document prompt, recovery context, the "unavailable" states. Requires the approved UX design.
   **Verify:** `ifc_import_input_tests` and `ifc_export_input_tests` on X11 and Wayland at 1× and 2×,
@@ -1798,7 +1802,237 @@ request), `ifc_package`, `ifc_convert`, `ifc_import`, `ifc_worker_run` and `pars
   far in the plan; the site origin carries the map position, so the result is exact, but the building is not near the
   document origin. Decision 6(c) (a grid rotation on the site origin) remains the faithful answer.
 - The new test `ifc_georeference` runs in the `ifc` job (`^ifc_`); the sanitizer step lists tests by name and does not
-  include it (it was run under ASan and UBSan here).
+  include it (it was run under ASan and UBSan here). *(R097.d added it to the sanitizer step.)*
+
+## Implementation notes (R097.d)
+
+R097.d ships the IFC4 export: the export package and the application's capture of a document into it, the helper's writer
+(`sketchyup-ifc-worker --export`), the mapping of 3.8, the deterministic `GlobalId`s of decision 16, the georeference written
+back, the export report with its accounting identity, `sketchyup-cli --export-ifc`, six golden exports and checks G1 to G7. It is
+pull request #422. There is no desktop dialog (R097.e), no command, query or assistant tool (decision 13: the assistant's tool
+surface and its pinned baseline are untouched), and no change to any document: an export reads a copy of the open model and
+never edits it. **The export claim can be made** (decision 3): G1 to G7 pass (table below), with one step left to a person, the
+buildingSMART validation service itself, which needs an account (see "External validators").
+
+### What was built
+
+- `src/io/ifc_export.{hpp,cpp}`: `captureIfcExport` (document to package and plan), `planIfcExport` (the plan alone, for the
+  dialog of R097.e), `exportIfcFile` (capture, helper, checks, non-replacing publication), `derivedIfcGlobalId`,
+  `isAuthorityCode`. `src/ifc/export_package.{hpp,cpp}` and `json_in.hpp`: the helper's bounded reader of the package.
+  `src/ifc/export.{hpp,cpp}`: the writer. `src/ifc/check.{hpp,cpp}`: `--check`, the helper's re-read and schema check.
+  `worker_main.cpp`: `--export` and `--check`. `src/automation/main.cpp`: `--export-ifc` and `--ifc-timestamp`.
+- Tests: `ifc_export` (C++, 8 s: capture, plan, accounting, the helper, the raw-text scan, round trips, goldens, the process
+  runner against stand-in helpers that misbehave, the command line), `ifc_export_worker` (Python, 4 s, 11 s under ASan and UBSan:
+  an independent package encoder, the writer's output against the raw-text scan, 150 mutated packages, the schema check against
+  damaged files, 100,000 triangles and 3,000 nodes), `tests/ifc_export_package.py` (an independent encoder and decoder of the
+  package, used by both). Goldens in `tests/fixtures/ifc/export/` (G6): `native-model.ifc` (every mapping at once, georeferenced),
+  `ifc-structure.ifc` (an IFC-shaped model), `bsi-ifc4-arch.ifc` (the certified Architecture file imported and exported),
+  `rv-individual-colors.ifc`, `obj-concave-paint.ifc` and `gltf-rig.ifc`. `IFC_UPDATE_GOLDENS=1` rewrites them.
+- CI: the `ifc-app` job also runs `ifc_export`; the sanitizer step of the `ifc` job lists `ifc_georeference` (the R097.c follow-up:
+  it was missing; it passes under ASan and UBSan) and `ifc_export_worker`. The path map already selected `job:ifc` for every new
+  path. `.github/ci-line-inventory.txt` follows.
+
+### The export package and the helper
+
+The package is the container of the import (3.8: "the same container"): `SKIFCX01`, a manifest (JSON, at most 32 MiB) and a mesh
+chunk (at most 128 MiB, a SHA-256 in the manifest). The manifest carries the document identity, the time stamp, the file name,
+the georeference or null, the styles and the nodes in tree order; each node has its role (`project`, `site`, `building`,
+`storey`, `space`, `assembly`, `element`), the class it asks for, its `GlobalId`, its placement as an `IfcAxis2Placement3D`
+(origin, Axis, RefDirection) relative to its parent's, its mesh and style and its properties. **The application does all the
+geometry and all the choices that depend on the model; the helper does the IFC.** It checks every count, index, text and
+placement before using it (strict UTF-8, unit axes, finite bounded numbers, parents that precede, one project, roles that fit
+their parents, unique `GlobalId`s) and refuses anything else with exit code 3.
+
+The writer uses IfcParse's schema-independent entity interface, by attribute name, as the import does, not the typed classes and
+`hierarchy_helper<Ifc4>` that 3.8 names (finding 1). It sets everything the library would otherwise take from the clock or from
+chance: the header's `FILE_NAME` time stamp and the owner history's creation date are the package's, `FILE_DESCRIPTION` is
+`SketchyUp export, tessellated geometry` with no `ViewDefinition` (F10 of the R097.a notes), every `GlobalId` is given, and the
+file name in the header is the destination's. The output is sorted by instance number, which follows creation order, so two runs
+give the same bytes (G3).
+
+### The mapping, as built
+
+- **Structure.** A model that came from IFC keeps its project (the root group of class `IfcProject` supplies the project's name,
+  long name and `GlobalId`), sites, buildings and storeys; their nesting follows IFC4 (a site may be made of sites, a building of
+  buildings, a storey of storeys; a site or a building may stand directly in the project, as in the buildingSMART Reference View
+  files); a spatial class in a place it does not belong is written as an assembly and counted (`spatialClassNotUsed`). Without
+  spatial groups one `IfcSite` and one `IfcBuilding` are made up and no storey is invented. Anything outside the spatial
+  structure goes into the first building. A group with children is an `IfcElementAssembly` (or the class it asks for);
+  its parts are `IfcRelAggregates`; every other element is `IfcRelContainedInSpatialStructure` in its spatial parent, which may be
+  a space (finding 5); spaces and spatial elements are aggregated. An empty group is not written and is counted.
+- **Elements.** The class comes from `ifc.Class` when it is a non-abstract IFC4 `IfcElement` that is not a feature or a virtual
+  element, and is otherwise `IfcBuildingElementProxy` (`IfcElementAssembly` for a group), with the reason in the report's
+  `classFallbacks`; `ObjectType` of a proxy is the body's name (3.8). The deprecated `*StandardCase` and `*ElementedCase` classes
+  (`IfcWallStandardCase`, common in IFC2x3 sources) are written as the class they refine (finding 6). `ifc.PredefinedType` is set
+  when the class has it and the value is one of its items (and `USERDEFINED` only with an object type); otherwise it is left out
+  and counted.
+- **Geometry.** One `IfcTriangulatedFaceSet` per body from the native tessellation (`IfcCartesianPointList3D`, 1-based
+  `CoordIndex`, counter-clockwise from outside). `Closed` is set only when the native solid check (`diagnoseGeometry`) says
+  `solid` or `multiple_shells`. Every vertex of a face is kept: the tessellator leaves out a loop vertex that lies on a straight
+  edge, so such a vertex is put back by splitting the triangle whose edge it lies on (finding 7). A body that an IFC import
+  made as "a group and a geometry child of the same class, name and step" (an element with parts and a body of its own) is
+  written as one element; a site, building, storey or space with a body of its own keeps it.
+- **Placements.** A node's `IfcLocalPlacement` is the rigid part of its transform relative to its parent's emitted frame (a
+  rotation and a translation, as `IfcAxis2Placement3D` can carry); whatever else the native transform holds (a scale, a shear,
+  a reflection, or the error of a rotation that was stored as float32) is applied to the vertices, and a reflection reverses the
+  winding. A child of a native parent whose frame is exactly the parent's native world uses its own transform as written (so a
+  tidy model has tidy numbers); otherwise its placement is computed from its world position (finding 4).
+  The project group's own transform (the grid rotation of an R097.c import) is folded into its sites' placements, since an
+  `IfcProject` has none.
+- **Appearance.** A body's style is its most used face appearance: a native material becomes an `IfcSurfaceStyle` with an
+  `IfcSurfaceStyleRendering` (colour, transparency one minus opacity) and, when an element or assembly uses it, an `IfcMaterial`
+  with its `IfcMaterialDefinitionRepresentation` and one `IfcRelAssociatesMaterial` for all its users; a body colour that is not
+  the default becomes a style named after its value. Faces that differ get an `IfcIndexedColourMap` whose table is their
+  resolved colours (a face of another opacity than its body's keeps the body's, counted as `faceOpacityNotWritten`). Textures,
+  back-face materials and texture mappings are not written (counted).
+- **Properties.** `Pset.Prop` keys become `IfcPropertySet`s of `IfcPropertySingleValue` (`IfcLabel`, or `IfcText` over 255
+  characters; `IfcReal`; `IfcBoolean`) related by one `IfcRelDefinesByProperties` each; a key without a dot goes into the set
+  `SketchyUp`. `ifc.Class`, `ifc.GlobalId`, `ifc.PredefinedType`, `ifc.ObjectType`, `ifc.LongName`, `ifc.Name` and
+  `ifc.Elevation` drive attributes; every other `ifc.*` key is provenance and is counted, not written. Control characters in text
+  become spaces (a tab and a line break stay in a value), invalid UTF-8 becomes `?`, names are cut at 255 characters (`IfcLabel`).
+- **Hidden bodies.** A body is hidden when it, an ancestor, or its tag (with its folders) is hidden. Its face set is assigned
+  to one `IfcPresentationLayerWithStyle` named `SketchyUp hidden` with `LayerOn` false (finding 2).
+- **Georeference.** With a site origin and a label of authority-code form (`[A-Za-z]{2,16}:[A-Za-z0-9][A-Za-z0-9_.-]{0,31}`)
+  the helper writes an `IfcProjectedCRS` (the label, the metre as `MapUnit`) and an `IfcMapConversion` from the root `Model`
+  context (Eastings, Northings, OrthogonalHeight, axis (1, 0), `Scale` 1). With any other label, or none, neither is written, the
+  report says `georeferenceNotWritten` with the reason (`crsNotAuthorityCode`, `noCrsLabel`) and the site origin's values, and it
+  counts as an item that needs attention. A rotation is never written; the document has none.
+- **`GlobalId`.** An `ifc.GlobalId` of 22 characters of `0-9A-Za-z_$` with a first character from `0` to `3` (what 128 bits
+  compress to) is kept for the lowest body ID that carries it; a later body with the same value, or a value that is not valid,
+  gets the derived identifier and a location in the report (`globalIdReplaced`, with the body ID, for "Select in model"). The
+  derived identifier is the first 128 bits of SHA-256 over `"SketchyUp IFC GlobalId v1\0"`, the document identity, a kind and the
+  body ID, compressed as `IfcGloballyUniqueId` is; the project, site and building that are made up use their role as the kind. The
+  helper derives the identifiers of relationships and property sets the same way from the owner's `GlobalId`. Adding a body, saving
+  and reopening, or copying the document does not change any identifier; another document identity changes all of them. The
+  derivation is checked against an independent one in Python (hashlib).
+
+### The report and the accounting identity
+
+`apiVersion` 1, `format` `IFC`, `direction` `export`; members `spatial`, `written`, `notWritten`, `accounting`, `losses`,
+`georeference`, `globalIds`, `attention`, `notices`, `locations`, `locationTotals`, then, once the helper has run, `engine`,
+`target` (schema, "tessellated", `viewDefinition` "none", file description, name, size, SHA-256, time stamp and where it came from,
+document identity, units), `file` (the helper's entity and class counts) and `classFallbacks`. `plan` (what `planIfcExport`
+returns) is the same object without the last four: the numbers of the dialog of R097.e before anything is written, and the numbers of
+its report after. The report is bounded as section 4 asks (64 KiB, 64 kinds, 32 locations a kind, 256-byte messages, at most 64
+bytes of a user's text) and holds no host path (the helper's log tail has the private directory named as such).
+
+The identity: every item of the document is counted once as **written** (a group or a body), **written as copies** (a component
+placement, whose geometry is expanded) or **not written**, and `items` is counted again from the document's own tables, so a
+body that falls between the cases fails the export (`internal`) rather than disappearing. The items are the scene bodies, the
+guides, loose edges and curve records of the bodies that are not terrain or reference images, and the annotations, sections,
+scenes, drawing sheets, definitions with parameters and textured materials. `notWritten` names the kinds: `terrain`,
+`terrainTiles` (its tiles, which are bodies), `referenceImages`, `guides`, `looseEdges`, `curves`, `annotations`, `sections`,
+`scenes`, `sheets`, `componentParameters`, `textures`, and two the UX design did not anticipate, `emptyGroups` and
+`bodiesWithoutFaces`. `losses` counts what is neither an item nor written (editable text flattened to geometry, edge appearance,
+face texture mappings, back-face materials, definitions nobody uses). For R097.e: every figure of the export screens of
+UX_DESIGN 16.8 is in the plan or the report (groups, bodies, placements, materials, properties, the identifiers kept and replaced,
+the not-written counts, the georeference row with the site origin and the label, the replaced identifiers with their body IDs,
+the settings); "groups, as assemblies" is only true of the groups that are not site, building or storey (the plan's `spatial` has
+the split).
+
+### Findings that correct or extend the ADR
+
+1. **The writer is name-based, not typed.** 3.8 names the typed entity classes and `hierarchy_helper<Ifc4>`. The writer needs a
+   class chosen at run time (any `IfcElement`), which the typed API cannot give, and the generic interface is what the import
+   already uses; it keeps the helper's compile time short (the 3.3 MB `Ifc4.h` is never included). `--check` and the tests make
+   up for the compile-time checking: a wrong attribute name is an exception, and the written file is checked against the schema.
+2. **A presentation layer takes representation items.** The EXPRESS rule `IfcPresentationLayerWithStyle.ApplicableOnlyToItems`
+   rejects an `IfcShapeRepresentation` in `AssignedItems` (the `IfcLayeredItem` select allows it, the rule does not). The layer
+   holds the face sets. The import reads layers through representations and their items, so it finds them.
+3. **`IfcOwnerHistory.ChangeAction` needs `LastModifiedDate`** (rule `CorrectChangeAction`); the owner history has the owning user
+   and application and the creation date only.
+4. **Scale in a group.** A child of a group with a scale or a reflection cannot take its own transform as its placement (the
+   group's emitted frame is only its rigid part); it takes the placement that puts it where it stands. The first version used the
+   child's own transform: the geometry was right (the residual is baked into the points) and the placement was not. Found by review;
+   the test has a group scaled by two with a child at local x = 1 and checks the placement is 2.
+5. **A space contains elements.** `IfcRelContainedInSpatialStructure` may name an `IfcSpace` (the Architecture file puts a
+   kitchen in "living room"); the first draft of this slice moved a space's contents to the storey. Spaces aggregate spaces. A
+   site, building or storey that has a body keeps it (the first version failed the helper's own count check on such a model).
+6. **`IfcWallStandardCase` and its kin** require parametric geometry and a layer set usage in IFC4; written as the class they
+   refine with the reason `standardCase`. Eleven classes in the schema end in `StandardCase` or `ElementedCase`.
+7. **The tessellator drops collinear loop vertices.** A face whose loop has a vertex on a straight edge (an edge split in the model;
+   `bsi-ifc4-road.ifc` has one) is triangulated without it, so the export lost a native vertex and the face stopped meeting its
+   neighbour. Found by the round trip of the road file; fixed by splitting the triangle.
+8. **An `IfcMaterial` nothing uses is not written.** The Architecture file's spaces share a material with no element; an
+   `IfcRelAssociatesMaterial` may not name a space (`AllowedElements`), so a style on spaces stays a style and its material is not made.
+9. **Round-trip tolerances.** Vertices compare at 1e-9 m; areas and volumes at 1e-6 relative, because the native tessellation
+   used to measure them snaps to a 1e-7 m grid. The key of a property without a dot comes back as `SketchyUp.<key>`; an
+   imported space comes back on the importer's hidden tag whatever the file's layer says.
+10. **Face counts.** An imported model re-imports with the same bodies, vertices and triangles and, in two of eight files, one to
+    two faces more (`bsi-ifc4-road.ifc` 826 to 828): polygons that are planar only to the native 1e-7 m triangulate differently the
+    second time and a triangle then fails the merge's plane test.
+11. **The helper's `--check`** is not in the ADR. It re-reads the written file with IfcParse and checks every attribute of every
+    instance against the declared type (entity classes, selects, enumerations, defined types, aggregates and their bounds,
+    mandatory attributes, `GlobalId` shape and uniqueness). The application runs it on the file it is about to publish and
+    compares the entity count with the writer's. It does not evaluate WHERE rules or inverse cardinalities; the external validators
+    below do.
+12. **UX 16.8** shows the not-written kinds of the dialog; the report also has `emptyGroups`, `bodiesWithoutFaces` and
+    `terrainTiles`, which the identity needs, and `curves`, which 3.8 lists.
+
+### Verification
+
+| Check | Test | Result |
+| --- | --- | --- |
+| G1 | The six goldens and every export the tests make: the raw-text scan (entity and class counts equal the report's, the tree by `GlobalId` equals the document's, every property, the hidden layer, the units, the map conversion); the helper's `--check` on every file; `ifcopenshell.validate` with EXPRESS rules, web-ifc, and the buildingSMART gherkin rules by hand (below) | pass; the hosted validation service not run |
+| G2 | A native model (every mapping), an IFC-shaped model, the OBJ, glTF and certified IFC files imported, exported and re-imported: the same bodies in the same order, vertices to 1e-9 m, areas and volumes, hierarchy, properties, materials, hidden state and site origin; a DXF import has no faces and is refused with its edges counted, and with one body added the edges are counted and the body written; the colours of `rv-tessellation-with-individual-colors.ifc` come back face by face | pass |
+| G3 | Two exports of a document are byte for byte equal; a new time changes the header and the owner history only (two lines); the command line gives the golden file, byte for byte, through `--ifc-timestamp`, a numeric time, and `SOURCE_DATE_EPOCH` | pass |
+| G4 | Every kind in 3.8 is counted in a model that has all of them (guide, curve, label, scene, section, sheet, terrain and tiles, reference image, textured material, wires, an empty group) and in thirteen real documents of every format version; the identity holds on each | pass |
+| G5 | Nine labels in and out of form, no label, no site origin: written, not written with a reason, or nothing to write | pass |
+| G6 | Six goldens compared by byte | pass |
+| G7 | A kept identifier, a duplicate (the lowest body ID keeps it), invalid values, stability across an edit, a copy and another document; the derivation against hashlib | pass |
+
+Also tested: the process runner against stand-in helpers (deadline, cancel while it runs, a flood, SIGTERM ignored, a crash, hostile
+words, a file that is not STEP, no file, a false triangle count, a file that fails the check), the private directory removed each
+time and nothing published; the existing file and a dangling link are never touched; the command line's option isolation; a
+hostile name or property. `ifc_export_worker` under ASan and UBSan: clean (`ifc_georeference` too). The application side (`ifc_export_tests` with the sanitized command line, `ifc_package`, `ifc_convert`) is clean under ASan and UBSan with leak detection on, against an unsanitized helper (`IFC_TEST_WORKER`).
+
+### External validators
+
+Run by hand on the six goldens (G1; none is a CI gate, as 6.3 says; the scripts and the way to set the tools up are in `scripts/ifc-external-validators`):
+
+- **`ifcopenshell.validate`** (PyPI `ifcopenshell` 0.9.0.post1, Python wrapper, EXPRESS rules on): no statement on any golden. It
+  found three errors in the first version (findings 2, 3 and 8: the layer, the owner history and a material related to a space); each is fixed and covered. It is the same engine as the
+  helper, so it shows consistency, not independence.
+- **web-ifc 0.0.78** (Node, WASM; a second reader): opens all six and meshes them. For the Architecture file it reads the same 12
+  meshes and 1,127 triangles and the same bounding box as the certified original, which caught a wrong site placement in an
+  earlier version.
+- **buildingSMART `ifc-gherkin-rules`** (commit `893f8275`, the engine of the validation service) run with behave in
+  `TESTING` mode: 719 to 723 scenarios pass on each golden and none fails, with no outcome of severity error or warning; the same
+  run on the certified Architecture file reports its known `GRF005` warning, so the harness does report. About 230 of 1,000
+  scenarios error or are undefined in this setup on every file including the certified one (most are IFC4.3 alignment rules whose
+  steps this checkout lacks), so these runs do not show that those rules pass. The `GEM001` closed-shell rule for
+  `IfcTriangulatedFaceSet` with `Closed` true, which checks every edge is used once each way, passes.
+- **The buildingSMART validation service** (the hosted web application) needs a signed-in account and was not run. It is the one
+  external step left for the acceptance record of R097.f.
+
+### Budgets, measured
+
+Release build, the pinned image, four CPUs and 10 GB, with the same model as the import budget (5,000 icosahedra: 100,000 faces,
+60,000 vertices, 5,000 bodies): **1.7 s** (three runs: 1.70, 1.70 and 1.73 s, from capture to the published file, including the helper and its re-read of the file; capture is 0.8 s of it) against 6.4's 5 s. The development build (no optimization) takes about 5 s for 9,000
+boxes (54,000 faces), so the budget is for the release build. The package is 4.1 MB, the file 5.9 MB; the limits are
+128 MiB and 256 MiB. The application's memory was not measured separately (the helper runs outside its process).
+
+### Open questions and risks
+
+- **The hosted validation service** has not seen these files (above).
+- **A tree of components expands.** Every placement of a component becomes its own geometry, so an IFC file of a model with many
+  placements is as large as the expanded model; `IfcMappedItem` is later (3.8).
+- **No cancel while the application captures.** Capture of a very large model (seconds) cannot be stopped; cancel is checked between
+  the steps and ends the helper. R097.e should run capture off the interface thread.
+- **Face counts on a second import** can differ by a few (finding 10) and the import's hidden-space rule applies again.
+- **Float noise in placements.** A native model with rotations stored as float32 (every glTF import) has placements such as
+  `2.999999821186071`; the geometry is exact to 1e-9 m and the numbers are ugly. Orthonormalizing the stored rotation would
+  change the document.
+- **`SketchyUp` property set name.** A key without a dot comes back as `SketchyUp.<key>`, not as the key.
+- **Properties of a project group** are written on the `IfcProject`; the project is an `IfcContext` and a property set may relate
+  to it, but some consumers show them only on products.
+- **The check of the written file has no budget of its own.** `--check` builds a tree of every attribute value, so a file near the
+  256 MiB bound needs a lot of memory; a check that stops is reported as the helper failing (`workerFailed`), not as a bad file, and
+  nothing larger than the 100,000-triangle test of `ifc_export_worker` and the 5.9 MB budget file has been measured.
+- **Review.** Two read-only review passes (a separate model, high effort) found 11 and 7 items; all but the hash comparison of the
+  file the check read (the directory is private) are fixed and tested.
+- **Class and `PredefinedType` editing** exists only through the existing entity-properties command (5): a user who does not set
+  `ifc.Class` gets proxies.
 
 ## Appendix: evidence and sources
 

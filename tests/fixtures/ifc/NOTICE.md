@@ -60,3 +60,15 @@ and `rv-tessellation-with-individual-colors.ifc`: the geometry, names and proper
 files (CC BY 4.0, (C) buildingSMART International Ltd.) in the package form, converted to metres. They are the
 real inputs of the package decoder test and of the fuzz seeds; `ifc_import_worker` fails when the helper's
 output differs, and the files are then regenerated on purpose.
+
+## Golden exports (R097.d)
+
+`export/*.ifc` are the files `sketchyup-cli --export-ifc` writes for the documents `tests/ifc_export_tests.cpp` builds, with a
+fixed document identity and time (`2026-01-02T03:04:05`); `ifc_export` compares the export with each file byte for byte and fails
+on any difference (`IFC_UPDATE_GOLDENS=1` rewrites them on purpose). `native-model.ifc`, `ifc-structure.ifc`,
+`obj-concave-paint.ifc` and `gltf-rig.ifc` are original (MIT, the project's own). **`bsi-ifc4-arch.ifc` and
+`rv-individual-colors.ifc` are modified copies** of buildingSMART's `Simple-Scene/IFC4/Building-Architecture.ifc` and the
+Reference View "tessellation with individual colours" sample (CC BY 4.0, (C) buildingSMART International Ltd., RDF Ltd. 2011 for
+the sample): they were imported into SketchyUp and exported again, so their geometry, names, properties and colours are the
+originals' but the representation, the identifiers' order, the units (metres) and the header are not; they claim no view and no
+buildingSMART certification. See the notice above for the source files, their licence and the trademark credit.
