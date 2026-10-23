@@ -1,6 +1,6 @@
 # Custom styles and asset authoring
 
-Status: **Proposed**. Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
+Status: **Accepted (2026-10-23)**: owner decisions 1 to 12 approved as recommended on 2026-10-23; question Q1 (the preset list and texture licences) stays open until the presets slice. Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
 [F06](../SCOPE.md)). R100 requires [R089](../PR_ROADMAP.md#r089) (the 1.0 gate,
 accepted; 1.3.0 is the current release), [R062](../PR_ROADMAP.md#r062) (viewport
 styles and display controls, delivered) and [R079](../PR_ROADMAP.md#r079)
