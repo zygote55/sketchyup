@@ -23,7 +23,7 @@ void usage(std::FILE* stream) {
       "       sketchyup-ifc-worker --import FILE.ifc --output PACKAGE [options]\n"
       "           read an IFC file and write an IFC conversion package (R097.b); options:\n"
       "           --kernel NAME  --threads N  --deflection METRES  --angular-deflection RADIANS\n"
-      "           --length-unit mm|cm|m|in|ft  --skip-spaces  --max-voids N  --max-nodes N  --max-entities N\n"
+      "           --length-unit mm|cm|m|in|ft  --skip-spaces  --georef keep|grid  --max-voids N  --max-nodes N  --max-entities N\n"
       "           --exclude-step N  --diagnose-from TASK  --diagnose-seconds N  --rlimit-as BYTES  --rlimit-cpu SECONDS  --rlimit-fsize BYTES\n"
       "           --test-fault crash|abort|hang|alloc:N  --dry-run\n"
       "       sketchyup-ifc-worker --probe\n"
@@ -77,6 +77,11 @@ int main(int argc, char** argv) {
         else if (argument == "--angular-deflection" && hasValue) options.angularDeflectionRadians = std::stod(argv[++i]);
         else if (argument == "--length-unit" && hasValue) options.lengthUnitOverride = argv[++i];
         else if (argument == "--skip-spaces") options.skipSpaces = true;
+        else if (argument == "--georef" && hasValue) {
+          const std::string mode = argv[++i];
+          if (mode != "keep" && mode != "grid") return fail("--georef is keep or grid");
+          options.gridAligned = mode == "grid";
+        }
         else if (argument == "--max-voids" && hasValue) options.maxVoidsPerElement = std::stoi(argv[++i]);
         else if (argument == "--max-nodes" && hasValue) options.maxNodes = static_cast<std::size_t>(std::stoull(argv[++i]));
         else if (argument == "--max-entities" && hasValue) options.maxEntities = static_cast<std::size_t>(std::stoull(argv[++i]));

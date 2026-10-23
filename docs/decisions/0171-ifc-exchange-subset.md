@@ -1197,6 +1197,7 @@ limits.
 - **R097.c: Georeferencing.** `IfcMapConversion` and `IfcProjectedCRS` in the worker, the site-origin
   mapping, the rotation decision and grid mode, far-from-origin refusal, schema-29 notice. **Verify:**
   F1–F4.
+  *Implemented; see the [implementation notes](#implementation-notes-r097c).*
 - **R097.d: IFC4 export.** The export package, the worker's writer, the mapping of 3.8, `GlobalId`,
   georeference, the export report, `--export-ifc`, the golden exports. **Verify:** G1–G7 including the
   validators; the claim is **not made** if G1 fails.
@@ -1661,6 +1662,136 @@ fails if the helper's outcomes are not all defined or more than 2% of the runs c
 - **The CI job that runs the application's tests** (`ifc-app`) compiles the application's core and I/O libraries in
   the IFC job; with a cold compiler cache that is the dominant cost of an IFC pull request (the cache of the fast
   tier is restored, so a recent `main` makes it a few minutes).
+
+## Implementation notes (R097.c)
+
+R097.c ships georeferencing on import: the worker reads the Model context's `IfcMapConversion` and
+`IfcProjectedCRS`, decides what a translation-only site origin can hold, and the application sets the document's site
+origin (R095) from that, with the schema-29 notice. It adds `sketchyup-cli --import-ifc ... --ifc-georef keep|grid`
+(and the helper's `--georef keep|grid`) and no desktop UI (R097.e), no export (R097.d), and no command, query or
+assistant tool (decision 13). A file without a map conversion imports as before and its document keeps its schema.
+
+### What was built
+
+- `src/ifc/georeference.{hpp,cpp}`: `readGeoreference`, run right after the units and before any geometry, so that a
+  file the import cannot place is refused cheaply. `src/ifc/import.cpp` applies its answer: the grid rotation, the
+  `ifc.mapConversion.*` properties of the project group, the accounting of what was read, and the package's
+  `report.georeference` block. `placement.cpp` exports `axisPlacementMatrix` for the world coordinate system check.
+- `src/io/ifc_import.cpp`: `evaluateGeoreference` rebuilds the report's block from known fields (the worker's block is
+  data, bounded like the rest of the report) and sets the site origin in the import's one edit, so one undo removes it
+  with everything else. `src/io/ifc_worker.cpp`, `src/automation/main.cpp`: the option, passed through; `README.md`.
+- Fixtures: `tests/fixtures/ifc/make_georef_fixtures.py` writes fifteen `georef-*.ifc` files (hand-checkable P21, one
+  wall each; the numbers are in the script's comments). The three package seeds under `packages/` were rewritten: the
+  report gained the `georeference` block and `engine.georeferenceMode`.
+- Tests: `ifc_georeference` (Python, 5 s; the package level, against the raw-text scan and hand-computed values),
+  and sections in `ifc_import` (through the helper into documents: schema 29, the origin, save and reopen, one undo,
+  the volume and centroid of every certified element turned by 60 degrees, hand-computed corners, the command line)
+  and `ifc_convert` (hand-built packages: a worker that contradicts itself, hostile text and sizes).
+
+### The decision, as built
+
+The block is `{mode, result, mapConversionsInFile, mapConversionsOnModelContext, modelContexts, mapConversion, crs,
+reasons, siteOrigin, rotationAppliedDegrees}` and `result` is one of:
+
+| result | When | Site origin | Rotation |
+| --- | --- | --- | --- |
+| `none` | No `IfcMapConversion` in the file (all of IFC2X3) | not set | none |
+| `siteOrigin` | One conversion on the one Model context, no reasons, no rotation | set | none |
+| `gridAligned` | The same with a rotation, and `--georef grid` | set | the model is turned by +theta |
+| `notRepresentable` | Any reason below (with the rotation counted only in `keepAxes`) | not set | none |
+
+Reasons, each `{code, message}` (a file can have several; the list is in this order): `severalModelContexts`,
+`notOnModelContext`, `severalConversions`, `incompleteConversion` (Eastings, Northings or OrthogonalHeight missing or
+not a number), `badScale`, `badAxis` (a zero X axis direction), `incompleteAxis` (only one of the two ordinates),
+`crsNotProjected`, `mapUnit` (the CRS's unit is not the metre, or not a unit the import knows), `perAxisFactors`,
+`scale` (Scale is not `metresPerUnit` within 1e-9 relative), `siteCoordinateRange` (beyond the origin's 1e8 m) and
+`rotation` (keepAxes only). The report keeps the whole conversion as the file has it (`mapConversion`, `crs`) whenever
+Eastings, Northings and OrthogonalHeight could be read from the one conversion, and notices what happened:
+`siteOriginSet`, `georeferenceRotationKept`, `georeferenceGridAligned`, `georeferenceNotRepresentable`,
+`georeferenceEpsets` and `georeferenceMapUnitAssumed`. The R097.b notice `georeferenceNotImported` is gone.
+
+Where this corrects, narrows or extends 3.6 and the owner decisions:
+
+1. **The Model context** is a root `IfcGeometricRepresentationContext` of the project whose `ContextType` is `Model`
+   (case-insensitive). A conversion belongs to it when its `SourceCRS`, followed up through `ParentContext`, is one.
+   A conversion of another context (a Plan context) is `notOnModelContext`. 3.6 did not say how a conversion finds its
+   context.
+2. **The world coordinate system check is unconditional** (4: "Refusals"): every Model context is checked, with or
+   without a conversion, and a WorldCoordinateSystem that is not the identity within 1e-9 (or cannot be read) refuses
+   the file with `worldCoordinateSystem`, naming the context's step and identifier. R097.b ignored the attribute, so a
+   file that the previous slice imported silently may now be refused; none of the ten certified files is affected.
+   An absent attribute reads as the identity.
+3. **Rotation.** theta is zero when `XAxisAbscissa` > 0 and `|XAxisOrdinate| <= 1e-12 * XAxisAbscissa`, or both are
+   absent. With only one of the two given, the conversion is `incompleteAxis` (3.6 spoke only of both absent). The grid
+   rotation is built from the normalised (abscissa, ordinate), not from `cos(atan2(...))`; the certified sample's
+   (0.4999999999999999, 0.8660254037844387) is 60.00000000000001 degrees.
+4. **Grid mode is done in the worker's own assembly**, not through the library's `ModelRotation` and `ModelOffset`
+   settings (3.6 says they "can"): every world matrix is premultiplied by Rz(theta), so the project node, the only root,
+   carries the rotation and every other node's matrix relative to its parent is unchanged. The translation is not applied:
+   it is the site origin. The extent of the far-from-origin check is measured after the rotation. Grid mode answers the
+   rotation only: with any other reason nothing is rotated and no origin is set, so a rotated State Plane file in feet
+   stays on its project axes in both modes (`georef-ussft-rotated.ifc`).
+5. **Map unit.** An `IfcProjectedCRS` without `MapUnit` is taken as the metre, as 3.6's table says, and noticed; any
+   other unit (a milli-metre, the US survey foot of `EPSG:2227` style files) is `mapUnit`, and with the usual scale of
+   such a file also `scale`. Nothing is converted: the US survey foot is an exact rational of the metre, so converting
+   it would be sound, but the owner decision asks for a metre site origin and "reported, or refused" for F4, so it is
+   reported (a later option).
+6. **`IfcMapConversionScaled`** (IFC4.3): `FactorX`, `FactorY` and `FactorZ`, and `ScaleY` and `ScaleZ` when a class has them,
+   are read by name; values equal to the conversion's scale (the factors to one) within 1e-9 are not factors, so a
+   scaled conversion with unit factors is a plain one. 3.6 said "no per-axis factors". The entity's attribute list was
+   proved by a fixture the parser accepts without warnings; no buildingSMART sample has one.
+7. **Several of something** (`severalConversions`, `severalModelContexts`) is reported, not resolved. Other
+   `IfcCoordinateOperation` subtypes are counted (`otherCoordinateOperations`) and not read.
+8. **The label** is the CRS `Name`, with control characters made spaces and shortened to 64 bytes; **provenance** is the
+   source `IfcMapConversion` and the SHA-256 of the file (the copy the helper read).
+9. **Properties.** The project group gets read-only `ifc.mapConversion.eastings`, `.northings`, `.orthogonalHeight`,
+   `.rotationDegrees` (the file's, also in `grid`), `.scale` and `.crs`, whatever the result. They take six of the sixteen
+   provenance slots; the project's own provenance is at most ten, so the worst case fills the 16 exactly and
+   nothing is dropped. `RefLatitude`, `RefLongitude`, `RefElevation` and `TrueNorth` are unchanged (3.6).
+10. **IFC2X3.** There is no conversion entity. `ePSet_MapConversion` and `ePSet_ProjectedCRS` property sets (on any
+    schema's file) are noticed (`georeferenceEpsets`, with the count in the block) and are ordinary properties of the site;
+    nothing is georeferenced.
+11. **Accounting.** The one conversion read, its CRS, the map unit and the context chain are `supporting`; further
+    conversions and everything else stay `omitted` and counted by class. The identity holds on every new fixture.
+12. **The application does not trust the block.** It rebuilds it field by field (text as plain text with the document's
+    bounds, at most 8 reasons, numbers finite), and it sets the origin only if the worker's origin is the conversion's own
+    numbers within 1e-9, the rotation applied equals the conversion's (or is zero) and every root node's matrix carries
+    exactly that rotation and no translation; a package that says otherwise, or whose origin the document refuses, fails
+    the import as `georeferenceMismatch`. This is "the application then verifies the result against the formula" of 3.6(b).
+13. **Far from the origin** (decision 7) needed no new rule: R097.b already refuses beyond 1e6 m with the extent
+    (`farFromOrigin`); a model authored in absolute projected coordinates is refused even when a conversion exists, in
+    either mode, and no origin is shifted or set.
+
+### Verification
+
+| Check | Test | Result |
+| --- | --- | --- |
+| F1 | `bsi-ifc4-road.ifc` (certified, theta 0): E, N, H within 1e-9 m of the file's and of 3.6's quoted values, label `EPSG:32760`, provenance, schema 29, save and reopen bit-exact, one undo, the report says so; a metre project with no map unit; `IfcMapConversionScaled` with unit factors | `ifc_georeference`, `ifc_import`, `ifc_convert` |
+| F2 | The three certified 60 degree samples (`bsi-ifc4-arch`, `bsi-ifc43-arch`, `bsi-ifc4-landscaping`): keepAxes keeps the axes, sets no origin, reports the exact conversion and `ifc.mapConversion.*`; grid sets the origin and every vertex equals `R(theta) x (keepAxes vertex)` within 1e-9 m (the mapped coordinate minus the translation); in the documents every body keeps its volume and its centroid is turned by 60 degrees; a 3-4-5 wall's corners are the hand-computed ones | same |
+| F3 | `georef-absolute-far.ifc` (2,500 km, with a conversion) and `far-from-origin.ifc`, both modes: refused, naming the extent, no package | same |
+| F4 | US survey foot with a rotation (keep: `mapUnit`, `scale`, `rotation`; grid: the first two), a world coordinate system at (500, 0, 0) (refused), two conversions, two Model contexts, a conversion of a Plan context, a zero axis, half an axis, a scale in millimetres, an easting beyond 1e8 m, factors, IFC2X3 with and without ePSets | same |
+| H1, D1 | Two grid imports of each sample are identical; converted + supporting + omitted equals the scan's count on every new fixture | same |
+
+Run locally in the pinned image (`sketchyup-ci-pinned:r097a-ifc`, 4 CPUs, 10 GB, `-j4`): `ifc_georeference`,
+`ifc_import_worker`, `ifc_worker_probe`, `ifc_worker_fault_corpus` (64 mutations; 512 for this change, see the pull
+request), `ifc_package`, `ifc_convert`, `ifc_import`, `ifc_worker_run` and `parser_fault_corpus` pass, and
+`ifc_georeference` passes under ASan and UBSan.
+
+### Open questions and risks (R097.c)
+
+- **The unconditional world coordinate system refusal** (2 above) is stricter than R097.b. Real exporters do write a
+  non-identity WCS (some write the survey point there); each such file is now refused instead of imported on its project
+  axes. If that turns out to be common, a later slice should apply it (the matrix is already composed) rather than relax
+  the refusal.
+- **State Plane files in feet are reported, not imported.** The owner decisions ask for it; converting an exact unit would
+  be sound and small. It is the most likely complaint.
+- **No independent oracle for grid mode** beyond the formula: the check is the buildingSMART formula (3.6) applied by
+  hand to the certified numbers, as F2 asks; no other program's import of the same file was compared.
+- **Grid mode turns the model about the project origin**, which for a model far from it (but within 1e6 m) moves it
+  far in the plan; the site origin carries the map position, so the result is exact, but the building is not near the
+  document origin. Decision 6(c) (a grid rotation on the site origin) remains the faithful answer.
+- The new test `ifc_georeference` runs in the `ifc` job (`^ifc_`); the sanitizer step lists tests by name and does not
+  include it (it was run under ASan and UBSan here).
 
 ## Appendix: evidence and sources
 

@@ -882,11 +882,16 @@ IFC4X3_ADD2 STEP file through the isolated helper `sketchyup-ifc-worker` of the 
 and builds a new native model: the spatial structure as groups, elements as editable faces on one tag per class
 (spaces on a tag that starts hidden), properties and quantities as `Pset.Property` entity properties, colours and
 materials, and a fidelity report that accounts for every instance of the file. Units come from the file; a file
-without a length unit needs `--ifc-length-unit`. Georeferencing is not applied yet.
+without a length unit needs `--ifc-length-unit`. A file whose map conversion (`IfcMapConversion` with an
+`IfcProjectedCRS` in metres) has no rotation sets the document's site origin from its eastings, northings and
+height; such a document is saved in schema 29 and opens only in SketchyUp 1.3.0 or later. A map conversion that
+rotates the project axes is reported and the axes are kept; `--ifc-georef grid` rotates the model to the map
+grid instead and sets the site origin.
 
 ```sh
 sketchyup-cli --import-ifc building.ifc
 sketchyup-cli --import-ifc building.ifc --output converted.sketchyup --ifc-deflection 1 --ifc-spaces hidden
+sketchyup-cli --import-ifc building.ifc --output converted.sketchyup --ifc-georef grid
 ```
 
 Without `--output` the command validates the import and prints the report. The output must be a new path. If

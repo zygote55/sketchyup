@@ -15,6 +15,7 @@ struct ImportOptions {
   double angularDeflectionRadians{0.5};
   std::string lengthUnitOverride;  // mm, cm, m, in, ft or empty
   bool skipSpaces{false};
+  bool gridAligned{false};  // --georef grid: rotate the model by the map conversion's rotation (decision 6b)
   int maxVoidsPerElement{100};
   std::size_t maxNodes{40000};  // the package's node bound (lowered by tests)
   std::size_t maxEntities{2000000};

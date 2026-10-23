@@ -14,6 +14,7 @@
 #include "ifc/access.hpp"
 #include "ifc/account.hpp"
 #include "ifc/geometry.hpp"
+#include "ifc/georeference.hpp"
 #include "ifc/json_out.hpp"
 #include "ifc/model.hpp"
 #include "ifc/package.hpp"
@@ -433,6 +434,11 @@ int runImport(const ImportOptions& options) {
   ctx.model.units = unitsOutcome.units;
   for (const auto& code : ctx.model.units.notices) ctx.report.notice(code);
 
+  // Georeferencing (3.6): read before any geometry, so that a world coordinate system we cannot apply refuses cheaply.
+  const Georeference geo = readGeoreference(file, ctx.model.project, ctx.model.units, options.gridAligned, schema, ctx.report,
+                                            [&](const std::string& s) { return ctx.texts(s); });
+  if (!geo.refusalCode.empty()) return refuse(geo.refusalCode, geo.refusalMessage);
+
   progress.phase("model");
   ctx.model.build(file, ctx.report);
   collectProducts(ctx);
@@ -530,6 +536,12 @@ int runImport(const ImportOptions& options) {
     }
   }
   if (ctx.entries.empty()) return refuse("nothingToImport", "The file holds no spatial structure or geometry to import.");
+  if (geo.rotate) {
+    // Grid mode (decision 6b): the model is turned by +theta about Z (the conversion's rotation), so that +X is east. Every world
+    // matrix is premultiplied by it; a node's matrix relative to its parent is unchanged and the roots carry the rotation.
+    const Mat turn{geo.cosine, -geo.sine, 0, 0, geo.sine, geo.cosine, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    for (auto& entry : ctx.entries) entry.world = multiply(turn, entry.world);
+  }
 
   std::set<int> droppedByBounds;  // not imported because of the package's bounds (already reported)
   // The package's own bounds (6.4): 100,000 triangles for one element and 1,000,000 in all (a shared mesh counts
@@ -807,6 +819,16 @@ int runImport(const ImportOptions& options) {
       if (longitude.size() >= 3) ifc.emplace_back("ifc.RefLongitude", degrees(longitude));
       if (const auto height = number(inst, "RefElevation")) ifc.emplace_back("ifc.RefElevation", *height * metresPerUnit);
     }
+    if (entry.role == "project" && geo.facts) {
+      // The map conversion, read-only (3.6): whatever the result, the file's own numbers are kept on the project.
+      const MapConversionFacts& f = *geo.facts;
+      ifc.emplace_back("ifc.mapConversion.eastings", f.eastings);
+      ifc.emplace_back("ifc.mapConversion.northings", f.northings);
+      ifc.emplace_back("ifc.mapConversion.orthogonalHeight", f.orthogonalHeight);
+      ifc.emplace_back("ifc.mapConversion.rotationDegrees", f.rotationDegrees);
+      ifc.emplace_back("ifc.mapConversion.scale", f.scale);
+      if (!f.crsName.empty()) ifc.emplace_back("ifc.mapConversion.crs", f.crsName);
+    }
     if (entry.role == "project") {
       for (const Inst& context : refs(inst, "RepresentationContexts")) {
         const auto north = numbers(context, "TrueNorth");
@@ -969,12 +991,13 @@ int runImport(const ImportOptions& options) {
                                        " m from the origin; coordinates beyond 1,000,000 m are not imported.");
 
   progress.phase("account");
+  // The map conversion and its CRS were read into the report and the project's properties: supporting data.
+  for (const Inst& conversion : geo.consumed) {
+    ctx.accountant.supporting(stepOf(conversion));
+    ctx.accountant.claimTree(conversion);
+  }
   const Accounting accounting = ctx.accountant.finish();
   for (const auto& [cls, count] : accounting.omittedByClass) ctx.report.omitted(cls, count);
-
-  // Georeferencing is R097.c: the entities are counted as omitted, and the report says why.
-  for (const char* geoClass : {"IfcMapConversion", "IfcMapConversionScaled", "IfcProjectedCRS"})
-    if (accounting.omittedByClass.contains(geoClass)) ctx.report.notice("georeferenceNotImported");
 
   progress.phase("write");
   // Header facts.
@@ -1002,6 +1025,7 @@ int runImport(const ImportOptions& options) {
     j.field("contextFallback", ctx.geometry.usedFallbackContext);
     j.field("unitsTrusted", ctx.geometry.unitsTrusted);
     j.field("meshScale", ctx.geometry.meshScale);
+    j.field("georeferenceMode", options.gridAligned ? "grid" : "keepAxes");
     j.field("completed", true);
   });
   package.sourceJson = jsonObject([&](JsonOut& j) {
@@ -1040,6 +1064,7 @@ int runImport(const ImportOptions& options) {
       j.key("omittedEntities");
       writeCounts(j, kinds);
     }
+    j.key("georeference").raw(geo.json);
     j.key("spatial").beginObject();
     j.field("projects", spatialSteps("project")).field("sites", spatialSteps("site"));
     j.field("buildings", spatialSteps("building")).field("storeys", spatialSteps("storey"));

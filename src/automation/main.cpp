@@ -160,6 +160,10 @@ int main(int argc, char **argv) {
     parser.addOption({"ifc-length-unit",
                       "IFC import: length unit mm, cm, m, in or ft, used only when the file declares none", "unit"});
     parser.addOption({"ifc-spaces", "IFC import: spaces hidden (default), shown or skip", "mode"});
+    parser.addOption({"ifc-georef",
+                      "IFC import: keep (default) leaves the project axes and reports the map conversion; grid "
+                      "rotates the model to the map grid and sets the site origin",
+                      "mode"});
     parser.addOption({"ifc-deadline", "IFC import: seconds the helper may run per attempt (default 120)", "seconds"});
     parser.addOption({"ifc-worker", "IFC import: path of the helper (development and tests)", "path"});
     parser.addOption(
@@ -650,7 +654,7 @@ int main(int argc, char **argv) {
             if (!parser.positionalArguments().isEmpty())
                 invalid("IFC import requires named paths");
             const QStringList allowed{"import-ifc",  "output",     "ifc-deflection", "ifc-length-unit",
-                                      "ifc-spaces",  "ifc-deadline", "ifc-worker"};
+                                      "ifc-spaces",  "ifc-georef", "ifc-deadline", "ifc-worker"};
             for (const auto &option : parser.optionNames())
                 if (!allowed.contains(option))
                     invalid("IFC import is a standalone operation");
@@ -664,6 +668,13 @@ int main(int argc, char **argv) {
                 options.spaces = sketchy::IfcSpaces::Skip;
             else
                 invalid("--ifc-spaces is hidden, shown or skip");
+            const auto georef = parser.isSet("ifc-georef") ? parser.value("ifc-georef") : QString("keep");
+            if (georef == "keep")
+                options.georeference = sketchy::IfcGeoreference::KeepAxes;
+            else if (georef == "grid")
+                options.georeference = sketchy::IfcGeoreference::Grid;
+            else
+                invalid("--ifc-georef is keep or grid");
             sketchy::IfcWorkerOptions worker;
             if (parser.isSet("ifc-deflection")) {
                 bool ok{};

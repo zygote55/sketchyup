@@ -137,6 +137,8 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
         args << "--length-unit" << options.lengthUnit;
     if (importOptions.spaces == IfcSpaces::Skip)
         args << "--skip-spaces";
+    if (importOptions.georeference == IfcGeoreference::Grid)
+        args << "--georef" << "grid";
     for (const int step : excluded)
         args << "--exclude-step" << QString::number(step);
     if (diagnoseFrom >= 0)
