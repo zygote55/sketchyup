@@ -58,7 +58,7 @@
 #include "Interface_EntityIterator.hxx"
 #include "STEPControl_Reader.hxx"
 #include "STEPControl_Writer.hxx"
-#include "Standard_Fail.hxx"
+#include "Standard_Failure.hxx"
 #include "StepData_StepModel.hxx"
 #include "TColStd_SequenceOfAsciiString.hxx"
 #include "TopExp_Explorer.hxx"
@@ -187,7 +187,7 @@ StepShapeFacts shapeFacts(const TopoDS_Shape& shape) {
                    static_cast<double>(x2), static_cast<double>(y2), static_cast<double>(z2)};
       facts.ok = true;
     }
-  } catch (const Standard_Fail&) {
+  } catch (const Standard_Failure&) {
   }
   return facts;
 }
@@ -206,7 +206,7 @@ StepModelFacts readStepModel(const std::string& path) {
     const IFSelect_ReturnStatus status = reader.ReadFile(path.c_str());
     facts.readStatus = status == IFSelect_RetDone ? "done" : status == IFSelect_RetFail ? "fail" : "error";
     facts.read = status == IFSelect_RetDone;
-  } catch (const Standard_Fail& failure) {
+  } catch (const Standard_Failure& failure) {
     facts.readStatus = "exception";
     facts.error = failure.GetMessageString();
     return facts;
@@ -249,7 +249,7 @@ StepModelFacts readStepModel(const std::string& path) {
       shape.index = i;
       facts.shapes.push_back(std::move(shape));
     }
-  } catch (const Standard_Fail& failure) {
+  } catch (const Standard_Failure& failure) {
     facts.error = failure.GetMessageString();
   }
   return facts;
@@ -292,7 +292,7 @@ void writeRoundTrip(const std::string& directory, const std::string& label, cons
         return;
       }
       written = true;
-    } catch (const Standard_Fail& failure) {
+    } catch (const Standard_Failure& failure) {
       json.field("written", false).field("reason", failure.GetMessageString());
       return;
     }
@@ -448,7 +448,7 @@ std::string writeStep(const std::string& directory) {
       } else {
         json.field("written", false).field("reason", "the writer refused the shape");
       }
-    } catch (const Standard_Fail& failure) {
+    } catch (const Standard_Failure& failure) {
       json.field("written", false).field("reason", failure.GetMessageString());
     }
     json.endObject();
