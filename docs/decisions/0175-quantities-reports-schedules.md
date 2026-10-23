@@ -476,10 +476,11 @@ sketchyup-cli --input <model> --report <file.csv|file.json>
   ADR 0168 decision 10 did for the terrain queries and ADR 0171
   decision 13 ("assistant exposure needs a new corpus version").
 
-## 10. Desktop UI needs (UX_DESIGN section 18, to be designed later)
+## 10. Desktop UI needs (UX_DESIGN section 19, to be designed later)
 
-The desktop work waits for an approved **UX_DESIGN section 18** (§16 is
-the IFC dialog work, §17 is the model styles work, both in parallel
+The desktop work waits for an approved **UX_DESIGN section 19** (§16 is
+the IFC dialog work, §17 is the camera-path work (ADR 0173), §18 the
+styles work (ADR 0174), both in parallel
 drafts; neither section exists in `docs/UX_DESIGN.md` at this commit
 **not verified** beyond that observation). That section must resolve:
 
@@ -623,7 +624,7 @@ row) — the R097/ADR 0171 pattern.
 - **R101.d — MCP surface.** `reports.run`, `reports.schedules`, following
   the "MCP exposes all" pattern; assistant stays off (owner decision 10).
 - **R101.e — Desktop.** The Quantities panel, schedules list and export
-  dialog per the approved UX_DESIGN section 18; live update and cancel
+  dialog per the approved UX_DESIGN section 19; live update and cancel
   (V7).
 - **R101.f — Acceptance record.** `docs/verification/
   R101f-quantities-reports.md` per the pattern above, with the measured
