@@ -11,6 +11,8 @@
 #include <iostream>
 #include <string>
 
+#include "ifc/check.hpp"
+#include "ifc/export.hpp"
 #include "ifc/import.hpp"
 #include "ifc/probe.hpp"
 #include "sketchyup/version.hpp"
@@ -26,6 +28,10 @@ void usage(std::FILE* stream) {
       "           --length-unit mm|cm|m|in|ft  --skip-spaces  --georef keep|grid  --max-voids N  --max-nodes N  --max-entities N\n"
       "           --exclude-step N  --diagnose-from TASK  --diagnose-seconds N  --rlimit-as BYTES  --rlimit-cpu SECONDS  --rlimit-fsize BYTES\n"
       "           --test-fault crash|abort|hang|alloc:N  --dry-run\n"
+      "       sketchyup-ifc-worker --export PACKAGE --output FILE.ifc [--rlimit-as BYTES] [--rlimit-cpu SECONDS] [--rlimit-fsize BYTES]\n"
+      "           build an IFC4 file from the application's export package (R097.d)\n"
+      "       sketchyup-ifc-worker --check FILE.ifc\n"
+      "           re-read an IFC4 file and check every attribute against the schema (R097.d)\n"
       "       sketchyup-ifc-worker --probe\n"
       "           print versions, loaded libraries and kernel availability as JSON\n"
       "       sketchyup-ifc-worker --probe-api [--kernel NAME] [--threads N] [--set NAME=VALUE]...\n"
@@ -100,6 +106,24 @@ int main(int argc, char** argv) {
       if (options.input.empty() || (options.output.empty() && !options.dryRun)) return fail("--import needs an input file and --output");
       prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
       return runImport(options);
+    }
+    if (argc == 3 && std::strcmp(argv[1], "--check") == 0) return runCheck(argv[2]);
+    if (argc >= 2 && std::strcmp(argv[1], "--export") == 0) {
+      ExportOptions options;
+      for (int i = 2; i < argc; ++i) {
+        const std::string argument = argv[i];
+        const bool hasValue = i + 1 < argc;
+        if (argument == "--output" && hasValue) options.output = argv[++i];
+        else if (argument == "--rlimit-as" && hasValue) { if (!setLimit(RLIMIT_AS, argv[++i])) return fail("cannot set RLIMIT_AS"); }
+        else if (argument == "--rlimit-cpu" && hasValue) { if (!setLimit(RLIMIT_CPU, argv[++i])) return fail("cannot set RLIMIT_CPU"); }
+        else if (argument == "--rlimit-fsize" && hasValue) { if (!setLimit(RLIMIT_FSIZE, argv[++i])) return fail("cannot set RLIMIT_FSIZE"); }
+        else if (argument.rfind("--", 0) == 0) return fail("unknown option " + argument);
+        else if (options.input.empty()) options.input = argument;
+        else return fail("one package only");
+      }
+      if (options.input.empty() || options.output.empty()) return fail("--export needs a package and --output");
+      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      return runExport(options);
     }
     if (argc == 3 && std::strcmp(argv[1], "--probe-write") == 0) {
       std::puts(probeWriter(argv[2]).c_str());

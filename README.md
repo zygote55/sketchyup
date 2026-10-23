@@ -898,6 +898,28 @@ Without `--output` the command validates the import and prints the report. The o
 the helper is missing, the command says so and nothing else is affected. See the
 [IFC exchange subset](docs/decisions/0171-ifc-exchange-subset.md) and its R097.b implementation notes.
 
+IFC export (command line only for now) writes a native model to a new IFC4 file through the same helper. Every body
+becomes one `IfcTriangulatedFaceSet` of its own tessellation (no parametric solids, no Reference View or buildingSMART
+certification claim; the header says "SketchyUp export, tessellated geometry" and declares no view). Groups become
+`IfcElementAssembly`, a model that came from IFC keeps its site, building and storeys and otherwise gets one site and one
+building (no storey is invented), a body's class comes from its `ifc.Class` property when that is an IFC4 building element
+and is an `IfcBuildingElementProxy` otherwise, `Pset.Property` entity properties become property sets, materials and
+per-face colours become surface styles, and hidden bodies are written on a layer that is switched off. Identifiers are
+kept from an import when valid and unique and are otherwise derived from the model's identity, so exporting twice gives
+the same ids. The site origin is written as an `IfcProjectedCRS` and an `IfcMapConversion` only when its label is an
+authority code such as `EPSG:32760`; with any other label, or none, neither is written and the report says so. The report
+counts everything that is not written (terrain, guides, labels, scenes, sections, sheets, reference images, component
+parameters, textures, loose edges) and balances written, written-as-copies and not-written against the model's items.
+
+```sh
+sketchyup-cli --input house.sketchyup --export-ifc house.ifc
+sketchyup-cli --input house.sketchyup --export-ifc house.ifc --ifc-timestamp 2026-01-02T03:04:05
+```
+
+`--ifc-timestamp` (UTC seconds or `YYYY-MM-DDTHH:MM:SS`; otherwise `SOURCE_DATE_EPOCH`, otherwise the clock) is stamped into
+the file header and the owner history, so a fixed value makes two exports byte for byte equal. The output must be a new
+path; an existing file or symbolic link is never replaced. See the R097.d implementation notes.
+
 Export a measured orthographic drawing with explicit page, scale and camera settings:
 
 ```sh
