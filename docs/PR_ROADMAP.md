@@ -1421,7 +1421,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R098 — Deliver a documented STEP exchange subset
 
-**Status:** Planned. **Track:** Interchange. **Scope:** F04. **UX:** —.
+**Status:** Planned. Design proposed (ADR 0172). **Track:** Interchange. **Scope:** F04. **UX:** —.
 
 **Requires:** [R089](#r089), [R073](#r073); milestone gate rule above.
 
