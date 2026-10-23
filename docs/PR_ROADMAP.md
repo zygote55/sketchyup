@@ -1457,7 +1457,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R101 — Add quantities, reports and schedules
 
-**Status:** Planned. Design proposed (ADR 0175). **Track:** Automation. **Scope:** F07. **UX:** —.
+**Status:** Planned. Design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). **Track:** Automation. **Scope:** F07. **UX:** —.
 
 **Requires:** [R089](#r089), [R060](#r060); milestone gate rule above.
 

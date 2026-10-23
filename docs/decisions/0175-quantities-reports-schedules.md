@@ -1,6 +1,6 @@
 # Quantities, reports and schedules
 
-Status: **Proposed**. Roadmap
+Status: **Accepted (2026-10-23)**: owner decisions 1 to 13 approved as recommended on 2026-10-23. Roadmap
 [R101](../PR_ROADMAP.md#r101) (M10, scope row [F07](../SCOPE.md)); requires
 [R089](../PR_ROADMAP.md#r089) and [R060](../PR_ROADMAP.md#r060), both
 delivered (R089 released at 1.0.0; R060 verified, all seven layers merged),
