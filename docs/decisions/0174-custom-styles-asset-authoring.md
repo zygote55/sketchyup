@@ -116,8 +116,8 @@ What the repository gives us (surveyed at `34910469`):
   turn, and MCP exposes the full catalogue (the standing position of
   [ADR 0168](0168-terrain-import-and-surfaces.md) and
   [ADR 0169](0169-terrain-editing-drape-stamp.md) decision 9).
-- **UX.** `docs/UX_DESIGN.md` currently has sections 1–15; the R100 interface
-  design would be **§16** and is to be commissioned and approved before the
+- **UX.** `docs/UX_DESIGN.md` has sections 1–15, and §16 is the IFC design (PR #420); the R100
+  interface design would be **§17** and is to be commissioned and approved before the
   desktop slice (the R062 and R096 pattern).
 
 ## 1. Packaged edge styles (decision 1)
@@ -318,10 +318,10 @@ and catalogs:
   `assistant_tool_surface_tests` stays pinned. Exposing a catalog command to the
   assistant later, after a corpus measurement, is the obvious first candidate.
 
-## 8. Desktop UI (decision 8; UX_DESIGN §16 to be designed later)
+## 8. Desktop UI (decision 8; UX_DESIGN §17 to be designed later)
 
 The owner approves a UX design separately, as with R062 and R096. The design
-(§16 of `docs/UX_DESIGN.md`) must decide:
+(§17 of `docs/UX_DESIGN.md`) must decide:
 
 1. Where the **style library** lives (the R062 Styles tab in the model panel,
    a Styles menu, a context menu), its names and any default shortcuts
@@ -457,7 +457,7 @@ modelling limits.
   `--export-catalog`, `--list-catalog`. **Verify:** each CLI path, the
   no-publish-on-failure rule, and the `--capabilities`/`--describe-command`
   schemas.
-- **R100.f: Desktop tools.** Requires the approved UX design (§16). The style
+- **R100.f: Desktop tools.** Requires the approved UX design (§17). The style
   library, the extended edge-stroke controls, the textured preset library and
   the catalog dialog, with `style_catalog_input_tests` in the native matrix.
 - **R100.g: Acceptance record.** `docs/verification/R100g-custom-styles-assets.md`
@@ -498,7 +498,7 @@ The owner has not yet decided these points. Each carries the recommendation.
    the tool-surface baseline is re-pinned only if a tool is added.
 10. **Budgets:** adopt section 9, to be confirmed by measurement before they
     are frozen.
-11. **Desktop UX:** commission and approve a UX design (§16) before R100.f.
+11. **Desktop UX:** commission and approve a UX design (§17) before R100.f.
 12. **Style is a presentation snapshot:** applying a style changes only the
     document style; a style or catalog file is never updated by model edits.
 
@@ -544,7 +544,7 @@ Each carries a recommended default and a one-line reason.
    ADR 0168/0169 position.*
 10. **Budgets:** adopt section 9, confirmed by measurement before they are
     frozen. *Recommended default: adopt, then confirm — the standing position.*
-11. **Desktop UX:** commission and approve a UX design (§16) before R100.f.
+11. **Desktop UX:** commission and approve a UX design (§17) before R100.f.
     *Recommended default: yes — the R062 and R096 pattern.*
 12. **Style is a presentation snapshot:** applying a style changes only the
     document style; a style or catalog file is never updated by model edits.
@@ -556,5 +556,5 @@ Each carries a recommended default and a one-line reason.
   textured presets, and the provenance and licence of every bundled texture,
   are not verified in this repository. The owner is asked to confirm the preset
   list and, with counsel if you wish, that every bundled texture's licence is
-  distributable (with counsel if you wish), with attribution where the licence
+  distributable, with attribution where the licence
   requires it.
