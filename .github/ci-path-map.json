@@ -111,6 +111,7 @@
       "paths": [
         "third_party/ifcopenshell/**",
         "src/ifc/**",
+        "src/io/ifc_*",
         "tests/ifc*",
         "tests/fixtures/ifc/**",
         "scripts/vendor-ifcopenshell.py",

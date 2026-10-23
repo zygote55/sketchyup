@@ -877,6 +877,22 @@ to X and Y; it needs a site origin.
 
 See [DXF workflow and limits](docs/decisions/0123-native-dxf-interchange-workflow.md).
 
+IFC import (command line only for now; the desktop dialog is a later slice) reads an IFC2X3, IFC4 or
+IFC4X3_ADD2 STEP file through the isolated helper `sketchyup-ifc-worker` of the optional `sketchyup-ifc` package
+and builds a new native model: the spatial structure as groups, elements as editable faces on one tag per class
+(spaces on a tag that starts hidden), properties and quantities as `Pset.Property` entity properties, colours and
+materials, and a fidelity report that accounts for every instance of the file. Units come from the file; a file
+without a length unit needs `--ifc-length-unit`. Georeferencing is not applied yet.
+
+```sh
+sketchyup-cli --import-ifc building.ifc
+sketchyup-cli --import-ifc building.ifc --output converted.sketchyup --ifc-deflection 1 --ifc-spaces hidden
+```
+
+Without `--output` the command validates the import and prints the report. The output must be a new path. If
+the helper is missing, the command says so and nothing else is affected. See the
+[IFC exchange subset](docs/decisions/0171-ifc-exchange-subset.md) and its R097.b implementation notes.
+
 Export a measured orthographic drawing with explicit page, scale and camera settings:
 
 ```sh

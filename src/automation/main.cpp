@@ -13,6 +13,7 @@
 #include "io/dxf_export.hpp"
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
+#include "io/ifc_worker.hpp"
 #include "io/measured_request.hpp"
 #include "io/new_file.hpp"
 #include "io/native_format.hpp"
@@ -151,6 +152,16 @@ int main(int argc, char **argv) {
         {"stl-discard-degenerate", "Explicitly remove collapsed facets during import"});
     parser.addOption({"stl-encoding", "Required export encoding: binary or ascii", "encoding"});
     parser.addOption({"import-obj", "Import OBJ/MTL; optional new native --output", "path"});
+    parser.addOption({"import-ifc",
+                      "Import an IFC STEP file (IFC2X3, IFC4, IFC4X3_ADD2) through the isolated IFC helper; "
+                      "optional new native --output; without it, validate and print the report",
+                      "path"});
+    parser.addOption({"ifc-deflection", "IFC import: maximum chord deviation of curved geometry in mm (default 1)", "mm"});
+    parser.addOption({"ifc-length-unit",
+                      "IFC import: length unit mm, cm, m, in or ft, used only when the file declares none", "unit"});
+    parser.addOption({"ifc-spaces", "IFC import: spaces hidden (default), shown or skip", "mode"});
+    parser.addOption({"ifc-deadline", "IFC import: seconds the helper may run per attempt (default 120)", "seconds"});
+    parser.addOption({"ifc-worker", "IFC import: path of the helper (development and tests)", "path"});
     parser.addOption(
         {"export-obj", "Export all model geometry to a new OBJ package directory", "directory"});
     parser.addOption({"obj-unit", "Explicit OBJ coordinate unit: mm, cm, m, in or ft", "unit"});
@@ -632,6 +643,68 @@ int main(int argc, char **argv) {
             std::cout << QJsonDocument(report).toJson(QJsonDocument::Compact).toStdString() << '\n';
             return 0;
         }
+        if (parser.isSet("import-ifc")) {
+            auto invalid = [](const std::string &message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            if (!parser.positionalArguments().isEmpty())
+                invalid("IFC import requires named paths");
+            const QStringList allowed{"import-ifc",  "output",     "ifc-deflection", "ifc-length-unit",
+                                      "ifc-spaces",  "ifc-deadline", "ifc-worker"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("IFC import is a standalone operation");
+            sketchy::IfcImportOptions options;
+            const auto spaces = parser.isSet("ifc-spaces") ? parser.value("ifc-spaces") : QString("hidden");
+            if (spaces == "hidden")
+                options.spaces = sketchy::IfcSpaces::Hidden;
+            else if (spaces == "shown")
+                options.spaces = sketchy::IfcSpaces::Shown;
+            else if (spaces == "skip")
+                options.spaces = sketchy::IfcSpaces::Skip;
+            else
+                invalid("--ifc-spaces is hidden, shown or skip");
+            sketchy::IfcWorkerOptions worker;
+            if (parser.isSet("ifc-deflection")) {
+                bool ok{};
+                worker.chordDeviationMm = parser.value("ifc-deflection").toDouble(&ok);
+                if (!ok || !(worker.chordDeviationMm >= 0.1 && worker.chordDeviationMm <= 1000))
+                    invalid("--ifc-deflection is 0.1 to 1000 millimetres");
+            }
+            if (parser.isSet("ifc-length-unit")) {
+                worker.lengthUnit = parser.value("ifc-length-unit");
+                if (!QStringList{"mm", "cm", "m", "in", "ft"}.contains(worker.lengthUnit))
+                    invalid("--ifc-length-unit is mm, cm, m, in or ft");
+            }
+            if (parser.isSet("ifc-deadline")) {
+                bool ok{};
+                worker.deadlineSeconds = parser.value("ifc-deadline").toInt(&ok);
+                if (!ok || worker.deadlineSeconds < 1 || worker.deadlineSeconds > 3600)
+                    invalid("--ifc-deadline is 1 to 3600 seconds");
+            }
+            if (parser.isSet("ifc-worker"))
+                worker.workerPath = parser.value("ifc-worker");
+            QJsonObject result;
+            try {
+                const auto imported = sketchy::importIfcFile(parser.value("import-ifc"), options, worker);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } catch (const sketchy::IfcImportError &error) {
+                const std::string code = error.code();
+                const bool limit = code == "tooLarge" || code == "entityLimit" || code == "modelTooLarge" ||
+                                   code == "farFromOrigin" || code == "documentLimit";
+                throw sketchy::InspectionError(limit ? "LIMIT_EXCEEDED" : "INPUT_ERROR", error.what(),
+                                               QJsonObject{{"ifcCode", QString::fromStdString(code)},
+                                                           {"importReport", error.report()}});
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("ifc-"))
+                throw sketchy::InspectionError("INVALID_REQUEST", "IFC options require --import-ifc");
         if (parser.isSet("import-gltf")) {
             if (!parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",

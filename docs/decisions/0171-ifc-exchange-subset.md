@@ -4,12 +4,14 @@ Status: **Accepted (2026-10-22)**: decisions 1 to 16, then decisions 17 to 22 (h
 packaged and run), questions Q1 and Q2 and the reworded decisions 5, 12 and 14, all approved by the
 owner on 2026-10-22 ("Approve all"). Roadmap
 [R097](../PR_ROADMAP.md#r097) (M10, scope row [F04](../SCOPE.md)); the sibling
-[R098](../PR_ROADMAP.md#r098) covers STEP. Only R097.a is implemented (see the end of this paragraph). Each section gives
+[R098](../PR_ROADMAP.md#r098) covers STEP. R097.a and R097.b are implemented (see the end of this paragraph). Each section gives
 the options that were weighed and the recommendation. Facts about third-party projects were read
 on 2026-10-22 and are cited in the [appendix](#appendix-evidence-and-sources); anything not
 verified is marked as such. **R097.a is implemented** (library, helper skeleton, packaging, CI):
 its measurements and the corrections its API probe made to this text are in the
-[implementation notes](#implementation-notes-r097a); the other slices are not.
+[implementation notes](#implementation-notes-r097a). **R097.b is implemented** (the import: package, helper,
+conversion, report, command line): see its [implementation notes](#implementation-notes-r097b), which also settle
+the two questions R097.a left open; the other slices are not.
 
 **Owner decision, 2026-10-22, verbatim:** "Just use IfcOpenShell. I don't want to build it. I
 approve all." This settles decision 1: SketchyUp uses and ships IfcOpenShell, and writes no IFC
@@ -546,7 +548,9 @@ open host does, is in [note F5](#implementation-notes-r097a); an open host is no
 imported **hidden on the tag `IFC Opening`** so the user can act on it; an applied opening is
 consumed, not imported. `IfcRelFillsElement` (a window in an opening) needs no action: the window's
 own placement puts it in the opening. Whether the library subtracted a void is **verified against
-the file's own recorded quantities** (check E3), not assumed.
+the file's own recorded quantities** (check E3), not assumed. *(R097.b: GEO191 marks a cut as untrusted and
+the host is converted uncut; the openings of a failed host are converted in a second pass so that they can be
+imported hidden; [owner decisions](#implementation-notes-r097b).)*
 
 **Types.** `IfcRelDefinesByType`: the type's name becomes `ifc.Type`, and the type's property sets
 are copied onto each occurrence that does not define the same property itself (the certification
@@ -597,7 +601,10 @@ library's item identifiers.
   vertices lie in one plane within 1e-7 m, into one polygon face (with holes where the outline
   requires), so a wall's side is one face, not twenty triangles, and edits behave as they do for any
   imported or drawn geometry. Edges the library reports as feature edges are kept visible; the others
-  become soft, smooth interior edges, as terrain tiles do. Curved surfaces stay triangulated.
+  become soft, smooth interior edges, as terrain tiles do. Curved surfaces stay triangulated. *(R097.b: the
+  OpenCASCADE kernel reports every triangle edge of a tessellated face set as a feature edge, so for those
+  items the worker derives the visible edges from a 30 degree crease angle instead;
+  [findings](#implementation-notes-r097b).)*
 - *Planarity and weld.* Native faces must be planar within 1e-7 m and the surface welds points
   within 1e-7 m. IFC coordinates are often rounded far coarser (the fixtures use three decimals in
   millimetres, 1e-6 m), so a polygon that the merge cannot keep planar stays as triangles and is
@@ -1186,6 +1193,7 @@ limits.
   E1–E7, H1, H2, I1–I3, J1, J2 on the certification set and the originals, including the crash-and-
   restart path of 1.6; the whole import is one
   undo step; the claimed representations of 3.3 each have a passing fixture.
+  *Implemented; see the [implementation notes](#implementation-notes-r097b).*
 - **R097.c: Georeferencing.** `IfcMapConversion` and `IfcProjectedCRS` in the worker, the site-origin
   mapping, the rotation decision and grid mode, far-from-origin refusal, schema-29 notice. **Verify:**
   F1–F4.
@@ -1332,13 +1340,327 @@ An `src/app`-only pull request (a comment in `src/app/window_terrain.cpp`, narro
 
 ### Open questions and risks
 
-- **F1's rescale rule** (the Reference View wall): the adapter must rescale rather than refuse, or the certified fixture cannot import. Owner to confirm.
-- **Open hosts** (F5): the worker's handling (untrusted GEO191, re-run uncut and report) is proposed, not decided.
+- **F1's rescale rule** (the Reference View wall): the adapter must rescale rather than refuse, or the certified fixture cannot import. *Settled 2026-10-22: rescale, with a notice ([R097.b notes](#implementation-notes-r097b)).*
+- **Open hosts** (F5): the worker's handling (untrusted GEO191, re-run uncut and report) is proposed, not decided. *Settled 2026-10-22: as proposed, on GEO191 only ([R097.b notes](#implementation-notes-r097b)).*
 - The loader's compiled-in plugin path (F13) stays a string in the binary; makepkg warns about `$srcdir` for `libifcopenshell.plugin.so`.
 - Package acceptance builds IfcOpenShell once (the preceding package skips it): the acceptance job took 43 min 46 s in its first run (the preceding package with its 229 CTest tests 25.5 minutes, the current package with IfcOpenShell 16 minutes, then the install checks), against about 30 minutes for the same job before this slice (run 39707993131).
 - The prefix cache lives only as long as GitHub keeps it (seven days without use); `main` keeps it warm only when an IFC path changes or the nightly full tier runs, and the first IFC pull request after an eviction pays about 15 minutes.
 - Check L2 shows the replacement mechanism with a copy of the libraries, not a rebuild from source in a scratch directory (a 13-minute build); the packaging README documents the real procedure.
 - Not done here, by design: the helper's resource limits, the conversion package, the Landlock/seccomp sandbox and every import or export code path (R097.b to d); fuzz target J3 (the vendored `src/ifcfuzz` is in the tree and not built).
+
+## Implementation notes (R097.b)
+
+R097.b ships the import: the conversion package and its decoder, the helper's `--import`, the application's
+conversion into one new unsaved document, the report (version 1) and `sketchyup-cli --import-ifc`. It is
+delivered in three stacked pull requests (#417, #418 and #419). There is no desktop dialog (R097.e), no georeferencing
+(R097.c: the project axes are kept, no site origin is set, and the report says so), no export (R097.d), and no
+command, query or assistant tool (decision 13). Documents without IFC content are unchanged.
+
+### Owner decisions applied (2026-10-22)
+
+These were open in the R097.a notes and are settled within decisions 3, 5 and 12 (report, never silently wrong):
+
+- **F1, units lost when an IFC4 file has an `IfcProjectLibrary`:** the worker reads the length unit from the
+  `IfcProject` itself. When the library logs GEO308, GEO309 or GEO312 it assumed metres and returned the file's raw
+  numbers, so every vertex and every placement translation is multiplied by `fileMetresPerUnit /
+  unit_magnitude()` (the unit the library reports it used) and the report carries the notice `unitsRescaled`. When
+  the library did read the unit it must agree with the project's within 1e-6 relative (the tolerance with which the
+  units reader snaps a factor such as 0.025400005 to the inch) and its numbers are scaled by the ratio; further apart
+  the file is refused (`unitsDisagree`). The certified Reference View wall imports at 3 x 0.3 x 2 m and 1.5 m3 with its opening.
+- **F5, an open tessellated host cut into wrong geometry:** the cut is untrusted when the library logs **GEO191**
+  for a host that has voids (a non-manifold first operand). The host is converted again with
+  `DisableOpeningSubtractions`, its openings are imported hidden on the tag `IFC Opening`, and the pair is
+  reported (`openingNotApplied` locations, `ifc.Conversion` says "voids not subtracted (cut not trusted: converted
+  uncut)"). **GEO188** ("successfully sewed non-manifold first operand") is not treated as untrusted: the sewn host
+  of `openings-hard.ifc` (D) is cut to the hand-computed 0.84 m3. The R097.a note listed the two codes together;
+  they are separate outcomes.
+- **CI gap:** the root `CMakeLists.txt` and `src/io/ifc_*` select `job:ifc` in `.github/ci-path-map.json` (with
+  examples). The job also builds the application's side of the import and runs its tests (below).
+
+### The conversion package
+
+`src/io/ifc_package.hpp` documents the layout; `src/io/ifc_package.cpp` is the application's checked decoder and
+`src/ifc/package.cpp` the helper's writer. Little-endian: `"SKIFCP01"`, a u32 manifest length (at most 32 MiB), a
+reserved zero word, a u64 mesh-chunk length (at most 128 MiB), the manifest (one JSON object), then the meshes back
+to back (f64 x3 per vertex, u32 x3 per triangle, a u32 material index per triangle, u32 x2 per feature edge, and
+f32 x3 per triangle when the mesh carries colours: NaN for a triangle without one). The manifest names exactly ten
+members: `format`, `version` (1), `meshSha256`, `engine`, `source`, `units`, `report` (objects the decoder bounds
+in size and depth and the conversion reads field by field), `meshes`, `materials` and `nodes`. A node carries
+`step`, `class`, `guid`, `name`, `parent` (an earlier node: the tree is in tree order), `role` (`project`, `site`,
+`building`, `storey`, `space`, `assembly`, `element`, `opening`, `spatial`), `hidden`, a row-major 4x4 `transform`
+(metres, relative to the parent), `mesh`, `ifc` (`[key, type, value]` provenance) and `props`
+(`[set, name, origin, type, value]`; origin 0 occurrence property, 1 occurrence quantity, 2 type property, 3 type
+quantity). The decoder checks every count against its bound and the exact lengths before it allocates (at most
+400,000 nodes, 200,000 meshes, 100,000 triangles per mesh, 1,000,000 in all, a tree 128 deep, 20,000 properties a
+node), every index, finiteness and the 1e6 m coordinate bound, the digest, and that the form is canonical:
+`decode(encode(p)) == p`. `parser_fuzz_ifc_package` (J1) runs it with the digest check off and on.
+
+### The helper's import
+
+`sketchyup-ifc-worker --import FILE --output PACKAGE` (options: `--kernel`, `--threads`, `--deflection METRES`,
+`--angular-deflection`, `--length-unit`, `--skip-spaces`, `--max-voids`, `--max-entities`, `--exclude-step N`, `--max-nodes N`,
+`--diagnose-from TASK`, `--diagnose-seconds N`, `--rlimit-as`, `--rlimit-cpu`, `--rlimit-fsize`, `--dry-run`, and the
+test faults `--test-fault crash|abort|hang|alloc:N`). It sets `PR_SET_NO_NEW_PRIVS` and its own resource limits first,
+prints progress as short lines on stdout (`P phase NAME`, `P tasks N`, `P threads N`, `P at TASK`, `P next STEP...`,
+`P excluded STEP...`, `P done N`) and one result line (`R {"status":"ok"}` or
+`R {"status":"refused","code":...}`, exit 0 or 3). The reading is name-based through IfcParse's schema-independent
+entity interface (one code path for IFC2X3, IFC4 and IFC4X3_ADD2); `src/ifc/` is `access` (attribute reads),
+`units`, `placement` (the worker composes the `IfcLocalPlacement` chain itself, so it can refuse what it cannot
+compose), `model` (one pass over each relationship class), `geometry` (the iterator), `account`, `package` and
+`import` (the orchestration).
+
+- **Units** (A1 to A5): `IfcProject.UnitsInContext`; metre with an SI prefix, or a conversion-based inch, foot,
+  yard or survey foot (a factor within 1e-6 of the canonical value is snapped, with a notice; any other factor is
+  used as written and the unit is not exact); area and volume SI or conversion based (square and cubic feet convert);
+  radian or degree for angles. No length unit is refused (`noLengthUnit`) unless `--length-unit` names one, which
+  is reported as an override and ignored (with a notice) when the file has its own; a furlong is refused
+  (`unsupportedLengthUnit`); two units of one kind are refused (`mixedUnits`). A property or quantity with its own
+  `Unit` converts when that unit is a length, area or volume unit and is listed as unconverted otherwise; every
+  other measure type is stored as written and listed in `unitsUnconverted`.
+- **Iterator** (R097.a notes F2, F3, F4, F6, F8): one query `Body[ContextType=Model,TargetView=MODEL_VIEW]` (the
+  library's default selection is the fallback when it matches nothing, with a notice), world coordinates off,
+  vertices welded, `apply-default-materials` **off**, the mesher's linear deflection from the user (default 1 mm)
+  and 0.5 rad, `max-voids-per-element` 100, a filter that takes elements and spatial elements (not
+  `IfcVirtualElement`) and leaves out the steps it is told to. One thread is deterministic and in file order; four
+  are the default (the document does not depend on their order: the tree decides it).
+- **Spatial tree and placements** (B1 to B7): `IfcRelAggregates` parts first, then `IfcRelContainedInSpatialStructure`
+  elements, each in relationship order; an element with two parents keeps the first (`multipleParents` is counted);
+  an element no relationship reaches goes under the project (`uncontainedElements`); a node's transform is
+  `inverse(parent world) x world`, where the world matrix of an emitted element is the library's and of a group the
+  worker's own; a placement that cannot be composed (`gridPlacement`, `linearPlacement`, `placementCycle`,
+  `badPlacement`) makes the element not imported and reported, and a group with such a placement is dropped with its
+  children kept at their true positions. Layers that are off or frozen import their bodies hidden (`ifc.Layer`).
+- **Openings:** a host's openings are applied when the library cut the host (no GEO033, GEO403 or GEO191); an
+  applied opening is consumed; an opening that was not applied is imported hidden as a sibling of its host. The
+  library does not emit an opening whose subtraction failed, so a second iterator pass converts those openings (and the
+  untrusted hosts, uncut) with `DisableOpeningSubtractions`.
+- **Properties and quantities** (C1 to C5): `Pset.Property` and `Qto.Quantity` keys with typed values as in 3.4,
+  type-level ones copied unless the occurrence defines the same key; `ifc.*` provenance (class, GlobalId, step,
+  schema, name when shortened, long name, phase, predefined type, object type, a door's and window's overall size and
+  type, type, elevation, site latitude and longitude, true north, representation, conversion, layer, material, material
+  layers, groups, classification and its URI). Enumerated and list values are comma-joined, bounded values become
+  `.Lower` and `.Upper`; complex, reference and table properties are counted by class (`propertiesUnmapped`);
+  invalid UTF-8 is read as ISO 8859-1 (`latin1Fallback`).
+- **Colours and materials:** the library's styles name the native materials (the `IfcSurfaceStyle` name); an
+  element without a style has none (the library's per-class default colours are switched off). An
+  `IfcIndexedColourMap` of a triangulated face set is read by the worker and matched to the library's triangles by
+  position (their order is not part of the library's contract); a map with fewer indices than triangles leaves the
+  rest without a colour (`faceColorsIncomplete`; `rv-tessellation-with-individual-colors.ifc` has 11 indices for 12
+  triangles). A material associated with the element's type is the element's.
+- **Feature edges:** the OpenCASCADE kernel reports the boundary edges of each BRep face, which for an
+  `IfcTriangulatedFaceSet` is every edge of every triangle. For tessellated items the worker drops those and writes
+  the edges where the surface creases by more than 30 degrees or ends; for everything else the library's are kept.
+- **Accounting** (D1): `converted` is every node's entity and every recorded group, zone or system; `supporting`
+  is what they consume (placements, representations and items, contexts, units, owner history and its people, styles,
+  materials, the property sets and properties actually read, the relationships that named an imported object, the
+  type object, classifications, layers, applied openings); `omitted` is every other instance, counted by class. The
+  total is the number of instances the library read, equal to the raw-text scan's on every fixture.
+- **Bounds the package keeps** (what the decoder accepts, enforced before writing): at most 40,000 nodes (the
+  application's materialized limit; later ones are `notImported` with the reason `nodeLimit`, children of one that is
+  left out with `parentNotImported`), 4,096 properties a node and 8 MiB of property text in all (`propertiesOmitted`),
+  texts of at most 32 KiB (`propertyTextClipped`) and provenance texts of 8 KiB, names and keys of 4,096 bytes,
+  1,024 materials (the application's; `materialsOverLimit`), only finite numbers (`propertyNotFinite`) and no mesh
+  whose local coordinates are not finite or beyond 1e6 m (`meshCoordinates`) or whose placement is not finite
+  (`placementNotFinite`). A package whose manifest still came out over 32 MiB is refused (`packageTooLarge`).
+- **Restart attribution** (finding 14): on one thread the helper prints `P at TASK` and the products of the task it
+  is about to run. The iterator skips tasks that yield nothing, so after a stop the products named could be a silent
+  task that did no harm. The application therefore restarts a stop on one thread with `--diagnose-from TASK`: the
+  helper lists the tasks and runs them from that one on in forked children with a 1 to 20 second alarm (an eighth of
+  the deadline): growing ranges of tasks while they come back, halving ones when they do not, until one task is left
+  that crashes, runs out of memory or does not finish. That task is left out and the import goes on in the same
+  process (`P excluded`); the number of children is logarithmic in the number of tasks that yield nothing. A child
+  that produces an element has gone past the place of the culprit (every task before it yielded nothing, the run
+  had passed any that did), so its range is halved and a single task that produces one ends the search with nothing
+  found. The uncut pass over the hosts says `P at -1` and is never diagnosed. Only if a diagnosed run stops again without finding anything does the application fall
+  back to leaving out the products of the task named by `P next`.
+- **Resource limits:** the application passes `--rlimit-as` 4 GiB (none in sanitizer builds), `--rlimit-cpu` four
+  times the deadline and `--rlimit-fsize` 256 MiB, runs the helper in its own session with `PR_SET_PDEATHSIG`, a
+  fixed argv, no shell and an environment of one variable (`LC_ALL`), in a private directory with a copy of the
+  file whose SHA-256 is the report's. The deadline is 120 s a run; at the deadline the helper gets SIGTERM and, a
+  second later, SIGKILL. The instance limit is 2,000,000 (`entityLimit`, with the count and the limit named).
+
+### The application's conversion
+
+`src/io/ifc_import.cpp` builds one `Edit` ("Import IFC") and applies it to a new document, so the import is one
+history entry and one undo removes it (E5); the whole serialization is decoded again before the document is returned
+(E1). Groups are the tree; an element with neither children nor a shared mesh is one geometry body that carries the
+node's name, tag, transform and properties; an element with children has a group and a geometry child; a mesh used by
+more than one node is one component definition (at most 1,024; the rest expand, `definitionsOverLimit`) with one
+placement per use, as for glTF.
+
+- **Planar patches** (E4): triangles are welded (1e-7 m, hashed), triangles under 1e-12 m2 are dropped and counted, and
+  triangles that share an edge, have the same material and colour, agree in normal to 1e-9 and lie within 0.5e-7 m of
+  the seed's plane become one polygon face: boundary edges are chained into loops, one counter-clockwise outer loop
+  and any holes; a pinch, several outer loops or a polygon the tessellator rejects falls back to triangles
+  (`mergeFallbacks`), and a triangle left out of a patch only by the planarity bound is counted in `nonPlanarFaces`.
+  The IFC4 Architecture file's 1,167 triangles become 365 faces. Interior edges that are not feature edges are soft
+  and smooth; boundaries and feature edges stay visible.
+- **Tags:** one per class family (`IFC Wall`, `IFC Building Element Proxy`; `StandardCase` folds into its class),
+  at most 128, then `IFC Other` (`tagsOverLimit`); spaces on `IFC Space`, which starts hidden (`--ifc-spaces shown`
+  shows it, `skip` leaves spaces out); openings that were not applied on `IFC Opening`, hidden; project, site,
+  building and storey groups are untagged.
+- **Properties:** 16 slots for provenance, the rest of the 128 for occurrence then type properties (the helper
+  writes them in that order, by set and name); keys over 128 bytes and texts over 2,048 are shortened (counted);
+  property text over 8 MiB in all drops type-level before occurrence-level and quantities before properties, from the
+  last node back; if the serialized document is then still within 2 MiB of the 32 MiB model chunk, more is dropped, and
+  a document whose geometry and provenance alone do not fit is refused (`modelTooLarge`). Drops are counted per set.
+- **Limits:** an element that would take the document past a unique or materialized limit (10,000 bodies, 100,000
+  vertices or faces, 20,000 placements and so on) is not imported and is reported with the limit named
+  (`documentLimit:bodies`); a body over 100,000 faces is `bodyLimit`; the rest are imported. Coordinates beyond 1e6 m
+  are refused (`farFromOrigin`) with the extent.
+
+### The report (version 1)
+
+`apiVersion` 1, `format` `IFC`, `direction` `import`; members `engine` (library, version, commit, kernel,
+deflections, threads, restarts, units trusted, mesh scale, whether it completed), `source` (SHA-256 of the copy,
+bytes, schema, view definition, writing application, instances), `units`, `georeference` (`notEvaluated`, `keepAxes`),
+`spatial`, `elements` (`imported`, `importedGeneric`, `notImported` by class and reason), `geometry` (bodies,
+groups, vertices, faces, edges, definitions, instances, source triangles, merged faces, `nonPlanarFaces`,
+`degenerateTriangles`, `mergeFallbacks`, representation item classes, openings declared, applied and not applied,
+extent), `properties` (counts, dropped by set, bytes, unmapped and omitted by class), `materials`, `accounting`,
+`omittedEntities` (128 classes, then `other`), `losses`, `kernelMessages` (library warnings and errors by code with
+category and count), `notices` (code, count, message), `locations` (`notImported`, `excluded`, `openingNotApplied`,
+`skipped`: at most 32 per kind, with complete `locationTotals`), `unitsUnconverted` and `excluded` (the elements the
+helper was restarted without, with the reason). It is cut to 64 KiB, 64 kinds, 32 locations a kind and 256-byte
+messages; counts stay complete. A refusal or failure carries the report so far.
+
+### Findings that correct or extend the ADR
+
+1. `DeferProcessingFirstElement` with `iterator::create()` crashes (the task iterator is only set by the other
+   branch of `initialize()`). The first task is converted inside `initialize()`, so a listing-only iterator (first
+   element deferred) tells the worker which products it covers before the real one starts.
+2. **IfcOpenShell hangs forever on a cycle of `IfcRelAggregates`**: `find_openings` walks the decomposition upwards
+   with no visited set. A fixture with two proxies that aggregate each other did not return in four minutes of CPU
+   time. The worker finds cycles itself and never gives those products (or anything below one) to the library; they
+   are reported as `cycle`. This is the "one hung element costs a restart" of 1.6 in its simplest form.
+3. The library colours unstyled elements by class unless `apply-default-materials` is off (the R097.a note said grey).
+4. Hosts that carry GEO188 and hosts that carry GEO191 differ: see the F5 decision above.
+5. The OpenCASCADE kernel reports every triangle edge of a tessellated face set as a feature edge (a 12-triangle cube
+   has 18), so 3.3's "edges the library reports as feature edges are kept visible" is true only for BRep faces.
+6. Materials associated with an element's **type** (the Reference View basin) are the occurrence's; 3.2 did not say.
+7. Mapping-stage errors name the product only through `instance`, so the reasons for an element that came out empty
+   are matched through its representation, its items and the product itself.
+8. A bad_alloc in the iterator ends the helper (exit 1), as a crash does, so the application restarts it without the
+   element at fault; swallowing it in the helper left a half-converted import.
+9. The fault corpus found a crash in the library on damaged input: an `IfcMaterialLayerSetUsage` whose `ForLayerSet`
+   is not a layer set (`#42` here is something else) makes `get_single_material_association` dereference a wrong-typed
+   instance (SIGSEGV in `IfcMaterialLayerSet::MaterialLayers()`). With the process boundary the import still
+   completes: the wall is left out (`excluded`, reason `crash`) and its window and opening are imported. To be reported
+   upstream.
+10. R097.a's `openings-hard.ifc` has two entity numbers in common (#660 and #661, the open-shell opening F and
+    opening G), which is why opening G cannot be converted (the library prints "Overwriting instance with name #660").
+    The fixture is kept as it is (its R097.a expectations depend on it) and the import says the opening's placement is
+    broken (`badPlacement`) instead of guessing.
+11. 3.7: native materials are named after the `IfcSurfaceStyle`, which in the buildingSMART files carries the
+    `IfcMaterial`'s name; the element's `IfcMaterial` is in `ifc.Material` either way.
+12. 4 and 5: `--ifc-georef keep|grid` is not offered (R097.c); `--ifc-worker PATH` (development and tests) and
+    `--ifc-deadline SECONDS` are.
+13. Spatial elements other than project, site, building and storey (`IfcRoad`, `IfcFacility` and so on) are plain
+    groups when they hold something and omitted otherwise; an `IfcSpace` or `IfcSpatialZone` is a body on the
+    `IFC Space` tag.
+
+14. **The iterator skips tasks that yield nothing** (a zero-depth extrusion, an empty representation), so "the next
+    task after the last element" is not always the one that stopped the helper. `restart-silent.ifc` has two such
+    walls before a wall that stops the library: leaving out the product named by the progress line would blame the
+    zero-depth wall and then the empty one and use up the restarts. See "Restart attribution" above.
+15. A cycle through two kinds of relationship (a space that contains a space that aggregates it) is invisible to the
+    check for cycles of aggregation and is found when the tree is walked: the closing edge is not followed
+    (`containmentCycle` notice and location), both ends keep the place they were first given.
+16. A units factor written to nine digits (`0.025400005` for an inch) is snapped to the canonical value by the units
+    reader, but the geometry library reads it as written; the two differ by 1e-8. The 1e-9 cross-check of the
+    first version refused such a file as `unitsDisagree`; the check is now 1e-6 and the library's numbers are scaled
+    to the snapped unit.
+17. The reports a helper writes are data: the application bounds every table of counts (64 keys of at most 128 bytes,
+    the rest under `other`) and every list of kinds (64 entries), not only notices, kernel messages and locations;
+    a refusal's code is a short identifier or `workerRefused` and its message is cut to 240 bytes.
+
+### Verification
+
+Every claimed representation of 3.3 has a passing fixture, and each check of 6.3 that the R097.b bullet lists has a
+test that compares the import with a source that shares no code with the library: `tests/ifc_text_scan.py` (a
+raw-text scan with its own STEP parser), the files' own recorded quantities, or numbers computed by hand in
+`tests/fixtures/ifc/make_import_fixtures.py` and the tests. The suites (all pass; times are the CI preset's
+build in the pinned image):
+
+| Suite (CTest) | What it runs | Checks |
+| --- | --- | --- |
+| `ifc_import_worker` (Python, 13 s; 54 s under ASan and UBSan) | The helper on the ten buildingSMART files and the originals, its package read by an independent Python reader | A1 to A5 (millimetre, metre and foot files to 1e-9 m, a missing unit refused and accepted with the override, a furlong refused, own units, conversion-based area and volume), B1 to B4, B6 and B7 (tree equals the scan's by GlobalId on all ten files, both IFC4 sites, order, groups, two parents, uncontained, duplicate and invalid GlobalId, a layer that is off), C1 to C5 (every property and quantity equals the scan's, type level copied unless overridden, `\X2\` and `\S\` escapes, classification and its URI), C6, D1 to D4 (the identity on every fixture with the scan's total, `unsupported-all.ifc`, a dangling reference), E2, E3, E7 (the Reference View wall is 1.5 m3 with its opening; the IFC4 Architecture file's `NetVolume`s agree within 1e-3), F1, H1 and H2 (two runs, a shuffled file and a file with every entity number replaced give the same nodes, meshes and accounting), K2 (the hashes of the unmodified files); the sides of the identity from the scan on every certification file (`converted` equals the nodes plus the recorded groups, `supporting` is at least the relationships that name an imported object); a nine-digit inch; a containment cycle |
+| `ifc_package` (C++, 0.2 s) | The decoder on hand-built and real packages | J1's structure: every bound and 40 kinds of corruption refused, the canonical form |
+| `ifc_convert` (C++, 8 s) | The conversion of hand-built packages | B5, C3 (128 a body, 16 provenance slots, 8 MiB, the model chunk, shortening), E1, E4 (cube 6 faces, hole, bent quad, weld, colours, materials), E5, I1 (10,001 bodies, 100,001 faces, 1,024 materials and definitions), I2 (including a hostile report of thousands of kinds), transforms, tags (151 classes, then a space and an opening), spaces, refusals, the same package converting to the same bodies |
+| `ifc_import` (C++, 8 s) | The whole import through the helper, per fixture, against the scan | B1 to B5, C1, C4, C6, D1, D3, E1 to E7 (document tree by GlobalId, tags, properties, hand volumes and face counts, one undo, provenance resolves to the entity), H1, a file whose values pass the package's bounds (70,000-character text, 5,000-character name, 5,000 properties, an infinite length), the command line (non-replacement, option isolation, refusal codes) |
+| `ifc_worker_run` (C++, 11 s) | The helper's lifecycle | I1 (128 MiB + 1 byte in under a second, instance count with the limit named, zip, XML, JSON, truncation, schemas), I3 (crash, abort, hang, memory and four threads: the element is left out and named; no restarts allowed: the import fails and leaves nothing), cancel in 1 ms; walls that yield nothing before the wall that stops the library (only that wall is left out, with one thread and with four); a helper that floods its output without a line end, ignores SIGTERM, writes garbage or no package, or refuses with hostile words |
+| `ifc_worker_fault_corpus` (Python, 23 s, 104 s under ASan and UBSan; 64 mutations of each file) and `ifc_worker_fault_corpus_full` (3 min; 512, label `full`) | J2 through the dry run in a child process | outcomes below |
+| `parser_fault_corpus` | The decoder on mutated packages | 512 mutations of the sample and of a real package |
+| `parser_fuzz_ifc_package` | libFuzzer on the decoder (J1) | 3.1 million runs in ten minutes from the sample, an empty, three real and three rejected seeds under ASan and UBSan: no finding (peak 556 MiB); an earlier two-minute run: 1.29 million |
+
+Where they run: `ifc_package`, `ifc_convert` and `parser_fault_corpus` need no helper and run in every job that
+builds the application; `ifc_import_worker`, `ifc_worker_fault_corpus`, `ifc_import` and `ifc_worker_run` need the
+helper and run in the `ifc` job (which a pull request touching the IFC area selects), the nightly and the full tier;
+`ifc_worker_fault_corpus_full` (512 mutations of each file) runs in the full tier only.
+
+The helper also runs under ASan and UBSan (`ifc-sanitize`): the API probe, `ifc_import_worker` and the corpus
+pass with `halt_on_error`; the library's instance leak (R097.a note F12) is why leak detection is off there. The
+application's side (`ifc_package`, `ifc_convert`, `parser_fault_corpus`) passes under the `sanitize` preset.
+Under ASan and UBSan with leak detection on, `ifc_package` (1 s), `ifc_convert` (31 s) and `parser_fault_corpus` (19 s) are clean.
+
+Not run in this slice: J3 (the upstream `ifcparse_fuzzer` and a `worker` target for the acceptance record), the
+Landlock and seccomp hardening, the desktop and accessibility checks (R097.e), E-checks on the Wayland matrix.
+
+### Budgets, measured
+
+Measured with `tests/ifc_budgets.py` (generated files; opt-in) on Release builds of the command line and the helper
+in the pinned image, four CPUs and 10 GB, the helper on four threads except where stated. "Total" is the whole
+`--import-ifc` including the copy, the helper, the decode, the conversion, validation and writing the native file.
+
+| What | Budget (6.4) | Measured |
+| --- | --- | --- |
+| Parse and index 1,000,000 instances (43 MB) | 3 s | 0.7 s, 236 MiB |
+| Parse and index 2,000,000 instances (86 MB, the limit) | 6 s | 1.4 s, 464 MiB; with the limit set one lower it is refused with the count named in 1.4 s |
+| Refuse a file over 128 MiB | 1 s | under 10 ms (a sparse file of 128 MiB + 1 byte) |
+| 5,000 tessellated icosahedra: 100,000 faces that do not merge, 60,000 vertices, 5,000 bodies (the "100,000-face, 10,000-body" model of 6.4) | 10 s | **9.1 to 10.0 s** total over four runs, the budget's edge (helper 6.0 to 6.6 s on four threads, 10.3 to 10.8 s on one; 25 s of CPU), application peak 326 MiB, native file 12 MB |
+| 20,000 extruded walls (each with its own representation): 59,976 faces, 9,996 bodies imported, the other 10,004 reported as over the body limit | (partial import) | 12.1 to 12.4 s total (helper 7.0 to 7.6 s on four threads), application peak 405 MiB |
+| The ten buildingSMART files | 40 to 200 ms in the prototype | 40 to 340 ms total (the Architecture files 120 to 170 ms, the 1 MB landscaping file 340 ms, the Reference View samples 40 to 60 ms) |
+| Faces from triangles | | IFC4 Architecture: 1,167 triangles to 365 faces; IFC2x3: 1,170 to 362; landscaping: 4,799 to 3,703; road: 2,580 to 826 |
+| Cancel | 100 ms to return, helper gone within 1 s | 1 ms after the request in the test (the helper dies on SIGTERM) |
+| Application memory | 1 GiB | 326 to 403 MiB at the limits above |
+
+A 100,000-face model with 10,000 bodies is not reachable at once: the document limit of 100,000 *unique* vertices
+caps a model of boxes near 6,000 elements (each has 8 vertices and 6 faces), so the 10,000-body limit is reached
+with groups and small elements, and the 100,000-face limit with triangle meshes, as above.
+
+### Damaged files
+
+The ten buildingSMART files, each mutated 512 times (byte flips, deletions, insertions, truncation, duplicated and
+swapped lines, replaced numbers, references and keywords, STEP escapes) and run through the helper's dry run in a
+child process under the same limits as an import (4 GiB, a 40 s deadline): 5,120 runs gave 2,548 packages, 2,571
+refusals, **one crash** and no hang. The crash is finding 9 above (`IfcMaterialLayerSetUsage` with a wrongly typed
+`ForLayerSet`), and the import of that file through the command line completes with the wall left out. The test
+fails if the helper's outcomes are not all defined or more than 2% of the runs crash or time out.
+
+### Open questions and risks (R097.b)
+
+- **The library's crash on wrongly typed references** (finding 9) is a defect upstream; the process boundary contains
+  it, but every such file costs a restart (two with four threads: a first run, then a run on one thread that finds the
+  element) and the element's neighbours (a window in a wall that is left out) lose their host. A pre-validation of
+  reference types in the helper would avoid some; it is not attempted.
+- **The diagnosis depends on time.** A task that is valid but takes longer than the alarm (1 to 20 seconds, an eighth
+  of the deadline) in a child is left out as if it had hung, and a loaded machine can tip a slow task over; the
+  reason recorded is the one of the stop that led to the diagnosis (crash, timeout or memory), not what the child did.
+  With the default deadline the alarm is 15 seconds. The fallback if a diagnosis finds nothing is the old rule
+  (leave out the products the last progress line named).
+- **Hangs are only found by the deadline.** A cycle of aggregation is excluded in advance (finding 2); other
+  library loops, if any exist, cost the 120 s deadline once per hung element, three restarts at most.
+- **The four-thread default** makes the first stop cost an extra run to find the element. If real files stop often a
+  single thread (deterministic and attributable) or a quick pre-pass may be the better default.
+- **Tessellated feature edges** use a 30 degree crease; curved tessellated surfaces finer than that are smooth and
+  coarser ones show their facets. The angle is in the report (`engine.creaseDegrees`) and is not yet an option.
+- **Unique-vertex limit.** Real buildings (the 100,000-vertex limit) will often be imported partially; the report
+  says which elements and why. Partial import by storey or class is the likely next row (out of scope in 7).
+- **Georeferencing is not applied**: the `IfcMapConversion` and `IfcProjectedCRS` are counted as omitted entities and
+  the report carries the notice `georeferenceNotImported` (R097.c).
+- **The CI job that runs the application's tests** (`ifc-app`) compiles the application's core and I/O libraries in
+  the IFC job; with a cold compiler cache that is the dominant cost of an IFC pull request (the cache of the fast
+  tier is restored, so a recent `main` makes it a few minutes).
 
 ## Appendix: evidence and sources
 
