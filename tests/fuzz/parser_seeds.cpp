@@ -1,4 +1,5 @@
 #include "../component_parameter_fixture.hpp"
+#include "../ifc_package_fixtures.hpp"
 #include "../terrain_import_fixtures.hpp"
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
@@ -482,6 +483,27 @@ int main(int argc, char **argv) {
                 "pnezd");
         publish("terrain-points", "100;200;10\n101;x;11\n102;203;inf\n", "bad-values");
         publishRejected("terrain-points", QByteArray("1 2\n"), "too-few-columns");
+        // R097.b: the IFC conversion package decoder (ADR 0171 section 1.6): the sample package of
+        // tests/ifc_package_fixtures.hpp, and three packages the decoder must refuse.
+        {
+            const auto package = ifc_fixture::samplePackage();
+            const auto bytes = encodeIfcPackage(package);
+            publish("ifc-package", bytes, "sample");
+            publish("ifc-package", encodeIfcPackage(IfcPackage{}), "empty");
+            // Packages the helper wrote from buildingSMART samples (tests/fixtures/ifc/packages).
+            for (const auto &name : {"rv-wall-with-opening-and-window", "rv-tessellated-item", "rv-tessellation-with-individual-colors"}) {
+                QFile real(QStringLiteral(SOURCE_DIR "/tests/fixtures/ifc/packages/") + QString::fromLatin1(name) + ".skifc");
+                fuzz::require(real.open(QIODevice::ReadOnly), "read a real IFC package seed");
+                publish("ifc-package", real.readAll(), QString::fromLatin1(name));
+            }
+            publishRejected("ifc-package", bytes.left(bytes.size() - 5), "truncated");
+            auto badMagic = bytes;
+            badMagic[3] = 'X';
+            publishRejected("ifc-package", badMagic, "bad-magic");
+            auto parent = ifc_fixture::samplePackage();
+            parent.nodes[1].parent = 2;
+            publishRejected("ifc-package", encodeIfcPackage(parent), "parent-after-child");
+        }
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {
             {"table-width", "width - 60 mm"},

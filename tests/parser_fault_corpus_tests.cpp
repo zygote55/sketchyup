@@ -1,6 +1,7 @@
 #include "automation/extension.hpp"
 #include "component_parameter_fixture.hpp"
 #include "terrain_import_fixtures.hpp"
+#include "ifc_package_fixtures.hpp"
 #include "terrain_edit_test_kinds.hpp"
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
@@ -591,6 +592,33 @@ int main(int argc, char **argv) {
                 // geometry is validated only when executed against a document.
                 check(manifest.source == bytes, "Extension retains exact validated source");
             }));
+        // R097.b: the IFC conversion package decoder (ADR 0171 section 1.6). The digest is checked
+        // as in production; mutations of the manifest that keep it valid reach the other checks.
+        results.append(exercise("ifc-package", encodeIfcPackage(ifc_fixture::samplePackage()),
+                                [](const auto &bytes, bool &parsed) {
+                                    const auto package = decodeIfcPackage(bytes);
+                                    parsed = true;
+                                    check(package.nodes.size() <= IfcPackageLimits::nodes &&
+                                              package.meshes.size() <= IfcPackageLimits::meshes,
+                                          "Accepted IFC package exceeds its bounds");
+                                    for (const auto &mesh : package.meshes)
+                                        for (const auto &triangle : mesh.triangles)
+                                            for (const auto index : triangle)
+                                                check(index < mesh.vertices.size(),
+                                                      "Accepted IFC package index out of range");
+                                    check(decodeIfcPackage(encodeIfcPackage(package)) == package,
+                                          "Accepted IFC package does not re-encode");
+                                }));
+        {
+            // The same decoder on a package the helper wrote (the buildingSMART wall with its opening and window).
+            QFile real(QStringLiteral(SOURCE_DIR "/tests/fixtures/ifc/packages/rv-wall-with-opening-and-window.skifc"));
+            check(real.open(QIODevice::ReadOnly), "Read the real IFC package");
+            results.append(exercise("ifc-package-real", real.readAll(), [](const auto &bytes, bool &parsed) {
+                const auto package = decodeIfcPackage(bytes);
+                parsed = true;
+                check(decodeIfcPackage(encodeIfcPackage(package)) == package, "Accepted IFC package does not re-encode");
+            }));
+        }
         // R093.a: parameter expressions (ADR 0165 §7). A harness invariant failure is a
         // corpus failure, never an ordinary rejection.
         results.append(exercise(
@@ -615,13 +643,13 @@ int main(int argc, char **argv) {
               "Corpus never mutates its parameter model");
         check(encodeContainer(terrain) == terrainContainer,
               "Corpus never mutates its terrain model");
-        check(results.size() == 24,
-              "Corpus covers fifteen formats plus the four schema-27, four schema-28 and one "
+        check(results.size() == 26,
+              "Corpus covers sixteen formats plus the four schema-27, four schema-28 and one "
               "schema-29 seeds");
         std::cout << QJsonDocument(QJsonObject{{"corpusVersion", 1},
                                                {"seed", "0x83a5c0de"},
                                                {"formats", results},
-                                               {"mutations", 11776},
+                                               {"mutations", 12800},
                                                {"sourcePreserved", true}})
                          .toJson()
                          .toStdString();

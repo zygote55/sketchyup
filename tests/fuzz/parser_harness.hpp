@@ -2,6 +2,7 @@
 #include "automation/extension.hpp"
 #include "io/dxf_source.hpp"
 #include "io/gltf_import.hpp"
+#include "io/ifc_package.hpp"
 #include "io/library_bundle.hpp"
 #include "io/obj_source.hpp"
 #include "io/stl_source.hpp"
@@ -26,7 +27,7 @@ inline constexpr size_t inputLimit = 1024 * 1024;
 inline constexpr const char *formats[] = {
     "native-json", "native-container", "glb",       "stl-binary", "stl-ascii",           "obj",
     "dxf",         "template",         "component", "extension",  "parameter-expression",
-    "terrain-mesh", "terrain-dxf",     "terrain-points", "terrain-edits"};
+    "terrain-mesh", "terrain-dxf",     "terrain-points", "terrain-edits", "ifc-package"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -137,6 +138,45 @@ inline void terrainEditsInvariants(const std::vector<TerrainEditPtr> &edits) {
     require(again.size() == edits.size(), "terrain edits re-decode");
     for (std::size_t i = 0; i < edits.size(); ++i)
         require(*again[i] == *edits[i], "terrain edits round-trip");
+}
+// R097.b: an accepted IFC conversion package is within every bound, its references resolve, and it
+// re-encodes to a package that decodes to an equal one (the manifest form is canonical).
+inline void ifcPackageInvariants(const IfcPackage &package) {
+    require(package.nodes.size() <= IfcPackageLimits::nodes &&
+                package.meshes.size() <= IfcPackageLimits::meshes &&
+                package.materials.size() <= IfcPackageLimits::materials,
+            "IFC package counts within limits");
+    std::size_t triangles = 0;
+    for (const auto &mesh : package.meshes) {
+        require(!mesh.triangles.empty() && mesh.triangles.size() <= IfcPackageLimits::meshTriangles &&
+                    mesh.vertices.size() >= 3 && mesh.materials.size() == mesh.triangles.size() &&
+                    (mesh.colors.empty() || mesh.colors.size() == mesh.triangles.size()),
+                "IFC package mesh counts within limits");
+        triangles += mesh.triangles.size();
+        for (const auto point : mesh.vertices)
+            coordinate(point);
+        for (const auto &t : mesh.triangles)
+            for (const auto index : t)
+                require(index < mesh.vertices.size(), "IFC package triangle index in range");
+        for (const auto material : mesh.materials)
+            require(material == IfcPackageMesh::noMaterial || material < package.materials.size(),
+                    "IFC package material index in range");
+        for (const auto &edge : mesh.featureEdges)
+            require(edge[0] < mesh.vertices.size() && edge[1] < mesh.vertices.size(),
+                    "IFC package edge index in range");
+    }
+    require(triangles <= IfcPackageLimits::totalTriangles, "IFC package triangles within limit");
+    for (std::size_t i = 0; i < package.nodes.size(); ++i) {
+        const auto &node = package.nodes[i];
+        require(node.parent >= -1 && node.parent < std::int64_t(i), "IFC package parent precedes its child");
+        require(node.mesh >= -1 && node.mesh < std::int64_t(package.meshes.size()),
+                "IFC package mesh index in range");
+        require(node.properties.size() <= IfcPackageLimits::nodeProperties &&
+                    node.provenance.size() <= IfcPackageLimits::nodeProvenance,
+                "IFC package property counts within limits");
+    }
+    const auto encoded = encodeIfcPackage(package);
+    require(decodeIfcPackage(encoded) == package, "accepted IFC package re-encodes to an equal package");
 }
 inline void registerTerrainTestKinds() {
     static const bool registered = [] {
@@ -249,6 +289,19 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             if (!expression)
                 return false;
             accepted = true;
+        } else if (format == "ifc-package") {
+            // The digest check is off so mutated mesh chunks reach the structural checks.
+            const auto package = decodeIfcPackage(bytes, {false});
+            accepted = true;
+            ifcPackageInvariants(package);
+            bool digestMatches = true;
+            IfcPackage checked;
+            try {
+                checked = decodeIfcPackage(bytes, {true});
+            } catch (const std::exception &) {
+                digestMatches = false;
+            }
+            require(!digestMatches || checked == package, "digest-checked decode agrees");
         } else if (format == "extension") {
             const auto result = parseExtensionManifest(bytes);
             accepted = true;
