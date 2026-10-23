@@ -40,7 +40,7 @@ void usage(std::FILE* stream) {
       "                            [--exclude-step N]... FILE.ifc\n"
       "           run FILE through the geometry iterator and print what the library returns\n"
       "       sketchyup-ifc-worker --probe-write FILE.ifc\n"
-      "           write a small IFC4 file with the typed writer, read it back and print the result\n",
+      "           write a small IFC4 file with the typed writer, read it back and print the result\n"
       "       sketchyup-ifc-worker --probe-step FILE.step [--round-trip-directory DIR]\n"
       "           read a STEP file with the basic OCCT reader and print what it reports as JSON\n"
       "       sketchyup-ifc-worker --import-step FILE.step [--step-length-unit mm|cm|m|in|ft]\n"
