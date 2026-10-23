@@ -46,7 +46,7 @@ void usage(std::FILE* stream) {
       "       sketchyup-ifc-worker --import-step FILE.step [--step-length-unit mm|cm|m|in|ft]\n"
       "           read a STEP file, apply the ADR 0172 unit policy and print the metadata as JSON\n"
       "       sketchyup-ifc-worker --write-step DIR\n"
-      "           write the self-generated STEP corpus of ADR 0172 (box, cylinder, assembly) into DIR\n"
+      "           write the self-generated STEP corpus of ADR 0172 (box, cylinder, assembly) into DIR\n",
       stream);
 }
 
