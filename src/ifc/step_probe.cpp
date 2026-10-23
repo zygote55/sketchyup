@@ -1,42 +1,78 @@
-// The STEP probe (ADR 0172, R098.a). Reports what the OpenCASCADE 7.9 STEP stack really does
-// with a file: header, FILE_SCHEMA (raw text and the model's), units (raw text and the
+// The STEP probe (ADR 0172, R098.a). Reports what the OpenCASCADE STEP stack really does with
+// a file: the header, FILE_SCHEMA (raw text and the model's), units (raw text and the
 // model's), entities, root shapes, bounding boxes, and a write-read round trip through the
-// basic writer, which settles on every run what schema the writer actually writes.
+// basic writer (once with the default schema, once with the AP242 option), which settles on
+// every run what schema the writer actually writes.
 //
-// The OpenCASCADE 7.9 API (verified against the V7_9_3 source):
-//  - STEPControl_Reader: ReadFile -> IFSelect_RetDone/RetFail; Model() -> StepData_StepModel
-//    (LocalLengthUnit); FileUnits(len, ang, solid); SetSystemLengthUnit; SystemLengthUnit;
-//    TransferRoots() returns the number of shapes transferred (7.9; not a status), then
-//    NbShapes() / Shape(i).
+// The OpenCASCADE API the probe uses (verified against the V7_9_3 source; the 7.8 differences
+// are the version spelling and the writer parameter's name, both spelt out below):
+//  - STEPControl_Reader: ReadFile -> IFSelect_ReturnStatus; StepModel() ->
+//    StepData_StepModel (LocalLengthUnit: the file's local length unit as a factor of metres,
+//    1.0 when the file declares no unit); FileUnits (the unit names); SystemLengthUnit() ->
+//    that same factor. There is no Status() method and no FileUnitsDeclared(): the
+//    "declared" fact comes from the raw text, the model's from its local unit.
+//  - XSControl_Reader adds Transfer / NbShapes / Shape / OneShape; TransferRoots() returns
+//    the number of shapes transferred (not a status) and leaves them un-scaled, in the
+//    file's local unit.
 //  - The schema lives in the header's HeaderSection_FileSchema (no static GetID() in 7.9);
-//    the identifiers are TCollection_HAsciiString, read with ToCString.
-//  - The basic writer (STEPControl_Writer + DESTEP_Parameters, whose WriteSchema / WriteUnit
-//    are public fields in 7.9) writes AP214 in every schema mode, AP242 included.
+//    the identifiers are TCollection_HAsciiString handles, read with ToCString.
+//  - The writer takes a value-type parameter (DESTEP_Parameters in 7.9; renamed from
+//    StepData_ConfParameters in 7.8) whose WriteSchema / WriteUnit are public fields; the
+//    AP242 option is WriteMode_StepSchema_AP242DIS and emits the
+//    AP242_..._MIM_LF {1 0 10303 442 ...} schema (part 442, not 242).
+//  - The version: 7.9 removed the OCC_VERSION_* macros; the runtime functions of
+//    Standard_VersionInfo.hxx are the only source there and do not exist in 7.8. The build
+//    selects the spelling (SKETCHYUP_IFC_OCCT_79) and records the configured version.
 #include "ifc/step_probe.hpp"
 
-#include <cctype>
+#include <array>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <map>
+#include <optional>
 #include <regex>
 #include <sstream>
+#include <utility>
 
-#include "Standard_Version.hxx"
+// The OpenCASCADE spelling (7.8 and 7.9+ differ in three places, all selected by what the
+// installed headers provide, so the build needs no version flag): the version, the writer
+// parameters and the AP242 write option.
+//   - 7.9+ installs Standard_VersionInfo.hxx (runtime version functions) and not
+//     Standard_Version.hxx; 7.8 is the other way round.
+//   - The writer takes DESTEP_Parameters (7.9+, whose AP242 option is
+//     WriteMode_StepSchema_AP242DIS) or, in 7.8, StepData_ConfParameters (no AP242 option).
+//   - In 7.9.3 StepData_ConfParameters is a deprecated alias of DESTEP_Parameters.
+#if __has_include("Standard_VersionInfo.hxx")
 #include "Standard_VersionInfo.hxx"
-#include "BRepPrimAPI_MakeBox.hxx"
-#include "BRepBndLib.hxx"
+#define SKETCHYUP_STEP_OCCT_79 1
+#else
+#include "Standard_Version.hxx"
+#endif
 #include "Bnd_Box.hxx"
-#include "DESTEP_Parameters.hxx"
+#include "BRepBndLib.hxx"
+#include "BRep_Builder.hxx"
+#include "BRepPrimAPI_MakeBox.hxx"
+#include "BRepPrimAPI_MakeCylinder.hxx"
 #include "HeaderSection_FileSchema.hxx"
 #include "Interface_EntityIterator.hxx"
 #include "STEPControl_Reader.hxx"
 #include "STEPControl_Writer.hxx"
 #include "Standard_Fail.hxx"
 #include "StepData_StepModel.hxx"
-#include "TCollection_HAsciiString.hxx"
 #include "TColStd_SequenceOfAsciiString.hxx"
 #include "TopExp_Explorer.hxx"
+#include "TopoDS_Compound.hxx"
 #include "TopoDS_Shape.hxx"
 #include "UnitsMethods.hxx"
+
+#if defined(SKETCHYUP_STEP_OCCT_79)
+#include "DESTEP_Parameters.hxx"
+using StepWriterParams = DESTEP_Parameters;
+#else
+#include "StepData_ConfParameters.hxx"
+using StepWriterParams = StepData_ConfParameters;
+#endif
 
 #include "ifc/json_out.hpp"
 #include "sketchyup/version.hpp"
@@ -46,12 +82,10 @@ namespace {
 
 namespace fs = std::filesystem;
 
-std::string toAscii(const TCollection_HAsciiString& s) { return s.ToCString(); }
-
-std::size_t fileBytes(const fs::path& path) {
+long long fileBytes(const fs::path& path) {
   std::error_code error;
   const auto size = fs::file_size(path, error);
-  return error ? 0 : size;
+  return error ? 0 : static_cast<long long>(size);
 }
 
 std::optional<std::string> readFile(const fs::path& path) {
@@ -64,11 +98,16 @@ std::optional<std::string> readFile(const fs::path& path) {
   return text;
 }
 
-// ap203 / ap214 / ap242 / other, from the FILE_SCHEMA name (the ISO 10303-xxx part number).
+// ap203 / ap214 / ap242 / other, from the FILE_SCHEMA name's ISO 10303 part number (AP242's
+// identifiers use part 442, not 242).
 std::string classifySchema(const std::string& raw) {
-  if (raw.find("10303 242") != std::string::npos) return "ap242";
-  if (raw.find("10303 214") != std::string::npos) return "ap214";
-  if (raw.find("10303 203") != std::string::npos) return "ap203";
+  static const std::regex re("10303\\s+(\\d+)");
+  std::smatch match;
+  if (!std::regex_search(raw, match, re)) return "other";
+  const std::string part = match[1].str();
+  if (part == "203") return "ap203";
+  if (part == "214") return "ap214";
+  if (part == "442") return "ap242";
   return "other";
 }
 
@@ -89,46 +128,45 @@ RawUnits rawUnits(const std::string& text) {
   static const std::map<std::string, double> named = {
       {"INCH", 0.0254}, {"FOOT", 0.3048}, {"MILLIMETRE", 1e-3}, {"CENTIMETRE", 1e-2}, {"METRE", 1.0}};
   {
-    static const std::regex re("LENGTH_UNIT\\(\\)\\s+NAMED_UNIT\\(\\*?\\)\\s+SI_UNIT\\(\\.(\\w+)\\.,\\.(METRE)\\.(\\w+)\\)");
+    static const std::regex re(
+        "LENGTH_UNIT\\(\\)\\s+NAMED_UNIT\\(\\*?\\)\\s+SI_UNIT\\(\\.(\\w+)\\.,\\.(METRE)\\.(\\w+)\\)");
     std::smatch m;
     if (std::regex_search(text, m, re)) {
       units.lengthDeclared = true;
-      units.length = m[1] == "MILLI" ? "millimetre" : m[1] == "CENTI" ? "centimetre" : m[1] == "KILO" ? "kilometre" : "metre";
-      units.lengthMetres = prefix.count(m[1].str()) ? prefix.at(m[1].str()) : 1.0;
+      const std::string prefixName = m[1].str();
+      const auto entry = prefix.find(prefixName);
+      units.length = prefixName == "MILLI" ? "millimetre" : prefixName == "CENTI" ? "centimetre" : prefixName == "KILO" ? "kilometre" : prefixName.empty() ? "metre" : prefixName;
+      // 0.0: declared but not convertible from the raw text; the model's factor stands.
+      units.lengthMetres = entry != prefix.end() ? entry->second : 0.0;
     }
   }
   {
-    static const std::regex re("LENGTH_UNIT\\(\\)\\s+NAMED_UNIT\\(\\*?\\)\\s+SI_UNIT\\(\\$,(INCH|FOOT|MILLIMETRE|CENTIMETRE|METRE)\\.(\\w+)\\)");
+    static const std::regex re(
+        "LENGTH_UNIT\\(\\)\\s+NAMED_UNIT\\(\\*?\\)\\s+CONVERSION_BASED_UNIT\\(\\.(\\w+)\\)");
     std::smatch m;
     if (std::regex_search(text, m, re)) {
-      units.lengthDeclared = true;
-      units.length = m[1].str();
-      units.lengthMetres = named.count(m[1].str()) ? named.at(m[1].str()) : 1.0;
+      units.lengthDeclared = true;  // a conversion-based LENGTH_UNIT is a declaration, whatever its name
+      const std::string name = m[1].str();
+      const auto entry = named.find(name);
+      units.length = name;
+      units.lengthMetres = entry != named.end() ? entry->second : 0.0;
     }
   }
   {
-    static const std::regex re("PLANE_ANGLE_UNIT\\(\\)\\s+SI_UNIT\\(\\$,(RADIAN|DEGREE)\\.(\\w+)\\)");
+    static const std::regex re("PLANE_ANGLE_UNIT\\(\\)\\s+(SI_UNIT\\(\\$,(RADIAN|DEGREE)\\.(\\w+)\\)|NAMED_UNIT\\(\\*\\))");
     std::smatch m;
-    if (std::regex_search(text, m, re)) units.angle = m[1].str();
+    if (std::regex_search(text, m, re) && !m[2].empty()) units.angle = m[2].str();
   }
   {
-    static const std::regex re("SOLID_ANGLE_UNIT\\(\\)\\s+SI_UNIT\\(\\$,(STERADIAN)\\.(\\w+)\\)");
+    static const std::regex re("SOLID_ANGLE_UNIT\\(\\)\\s+(SI_UNIT\\(\\$,(STERADIAN)\\.(\\w+)\\)|NAMED_UNIT\\(\\*\\))");
     std::smatch m;
-    if (std::regex_search(text, m, re)) units.solidAngle = m[1].str();
+    if (std::regex_search(text, m, re) && !m[2].empty()) units.solidAngle = m[2].str();
   }
   return units;
 }
 
-struct ShapeFacts {
-  int index = 0;
-  long long solids = 0;
-  long long faces = 0;
-  std::vector<double> box;  // x1 y1 z1 x2 y2 z2
-  bool ok = false;
-};
-
-ShapeFacts shapeFacts(const TopoDS_Shape& shape) {
-  ShapeFacts facts;
+StepShapeFacts shapeFacts(const TopoDS_Shape& shape) {
+  StepShapeFacts facts;
   TopExp_Explorer solid(shape, TopAbs_SOLID);
   while (solid.More()) {
     facts.solids++;
@@ -149,31 +187,20 @@ ShapeFacts shapeFacts(const TopoDS_Shape& shape) {
                    static_cast<double>(x2), static_cast<double>(y2), static_cast<double>(z2)};
       facts.ok = true;
     }
-  } catch (const Standard_Fail& failure) {
-    facts.box = {0, 0, 0, 0, 0, 0};
+  } catch (const Standard_Fail&) {
   }
   return facts;
 }
 
-// What the model says about the file (the import's source of truth).
-struct ModelFacts {
-  bool read = false;
-  std::string readStatus;
-  std::string schema;  // the model's FILE_SCHEMA
-  bool unitsDeclared = false;
-  std::string lengthUnit;
-  std::string angleUnit;
-  std::string solidAngleUnit;
-  double lengthMetres = 1.0;
-  long long entities = 0;
-  long long roots = 0;
-  long long transferred = 0;
-  std::vector<ShapeFacts> shapes;
-  std::string error;
-};
+}  // namespace
 
-ModelFacts readModel(const fs::path& path) {
-  ModelFacts facts;
+StepModelFacts readStepModel(const std::string& path) {
+  StepModelFacts facts;
+  // The "declared" fact: the reader has no API for it (no FileUnitsDeclared in 7.9.3), so
+  // the raw text is asked: a LENGTH_UNIT entity is a declared unit, whatever the reader
+  // made of it.
+  const std::optional<std::string> text = readFile(path);
+  facts.unitsDeclared = text.has_value() && text->find("LENGTH_UNIT(") != std::string::npos;
   STEPControl_Reader reader;
   try {
     const IFSelect_ReturnStatus status = reader.ReadFile(path.c_str());
@@ -186,10 +213,10 @@ ModelFacts readModel(const fs::path& path) {
   }
   if (!facts.read) return facts;
   try {
-    auto model = Handle(StepData_StepModel)::DownCast(reader.Model());
+    const Handle(StepData_StepModel) model = Handle(StepData_StepModel)::DownCast(reader.Model());
     if (model.IsNull()) {
       facts.read = false;
-      facts.readStatus = "no model";
+      facts.readStatus = "no-model";
       return facts;
     }
     // The schema: the header's FILE_SCHEMA entity (7.9 has no static GetID; walk the header).
@@ -203,22 +230,22 @@ ModelFacts readModel(const fs::path& path) {
     if (!fileSchema.IsNull()) {
       for (int i = 1; i <= fileSchema->NbSchemaIdentifiers(); ++i) {
         if (i > 1) facts.schema += " ";
-        facts.schema += toAscii(*fileSchema->SchemaIdentifiersValue(i));
+        facts.schema += fileSchema->SchemaIdentifiersValue(i)->ToCString();
       }
     }
-    facts.unitsDeclared = reader.FileUnitsDeclared();
     TColStd_SequenceOfAsciiString length, angle, solid;
     reader.FileUnits(length, angle, solid);
-    if (length.Length() > 0) facts.lengthUnit = toAscii(length.Value(1));
-    if (angle.Length() > 0) facts.angleUnit = toAscii(angle.Value(1));
-    if (solid.Length() > 0) facts.solidAngleUnit = toAscii(solid.Value(1));
-    reader.SetSystemLengthUnit(1e-3);  // the system unit is a millimetre
-    facts.lengthMetres = 1e-3 * reader.SystemLengthUnit();
+    if (length.Length() > 0) facts.lengthUnit = length.Value(1).ToCString();
+    if (angle.Length() > 0) facts.angleUnit = angle.Value(1).ToCString();
+    if (solid.Length() > 0) facts.solidAngleUnit = solid.Value(1).ToCString();
+    // The model's unit, un-touched: LocalLengthUnit as a factor of metres (SetSystemLengthUnit
+    // would overwrite it, and the shapes are read in the file's own unit).
+    facts.lengthMetres = reader.SystemLengthUnit();
     facts.entities = reader.Model()->NbEntities();
     facts.roots = reader.NbRootsForTransfer();
     facts.transferred = reader.TransferRoots();
     for (int i = 1; i <= reader.NbShapes(); ++i) {
-      ShapeFacts shape = shapeFacts(reader.Shape(i));
+      StepShapeFacts shape = shapeFacts(reader.Shape(i));
       shape.index = i;
       facts.shapes.push_back(std::move(shape));
     }
@@ -228,56 +255,65 @@ ModelFacts readModel(const fs::path& path) {
   return facts;
 }
 
+StepFileFacts stepFileFacts(const std::string& path) {
+  StepFileFacts facts;
+  facts.bytes = fileBytes(path);
+  const std::optional<std::string> text = readFile(path);
+  if (!text) return facts;
+  facts.readable = true;
+  facts.isoHeader = text->rfind("ISO-10303-21", 0) == 0;
+  static const std::regex schemaRe("FILE_SCHEMA\\(\\('\\s*'([^']*)'");
+  std::smatch m;
+  if (std::regex_search(*text, m, schemaRe)) facts.schemaRaw = m[1].str();
+  facts.schema = classifySchema(facts.schemaRaw);
+  const RawUnits raw = rawUnits(*text);
+  facts.lengthDeclared = raw.lengthDeclared;
+  facts.length = raw.length;
+  facts.angle = raw.angle;
+  facts.solidAngle = raw.solidAngle;
+  facts.lengthMetres = raw.lengthMetres;
+  return facts;
+}
+
+namespace {
+
 // The round trip: a 10 x 20 x 30 box through the basic writer and back. The file's
-// FILE_SCHEMA is what the writer really wrote, whatever the WriteSchema option says.
-void writeRoundTrip(const std::string& directory, JsonOut& json) {
-  json.key("writeRoundTrip").beginObject();
-  const fs::path file = fs::path(directory) / "sketchyup-probe-roundtrip.step";
+// FILE_SCHEMA is what the writer really wrote, whatever the schema option says.
+void writeRoundTrip(const std::string& directory, const std::string& label, const StepWriterParams& parameters, JsonOut& json) {
+  const fs::path file = fs::path(directory) / ("sketchyup-probe-roundtrip-" + label + ".step");
   json.field("file", file.string());
   bool written = false;
   {
     try {
       STEPControl_Writer writer;
-      DESTEP_Parameters parameters;
-      parameters.WriteUnit = UnitsMethods_LengthUnit_Millimeter;  // explicit: the document's unit
-      if (writer.Transfer(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), STEPControl_AsIs, &parameters) != IFSelect_RetDone ||
+      if (writer.Transfer(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), STEPControl_AsIs, parameters) != IFSelect_RetDone ||
           writer.Write(file.c_str()) != IFSelect_RetDone) {
         json.field("written", false).field("reason", "the writer refused the box");
-        json.endObject();
         return;
       }
       written = true;
     } catch (const Standard_Fail& failure) {
       json.field("written", false).field("reason", failure.GetMessageString());
-      json.endObject();
       return;
     }
   }
   json.field("written", written);
+  if (!written) return;
   json.field("bytes", fileBytes(file));
-  const std::optional<std::string> text = readFile(file);
-  std::string schemaRaw;
-  static const std::regex schemaRe("FILE_SCHEMA\\(\\('([^']*)'\\)\\)");
-  if (text) {
-    std::smatch m;
-    if (std::regex_search(*text, m, schemaRe)) schemaRaw = m[1].str();
-  }
-  json.field("fileSchemaRaw", schemaRaw);
-  json.field("schema", classifySchema(schemaRaw));
-  if (text) {
-    const RawUnits raw = rawUnits(*text);
-    json.key("units").beginObject()
-        .field("declared", raw.lengthDeclared)
-        .field("length", raw.length)
-        .field("lengthMetres", raw.lengthDeclared ? raw.lengthMetres : 0.0)
-        .endObject();
-  }
-  const ModelFacts back = readModel(file);
+  const StepFileFacts raw = stepFileFacts(file);
+  json.field("fileSchemaRaw", raw.schemaRaw);
+  json.field("schema", raw.schema);
+  json.key("units").beginObject()
+      .field("declared", raw.lengthDeclared)
+      .field("length", raw.length)
+      .field("lengthMetres", raw.lengthDeclared ? raw.lengthMetres : 0.0)
+      .endObject();
+  const StepModelFacts back = readStepModel(file);
   json.field("readStatus", back.readStatus);
+  json.field("modelSchema", back.schema);
   json.field("entities", back.entities);
   json.field("shapes", static_cast<long long>(back.shapes.size()));
-  if (!back.shapes.empty()) json.doubles("boundingBox", back.shapes.front().box);
-  json.endObject();
+  if (!back.shapes.empty() && back.shapes.front().ok) json.doubles("boundingBox", back.shapes.front().box);
 }
 
 }  // namespace
@@ -290,38 +326,36 @@ std::string probeStep(const StepProbeOptions& options) {
       .field("version", SKETCHYUP_VERSION)
       .field("stepProbeVersion", 1)
       .endObject();
-  // The runtime version (the loaded library) and the compile-time macros (the headers): a
-  // mismatch is a build problem the test should see.
-  std::string macros = std::to_string(OCC_VERSION_MAJOR) + "." + std::to_string(OCC_VERSION_MINOR) + "." +
-                       std::to_string(OCC_VERSION_MAINTENANCE);
+  // The runtime version (the loaded library) and the version the build was configured against
+  // (the headers): a mismatch is a build problem the test should see.
+#if defined(SKETCHYUP_STEP_OCCT_79)
+  const std::string version = OCCT_Version_String_Complete();
+#else
+  const std::string version = std::to_string(OCC_VERSION_MAJOR) + "." + std::to_string(OCC_VERSION_MINOR) + "." +
+                              std::to_string(OCC_VERSION_MAINTENANCE);
+#endif
   json.key("occt").beginObject()
-      .field("version", OCCT_Version_String_Complete())
-      .field("versionMacros", macros)
+      .field("version", version)
+      .field("versionConfigured", SKETCHYUP_IFC_OCCT_VERSION_STRING)
       .endObject();
-  json.key("file").beginObject();
-  json.field("path", options.file);
-  json.field("bytes", fileBytes(options.file));
-  std::optional<std::string> text = readFile(options.file);
-  json.field("isoHeader", text && text->rfind("ISO-10303-21", 0) == 0);
-  std::string schemaRaw;
-  static const std::regex schemaRe("FILE_SCHEMA\\(\\('([^']*)'\\)\\)");
-  if (text) {
-    std::smatch m;
-    if (std::regex_search(*text, m, schemaRe)) schemaRaw = m[1].str();
-  }
-  json.field("fileSchemaRaw", schemaRaw);
-  json.field("schema", classifySchema(schemaRaw));
-  if (text) {
-    const RawUnits raw = rawUnits(*text);
+  const StepFileFacts file = stepFileFacts(options.file);
+  json.key("file").beginObject()
+      .field("path", options.file)
+      .field("bytes", file.bytes)
+      .field("isoHeader", file.isoHeader)
+      .field("fileSchemaRaw", file.schemaRaw)
+      .field("schema", file.schema)
+      .endObject();
+  if (file.readable) {
     json.key("units").beginObject()
-        .field("declared", raw.lengthDeclared)
-        .field("length", raw.length)
-        .field("angle", raw.angle)
-        .field("solidAngle", raw.solidAngle)
-        .field("lengthMetres", raw.lengthDeclared ? raw.lengthMetres : 0.0)
+        .field("declared", file.lengthDeclared)
+        .field("length", file.length)
+        .field("angle", file.angle)
+        .field("solidAngle", file.solidAngle)
+        .field("lengthMetres", file.lengthDeclared ? file.lengthMetres : 0.0)
         .endObject();
   }
-  const ModelFacts model = readModel(options.file);
+  const StepModelFacts model = readStepModel(options.file);
   json.field("modelSchema", model.schema);
   json.field("modelRead", model.read);
   json.field("modelReadStatus", model.readStatus);
@@ -334,7 +368,7 @@ std::string probeStep(const StepProbeOptions& options) {
     json.field("roots", model.roots);
     json.field("transferred", model.transferred);
     json.key("shapes").beginArray();
-    for (const ShapeFacts& shape : model.shapes) {
+    for (const StepShapeFacts& shape : model.shapes) {
       json.beginObject()
           .field("index", shape.index)
           .field("solids", shape.solids)
@@ -344,23 +378,83 @@ std::string probeStep(const StepProbeOptions& options) {
     }
     json.endArray();
   }
-  if (!options.roundTripDirectory.empty()) writeRoundTrip(options.roundTripDirectory, json);
+  if (!options.roundTripDirectory.empty()) {
+    json.key("writeRoundTrip").beginObject();
+    // The ADR 0172 §2 default (AP214, DIS schema version) and the AP242 option, which the
+    // OCCT 7.9 user guide does not document as writer output: the file's FILE_SCHEMA is
+    // what the writer really wrote.
+    {
+      StepWriterParams ap214Params;
+      ap214Params.WriteSchema = StepWriterParams::WriteMode_StepSchema_AP214DIS;  // the ADR 0172 §2 default
+      ap214Params.WriteUnit = UnitsMethods_LengthUnit_Millimeter;  // explicit: the document's unit
+      json.key("ap214").beginObject();
+      writeRoundTrip(options.roundTripDirectory, "ap214", ap214Params, json);
+      json.endObject();
+    }
+#if defined(SKETCHYUP_STEP_OCCT_79)
+    {
+      StepWriterParams ap242Params;
+      ap242Params.WriteSchema = StepWriterParams::WriteMode_StepSchema_AP242DIS;
+      ap242Params.WriteUnit = UnitsMethods_LengthUnit_Millimeter;
+      json.key("ap242").beginObject();
+      writeRoundTrip(options.roundTripDirectory, "ap242", ap242Params, json);
+      json.endObject();
+    }
+#endif
+    json.endObject();
+  }
   json.endObject();
   return json.str();
 }
 
 int runStepProbe(const StepProbeOptions& options) {
   std::cout << probeStep(options) << std::endl;
-  // 0 when the file was read and at least one shape transferred, 1 otherwise.
-  std::string output;
-  {
-    std::istringstream probe(probeStep(options));
-    std::getline(probe, output);
-  }
-  // Re-derive the exit code without parsing the JSON: a file that read and transferred is
-  // the only success the import can build on.
-  ModelFacts model = readModel(options.file);
+  // 0 when the file was read and at least one shape transferred, 1 otherwise: the only
+  // success the import can build on.
+  const StepModelFacts model = readStepModel(options.file);
   return model.read && model.transferred > 0 ? 0 : 1;
+}
+
+std::string writeStep(const std::string& directory) {
+  JsonOut json;
+  json.beginArray();
+  auto makeBox = [] { return BRepPrimAPI_MakeBox(10, 20, 30).Shape(); };
+  auto makeCylinder = [] { return BRepPrimAPI_MakeCylinder(5, 20).Shape(); };
+  auto makeAssembly = [] {
+    TopoDS_Compound assembly;
+    BRep_Builder builder;
+    builder.MakeCompound(assembly);
+    builder.Add(assembly, BRepPrimAPI_MakeBox(10, 20, 30).Shape());
+    builder.Add(assembly, BRepPrimAPI_MakeCylinder(5, 20).Shape());
+    return assembly;
+  };
+  const auto writes = std::array<std::pair<const char*, std::function<TopoDS_Shape()>>, 3>{
+      {"sketchyup-step-box.step", makeBox}, {"sketchyup-step-cylinder.step", makeCylinder}, {"sketchyup-step-assembly.step", makeAssembly}};
+  for (const auto& fixture : writes) {
+    json.beginObject().field("file", std::string(fixture.first));
+    try {
+      STEPControl_Writer writer;
+      StepWriterParams params;
+      // The ADR 0172 §2 default (AP214, DIS schema version) in the document's unit:
+      // the corpus is generated with the same OCCT writer the import reads.
+      params.WriteSchema = StepWriterParams::WriteMode_StepSchema_AP214DIS;
+      params.WriteUnit = UnitsMethods_LengthUnit_Millimeter;  // explicit: the document's unit
+      if (writer.Transfer(fixture.second(), STEPControl_AsIs, params) == IFSelect_RetDone &&
+          writer.Write((fs::path(directory) / fixture.first).c_str()) == IFSelect_RetDone) {
+        json.field("written", true);
+        const StepFileFacts written = stepFileFacts(fs::path(directory) / fixture.first);
+        json.field("bytes", written.bytes);
+        json.field("schema", written.schema);
+      } else {
+        json.field("written", false).field("reason", "the writer refused the shape");
+      }
+    } catch (const Standard_Fail& failure) {
+      json.field("written", false).field("reason", failure.GetMessageString());
+    }
+    json.endObject();
+  }
+  json.endArray();
+  return json.str();
 }
 
 }  // namespace sketchyup::ifc

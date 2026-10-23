@@ -127,3 +127,21 @@ target_link_directories(sketchyup_ifc_libraries INTERFACE "${sketchyup_ifc_prefi
 target_link_libraries(sketchyup_ifc_libraries INTERFACE
   ifcopenshell.geometry ifcopenshell.parse ifcopenshell.plugin
   -l:ifcopenshell_parse_schema_ifc4.so Boost::headers Eigen3::Eigen)
+
+# The worker's direct OpenCASCADE use (ADR 0172, R098.a): the basic STEP reader and writer.
+# The version is the configured one (the headers' spelling differs between 7.8 and 7.9: the
+# build selects it, see step_probe.cpp). The libraries are found in the system directory; the
+# private copy the `ifc` component installs is found through the worker's RUNPATH.
+set(SKETCHYUP_IFC_OCCT_VERSION "7.8.0" CACHE STRING "The OpenCASCADE version the worker's headers are selected against")
+if(NOT EXISTS "${sketchyup_ifc_occt_lib}/libTKSTEP.so")
+  message(FATAL_ERROR "SKETCHYUP_BUILD_IFC needs the OpenCASCADE libraries in ${sketchyup_ifc_occt_lib} (libTKSTEP.so is missing; Arch: pacman -S opencascade)")
+endif()
+add_library(sketchyup_ifc_occt INTERFACE)
+target_include_directories(sketchyup_ifc_occt SYSTEM INTERFACE "${sketchyup_ifc_occt_include}")
+target_link_directories(sketchyup_ifc_occt INTERFACE "${sketchyup_ifc_occt_lib}")
+# The basic reader (TKSTEP, TKXSBase, TKSTEPAttr, TKSTEP209 for the AP214 protocol the writer
+# emits), the basic writer (TKDESTEP, TKXDESTEP, TKXCAF) and the geometry the probe walks
+# (TKBRep, TKPrim, the tessellator and its helpers, for the tessellated import of R098.b).
+target_link_libraries(sketchyup_ifc_occt INTERFACE
+  TKernel TKMath TKTopoDS TKBRep TKPrim TKSTEP TKSTEPAttr TKSTEP209 TKXSBase
+  TKDESTEP TKXDESTEP TKXCAF TKG3D TKBool TKPrism TKShHealing TKTessellate)

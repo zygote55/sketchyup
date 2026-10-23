@@ -11,11 +11,13 @@ include("${CMAKE_CURRENT_LIST_DIR}/IfcOpenShellPrefix.cmake")
 
 add_executable(sketchyup-ifc-worker
   worker_main.cpp probe_environment.cpp probe_geometry.cpp probe_writer.cpp
-  access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp georeference.cpp package.cpp report.cpp import.cpp export_package.cpp export.cpp check.cpp)
+  access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp georeference.cpp package.cpp report.cpp import.cpp export_package.cpp export.cpp check.cpp
+  step_probe.cpp step_import.cpp)
 target_include_directories(sketchyup-ifc-worker PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(sketchyup-ifc-worker PRIVATE
-  SKETCHYUP_IFC_PIN_COMMIT_STRING="${SKETCHYUP_IFC_PIN_COMMIT}")
-target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_libraries sketchyup_version)
+  SKETCHYUP_IFC_PIN_COMMIT_STRING="${SKETCHYUP_IFC_PIN_COMMIT}"
+  SKETCHYUP_IFC_OCCT_VERSION_STRING="${SKETCHYUP_IFC_OCCT_VERSION}")
+target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_libraries sketchyup_ifc_occt sketchyup_version)
 target_compile_options(sketchyup-ifc-worker PRIVATE -Wall -Wextra -Wpedantic)
 add_dependencies(sketchyup-ifc-worker sketchyup_ifcopenshell_prefix)
 # The private directory is flat: the helper and every library sit in /usr/lib/sketchyup. A
@@ -51,7 +53,8 @@ option(SKETCHYUP_IFC_BUNDLE_OCCT "Install a private copy of the OpenCASCADE libr
 if(SKETCHYUP_IFC_BUNDLE_OCCT)
   install(CODE "set(SKETCHYUP_IFC_PREFIX_LIB \"${sketchyup_ifc_prefix}/lib\")
 set(SKETCHYUP_IFC_OCCT_LIB \"${sketchyup_ifc_occt_lib}\")
-set(SKETCHYUP_IFC_PRIVATE_DIR \"\${CMAKE_INSTALL_PREFIX}/lib/sketchyup\")" COMPONENT ifc)
+set(SKETCHYUP_IFC_PRIVATE_DIR \"\${CMAKE_INSTALL_PREFIX}/lib/sketchyup\")
+set(SKETCHYUP_IFC_WORKER \"\${CMAKE_INSTALL_PREFIX}/lib/sketchyup/sketchyup-ifc-worker\")" COMPONENT ifc)
   install(SCRIPT "${CMAKE_CURRENT_LIST_DIR}/InstallOcct.cmake" COMPONENT ifc)
 endif()
 # The notices and the written source offer are installed by the top-level CMakeLists.txt, where
