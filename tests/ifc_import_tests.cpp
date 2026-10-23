@@ -4,6 +4,7 @@
 // (IFC_WORKER_PATH) and python3; exits 77 (skipped) when the helper is not built.
 #include "io/ifc_worker.hpp"
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -423,8 +424,11 @@ int main(int argc, char **argv) {
                 const auto &site = *road.document.site();
                 check(std::abs(site.easting - 729011.2258823584) <= 1e-9 && std::abs(site.northing - 9063960.607644705) <= 1e-9 && std::abs(site.elevation) <= 1e-9,
                       "F1: easting, northing and elevation are the conversion's within 1e-9 m");
-                check(site.crs == "EPSG:32760" && site.established.source == "IfcMapConversion" && site.established.sha256 == digestOf(road.report) &&
-                          site.established.sha256.size() == 64,
+                QFile roadFile(fixture("bsi-ifc4-road.ifc"));
+                check(roadFile.open(QIODevice::ReadOnly), "read the road");
+                const auto roadSha = QCryptographicHash::hash(roadFile.readAll(), QCryptographicHash::Sha256).toHex().toStdString();
+                check(site.crs == "EPSG:32760" && site.established.source == "IfcMapConversion" && site.established.sha256 == roadSha &&
+                          digestOf(road.report) == roadSha,
                       "F1: the label, and the provenance (IfcMapConversion and the file's SHA-256)");
                 check(versionOf(road.document) == 29, "F1: the document is schema 29");
                 const auto container = encodeContainer(road.document);

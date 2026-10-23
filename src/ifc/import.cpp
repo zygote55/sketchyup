@@ -785,6 +785,17 @@ int runImport(const ImportOptions& options) {
     ifc.emplace_back("ifc.GlobalId", node.guid);
     ifc.emplace_back("ifc.Step", static_cast<double>(entry.step));
     if (entry.role == "project") ifc.emplace_back("ifc.Schema", schema);
+    if (entry.role == "project" && geo.facts) {
+      // The map conversion, read-only (3.6): whatever the result, the file's own numbers are kept on the project. They come
+      // right after the identity entries, so that the 16 provenance slots never drop them.
+      const MapConversionFacts& f = *geo.facts;
+      ifc.emplace_back("ifc.mapConversion.eastings", f.eastings);
+      ifc.emplace_back("ifc.mapConversion.northings", f.northings);
+      ifc.emplace_back("ifc.mapConversion.orthogonalHeight", f.orthogonalHeight);
+      ifc.emplace_back("ifc.mapConversion.rotationDegrees", f.rotationDegrees);
+      if (std::isfinite(f.scale)) ifc.emplace_back("ifc.mapConversion.scale", f.scale);
+      if (!f.crsName.empty()) ifc.emplace_back("ifc.mapConversion.crs", f.crsName);
+    }
     if (shortened) ifc.emplace_back("ifc.Name", clip(ctx.texts(text(inst, "Name")), 2048));
     if (const auto longName = ctx.texts(text(inst, "LongName")); !longName.empty()) ifc.emplace_back("ifc.LongName", clip(longName, 2048));
     if (entry.role == "project")
@@ -818,16 +829,6 @@ int runImport(const ImportOptions& options) {
       if (latitude.size() >= 3) ifc.emplace_back("ifc.RefLatitude", degrees(latitude));
       if (longitude.size() >= 3) ifc.emplace_back("ifc.RefLongitude", degrees(longitude));
       if (const auto height = number(inst, "RefElevation")) ifc.emplace_back("ifc.RefElevation", *height * metresPerUnit);
-    }
-    if (entry.role == "project" && geo.facts) {
-      // The map conversion, read-only (3.6): whatever the result, the file's own numbers are kept on the project.
-      const MapConversionFacts& f = *geo.facts;
-      ifc.emplace_back("ifc.mapConversion.eastings", f.eastings);
-      ifc.emplace_back("ifc.mapConversion.northings", f.northings);
-      ifc.emplace_back("ifc.mapConversion.orthogonalHeight", f.orthogonalHeight);
-      ifc.emplace_back("ifc.mapConversion.rotationDegrees", f.rotationDegrees);
-      ifc.emplace_back("ifc.mapConversion.scale", f.scale);
-      if (!f.crsName.empty()) ifc.emplace_back("ifc.mapConversion.crs", f.crsName);
     }
     if (entry.role == "project") {
       for (const Inst& context : refs(inst, "RepresentationContexts")) {

@@ -1680,10 +1680,10 @@ assistant tool (decision 13). A file without a map conversion imports as before 
 - `src/io/ifc_import.cpp`: `evaluateGeoreference` rebuilds the report's block from known fields (the worker's block is
   data, bounded like the rest of the report) and sets the site origin in the import's one edit, so one undo removes it
   with everything else. `src/io/ifc_worker.cpp`, `src/automation/main.cpp`: the option, passed through; `README.md`.
-- Fixtures: `tests/fixtures/ifc/make_georef_fixtures.py` writes fifteen `georef-*.ifc` files (hand-checkable P21, one
+- Fixtures: `tests/fixtures/ifc/make_georef_fixtures.py` writes 24 `georef-*.ifc` files (hand-checkable P21, one
   wall each; the numbers are in the script's comments). The three package seeds under `packages/` were rewritten: the
   report gained the `georeference` block and `engine.georeferenceMode`.
-- Tests: `ifc_georeference` (Python, 5 s; the package level, against the raw-text scan and hand-computed values),
+- Tests: `ifc_georeference` (Python, 7 s; the package level, against the raw-text scan and hand-computed values),
   and sections in `ifc_import` (through the helper into documents: schema 29, the origin, save and reopen, one undo,
   the volume and centroid of every certified element turned by 60 degrees, hand-computed corners, the command line)
   and `ifc_convert` (hand-built packages: a worker that contradicts itself, hostile text and sizes).
@@ -1736,28 +1736,35 @@ Where this corrects, narrows or extends 3.6 and the owner decisions:
    such a file also `scale`. Nothing is converted: the US survey foot is an exact rational of the metre, so converting
    it would be sound, but the owner decision asks for a metre site origin and "reported, or refused" for F4, so it is
    reported (a later option).
-6. **`IfcMapConversionScaled`** (IFC4.3): `FactorX`, `FactorY` and `FactorZ`, and `ScaleY` and `ScaleZ` when a class has them,
-   are read by name; values equal to the conversion's scale (the factors to one) within 1e-9 are not factors, so a
-   scaled conversion with unit factors is a plain one. 3.6 said "no per-axis factors". The entity's attribute list was
-   proved by a fixture the parser accepts without warnings; no buildingSMART sample has one.
+6. **`IfcMapConversionScaled`** (IFC4.3): `FactorX`, `FactorY` and `FactorZ` are read by name; factors of one within 1e-9
+   are no factors, so a scaled conversion with unit factors is a plain one. 3.6 said "no per-axis factors". The entity's
+   attribute list was proved by a fixture the parser accepts without warnings; no buildingSMART sample has one.
+   An attribute that is there but is not a number (or a unit, or a placement) is never read as absent: absent means a
+   default (an absent `Scale` is 1, an absent `MapUnit` is the metre, an absent world coordinate system is the identity)
+   and a default for a damaged value would be a guess, so it is `badScale`, `badAxis`, `mapUnit` or a refusal.
 7. **Several of something** (`severalConversions`, `severalModelContexts`) is reported, not resolved. Other
    `IfcCoordinateOperation` subtypes are counted (`otherCoordinateOperations`) and not read.
 8. **The label** is the CRS `Name`, with control characters made spaces and shortened to 64 bytes; **provenance** is the
    source `IfcMapConversion` and the SHA-256 of the file (the copy the helper read).
 9. **Properties.** The project group gets read-only `ifc.mapConversion.eastings`, `.northings`, `.orthogonalHeight`,
-   `.rotationDegrees` (the file's, also in `grid`), `.scale` and `.crs`, whatever the result. They take six of the sixteen
-   provenance slots; the project's own provenance is at most ten, so the worst case fills the 16 exactly and
-   nothing is dropped. `RefLatitude`, `RefLongitude`, `RefElevation` and `TrueNorth` are unchanged (3.6).
-10. **IFC2X3.** There is no conversion entity. `ePSet_MapConversion` and `ePSet_ProjectedCRS` property sets (on any
-    schema's file) are noticed (`georeferenceEpsets`, with the count in the block) and are ordinary properties of the site;
+   `.rotationDegrees` (the file's, also in `grid`), `.scale` and `.crs`, whatever the result, right after the project's
+   `ifc.Class`, `ifc.GlobalId`, `ifc.Step` and `ifc.Schema`. They take up to six of the sixteen provenance slots; a project
+   that also has a long name, a phase, an object type, a true north, a classification, groups, a layer and a material can
+   pass 16, and the entries past it (the last ones written) are dropped and counted as for any element. `RefLatitude`,
+   `RefLongitude`, `RefElevation` and `TrueNorth` are unchanged (3.6).
+10. **IFC2X3.** There is no conversion entity. `ePSet_MapConversion` and `ePSet_ProjectedCRS` property sets (in any
+    capitalisation of `ePSet_`, on any schema's file) are noticed (`georeferenceEpsets`, with the count in the block) and are ordinary properties of the site;
     nothing is georeferenced.
 11. **Accounting.** The one conversion read, its CRS, the map unit and the context chain are `supporting`; further
     conversions and everything else stay `omitted` and counted by class. The identity holds on every new fixture.
 12. **The application does not trust the block.** It rebuilds it field by field (text as plain text with the document's
-    bounds, at most 8 reasons, numbers finite), and it sets the origin only if the worker's origin is the conversion's own
-    numbers within 1e-9, the rotation applied equals the conversion's (or is zero) and every root node's matrix carries
-    exactly that rotation and no translation; a package that says otherwise, or whose origin the document refuses, fails
-    the import as `georeferenceMismatch`. This is "the application then verifies the result against the formula" of 3.6(b).
+    bounds, at most 8 reasons, numbers finite), and it sets the origin only if the formula holds on the numbers the block
+    reports: the origin is the conversion's eastings, northings and height within 1e-9, there are no reasons, the scale is
+    the package's `metresPerUnit` within 1e-9 relative and the CRS's unit is the metre, the conversion's rotation is
+    `atan2` of its X axis, a rotation is applied exactly when the axis is not along +X (and only in `grid`), the rotation
+    applied is that angle, and every root node's matrix carries exactly that rotation and no translation. A package that
+    says otherwise, or whose origin the document refuses, fails the import as `georeferenceMismatch`. This is "the
+    application then verifies the result against the formula" of 3.6(b).
 13. **Far from the origin** (decision 7) needed no new rule: R097.b already refuses beyond 1e6 m with the extent
     (`farFromOrigin`); a model authored in absolute projected coordinates is refused even when a conversion exists, in
     either mode, and no origin is shifted or set.
@@ -1769,7 +1776,7 @@ Where this corrects, narrows or extends 3.6 and the owner decisions:
 | F1 | `bsi-ifc4-road.ifc` (certified, theta 0): E, N, H within 1e-9 m of the file's and of 3.6's quoted values, label `EPSG:32760`, provenance, schema 29, save and reopen bit-exact, one undo, the report says so; a metre project with no map unit; `IfcMapConversionScaled` with unit factors | `ifc_georeference`, `ifc_import`, `ifc_convert` |
 | F2 | The three certified 60 degree samples (`bsi-ifc4-arch`, `bsi-ifc43-arch`, `bsi-ifc4-landscaping`): keepAxes keeps the axes, sets no origin, reports the exact conversion and `ifc.mapConversion.*`; grid sets the origin and every vertex equals `R(theta) x (keepAxes vertex)` within 1e-9 m (the mapped coordinate minus the translation); in the documents every body keeps its volume and its centroid is turned by 60 degrees; a 3-4-5 wall's corners are the hand-computed ones | same |
 | F3 | `georef-absolute-far.ifc` (2,500 km, with a conversion) and `far-from-origin.ifc`, both modes: refused, naming the extent, no package | same |
-| F4 | US survey foot with a rotation (keep: `mapUnit`, `scale`, `rotation`; grid: the first two), a world coordinate system at (500, 0, 0) (refused), two conversions, two Model contexts, a conversion of a Plan context, a zero axis, half an axis, a scale in millimetres, an easting beyond 1e8 m, factors, IFC2X3 with and without ePSets | same |
+| F4 | US survey foot with a rotation (keep: `mapUnit`, `scale`, `rotation`; grid: the first two), a world coordinate system at (500, 0, 0) (refused), two conversions, two Model contexts, a conversion of a Plan context, a zero axis, half an axis, a text axis, a scale in millimetres, a negative and a text scale, a missing easting, an easting beyond 1e8 m, a map unit of millimetres or text, a geographic CRS, factors, a world coordinate system that is text, a conversion whose source is the Body sub-context, IFC2X3 with and without ePSets | same |
 | H1, D1 | Two grid imports of each sample are identical; converted + supporting + omitted equals the scan's count on every new fixture | same |
 
 Run locally in the pinned image (`sketchyup-ci-pinned:r097a-ifc`, 4 CPUs, 10 GB, `-j4`): `ifc_georeference`,

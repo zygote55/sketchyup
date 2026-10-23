@@ -47,7 +47,7 @@ properties the suites expect are computed by hand in the comments of that script
 one differs. `tests/ifc_text_scan.py` reads every fixture without any IFC library and is the independent source
 the import is compared with.
 
-The R097.c georeferencing fixtures (`georef-*.ifc`, fifteen files) are written by `make_georef_fixtures.py` (the same
+The R097.c georeferencing fixtures (`georef-*.ifc`, 24 files) are written by `make_georef_fixtures.py` (the same
 way); the numbers the tests expect are in its comments and in `tests/ifc_georeference_tests.py`, which regenerates the
 files and fails if a checked-in one differs. The certified samples with a map conversion (`bsi-ifc4-road.ifc`, theta 0;
 `bsi-ifc4-arch.ifc`, `bsi-ifc43-arch.ifc` and `bsi-ifc4-landscaping.ifc`, 60 degrees) are used unmodified.

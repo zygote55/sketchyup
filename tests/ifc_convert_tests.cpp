@@ -128,7 +128,13 @@ int main(int argc, char **argv) {
             const auto block = [](const QString &result, double e, double n, double h, double rotationDegrees, double applied) {
                 return QJsonObject{{"mode", "x"},
                                    {"result", result},
-                                   {"mapConversion", QJsonObject{{"eastings", e}, {"northings", n}, {"orthogonalHeight", h}, {"rotationDegrees", rotationDegrees}, {"scale", 0.001}}},
+                                   {"mapConversion", QJsonObject{{"eastings", e},
+                                                                 {"northings", n},
+                                                                 {"orthogonalHeight", h},
+                                                                 {"xAxisAbscissa", std::cos(rotationDegrees * M_PI / 180)},
+                                                                 {"xAxisOrdinate", std::sin(rotationDegrees * M_PI / 180)},
+                                                                 {"rotationDegrees", rotationDegrees},
+                                                                 {"scale", 0.001}}},
                                    {"crs", QJsonObject{{"name", "EPSG:32633"}, {"mapUnit", "METRE"}, {"mapUnitMetres", 1}, {"mapUnitGiven", true}}},
                                    {"siteOrigin", QJsonObject{{"easting", e}, {"northing", n}, {"elevation", h}, {"crs", "EPSG:32633"}}},
                                    {"rotationAppliedDegrees", applied}};
@@ -206,12 +212,43 @@ int main(int argc, char **argv) {
                 refused("georeferenceMismatch", [&] { (void)withBlock(bare, IfcGeoreference::KeepAxes); });
                 refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 2e8, 0, 0, 0, 0), IfcGeoreference::KeepAxes); });
                 refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 90), IfcGeoreference::KeepAxes); });
+                // The formula itself is checked, not only the worker's agreement with itself: a rotated conversion that was not
+                // turned, a turn for a conversion that has none, reasons beside an origin, a scale that is not the project unit.
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 1000.5, 2000.25, 3.5, 90, 0), IfcGeoreference::KeepAxes); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 1000.5, 2000.25, 3.5, 90, 0), IfcGeoreference::Grid); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("gridAligned", 1000.5, 2000.25, 3.5, 0, 0), IfcGeoreference::Grid); });
+                auto reasoned = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                reasoned["reasons"] = QJsonArray{QJsonObject{{"code", "mapUnit"}, {"message", "x"}}};
+                refused("georeferenceMismatch", [&] { (void)withBlock(reasoned, IfcGeoreference::KeepAxes); });
+                auto scaled = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                auto conversion = scaled["mapConversion"].toObject();
+                conversion["scale"] = 1.0;
+                scaled["mapConversion"] = conversion;
+                refused("georeferenceMismatch", [&] { (void)withBlock(scaled, IfcGeoreference::KeepAxes); });
+                auto feet = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                auto unit = feet["crs"].toObject();
+                unit["mapUnitMetres"] = 0.3048;
+                feet["crs"] = unit;
+                refused("georeferenceMismatch", [&] { (void)withBlock(feet, IfcGeoreference::KeepAxes); });
+                auto skewed = block("gridAligned", 1000.5, 2000.25, 3.5, 90, 90);
+                auto axis = skewed["mapConversion"].toObject();
+                axis["rotationDegrees"] = 80.0;
+                skewed["mapConversion"] = axis;
+                skewed["rotationAppliedDegrees"] = 80.0;
+                refused("georeferenceMismatch", [&] { (void)withBlock(skewed, IfcGeoreference::Grid, {0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}); });
             }
             // Hostile text and sizes are bounded: a label of control characters and 10,000 bytes, 100 reasons.
             {
-                auto hostile = block("siteOrigin", 1, 2, 3, 0, 0);
+                auto labelled = block("siteOrigin", 1, 2, 3, 0, 0);
+                auto name = labelled["crs"].toObject();
+                name["name"] = QString("A\tB\n") + QString(10000, 'x');
+                labelled["crs"] = name;
+                const auto set = withBlock(labelled, IfcGeoreference::KeepAxes);
+                const auto &label = set.document.site()->crs;
+                check(label.size() <= 64 && std::none_of(label.begin(), label.end(), [](char c) { return static_cast<unsigned char>(c) < 0x20; }) && label.rfind("A B ", 0) == 0,
+                      "georeference: the label is plain text of at most 64 bytes");
+                auto hostile = block("notRepresentable", 1, 2, 3, 0, 0);
                 auto crs = hostile["crs"].toObject();
-                crs["name"] = QString("A\tB\n") + QString(10000, 'x');
                 crs["description"] = QString(10000, 'd');
                 hostile["crs"] = crs;
                 QJsonArray reasons;
@@ -221,9 +258,7 @@ int main(int argc, char **argv) {
                 hostile["reason"] = QString(5000, 'r');
                 hostile["extra"] = "ignored";
                 const auto result = withBlock(hostile, IfcGeoreference::KeepAxes);
-                const auto &label = result.document.site()->crs;
-                check(label.size() <= 64 && std::none_of(label.begin(), label.end(), [](char c) { return static_cast<unsigned char>(c) < 0x20; }) && label.rfind("A B ", 0) == 0,
-                      "georeference: the label is plain text of at most 64 bytes");
+                check(!result.document.site(), "georeference: reasons mean no origin");
                 const auto report = result.report["georeference"].toObject();
                 check(report["reasons"].toArray().size() == 8 && report["reasons"].toArray()[0].toObject()["message"].toString().size() <= 240 &&
                           report["reasons"].toArray()[0].toObject()["code"].toString().size() <= 64 && report["reason"].toString().size() <= 240 &&

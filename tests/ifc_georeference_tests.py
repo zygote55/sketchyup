@@ -116,7 +116,7 @@ generated = os.path.join(TMP, "generated")
 os.makedirs(generated)
 subprocess.run([sys.executable, "-I", fixture("make_georef_fixtures.py"), generated], check=True, env={"PYTHONDONTWRITEBYTECODE": "1"})
 names = sorted(os.listdir(generated))
-expect(len(names) == 15, "the generator writes fifteen files: %d" % len(names))
+expect(len(names) == 24, "the generator writes 24 files: %d" % len(names))
 for name in names:
     expect(os.path.exists(fixture(name)) and open(fixture(name), "rb").read() == open(os.path.join(generated, name), "rb").read(),
            "make_georef_fixtures.py reproduces " + name)
@@ -234,7 +234,7 @@ if keep and grid:
     expect(near(g["mapConversion"]["rotationDegrees"], 53.13010235415598, 1e-12), "F2: atan2(0.8, 0.6) is 53.1301 degrees")
     got = sorted((round(v[0], 9), round(v[1], 9)) for v in vertices_world(grid).values() if abs(v[2]) < 1e-12)
     expect(got == sorted([(-2.12, 0.34), (-2.28, 0.46), (0.28, 3.54), (0.12, 3.66)]), "F2: the base corners are the hand-computed ones: %r" % got)
-    expect(sorted(round(v[2], 9) for v in vertices_world(grid).values() if True)[-1] == 2.5, "F2: heights are not changed by the rotation")
+    expect(sorted({round(v[2], 9) for v in vertices_world(grid).values()}) == [0.0, 2.5], "F2: heights are not changed by the rotation")
     kept = sorted((round(v[0], 9), round(v[1], 9)) for v in vertices_world(keep).values() if abs(v[2]) < 1e-12)
     expect(kept == sorted([(-1.0, 1.9), (-1.0, 2.1), (3.0, 1.9), (3.0, 2.1)]), "F2: keepAxes leaves the corners where the file has them: %r" % kept)
     check_identity("georef-mm-rotated.ifc", grid)
@@ -269,7 +269,11 @@ expect(m is not None, "F4: an identity world coordinate system is accepted")
 # Two conversions, two Model contexts, a conversion of a Plan context, a zero axis, half an axis, a scale in millimetres, a range.
 cases = (("georef-two-conversions.ifc", ["severalConversions"], 2), ("georef-two-contexts.ifc", ["severalModelContexts"], 1),
          ("georef-conversion-on-plan.ifc", ["notOnModelContext"], 1), ("georef-axis-zero.ifc", ["badAxis"], 1),
-         ("georef-axis-partial.ifc", ["incompleteAxis"], 1), ("georef-scale-mm.ifc", ["scale"], 1), ("georef-range.ifc", ["siteCoordinateRange"], 1))
+         ("georef-axis-partial.ifc", ["incompleteAxis"], 1), ("georef-scale-mm.ifc", ["scale"], 1), ("georef-range.ifc", ["siteCoordinateRange"], 1),
+         # Damaged conversions: a reason each, never a default. A wrong-typed value is not an absent one.
+         ("georef-incomplete.ifc", ["incompleteConversion"], 1), ("georef-scale-negative.ifc", ["badScale"], 1), ("georef-scale-text.ifc", ["badScale"], 1),
+         ("georef-axis-text.ifc", ["badAxis"], 1), ("georef-mapunit-mm.ifc", ["mapUnit"], 1), ("georef-mapunit-text.ifc", ["mapUnit"], 1),
+         ("georef-ifc43-geographic.ifc", ["crsNotProjected"], 1))
 for name, reasons, count in cases:
     for mode in ("keep", "grid"):
         m, _ = run(name, mode)
@@ -280,6 +284,21 @@ for name, reasons, count in cases:
         expect(g["mapConversionsInFile"] == count and root_is_identity(m) and notices(m).get("georeferenceNotRepresentable") == 1,
                "F4 (%s, %s): %d conversion(s) counted, axes kept, noticed" % (name, mode, count))
         check_identity(name, m)
+# A conversion whose source is the Body sub-context converts the Model context it belongs to.
+m, _ = run("georef-source-body.ifc", "keep")
+if m:
+    g = georef(m)
+    expect(g["result"] == "siteOrigin" and g["siteOrigin"]["easting"] == 1000.5 and g["mapConversionsOnModelContext"] == 1, "F1: a conversion of the Body sub-context is the Model context's: %r" % g["result"])
+    check_identity("georef-source-body.ifc", m)
+# A conversion whose scale cannot be read has no scale in the report (never a default), and none on the project.
+m, _ = run("georef-scale-text.ifc", "keep")
+if m:
+    expect(georef(m)["mapConversion"]["scale"] is None and "ifc.mapConversion.scale" not in provenance(m["nodes"][0])
+           and provenance(m["nodes"][0])["ifc.mapConversion.eastings"] == 1000.5, "F4: an unreadable scale is not reported as a number")
+# A world coordinate system that cannot be read is refused like one that is not the identity.
+for mode in ("keep", "grid"):
+    _, result = run("georef-wcs-text.ifc", mode, expect_status="refused")
+    expect(result and result["code"] == "worldCoordinateSystem" and "unreadable" in result["message"], "F4 (%s): an unreadable world coordinate system is refused: %r" % (mode, result))
 # IFC2X3 has no IfcMapConversion: nothing is georeferenced, and the community ePSets are only properties.
 m, _ = run("bsi-ifc2x3-arch.ifc", "grid")
 if m:

@@ -19,6 +19,11 @@ def r(v):
     return repr(float(v))
 
 
+def num(v):
+    """A P21 number: None is $, a str is written as it is (to put a wrong type where a number belongs)."""
+    return "$" if v is None else v if isinstance(v, str) else r(v)
+
+
 class File:
     def __init__(self, schema, purpose):
         self.schema = schema
@@ -75,7 +80,8 @@ def build(name, purpose, *, schema="IFC4", unit="mm", wall=(0.0, 0.0), size=(400
     area = f.add("IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.)")
     volume = f.add("IFCSIUNIT(*,.VOLUMEUNIT.,$,.CUBIC_METRE.)")
     units = f.add(f"IFCUNITASSIGNMENT((#{length},#{area},#{volume}))")
-    ctx = f.add(f"IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,#{f.axis3(*wcs)},$)")
+    wcs_ref = f"'not a placement'" if wcs == "text" else f"#{f.axis3(*wcs)}"
+    ctx = f.add(f"IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,{wcs_ref},$)")
     body = f.add(f"IFCGEOMETRICREPRESENTATIONSUBCONTEXT('Body','Model',*,*,*,*,#{ctx},$,.MODEL_VIEW.,$)")
     contexts = [ctx]
     second = None
@@ -105,21 +111,26 @@ def build(name, purpose, *, schema="IFC4", unit="mm", wall=(0.0, 0.0), size=(400
         unit_ref = "$"
         if map_unit == "metre":
             unit_ref = "#" + str(f.add("IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.)"))
+        elif map_unit == "mm":
+            unit_ref = "#" + str(f.add("IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.)"))
+        elif map_unit == "text":
+            unit_ref = "'metre'"
         elif map_unit == "ussft":
             metre = f.add("IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.)")
             measure = f.add(f"IFCMEASUREWITHUNIT(IFCLENGTHMEASURE(0.3048006096012192),#{metre})")
             exponents = f.add("IFCDIMENSIONALEXPONENTS(1,0,0,0,0,0,0)")
             unit_ref = "#" + str(f.add(f"IFCCONVERSIONBASEDUNIT(#{exponents},.LENGTHUNIT.,'US survey foot',#{measure})"))
-        crs_id = f.add(f"IFCPROJECTEDCRS('{crs}','{crs} - fixture','WGS 84',$,$,$,{unit_ref})")
+        if conversion_class == "GEOGRAPHIC":
+            crs_id = f.add("IFCGEOGRAPHICCRS('EPSG:4326','geographic','WGS 84',$,$,$)")
+        else:
+            crs_id = f.add(f"IFCPROJECTEDCRS('{crs}','{crs} - fixture','WGS 84',$,$,$,{unit_ref})")
         for c in conversions:
-            source = ctx if c.get("source", "model") == "model" else second
-            ab = "$" if c.get("abscissa") is None else r(c["abscissa"])
-            od = "$" if c.get("ordinate") is None else r(c["ordinate"])
-            args = f"#{source},#{crs_id},{r(c['e'])},{r(c['n'])},{r(c['h'])},{ab},{od},{r(c.get('scale', 1.0))}"
+            source = {"model": ctx, "second": second, "body": body}[c.get("source", "model")]
+            args = f"#{source},#{crs_id},{num(c['e'])},{num(c['n'])},{num(c['h'])},{num(c.get('abscissa'))},{num(c.get('ordinate'))},{num(c.get('scale', 1.0))}"
             if conversion_class == "IFCMAPCONVERSIONSCALED":
                 fx, fy, fz = c.get("factors", (1.0, 1.0, 1.0))
                 args += f",{r(fx)},{r(fy)},{r(fz)}"
-            f.add(f"{conversion_class}({args})")
+            f.add(f"{'IFCMAPCONVERSION' if conversion_class == 'GEOGRAPHIC' else conversion_class}({args})")
     # The community ePSet convention on the IfcSite (IFC2X3 has no IfcMapConversion).
     if epsets:
         sets = []
@@ -185,6 +196,31 @@ build("georef-scale-mm.ifc", "a scale that is not the project unit in metres", w
 # An easting beyond the site origin's bound of 100,000 km.
 build("georef-range.ifc", "an easting beyond the bound of the site origin", wall=(1000.0, 2000.0),
       conversions=[dict(e=2.0e8, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=0.001)])
+
+# The reading of damaged conversions: a missing easting, a negative scale, a scale that is text,
+# an axis that is text. Each is a reason and never a default.
+build("georef-incomplete.ifc", "an IfcMapConversion with no Eastings", wall=(1000.0, 2000.0),
+      conversions=[dict(e=None, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=0.001)])
+build("georef-scale-negative.ifc", "a negative scale", wall=(1000.0, 2000.0),
+      conversions=[dict(e=1000.5, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=-0.001)])
+build("georef-scale-text.ifc", "a scale that is text", wall=(1000.0, 2000.0),
+      conversions=[dict(e=1000.5, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale="'one thousandth'")])
+build("georef-axis-text.ifc", "an X axis that is text", wall=(1000.0, 2000.0),
+      conversions=[dict(e=1000.5, n=2000.25, h=3.5, abscissa="'one'", ordinate=0.0, scale=0.001)])
+# The CRS's map unit is the millimetre, and is text.
+build("georef-mapunit-mm.ifc", "map unit millimetre", wall=(1000.0, 2000.0), map_unit="mm",
+      conversions=[dict(e=1000.5, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=0.001)])
+build("georef-mapunit-text.ifc", "map unit that is text", wall=(1000.0, 2000.0), map_unit="text",
+      conversions=[dict(e=1000.5, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=0.001)])
+# The world coordinate system is text (it cannot be read: refused like one that is not the identity).
+build("georef-wcs-text.ifc", "a Model context whose world coordinate system is not a placement", wall=(1000.0, 2000.0), wcs="text",
+      conversions=[dict(e=1000.5, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=0.001)])
+# The conversion's source is the Body sub-context of the Model context (what many writers do): it still converts the Model context.
+build("georef-source-body.ifc", "a conversion whose source is the Body sub-context", wall=(1000.0, 2000.0),
+      conversions=[dict(source="body", e=1000.5, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=0.001)])
+# IFC4.3: a conversion whose target is an IfcGeographicCRS, not an IfcProjectedCRS.
+build("georef-ifc43-geographic.ifc", "a conversion to an IfcGeographicCRS", schema="IFC4X3_ADD2", wall=(1000.0, 2000.0), conversion_class="GEOGRAPHIC",
+      conversions=[dict(e=1000.5, n=2000.25, h=3.5, abscissa=1.0, ordinate=0.0, scale=0.001)])
 
 # --- georef-absolute-far.ifc (F3) -----------------------------------------------------------------------------
 # A wall at x = 2,500,000 m (2.5e9 mm): a model authored in absolute coordinates. Refused in both modes, naming the

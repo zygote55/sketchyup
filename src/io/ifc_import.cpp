@@ -867,8 +867,24 @@ std::pair<QJsonObject, std::optional<SiteOrigin>> Converter::evaluateGeoreferenc
     const auto pe = finiteNumber(proposed["easting"]), pn = finiteNumber(proposed["northing"]), ph = finiteNumber(proposed["elevation"]);
     if (!pe || !pn || !ph || !near(*pe, *easting, 1e-9) || !near(*pn, *northing, 1e-9) || !near(*ph, *height, 1e-9))
         return fail("the site origin is not the conversion's eastings, northings and height");
+    // The rest of the formula (3.6): a site origin needs a conversion with nothing in the way, in metres, whose scale is the
+    // project unit; and it is turned exactly when the conversion's X axis is not along +X.
+    if (!reasons.isEmpty())
+        return fail("a site origin together with the reasons it cannot be held");
+    const auto abscissa = finiteNumber(conversion["xAxisAbscissa"]), ordinate = finiteNumber(conversion["xAxisOrdinate"]);
+    const double metresPerUnit = pkg.units["metresPerUnit"].toDouble(0);
+    if (!abscissa || !ordinate || !(metresPerUnit > 0) || !near(*scale, metresPerUnit, 1e-9 * metresPerUnit))
+        return fail("the conversion's axis or scale is not the project unit in metres");
+    if (crs["mapUnitMetres"].isDouble() && !near(crs["mapUnitMetres"].toDouble(), 1.0, 1e-9))
+        return fail("the CRS's map unit is not the metre");
+    const bool rotated = !(*abscissa > 0 && std::abs(*ordinate) <= 1e-12 * *abscissa);
+    if (rotated != (result == "gridAligned"))
+        return fail(rotated ? "a rotated conversion without the rotation of the model" : "a rotation of the model for a conversion that has none");
+    const double axisDegrees = std::atan2(*ordinate, *abscissa) * 180.0 / 3.14159265358979323846;
+    if (!near(*rotation, axisDegrees, 1e-9))
+        return fail("the conversion's rotation is not its X axis direction");
     const double applied = finiteNumber(w["rotationAppliedDegrees"]).value_or(std::nan(""));
-    const double expected = result == "gridAligned" ? *rotation : 0.0;
+    const double expected = rotated ? axisDegrees : 0.0;
     if (!std::isfinite(applied) || !near(applied, expected, 1e-9))
         return fail("the rotation applied is not the conversion's");
     if (result == "gridAligned" && !grid)

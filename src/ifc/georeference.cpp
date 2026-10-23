@@ -25,12 +25,38 @@ std::string upper(std::string s) {
   return s;
 }
 
-// A CRS label: valid UTF-8, no control characters, at most 64 bytes (the document's bound).
-std::string label(const std::string& raw, const std::function<std::string(const std::string&)>& texts) {
+// Valid UTF-8, control characters made spaces, at most `bytes` bytes.
+std::string plain(const std::string& raw, std::size_t bytes, const std::function<std::string(const std::string&)>& texts) {
   std::string s = texts(raw);
   for (char& c : s)
     if (static_cast<unsigned char>(c) < 0x20 || c == 0x7F) c = ' ';
-  return clip(s, 64);
+  return clip(s, bytes);
+}
+
+// A CRS label: at most 64 bytes without control characters (the document's bound).
+std::string label(const std::string& raw, const std::function<std::string(const std::string&)>& texts) { return plain(raw, 64, texts); }
+
+// A numeric attribute as the file has it: absent (null, or the class has no such attribute), a number, or present
+// but not a number (a wrong-typed value is never read as absent: absent means a default, and defaults are guesses).
+struct NumberRead {
+  enum class State { Absent, Number, Unreadable } state{State::Absent};
+  double value{};
+  bool absent() const { return state == State::Absent; }
+  bool number() const { return state == State::Number; }
+  bool unreadable() const { return state == State::Unreadable; }
+};
+NumberRead readNumber(const Inst& instance, const char* name) {
+  if (!attr(instance, name)) return {};
+  if (const auto value = number(instance, name)) return {NumberRead::State::Number, *value};
+  return {NumberRead::State::Unreadable, 0};
+}
+
+bool equalsIgnoringCase(const std::string& a, const char* b) {
+  const std::size_t n = std::char_traits<char>::length(b);
+  if (a.size() != n) return false;
+  for (std::size_t i = 0; i < n; ++i)
+    if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
+  return true;
 }
 
 Inst rootContext(Inst context) {
@@ -86,12 +112,12 @@ Georeference readGeoreference(ifcopenshell::file& file, const Inst& project, con
   // ignoring it would both be a guess (3.6), so the file is refused, naming the context.
   for (const Inst& context : modelContexts) {
     const Inst wcs = ref(context, "WorldCoordinateSystem");
-    if (!wcs) continue;
-    const auto matrix = axisPlacementMatrix(wcs, metresPerUnit);
+    if (!wcs && !attr(context, "WorldCoordinateSystem")) continue;  // absent: nothing to apply
+    const auto matrix = wcs ? axisPlacementMatrix(wcs, metresPerUnit) : std::nullopt;
     if (!matrix || !isIdentity(*matrix)) {
       out.refusalCode = "worldCoordinateSystem";
       out.refusalMessage = "The Model context #" + std::to_string(stepOf(context)) + " (" +
-                           clip(texts(text(context, "ContextIdentifier")), 32) +
+                           plain(text(context, "ContextIdentifier"), 32, texts) +
                            ") has a world coordinate system that is " + (matrix ? "not the identity" : "unreadable") +
                            "; it is neither applied nor ignored, so the file is not imported.";
       return out;
@@ -112,11 +138,12 @@ Georeference readGeoreference(ifcopenshell::file& file, const Inst& project, con
         break;
       }
   }
-  // ePSet_MapConversion and ePSet_ProjectedCRS: a community convention, not standardised; read as properties.
+  // ePSet_MapConversion and ePSet_ProjectedCRS (spelled ePset_ or EPset_ by some writers): a community convention, not
+  // standardised; read as properties.
   long long epsets = 0;
   for (const Inst& set : instancesOf(file, "IfcPropertySet")) {
     const std::string name = text(set, "Name");
-    if (name == "ePSet_MapConversion" || name == "ePSet_ProjectedCRS") ++epsets;
+    if (equalsIgnoringCase(name, "ePSet_MapConversion") || equalsIgnoringCase(name, "ePSet_ProjectedCRS")) ++epsets;
   }
   if (epsets > 0) report.notice("georeferenceEpsets", epsets);
 
@@ -150,9 +177,9 @@ Georeference readGeoreference(ifcopenshell::file& file, const Inst& project, con
     const auto eastings = number(conversion, "Eastings");
     const auto northings = number(conversion, "Northings");
     const auto height = number(conversion, "OrthogonalHeight");
-    const auto abscissa = number(conversion, "XAxisAbscissa");
-    const auto ordinate = number(conversion, "XAxisOrdinate");
-    const auto scale = number(conversion, "Scale");
+    const auto abscissa = readNumber(conversion, "XAxisAbscissa");
+    const auto ordinate = readNumber(conversion, "XAxisOrdinate");
+    const auto scale = readNumber(conversion, "Scale");
     const bool readable = eastings && northings && height && std::isfinite(*eastings) && std::isfinite(*northings) &&
                           std::isfinite(*height);
     if (!readable) {
@@ -163,19 +190,26 @@ Georeference readGeoreference(ifcopenshell::file& file, const Inst& project, con
       f.orthogonalHeight = *height;
       coreOk = true;
     }
-    if (scale && !(std::isfinite(*scale) && *scale > 0)) reasons.push_back({"badScale", "The conversion's Scale is not a positive number."});
-    f.scale = scale ? *scale : 1.0;
-    if (abscissa && ordinate) {
-      f.xAxisAbscissa = *abscissa;
-      f.xAxisOrdinate = *ordinate;
-      const double length = std::hypot(*abscissa, *ordinate);
+    // An absent Scale is 1 (IFC4); one that is there and not a positive number is a reason, never a default.
+    f.scale = scale.absent() ? 1.0 : scale.number() ? scale.value : std::nan("");
+    if (scale.unreadable() || (scale.number() && !(std::isfinite(scale.value) && scale.value > 0))) {
+      reasons.push_back({"badScale", "The conversion's Scale is not a positive number."});
+      f.scale = std::nan("");
+    }
+    if (abscissa.unreadable() || ordinate.unreadable()) {
+      reasons.push_back({"badAxis", "The conversion's X axis direction is not numbers."});
+      axisOk = false;
+    } else if (abscissa.number() && ordinate.number()) {
+      f.xAxisAbscissa = abscissa.value;
+      f.xAxisOrdinate = ordinate.value;
+      const double length = std::hypot(abscissa.value, ordinate.value);
       if (!std::isfinite(length) || !(length > 1e-12)) {
         reasons.push_back({"badAxis", "The conversion's X axis direction is zero or not a number."});
         axisOk = false;
       } else {
-        f.rotationDegrees = std::atan2(*ordinate, *abscissa) * 180.0 / pi;
+        f.rotationDegrees = std::atan2(ordinate.value, abscissa.value) * 180.0 / pi;
       }
-    } else if (abscissa || ordinate) {
+    } else if (abscissa.number() || ordinate.number()) {
       reasons.push_back({"incompleteAxis", "Only one of XAxisAbscissa and XAxisOrdinate is given."});
       axisOk = false;
     }
@@ -189,7 +223,12 @@ Georeference readGeoreference(ifcopenshell::file& file, const Inst& project, con
       crsProjection = clip(texts(text(crs, "MapProjection")), 64);
       crsZone = clip(texts(text(crs, "MapZone")), 64);
       const Inst unit = ref(crs, "MapUnit");
-      if (!unit) {
+      if (!unit && attr(crs, "MapUnit")) {
+        // Present, but not a unit we can read: not the same as absent.
+        mapUnitName = "unreadable";
+        mapUnitMetres = 0;
+        reasons.push_back({"mapUnit", "The CRS's map unit cannot be read."});
+      } else if (!unit) {
         mapUnitGiven = false;
         report.notice("georeferenceMapUnitAssumed");
       } else {
@@ -210,17 +249,14 @@ Georeference readGeoreference(ifcopenshell::file& file, const Inst& project, con
       }
     }
     // Per-axis factors (IfcMapConversionScaled) and a scale that is not the project unit in metres.
-    if (const auto fx = number(conversion, "FactorX")) factors[0] = *fx;
-    if (const auto fy = number(conversion, "FactorY")) factors[1] = *fy;
-    if (const auto fz = number(conversion, "FactorZ")) factors[2] = *fz;
-    for (const double factor : factors)
-      if (!(std::abs(factor - 1.0) <= 1e-9)) haveFactors = true;
-    for (const char* name : {"ScaleY", "ScaleZ"})
-      if (const auto s = number(conversion, name))
-        if (!(std::abs(*s - f.scale) <= 1e-9 * std::abs(f.scale))) haveFactors = true;
+    const NumberRead factorRead[3] = {readNumber(conversion, "FactorX"), readNumber(conversion, "FactorY"), readNumber(conversion, "FactorZ")};
+    for (int axis = 0; axis < 3; ++axis) {
+      if (factorRead[axis].number()) factors[static_cast<std::size_t>(axis)] = factorRead[axis].value;
+      if (factorRead[axis].unreadable() || (factorRead[axis].number() && !(std::abs(factorRead[axis].value - 1.0) <= 1e-9))) haveFactors = true;
+    }
     if (haveFactors)
       reasons.push_back({"perAxisFactors", "The conversion scales the axes differently; a translation-only site origin cannot hold that."});
-    if (!(std::abs(f.scale - metresPerUnit) <= 1e-9 * metresPerUnit))
+    if (std::isfinite(f.scale) && !(std::abs(f.scale - metresPerUnit) <= 1e-9 * metresPerUnit))
       reasons.push_back({"scale", "The conversion's Scale (" + degreesText(f.scale) + ") is not the project length unit in metres (" +
                                       degreesText(metresPerUnit) + "), so the map coordinates are not in metres."});
     if (coreOk && (std::abs(f.eastings) > siteLimit || std::abs(f.northings) > siteLimit || std::abs(f.orthogonalHeight) > siteLimit))
