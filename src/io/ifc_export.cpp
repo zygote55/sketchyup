@@ -371,16 +371,21 @@ struct Capture {
                 set = key.substr(0, dot);
                 name = key.substr(dot + 1);
             }
-            // Text the helper accepts: no control characters in a set or a name, none but line breaks and tabs in a value.
-            set = cleanText(set);
-            name = cleanText(name);
+            // Text the helper accepts: no control characters in a set or a name, none but line breaks and tabs in a value, at most 255
+            // bytes in a set or a name and 32 KiB in a value, and no empty name.
+            set = clipBytes(cleanText(set), 255);
+            name = clipBytes(cleanText(name), 255);
+            if (set.empty())
+                set = "SketchyUp";
+            if (name.empty())
+                name = "(unnamed)";
             if (!seen.insert({set, name}).second) {
                 ++count["propertyKeyCollisions"];
                 continue;
             }
             Value cleaned = value;
             if (const auto *text = std::get_if<std::string>(&value))
-                cleaned = cleanText(*text, true);
+                cleaned = clipBytes(cleanText(*text, true), 32 * 1024);
             node.props.push_back({set, name, cleaned});
         }
     }
@@ -1237,7 +1242,7 @@ IfcExportCapture captureChecked(const Document &document, const IfcExportOptions
             for (const auto &[faceId, face] : b->surface.faces) {
                 (void)face;
                 const auto sides = faceMaterials(*b, faceId);
-                backMaterials += sides.front != sides.back ? 1 : 0;
+                backMaterials += sides.back && sides.back != sides.front ? 1 : 0;
             }
         }
         std::set<Id> used;
@@ -1462,6 +1467,12 @@ void boundExportReport(QJsonObject &report) {
     }
 }
 
+// The report holds no host paths: any absolute path the helper's log names (its own, a library's) becomes <path>.
+QString scrubPaths(QString text) {
+    static const QRegularExpression absolute(R"((?<![\w<])/[\w.\-+@%~/]{2,})");
+    return text.replace(absolute, "<path>");
+}
+
 qint64 countOf(const QJsonObject &object, const char *key) { return qint64(object[key].toDouble(-1)); }
 } // namespace
 
@@ -1495,7 +1506,7 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
     QString timestampSource;
     IfcExportOptions resolved = options;
     resolved.timestamp = resolveTimestamp(options, timestampSource);
-    auto capture = captureIfcExport(document, resolved, QFileInfo(path).fileName());
+    auto capture = captureIfcExport(document, resolved, QString::fromStdString(clipBytes(cleanText(QFileInfo(path).fileName().toStdString()), 255)));
     checkCancelled();
 
     const QString root = worker.scratchRoot.isEmpty() ? QDir::tempPath() : worker.scratchRoot;
@@ -1541,7 +1552,7 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
         if (produced.exists() && produced.size() >= qint64(maxIfcBytes))
             refuse("outputTooLarge", "The IFC file would be larger than 256 MiB; nothing was written.", report);
         // (The report holds no host paths: the private directory is named for what it is.)
-        report["logTail"] = QString(run.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>");
+        report["logTail"] = scrubPaths(QString(run.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>"));
         refuse("workerFailed", "The IFC helper stopped (" + run.reason.toStdString() + "); nothing was written.", report);
     }
     progress("check");
@@ -1567,6 +1578,12 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
         const auto checked = runWorker(workerPath, directory.path(), QStringList{"--check", outputPath} + limits, worker);
         if (checked.kind == WorkerRun::Cancelled)
             refuse("cancelled", "The export was cancelled; nothing was written.");
+        if (checked.kind != WorkerRun::Finished && checked.result["status"] != "invalid") {
+            // The check itself stopped (a crash, the deadline, memory): that is the helper failing, not the file.
+            auto failed = report;
+            failed["logTail"] = scrubPaths(QString(checked.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>"));
+            refuse("workerFailed", "The IFC helper stopped while checking its file (" + checked.reason.toStdString() + "); nothing was written.", failed);
+        }
         if (checked.kind != WorkerRun::Finished) {
             QStringList issues;
             for (const auto &issue : checked.result["issues"].toArray())

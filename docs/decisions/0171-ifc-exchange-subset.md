@@ -1809,7 +1809,7 @@ request), `ifc_package`, `ifc_convert`, `ifc_import`, `ifc_worker_run` and `pars
 R097.d ships the IFC4 export: the export package and the application's capture of a document into it, the helper's writer
 (`sketchyup-ifc-worker --export`), the mapping of 3.8, the deterministic `GlobalId`s of decision 16, the georeference written
 back, the export report with its accounting identity, `sketchyup-cli --export-ifc`, six golden exports and checks G1 to G7. It is
-pull request @@PR@@. There is no desktop dialog (R097.e), no command, query or assistant tool (decision 13: the assistant's tool
+pull request #422. There is no desktop dialog (R097.e), no command, query or assistant tool (decision 13: the assistant's tool
 surface and its pinned baseline are untouched), and no change to any document: an export reads a copy of the open model and
 never edits it. **The export claim can be made** (decision 3): G1 to G7 pass (table below), with one step left to a person, the
 buildingSMART validation service itself, which needs an account (see "External validators").
@@ -2026,6 +2026,11 @@ boxes (54,000 faces), so the budget is for the release build. The package is 4.1
 - **`SketchyUp` property set name.** A key without a dot comes back as `SketchyUp.<key>`, not as the key.
 - **Properties of a project group** are written on the `IfcProject`; the project is an `IfcContext` and a property set may relate
   to it, but some consumers show them only on products.
+- **The check of the written file has no budget of its own.** `--check` builds a tree of every attribute value, so a file near the
+  256 MiB bound needs a lot of memory; a check that stops is reported as the helper failing (`workerFailed`), not as a bad file, and
+  nothing larger than the 100,000-triangle test of `ifc_export_worker` and the 5.9 MB budget file has been measured.
+- **Review.** Two read-only review passes (a separate model, high effort) found 11 and 7 items; all but the hash comparison of the
+  file the check read (the directory is private) are fixed and tested.
 - **Class and `PredefinedType` editing** exists only through the existing entity-properties command (5): a user who does not set
   `ifc.Class` gets proxies.
 

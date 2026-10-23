@@ -403,6 +403,11 @@ struct Builder {
     const std::size_t count = pkg.nodes.size();
     entity.assign(count, Base());
     placement.assign(count, Base());
+    // Which nodes have a part of their own kind (a site of sites), found in one pass.
+    std::vector<bool> composedOfSameRole(count, false);
+    for (const auto& node : pkg.nodes)
+      if (node.parent >= 0 && pkg.nodes[static_cast<std::size_t>(node.parent)].role == node.role)
+        composedOfSameRole[static_cast<std::size_t>(node.parent)] = true;
     for (std::size_t i = 0; i < count; ++i) {
       const auto& node = pkg.nodes[i];
       const Base parentPlacement = node.parent >= 0 ? placement[static_cast<std::size_t>(node.parent)] : Base();
@@ -423,9 +428,7 @@ struct Builder {
         placement[i] = localPlacement(parentPlacement, node.placement);
         set(made, "ObjectPlacement", placement[i]);
         // A site made of sites is COMPLEX and its parts PARTIAL (likewise buildings and storeys); anything else is an ELEMENT.
-        bool composed = false;
-        for (const auto& other : pkg.nodes)
-          if (other.role == node.role && other.parent == static_cast<long long>(i)) composed = true;
+        const bool composed = composedOfSameRole[i];
         const bool part = node.parent > 0 && pkg.nodes[static_cast<std::size_t>(node.parent)].role == node.role;
         setEnum(made, "CompositionType", composed ? "COMPLEX" : part ? "PARTIAL" : "ELEMENT");
         if (node.role == "storey" && node.hasElevation) set(made, "Elevation", node.elevation);

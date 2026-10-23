@@ -1073,14 +1073,8 @@ void hostileText() {
     body->properties = {{"Set\x02.Name\x03", std::string("value with\x01 a control, a tab\t and a\nline break")}, {"Plain\x01", 1.0}};
     edit.changes.push_back({1, nullptr, body});
     edit.nextIdFloor = 2;
-    bool accepted = true;
-    try {
-        doc.apply(std::move(edit), doc.revision());
-    } catch (const std::exception &) {
-        accepted = false; // the document itself refuses such text: nothing for the export to clean
-    }
-    if (!accepted)
-        return;
+    // (The document takes this text today; if it ever refused it, the export would have nothing to clean and this must say so.)
+    doc.apply(std::move(edit), doc.revision());
     const auto w = exportTo(withIdentity(doc), dir.path(), "odd.ifc");
     checkFile(w.path);
     const auto facts = scan(w.path);
@@ -1236,11 +1230,33 @@ void runner() {
     fails(script("echo 'P phase read'; head -c 4000000 /dev/zero | tr '\\000' x; sleep 30\n"), "workerFailed", "a flood without a line end", 60, {}, 8000);
     fails(script("trap '' TERM; while :; do :; done\n"), "workerFailed", "a helper that ignores SIGTERM", 1, {}, 8000);
     fails(script("kill -SEGV $$\n"), "workerFailed", "a crash");
+    {
+        // The log tail in the report names no host path.
+        const auto worker = script("echo \"cannot open /home/someone/secret/model.ifc and $0\" >&2; kill -SEGV $$\n");
+        try {
+            exportIfcFile(doc, dir.filePath("paths.ifc"), {}, options(worker));
+            check(false, "must fail");
+        } catch (const IfcExportError &error) {
+            const auto tail = error.report()["logTail"].toString();
+            check(tail.contains("cannot open <path> and <path>") && !tail.contains("/home") && !tail.contains(dir.path()), "the log tail holds no host path: " + tail.toStdString());
+        }
+    }
     fails(script("printf 'R {\"status\":\"refused\",\"code\":\"a b\\\\nc<script>\",\"message\":\"%s\"}\\n' \"$(head -c 30000 /dev/zero | tr '\\000' y)\"; exit 3\n"), "workerRefused", "hostile words");
     fails(script("echo garbage > \"$4\"; echo 'R {\"status\":\"ok\"}'\n"), "workerOutput", "a file that is not STEP");
     fails(script("echo 'R {\"status\":\"ok\"}'\n"), "workerOutput", "no file at all");
     fails(script("\"$REAL\" \"$@\" | sed 's/\"triangles\":[0-9]*/\"triangles\":1/'; exit ${PIPESTATUS:-0}\n"), "workerMismatch", "a false claim about the triangles");
     fails(script("if [ \"$1\" = --check ]; then echo 'R {\"status\":\"invalid\",\"entities\":1,\"issueCount\":1,\"issues\":[\"#1 IfcFoo: broken\"]}'; exit 3; fi\nexec \"$REAL\" \"$@\"\n"), "workerOutput", "a file that fails the schema check");
+    // The check phase itself failing is the helper failing: a crash, a hang, a flood, and a cancel while it runs.
+    const QByteArray checkOnly = "if [ \"$1\" = --check ]; then ";
+    fails(script(checkOnly + "kill -SEGV $$; fi\nexec \"$REAL\" \"$@\"\n"), "workerFailed", "a crash while checking");
+    fails(script(checkOnly + "sleep 30; fi\nexec \"$REAL\" \"$@\"\n"), "workerFailed", "a hang while checking", 1, {}, 12000);
+    fails(script(checkOnly + "head -c 4000000 /dev/zero | tr '\\000' x; sleep 30; fi\nexec \"$REAL\" \"$@\"\n"), "workerFailed", "a flood while checking", 60, {}, 12000);
+    {
+        // The first call is after the capture, the next ones are in the loop of the export (a real run, quick) and then of the check.
+        auto calls = std::make_shared<int>(0);
+        fails(script(checkOnly + "sleep 30; fi\nexec \"$REAL\" \"$@\"\n"), "cancelled", "cancel while checking", 60,
+              [calls] { return ++*calls >= 40; }, 12000);
+    }
     // And a good run through a stand-in that only delegates, to show the stand-ins are not what failed above.
     {
         const auto target = dir.filePath("delegated.ifc");
