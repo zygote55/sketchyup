@@ -177,7 +177,10 @@ std::optional<std::pair<std::string, std::string>> unitAfter(const std::string& 
   auto isOwnEntity = [&](std::size_t at) { return at != std::string::npos && (named == std::string::npos || at < named); };
   if (isOwnEntity(si)) {
     std::string prefix, base;
-    if (siUnitArgs(window, si, prefix, base)) return {prefix, base};
+    if (siUnitArgs(window, si, prefix, base)) {
+      const std::pair<std::string, std::string> unit{prefix, base};
+      return unit;
+    }
   }
   if (isOwnEntity(conv)) {
     const std::size_t close = window.find(')', conv);
