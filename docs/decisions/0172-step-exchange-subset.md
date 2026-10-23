@@ -1,10 +1,10 @@
 # 0172 — STEP exchange subset
 
-**Status: Proposed.** This is the design for [R098](../PR_ROADMAP.md#r098)
+**Status: Accepted (2026-10-23).** Owner decisions 1 to 10 approved as recommended on 2026-10-23. This is the design for [R098](../PR_ROADMAP.md#r098)
 ("Deliver a documented STEP exchange subset"), the second exchange format of scope row
 F04, and it follows on from the accepted
 [ADR 0171](0171-ifc-exchange-subset.md) (the IFC exchange subset, R097). No
-implementation has started, and the owner decisions at the end are pending.
+implementation has started.
 
 ## Context
 
