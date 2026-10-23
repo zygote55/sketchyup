@@ -138,7 +138,10 @@ target_link_libraries(sketchyup_ifc_libraries INTERFACE
 # TKXDESTEP and TKTessellate are gone.
 set(SKETCHYUP_IFC_OCCT_VERSION "7.9.3" CACHE STRING "The OpenCASCADE version the worker's headers and toolkits are selected against")
 if(SKETCHYUP_IFC_OCCT_VERSION MATCHES "^7\.9")
-  set(sketchyup_ifc_occt_libs TKernel TKMath TKBRep TKMesh TKDESTEP TKXSBase TKXCAF)
+  # 7.9: the topologies (TopoDS/TopExp) live in TKBRep, the STEP reader and writer in
+  # TKDESTEP, the primitives in TKPrim, the bounding boxes in TKTopAlgo, tessellation
+  # in TKMesh.
+  set(sketchyup_ifc_occt_libs TKernel TKMath TKBRep TKMesh TKTopAlgo TKPrim TKDESTEP TKXSBase TKXCAF)
 else()
   set(sketchyup_ifc_occt_libs
     TKernel TKMath TKTopoDS TKBRep TKPrim TKSTEP TKSTEPAttr TKSTEP209
