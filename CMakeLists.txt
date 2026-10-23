@@ -1113,6 +1113,10 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R095.e1 (ADR 0168): the Entity info Terrain section, terrain settings, Regenerate, Explode,
   # Create terrain from selection and the tools' refusal over terrain.
   target_sources(sketchyup_desktop PRIVATE src/app/terrain_report_view.cpp src/app/terrain_role_table.cpp src/app/terrain_actions.cpp src/app/terrain_section.cpp src/app/viewport_terrain.cpp src/app/viewport_sculpt.cpp src/app/viewport_contours.cpp src/app/viewport_stamp.cpp src/app/viewport_drape.cpp src/app/viewport_terrain_preview.cpp src/app/viewport_terrain_edits.cpp src/app/terrain_preview_worker.cpp src/app/terrain_replay_job.cpp src/app/terrain_edits_section.cpp src/app/terrain_tool_strip.cpp src/app/site_dialogs.cpp)
+  # R097.e1 (ADR 0171): the IFC import screens — the availability probe, the options
+  # dialog, the progress sheet (import on a worker thread), the report/refusal/
+  # unavailable sheets, and the File menu flow.
+  target_sources(sketchyup_desktop PRIVATE src/app/ifc_availability.cpp src/app/ifc_import_dialog.cpp src/app/ifc_import_runner.cpp src/app/ifc_progress_sheet.cpp src/app/ifc_sheets.cpp src/app/window_ifc.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1369,6 +1373,14 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_include_directories(terrain_import_dialog_tests PRIVATE tests)
     add_test(NAME terrain_import_dialog COMMAND terrain_import_dialog_tests)
     set_tests_properties(terrain_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # R097.e1 (ADR 0171): the IFC import screens — the options dialog, the dirty
+    # prompt, the progress sheet, the report, the refusal, and the not-installed
+    # and limited states — offscreen, driven by a stand-in helper.
+    add_executable(ifc_import_dialog_tests tests/ifc_import_dialog_tests.cpp)
+    target_link_libraries(ifc_import_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(ifc_import_dialog_tests PRIVATE tests)
+    add_test(NAME ifc_import_dialog COMMAND ifc_import_dialog_tests)
+    set_tests_properties(ifc_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # R095.e1: the Entity info Terrain section, settings, Regenerate, Explode, create from
     # selection and the tools' refusal over terrain (offscreen).
     add_executable(terrain_desktop_tests tests/terrain_desktop_tests.cpp)

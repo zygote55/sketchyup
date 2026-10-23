@@ -2,6 +2,7 @@
 #include "app/assistant_panel.hpp"
 #include "app/organization_panel.hpp"
 #include "app/recovery_controller.hpp"
+#include "app/ifc_availability.hpp"
 #include "app/shortcut_bindings.hpp"
 #include "app/theme.hpp"
 #include "app/viewport.hpp"
@@ -9,6 +10,7 @@
 #include "io/obj_source.hpp"
 #include "io/stl_export.hpp"
 #include <QLabel>
+#include <QJsonObject>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMainWindow>
@@ -91,6 +93,18 @@ class Window : public QMainWindow {
     void exportStlDialog();
     void importObjDialog();
     void exportObjDialog();
+    // R097.e1: File › Import IFC… / Show IFC import report… / Export IFC… (window_ifc.cpp).
+    // The heavy work is the helper's (sketchyup-ifc-worker); the import runs on a worker
+    // thread, so the UI is never blocked. A missing helper is "not installed"; a missing
+    // kernel is "limited" (ADR 0171 §16.7). Export is R097.e2, so Export IFC… opens the
+    // availability sheet only.
+    void importIfc();
+    void exportIfc();
+    void showIfcImportReport();
+    void syncIfcAvailability();
+    void setIfcWorkerPath(const QString &path); // tests, and a future "where the helper is"
+    QString ifcWorkerPath();
+    IfcProbe ifcProbe();
     void exportRasterDialog();
     void exportMeasuredDialog();
     // R092.b: File › Export sheets… and Print… (window_sheet_export.cpp). Both open the
@@ -110,6 +124,7 @@ class Window : public QMainWindow {
     bool eventFilter(QObject *, QEvent *) override;
     void closeEvent(QCloseEvent *) override;
     void resizeEvent(QResizeEvent *) override;
+    void showEvent(QShowEvent *) override;
 
   private:
     bool closePending_{};
@@ -385,6 +400,15 @@ class Window : public QMainWindow {
     void rememberPath(const QString &path);
     QStringList recentFiles_;
     std::vector<QWidget *> focusRegions_;
+    // R097.e1: the IFC import's state (window_ifc.cpp).
+    QString ifcWorkerPath_;
+    IfcProbe ifcProbe_;
+    QJsonObject ifcImportReport_;
+    QString ifcImportFileName_;
+    qint64 ifcImportElapsedMs_ = 0;
+    int ifcImportRestarts_ = 0;
+    QLabel *ifcStatusChip_{};
+    QAction *ifcReportAction_{};
     void tool(Viewport::Tool tool, const QString &instruction);
     // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the
     // same shortcut may be used once per non-overlapping scope (ADR 0164 §4).

@@ -442,6 +442,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (!path.isEmpty())
             importGltfPath(path);
     }));
+    // R097.e1: IFC exchange (ADR 0171 §16). Import IFC… after Import GLB/glTF…;
+    // Show IFC import report… directly below it (enabled only after an import).
+    file->addAction(action("file.importIfc", "Import IFC…", {}, [this] { importIfc(); }));
+    ifcReportAction_ = action("file.ifcImportReport", "Show IFC import report…", {},
+                               [this] { showIfcImportReport(); });
+    ifcReportAction_->setEnabled(false);
+    file->addAction(ifcReportAction_);
     file->addAction(action("file.importFormline", "Import Formline…", {}, [this] {
         const auto path = QFileDialog::getOpenFileName(this, "Import Formline v1", {},
                                                        "Formline models (*.formline *.json)");
@@ -458,6 +465,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         action("file.exportRaster", "Export view as PNG…", {}, [this] { exportRasterDialog(); }));
     file->addAction(
         action("file.exportObj", "Export OBJ package…", {}, [this] { exportObjDialog(); }));
+    // R097.e1: Export IFC… after Export OBJ package… (the export screen is R097.e2).
+    file->addAction(action("file.exportIfc", "Export IFC…", {}, [this] { exportIfc(); }));
     file->addSeparator();
     file->addAction(action("file.recovery", "Recover work…", {}, [this] { showRecovery(); }));
     file->addAction(action("file.recoveryNow", "Save recovery now", {}, [this] {
@@ -1762,6 +1771,12 @@ bool Window::canReplace() {
     }
     clearRecovery();
     return true;
+}
+void Window::showEvent(QShowEvent *e) {
+    QMainWindow::showEvent(e);
+    // R097.e1: probe the IFC helper once (off the UI thread) so the status chip and the
+    // "not installed" / "limited" states are current (ADR 0171 §16.7).
+    syncIfcAvailability();
 }
 void Window::openPath(const QString &path) {
     if (fileOperation_)
