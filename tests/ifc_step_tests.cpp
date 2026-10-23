@@ -4,6 +4,7 @@
 // the unit policy is checked against raw text, the round trip through the writer and reader
 // is checked against the hand-computed geometry, and the refusals against the policy. Needs
 // sketchyup-ifc-worker (IFC_WORKER_PATH); exits 77 (skipped) when the helper is not built.
+#include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -39,7 +40,7 @@ WorkerResult runWorker(const QString &worker, const QStringList &args) {
     }
     WorkerResult result;
     result.code = process.exitCode();
-    result.error = process.readAllStandardError().trimmed().toStdString();
+    result.error = process.readAllStandardError().trimmed();
     // The OCCT transfer statistics share stdout; the report is the last line that opens with "{".
     for (const auto &line : process.readAllStandardOutput().split('\n')) {
         if (line.trimmed().startsWith('{'))

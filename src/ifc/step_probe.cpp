@@ -339,6 +339,7 @@ namespace {
 // FILE_SCHEMA is what the writer really wrote, whatever the schema option says.
 void writeRoundTrip(const std::string& directory, const std::string& label, const StepWriterParams& parameters, JsonOut& json) {
   const fs::path file = fs::path(directory) / ("sketchyup-probe-roundtrip-" + label + ".step");
+  fs::create_directories(directory);  // the test does not make it; the worker owns the output
   json.field("file", file.string());
   bool written = false;
   {
@@ -474,7 +475,10 @@ int runStepProbe(const StepProbeOptions& options) {
 }
 
 std::string writeStep(const std::string& directory) {
+  fs::create_directories(directory);  // the output directory is the worker's own
   JsonOut json;
+  json.beginObject();
+  json.key("files");
   json.beginArray();
   // The ADR 0172 §7 self-generated corpus: box 10 x 20 x 30, cylinder r 5 h 20, and the
   // two together, all in millimetres through the basic writer. The corpus is written with
@@ -513,6 +517,7 @@ std::string writeStep(const std::string& directory) {
     return assembly;
   });
   json.endArray();
+  json.endObject();
   return json.str();
 }
 
