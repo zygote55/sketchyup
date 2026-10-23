@@ -27,7 +27,7 @@ IfcImportRunner::~IfcImportRunner() {
 }
 void IfcImportRunner::begin(const QString &path, IfcImportOptions import, IfcWorkerOptions worker) {
     {
-        QMutexLock lock(&p->mutex);
+        QMutexLocker lock(&p->mutex);
         p->path = path;
         p->import = import;
         p->worker = worker;
@@ -41,23 +41,23 @@ void IfcImportRunner::begin(const QString &path, IfcImportOptions import, IfcWor
     clock.start();
 }
 void IfcImportRunner::requestCancel() {
-    QMutexLock lock(&p->mutex);
+    QMutexLocker lock(&p->mutex);
     p->cancelRequested = true;
 }
 bool IfcImportRunner::wasCancelled() const {
-    QMutexLock lock(&p->mutex);
+    QMutexLocker lock(&p->mutex);
     return p->cancelled;
 }
 bool IfcImportRunner::hasResult() const {
-    QMutexLock lock(&p->mutex);
+    QMutexLocker lock(&p->mutex);
     return p->done;
 }
 std::string IfcImportRunner::code() const {
-    QMutexLock lock(&p->mutex);
+    QMutexLocker lock(&p->mutex);
     return p->code;
 }
 QString IfcImportRunner::message() const {
-    QMutexLock lock(&p->mutex);
+    QMutexLocker lock(&p->mutex);
     return p->message;
 }
 const IfcImport &IfcImportRunner::result() const {
@@ -72,7 +72,7 @@ void IfcImportRunner::run() {
     IfcImportOptions import;
     IfcWorkerOptions worker;
     {
-        QMutexLock lock(&p->mutex);
+        QMutexLocker lock(&p->mutex);
         path = p->path;
         import = p->import;
         worker = p->worker;
@@ -84,23 +84,23 @@ void IfcImportRunner::run() {
     };
     try {
         const auto imported = importIfcFile(path, import, worker);
-        QMutexLock lock(&p->mutex);
+        QMutexLocker lock(&p->mutex);
         p->result = std::move(imported);
         p->done = true;
         p->report = p->result->report;
     } catch (const IfcImportError &error) {
-        QMutexLock lock(&p->mutex);
+        QMutexLocker lock(&p->mutex);
         p->code = error.code();
         p->message = QString::fromStdString(error.what());
         p->report = error.report();
         if (p->code == "cancelled")
             p->cancelled = true;
     } catch (const std::exception &error) {
-        QMutexLock lock(&p->mutex);
+        QMutexLocker lock(&p->mutex);
         p->code = "error";
         p->message = QString::fromUtf8(error.what());
     } catch (...) {
-        QMutexLock lock(&p->mutex);
+        QMutexLocker lock(&p->mutex);
         p->code = "error";
         p->message = "The IFC import failed.";
     }

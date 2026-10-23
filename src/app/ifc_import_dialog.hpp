@@ -6,6 +6,7 @@
 // work happens later, in the progress sheet.
 #include "app/settled_dialog.hpp"
 #include "io/ifc_import.hpp"
+#include "io/ifc_worker.hpp"
 #include "app/ifc_availability.hpp"
 #include <QComboBox>
 #include <QLabel>

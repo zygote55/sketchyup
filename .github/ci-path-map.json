@@ -187,6 +187,16 @@
       ]
     },
     {
+      "why": "The R097.e1 import screens suite (ADR 0171): the options dialog, the progress sheet, the report and the refusal and unavailable sheets, offscreen and driven by a stand-in helper. It links the desktop but not the IFC library, so it runs in the fast tier (build and the native display lines) as well as the IFC job the generic IFC rule selects.",
+      "paths": [
+        "tests/ifc_import_dialog_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
       "why": "Glb, texture, section and smooth exports and the render integrations are what the Blender job verifies.",
       "paths": [
         "src/integrations/**",

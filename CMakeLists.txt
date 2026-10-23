@@ -1379,8 +1379,10 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_executable(ifc_import_dialog_tests tests/ifc_import_dialog_tests.cpp)
     target_link_libraries(ifc_import_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
     target_include_directories(ifc_import_dialog_tests PRIVATE tests)
+    target_compile_definitions(ifc_import_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME ifc_import_dialog COMMAND ifc_import_dialog_tests)
-    set_tests_properties(ifc_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(ifc_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                   TIMEOUT 600)
     # R095.e1: the Entity info Terrain section, settings, Regenerate, Explode, create from
     # selection and the tools' refusal over terrain (offscreen).
     add_executable(terrain_desktop_tests tests/terrain_desktop_tests.cpp)

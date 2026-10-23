@@ -160,8 +160,9 @@ void Window::exportIfc() {
     auto *ok = new QPushButton("OK");
     ok->setObjectName("ifcExportPendingOK");
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    sheet.footer->addStretch();
-    sheet.footer->addWidget(ok);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
     sheet.buttons->hide();
     sheet.exec();
 }

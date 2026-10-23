@@ -37,14 +37,14 @@ void IfcImportDialog::build() {
     auto *columns = new QHBoxLayout;
     // ---- the left column -------------------------------------------------------------
     auto *left = new QVBoxLayout;
-    auto *fileRow = new QHBoxLayout;
+    auto *fileLayout = new QHBoxLayout;
     auto *choose = new QPushButton("Choose…");
     choose->setObjectName("ifcImportChoose");
-    fileRow->addWidget(choose);
-    fileRow_ = new QLabel("No file chosen");
-    fileRow_->setObjectName("ifcImportFileName");
-    fileRow->addWidget(fileRow_, 1);
-    left->addLayout(fileRow);
+    fileLayout->addWidget(choose);
+    fileRow = new QLabel("No file chosen");
+    fileRow->setObjectName("ifcImportFileName");
+    fileLayout->addWidget(fileRow, 1);
+    left->addLayout(fileLayout);
     fileFacts = new QLabel;
     fileFacts->setObjectName("ifcImportFileFacts");
     fileFacts->setStyleSheet("color: #888;");
@@ -173,7 +173,7 @@ void IfcImportDialog::setFile(const QString &path) {
     refused_ = false;
     bytes_ = info.size();
     schema_.clear();
-    fileRow_->setText(info.fileName().isEmpty() ? path : info.fileName());
+    fileRow->setText(info.fileName().isEmpty() ? path : info.fileName());
     try {
         schema_ = checkIfcSource(path);
         fileFacts->setText(QString("%1 · %2").arg(schema_).arg(humanSize(bytes_)));
@@ -206,7 +206,7 @@ IfcWorkerOptions IfcImportDialog::workerOptions() const {
     return worker;
 }
 bool IfcImportDialog::refused() const { return refused_; }
-QString IfcImportDialog::fileName() const { return fileRow_->text(); }
+QString IfcImportDialog::fileName() const { return fileRow->text(); }
 void IfcImportDialog::chooseFile() {
     const auto path =
         QFileDialog::getOpenFileName(this, "Choose an IFC file", {}, "IFC models (*.ifc *.IFC);;All files (*.*)");

@@ -4,6 +4,7 @@
 // phases and counts come back as queued signals, and Cancel is checked between tasks. The result is
 // read back after the thread finishes.
 #include "io/ifc_worker.hpp"
+#include <QElapsedTimer>
 #include <QThread>
 #include <optional>
 namespace sketchy {

@@ -20,7 +20,7 @@ class IfcProgressSheet : public Settled<QDialog> {
     void build();
     void markStep(int index, bool working);
     IfcImportRunner *runner;
-    QLabel *fileName;
+    QLabel *fileLabel;
     QLabel *stepState[7];
     QProgressBar *bar;
     QLabel *restartLine;

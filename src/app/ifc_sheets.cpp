@@ -5,7 +5,6 @@
 #include <QHeaderView>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTreeWidget>
@@ -67,10 +66,6 @@ QString unitsLine(const QJsonObject &report) {
     if (units["override"].toBool(false))
         return QStringLiteral("%1 (chosen; the file declared none)").arg(name);
     return QStringLiteral("%1 (the file declares it)").arg(name);
-}
-void addCountedChildren(QTreeWidgetItem *parent, const QJsonObject &counts) {
-    for (auto it = counts.begin(); it != counts.end(); ++it)
-        new QTreeWidgetItem(parent, {it.key(), QString::number(it.value().toInteger())});
 }
 } // namespace
 void showIfcImportReport(QWidget *parent, const QString &fileName, const QJsonObject &report,
@@ -155,8 +150,9 @@ void showIfcImportReport(QWidget *parent, const QString &fileName, const QJsonOb
     auto *ok = new QPushButton("OK");
     ok->setObjectName("ifcReportOK");
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    sheet.footer->addStretch();
-    sheet.footer->addWidget(ok);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
     sheet.buttons->hide();
     sheet.exec();
 }
@@ -187,19 +183,26 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
     auto *ok = new QPushButton("OK");
     ok->setObjectName("ifcRefusalOK");
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    sheet.footer->addStretch();
-    sheet.footer->addWidget(ok);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
     sheet.buttons->hide();
     sheet.exec();
 }
 void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirection) {
-    const bool missing = probe.state == IfcState::Missing || probe.state == IfcState::Broken;
-    ReportSheet sheet(missing ? "ifcUnavailable" : "ifcLimited", exportDirection ? "IFC export" : "IFC import", parent);
+    // "Not installed" and "cannot start" are different states with different sheet names; the
+    // broken state shows the helper's own last log line at the bottom of the message, so a
+    // person can act on it (ADR 0171 §16.6).
+    const QString sheetName =
+        probe.state == IfcState::Missing  ? "ifcUnavailable"
+        : probe.state == IfcState::Broken ? "ifcBroken"
+                                          : "ifcLimited";
+    ReportSheet sheet(sheetName, exportDirection ? "IFC export" : "IFC import", parent);
     sheet.resize(600, 380);
     sheet.summary->setObjectName("ifcUnavailableSummary");
     sheet.summary->setWordWrap(true);
     sheet.summary->setTextFormat(Qt::PlainText);
-    if (missing) {
+    if (probe.state == IfcState::Missing) {
         sheet.summary->setText(
             QString("IFC %1 is not installed.\n\n"
                     "The sketchyup-ifc package is not installed on this machine.\n"
@@ -223,8 +226,9 @@ void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirec
     auto *ok = new QPushButton("OK");
     ok->setObjectName("ifcUnavailableOK");
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    sheet.footer->addStretch();
-    sheet.footer->addWidget(ok);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
     sheet.buttons->hide();
     sheet.exec();
 }

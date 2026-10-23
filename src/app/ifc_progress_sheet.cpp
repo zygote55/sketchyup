@@ -39,11 +39,10 @@ void IfcProgressSheet::build() {
     auto *root = new QVBoxLayout(this);
     auto *title = new QLabel("Importing IFC");
     title->setStyleSheet("font-size: 20px; font-weight: 600;");
-    fileName = new QLabel;
-    fileName->setObjectName("ifcProgressFile");
+    fileLabel = new QLabel(fileName);
+    fileLabel->setObjectName("ifcProgressFile");
     root->addWidget(title);
-    root->addWidget(fileName);
-    fileName->setText(QString::fromStdString(fileName));
+    root->addWidget(fileLabel);
     for (int i = 0; i < 7; ++i) {
         auto *row = new QHBoxLayout;
         auto *name = new QLabel(stepNames[i]);
