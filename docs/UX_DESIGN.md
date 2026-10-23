@@ -1200,8 +1200,7 @@ whenever a terrain is selected. The header shows the count ("5 changes").
 This section designs the desktop side of IFC import and export: the File menu entries, the import
 options, the dirty-document prompt, progress and Cancel, the import report, the refusals, the
 "not installed" states and the export dialog and report ([ADR 0171](decisions/0171-ifc-exchange-subset.md)
-§4 and §5; decision 15 asks for this design before R097.e). Status: **proposed, awaiting owner
-approval**. The import engine, the helper process and the report (version 1) already exist (R097.b);
+§4 and §5; decision 15 asks for this design before R097.e). Status: **approved by the owner on 2026-10-23**. The import engine, the helper process and the report (version 1) already exist (R097.b);
 this section designs what a person sees of them. Everything here is a plain-text, modal-dialog
 design in the style of the DXF and terrain import dialogs and the shared report sheet (§6.4), and
 adds no tool, no rail slot and no tray panel. The mockups are `mockups/ifc.html` (all screens, with
