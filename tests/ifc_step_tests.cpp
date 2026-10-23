@@ -40,11 +40,11 @@ WorkerResult runWorker(const QString &worker, const QStringList &args) {
     WorkerResult result;
     result.code = process.exitCode();
     result.error = process.readAllStandardError().trimmed().toStdString();
-    const auto bytes = process.readAllStandardOutput();
-    const int end = bytes.lastIndexOf('}');
-    const int start = bytes.lastIndexOf('{', end);
-    if (start >= 0)
-        result.json = QJsonDocument::fromJson(bytes.mid(start, end - start + 1)).object();
+    // The OCCT transfer statistics share stdout; the report is the last line that opens with "{".
+    for (const auto &line : process.readAllStandardOutput().split('\n')) {
+        if (line.trimmed().startsWith('{'))
+            result.json = QJsonDocument::fromJson(line).object();
+    }
     return result;
 }
 void boxGeometryCheck(const QJsonObject &shape, const char *where) {

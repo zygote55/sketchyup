@@ -90,16 +90,22 @@ if(BUILD_TESTING)
   add_test(NAME ifc_export_worker COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_export_worker_tests.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc")
+  # R098.a: the STEP probe and import against the worker's own writer (ADR 0172): the self-generated
+  # corpus, the raw-text units, the round trip and the unit policy. No fixtures; the corpus is written
+  # by the worker itself, so the test needs no files on disk.
+  add_test(NAME ifc_step_worker COMMAND "${Python3_EXECUTABLE}" -I
+    "${PROJECT_SOURCE_DIR}/tests/ifc_step_worker_tests.py"
+    "$<TARGET_FILE:sketchyup-ifc-worker>")
   add_test(NAME ifc_worker_fault_corpus COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_worker_fault_corpus.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc" 64 2)
   add_test(NAME ifc_worker_fault_corpus_full COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_worker_fault_corpus.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc" 512 2)
-  set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus PROPERTIES TIMEOUT 900)
+  set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus ifc_step_worker PROPERTIES TIMEOUT 900)
   set_tests_properties(ifc_worker_fault_corpus_full PROPERTIES TIMEOUT 3000 LABELS full)
   if(SKETCHYUP_SANITIZE)
-    set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus ifc_worker_fault_corpus_full PROPERTIES
+    set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus ifc_worker_fault_corpus_full ifc_step_worker PROPERTIES
       ENVIRONMENT "IFC_NO_ADDRESS_LIMIT=1;ASAN_OPTIONS=detect_leaks=0;UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
   endif()
   # Checks L1 to L6 of ADR 0171 section 6.3 on a scratch install of the ifc component.

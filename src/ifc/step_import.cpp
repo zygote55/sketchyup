@@ -169,9 +169,7 @@ std::string importStep(const StepImportOptions& options) {
     }
   }
   json.field("status", status);
-  json.key("notices").beginArray();
-  for (const std::string& notice : notices) json.field("notice", notice);
-  json.endArray();
+  json.key("notices").strings(notices);
   json.endObject();
   return json.str();
 }
