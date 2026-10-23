@@ -1,0 +1,513 @@
+# 0172 — STEP exchange subset
+
+**Status: Accepted (2026-10-23).** Owner decisions 1 to 10 approved as recommended on 2026-10-23. This is the design for [R098](../PR_ROADMAP.md#r098)
+("Deliver a documented STEP exchange subset"), the second exchange format of scope row
+F04, and it follows on from the accepted
+[ADR 0171](0171-ifc-exchange-subset.md) (the IFC exchange subset, R097). No
+implementation has started.
+
+## Context
+
+- R098, as written in [PR_ROADMAP.md](../PR_ROADMAP.md) (Planned, Track
+  Interchange, Scope F04, requires R089 and R073):
+  - **Build:** select a STEP adapter and define tessellation/solid conversion
+    policy, units and supported directions; explain loss of parametric/NURBS
+    editability.
+  - **Verify:** known solids meet dimensional/tessellation error tolerances;
+    invalid or unsupported surfaces are reported without silently changing scale.
+- Scope row F04, milestone M10: "Broader CAD/BIM exchange. Prioritize IFC and
+  STEP use cases; publish supported entities, hierarchy/property fidelity and
+  geometry conversion limits."
+- State of the repository (at `origin/main 34910469`): ADR 0171 is accepted
+  (2026-10-22; the owner's recorded decision: "Just use IfcOpenShell. I don't
+  want to build it. I approve all."), R097.a–R097.d are merged (import, export,
+  check, IFC4), R097.e–f are not. `sketchyup-ifc-worker` runs in a helper
+  process with `RLIMIT_AS`/`RLIMIT_CPU`/`RLIMIT_FSIZE`, a wall-clock deadline,
+  a private directory, restarts and a checked package decoder (ADR 0171 §1.6).
+  The `sketchyup-ifc` package component carries the worker, the vendored
+  IfcOpenShell libraries and plugins, and a **private copy of 37 to 57 MB of
+  OpenCASCADE Technology 7.9.3 libraries** (`libTK*.so`, one flat directory,
+  `RUNPATH $ORIGIN`, copied from Arch's `opencascade` package at package-build
+  time). CI's `job:ifc` builds the IfcOpenShell prefix — which builds the whole
+  OCCT 7.9.3 — from source in the full tier and restores it from the cache in
+  the fast tier (ADR 0170 tiers).
+- The native model (R073: public v24 / container-v2 contract). `Body`
+  (`src/core/body.hpp`) is a geometry body, group, reference image or terrain,
+  with a name, colour, per-face colour, material, a `tag`, `hidden`/`locked`.
+  Groups are first class; properties are bounded strings (a property of at most
+  2,048 bytes, a model of at most 32 MiB); there is **no first-class layer
+  concept** — the IFC import keeps a layer's name as the property `ifc.Layer`
+  and imports a layer that is off or frozen as a **hidden** body (ADR 0171
+  §4.3). Native caps: 100,000 faces and 100,000 vertices per body, 10,001
+  bodies, 10,000 unique geometry records, 600,000 materialized faces.
+- STEP in one paragraph (ISO 10303-21). A STEP file is a physical file with an
+  `ISO-10303-21;` header and `END-ISO-10303-21;` trailer; its `FILE_SCHEMA`
+  name identifies the schema (here: AP203, AP214, AP242). Geometry is
+  boundary-representation (B-rep) faces that are planar, analytic (plane,
+  cylinder, cone, sphere, torus) or NURBS/BSpline; assemblies are product
+  structures, and instances are `INSTANCE_OF_ITEM` /
+  `ITEM_DEFINITION_WITH_TRANSFORMATION` entries carrying a local transformation.
+  The length unit is declared in the shape representation (it need not be
+  declared, which matters for the unit policy in §2).
+
+## 1. Selecting the STEP adapter
+
+### Option A — OCCT STEP translation in the shared helper (recommended)
+
+The STEP code path uses **only OpenCASCADE**, not IfcOpenShell: OCCT's STEP
+file reader and the XDE STEP translator, which the OCCT 7.9 user guide
+documents as translating "the names, colours, layers, validation properties and
+other data associated with shapes and assemblies" into the XDE document. A
+`--import-step` / `--export-step` mode is added to the existing
+`sketchyup-ifc-worker` (or to a renamed `sketchyup-exchange-worker`, decision
+2); the STEP code links the OCCT toolkits `TKDESTEP`, `TKDEIGES`, `TKXCAF` and
+their dependency closure, and IfcOpenShell is never on the STEP path, so the
+LGPL/OCCT isolation is exactly the helper-process boundary ADR 0171 already
+built.
+
+The key fact (verified): the IfcOpenShell OCCT kernel plugin that the IFC
+helper already links **already links the STEP toolkits**. The vendored
+`third_party/ifcopenshell/cmake/FindOpenCASCADE.cmake` appends `TKDESTEP` and
+`TKDEIGES` to the kernel's library list for OpenCASCADE 7.8.0 and newer (the
+pinned version is 7.9.3), and the kernel plugin links that list. The private
+OCCT set that `src/ifc/InstallOcct.cmake` installs and
+`scripts/verify-ifc-library.py` verifies is the `DT_NEEDED` closure of the
+kernel plugin and its dependent libraries, so it already carries the
+transitive toolkits of `TKDESTEP` (`TKDE`, `TKBRep`, `TKernel`, `TKMath`,
+`TKXSBase`, `TKTopAlgo`, `TKG2d`, `TKCAF`, `TKCDF`, `TKLCAF`, `TKG3d`,
+`TKXCAF`, `TKShHealing`, per the `EXTERNLIB` files at tag `V7_9_3`) and of
+`TKXCAF` (`TKV3d`, `TKVCAF`, `TKService`, …). R098.a confirms this with
+`readelf` (and extends the verify script to assert the STEP closure); if
+anything is missing it is a handful of extra `libTK*.so` in the same flat
+private directory, the same `RUNPATH`, the same package.
+
+- **Pros:** no second 37-to-57 MB OCCT runtime; no second optional package; no
+  new OCCT build in CI (the IFC job already builds all of OCCT 7.9.3); the
+  whole helper boundary — rlimits, deadline, restarts, private directory,
+  package decoder, report shape — is reused; one exchange surface (IFC and
+  STEP) behind one install decision.
+- **Cons:** the worker binary grows by a few MB of OCCT STEP code; the name
+  still says "ifc" (decision 2).
+
+### Option B — a separate `sketchyup-step` helper and package
+
+A new `src/step/`, a new `sketchyup-step-worker`, a new optional package with
+its **own private copy of the OCCT libraries (37 to 57 MB duplicated)**, its
+own CI job (or a shared OCCT prefix), new path rules and new packaging.
+
+- **Pros:** clean separation; if IFC is ever dropped, STEP survives on its
+  own; a smaller worker binary.
+- **Cons:** a second 37-to-57 MB OCCT runtime and a second optional package; a
+  user who wants both IFC and STEP — the two use cases F04 names — installs
+  roughly twice the runtime; the limit/deadline/restart machinery is built
+  twice (two binaries, two package decoders); the CI surface doubles. Since
+  both formats need the same OCCT 7.9.3 runtime, the separation buys little
+  and costs a lot.
+
+### Option C — non-OCCT alternatives
+
+- **Hand-written P21 parser and own tessellation.** Rejected on the owner's
+  explicit decision against building the interchange code (ADR 0171, recorded:
+  "I don't want to build it").
+- **IfcOpenShell as the STEP adapter.** It has no STEP file reading (STEP is
+  for it an IFC export format only, and internally OCCT again); it is not an
+  adapter for STEP input.
+- **OCP (the CadQuery OCCT binary, AGPL).** A third-party binary runtime
+  instead of Arch's `opencascade` 7.9.3; AGPL conflicts with the accepted
+  packaging posture of ADR 0171 (a private LGPL-with-OCCT-exception runtime);
+  it is pinned to an older OCCT, not the system's.
+- **Mesh-only libraries (trimesh, Manifold, and similar).** No B-rep or NURBS
+  interpretation, so "convert B-rep, NURBS and analytic surfaces to a planar
+  mesh with a deflection tolerance" is not met.
+- **FreeCAD / OpenSCAD (AGPL).** Whole applications, not a library; wrong
+  licence class for a runtime dependency.
+
+**Not viable.**
+
+| | A: OCCT in the shared helper | B: separate `sketchyup-step` | C: non-OCCT |
+|---|---|---|---|
+| OCCT runtime cost | 0 new (the IFC helper's private set already links the STEP toolkits) | 37–57 MB duplicated | 0 or a third-party binary (OCP) |
+| Optional packages | one (`sketchyup-ifc`, extended) | two | one, plus OCP's AGPL posture |
+| CI | reuses `job:ifc`'s OCCT build | a new job or a shared prefix | varies |
+| Helper boundary | reuses the IFC helper (rlimits, deadline, restarts, decoder) | rebuilt for a second binary | varies |
+| Owner precedent (ADR 0171) | matches ("use the library, don't build it") | matches, at double cost | violates |
+
+**Recommendation: option A.**
+
+## 2. Directions and schemas
+
+**Import (read).** AP214 (Conformance Class 2, CD and DIS schema versions) and
+AP203, plus the part of AP242 that OCCT 7.9 reads (the OCCT 7.9 user guide,
+verified; see the Appendix). The AP242 read is **best-effort**: what the
+OCCT 7.9.3 translator reads is read; the entities it does not (largely PMI and
+GD&T content) are counted, reported with locations and **not imported**
+(§5). AP214's handling of simple GD&T is obsolete in OCCT (the guide says to
+use AP242 instead), so AP242 files with PMI beyond the read subset are
+expected to report, not to convert.
+
+**Export (write).** AP214 Conformance Class 2, DIS schema version (the default;
+an IS-extension option exists), and AP203 (an option). **AP242 writing is not
+supported**: the OCCT 7.9 user guide documents AP203 and AP214 (CC2, CD/DIS)
+writer output and deprecates AP214's GD&T in favour of AP242, but it does not
+document full AP242 writing, and this design does not claim it (Appendix,
+unverified). A request to write AP242 is reported and refused. Export writes
+millimetres (the document's unit), so there is no scale decision on export at
+all.
+
+**Units (import).** The file's declared length unit is authoritative.
+
+- **Declared unit** → an explicit conversion to the document's millimetres,
+  recorded in the report (`units`, with the factor), so the user can see it
+  happened.
+- **No declared unit** → the `--step-length-unit` option (`mm`, `cm`, `m`,
+  `in` or `ft`, mirroring the IFC `--ifc-length-unit`) or a refusal with a
+  notice.
+- **Never silently changed scale.** A mismatch is reported (the import refuses
+  with the declared unit named; the document is left in millimetres) and the
+  user fixes it with the explicit option. No unit is ever guessed, and no
+  conversion is ever applied without appearing in the report. This is the
+  R098 Verify line, made mechanical.
+
+## 3. Geometry conversion (tessellation policy)
+
+Every imported solid is converted to a **planar triangle mesh**:
+
+1. The worker asks OCCT to tessellate each B-rep face — planar and analytic
+   (plane, cylinder, cone, sphere, torus) and NURBS/BSpline alike — with
+   `BRepMesh` at the deflection and angle below.
+2. The worker ships the planar triangle mesh in the package (the same package
+   and decoder the IFC import uses, ADR 0171 §1.6/§3.2).
+3. The application welds the mesh and merges coplanar triangles into planar
+   polygon faces (the R089 glTF mechanism; ADR 0171 §3.2–3.3), so a wall's
+   side is one face, not twenty triangles, and edits behave as they do for
+   any native face. Faces the merge cannot keep planar stay triangles and are
+   counted (`nonPlanarFaces`); collapsed triangles are dropped and counted
+   (`degenerateTriangles`).
+
+- **Defaults:** deflection **1 mm** (the same default as the IFC
+  `chordDeviationMm`), crease angle **30°** (the IFC tessellation default),
+  **4** geometry threads (the IFC default).
+- **Per-file options:** `--step-deflection-mm` (maximum chord deviation),
+  `--step-angle-deg` (crease angle), `--step-length-unit` (only when the file
+  declares no length unit), `--step-schema` (export only: `ap214` default or
+  `ap203`), `--step-deadline` and `--step-worker` (mirroring
+  `--ifc-deadline` / `--ifc-worker`).
+- **Entities that are not solids** (surfaces without volume, edges, wires) are
+  counted and reported as not imported, with locations; the accounting
+  identity (converted + supporting + omitted = counted) is kept, as in ADR
+  0171 §3.4.
+
+**Loss of editability, in plain words (published with the feature).**
+Imported geometry is a mesh of planar polygons, not B-splines or parametric
+surfaces. A NURBS/BSpline surface **cannot be edited parametrically in
+SketchyUp**: the user edits the merged faces, the way they edit any
+tessellated or glTF geometry. And a STEP file exported from the document
+**writes the mesh only** — the file's original NURBS/parametric definition is
+not preserved in the round trip. The import report and the import dialog say
+this in the plain wording (mirroring the IFC user note, ADR 0171 §7).
+
+## 4. Mapping assemblies and instances
+
+- **The tree.** The STEP product structure becomes the native group tree,
+  following containment and order; a top-level product becomes a top-level
+  group named from the product name. An element with no parent goes under the
+  top-level group, counted as a notice (the IFC `uncontainedElements`
+  pattern).
+- **Instances.** `INSTANCE_OF_ITEM` / `ITEM_DEFINITION_WITH_TRANSFORMATION`
+  (an instance plus its local transformation) map to **native component
+  instances** (the R089 component library): repeated instances of the same
+  item become several instances of one component, with the file's local
+  transformation applied as the instance placement.
+- **Names.** The product or shape name becomes the group or body name
+  (2,048-byte cap; over → truncated with a notice, as IFC does for
+  properties).
+- **Colours.** The XDE colour mode gives per-face colour; an unstyled product
+  gets `DefaultMaterial` (0.7 grey) with a notice (the IFC pattern).
+- **Layers.** The XDE layer becomes the property **`step.Layer`** on the body;
+  a layer that is off or frozen imports its bodies **hidden** with a notice,
+  so the state survives a re-import. No first-class layer concept is added
+  (mirrors IFC §4.3 and the native model).
+- **Tag and provenance.** Imported bodies carry the tag family `STEP` and the
+  provenance properties `step.Entity` (the source entity's label),
+  `step.Schema` and `step.Source` (the source file's SHA-256), so a body
+  resolves back to its origin, as the IFC import does.
+- **Caps.** The native caps only: 100,000 faces per body, 100,001 bodies,
+  10,000 unique records, 600,000 materialized; no new caps.
+
+## 5. Error reporting
+
+Invalid or unsupported surfaces and entities are **reported, with locations**
+(the IFC `Report` shape, reused):
+
+- A location is the shape or entity label plus the parent assembly path, an
+  OCCT transfer-status code and a message of at most 256 bytes. Sample
+  locations are stored at most 32 per kind (the totals stay complete), exactly
+  as `src/ifc/report.hpp` does.
+- **The report** (checked by the application, ≤ 64 KiB, the IFC bound) carries
+  `apiVersion` 1, the source file's SHA-256, the `FILE_SCHEMA` read, the
+  declared unit and the conversion factor (when one was applied), the counts
+  (shapes counted, converted, supporting, omitted, unsupported), the notices
+  (each with a count), the loss map, and the kernel messages (category, code,
+  severity, a sample, a count).
+- **Refused with nothing created** (the IFC §6.2 pattern): a file over 128 MiB
+  (checked by the application before the helper starts, together with the
+  `ISO-10303-21` header and a `FILE_SCHEMA` in {AP203, AP214, AP242}); a
+  worker that exceeds its `RLIMIT_AS`, its CPU limit or its deadline, or is
+  killed mid-run (restarted with the element it was on left out, at most
+  three times, and then either a partial import that names the excluded
+  elements, or a failed import with its log tail; the application keeps
+  running and the current document is unchanged); and a file with no declared
+  unit and no `--step-length-unit` option.
+- **Never silently changed scale** (§2): every conversion is explicit and
+  appears in the report; a mismatch is a refusal, not a rescale.
+
+## 6. Budgets
+
+The library's behaviour on large inputs is not under our control, so the
+budgets are enforced from the application side, as in ADR 0171 §6.4:
+
+| | Budget | Rationale |
+|---|---|---|
+| Input file | 128 MiB, checked by the application before the helper starts (size, regular file, `ISO-10303-21` header, a `FILE_SCHEMA` in {AP203, AP214, AP242}) | The IFC precedent; the STEP lex/yacc parse is linear in the file |
+| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s; CPU time 480 s (four threads); output file 256 MiB; four geometry threads | `src/io/ifc_worker.hpp` (120 s, 4 GiB, 4 threads, 3 restarts, 2,000,000 entities); the STEP mode takes the same limits |
+| Triangles | 1,000,000 in total; 100,000 per element | The native per-body limit; the application merges coplanar triangles into far fewer faces |
+| Package | Manifest at most 32 MiB; mesh chunk at most 128 MiB | Bounds the decoder (ADR 0171 §1.6) |
+| Report / messages | Report ≤ 64 KiB; message ≤ 256 bytes | The IFC bounds |
+| Application memory during import | ≤ 1 GiB | The R082.w v2 budget; the decoded package plus the document being built |
+| Parse and transfer a 64 MiB, 1,000,000-instance file | ≤ 3 s (a 128 MiB, 2,000,000-instance file ≤ 6 s) | To be measured in R098.a before the budget is frozen (the IFC precedent: 0.76 s / 1.5 s for the same shapes) |
+| Tessellate the fixture model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns control in ≤ 100 ms and ends the helper within 1 s | To be measured; the IFC kernel measured 6.5–11 s for 240,000 triangles on four threads (ADR 0171 §6.4) |
+| Export of the 1,000,000-triangle model | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | The IFC export precedent (ADR 0171 §6.4) |
+
+## 7. Verification (the R098 Verify line)
+
+The R098 Verify line — *known solids meet dimensional/tessellation error
+tolerances; invalid or unsupported surfaces are reported without silently
+changing scale* — is checked by:
+
+| | Check |
+|---|---|
+| E1: dimensional | The self-generated corpus (§8, with analytic ground truth) imports with mesh volumes and areas within the reported deflection of the analytic values (1e-3 relative for analytic primitives; within the deflection bound for curved profiles); a curved profile's volume is within the reported deflection of the analytic value |
+| E2: tessellation | Coplanar triangles merge into polygon faces (a wall's side is one face); a non-planar case stays triangles and is counted; collapsed triangles are dropped and counted; per-body and total triangle caps are enforced (100,001 faces and 1,000,001 triangles refuse or report per element, creating no partial document beyond the reported omissions) |
+| E3: units | A file that declares inches imports converted, with the factor in the report; a file with no declared unit and no option refuses with the notice, creating nothing; geometry size changes **only** through a declared unit (the no-silent-scale check); an explicit `--step-length-unit` is used only when the file declares no unit |
+| E4: invalid/unsupported | A fixture with broken or unsupported entities (a bad face, an entity the translator refuses, a PMI-only AP242 file) reports with locations and counts, converts the rest, and changes no scale; the accounting identity (converted + supporting + omitted = counted) holds |
+| E5: round trip | Export (AP214, then AP203) of the corpus, then re-import: geometry within the reported deflection, names, colours, `step.Layer`, hidden state and the assembly/instance structure all survive |
+| E6: limits and refusal | The 128 MiB + 1-byte file refuses with the count and the limit named, creating no document; a worker that exceeds `RLIMIT_AS`, its CPU limit or its deadline, or is killed with SIGSEGV mid-run, is restarted with the element it was on excluded (at most three times) and then gives either a partial import that names the excluded elements or a failed import with its log tail; the application keeps running and the current document is unchanged |
+| E7: native | The whole imported document passes native validation (`decodeDocument(encodeDocument())`) and a save and reopen is bit-exact (R073); one edit makes the whole import one undo step; each body's provenance properties (`step.Entity`, `step.Schema`, `step.Source`) resolve to the right source entity |
+| E8: report | Messages ≤ 256 bytes; the report ≤ 64 KiB; the counts are complete past the 32-per-kind location bound |
+
+**Test fixtures.**
+
+1. **Primary: a self-generated corpus** (no third-party licence question).
+   Parametric primitives with analytic ground truth (box, cylinder, cone,
+   sphere, torus), NURBS/BSpline solids and blends, and a multi-body assembly
+   with names, colours, layers and repeated instances — generated in a
+   documented one-off step with the **same OCCT 7.9.3 writer that ships**
+   (AP214 and AP203), and committed to `tests/resources/step/` with a
+   `STEP-SOURCE.txt` recording the generating code, the schema, the OCCT
+   version and each file's SHA-256.
+2. **Round trip:** the same corpus through the application's export (E5) —
+   the writer's own output, so a failure is unambiguously ours.
+3. **Third-party freely licensed corpus:** a small (3–5 file) set, finalised
+   in R098.a with **named sources and licences** recorded in `STEP-SOURCE.txt`.
+   Candidates, with their verification status at design time: FreeCAD test
+   data (the project is LGPL-2.1-or-later; whether it ships `.step` test
+   files usable here is **not verified**); NIST CAD interoperability test
+   files (hosting **not verified**); OCCT's own test resources — **not in the
+   OCCT GitHub repository** (verified: tag `V7_9_3`'s `tests/` has no `step`
+   directory and there is no `resources/` directory), distributed separately
+   and **not verified**. If none can be licensed cleanly, the corpus stands on
+   1 and 2, which E1–E8 do not depend on.
+
+## 8. CLI, packaging and CI
+
+- **Application CLI** (mirroring `--import-ifc` / `--export-ifc` in
+  `src/automation/main.cpp`): `--import-step <file>` and `--export-step
+  <file>`, with `--step-deflection-mm`, `--step-angle-deg`,
+  `--step-length-unit`, `--step-schema`, `--step-deadline` and
+  `--step-worker`. The interactive import dialog mirrors the IFC import
+  dialog (progress, cancel in ≤ 100 ms, the report view with the loss note).
+- **Worker:** the existing `sketchyup-ifc-worker` gains the `--import-step`
+  and `--export-step` modes on top of its `--import` / `--export` / `--check`
+  ones, reusing its `--rlimit-as` / `--rlimit-cpu` / `--rlimit-fsize`
+  machinery, the private directory, the restarts and the checked package
+  decoder (the mesh chunk and manifest bounds of §6). The STEP mode links
+  `TKDESTEP`, `TKDEIGES`, `TKXCAF` and their closure; IfcOpenShell is not on
+  the STEP path.
+- **Packaging:** the `sketchyup-ifc` component is extended: the worker (now
+  with STEP), the IfcOpenShell libraries and plugins, and the private flat
+  OCCT set (verified to carry the STEP closure; any missing `libTK*.so` added
+  to the same directory, the same `RUNPATH $ORIGIN`, the same
+  `--as-needed` posture, so nothing shipped records a Boost dependency). No
+  new optional package (decision 9). `share/doc/sketchyup/` gains
+  `STEP-SOURCE.txt` beside the existing `IFC-SOURCE.txt`.
+- **CI:** no new OCCT build — `job:ifc` already builds OCCT 7.9.3 as part of
+  the IfcOpenShell prefix (fast tier restores the cached prefix; the full
+  tier builds it). The path map gains nothing structural: the STEP code lives
+  in `src/ifc/**` (already `job:ifc`) and the corpus in
+  `tests/resources/step/`, consumed by the IFC job's test shards; the
+  sanitizer shards run the STEP path through the helper (a separate process,
+  as the IFC import is), with the application side sanitised as usual.
+
+## 9. Implementation split
+
+- **R098.a** — Fixtures and import. The self-generated corpus and
+  `STEP-SOURCE.txt`; the worker's `--import-step` mode (read AP203, AP214 and
+  the best-effort AP242; the unit policy of §2; `BRepMesh` tessellation; the
+  §5 report; the application's `--import-step` and dialog); the `readelf`
+  verification of the STEP closure in the private set and the verify-script
+  update. Verify: E1–E4, E6 (import half), E7, E8; the §6 budgets measured
+  and frozen.
+- **R098.b** — Mapping. Assembly/instance, name, colour, layer, tag and
+  provenance mapping (§4), the caps, the loss note and the report's unit
+  fields. Verify: E4, E5 (structure half), E7 (provenance).
+- **R098.c** — Export. `--export-step` (AP214 default, AP203 option, mesh
+  write in millimetres, the AP242 refusal) and the E5 round-trip check.
+  Verify: E5, E3 (export half), E8.
+- **R098.d** — Hardening and publication. Packaging and CI hardening (the
+  PKGBUILD closure check, the `STEP-SOURCE.txt` install, the path map); the
+  third-party corpus finalised with named sources and licences; the published
+  documentation (the F04 "supported entities, hierarchy/property fidelity and
+  geometry conversion limits" note, the plain wording of the editability loss
+  in the user guide and the import dialog, the support-matrix row). Verify:
+  the R098 Verify line in full; the M10 gate rule.
+
+## Owner decisions
+
+1. **The adapter (options A/B/C):** **option A** — OCCT STEP translation in
+   the shared helper, on the IFC helper's private OCCT set. *Rationale: it
+   costs no second 37–57 MB OCCT runtime, no second optional package, and
+   reuses the whole IFC helper boundary the owner already accepted.*
+2. **The helper's name:** keep `sketchyup-ifc-worker` and add the STEP modes
+   (renaming it `sketchyup-exchange-worker` is the alternative). *Rationale:
+   R097 already shipped the name; renaming reworks packaging paths, CI and
+   documentation for no functional gain.*
+3. **Schemas:** import AP203 + AP214 (+ best-effort AP242, the rest reported);
+   export AP214 (default) + AP203; no AP242 writing. *Rationale: it is the
+   documented envelope of the OCCT 7.9 writers, and AP242 is mostly PMI,
+   which a mesh model does not carry anyway.*
+4. **Units:** no declared unit → the explicit option or a refusal; a declared
+   unit → converted and reported; nothing ever guessed. *Rationale: it makes
+   the R098 Verify line — "without silently changing scale" — mechanical.*
+5. **Default tolerances:** deflection 1 mm, crease angle 30°, 4 threads.
+   *Rationale: the same defaults the user already has for IFC, so one mental
+   model covers both formats.*
+6. **Caps:** 1,000,000 triangles total / 100,000 per element; 128 MiB input;
+   256 MiB output. *Rationale: the native per-body caps and the IFC
+   precedent, so there are no new caps to learn.*
+7. **Editability loss:** mesh import with the plain-language note; re-export
+   writes the mesh only. *Rationale: the native model is mesh-based (the R089
+   glTF precedent); saying so plainly is the R098 Build line.*
+8. **Layers:** the property `step.Layer` plus hidden state, mirroring IFC.
+   *Rationale: the native model has no first-class layers; one mechanism
+   serves both formats.*
+9. **Packaging:** extend `sketchyup-ifc`; no new optional package.
+   *Rationale: one exchange runtime behind one install decision, and F04 names
+   IFC and STEP as the pair.*
+10. **Fixtures:** the self-generated corpus (analytic ground truth) as the
+    primary verification basis, plus a small third-party corpus with named
+    sources and licences, finalised in R098.a. *Rationale: the core checks
+    carry no licence risk; real-world files are added on top, and none of
+    E1–E8 depends on them.*
+
+## Appendix: evidence and sources
+
+**Verified** (against `origin/main 34910469` or the named upstream source):
+
+- The worker's CLI and its `--rlimit-as` / `--rlimit-cpu` / `--rlimit-fsize`
+  flags: `src/ifc/worker_main.cpp` (`--import`, `--export`, `--check`,
+  `--threads`, `--chord-deviation-mm`, `--length-unit`, `--entity-limit`,
+  `--max-voids`, `--exclude-ifc`, `--diagnose-from`, `--diagnose-seconds`).
+- The budgets: `src/io/ifc_worker.hpp` (deadline 120 s, address space 4 GiB,
+  four threads, `maxRestarts` 3, `maxEntities` 2,000,000) and
+  `src/io/ifc_worker.cpp` (128 MiB input check, `RLIMIT_CPU` at four times the
+  deadline, output 256 MiB via `--rlimit-fsize`, the restart loop).
+- The report shape: `src/ifc/report.hpp` (counts, notices, losses, at most 32
+  locations per kind with complete totals, kernel messages) and
+  `src/ifc/import.cpp` (the JSON: `apiVersion`, `sha256`, `entities` /
+  `converted` / `supporting` / `omitted`, `losses`, `notices`,
+  `unitsUnconverted`).
+- The private OCCT set: `src/ifc/InstallOcct.cmake` (records the `libTK*`
+  closure by `DT_NEEDED` from the kernel plugin and its dependent
+  libraries); `scripts/verify-ifc-library.py`
+  (`LIBRARY_PATTERNS` = `libifcopenshell.`, `ifcopenshell_`, `libTK`);
+  `packaging/arch/PKGBUILD` (the flat private `libTK*.so` directory,
+  `RUNPATH $ORIGIN`, copied from Arch's `opencascade` package at
+  package-build time; the package depends on `sketchyup=$pkgver`, `gcc-libs`
+  and `glibc`; linked libraries use `--as-needed`); `dependencies.json`
+  (OpenCASCADE Technology 7.9.3, Arch `opencascade 1:7.9.3-3`, licence
+  `LGPL-2.1-or-later WITH OCCT-exception-1.0`, optional package
+  `sketchyup-ifc`); ADR 0171 (37 to 57 MB; 55 MB installed measured).
+- The IFC kernel plugin already links the STEP toolkits:
+  `third_party/ifcopenshell/cmake/FindOpenCASCADE.cmake` (the base list —
+  `TKernel`, `TKMath`, `TKBRep`, `TKGeomBase`, `TKGeomAlgo`, `TKG3d`,
+  `TKG2d`, `TKShHealing`, `TKTopAlgo`, `TKMesh`, `TKPrim`, `TKBool`, `TKBO`,
+  `TKFillet`, `TKXSBase`, `TKOffset`, `TKHLR`, `TKBin` — plus `TKDESTEP` and
+  `TKDEIGES` appended for OpenCASCADE ≥ 7.8.0; the pinned version is 7.9.3)
+  and `third_party/ifcopenshell/src/ifcgeom/kernels/CMakeLists.txt` (the
+  kernel plugin links `OpenCASCADE_LIBRARIES`, filtering out `TKXMesh`).
+- OCCT at tag `V7_9_3` (upstream GitHub): `adm/MODULES` lists the
+  `DataExchange` toolkits including `TKDESTEP`, `TKDEIGES`, `TKXCAF` and
+  `TKXSBase`; `src/StepFile` and `src/DE` exist; `src/XSTEP` does **not**
+  (verified: HTTP 404). The `EXTERNLIB` files (V7_9_3 spells the file
+  `EXTERNLIB`, not `EXTERNLIB.cmake`): `TKDESTEP` → `TKDE`, `TKBRep`,
+  `TKernel`, `TKMath`, `TKXSBase`, `TKTopAlgo`, `TKG2d`, `TKCAF`, `TKCDF`,
+  `TKLCAF`, `TKG3d`, `TKXCAF`, `TKShHealing`; `TKXCAF` → `TKBRep`, `TKernel`,
+  `TKMath`, `TKService`, `TKG2d`, `TKTopAlgo`, `TKV3d`, `TKCDF`, `TKLCAF`,
+  `TKG3d`, `TKCAF`, `TKVCAF`.
+- The OCCT 7.9 STEP user guide (dev.opencascade.org, `occt-7.9.0`): the
+  basic translator reads files produced according to AP214 (Conformance Class
+  2, CD and DIS schema versions), AP203 and some parts of AP242; the basic
+  writer's output conforms to AP203 or AP214 (CC2, CD or DIS) depending on
+  the user's option; the XDE STEP translator translates "the names, colours,
+  layers, validation properties and other data associated with shapes and
+  assemblies"; AP214's handling of simple GD&T, tolerances and datums without
+  presentations or modifiers is obsolete (use AP242); writing exposes
+  `SetColorMode` / `SetNameMode` and a `Transfer` with a
+  `STEPControl_StepModelType` (i.e. the `STEPControl_Writer` family); physical
+  reading uses `step.lex` / `step.yacc` in `StepFile`; user-defined attributes
+  are read for shapes at part/product level, component instances and geometry
+  level. The OCCT 7.9 reorganization returns an option for the IGES/STEP
+  toolkits to avoid XCAF data storage (so `TKDESTEP`/`TKDEIGES` can be linked
+  without the CAF stack at runtime — the STEP mode here links `TKXCAF`
+  deliberately, for the name/colour/layer transfer).
+- CI: `.github/ci-path-map.json` (`job:ifc`, the "IFC library and helper" job
+  of ADR 0171) and `.github/workflows/native.yml` (the IFC job; the fast tier
+  restores the cached IfcOpenShell prefix, the full tier builds it from
+  source).
+- The application CLI: `src/automation/main.cpp` (`--import-ifc`,
+  `--export-ifc`, `--ifc-deflection`, `--ifc-length-unit`, `--ifc-spaces`,
+  `--ifc-georef`, `--ifc-deadline`, `--ifc-worker`).
+- The native model: `src/core/body.hpp` (a `Body` is a geometry body, group,
+  reference image or terrain, with a name, colour, per-face colour, material,
+  a `tag`, `hidden`/`locked`); ADR 0171 §2.2/§4.3 (the group tree, the
+  `ifc.Layer` property, the hidden state of an off or frozen layer, the
+  2,048-byte property cap, the 32 MiB model cap).
+- The roadmap: the R098 row (Planned, Track Interchange, Scope F04, requires
+  R089 and R073), the F04 scope row, R073 ("Stabilize the native format and
+  migration tooling", Delivered; public v24 / container-v2 contract), and the
+  R097 status (R097.a–d merged, e–f not; the owner's recorded decision: "Just
+  use IfcOpenShell. I don't want to build it. I approve all.").
+- No STEP test fixtures in the OCCT GitHub repository: the GitHub API at tag
+  `V7_9_3` shows `tests/` with no `step` directory and no `resources/`
+  directory (HTTP 404).
+
+**Not verified** (flagged; resolved during implementation):
+
+- **AP242 writing in OCCT 7.9.** The user guide deprecates AP214's GD&T in
+  favour of AP242 but does not document full AP242 writing; this design
+  does not claim AP242 output (decision 3).
+- **The exact STEP writer class names of OCCT 7.9.3.** `src/XSTEP` and the
+  `namespaceXSTEP` documentation page do not exist at `V7_9_3` (verified:
+  HTTP 404); the 7.9.0 user guide refers to the `STEPControl_Writer` family
+  (`STEPControl_StepModelType`, `SetColorMode`, `SetNameMode`, `Transfer`) and
+  the XDE (`STEPCAFControl`) variant. The exact 7.9.3 C++ API names are
+  pinned in R098.a against the `V7_9_3` source, not the 7.9.0 documentation.
+- **The extra file count/size of the STEP toolkits relative to the already
+  shipped private set.** The evidence above indicates zero (or a handful of)
+  extra `libTK*.so`; the `DT_NEEDED` check is done in R098.a and recorded in
+  `STEP-SOURCE.txt`.
+- **The third-party STEP fixtures.** NIST CAD interoperability test files:
+  hosting not verified. FreeCAD test data: whether it ships usable `.step`
+  test files not verified (an unauthenticated code search was not available at
+  design time). OCCT's own test resources: not in the GitHub repository
+  (verified), distributed separately, not verified.
