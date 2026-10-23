@@ -168,12 +168,14 @@ nodes = [pk.node("project", "P", -1, g("body", 1)), pk.node("site", "S", 0, g("b
 requests = [("IfcWall", "IfcWall", ""), ("IfcFoo", "IfcBuildingElementProxy", "unknownClass"), ("IfcSpace", "IfcBuildingElementProxy", "notAnElement"),
             ("IfcOpeningElement", "IfcBuildingElementProxy", "notAnElement"), ("IfcElement", "IfcBuildingElementProxy", "abstractClass"),
             ("ifcslab", "IfcSlab", ""), ("", "IfcBuildingElementProxy", ""), ("IfcDoor", "IfcDoor", ""), ("IfcFurniture", "IfcFurniture", ""),
-            ("IfcProject", "IfcBuildingElementProxy", "notAnElement"), ("IfcWallType", "IfcBuildingElementProxy", "notAnElement")]
+            ("IfcProject", "IfcBuildingElementProxy", "notAnElement"), ("IfcWallType", "IfcBuildingElementProxy", "notAnElement"),
+            ("IfcWallStandardCase", "IfcWall", "standardCase"), ("IfcSlabElementedCase", "IfcSlab", "standardCase"), ("IfcDoorStandardCase", "IfcDoor", "standardCase"),
+            ("IfcOpeningStandardCase", "IfcBuildingElementProxy", "notAnElement")]
 for index, (requested, written, reason) in enumerate(requests):
     nodes.append(pk.node("element", "E%d" % index, 2, g("body", 10 + index), cls=requested, id=10 + index))
 nodes.append(pk.node("assembly", "Assembly", 2, g("body", 40), id=40))
 nodes.append(pk.node("assembly", "Wall with parts", 2, g("body", 41), id=41, cls="IfcWall"))
-nodes.append(pk.node("element", "Part", 14, g("body", 42), id=42, cls="IfcBuildingElementPart"))
+nodes.append(pk.node("element", "Part", len(nodes) - 2, g("body", 42), id=42, cls="IfcBuildingElementPart"))
 code, result, out, err = run(pk.encode_package(nodes, identity=ID), "w2")
 expect(code == 0, "W2: runs: %s" % err[-200:])
 facts = scan.Scan(out).facts()
@@ -192,6 +194,15 @@ expect(len(result["fallbacks"]) == sum(1 for r in requests if r[2]), "W2: no oth
 objs = {info["name"]: guid for guid, info in facts["objects"].items()}
 expect(facts["parents"].get(objs["Part"]) == objs["Assembly"], "W2: a part is aggregated by its assembly: %s" % facts["parents"].get(objs["Part"]))
 expect(code == 0 and check_file(out)[0] == 0, "W2: passes the schema check")
+
+# ---- W2b: the list of class fallbacks is bounded ------------------------------------------------------------------------------
+nodes = [pk.node("project", "P", -1, g("body", 1)), pk.node("site", "S", 0, g("body", 2)), pk.node("building", "B", 1, g("body", 3))]
+for index in range(200):
+    nodes.append(pk.node("element", "E%d" % index, 2, g("body", 10 + index), cls="IfcNothing%d" % index, id=10 + index))
+code, result, out, err = run(pk.encode_package(nodes, identity=ID), "w2b")
+expect(code == 0 and len(result["fallbacks"]) == 65 and result["fallbacks"][-1]["requested"] == "other" and result["fallbacks"][-1]["count"] == 136 and
+       sum(f["count"] for f in result["fallbacks"]) == 200, "W2b: 64 requests are listed and the rest counted together: %s entries" % len(result["fallbacks"]))
+expect(len(json.dumps(result)) < 20000, "W2b: the result line stays short")
 
 # ---- W3 ----------------------------------------------------------------------------------------------------------
 nodes = [pk.node("project", "P", -1, g("body", 1)), pk.node("site", "S", 0, g("body", 2)), pk.node("building", "B", 1, g("body", 3)),
@@ -217,8 +228,9 @@ expect(result["predefinedTypeDropped"] == 3, "W3: three predefined types dropped
 nodes = [pk.node("project", "P", -1, g("body", 1)), pk.node("site", "S", 0, g("body", 2)), pk.node("building", "B", 1, g("body", 3)),
          pk.node("site", "Partial site", 1, g("body", 4)), pk.node("space", "Room", 2, g("body", 5)),
          pk.node("element", "Sofa", 4, g("body", 6)), pk.node("space", "Corner", 4, g("body", 7)), pk.node("element", "Lamp", 6, g("body", 8)),
-         pk.node("building", "Annex", 2, g("body", 9)), pk.node("building", "Direct", 0, g("body", 10))]
-code, result, out, err = run(pk.encode_package(nodes, identity=ID), "w3b")
+         pk.node("building", "Annex", 2, g("body", 9), mesh=0), pk.node("building", "Direct", 0, g("body", 10))]
+nodes[3]["mesh"] = 0  # a site with a body of its own
+code, result, out, err = run(pk.encode_package(nodes, [pk.box_mesh()], identity=ID), "w3b")
 expect(code == 0, "W3b: runs: %s" % err[-200:])
 parents = scan.Scan(out).facts()["parents"]
 expect(parents.get(g("body", 4)) == g("body", 2) and parents.get(g("body", 9)) == g("body", 3), "W3b: a site in a site and a building in a building are aggregated by them: %s" % parents)
@@ -227,6 +239,11 @@ expect(parents.get(g("body", 6)) == g("body", 5), "W3b: an element in a space is
 expect(parents.get(g("body", 7)) == g("body", 5), "W3b: a space in a space is aggregated by it")
 expect(parents.get(g("body", 8)) == g("body", 7), "W3b: a lamp in the corner space is contained in it")
 expect(check_file(out)[0] == 0, "W3b: passes the schema check")
+expect(result["counts"]["representations"] == 2, "W3b: a site and a building with a body of their own keep it: %s" % result["counts"])
+text3 = open(out).read()
+expect(re.search(r"IFCSITE\('%s',#\d+,'Partial site',\$,\$,#\d+,#\d+,\$,\.PARTIAL\." % re.escape(g("body", 4)), text3) is not None, "W3b: a part of a site is PARTIAL with its representation")
+expect(re.search(r"IFCSITE\('%s',#\d+,'S',\$,\$,#\d+,\$,\$,\.COMPLEX\." % re.escape(g("body", 2)), text3) is not None, "W3b: a site made of sites is COMPLEX")
+expect(re.search(r"IFCBUILDING\('%s',#\d+,'Annex',\$,\$,#\d+,#\d+,\$,\.PARTIAL\." % re.escape(g("body", 9)), text3) is not None, "W3b: a part of a building, with a body")
 
 # ---- W4 ----------------------------------------------------------------------------------------------------------
 long_text = "x" * 300
@@ -348,6 +365,26 @@ refused(pk.encode_package(n, m, s2, identity=ID), "an infinite vertex")
 m[0].vertices[0] = (1e12, 0.0, 0.0)
 refused(pk.encode_package(n, m, s2, identity=ID), "a vertex beyond 1e7 m")
 refused(good + b"\0", "bytes after the mesh chunk")
+
+
+def raw_name(bad_bytes):
+    """The good package with one node name replaced by raw bytes (JSON cannot carry them, so the text is patched)."""
+    n, m, s2 = small_model()
+    n[4]["name"] = "@@RAW@@"
+    data = pk.encode_package(n, m, s2, identity=ID)
+    size = int.from_bytes(data[8:12], "little")
+    manifest = data[24:24 + size].replace(b"@@RAW@@", bad_bytes)
+    return data[:8] + len(manifest).to_bytes(4, "little") + data[12:24] + manifest + data[24 + size:]
+
+
+refused(raw_name(b"\xc0\xaf"), "an overlong UTF-8 name")
+refused(raw_name(b"\xed\xa0\x80"), "a surrogate in UTF-8")
+refused(raw_name(b"\xf4\x90\x80\x80"), "a code point beyond U+10FFFF")
+refused(raw_name(b"\xe2\x28\xa1"), "a broken UTF-8 sequence")
+code, result, out, err = run(raw_name("caf\u00e9 \U0001F600".encode()), "w7utf")
+expect(code == 0, "W7: valid UTF-8 is accepted")
+refused(pk.encode_package(good_nodes, good_meshes, good_styles, identity=ID).replace(b'"name":"Wall A"', b'"name":"x\\ud800"'), "a lone surrogate escape")
+refused(pk.encode_package(good_nodes, good_meshes, good_styles, identity=ID).replace(b'"role":"project"', b'"role":"project","role":"site"', 1), "a repeated member")
 code, result, out, err = run(good, "w7ok")
 expect(code == 0, "W7: the good package still runs")
 # a missing package and a missing output directory

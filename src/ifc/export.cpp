@@ -41,6 +41,14 @@ struct Refusal : std::runtime_error {
   std::string code;
 };
 
+// A UTF-8 prefix of at most `bytes` bytes.
+std::string clip(const std::string& text, std::size_t bytes) {
+  if (text.size() <= bytes) return text;
+  std::size_t cut = bytes;
+  while (cut > 0 && (static_cast<unsigned char>(text[cut]) & 0xC0) == 0x80) --cut;
+  return text.substr(0, cut);
+}
+
 std::size_t codePoints(const std::string& text) {
   std::size_t count = 0;
   for (const char c : text)
@@ -172,9 +180,18 @@ struct Builder {
     } catch (const std::exception&) {
     }
     if (found == nullptr || found->as_entity() == nullptr) return {fallback, "unknownClass"};
+    // IFC4's deprecated IfcWallStandardCase, IfcSlabElementedCase and the like require parametric geometry and a layer set
+    // usage that a tessellated body does not have: they are written as the class they refine.
+    std::string reason;
+    const std::string& name = found->name();
+    const auto endsWith = [&](const char* suffix) { return name.size() > std::strlen(suffix) && name.compare(name.size() - std::strlen(suffix), std::string::npos, suffix) == 0; };
+    if ((endsWith("StandardCase") || endsWith("ElementedCase")) && found->as_entity()->supertype() != nullptr) {
+      found = found->as_entity()->supertype();
+      reason = "standardCase";
+    }
     if (found->as_entity()->is_abstract()) return {fallback, "abstractClass"};
     if (!found->is("IfcElement") || found->is("IfcFeatureElement") || found->is("IfcVirtualElement")) return {fallback, "notAnElement"};
-    return {found->name(), {}};
+    return {found->name(), reason};
   }
 
   // ---- The pieces ----
@@ -247,6 +264,11 @@ struct Builder {
   // One IfcSurfaceStyle per style; one IfcMaterial (with its definition representation) when the style came from a
   // material.
   void makeStyles() {
+    // A material is made only for a style that an element (not a space or a spatial element) uses: IfcRelAssociatesMaterial relates
+    // elements only, and a material nothing refers to would be dead weight.
+    std::vector<bool> usedByElement(pkg.styles.size(), false);
+    for (const auto& node : pkg.nodes)
+      if ((node.role == "assembly" || node.role == "element") && node.mesh >= 0 && node.style >= 0) usedByElement[static_cast<std::size_t>(node.style)] = true;
     for (std::size_t i = 0; i < pkg.styles.size(); ++i) {
       const auto& style = pkg.styles[i];
       auto colour = make("IfcColourRgb");
@@ -265,7 +287,7 @@ struct Builder {
       materialEntity.emplace_back();
       materialUsers.emplace_back();
       ++counts["styles"];
-      if (!style.material) continue;
+      if (!style.material || !usedByElement[i]) continue;
       auto material = make("IfcMaterial");
       set(material, "Name", style.name);
       auto styled = make("IfcStyledItem");
@@ -400,8 +422,15 @@ struct Builder {
         // (The project has no placement, so a site directly under it is placed in the project's coordinates.)
         placement[i] = localPlacement(parentPlacement, node.placement);
         set(made, "ObjectPlacement", placement[i]);
-        setEnum(made, "CompositionType", "ELEMENT");
+        // A site made of sites is COMPLEX and its parts PARTIAL (likewise buildings and storeys); anything else is an ELEMENT.
+        bool composed = false;
+        for (const auto& other : pkg.nodes)
+          if (other.role == node.role && other.parent == static_cast<long long>(i)) composed = true;
+        const bool part = node.parent > 0 && pkg.nodes[static_cast<std::size_t>(node.parent)].role == node.role;
+        setEnum(made, "CompositionType", composed ? "COMPLEX" : part ? "PARTIAL" : "ELEMENT");
         if (node.role == "storey" && node.hasElevation) set(made, "Elevation", node.elevation);
+        // A site, building or storey that has a body of its own (as an IFC import makes them) keeps it.
+        if (node.mesh >= 0) set(made, "Representation", makeShape(node));
         ++counts[node.role == "site" ? "sites" : node.role == "building" ? "buildings" : "storeys"];
       } else {
         const bool space = node.role == "space";
@@ -559,14 +588,26 @@ struct Builder {
     for (const auto& [name, number] : counts)
       if (name.rfind("classes:", 0) == 0) json.field(name.substr(8), number);
     json.endObject();
+    // At most 64 distinct requests are listed; the rest are counted together, so the result line stays short.
     json.key("fallbacks").beginArray();
-    for (const auto& [key, number] : fallbacks)
-      json.beginObject()
-          .field("requested", std::get<0>(key))
-          .field("written", std::get<1>(key))
-          .field("reason", std::get<2>(key))
-          .field("count", number)
-          .endObject();
+    {
+      std::size_t listed = 0;
+      long long other = 0;
+      for (const auto& [key, number] : fallbacks) {
+        if (listed >= 64) {
+          other += number;
+          continue;
+        }
+        ++listed;
+        json.beginObject()
+            .field("requested", clip(std::get<0>(key), 64))
+            .field("written", std::get<1>(key))
+            .field("reason", std::get<2>(key))
+            .field("count", number)
+            .endObject();
+      }
+      if (other > 0) json.beginObject().field("requested", "other").field("written", "").field("reason", "other").field("count", other).endObject();
+    }
     json.endArray();
     json.field("predefinedTypeDropped", predefinedTypeDropped);
     json.endObject();

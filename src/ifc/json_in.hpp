@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -73,7 +74,7 @@ struct JsonValue {
 
 struct JsonLimits {
   std::size_t depth = 32;
-  std::size_t values = 4'000'000;
+  std::size_t values = 8'000'000;
   std::size_t stringBytes = 64 * 1024;
 };
 
@@ -230,14 +231,14 @@ private:
   JsonValue readObject(std::size_t depth) {
     ++at_;
     auto object = std::make_shared<JsonObject>();
+    std::unordered_set<std::string> names;
     if (consume('}')) return JsonValue{object};
     for (;;) {
       skipSpace();
       if (at_ >= text_.size() || text_[at_] != '"') fail("expected a member name");
       std::string name = readString();
       if (!consume(':')) fail("expected :");
-      for (const auto& [existing, ignored] : *object)
-        if (existing == name) fail("duplicate member " + name);
+      if (!names.insert(name).second) fail("duplicate member " + name);
       object->emplace_back(std::move(name), readValue(depth + 1));
       if (consume(',')) continue;
       if (consume('}')) return JsonValue{object};

@@ -30,7 +30,7 @@ void usage(std::FILE* stream) {
       "           --test-fault crash|abort|hang|alloc:N  --dry-run\n"
       "       sketchyup-ifc-worker --export PACKAGE --output FILE.ifc [--rlimit-as BYTES] [--rlimit-cpu SECONDS] [--rlimit-fsize BYTES]\n"
       "           build an IFC4 file from the application's export package (R097.d)\n"
-      "       sketchyup-ifc-worker --check FILE.ifc\n"
+      "       sketchyup-ifc-worker --check FILE.ifc [--rlimit-as BYTES] [--rlimit-cpu SECONDS]\n"
       "           re-read an IFC4 file and check every attribute against the schema (R097.d)\n"
       "       sketchyup-ifc-worker --probe\n"
       "           print versions, loaded libraries and kernel availability as JSON\n"
@@ -107,7 +107,21 @@ int main(int argc, char** argv) {
       prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
       return runImport(options);
     }
-    if (argc == 3 && std::strcmp(argv[1], "--check") == 0) return runCheck(argv[2]);
+    if (argc >= 3 && std::strcmp(argv[1], "--check") == 0) {
+      std::string input;
+      for (int i = 2; i < argc; ++i) {
+        const std::string argument = argv[i];
+        const bool hasValue = i + 1 < argc;
+        if (argument == "--rlimit-as" && hasValue) { if (!setLimit(RLIMIT_AS, argv[++i])) return fail("cannot set RLIMIT_AS"); }
+        else if (argument == "--rlimit-cpu" && hasValue) { if (!setLimit(RLIMIT_CPU, argv[++i])) return fail("cannot set RLIMIT_CPU"); }
+        else if (argument.rfind("--", 0) == 0) return fail("unknown option " + argument);
+        else if (input.empty()) input = argument;
+        else return fail("one file only");
+      }
+      if (input.empty()) return fail("--check needs a file");
+      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      return runCheck(input);
+    }
     if (argc >= 2 && std::strcmp(argv[1], "--export") == 0) {
       ExportOptions options;
       for (int i = 2; i < argc; ++i) {

@@ -13,6 +13,7 @@
 #include "core/material_records.hpp"
 #include "io/dxf_import.hpp"
 #include "io/gltf_import.hpp"
+#include "geometry/curves.hpp"
 #include "io/ifc_export.hpp"
 #include "io/ifc_worker.hpp"
 #include "io/native_format.hpp"
@@ -27,6 +28,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <bit>
@@ -45,9 +47,16 @@ QString fixture(const QString &name) { return source("tests/fixtures/ifc/" + nam
 constexpr qint64 stamp = 1767323045; // 2026-01-02T03:04:05 UTC
 const char *const identity = "0123456789abcdef0123456789abcdef";
 
+// The helper the tests run: the one built with them, or IFC_TEST_WORKER (a build of the helper without the sanitizers, when the
+// application side is run under them, since the helper's environment is scrubbed and IfcParse leaks by design).
+QString workerPath() {
+    const auto other = qEnvironmentVariable("IFC_TEST_WORKER");
+    return other.isEmpty() ? QStringLiteral(IFC_WORKER_PATH) : other;
+}
+
 IfcWorkerOptions workerOptions() {
     IfcWorkerOptions options;
-    options.workerPath = QStringLiteral(IFC_WORKER_PATH);
+    options.workerPath = workerPath();
     options.threads = 1;
     options.deadlineSeconds = 120;
 #ifdef IFC_NO_ADDRESS_LIMIT
@@ -77,7 +86,7 @@ QJsonObject scan(const QString &path) {
 }
 QJsonObject checkFile(const QString &path) {
     QProcess process;
-    process.start(QStringLiteral(IFC_WORKER_PATH), {"--check", path});
+    process.start(workerPath(), {"--check", path});
     check(process.waitForFinished(300000), "check timed out");
     QJsonObject result;
     for (const auto &line : process.readAllStandardOutput().split('\n'))
@@ -188,6 +197,9 @@ Model nativeModel(bool site = true, const char *crs = "EPSG:32760") {
     }
     add(group(10, 2, "Empty group"), "empty");
     add(frame(42, 2, "Frame with a hole", {20, 20, 0}), "frame");
+    // A group with a scale and a child placed inside it: the child's placement is the true one, the scale is baked into its points.
+    add(group(44, 0, "Scaled group", Transform::translation({5, 0, 0}) * Transform::scaling({2, 2, 2})), "scaledGroup");
+    add(box(45, 44, "Scaled child", {0, 0, 0}, {1, 1, 1}), "scaledChild")->transform = Transform::translation({1, 0, 0});
     // A hidden group hides what is inside it.
     add(group(40, 2, "Hidden group"), "hiddenGroup")->hidden = true;
     add(box(41, 40, "In hidden group", {0, 6, 0}, {1, 1, 1}), "inHidden");
@@ -241,7 +253,7 @@ Model nativeModel(bool site = true, const char *crs = "EPSG:32760") {
             model.ids[index == 0 ? "stool1" : "stool2"] = placedRoot->id;
             ++index;
         }
-        edit.nextIdFloor = 43;
+        edit.nextIdFloor = 46;
     }
     doc.apply(std::move(edit), doc.revision());
     if (site)
@@ -251,6 +263,8 @@ Model nativeModel(bool site = true, const char *crs = "EPSG:32760") {
 
 // Things the export cannot write: a guide, a saved scene, a section, a drawing sheet, a terrain and a label.
 void addUnwritable(Document &doc, Id body, Id edgeBody) {
+    // A circle: a disc (one open face) with its analytic record, which the tessellation does not keep.
+    doc.addCurve(0, centerCurve(CurveKind::Circle, {}, 2, 0, 2 * std::acos(-1), 24));
     doc.addGuide(body, guideLine({0, 0, 1}, {1, 0, 0}));
     doc.addGuide(body, guidePoint({1, 1, 1}));
     SceneSnapshot snapshot;
@@ -423,7 +437,12 @@ void sameModel(const Document &a, const Document &b, const std::string &label, c
             check(found != by.properties.end(), where + " property " + key + " comes back as " + back);
             check(found->second == value, where + " property " + key + " value");
         }
-        check(effectivelyHidden(a, x) == effectivelyHidden(b, y), where + " hidden state");
+        // (A space comes back on the importer's tag for spaces, which starts hidden: that is the importer's rule, not the file's.)
+        bool inSpace = false;
+        for (Id at = x; at; at = a.bodies().at(at)->parent)
+            inSpace = inSpace || textOf(*a.bodies().at(at), "ifc.Class") == "IfcSpace";
+        if (!inSpace)
+            check(effectivelyHidden(a, x) == effectivelyHidden(b, y), where + " hidden state");
         // Appearance: the material by name, colour and opacity.
         if (bx.materials.front) {
             const auto &mx = *a.materials().at(bx.materials.front);
@@ -475,22 +494,35 @@ void packageAndPlan() {
     check(manifest["georeference"].toObject()["crs"] == "EPSG:32760", "the package carries the georeference");
     const auto plan = a.plan;
     const auto written = plan["written"].toObject();
-    // By hand: groups House, Ground floor and Hidden group (Empty group is not written); bodies A, B, Hidden, Tagged, Door, Odd, Mirror,
-    // Frame, In hidden group, Chair, Loose and the two stools' seats; two placements.
-    check(written["groups"].toInt() == 3, "G4: groups written");
-    check(written["bodies"].toInt() == 13, "G4: bodies written " + std::to_string(written["bodies"].toInt()));
+    // By hand: groups House, Ground floor, Hidden group and Scaled group (Empty group is not written); bodies A, B, Hidden, Tagged, Door, Odd, Mirror,
+    // Frame, In hidden group, Scaled child, Chair, Loose and the two stools' seats; two placements.
+    check(written["groups"].toInt() == 4, "G4: groups written");
+    check(written["bodies"].toInt() == 15, "G4: bodies written " + QJsonDocument(written).toJson(QJsonDocument::Compact).toStdString());
     check(written["placements"].toInt() == 2, "G4: placements written as copies");
     check(manifest["nodes"].toArray().size() == written["nodes"].toInt(), "the package's nodes are the plan's");
-    check(manifest["nodes"].toArray().size() == 3 + 3 + 13 + 2, "node count: project, site, building, 3 groups, 13 bodies, 2 placements");
+    check(manifest["nodes"].toArray().size() == 3 + 4 + 15 + 2, "node count: project, site, building, 4 groups, 15 bodies (the disc is one), 2 placements");
+    {
+        // The scaled group's child: its placement is where it stands in the (rigid) frame of the group, not its raw local transform.
+        bool found = false;
+        for (const auto &n : manifest["nodes"].toArray()) {
+            const auto node = n.toObject();
+            if (qint64(node["id"].toDouble()) != 45)
+                continue;
+            const auto placement = node["placement"].toArray();
+            check(placement[0].toDouble() == 2 && placement[1].toDouble() == 0 && placement[2].toDouble() == 0, "a child of a scaled group is placed at its true place in the group's frame: " + QJsonDocument(placement).toJson(QJsonDocument::Compact).toStdString());
+            found = true;
+        }
+        check(found, "the scaled child is in the package");
+    }
     const auto notWritten = plan["notWritten"].toObject();
-    check(notWritten["emptyGroups"].toInt() == 1 && notWritten["bodiesWithoutFaces"].toInt() == 1 && notWritten["looseEdges"].toInt() == 2 &&
+    check(notWritten["emptyGroups"].toInt() == 1 && notWritten["bodiesWithoutFaces"].toInt() == 1 && notWritten["looseEdges"].toInt() == 2 && notWritten["curves"].toInt() == 1 &&
               notWritten["guides"].toInt() == 2 && notWritten["scenes"].toInt() == 2 && notWritten["sections"].toInt() == 1 && notWritten["sheets"].toInt() == 1 &&
               notWritten["annotations"].toInt() == 1 && notWritten["terrain"].toInt() == 1 && notWritten["terrainTiles"].toInt() >= 1 &&
               notWritten["referenceImages"].toInt() == 1 && notWritten["textures"].toInt() == 1,
           "G4: every kind that is not written is counted: " + QJsonDocument(notWritten).toJson(QJsonDocument::Compact).toStdString());
     const auto accounting = plan["accounting"].toObject();
     qint64 sum = accounting["written"].toInteger() + accounting["writtenAsCopies"].toInteger() + accounting["notWritten"].toInteger();
-    qint64 independent = qint64(stable.bodies().size()) + 2 /*guides*/ + 2 /*wires*/ + 1 /*label*/ + 2 /*scenes*/ + 1 /*section*/ + 1 /*sheet*/ + 1 /*textured material*/;
+    qint64 independent = qint64(stable.bodies().size()) + 2 /*guides*/ + 2 /*wires*/ + 1 /*circle record*/ + 1 /*label*/ + 2 /*scenes*/ + 1 /*section*/ + 1 /*sheet*/ + 1 /*textured material*/;
     check(sum == accounting["items"].toInteger() && sum == independent, "the accounting identity: " + std::to_string(sum) + " against " + std::to_string(independent));
     check(plan["georeference"].toObject()["result"] == "written", "G5: an authority code is written");
     check(plan["spatial"].toObject()["storeysInvented"].toInt() == 0 && plan["spatial"].toObject()["synthesizedSite"].toBool() && plan["spatial"].toObject()["synthesizedBuilding"].toBool(),
@@ -520,7 +552,7 @@ void packageAndPlan() {
         bool attention = false;
         for (const auto &n : p["notices"].toArray())
             attention = attention || n.toObject()["code"] == "georeferenceNotWritten";
-        check(attention, "G5: the report says why the georeference was not written");
+        check(attention && p["attention"].toInt() == 1, "G5: the report says why the georeference was not written, and asks for one look");
         const auto captured = captureIfcExport(m.document, options, "x.ifc");
         write(dir.filePath("q.skifcx"), captured.package);
         const auto q = QJsonDocument::fromJson(python({source("tests/ifc_export_package.py"), dir.filePath("q.skifcx")})).object();
@@ -546,6 +578,7 @@ void packageAndPlan() {
         const auto capturedA = captureIfcExport(base, options, "g.ifc");
         const auto g = capturedA.plan["globalIds"].toObject();
         check(g["kept"].toInt() == 1 && g["replacedDuplicate"].toInt() == 1 && g["replacedInvalid"].toInt() == 2 && g["replaced"].toInt() == 3, "G7: kept and replaced identifiers are counted: " + QJsonDocument(g).toJson(QJsonDocument::Compact).toStdString());
+        check(capturedA.plan["attention"].toInt() == 3, "G7: three items need a look");
         check(capturedA.plan["locationTotals"].toObject()["globalIdReplaced"].toInt() == 3 && capturedA.plan["locations"].toArray().size() == 3, "G7: the replaced identifiers are located");
         QString names;
         for (const auto &l : capturedA.plan["locations"].toArray())
@@ -680,6 +713,7 @@ void exportNative() {
     auto model = nativeModel();
     addUnwritable(model.document, model.ids["wallA"], model.ids["wallB"]);
     const auto doc = withIdentity(model.document);
+    const auto stableRevision = doc.revision();
     const auto w = exportTo(doc, dir.path(), "model.ifc");
     std::set<Id> unwritten{model.ids["empty"], model.ids["wires"]};
     for (const auto &[id, body] : doc.bodies())
@@ -688,7 +722,7 @@ void exportNative() {
     scanAgainstDocument(doc, w, unwritten);
     const auto facts = scan(w.path);
     const auto classes = facts["classes"].toObject();
-    check(classes["IFCELEMENTASSEMBLY"].toInt() == 5 && classes["IFCDOOR"].toInt() == 1 && classes["IFCBUILDINGELEMENTPROXY"].toInt() == 12, "G1: classes: assemblies, the door and proxies");
+    check(classes["IFCELEMENTASSEMBLY"].toInt() == 6 && classes["IFCDOOR"].toInt() == 1 && classes["IFCBUILDINGELEMENTPROXY"].toInt() == 14, "G1: classes: assemblies, the door and proxies");
     check(classes["IFCINDEXEDCOLOURMAP"].toInt() == 1 && classes["IFCMATERIAL"].toInt() == 1 && classes["IFCSURFACESTYLE"].toInt() == 1 && classes["IFCPRESENTATIONLAYERWITHSTYLE"].toInt() == 1, "G1: a colour map, one material, one layer");
     // The report: accounting, notices, fallbacks.
     const auto report = w.report;
@@ -724,7 +758,7 @@ void exportNative() {
     const auto back = reimport(w.path);
     sameModel(doc, back, "native model");
     // The document is not touched.
-    check(doc.revision() == model.document.revision() || true, "the document is untouched");
+    check(doc.revision() == stableRevision, "the document is untouched");
 
     // Destination rules.
     const auto hashBefore = QCryptographicHash::hash(read(w.path), QCryptographicHash::Sha256);
@@ -982,7 +1016,7 @@ void commandLine() {
     auto cli = [&](const QStringList &arguments, bool ok = true, QProcessEnvironment environment = QProcessEnvironment::systemEnvironment()) {
         QProcess process;
         process.setProcessEnvironment(environment);
-        process.start(QStringLiteral(CLI_PATH), arguments + QStringList{"--ifc-worker", QStringLiteral(IFC_WORKER_PATH)});
+        process.start(QStringLiteral(CLI_PATH), arguments + QStringList{"--ifc-worker", workerPath()});
         check(process.waitForFinished(300000), "cli timed out");
         const auto out = process.readAllStandardOutput(), errors = process.readAllStandardError();
         check((process.exitCode() == 0) == ok, "cli " + arguments.join(' ').toStdString() + ": " + out.toStdString() + errors.toStdString());
@@ -1026,6 +1060,193 @@ void commandLine() {
         check(failed["details"].toObject()["ifcCode"] == "emptyModel" && !QFile::exists(dir.filePath("w.ifc")), "CLI reports the empty model with its code: " + QJsonDocument(failed).toJson(QJsonDocument::Compact).toStdString());
     }
 #endif
+}
+
+
+
+// Text the document holds but the helper would refuse (control characters, a line break in a name) is cleaned, not fatal.
+void hostileText() {
+    QTemporaryDir dir;
+    Document doc;
+    Edit edit{"Odd text", {}};
+    auto body = box(1, 0, "Tab\there \x01 and a\nline break", {0, 0, 0}, {1, 1, 1});
+    body->properties = {{"Set\x02.Name\x03", std::string("value with\x01 a control, a tab\t and a\nline break")}, {"Plain\x01", 1.0}};
+    edit.changes.push_back({1, nullptr, body});
+    edit.nextIdFloor = 2;
+    bool accepted = true;
+    try {
+        doc.apply(std::move(edit), doc.revision());
+    } catch (const std::exception &) {
+        accepted = false; // the document itself refuses such text: nothing for the export to clean
+    }
+    if (!accepted)
+        return;
+    const auto w = exportTo(withIdentity(doc), dir.path(), "odd.ifc");
+    checkFile(w.path);
+    const auto facts = scan(w.path);
+    const auto guid = QString::fromStdString(derivedIfcGlobalId(identity, "body", 1));
+    const auto properties = facts["occurrenceProperties"].toObject()[guid].toObject();
+    check(properties.contains("Set .Name ") && properties["Set .Name "].toString() == "value with  a control, a tab\t and a\nline break",
+          "control characters become spaces, a tab and a line break stay in a value: " + QJsonDocument(properties).toJson(QJsonDocument::Compact).toStdString());
+    check(properties.contains("SketchyUp.Plain "), "control characters in a key become spaces");
+    check(facts["objects"].toObject()[guid].toObject()["name"] == "Tab here   and a line break", "control characters in a name become spaces");
+}
+
+// A model shaped like an IFC import (spatial classes, a body of its own on a site and a space, a deprecated wall class, a site of
+// sites, a building directly in the project): the structure is kept, the class is mapped and reported, nothing is lost.
+void exportSpatialModel() {
+    QTemporaryDir dir;
+    Document doc;
+    Edit edit{"IFC-shaped model", {}};
+    std::map<std::string, std::string> guids;
+    auto tag = [&](const std::shared_ptr<Body> &b, const char *cls, double step, const char *key, bool withGuid = true) {
+        b->properties["ifc.Class"] = std::string(cls);
+        b->properties["ifc.Step"] = step;
+        if (withGuid) {
+            guids[key] = derivedIfcGlobalId("elsewhere", key, std::uint64_t(step));
+            b->properties["ifc.GlobalId"] = guids[key];
+        }
+        edit.changes.push_back({b->id, nullptr, b});
+        return b;
+    };
+    tag(group(1, 0, "Project"), "IfcProject", 1, "project")->properties["ifc.LongName"] = std::string("Demo project");
+    tag(group(2, 1, "Site"), "IfcSite", 10, "site");
+    tag(box(3, 2, "Site", {0, 0, -1}, {50, 50, 1}), "IfcSite", 10, "siteBody", false); // the site's own body (folded into the site)
+    tag(group(4, 2, "House"), "IfcBuilding", 11, "house")->properties["ifc.LongName"] = std::string("House long name");
+    tag(group(5, 4, "Level 0"), "IfcBuildingStorey", 12, "level0")->properties["ifc.Elevation"] = 0.0;
+    {
+        auto wall = tag(box(6, 5, "Wall", {0, 0, 0}, {4, 0.2, 2.5}), "IfcWallStandardCase", 13, "wall");
+        wall->properties["ifc.PredefinedType"] = std::string("STANDARD");
+        wall->properties["Pset_WallCommon.FireRating"] = std::string("REI60");
+    }
+    tag(group(7, 5, "Room"), "IfcSpace", 14, "room");
+    tag(box(8, 7, "Room", {0.2, 0.2, 0}, {3, 3, 2.4}), "IfcSpace", 14, "roomBody", false); // the space's own body
+    tag(box(9, 7, "Sofa", {1, 1, 0}, {1.5, 0.8, 0.8}), "IfcFurniture", 15, "sofa");
+    tag(group(10, 4, "Level 1"), "IfcBuildingStorey", 16, "level1")->properties["ifc.Elevation"] = 3.0; // nothing in it: not written
+    tag(group(12, 2, "Partial site"), "IfcSite", 17, "partial");
+    tag(box(13, 12, "Pavement", {60, 0, 0}, {5, 5, 0.1}), "IfcSlab", 18, "pavement");
+    tag(group(14, 1, "Direct building"), "IfcBuilding", 19, "direct");
+    tag(box(15, 14, "Shed", {80, 0, 0}, {2, 2, 2}), "IfcBuildingElementProxy", 20, "shed");
+    {
+        auto stray = box(16, 0, "Stray", {-10, 0, 0}, {1, 1, 1});
+        edit.changes.push_back({16, nullptr, stray});
+    }
+    edit.nextIdFloor = 17;
+    doc.apply(std::move(edit), doc.revision());
+    const auto stable = withIdentity(doc);
+    const auto w = exportTo(stable, dir.path(), "structure.ifc");
+    const auto facts = scan(w.path);
+    checkFile(w.path);
+    const auto classes = facts["classes"].toObject();
+    check(classes["IFCSITE"].toInt() == 2 && classes["IFCBUILDING"].toInt() == 2 && classes["IFCBUILDINGSTOREY"].toInt() == 1 && classes["IFCSPACE"].toInt() == 1 &&
+              classes["IFCWALL"].toInt() == 1 && classes["IFCWALLSTANDARDCASE"].toInt() == 0 && classes["IFCFURNITURE"].toInt() == 1 && classes["IFCSLAB"].toInt() == 1 &&
+              classes["IFCBUILDINGELEMENTPROXY"].toInt() == 2 && classes["IFCELEMENTASSEMBLY"].toInt() == 0,
+          "the classes: " + QJsonDocument(classes).toJson(QJsonDocument::Compact).toStdString());
+    const auto parents = facts["parents"].toObject();
+    auto guidOf = [&](const char *key) { return QString::fromStdString(guids.at(key)); };
+    auto parent = [&](const QString &guid) { return parents[guid].toString(); };
+    check(parent(guidOf("site")) == guidOf("project") && parent(guidOf("partial")) == guidOf("site") && parent(guidOf("house")) == guidOf("site") &&
+              parent(guidOf("direct")) == guidOf("project"),
+          "the spatial tree: sites in the project, a site in a site, a building in a site and one directly in the project");
+    check(parent(guidOf("level0")) == guidOf("house") && parent(guidOf("wall")) == guidOf("level0") && parent(guidOf("room")) == guidOf("level0") && parent(guidOf("sofa")) == guidOf("room"),
+          "storey, wall, space and the sofa contained in the space");
+    check(parent(guidOf("pavement")) == guidOf("partial") && parent(guidOf("shed")) == guidOf("direct"), "elements in the nearest spatial ancestor");
+    check(!parents.contains(guidOf("level1")), "an empty storey is not written");
+    {
+        // The stray body takes the first building's place; the project's identifier and all kept identifiers are in the file.
+        QString stray;
+        for (auto it = parents.begin(); it != parents.end(); ++it)
+            if (facts["objects"].toObject()[it.key()].toObject()["name"] == "Stray")
+                stray = it.value().toString();
+        check(stray == guidOf("house"), "a body outside the spatial structure goes into the first building");
+        for (const auto &[key, guid] : guids)
+            if (key != "siteBody" && key != "roomBody" && key != "level1")
+                check(facts["objects"].toObject().contains(QString::fromStdString(guid)), "the imported GlobalId of " + key + " is kept");
+    }
+    const auto text = QString::fromUtf8(w.bytes);
+    check(text.contains(QRegularExpression("IFCSITE\\('" + QRegularExpression::escape(guidOf("site")) + "',#\\d+,'Site',\\$,\\$,#\\d+,#\\d+,\\$,\\.COMPLEX\\.,")), "the site keeps its body and is COMPLEX: composed of sites");
+    check(text.contains(QRegularExpression("'Partial site',[^;]*\\.PARTIAL\\.")), "the part of a site is PARTIAL");
+    check(text.contains(QRegularExpression("IFCBUILDING\\('" + QRegularExpression::escape(guidOf("house")) + "',#\\d+,'House',\\$,\\$,#\\d+,\\$,'House long name',\\.ELEMENT\\.")), "the building's long name");
+    check(text.contains(QRegularExpression("IFCBUILDINGSTOREY\\('" + QRegularExpression::escape(guidOf("level0")) + "'[^;]*\\.ELEMENT\\.,0\\.\\)")), "the storey's elevation");
+    check(text.contains(QRegularExpression("IFCPROJECT\\('" + QRegularExpression::escape(guidOf("project")) + "',#\\d+,'Project',\\$,\\$,'Demo project'")), "the project's long name");
+    const auto fallbacks = w.report["classFallbacks"].toArray();
+    check(fallbacks.size() == 1 && fallbacks[0].toObject()["requested"] == "IfcWallStandardCase" && fallbacks[0].toObject()["written"] == "IfcWall" && fallbacks[0].toObject()["reason"] == "standardCase",
+          "the deprecated standard-case class is written as the class it refines, and reported");
+    check(facts["occurrenceProperties"].toObject()[guidOf("wall")].toObject()["Pset_WallCommon.FireRating"] == "REI60", "the wall's property");
+    check(w.report["accounting"].toObject()["balanced"].toBool() && w.report["notWritten"].toObject()["emptyGroups"].toInt() == 1, "the empty storey is counted");
+    check(w.report["globalIds"].toObject()["kept"].toInt() == 11 && w.report["globalIds"].toObject()["replaced"].toInt() == 0, "eleven identifiers are kept: " + QJsonDocument(w.report["globalIds"].toObject()).toJson(QJsonDocument::Compact).toStdString());
+    sameModel(stable, reimport(w.path), "structure", {}, false);
+    golden(w, "ifc-structure.ifc");
+}
+
+// The process runner against helpers that misbehave (scripts that stand in for sketchyup-ifc-worker): deadline, cancel, a flood, a
+// helper that ignores SIGTERM, a crash, hostile words, garbage and false claims. Nothing is published and the private directory is
+// removed each time.
+void runner() {
+    QTemporaryDir dir, scratchRoot;
+    Document doc;
+    {
+        Edit edit{"Box", {}};
+        edit.changes.push_back({1, nullptr, box(1, 0, "Box", {0, 0, 0}, {1, 1, 1})});
+        edit.nextIdFloor = 2;
+        doc.apply(std::move(edit), doc.revision());
+    }
+    const QString real = workerPath();
+    int number = 0;
+    const auto script = [&](const QByteArray &body) {
+        const auto path = dir.filePath(QString("stub%1.sh").arg(++number));
+        QFile file(path);
+        check(file.open(QIODevice::WriteOnly) && file.write("#!/bin/sh\nREAL='" + real.toUtf8() + "'\n" + body) > 0, "write a stand-in helper");
+        file.close();
+        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+        return path;
+    };
+    const auto options = [&](const QString &worker, int deadline = 60) {
+        auto o = workerOptions();
+        o.workerPath = worker;
+        o.deadlineSeconds = deadline;
+        o.scratchRoot = scratchRoot.path();
+        return o;
+    };
+    const auto fails = [&](const QString &worker, const char *expected, const char *label, int deadline = 60, std::function<bool()> cancelled = {}, int maxMs = 20000) {
+        const auto target = dir.filePath(QString("out%1.ifc").arg(number));
+        auto o = options(worker, deadline);
+        o.cancelled = cancelled;
+        QElapsedTimer clock;
+        clock.start();
+        try {
+            exportIfcFile(doc, target, {}, o);
+            check(false, std::string(label) + ": must fail");
+        } catch (const IfcExportError &error) {
+            check(error.code() == expected, std::string(label) + ": code " + error.code() + " instead of " + expected + " (" + error.what() + ")");
+            check(clock.elapsed() < maxMs, std::string(label) + ": took " + std::to_string(clock.elapsed()) + " ms");
+            check(QString(error.what()).toUtf8().size() < 1000, std::string(label) + ": the message is short");
+            for (const char c : std::string(error.what()))
+                check(static_cast<unsigned char>(c) >= 0x20 || c == '\n', std::string(label) + ": no control character in the message");
+            check(error.report().isEmpty() || QJsonDocument(error.report()).toJson(QJsonDocument::Compact).size() <= 64 * 1024, std::string(label) + ": the report is bounded");
+        }
+        check(!QFile::exists(target), std::string(label) + ": nothing is published");
+        check(QDir(scratchRoot.path()).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty(), std::string(label) + ": the private directory is removed");
+    };
+    fails(script("sleep 30\n"), "workerFailed", "deadline", 1, {}, 8000);
+    {
+        auto calls = std::make_shared<int>(0);
+        fails(script("sleep 30\n"), "cancelled", "cancel while the helper runs", 60, [calls] { return ++*calls >= 3; }, 8000);
+    }
+    fails(script("echo 'P phase read'; head -c 4000000 /dev/zero | tr '\\000' x; sleep 30\n"), "workerFailed", "a flood without a line end", 60, {}, 8000);
+    fails(script("trap '' TERM; while :; do :; done\n"), "workerFailed", "a helper that ignores SIGTERM", 1, {}, 8000);
+    fails(script("kill -SEGV $$\n"), "workerFailed", "a crash");
+    fails(script("printf 'R {\"status\":\"refused\",\"code\":\"a b\\\\nc<script>\",\"message\":\"%s\"}\\n' \"$(head -c 30000 /dev/zero | tr '\\000' y)\"; exit 3\n"), "workerRefused", "hostile words");
+    fails(script("echo garbage > \"$4\"; echo 'R {\"status\":\"ok\"}'\n"), "workerOutput", "a file that is not STEP");
+    fails(script("echo 'R {\"status\":\"ok\"}'\n"), "workerOutput", "no file at all");
+    fails(script("\"$REAL\" \"$@\" | sed 's/\"triangles\":[0-9]*/\"triangles\":1/'; exit ${PIPESTATUS:-0}\n"), "workerMismatch", "a false claim about the triangles");
+    fails(script("if [ \"$1\" = --check ]; then echo 'R {\"status\":\"invalid\",\"entities\":1,\"issueCount\":1,\"issues\":[\"#1 IfcFoo: broken\"]}'; exit 3; fi\nexec \"$REAL\" \"$@\"\n"), "workerOutput", "a file that fails the schema check");
+    // And a good run through a stand-in that only delegates, to show the stand-ins are not what failed above.
+    {
+        const auto target = dir.filePath("delegated.ifc");
+        exportIfcFile(doc, target, {}, options(script("exec \"$REAL\" \"$@\"\n")));
+        check(QFile::exists(target), "a delegating stand-in works");
+    }
 }
 
 // ADR 0171 section 6.4: "Export of the 100,000-face model <= 5 s" is measured on request (IFC_EXPORT_BUDGET=1).
@@ -1079,13 +1300,16 @@ void budget() {
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
-    if (!QFileInfo(QStringLiteral(IFC_WORKER_PATH)).isExecutable()) {
+    if (!QFileInfo(workerPath()).isExecutable()) {
         std::cout << "skipped: the IFC helper is not built\n";
         return 77;
     }
     try {
         for (const auto &[name, run] : std::initializer_list<std::pair<const char *, void (*)()>>{{"package and plan", packageAndPlan},
                                                                                               {"native model", exportNative},
+                                                                                              {"ifc-shaped model", exportSpatialModel},
+                                                                                              {"hostile text", hostileText},
+                                                                                              {"helper that misbehaves", runner},
                                                                                               {"imported documents", exportImported},
                                                                                               {"fixture documents", exportFixtureDocuments},
                                                                                               {"command line", commandLine},

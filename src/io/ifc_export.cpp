@@ -36,8 +36,8 @@ constexpr std::size_t maxIfcBytes = 256u * 1024 * 1024;
 constexpr std::size_t maxManifestBytes = 32u * 1024 * 1024, maxMeshBytes = 128u * 1024 * 1024;
 const char *const privatePrefix = "sketchyup-ifc-";
 constexpr std::array<float, 3> defaultBodyColor{0.73f, 0.79f, 0.73f};
-const char *const hiddenLayerName = "SketchyUp hidden";
 constexpr std::size_t labelCodePoints = 255;
+constexpr std::size_t maxMeshVertices = 300000, maxMeshTriangles = 1000000, maxNodes = 400000, maxStyles = 65536;
 
 using Value = std::variant<bool, double, std::string>;
 
@@ -68,6 +68,37 @@ std::string clipBytes(const std::string &text, std::size_t bytes) {
     while (cut > 0 && (static_cast<unsigned char>(text[cut]) & 0xC0) == 0x80)
         --cut;
     return text.substr(0, cut);
+}
+// Text the helper will take: valid UTF-8 (a bad byte becomes '?'), control characters become spaces (a line break and a tab
+// stay when `keepLineBreaks`).
+std::string cleanText(const std::string &text, bool keepLineBreaks = false) {
+    std::string out;
+    out.reserve(text.size());
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if (c < 0x80) {
+            if ((c < 0x20 && !(keepLineBreaks && (c == '\n' || c == '\t'))) || c == 0x7f)
+                out += ' ';
+            else
+                out += char(c);
+            continue;
+        }
+        const std::size_t length = c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC2 ? 2 : 0;
+        bool valid = length != 0 && c < 0xF5 && i + length <= text.size();
+        for (std::size_t k = 1; valid && k < length; ++k)
+            valid = (static_cast<unsigned char>(text[i + k]) & 0xC0) == 0x80;
+        if (valid) {
+            const unsigned char second = static_cast<unsigned char>(text[i + 1]);
+            valid = !((c == 0xE0 && second < 0xA0) || (c == 0xED && second >= 0xA0) || (c == 0xF0 && second < 0x90) || (c == 0xF4 && second >= 0x90));
+        }
+        if (!valid) {
+            out += '?';
+            continue;
+        }
+        out.append(text, i, length);
+        i += length - 1;
+    }
+    return out;
 }
 // Control characters become spaces; the message never quotes more than 64 bytes of user text.
 std::string userText(const std::string &text) {
@@ -174,6 +205,7 @@ struct Node {
     int mesh{-1}, style{-1};
     std::array<double, 9> placement{0, 0, 0, 0, 0, 1, 1, 0, 0};
     Transform emitted;
+    bool exactFrame{}; // the node's emitted frame is its native world, so a native child's own transform is its placement
     bool hasProvenanceGuid{};
     std::string candidateGuid;
 };
@@ -282,8 +314,8 @@ struct Capture {
                 continue;
             const auto cls = stringProperty(g, "ifc.Class");
             const auto step = numberProperty(g, "ifc.Step");
-            if (cls.empty() || !step)
-                continue;
+            if (cls.empty() || !step || cls == "IfcProject")
+                continue; // (a project has no body)
             const auto found = children.find(id);
             if (found == children.end())
                 continue;
@@ -339,17 +371,23 @@ struct Capture {
                 set = key.substr(0, dot);
                 name = key.substr(dot + 1);
             }
+            // Text the helper accepts: no control characters in a set or a name, none but line breaks and tabs in a value.
+            set = cleanText(set);
+            name = cleanText(name);
             if (!seen.insert({set, name}).second) {
                 ++count["propertyKeyCollisions"];
                 continue;
             }
-            node.props.push_back({set, name, value});
+            Value cleaned = value;
+            if (const auto *text = std::get_if<std::string>(&value))
+                cleaned = cleanText(*text, true);
+            node.props.push_back({set, name, cleaned});
         }
     }
 
     void label(std::string &target, const std::string &text) {
         bool clipped = false;
-        target = clipCodePoints(text, labelCodePoints, clipped);
+        target = clipCodePoints(cleanText(text), labelCodePoints, clipped);
         if (clipped)
             ++notices["nameClipped"];
     }
@@ -364,8 +402,8 @@ struct Capture {
         label(node.name, fullName.empty() ? b.name : fullName);
         label(node.longName, stringProperty(b, "ifc.LongName"));
         label(node.objectType, stringProperty(b, "ifc.ObjectType"));
-        node.predefinedType = clipBytes(stringProperty(b, "ifc.PredefinedType"), 120);
-        node.requestedClass = clipBytes(stringProperty(b, "ifc.Class"), 120);
+        node.predefinedType = clipBytes(cleanText(stringProperty(b, "ifc.PredefinedType")), 120);
+        node.requestedClass = clipBytes(cleanText(stringProperty(b, "ifc.Class")), 120);
         if (role == "storey")
             node.elevation = numberProperty(b, "ifc.Elevation");
         else if (b.properties.contains("ifc.Elevation"))
@@ -560,7 +598,7 @@ struct Capture {
                 StyleRecord style;
                 if (bodyLook.material) {
                     const auto &material = *doc.materials().at(bodyLook.material);
-                    style = {material.name, material.color, material.opacity, true};
+                    style = {cleanText(material.name), material.color, material.opacity, true};
                 } else {
                     char name[64];
                     std::snprintf(name, sizeof name, "SketchyUp colour #%02X%02X%02X", int(std::lround(bodyLook.rgb[0] * 255)),
@@ -589,13 +627,14 @@ struct Capture {
             // edge it lies on; the triangles keep their orientation and the mesh keeps every vertex of the face.
             {
                 std::vector<Vec3> missing;
+                std::set<std::array<double, 3>> corners;
+                for (const auto &t : triangles)
+                    for (const Vec3 &p : {t.a, t.b, t.c})
+                        corners.insert({p.x, p.y, p.z});
                 for (const auto &loop : b.surface.faces.at(faceId).loops)
                     for (const Id vertexId : loop) {
                         const Vec3 p = b.surface.vertices.at(vertexId);
-                        bool used = false;
-                        for (const auto &t : triangles)
-                            used = used || t.a == p || t.b == p || t.c == p;
-                        if (!used)
+                        if (!corners.contains({p.x, p.y, p.z}))
                             missing.push_back(p);
                     }
                 for (const Vec3 p : missing) {
@@ -638,7 +677,7 @@ struct Capture {
                 }
             }
             const auto &look = looks.at(faceId);
-            if (look.material && doc.materials().at(look.material)->opacity != styleOpacity)
+            if ((look.material ? doc.materials().at(look.material)->opacity : 1.0f) != styleOpacity)
                 ++count["faceOpacityNotWritten"];
             std::uint32_t colour = 0;
             if (mixed) {
@@ -700,12 +739,13 @@ struct Capture {
             const Node &parent = nodes[std::size_t(node.parent)];
             Transform relative;
             if (node.body) {
-                const bool nativeChild = parent.body && parent.role != "project" && body(node.body).parent == parent.body;
+                const bool nativeChild = parent.body && parent.role != "project" && parent.exactFrame && body(node.body).parent == parent.body;
                 relative = nativeChild ? body(node.body).transform : parent.emitted.inverse() * world;
             }
             const Transform rigid = rigidPart(relative);
             node.emitted = parent.emitted * rigid;
             node.placement = placementOf(rigid);
+            node.exactFrame = nearIdentity(node.emitted.inverse() * world);
             if (node.geometry) {
                 Transform residual = node.emitted.inverse() * (node.geometry == node.body ? world : doc.worldTransform(node.geometry));
                 const bool bake = !nearIdentity(residual);
@@ -714,6 +754,9 @@ struct Capture {
                 bool hasTriangles = false;
                 auto mesh = makeMesh(node.geometry, residual, bake, flip, style, hasTriangles);
                 if (hasTriangles) {
+                    if (mesh.vertices.size() / 3 > maxMeshVertices || mesh.triangles.size() / 3 > maxMeshTriangles)
+                        refuse("meshTooLarge", "The body \"" + userText(body(node.geometry).name) + "\" has more vertices or triangles than the IFC package takes (" +
+                                                   std::to_string(maxMeshVertices) + " and " + std::to_string(maxMeshTriangles) + ").");
                     totalTriangles += mesh.triangles.size() / 3;
                     node.mesh = int(meshes.size());
                     node.style = style;
@@ -801,6 +844,7 @@ struct Capture {
                 disposition.at(id) != Disposition::ReferenceImage) {
                 notWrittenCounts["guides"] += qint64(b.guides.size());
                 notWrittenCounts["looseEdges"] += qint64(b.surface.wires.size());
+                notWrittenCounts["curves"] += qint64(b.curves.size());
             }
         }
         notWrittenCounts["annotations"] += qint64(doc.annotations().size());
@@ -822,7 +866,7 @@ struct Capture {
         for (const auto &[id, body] : doc.bodies()) {
             const auto d = disposition.at(id);
             if (d != Disposition::Terrain && d != Disposition::TerrainTile && d != Disposition::ReferenceImage)
-                items += qint64(body->guides.size() + body->surface.wires.size());
+                items += qint64(body->guides.size() + body->surface.wires.size() + body->curves.size());
         }
         items += qint64(doc.annotations().size() + doc.sections().size() + doc.scenes().size() + doc.drawingSheets().size());
         for (const auto &[id, definition] : doc.definitions())
@@ -908,6 +952,8 @@ QString timestampText(qint64 epoch) { return QDateTime::fromSecsSinceEpoch(epoch
 qint64 resolveTimestamp(const IfcExportOptions &options, QString &source) {
     if (options.timestamp) {
         source = "option";
+        if (*options.timestamp < 0 || *options.timestamp > 253402300799LL)
+            refuse("badTimestamp", "The time stamped into the file must lie between 1970 and 9999.");
         return *options.timestamp;
     }
     const auto fromEnvironment = qgetenv("SOURCE_DATE_EPOCH");
@@ -930,10 +976,6 @@ QJsonObject countsObject(const std::map<std::string, qint64> &counts) {
     return object;
 }
 
-struct Captured {
-    IfcExportCapture capture;
-    QJsonObject manifest;
-};
 } // namespace
 
 bool isAuthorityCode(const std::string &label) {
@@ -985,7 +1027,11 @@ IfcExportCapture captureChecked(const Document &document, const IfcExportOptions
     c.findFolds();
     c.buildTree();
     c.linearize();
+    if (c.nodes.size() > maxNodes)
+        refuse("packageTooLarge", "The model has more groups and bodies than the IFC package takes (" + std::to_string(maxNodes) + ").");
     c.placeAndMesh();
+    if (c.styles.size() > maxStyles)
+        refuse("packageTooLarge", "The model has more distinct colours and materials than the IFC package takes (" + std::to_string(maxStyles) + ").");
     c.assignGlobalIds();
     c.account();
 
@@ -1034,7 +1080,14 @@ IfcExportCapture captureChecked(const Document &document, const IfcExportOptions
                                   {"color", QJsonArray{shortDouble(style.color[0]), shortDouble(style.color[1]), shortDouble(style.color[2])}},
                                   {"opacity", shortDouble(style.opacity)},
                                   {"material", style.material}});
-        materialStyles += style.material ? 1 : 0;
+    }
+    // A material is written (an IfcMaterial with its definition) only for a style that an element or an assembly uses.
+    {
+        std::set<int> used;
+        for (const auto &node : c.nodes)
+            if ((node.role == "assembly" || node.role == "element") && node.mesh >= 0 && node.style >= 0 && c.styles[std::size_t(node.style)].material)
+                used.insert(node.style);
+        materialStyles = qint64(used.size());
     }
 
     QJsonArray nodes;
@@ -1170,13 +1223,46 @@ IfcExportCapture captureChecked(const Document &document, const IfcExportOptions
     notice("foldedGeometry", qint64(c.folded.size()),
            "A body that only carried the geometry of its parent group (as an IFC import makes them) was written as that group's own shape.");
 
+    // Appearance and detail the file cannot carry, counted next to the identity (ADR 0171 section 3.8: "not exported, counted").
+    QJsonObject losses;
+    {
+        qint64 editableText = 0, edgeAppearance = 0, textureMappings = 0, backMaterials = 0;
+        for (const auto &[id, b] : document.bodies()) {
+            const auto d = c.disposition.at(id);
+            if (d != Disposition::Written)
+                continue;
+            editableText += b->textSource ? 1 : 0;
+            edgeAppearance += qint64(b->edgeAppearances.size());
+            textureMappings += qint64(b->faceTextureMappings.size());
+            for (const auto &[faceId, face] : b->surface.faces) {
+                (void)face;
+                const auto sides = faceMaterials(*b, faceId);
+                backMaterials += sides.front != sides.back ? 1 : 0;
+            }
+        }
+        std::set<Id> used;
+        for (const auto &[root, instance] : document.instances())
+            used.insert(instance->definition);
+        qint64 unplaced = 0;
+        for (const auto &[id, definition] : document.definitions())
+            unplaced += used.contains(id) ? 0 : 1;
+        for (const auto &[key, number] : std::initializer_list<std::pair<const char *, qint64>>{{"editableText", editableText}, {"edgeAppearance", edgeAppearance},
+                                                                                              {"faceTextureMappings", textureMappings}, {"backFaceMaterials", backMaterials},
+                                                                                              {"unplacedDefinitions", unplaced}})
+            if (number > 0)
+                losses[key] = number;
+    }
+    // What the report asks the person to look at: a georeference that was not written, and each identifier that was replaced.
+    const qint64 attention = (georeference["result"] == "notWritten" ? 1 : 0) + c.replacedDuplicate + c.replacedInvalid;
     QJsonObject plan{{"apiVersion", 1},
+                     {"attention", attention},
                      {"format", "IFC"},
                      {"direction", "export"},
                      {"spatial", spatial},
                      {"written", written},
                      {"notWritten", countsObject(c.notWrittenCounts)},
                      {"accounting", accounting},
+                     {"losses", losses},
                      {"georeference", georeference},
                      {"globalIds", globalIds},
                      {"notices", noticeList},
@@ -1219,14 +1305,8 @@ struct WorkerRun {
 
 // Runs the helper once with a fixed argv and a scrubbed environment, in its own session, with a deadline; the
 // parent ends it (terminate, then kill after a second) on cancel, on the deadline or when it floods its output.
-WorkerRun runExportWorker(const QString &worker, const QString &directory, const QString &package, const QString &output,
-                          const IfcWorkerOptions &options) {
+WorkerRun runWorker(const QString &worker, const QString &directory, const QStringList &args, const IfcWorkerOptions &options) {
     WorkerRun run;
-    QStringList args{"--export", package, "--output", output};
-    if (options.addressSpaceBytes > 0)
-        args << "--rlimit-as" << QString::number(options.addressSpaceBytes);
-    args << "--rlimit-cpu" << QString::number(qint64(options.deadlineSeconds) * 4) << "--rlimit-fsize"
-         << QString::number(qint64(maxIfcBytes) + 1024 * 1024);
     QProcess process;
     process.setProgram(worker);
     process.setArguments(args);
@@ -1433,7 +1513,14 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
         QFile::setPermissions(packagePath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     }
     progress("build");
-    const auto run = runExportWorker(workerPath, directory.path(), packagePath, outputPath, worker);
+    QStringList exportArguments{"--export", packagePath, "--output", outputPath};
+    QStringList limits;
+    if (worker.addressSpaceBytes > 0)
+        limits << "--rlimit-as" << QString::number(worker.addressSpaceBytes);
+    limits << "--rlimit-cpu" << QString::number(qint64(worker.deadlineSeconds) * 4);
+    exportArguments += limits;
+    exportArguments << "--rlimit-fsize" << QString::number(qint64(maxIfcBytes) + 1024 * 1024);
+    const auto run = runWorker(workerPath, directory.path(), exportArguments, worker);
     auto report = capture.plan;
     if (run.kind == WorkerRun::Cancelled)
         refuse("cancelled", "The export was cancelled; nothing was written.");
@@ -1453,7 +1540,8 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
         const QFileInfo produced(outputPath);
         if (produced.exists() && produced.size() >= qint64(maxIfcBytes))
             refuse("outputTooLarge", "The IFC file would be larger than 256 MiB; nothing was written.", report);
-        report["logTail"] = run.logTail;
+        // (The report holds no host paths: the private directory is named for what it is.)
+        report["logTail"] = QString(run.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>");
         refuse("workerFailed", "The IFC helper stopped (" + run.reason.toStdString() + "); nothing was written.", report);
     }
     progress("check");
@@ -1470,9 +1558,27 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
             refuse("workerOutput", "The IFC helper's file cannot be read.", report);
         bytes = file.read(qint64(maxIfcBytes) + 1);
     }
-    if (bytes.size() != produced.size() || !bytes.startsWith("ISO-10303-21;") || !bytes.trimmed().endsWith("END-ISO-10303-21;"))
+    if (bytes.size() != produced.size() || !bytes.startsWith("ISO-10303-21;") || !bytes.right(64).trimmed().endsWith("END-ISO-10303-21;"))
         refuse("workerOutput", "The IFC helper's file is not a complete STEP file.", report);
 
+    // The file that is about to be published is read again by the helper's IfcParse and every attribute is checked against the
+    // schema (not an independent validator: the same library wrote it).
+    {
+        const auto checked = runWorker(workerPath, directory.path(), QStringList{"--check", outputPath} + limits, worker);
+        if (checked.kind == WorkerRun::Cancelled)
+            refuse("cancelled", "The export was cancelled; nothing was written.");
+        if (checked.kind != WorkerRun::Finished) {
+            QStringList issues;
+            for (const auto &issue : checked.result["issues"].toArray())
+                if (issues.size() < 8)
+                    issues << issue.toString().left(200);
+            auto failed = report;
+            failed["checkIssues"] = QJsonArray::fromStringList(issues);
+            refuse("workerOutput", "The IFC file does not pass the helper's own schema check; nothing was written. " + issues.value(0).toStdString(), failed);
+        }
+        if (checked.result["entities"] != run.result["entities"])
+            refuse("workerMismatch", "The IFC file read back has a different number of entities than the helper wrote.", report);
+    }
     // What the helper wrote must equal what the document said it would.
     const auto counts = run.result["counts"].toObject();
     const auto planned = capture.plan["written"].toObject();
@@ -1535,7 +1641,7 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
     if (fallbackTotal > 0) {
         notices.append(QJsonObject{{"code", "classFallback"},
                                    {"count", fallbackTotal},
-                                   {"message", "A body asked for an IFC class that is not an IFC4 building element, so it was written as an IfcBuildingElementProxy (or an IfcElementAssembly for a group)."}});
+                                   {"message", "A body asked for an IFC class that is not written as asked (unknown to IFC4, not a building element, abstract, or a deprecated standard-case class, which is written as the class it refines); see the class list."}});
         report["classFallbacks"] = run.result["fallbacks"];
     }
     if (const auto dropped = qint64(run.result["predefinedTypeDropped"].toDouble()); dropped > 0)

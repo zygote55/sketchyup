@@ -33,6 +33,7 @@ float f32(const unsigned char* p) {
   return value;
 }
 
+// Strict UTF-8: no overlong forms, no surrogates, nothing above U+10FFFF.
 bool validUtf8(const std::string& text) {
   for (std::size_t i = 0; i < text.size(); ++i) {
     const unsigned char c = static_cast<unsigned char>(text[i]);
@@ -41,6 +42,11 @@ bool validUtf8(const std::string& text) {
     if (length == 0 || c >= 0xF5 || i + length > text.size()) return false;
     for (std::size_t k = 1; k < length; ++k)
       if ((static_cast<unsigned char>(text[i + k]) & 0xC0) != 0x80) return false;
+    const unsigned char second = static_cast<unsigned char>(text[i + 1]);
+    if (c == 0xE0 && second < 0xA0) return false;   // overlong
+    if (c == 0xED && second >= 0xA0) return false;  // a surrogate
+    if (c == 0xF0 && second < 0x90) return false;   // overlong
+    if (c == 0xF4 && second >= 0x90) return false;  // beyond U+10FFFF
     i += length - 1;
   }
   return true;

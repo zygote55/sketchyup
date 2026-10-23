@@ -676,13 +676,14 @@ int main(int argc, char **argv) {
                 bool ok{};
                 qint64 epoch = text.toLongLong(&ok);
                 if (!ok) {
-                    auto when = QDateTime::fromString(text, "yyyy-MM-ddTHH:mm:ss");
-                    if (!when.isValid())
-                        when = QDateTime::fromString(text, "yyyy-MM-ddTHH:mm:ssZ");
-                    if (!when.isValid())
+                    // YYYY-MM-DDTHH:MM:SS (optionally ending in Z), read as UTC: a zone with daylight saving has no say.
+                    auto clock = text.endsWith('Z') ? text.chopped(1) : text;
+                    const auto parts = clock.split('T');
+                    const auto date = parts.size() == 2 ? QDate::fromString(parts[0], "yyyy-MM-dd") : QDate();
+                    const auto time = parts.size() == 2 ? QTime::fromString(parts[1], "HH:mm:ss") : QTime();
+                    if (!date.isValid() || !time.isValid() || parts[0].size() != 10 || parts[1].size() != 8)
                         invalid("--ifc-timestamp is UTC seconds since the epoch or YYYY-MM-DDTHH:MM:SS");
-                    when.setTimeZone(QTimeZone::utc());
-                    epoch = when.toSecsSinceEpoch();
+                    epoch = QDateTime(date, time, QTimeZone::utc()).toSecsSinceEpoch();
                 }
                 if (epoch < 0 || epoch > 253402300799LL)
                     invalid("--ifc-timestamp is between 1970 and 9999");
