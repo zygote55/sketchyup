@@ -1826,7 +1826,11 @@ jobs:
           path: build/ifc-prefix
           key: ${{ steps.prefix-key.outputs.key }}
       - name: Helper, API probe and library checks
-        run: ctest --test-dir build/ifc -R '^ifc_' --output-on-failure --no-tests=error --parallel 2
+        # The damaged-file corpus of 512 mutations per file (label full) runs in the full tier only.
+        run: ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2
+      - name: Damaged-file corpus, 512 mutations of each certification file
+        if: needs.plan.outputs.full == 'true'
+        run: ctest --test-dir build/ifc -L full --output-on-failure --no-tests=error
       - name: Helper under the sanitizers
         # The helper's own code under ASan and UBSan against the uninstrumented library.
         if: needs.plan.outputs.full == 'true'
@@ -1835,7 +1839,7 @@ jobs:
         run: |
           cmake --preset ifc-sanitize
           cmake --build --preset ifc-sanitize --parallel "$(nproc)"
-          ctest --test-dir build/ifc-sanitize -R '^ifc_worker_probe$' --output-on-failure --no-tests=error
+          ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_worker_fault_corpus)$' --output-on-failure --no-tests=error
   package:
     name: Arch package acceptance
     needs: plan

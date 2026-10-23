@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace sketchyup::ifc {
@@ -42,6 +43,13 @@ public:
   }
   JsonOut& value(int number) { return value(static_cast<long long>(number)); }
   JsonOut& value(std::size_t number) { return value(static_cast<long long>(number)); }
+  // Any other integer type (long, unsigned, ...) goes through long long.
+  template <class T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool> && !std::is_same_v<T, int> &&
+                                          !std::is_same_v<T, long long> && !std::is_same_v<T, std::size_t>,
+                                      int> = 0>
+  JsonOut& value(T number) {
+    return value(static_cast<long long>(number));
+  }
   JsonOut& value(double number) {
     separator();
     if (!std::isfinite(number)) {

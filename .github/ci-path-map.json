@@ -107,7 +107,7 @@
       ]
     },
     {
-      "why": "IFC (ADR 0171): the vendored IfcOpenShell tree, the helper that links it, its API probe, fixtures and library checks, and the files that pin and describe it. The application does not link the library, so the vendored tree alone selects only the IFC job, which restores the cached prefix (the tree and src/ifc/IfcOpenShellPrefix.cmake key the cache); src, scripts and tests paths also select build and native through the generic rules.",
+      "why": "IFC (ADR 0171): the vendored IfcOpenShell tree, the helper that links it, its API probe, fixtures and library checks, and the files that pin and describe it. The application does not link the library, so the vendored tree alone selects only the IFC job, which restores the cached prefix (the tree and src/ifc/IfcOpenShellPrefix.cmake key the cache); src, scripts and tests paths also select build and native through the generic rules. The root CMakeLists.txt is here too (R097.b): it defines the SKETCHYUP_BUILD_IFC option and adds src/ifc, so an edit there can break the helper build, and the job costs about a minute with the prefix cached.",
       "paths": [
         "third_party/ifcopenshell/**",
         "src/ifc/**",
@@ -116,6 +116,7 @@
         "scripts/vendor-ifcopenshell.py",
         "scripts/verify-ifc-library.py",
         "dependencies.json",
+        "CMakeLists.txt",
         "CMakePresets.json"
       ],
       "areas": [
@@ -365,7 +366,8 @@
         "build",
         "native",
         "slow-terrain",
-        "slow-core"
+        "slow-core",
+        "job:ifc"
       ]
     },
     {
@@ -475,7 +477,8 @@
       "areas": [
         "build",
         "native",
-        "slow-core"
+        "slow-core",
+        "job:ifc"
       ]
     },
     {
@@ -527,6 +530,17 @@
       "why": "IFC library check script",
       "paths": [
         "scripts/verify-ifc-library.py"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "job:ifc"
+      ]
+    },
+    {
+      "why": "root CMakeLists.txt alone selects the IFC job (R097.b; R097.a left it out)",
+      "paths": [
+        "CMakeLists.txt"
       ],
       "areas": [
         "build",
