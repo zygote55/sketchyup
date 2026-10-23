@@ -1433,7 +1433,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R099 — Add camera paths and batch presentation output
 
-**Status:** Planned; Design proposed (ADR 0173). **Track:** Rendering. **Scope:** F05. **UX:** —.
+**Status:** Planned; Design accepted ([ADR 0173](decisions/0173-camera-paths-batch-output.md), owner decisions approved 2026-10-23). **Track:** Rendering. **Scope:** F05. **UX:** —.
 
 **Requires:** [R089](#r089), [R072](#r072), [R070](#r070); milestone gate rule above.
 

@@ -1,6 +1,6 @@
 # Camera paths and batch presentation output
 
-Status: **Proposed** for the decisions below. Roadmap row
+Status: **Accepted (2026-10-23)**: owner decisions 1 to 17 approved as recommended on 2026-10-23. Roadmap row
 [R099](../PR_ROADMAP.md#r099) (M10, scope row [F05](../SCOPE.md)); builds on
 [ADR 0099](0099-retained-render-jobs.md) / [ADR 0100](0100-render-queue-lifecycle.md)
 (R070), [ADR 0104](0104-camera-motion-and-timelines.md) /
