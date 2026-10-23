@@ -116,8 +116,8 @@ What the repository gives us (surveyed at `34910469`):
   turn, and MCP exposes the full catalogue (the standing position of
   [ADR 0168](0168-terrain-import-and-surfaces.md) and
   [ADR 0169](0169-terrain-editing-drape-stamp.md) decision 9).
-- **UX.** `docs/UX_DESIGN.md` has sections 1–15, and §16 is the IFC design (PR #420); the R100
-  interface design would be **§17** and is to be commissioned and approved before the
+- **UX.** `docs/UX_DESIGN.md` has sections 1–15, and §16 is the IFC design (PR #420) and §17 the camera-path design (ADR 0173); the R100
+  interface design would be **§18** and is to be commissioned and approved before the
   desktop slice (the R062 and R096 pattern).
 
 ## 1. Packaged edge styles (decision 1)
@@ -186,10 +186,10 @@ record**, so documents that do not use it stay at their current schema:
   when the `edge` sub-record is used, alongside the existing conditional
   `drawing-sheets-v1`, `component-parameters-v1` and `terrain-v1`
   (`src/io/container.cpp`).
-- A document using it is written as **schema 30**; the writer keeps emitting the
+- A document using it is written as **schema 31**; the writer keeps emitting the
   lowest schema the content needs (`nativeDocumentVersionFor`), so a style that
   uses only the current 14 fields stays schema ≤ 29. SketchyUp 1.3.x and 1.2.x
-  **refuse** schema 30 with the newer-format error (the terrain-v1 precedent,
+  **refuse** schema 31 with the newer-format error (the terrain-v1 precedent,
   ADR 0168 §2); versions 1–29 keep reading, and schema-30 documents migrate to
   the current record with the `edge` fields dropped and a notice (the migration
   path of ADR 0068 for schemas 1–16).
@@ -288,7 +288,7 @@ and catalogs:
 
 ## 6. Persistence and schema impact (decision 6)
 
-- **Schema 30** is introduced for the optional `edge-styles-v1` feature (the
+- **Schema 31** (schema 30 is taken by R099's `presentation-v1`, which ships first in F05; if the order changes, the next free number) is introduced for the optional `edge-styles-v1` feature (the
   `edge` sub-record). Container stays at 2. The writer continues to emit the
   lowest schema the content needs, so style-free, preset-free documents are
   unchanged and remain open by 1.0/1.1/1.2.
@@ -318,10 +318,10 @@ and catalogs:
   `assistant_tool_surface_tests` stays pinned. Exposing a catalog command to the
   assistant later, after a corpus measurement, is the obvious first candidate.
 
-## 8. Desktop UI (decision 8; UX_DESIGN §17 to be designed later)
+## 8. Desktop UI (decision 8; UX_DESIGN §18 to be designed later)
 
 The owner approves a UX design separately, as with R062 and R096. The design
-(§17 of `docs/UX_DESIGN.md`) must decide:
+(§18 of `docs/UX_DESIGN.md`) must decide:
 
 1. Where the **style library** lives (the R062 Styles tab in the model panel,
    a Styles menu, a context menu), its names and any default shortcuts
@@ -394,7 +394,7 @@ For R100:
 
 ## 12. Risks
 
-- **Schema forward-refusals.** Schema 30 is refused by 1.3.x and 1.2. A user
+- **Schema forward-refusals.** Schema 31 is refused by 1.3.x and 1.2. A user
   who applies a style with edge opacity/dash/texture cannot open the result in
   those releases; the refusal and the migration notice must be stated in the
   report and the support matrix.
@@ -429,7 +429,7 @@ Each slice is an independently testable review unit. Slices keep documents
 without the new content at their current schema (≤ 29) and do not touch
 modelling limits.
 
-- **R100.a: The extended style record, schema 30 and the `.sketchystyle`
+- **R100.a: The extended style record, schema 31 and the `.sketchystyle`
   format.** The optional `edge` sub-record and `edge-styles-v1` feature,
   `nativeDocumentVersionFor`, the ADR 0108 addendum, `docs/api/native-format-v1.json`,
   the style manifest, the style library folder, `style.apply`/`style.export`,
@@ -457,7 +457,7 @@ modelling limits.
   `--export-catalog`, `--list-catalog`. **Verify:** each CLI path, the
   no-publish-on-failure rule, and the `--capabilities`/`--describe-command`
   schemas.
-- **R100.f: Desktop tools.** Requires the approved UX design (§17). The style
+- **R100.f: Desktop tools.** Requires the approved UX design (§18). The style
   library, the extended edge-stroke controls, the textured preset library and
   the catalog dialog, with `style_catalog_input_tests` in the native matrix.
 - **R100.g: Acceptance record.** `docs/verification/R100g-custom-styles-assets.md`
@@ -475,7 +475,7 @@ The owner has not yet decided these points. Each carries the recommendation.
    kind `style` in the `.sketchylib` envelope, self-contained and relocatable;
    no SketchUp `.style` compatibility claim.
 2. **Schema impact:** an optional `edge` sub-record and `edge-styles-v1`
-   feature; a document using it is schema 30, refused by 1.3.x/1.2.x with the
+   feature; a document using it is schema 31, refused by 1.3.x/1.2.x with the
    newer-format error; the lowest-schema writer is kept.
 3. **Edge texture:** a managed asset reference like a material's asset; a
    missing or hash-mismatched texture reports and never falls back to a flat
@@ -498,7 +498,7 @@ The owner has not yet decided these points. Each carries the recommendation.
    the tool-surface baseline is re-pinned only if a tool is added.
 10. **Budgets:** adopt section 9, to be confirmed by measurement before they
     are frozen.
-11. **Desktop UX:** commission and approve a UX design (§17) before R100.f.
+11. **Desktop UX:** commission and approve a UX design (§18) before R100.f.
 12. **Style is a presentation snapshot:** applying a style changes only the
     document style; a style or catalog file is never updated by model edits.
 
@@ -512,7 +512,7 @@ Each carries a recommended default and a one-line reason.
    "relocation needs one file" precedent, and there is no verified `.style`
    corpus to claim compatibility.*
 2. **Schema impact:** an optional `edge` sub-record and `edge-styles-v1`;
-   documents using it are schema 30 and refused by 1.3.x/1.2.x; the
+   documents using it are schema 31 and refused by 1.3.x/1.2.x; the
    lowest-schema writer is kept. *Recommended default: option 2 — it matches
    the terrain-v1 feature-gating pattern and leaves style-free documents
    unchanged.*
@@ -544,7 +544,7 @@ Each carries a recommended default and a one-line reason.
    ADR 0168/0169 position.*
 10. **Budgets:** adopt section 9, confirmed by measurement before they are
     frozen. *Recommended default: adopt, then confirm — the standing position.*
-11. **Desktop UX:** commission and approve a UX design (§17) before R100.f.
+11. **Desktop UX:** commission and approve a UX design (§18) before R100.f.
     *Recommended default: yes — the R062 and R096 pattern.*
 12. **Style is a presentation snapshot:** applying a style changes only the
     document style; a style or catalog file is never updated by model edits.
