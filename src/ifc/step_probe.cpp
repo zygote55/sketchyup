@@ -31,7 +31,6 @@
 #include <functional>
 #include <map>
 #include <optional>
-#include <regex>
 #include <sstream>
 #include <utility>
 
@@ -98,13 +97,55 @@ std::optional<std::string> readFile(const fs::path& path) {
   return text;
 }
 
+// The raw-text header facts. std::regex was not used on purpose: on the R098.a build
+// toolchain (GCC 16, C++20) it returned different results for byte-identical strings
+// (matched for one copy of the file, refused another), so the header is scanned by hand.
+// That is also what the ADR 0172 policy needs: the file read as written.
+
+// The first quoted string at or after `from` (the FILE_SCHEMA name lives in the first quotes
+// of the FILE_SCHEMA entry).
+std::optional<std::string> firstQuoted(const std::string& text, std::size_t from) {
+  const std::size_t open = text.find('\'', from);
+  if (open == std::string::npos) return std::nullopt;
+  const std::size_t close = text.find('\'', open + 1);
+  if (close == std::string::npos || close - open > 256) return std::nullopt;
+  return text.substr(open + 1, close - open - 1);
+}
+
+// A dot-delimited literal such as `.MILLI.` or `$` (the arguments of SI_UNIT):
+// `.MILLI.` -> MILLI, `$` -> "".
+std::string dotLiteral(const std::string& arg) {
+  std::string value = arg;
+  while (!value.empty() && value.front() == '.') value.erase(value.begin());
+  while (!value.empty() && value.back() == '.') value.pop_back();
+  return value;
+}
+
+// SI_UNIT( prefixed . base . ): the two arguments as dot literals.
+bool siUnitArgs(const std::string& text, std::size_t from, std::string& prefix, std::string& base) {
+  const std::size_t open = text.find("SI_UNIT(", from);
+  if (open == std::string::npos) return false;
+  std::size_t pos = open + 8;
+  const std::size_t comma = text.find(',', pos);
+  if (comma == std::string::npos || comma - pos > 64) return false;
+  prefix = dotLiteral(text.substr(pos, comma - pos));
+  const std::size_t close = text.find(')', comma + 1);
+  if (close == std::string::npos || close - comma > 64) return false;
+  base = dotLiteral(text.substr(comma + 1, close - comma - 1));
+  return true;
+}
+
 // ap203 / ap214 / ap242 / other, from the FILE_SCHEMA name's ISO 10303 part number (AP242's
 // identifiers use part 442, not 242).
 std::string classifySchema(const std::string& raw) {
-  static const std::regex re("10303\\s+(\\d+)");
-  std::smatch match;
-  if (!std::regex_search(raw, match, re)) return "other";
-  const std::string part = match[1].str();
+  const std::size_t at = raw.find("10303");
+  if (at == std::string::npos) return "other";
+  std::size_t pos = at + 5;
+  while (pos < raw.size() && !std::isdigit(static_cast<unsigned char>(raw[pos]))) ++pos;
+  const std::size_t digits = pos;
+  while (pos < raw.size() && std::isdigit(static_cast<unsigned char>(raw[pos]))) ++pos;
+  if (pos == digits || pos - digits > 5) return "other";
+  const std::string part = raw.substr(digits, pos - digits);
   if (part == "203") return "ap203";
   if (part == "214") return "ap214";
   if (part == "442") return "ap242";
@@ -112,7 +153,9 @@ std::string classifySchema(const std::string& raw) {
 }
 
 // The raw-text unit declaration (the unit policy, ADR 0172 decision 4, reads the file as
-// written): an SI unit with an optional prefix, or a conversion-based named unit.
+// written): an SI unit with an optional prefix, or a conversion-based named unit. Each unit
+// type is looked for in a bounded window after its marker, so a unit's own entity is what is
+// read, not some later entity that merely mentions the same word.
 struct RawUnits {
   bool lengthDeclared = false;
   std::string length;
@@ -121,46 +164,59 @@ struct RawUnits {
   double lengthMetres = 1.0;
 };
 
+const std::size_t kWindow = 300;  // a STEP entity is well under this long
+
+// The unit the marker points at: the SI_UNIT or CONVERSION_BASED_UNIT in the window, as
+// (prefix, base-or-name); a bare NAMED_UNIT() has no unit to read.
+std::optional<std::pair<std::string, std::string>> unitAfter(const std::string& text, std::size_t from) {
+  if (from + kWindow > text.size()) return std::nullopt;
+  const std::string window = text.substr(from, kWindow);
+  std::size_t si = window.find("SI_UNIT(");
+  std::size_t conv = window.find("CONVERSION_BASED_UNIT(");
+  const std::size_t named = window.find("NAMED_UNIT");
+  auto isOwnEntity = [&](std::size_t at) { return at != std::string::npos && (named == std::string::npos || at < named); };
+  if (isOwnEntity(si)) {
+    std::string prefix, base;
+    if (siUnitArgs(window, si, prefix, base)) return {prefix, base};
+  }
+  if (isOwnEntity(conv)) {
+    const std::size_t close = window.find(')', conv);
+    if (close == std::string::npos) return std::nullopt;
+    return {"", dotLiteral(window.substr(conv + 20, close - conv - 20))};
+  }
+  return std::nullopt;
+}
+
 RawUnits rawUnits(const std::string& text) {
   RawUnits units;
   static const std::map<std::string, double> prefix = {
       {"MILLI", 1e-3}, {"CENTI", 1e-2}, {"DECI", 1e-1}, {"KILO", 1e3}, {"", 1.0}};
   static const std::map<std::string, double> named = {
       {"INCH", 0.0254}, {"FOOT", 0.3048}, {"MILLIMETRE", 1e-3}, {"CENTIMETRE", 1e-2}, {"METRE", 1.0}};
-  {
-    static const std::regex re(
-        "LENGTH_UNIT\\(\\)\\s+NAMED_UNIT\\(\\*?\\)\\s+SI_UNIT\\(\\.(\\w+)\\.,\\.(METRE)\\.(\\w+)\\)");
-    std::smatch m;
-    if (std::regex_search(text, m, re)) {
+  if (const std::size_t at = text.find("LENGTH_UNIT()")) {
+    if (const auto unit = unitAfter(text, at)) {
       units.lengthDeclared = true;
-      const std::string prefixName = m[1].str();
-      const auto entry = prefix.find(prefixName);
-      units.length = prefixName == "MILLI" ? "millimetre" : prefixName == "CENTI" ? "centimetre" : prefixName == "KILO" ? "kilometre" : prefixName.empty() ? "metre" : prefixName;
-      // 0.0: declared but not convertible from the raw text; the model's factor stands.
-      units.lengthMetres = entry != prefix.end() ? entry->second : 0.0;
+      if (unit->second == "METRE") {
+        units.length = unit->first == "MILLI" ? "millimetre" : unit->first == "CENTI" ? "centimetre" : unit->first == "KILO" ? "kilometre" : unit->first.empty() ? "metre" : unit->first;
+        const auto entry = prefix.find(unit->first);
+        // 0.0: declared but not convertible from the raw text; the model's factor stands.
+        units.lengthMetres = entry != prefix.end() ? entry->second : 0.0;
+      } else {
+        const auto base = named.find(unit->second);
+        units.length = unit->second;
+        units.lengthMetres = base != named.end() ? base->second : 0.0;
+      }
     }
   }
-  {
-    static const std::regex re(
-        "LENGTH_UNIT\\(\\)\\s+NAMED_UNIT\\(\\*?\\)\\s+CONVERSION_BASED_UNIT\\(\\.(\\w+)\\)");
-    std::smatch m;
-    if (std::regex_search(text, m, re)) {
-      units.lengthDeclared = true;  // a conversion-based LENGTH_UNIT is a declaration, whatever its name
-      const std::string name = m[1].str();
-      const auto entry = named.find(name);
-      units.length = name;
-      units.lengthMetres = entry != named.end() ? entry->second : 0.0;
+  if (const std::size_t at = text.find("PLANE_ANGLE_UNIT()")) {
+    if (const auto unit = unitAfter(text, at)) {
+      if (unit->second == "RADIAN" || unit->second == "DEGREE") units.angle = unit->second;
     }
   }
-  {
-    static const std::regex re("PLANE_ANGLE_UNIT\\(\\)\\s+(SI_UNIT\\(\\$,(RADIAN|DEGREE)\\.(\\w+)\\)|NAMED_UNIT\\(\\*\\))");
-    std::smatch m;
-    if (std::regex_search(text, m, re) && !m[2].str().empty()) units.angle = m[2].str();
-  }
-  {
-    static const std::regex re("SOLID_ANGLE_UNIT\\(\\)\\s+(SI_UNIT\\(\\$,(STERADIAN)\\.(\\w+)\\)|NAMED_UNIT\\(\\*\\))");
-    std::smatch m;
-    if (std::regex_search(text, m, re) && !m[2].str().empty()) units.solidAngle = m[2].str();
+  if (const std::size_t at = text.find("SOLID_ANGLE_UNIT()")) {
+    if (const auto unit = unitAfter(text, at)) {
+      if (unit->second == "STERADIAN") units.solidAngle = unit->second;
+    }
   }
   return units;
 }
@@ -262,9 +318,10 @@ StepFileFacts stepFileFacts(const std::string& path) {
   if (!text) return facts;
   facts.readable = true;
   facts.isoHeader = text->rfind("ISO-10303-21", 0) == 0;
-  static const std::regex schemaRe("FILE_SCHEMA\\(\\('\\s*'([^']*)'");
-  std::smatch m;
-  if (std::regex_search(*text, m, schemaRe)) facts.schemaRaw = m[1].str();
+  const std::size_t schemaAt = text->find("FILE_SCHEMA(");
+  if (const auto name = schemaAt == std::string::npos ? std::nullopt : firstQuoted(*text, schemaAt)) {
+    facts.schemaRaw = *name;
+  }
   facts.schema = classifySchema(facts.schemaRaw);
   const RawUnits raw = rawUnits(*text);
   facts.lengthDeclared = raw.lengthDeclared;
