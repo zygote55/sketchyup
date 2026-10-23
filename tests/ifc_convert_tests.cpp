@@ -7,8 +7,10 @@
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
+#include <set>
 using namespace sketchy;
 using namespace ifc_fixture;
 namespace {
@@ -118,6 +120,154 @@ int main(int argc, char **argv) {
             // Full serialization validates and survives save and reopen.
             const auto container = encodeContainer(doc);
             check(encodeContainer(decodeContainer(container)) == container, "save and reopen is bit-exact");
+        }
+
+        // ---- Georeferencing (ADR 0171 section 3.6): the worker's block is data ----------------------------------------
+        {
+            const std::string digest(64, 'a');
+            const auto block = [](const QString &result, double e, double n, double h, double rotationDegrees, double applied) {
+                return QJsonObject{{"mode", "x"},
+                                   {"result", result},
+                                   {"mapConversion", QJsonObject{{"eastings", e},
+                                                                 {"northings", n},
+                                                                 {"orthogonalHeight", h},
+                                                                 {"xAxisAbscissa", std::cos(rotationDegrees * M_PI / 180)},
+                                                                 {"xAxisOrdinate", std::sin(rotationDegrees * M_PI / 180)},
+                                                                 {"rotationDegrees", rotationDegrees},
+                                                                 {"scale", 0.001}}},
+                                   {"crs", QJsonObject{{"name", "EPSG:32633"}, {"mapUnit", "METRE"}, {"mapUnitMetres", 1}, {"mapUnitGiven", true}}},
+                                   {"siteOrigin", QJsonObject{{"easting", e}, {"northing", n}, {"elevation", h}, {"crs", "EPSG:32633"}}},
+                                   {"rotationAppliedDegrees", applied}};
+            };
+            const auto withBlock = [&](QJsonObject georeference, IfcGeoreference mode, const std::array<double, 16> &root = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}) {
+                auto package = samplePackage();
+                if (!georeference.isEmpty())
+                    package.report["georeference"] = georeference;
+                package.nodes[0].transform = root;
+                IfcImportOptions options;
+                options.georeference = mode;
+                IfcRunFacts facts;
+                facts.sha256 = QString::fromStdString(digest);
+                facts.bytes = 1;
+                return importIfcPackage(package, options, facts);
+            };
+            const auto version = [](const Document &document) { return QJsonDocument::fromJson(encodeDocument(document)).object()["version"].toInt(); };
+            const auto codes = [](const IfcImport &imported) {
+                std::set<QString> out;
+                for (const auto &n : imported.report["notices"].toArray())
+                    out.insert(n.toObject()["code"].toString());
+                return out;
+            };
+            // No rotation: the site origin is set from the conversion's own numbers.
+            {
+                const auto set = withBlock(block("siteOrigin", 500000.5, 4000000.25, 12.5, 0, 0), IfcGeoreference::KeepAxes);
+                check(set.document.site().has_value(), "georeference: the site origin is set");
+                const auto &site = *set.document.site();
+                check(site.easting == 500000.5 && site.northing == 4000000.25 && site.elevation == 12.5 && site.crs == "EPSG:32633" &&
+                          site.established.source == "IfcMapConversion" && site.established.sha256 == digest,
+                      "georeference: the origin, label and provenance");
+                check(version(set.document) == 29, "georeference: schema 29");
+                check(decodeDocument(encodeDocument(set.document)).site() == site, "georeference: the origin survives encode and decode");
+                const auto report = set.report["georeference"].toObject();
+                check(report["siteOriginSet"].toBool() && report["documentSchema"] == 29 && report["siteOrigin"].toObject()["source"] == "IfcMapConversion" &&
+                          codes(set).contains("siteOriginSet"),
+                      "georeference: the report says so");
+                Document undone = set.document;
+                undone.undo();
+                check(!undone.site().has_value() && undone.bodies().empty(), "georeference: one undo removes the origin too");
+            }
+            // No block (or none): nothing is set and the schema stays low.
+            {
+                const auto none = withBlock({}, IfcGeoreference::Grid);
+                check(!none.document.site() && version(none.document) < 29 && none.report["georeference"].toObject()["result"] == "none" &&
+                          none.report["georeference"].toObject()["mode"] == "grid",
+                      "georeference: a package without a block sets nothing");
+                const auto kept = withBlock(QJsonObject{{"result", "notRepresentable"}, {"mode", "keepAxes"}}, IfcGeoreference::KeepAxes);
+                check(!kept.document.site() && !kept.report["georeference"].toObject()["siteOriginSet"].toBool(), "georeference: not representable sets nothing");
+            }
+            // Grid: the root carries the rotation, and the application checks it against the formula.
+            {
+                const double theta = 53.13010235415598;
+                const std::array<double, 16> turn{0.6, -0.8, 0, 0, 0.8, 0.6, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+                const auto grid = withBlock(block("gridAligned", 1000.5, 2000.25, 3.5, theta, theta), IfcGeoreference::Grid, turn);
+                check(grid.document.site().has_value() && codes(grid).contains("siteOriginSet"), "georeference: grid sets the origin");
+                const auto *b = byStep(grid.document, 11);
+                // Wall B is 5 m along its storey (x), 3 m up: turned by (0.6, 0.8) it is at (3, 4, 3).
+                near(grid.document.worldTransform(b->id).m[12], 3.0, 1e-12, "grid: wall B world x");
+                near(grid.document.worldTransform(b->id).m[13], 4.0, 1e-12, "grid: wall B world y");
+                near(grid.document.worldTransform(b->id).m[14], 3.0, 1e-12, "grid: wall B world z");
+                near(grid.report["georeference"].toObject()["rotationAppliedDegrees"].toDouble(), theta, 1e-12, "grid: the rotation applied");
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("gridAligned", 1000.5, 2000.25, 3.5, theta, theta), IfcGeoreference::KeepAxes, turn); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("gridAligned", 1000.5, 2000.25, 3.5, theta, theta), IfcGeoreference::Grid); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("gridAligned", 1000.5, 2000.25, 3.5, theta, theta + 1), IfcGeoreference::Grid, turn); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0), IfcGeoreference::Grid, turn); });
+            }
+            // A worker that contradicts itself fails the import rather than guessing.
+            {
+                auto moved = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                moved["siteOrigin"] = QJsonObject{{"easting", 1001.5}, {"northing", 2000.25}, {"elevation", 3.5}, {"crs", "EPSG:32633"}};
+                refused("georeferenceMismatch", [&] { (void)withBlock(moved, IfcGeoreference::KeepAxes); });
+                auto bare = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                bare.remove("mapConversion");
+                refused("georeferenceMismatch", [&] { (void)withBlock(bare, IfcGeoreference::KeepAxes); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 2e8, 0, 0, 0, 0), IfcGeoreference::KeepAxes); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 90), IfcGeoreference::KeepAxes); });
+                // The formula itself is checked, not only the worker's agreement with itself: a rotated conversion that was not
+                // turned, a turn for a conversion that has none, reasons beside an origin, a scale that is not the project unit.
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 1000.5, 2000.25, 3.5, 90, 0), IfcGeoreference::KeepAxes); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("siteOrigin", 1000.5, 2000.25, 3.5, 90, 0), IfcGeoreference::Grid); });
+                refused("georeferenceMismatch", [&] { (void)withBlock(block("gridAligned", 1000.5, 2000.25, 3.5, 0, 0), IfcGeoreference::Grid); });
+                auto reasoned = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                reasoned["reasons"] = QJsonArray{QJsonObject{{"code", "mapUnit"}, {"message", "x"}}};
+                refused("georeferenceMismatch", [&] { (void)withBlock(reasoned, IfcGeoreference::KeepAxes); });
+                auto scaled = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                auto conversion = scaled["mapConversion"].toObject();
+                conversion["scale"] = 1.0;
+                scaled["mapConversion"] = conversion;
+                refused("georeferenceMismatch", [&] { (void)withBlock(scaled, IfcGeoreference::KeepAxes); });
+                auto feet = block("siteOrigin", 1000.5, 2000.25, 3.5, 0, 0);
+                auto unit = feet["crs"].toObject();
+                unit["mapUnitMetres"] = 0.3048;
+                feet["crs"] = unit;
+                refused("georeferenceMismatch", [&] { (void)withBlock(feet, IfcGeoreference::KeepAxes); });
+                auto skewed = block("gridAligned", 1000.5, 2000.25, 3.5, 90, 90);
+                auto axis = skewed["mapConversion"].toObject();
+                axis["rotationDegrees"] = 80.0;
+                skewed["mapConversion"] = axis;
+                skewed["rotationAppliedDegrees"] = 80.0;
+                refused("georeferenceMismatch", [&] { (void)withBlock(skewed, IfcGeoreference::Grid, {0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}); });
+            }
+            // Hostile text and sizes are bounded: a label of control characters and 10,000 bytes, 100 reasons.
+            {
+                auto labelled = block("siteOrigin", 1, 2, 3, 0, 0);
+                auto name = labelled["crs"].toObject();
+                name["name"] = QString("A\tB\n") + QString(10000, 'x');
+                labelled["crs"] = name;
+                const auto set = withBlock(labelled, IfcGeoreference::KeepAxes);
+                const auto &label = set.document.site()->crs;
+                check(label.size() <= 64 && std::none_of(label.begin(), label.end(), [](char c) { return static_cast<unsigned char>(c) < 0x20; }) && label.rfind("A B ", 0) == 0,
+                      "georeference: the label is plain text of at most 64 bytes");
+                auto hostile = block("notRepresentable", 1, 2, 3, 0, 0);
+                auto crs = hostile["crs"].toObject();
+                crs["description"] = QString(10000, 'd');
+                hostile["crs"] = crs;
+                QJsonArray reasons;
+                for (int i = 0; i < 100; ++i)
+                    reasons.append(QJsonObject{{"code", QString(500, 'c')}, {"message", QString(5000, 'm')}});
+                hostile["reasons"] = reasons;
+                hostile["reason"] = QString(5000, 'r');
+                hostile["extra"] = "ignored";
+                const auto result = withBlock(hostile, IfcGeoreference::KeepAxes);
+                check(!result.document.site(), "georeference: reasons mean no origin");
+                const auto report = result.report["georeference"].toObject();
+                check(report["reasons"].toArray().size() == 8 && report["reasons"].toArray()[0].toObject()["message"].toString().size() <= 240 &&
+                          report["reasons"].toArray()[0].toObject()["code"].toString().size() <= 64 && report["reason"].toString().size() <= 240 &&
+                          report["crs"].toObject()["description"].toString().size() <= 120 && !report.contains("extra"),
+                      "georeference: the worker's block is rebuilt from known fields, bounded");
+                check(QJsonDocument(result.report).toJson(QJsonDocument::Compact).size() <= 64 * 1024, "georeference: the report stays within 64 KiB");
+                const auto strange = withBlock(QJsonObject{{"result", "somethingElse"}}, IfcGeoreference::KeepAxes);
+                check(!strange.document.site() && strange.report["georeference"].toObject()["result"] == "notRepresentable", "georeference: an unknown result sets nothing");
+            }
         }
 
         // ---- Spaces -------------------------------------------------------------------------------

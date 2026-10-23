@@ -11,7 +11,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/IfcOpenShellPrefix.cmake")
 
 add_executable(sketchyup-ifc-worker
   worker_main.cpp probe_environment.cpp probe_geometry.cpp probe_writer.cpp
-  access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp package.cpp report.cpp import.cpp)
+  access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp georeference.cpp package.cpp report.cpp import.cpp)
 target_include_directories(sketchyup-ifc-worker PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(sketchyup-ifc-worker PRIVATE
   SKETCHYUP_IFC_PIN_COMMIT_STRING="${SKETCHYUP_IFC_PIN_COMMIT}")
@@ -78,16 +78,20 @@ if(BUILD_TESTING)
   add_test(NAME ifc_import_worker COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_import_worker_tests.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc")
+  # R097.c: georeferencing at the package level (F1 to F4), against the raw-text scan and hand-computed values.
+  add_test(NAME ifc_georeference COMMAND "${Python3_EXECUTABLE}" -I
+    "${PROJECT_SOURCE_DIR}/tests/ifc_georeference_tests.py"
+    "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc")
   add_test(NAME ifc_worker_fault_corpus COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_worker_fault_corpus.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc" 64 2)
   add_test(NAME ifc_worker_fault_corpus_full COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_worker_fault_corpus.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc" 512 2)
-  set_tests_properties(ifc_import_worker ifc_worker_fault_corpus PROPERTIES TIMEOUT 900)
+  set_tests_properties(ifc_import_worker ifc_georeference ifc_worker_fault_corpus PROPERTIES TIMEOUT 900)
   set_tests_properties(ifc_worker_fault_corpus_full PROPERTIES TIMEOUT 3000 LABELS full)
   if(SKETCHYUP_SANITIZE)
-    set_tests_properties(ifc_import_worker ifc_worker_fault_corpus ifc_worker_fault_corpus_full PROPERTIES
+    set_tests_properties(ifc_import_worker ifc_georeference ifc_worker_fault_corpus ifc_worker_fault_corpus_full PROPERTIES
       ENVIRONMENT "IFC_NO_ADDRESS_LIMIT=1;ASAN_OPTIONS=detect_leaks=0;UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
   endif()
   # Checks L1 to L6 of ADR 0171 section 6.3 on a scratch install of the ifc component.

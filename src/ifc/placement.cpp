@@ -69,6 +69,8 @@ std::optional<Mat> axisPlacement(const Inst& placement, double mpu) {
 
 }  // namespace
 
+std::optional<Mat> axisPlacementMatrix(const Inst& placement, double metresPerUnit) { return axisPlacement(placement, metresPerUnit); }
+
 Mat identityMatrix() { return {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}; }
 
 Mat multiply(const Mat& a, const Mat& b) {

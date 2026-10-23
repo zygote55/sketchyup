@@ -376,7 +376,12 @@ const std::map<std::string, std::string> &noticeTexts() {
         {"unitFactorSnapped", "A unit conversion factor within 1e-6 of a canonical value was replaced by it."},
         {"unitFactorAsWritten", "A unit conversion factor that matches no canonical value is used as written; the unit is not exact."},
         {"lengthUnitOverrideIgnored", "The file declares a length unit, so the length unit override was ignored."},
-        {"georeferenceNotImported", "The file's map conversion and coordinate reference system are not interpreted yet; the project axes are kept and no site origin is set."},
+        {"siteOriginSet", "The document site origin was set from the file's map conversion; the document is saved in schema 29 and opens only in SketchyUp 1.3.0 or later."},
+        {"georeferenceRotationKept", "The map conversion rotates the project axes; they are kept and no site origin is set. The grid mode rotates the model to the map grid instead."},
+        {"georeferenceGridAligned", "The model was rotated about the project origin by the map conversion's rotation, so that +X is east; walls that were on the project axes are no longer on the model axes."},
+        {"georeferenceNotRepresentable", "The map conversion cannot be held by a translation-only site origin (see the reasons); the project axes are kept and no site origin is set."},
+        {"georeferenceEpsets", "Property sets named ePSet_MapConversion or ePSet_ProjectedCRS were read as ordinary properties; they are not standardised and are not used for georeferencing."},
+        {"georeferenceMapUnitAssumed", "The CRS gives no map unit; the metre was assumed, as the conversion's scale is the project unit in metres."},
         {"trueNorthRecorded", "The context's true north is recorded as ifc.TrueNorth; the solar settings are not changed."},
         {"materialLayeringDescriptive", "Material layer sets, constituent sets and profile sets are described in ifc.Material and ifc.MaterialLayers only; the geometry is not split into layers."},
         {"uncontainedElements", "Elements that no spatial container holds were placed under the project."},
@@ -605,6 +610,7 @@ class Converter {
         std::map<std::string, long long> notImportedByClass;
         std::size_t encodedBytes{};
         std::size_t droppedForSize{};
+        QJsonObject georeference; // the report's block, rebuilt from the worker's by evaluateGeoreference
     };
 
     void note(const std::string &code, long long count = 1) { notices[code] += count; }
@@ -613,6 +619,8 @@ class Converter {
     const MeshGeometry &geometryFor(std::size_t mesh);
     std::vector<NodeProps> planProperties(std::size_t aggregateBudget);
     Attempt build(std::size_t aggregateBudget);
+    // The worker's georeference block, checked: the report's block, and the site origin the document gets (if any).
+    std::pair<QJsonObject, std::optional<SiteOrigin>> evaluateGeoreference();
     QJsonObject makeReport(const Attempt &attempt, bool spacesSkipped);
 };
 
@@ -765,11 +773,169 @@ std::vector<NodeProps> Converter::planProperties(std::size_t aggregateBudget) {
     return plans;
 }
 
+namespace {
+std::optional<double> finiteNumber(const QJsonValue &value) {
+    if (!value.isDouble())
+        return std::nullopt;
+    const double number = value.toDouble();
+    if (!std::isfinite(number))
+        return std::nullopt;
+    return number;
+}
+bool near(double a, double b, double bound) { return std::abs(a - b) <= bound; }
+} // namespace
+
+// ADR 0171 section 3.6. The worker decides what a map conversion means; the application rebuilds the report block from
+// known fields only (it is data), and sets a site origin only when everything the worker says agrees with itself: the
+// origin is the conversion's own numbers, and the package's roots carry exactly the rotation the worker says it applied.
+std::pair<QJsonObject, std::optional<SiteOrigin>> Converter::evaluateGeoreference() {
+    const QJsonObject w = pkg.report["georeference"].toObject();
+    const bool grid = options.georeference == IfcGeoreference::Grid;
+    QJsonObject block;
+    block["mode"] = grid ? "grid" : "keepAxes";
+    QString result = w["result"].toString();
+    static const std::set<QString> results{"none", "siteOrigin", "gridAligned", "notRepresentable"};
+    if (!results.contains(result)) {
+        // A package with no block (an older or hand-built one) says nothing about georeferencing.
+        result = w.isEmpty() ? QStringLiteral("none") : QStringLiteral("notRepresentable");
+    }
+    block["result"] = result;
+    for (const char *count : {"mapConversionsInFile", "mapConversionsOnModelContext", "modelContexts", "otherCoordinateOperations", "epsets"})
+        if (w[count].isDouble())
+            block[count] = std::clamp<qint64>(w[count].toInteger(0), 0, 1000000000);
+    if (w["reason"].isString())
+        block["reason"] = QString::fromStdString(plainText(w["reason"].toString().toStdString(), 240));
+    const QJsonObject conversion = w["mapConversion"].toObject();
+    std::optional<double> easting, northing, height, rotation, scale;
+    if (!conversion.isEmpty()) {
+        QJsonObject kept;
+        for (const char *field : {"eastings", "northings", "orthogonalHeight", "xAxisAbscissa", "xAxisOrdinate", "rotationDegrees", "scale"})
+            if (const auto value = finiteNumber(conversion[field]))
+                kept[field] = *value;
+        if (conversion["step"].isDouble())
+            kept["step"] = conversion["step"].toInteger(0);
+        if (conversion["factors"].isArray()) {
+            QJsonArray factors;
+            const auto given = conversion["factors"].toArray();
+            for (qsizetype i = 0; i < std::min<qsizetype>(3, given.size()); ++i)
+                if (const auto value = finiteNumber(given[i]))
+                    factors.append(*value);
+            kept["factors"] = factors;
+        }
+        easting = finiteNumber(conversion["eastings"]);
+        northing = finiteNumber(conversion["northings"]);
+        height = finiteNumber(conversion["orthogonalHeight"]);
+        rotation = finiteNumber(conversion["rotationDegrees"]);
+        scale = finiteNumber(conversion["scale"]);
+        block["mapConversion"] = kept;
+    }
+    const QJsonObject crs = w["crs"].toObject();
+    std::string crsLabel;
+    if (!crs.isEmpty()) {
+        QJsonObject kept;
+        const std::pair<const char *, std::size_t> texts[]{{"name", 64}, {"description", 120}, {"geodeticDatum", 64}, {"mapProjection", 64}, {"mapZone", 64}, {"mapUnit", 48}};
+        for (const auto &[field, bytes] : texts)
+            if (crs[field].isString())
+                kept[field] = QString::fromStdString(plainText(crs[field].toString().toStdString(), bytes));
+        if (const auto metres = finiteNumber(crs["mapUnitMetres"]))
+            kept["mapUnitMetres"] = *metres;
+        if (crs["mapUnitGiven"].isBool())
+            kept["mapUnitGiven"] = crs["mapUnitGiven"].toBool();
+        crsLabel = plainText(crs["name"].toString().toStdString(), siteCrsBytes);
+        block["crs"] = kept;
+    }
+    QJsonArray reasons;
+    const auto reasonList = w["reasons"].toArray();
+    for (qsizetype i = 0; i < std::min<qsizetype>(8, reasonList.size()); ++i) {
+        const auto reason = reasonList[i].toObject();
+        reasons.append(QJsonObject{{"code", QString::fromStdString(plainText(reason["code"].toString().toStdString(), 64))},
+                                   {"message", QString::fromStdString(plainText(reason["message"].toString().toStdString(), 240))}});
+    }
+    if (!reasons.isEmpty())
+        block["reasons"] = reasons;
+    block["siteOriginSet"] = false;
+    if (result != "siteOrigin" && result != "gridAligned")
+        return {block, std::nullopt};
+
+    // The worker says a site origin is set. Everything it rests on is checked here.
+    const auto fail = [&](const std::string &why) -> std::pair<QJsonObject, std::optional<SiteOrigin>> {
+        throw IfcImportError("georeferenceMismatch", "The helper's georeference does not agree with itself: " + why);
+    };
+    const QJsonObject proposed = w["siteOrigin"].toObject();
+    if (!easting || !northing || !height || !rotation || !scale)
+        return fail("a site origin without a complete map conversion");
+    const auto pe = finiteNumber(proposed["easting"]), pn = finiteNumber(proposed["northing"]), ph = finiteNumber(proposed["elevation"]);
+    if (!pe || !pn || !ph || !near(*pe, *easting, 1e-9) || !near(*pn, *northing, 1e-9) || !near(*ph, *height, 1e-9))
+        return fail("the site origin is not the conversion's eastings, northings and height");
+    // The rest of the formula (3.6): a site origin needs a conversion with nothing in the way, in metres, whose scale is the
+    // project unit; and it is turned exactly when the conversion's X axis is not along +X.
+    if (!reasons.isEmpty())
+        return fail("a site origin together with the reasons it cannot be held");
+    const auto abscissa = finiteNumber(conversion["xAxisAbscissa"]), ordinate = finiteNumber(conversion["xAxisOrdinate"]);
+    const double metresPerUnit = pkg.units["metresPerUnit"].toDouble(0);
+    if (!abscissa || !ordinate || !(metresPerUnit > 0) || !near(*scale, metresPerUnit, 1e-9 * metresPerUnit))
+        return fail("the conversion's axis or scale is not the project unit in metres");
+    if (crs["mapUnitMetres"].isDouble() && !near(crs["mapUnitMetres"].toDouble(), 1.0, 1e-9))
+        return fail("the CRS's map unit is not the metre");
+    const bool rotated = !(*abscissa > 0 && std::abs(*ordinate) <= 1e-12 * *abscissa);
+    if (rotated != (result == "gridAligned"))
+        return fail(rotated ? "a rotated conversion without the rotation of the model" : "a rotation of the model for a conversion that has none");
+    const double axisDegrees = std::atan2(*ordinate, *abscissa) * 180.0 / 3.14159265358979323846;
+    if (!near(*rotation, axisDegrees, 1e-9))
+        return fail("the conversion's rotation is not its X axis direction");
+    const double applied = finiteNumber(w["rotationAppliedDegrees"]).value_or(std::nan(""));
+    const double expected = rotated ? axisDegrees : 0.0;
+    if (!std::isfinite(applied) || !near(applied, expected, 1e-9))
+        return fail("the rotation applied is not the conversion's");
+    if (result == "gridAligned" && !grid)
+        return fail("the model was rotated though only the project axes were asked for");
+    const double radians = expected * 3.14159265358979323846 / 180.0;
+    const double c = std::cos(radians), s = std::sin(radians);
+    for (const auto &node : pkg.nodes) {
+        if (node.parent >= 0)
+            continue;
+        const auto &t = node.transform;
+        const bool exact = near(t[0], c, 1e-9) && near(t[1], -s, 1e-9) && near(t[4], s, 1e-9) && near(t[5], c, 1e-9) && near(t[10], 1, 1e-9) &&
+                           near(t[2], 0, 1e-9) && near(t[6], 0, 1e-9) && near(t[8], 0, 1e-9) && near(t[9], 0, 1e-9) &&
+                           near(t[3], 0, 1e-9) && near(t[7], 0, 1e-9) && near(t[11], 0, 1e-9);
+        if (!exact)
+            return fail("a root node does not carry the rotation of the site origin");
+    }
+    std::string digest = facts.sha256.toStdString();
+    if (digest.size() != 64 || !std::all_of(digest.begin(), digest.end(), [](char ch) { return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'); }))
+        digest.clear();
+    SiteOrigin origin{*pe, *pn, *ph, crsLabel, {"IfcMapConversion", digest}};
+    try {
+        validateSiteOrigin(origin);
+    } catch (const std::exception &error) {
+        return fail(error.what());
+    }
+    block["siteOriginSet"] = true;
+    block["siteOrigin"] = QJsonObject{{"easting", origin.easting},
+                                      {"northing", origin.northing},
+                                      {"elevation", origin.elevation},
+                                      {"crs", QString::fromStdString(origin.crs)},
+                                      {"source", QString::fromStdString(origin.established.source)},
+                                      {"sha256", QString::fromStdString(origin.established.sha256)}};
+    block["rotationAppliedDegrees"] = expected;
+    block["documentSchema"] = 29;
+    block["requires"] = "SketchyUp 1.3.0 or later";
+    return {block, origin};
+}
+
 Converter::Attempt Converter::build(std::size_t aggregateBudget) {
     Attempt attempt;
     propertiesDropped.clear();
     const auto plans = planProperties(aggregateBudget);
     Edit edit{"Import IFC", {}};
+    {
+        auto [block, origin] = evaluateGeoreference();
+        attempt.georeference = std::move(block);
+        if (origin) {
+            edit.site = std::pair{std::optional<SiteOrigin>{}, std::optional<SiteOrigin>{*origin}};
+            note("siteOriginSet");
+        }
+    }
     const std::size_t count = pkg.nodes.size();
     std::vector<Id> container(count, 0);
     std::vector<bool> skip(count, false);
@@ -1082,10 +1248,7 @@ QJsonObject Converter::makeReport(const Attempt &attempt, bool spacesSkipped) {
     source["bytes"] = facts.bytes;
     report["source"] = source;
     report["units"] = pkg.units;
-    report["georeference"] = QJsonObject{{"result", "notEvaluated"},
-                                         {"mode", "keepAxes"},
-                                         {"siteOrigin", "none"},
-                                         {"reason", "Georeferencing is not part of this import; the project axes are kept."}};
+    report["georeference"] = attempt.georeference;
     report["spatial"] = w["spatial"];
     // Elements.
     QJsonObject elements = w["elements"].toObject();

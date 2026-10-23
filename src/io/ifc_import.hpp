@@ -10,9 +10,14 @@
 #include <stdexcept>
 namespace sketchy {
 enum class IfcSpaces { Hidden, Shown, Skip };
+// ADR 0171 decision 6: keep the project axes (default), or rotate the model to the map grid.
+enum class IfcGeoreference { KeepAxes, Grid };
 struct IfcImportOptions {
     // Spaces import on the tag "IFC Space": hidden (the tag starts hidden), shown, or not at all.
     IfcSpaces spaces{IfcSpaces::Hidden};
+    // Grid: a map conversion with a rotation turns the model by it (so +X is east) and sets the site origin; the
+    // default keeps the project axes and reports the conversion. Without a rotation both do the same.
+    IfcGeoreference georeference{IfcGeoreference::KeepAxes};
 };
 // What the application knows about the source and the run, which the worker does not.
 struct IfcRunFacts {

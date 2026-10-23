@@ -28,6 +28,11 @@
 // value]...]}; type is "s", "b" or "d"; origin is 0 occurrence property, 1 occurrence quantity,
 // 2 type property, 3 type quantity. Nodes are in tree order (a parent precedes its children, and the
 // siblings of one parent are in file order).
+//
+// R097.c: `report.georeference` is the worker's reading of the Model context's IfcMapConversion and
+// IfcProjectedCRS ({mode, result, mapConversion, crs, reasons, siteOrigin, rotationAppliedDegrees};
+// ADR 0171 section 3.6). It is data: the conversion rebuilds the report's block from known fields and sets
+// the document's site origin only if the numbers agree with each other and with the roots' transforms.
 #include "geometry/surface.hpp"
 #include <QByteArray>
 #include <QJsonObject>

@@ -20,6 +20,10 @@ Mat multiply(const Mat& a, const Mat& b);
 std::optional<Mat> inverseAffine(const Mat& m);
 bool finiteMatrix(const Mat& m);
 
+// The matrix of one IfcAxis2Placement3D or IfcAxis2Placement2D (a context's WorldCoordinateSystem, for
+// example), in metres; nullopt when it cannot be read.
+std::optional<Mat> axisPlacementMatrix(const Inst& placement, double metresPerUnit);
+
 // The world matrix of an IfcObjectPlacement, in metres. nullopt with `reason` set when it cannot be
 // composed: "gridPlacement", "linearPlacement", "placementCycle", "badPlacement", "unknownPlacement".
 std::optional<Mat> placementWorld(const Inst& placement, double metresPerUnit, std::string& reason);
