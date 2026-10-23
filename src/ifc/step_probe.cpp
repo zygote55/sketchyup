@@ -166,23 +166,20 @@ struct RawUnits {
 
 const std::size_t kWindow = 300;  // a STEP entity is well under this long
 
-// The unit the marker points at: the SI_UNIT or CONVERSION_BASED_UNIT in the window, as
-// (prefix, base-or-name); a bare NAMED_UNIT() has no unit to read.
+// The unit the marker points at, as (prefix, base-or-name): the SI_UNIT in the window wins
+// (an SI unit's NAMED_UNIT carries the "*" name and sits before the SI_UNIT in the same
+// entity); otherwise a CONVERSION_BASED_UNIT; a bare NAMED_UNIT has no unit to read.
 std::optional<std::pair<std::string, std::string>> unitAfter(const std::string& text, std::size_t from) {
   if (from + kWindow > text.size()) return std::nullopt;
   const std::string window = text.substr(from, kWindow);
-  std::size_t si = window.find("SI_UNIT(");
-  std::size_t conv = window.find("CONVERSION_BASED_UNIT(");
-  const std::size_t named = window.find("NAMED_UNIT");
-  auto isOwnEntity = [&](std::size_t at) { return at != std::string::npos && (named == std::string::npos || at < named); };
-  if (isOwnEntity(si)) {
+  if (const std::size_t si = window.find("SI_UNIT(")) {
     std::string prefix, base;
     if (siUnitArgs(window, si, prefix, base)) {
       const std::pair<std::string, std::string> unit{prefix, base};
       return unit;
     }
   }
-  if (isOwnEntity(conv)) {
+  if (const std::size_t conv = window.find("CONVERSION_BASED_UNIT(")) {
     const std::size_t close = window.find(')', conv);
     if (close == std::string::npos) return std::nullopt;
     const std::pair<std::string, std::string> unit{"", dotLiteral(window.substr(conv + 20, close - conv - 20))};
