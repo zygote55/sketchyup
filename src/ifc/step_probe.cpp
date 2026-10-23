@@ -182,7 +182,8 @@ std::optional<std::pair<std::string, std::string>> unitAfter(const std::string& 
   if (isOwnEntity(conv)) {
     const std::size_t close = window.find(')', conv);
     if (close == std::string::npos) return std::nullopt;
-    return {"", dotLiteral(window.substr(conv + 20, close - conv - 20))};
+    const std::pair<std::string, std::string> unit{"", dotLiteral(window.substr(conv + 20, close - conv - 20))};
+    return unit;
   }
   return std::nullopt;
 }
