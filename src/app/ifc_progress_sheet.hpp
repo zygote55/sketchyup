@@ -17,7 +17,7 @@ class IfcProgressSheet : public Settled<QDialog> {
   public slots:
     void phase(const QString &name, qint64 value);
   private:
-    void build();
+    void build(const QString &fileName);
     void markStep(int index, bool working);
     IfcImportRunner *runner;
     QLabel *fileLabel;

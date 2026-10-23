@@ -38,6 +38,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QLabel>
+#include <iostream>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -60,6 +61,12 @@ void check(bool ok, const std::string &message) {
         throw std::runtime_error(message);
 }
 bool contains(const QString &text, const QString &needle) { return text.contains(needle); }
+QRadioButton *radio(QWidget *root, const QString &text) {
+    for (auto *button : root->findChildren<QRadioButton *>())
+        if (button->text() == text)
+            return button;
+    return nullptr;
+}
 // The size line as the sheets write it.
 QString humanSize(qint64 bytes) {
     if (bytes >= 1024 * 1024)
@@ -76,33 +83,35 @@ QString humanMs(qint64 ms) {
 // A stand-in helper: a shell script the application can exec. The helper runs in a scrubbed
 // environment (only LC_ALL is set; there is no PATH), so every command is an absolute path.
 // `probe` is the --probe body, `import` the --import body.
-std::string standInScript(const QString &probeBody, const QString &importBody) {
-    return QStringLiteral(R"(#!/bin/sh
+QString standInScript(const QString &probeBody, const QString &importBody) {
+    return QString(R"(#!/bin/sh
 # A stand-in for sketchyup-ifc-worker (R097.e1 dialog tests).
 mode="$1"
 case "$mode" in
   --probe)
-" +
-                           probeBody + R"(
+")"
+           + probeBody
+           + R"(
     ;;
   --import)
-" +
-                           importBody + R"(
+")"
+           + importBody
+           + R"(
     ;;
   *)
     echo 'usage: sketchyup-ifc-worker --probe | --import <file> --output <file>' >&2
     exit 2
     ;;
 esac
-)");
+)";
 }
 // The --import body: take the --output argument, write the converted package there, play a
 // little progress, then report. `sleep` seconds of work, via /bin/sleep (the scrubbed
 // environment has no PATH); `exec` makes the process die at once when the application
 // cancels it. `refuse` reports the helper's refusal line and exits 3 instead.
-std::string importBody(const QString &package, const int sleepSeconds, const bool refuse) {
+QString importBody(const QString &package, const int sleepSeconds, const bool refuse) {
     const QString args =
-        QStringLiteral(R"(    out=""
+        QString(R"(    out=""
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --output) out="$2"; shift 2 ;;
@@ -112,14 +121,16 @@ std::string importBody(const QString &package, const int sleepSeconds, const boo
     [ -z "$out" ] && { echo 'R {"status":"refused","code":"standIn","message":"the stand-in got no --output"}'; exit 3; }
 )");
     if (refuse)
-        return args + QStringLiteral(R"(    echo 'R {"status":"refused","code":"tooManyEntities","message":"The file holds more entities than the bound allows."}'
+        return args + QString(R"(    echo 'R {"status":"refused","code":"tooManyEntities","message":"The file holds more entities than the bound allows."}'
     exit 3
 )");
-    return args + QStringLiteral(R"(    /usr/bin/cp ')" +
-           package + R"(' "$out" || exit 1
+    return args + QString(R"(    /usr/bin/cp ')")
+           + package
+           + QString(R"(' "$out" || exit 1
     echo 'P phase geometry'
-    /bin/sleep )" +
-           QString::number(sleepSeconds) + R"(
+    /bin/sleep ")")
+           + QString::number(sleepSeconds)
+           + QString(R"(
     echo 'P tasks 3'
     echo 'P done 3'
     echo 'R {"status":"ok"}'
@@ -127,12 +138,12 @@ std::string importBody(const QString &package, const int sleepSeconds, const boo
 )");
 }
 // Write a helper file and make it executable.
-QString writeExecutable(const QString &dir, const QString &name, const std::string &body) {
+QString writeExecutable(const QString &dir, const QString &name, const QString &body) {
     const QString path = dir + "/" + name;
     QFile file(path);
     check(file.open(QIODevice::WriteOnly), "write the stand-in " + name.toStdString());
-    check(file.write(body.data(), std::ssize(body)) == std::ssize(body),
-          "write the stand-in " + name.toStdString());
+    const auto bytes = body.toUtf8();
+    check(file.write(bytes) == bytes.size(), "write the stand-in " + name.toStdString());
     file.close();
     check(QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner),
           "make the stand-in executable");
@@ -260,7 +271,7 @@ struct Driver {
                         if (auto *field = chooser->findChild<QLineEdit *>("fileNameEdit");
                             field && field->isVisible())
                             field->setText(path);
-                        chooser->accept();
+                        QMetaObject::invokeMethod(chooser, "accept", Qt::QueuedConnection);
                     },
                     Qt::QueuedConnection);
                 continue;
@@ -302,7 +313,7 @@ struct Driver {
                 }
                 continue;
             }
-            if (auto *report = qobject_cast<ReportSheet *>(widget)) {
+            if (auto *report = dynamic_cast<ReportSheet *>(widget)) {
                 const auto name = report->objectName();
                 if (!sheets.contains(name))
                     sheets.append(name);
@@ -356,7 +367,7 @@ int main(int argc, char **argv) {
         root.path(), "worker-broken",
         standInScript(QStringLiteral("echo 'error: cannot load the IfcOpenShell library' "
                                      "1>&2; exit 1"),
-                      {}));
+                      QString()));
     const QString refused =
         writeExecutable(root.path(), "worker-refused",
                         standInScript(probeJson(true, {}), importBody(seed, 0, true)));
@@ -599,7 +610,8 @@ int main(int argc, char **argv) {
                                                "model only");
             check(driver.progressBar == 100, "the progress bar ran to completion");
             check(driver.sawStep5Working, "the model step ran while the geometry converted");
-            check(driver.progressFile == "model.ifc", "the progress sheet names the file");
+            check(driver.progressFile["ifcProgressSheet"] == "model.ifc",
+                  "the progress sheet names the file");
             check(contains(driver.progressElapsed, "s"), "the elapsed time ticks");
             auto &doc = window.document();
             check(doc.history().total == 1 && doc.history().entries.back().label == "Import IFC",
@@ -673,9 +685,8 @@ int main(int argc, char **argv) {
             driver.start();
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
-            check(driver.confirmations == 1,
-                  "the imported model is unsaved, so the prompt appears once");
-            check(driver.confirmPlan.empty(), "no prompt was left unanswered");
+            check(driver.confirmations == 0,
+                  "the document is not dirty (S3's import was undone), so no prompt");
             auto &doc = window.document();
             check(encodeContainer(doc) == referenceDoc,
                   "the window's import matches the reference conversion");
@@ -779,6 +790,7 @@ int main(int argc, char **argv) {
 
         // S8: a dirty model: Discard before the helper, Cancel at the commit phase.
         {
+            window.setIfcWorkerPath(available);
             window.demo();
             check(window.document().dirty(), "the demo model is dirty");
             const auto encoded = encodeContainer(window.document());

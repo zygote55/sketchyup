@@ -24,7 +24,7 @@ IfcProgressSheet::IfcProgressSheet(IfcImportRunner *runner, const QString &fileN
     : Settled<QDialog>(parent), runner(runner) {
     setObjectName("ifcProgressSheet");
     setWindowTitle("Importing IFC");
-    build();
+    build(fileName);
     QObject::connect(runner, &IfcImportRunner::phaseChanged, this, &IfcProgressSheet::phase);
     QObject::connect(runner, &IfcImportRunner::runFinished, this, [this] {
         for (int i = 0; i < 7; ++i)
@@ -35,7 +35,7 @@ IfcProgressSheet::IfcProgressSheet(IfcImportRunner *runner, const QString &fileN
         QTimer::singleShot(150, this, [this] { done(QDialog::Accepted); });
     });
 }
-void IfcProgressSheet::build() {
+void IfcProgressSheet::build(const QString &fileName) {
     auto *root = new QVBoxLayout(this);
     auto *title = new QLabel("Importing IFC");
     title->setStyleSheet("font-size: 20px; font-weight: 600;");

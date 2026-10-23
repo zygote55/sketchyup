@@ -131,7 +131,7 @@ void Window::importIfc() {
             ifcStatusChip_->setText(QString("IFC ready · %1 entities").arg(entities));
         runner->wait();
         delete runner;
-        showIfcImportReport(this, path, report, elapsed, restarts);
+        ::sketchy::showIfcImportReport(this, path, report, elapsed, restarts);
         return;
     }
     // A refusal or a failure after the restarts.
@@ -169,7 +169,7 @@ void Window::exportIfc() {
 void Window::showIfcImportReport() {
     if (ifcImportReport_.isEmpty())
         return;
-    showIfcImportReport(this, ifcImportFileName_, ifcImportReport_, ifcImportElapsedMs_,
-                          ifcImportRestarts_);
+    ::sketchy::showIfcImportReport(this, ifcImportFileName_, ifcImportReport_,
+                                     ifcImportElapsedMs_, ifcImportRestarts_);
 }
 } // namespace sketchy
