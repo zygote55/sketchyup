@@ -1445,7 +1445,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R100 — Add custom styles and richer asset authoring
 
-**Status:** Planned. **Track:** Desktop. **Scope:** F06. **UX:** —.
+**Status:** Planned; Design proposed ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md)). **Track:** Desktop. **Scope:** F06. **UX:** —.
 
 **Requires:** [R089](#r089), [R062](#r062), [R079](#r079); milestone gate rule above.
 
