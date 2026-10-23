@@ -4,6 +4,7 @@
 #include "ifc/step_import.hpp"
 
 #include <cmath>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -159,7 +160,7 @@ std::string importStep(const StepImportOptions& options) {
             std::vector<double> boxMm;
             boxMm.reserve(shape.box.size());
             for (const double v : shape.box) boxMm.push_back(v * mmPerUnit);
-            json.doubles("boundingBoxMm", boxMm);
+            json.key("boundingBoxMm").doubles(boxMm);
           }
           json.endObject();
         }

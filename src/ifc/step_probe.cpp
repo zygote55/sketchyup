@@ -155,12 +155,12 @@ RawUnits rawUnits(const std::string& text) {
   {
     static const std::regex re("PLANE_ANGLE_UNIT\\(\\)\\s+(SI_UNIT\\(\\$,(RADIAN|DEGREE)\\.(\\w+)\\)|NAMED_UNIT\\(\\*\\))");
     std::smatch m;
-    if (std::regex_search(text, m, re) && !m[2].empty()) units.angle = m[2].str();
+    if (std::regex_search(text, m, re) && !m[2].str().empty()) units.angle = m[2].str();
   }
   {
     static const std::regex re("SOLID_ANGLE_UNIT\\(\\)\\s+(SI_UNIT\\(\\$,(STERADIAN)\\.(\\w+)\\)|NAMED_UNIT\\(\\*\\))");
     std::smatch m;
-    if (std::regex_search(text, m, re) && !m[2].empty()) units.solidAngle = m[2].str();
+    if (std::regex_search(text, m, re) && !m[2].str().empty()) units.solidAngle = m[2].str();
   }
   return units;
 }
@@ -313,7 +313,7 @@ void writeRoundTrip(const std::string& directory, const std::string& label, cons
   json.field("modelSchema", back.schema);
   json.field("entities", back.entities);
   json.field("shapes", static_cast<long long>(back.shapes.size()));
-  if (!back.shapes.empty() && back.shapes.front().ok) json.doubles("boundingBox", back.shapes.front().box);
+  if (!back.shapes.empty() && back.shapes.front().ok) json.key("boundingBox").doubles(back.shapes.front().box);
 }
 
 }  // namespace
@@ -373,7 +373,7 @@ std::string probeStep(const StepProbeOptions& options) {
           .field("index", shape.index)
           .field("solids", shape.solids)
           .field("faces", shape.faces);
-      if (shape.ok) json.doubles("boundingBox", shape.box);
+      if (shape.ok) json.key("boundingBox").doubles(shape.box);
       json.endObject();
     }
     json.endArray();
@@ -418,31 +418,22 @@ int runStepProbe(const StepProbeOptions& options) {
 std::string writeStep(const std::string& directory) {
   JsonOut json;
   json.beginArray();
-  auto makeBox = [] { return BRepPrimAPI_MakeBox(10, 20, 30).Shape(); };
-  auto makeCylinder = [] { return BRepPrimAPI_MakeCylinder(5, 20).Shape(); };
-  auto makeAssembly = [] {
-    TopoDS_Compound assembly;
-    BRep_Builder builder;
-    builder.MakeCompound(assembly);
-    builder.Add(assembly, BRepPrimAPI_MakeBox(10, 20, 30).Shape());
-    builder.Add(assembly, BRepPrimAPI_MakeCylinder(5, 20).Shape());
-    return assembly;
-  };
-  const auto writes = std::array<std::pair<const char*, std::function<TopoDS_Shape()>>, 3>{
-      {"sketchyup-step-box.step", makeBox}, {"sketchyup-step-cylinder.step", makeCylinder}, {"sketchyup-step-assembly.step", makeAssembly}};
-  for (const auto& fixture : writes) {
-    json.beginObject().field("file", std::string(fixture.first));
+  // The ADR 0172 §7 self-generated corpus: box 10 x 20 x 30, cylinder r 5 h 20, and the
+  // two together, all in millimetres through the basic writer. The corpus is written with
+  // the same OCCT writer the import reads, with the ADR 0172 §2 default schema (AP214, DIS
+  // schema version) and an explicit millimetre document unit.
+  auto writeOne = [&](const char* name, const std::function<TopoDS_Shape()>& make) {
+    const fs::path file = fs::path(directory) / name;
+    json.beginObject().field("file", std::string(name));
     try {
       STEPControl_Writer writer;
       StepWriterParams params;
-      // The ADR 0172 §2 default (AP214, DIS schema version) in the document's unit:
-      // the corpus is generated with the same OCCT writer the import reads.
       params.WriteSchema = StepWriterParams::WriteMode_StepSchema_AP214DIS;
       params.WriteUnit = UnitsMethods_LengthUnit_Millimeter;  // explicit: the document's unit
-      if (writer.Transfer(fixture.second(), STEPControl_AsIs, params) == IFSelect_RetDone &&
-          writer.Write((fs::path(directory) / fixture.first).c_str()) == IFSelect_RetDone) {
+      if (writer.Transfer(make(), STEPControl_AsIs, params) == IFSelect_RetDone &&
+          writer.Write(file.c_str()) == IFSelect_RetDone) {
         json.field("written", true);
-        const StepFileFacts written = stepFileFacts(fs::path(directory) / fixture.first);
+        const StepFileFacts written = stepFileFacts(file);
         json.field("bytes", written.bytes);
         json.field("schema", written.schema);
       } else {
@@ -452,7 +443,17 @@ std::string writeStep(const std::string& directory) {
       json.field("written", false).field("reason", failure.GetMessageString());
     }
     json.endObject();
-  }
+  };
+  writeOne("sketchyup-step-box.step", [] { return BRepPrimAPI_MakeBox(10, 20, 30).Shape(); });
+  writeOne("sketchyup-step-cylinder.step", [] { return BRepPrimAPI_MakeCylinder(5, 20).Shape(); });
+  writeOne("sketchyup-step-assembly.step", [] {
+    TopoDS_Compound assembly;
+    BRep_Builder builder;
+    builder.MakeCompound(assembly);
+    builder.Add(assembly, BRepPrimAPI_MakeBox(10, 20, 30).Shape());
+    builder.Add(assembly, BRepPrimAPI_MakeCylinder(5, 20).Shape());
+    return assembly;
+  });
   json.endArray();
   return json.str();
 }
