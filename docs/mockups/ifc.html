@@ -8,15 +8,16 @@
      Open ifc.html for every screen, or ifc.html?screen=<name> for one 1280 x 860 frame:
      menu, options, dirty, progress, report, after, far, size, unavailable, limited, export, exported.
      Colours are the light theme of src/app/theme.hpp, as in terrain.html.
-     The numbers in the import report come from the R097.b helper run on the buildingSMART IFC4 Architecture
-     sample (371 entities, 21 + 339 + 11); the uncut wall, the alignments and the georeferencing result are
-     illustrative (fixtures openings-hard and the sample's own 60 degree map conversion, R097.c). -->
+     The import report is shaped like the R097.b helper's output on the buildingSMART IFC4 Architecture sample
+     (371 entities, 21 + 339 + 11); its counts, the uncut wall, the notices, the alignments and the
+     georeferencing result are illustrative (fixtures openings-hard and the sample's own 60 degree map
+     conversion, R097.c). Notice texts are the report's own (src/io/ifc_import.cpp). -->
 <style>
 :root {
   --surface: #f7f7f2; --ink: #263a32; --border: #c9d4c5; --selected: #dce7dc; --hover: #e6ebdf;
   --input: #ffffff; --accent: #547858; --muted: #617266; --canvas: #f0f1ec;
   --sel: #5b5bd6; --warn: #7a4f00; --warn-bg: #fdf3dc; --warn-line: #e3b75c;
-  --fail: #a8322b; --fail-bg: #fbf1f0; --info: #2c5aa0; --info-bg: #eef3fb; --ok: #2f6b3a; --ok-bg: #eef6ee;
+  --fail: #a8322b; --fail-bg: #fbf1f0; --info: #2c5aa0; --info-bg: #eef3fb; --ok: #547858; --ok-bg: #dce7dc;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: #d9dcd3; font: 12px/1.35 "DejaVu Sans", "Noto Sans", "Liberation Sans", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -78,8 +79,8 @@ main { display: grid; grid-template-columns: 88px 1fr 8px 246px; min-height: 0; 
 .menu { position: absolute; top: 31px; background: var(--input); border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 8px 26px rgba(30,45,35,.18); padding: 4px 0; min-width: 300px; z-index: 5; }
 .menu div { display: flex; justify-content: space-between; gap: 24px; padding: 3px 14px 3px 26px; position: relative; }
 .menu div.on { background: var(--selected); }
-.menu div.new { background: #f3f7ea; }
-.menu div.new::after { content: "new"; position: absolute; left: 4px; top: 5px; font-size: 8px; color: var(--ok); font-weight: 700; letter-spacing: .4px; }
+.menu div.new { background: var(--hover); }
+.menu div.new::after { content: "new"; position: absolute; left: 4px; top: 5px; font-size: 8px; color: var(--ink); font-weight: 700; letter-spacing: .4px; }
 .menu div.off { color: #9aa49b; }
 .menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
 .palette { position: absolute; z-index: 5; left: 560px; top: 31px; width: 420px; background: var(--input); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 26px rgba(30,45,35,.18); }
@@ -100,7 +101,7 @@ main { display: grid; grid-template-columns: 88px 1fr 8px 246px; min-height: 0; 
 .dbn.fail { background: var(--fail-bg); border-color: var(--fail); } .dbn.fail .k { color: var(--fail); }
 .dbn.warn { background: var(--warn-bg); border-color: var(--warn-line); } .dbn.warn .k { color: var(--warn); }
 .dbn.info { background: var(--info-bg); border-color: #9db8dd; } .dbn.info .k { color: var(--info); }
-.dbn.ok { background: var(--ok-bg); border-color: #a9cfae; } .dbn.ok .k { color: var(--ok); }
+.dbn.ok { background: var(--ok-bg); border-color: var(--accent); } .dbn.ok .k { color: var(--ink); }
 .dbn .k { font-weight: 700; white-space: nowrap; }
 .rule { border-top: 1px solid var(--border); }
 .dbody { flex: 1; min-height: 0; display: flex; }
@@ -132,7 +133,7 @@ main { display: grid; grid-template-columns: 88px 1fr 8px 246px; min-height: 0; 
 .pill.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
 .pill.fail { color: var(--fail); border-color: var(--fail); background: var(--fail-bg); }
 .pill.info { color: var(--info); border-color: #9db8dd; background: var(--info-bg); }
-.pill.ok { color: var(--ok); border-color: #a9cfae; background: var(--ok-bg); }
+.pill.ok { color: var(--ink); border-color: var(--border); background: var(--hover); }
 ol.steps { margin: 4px 0 0; padding-left: 20px; } ol.steps li { margin: 5px 0; }
 ul.plain { margin: 4px 0 0; padding-left: 18px; } ul.plain li { margin: 3px 0; }
 .mono { font-family: "DejaVu Sans Mono", monospace; font-size: 11px; }
@@ -213,8 +214,8 @@ function scene(o = {}) {
     s += poly([[3, 8, 0], [7.2, 8, 0], [7.2, 8, 3], [3, 8, 3]], 'rgba(91,91,214,.10)', '#5b5bd6', 2.4);
     s += poly(rectFront(4.6, 1.5, 1, 2.2, 8.02), 'none', '#7a4f00', 1.6, 'stroke-dasharray="5 3"');
     const [lx, ly] = P(4.6, 8, 2.9);
-    s += label(lx - 230, ly - 78, ['<tspan font-weight="700">Exterior wall A</tspan> · uncut', 'Its opening is hidden (tag IFC Opening)'], 'sel');
-    s += `<polyline points="${f1(lx - 60)},${f1(ly - 50)} ${f1(lx + 8)},${f1(ly + 26)}" stroke="#5b5bd6" stroke-width="1"/>`;
+    s += `<g class="mockann" transform="translate(${f1(lx - 250)},${f1(ly - 70)})"><rect width="236" height="40" rx="3" fill="#f7f7f2" stroke="#617266" stroke-dasharray="4 3"/><text x="8" y="16" fill="#617266" font-size="11">Mockup annotation: where the hidden</text><text x="8" y="31" fill="#617266" font-size="11">opening is (a hidden tag draws nothing)</text></g>`;
+    s += `<polyline points="${f1(lx - 30)},${f1(ly - 30)} ${f1(lx + 8)},${f1(ly + 26)}" stroke="#617266" stroke-width="1" stroke-dasharray="3 3"/>`;
   }
   return `<svg class="scene" viewBox="0 0 938 728" preserveAspectRatio="xMidYMid meet"><style>
     .lbl rect { fill: #f7f7f2; stroke: #c9d4c5; } .lbl text { fill: #263a32; font: 12px "DejaVu Sans", sans-serif; }
@@ -266,7 +267,7 @@ function optionsDialog(state = 'ok') {
       <ol class="steps"><li>Export a smaller file from the program that made it: one building, one storey or one discipline at a time, or without furniture and equipment.</li>
         <li>Or choose another file.</li></ol>
       <div class="hd">Limits that are checked later</div>
-      <ul class="plain"><li>2,000,000 entities in the file</li><li>100,000 faces or vertices in one body</li><li>10,000 bodies in the model</li></ul>
+      <ul class="plain"><li>2,000,000 entities in the file</li><li>100,000 vertices or faces in one body, and in the whole model</li><li>10,000 bodies in the model</li></ul>
       <div class="cap" style="font-size:12px;margin-top:6px">After reading, the report names any limit that cut something out, and which elements it affected.</div>`;
   const body = `<div class="dbody">
     <div class="col" style="width:520px">
@@ -282,7 +283,7 @@ function optionsDialog(state = 'ok') {
       <div class="hd">Georeferencing</div>
       <div class="rb on${off}" role="radio" aria-checked="true"><b>Keep the file's axes</b></div>
       <div class="rb${off}" role="radio" aria-checked="false"><b>Grid-aligned</b> <span class="sfx">opt in</span></div>
-      <div class="cap" style="margin-left:22px;margin-top:4px">If the file's map conversion is a plain shift, the site origin is set from it in both modes. If it rotates or scales, Keep records it and sets no site origin; Grid-aligned rotates the model so +X points east and sets the origin, which turns the walls off the model axes. A model with a site origin opens only in SketchyUp 1.3.0 or later.</div>
+      <div class="cap" style="margin-left:22px;margin-top:4px">If the file's map conversion is a plain shift, the site origin is set from it in both modes. If it rotates, Keep records it and sets no site origin; Grid-aligned rotates the model so +X points east and sets the origin, which turns the walls off the model axes. A conversion with a scale, map-unit or context mismatch is recorded and not applied in either mode. A model with a site origin opens only in SketchyUp 1.3.0 or later.</div>
       <div class="hd">Curved surfaces</div>
       <div class="fld${off}"><label>Maximum deviation</label><span><span class="in" style="min-width:90px">1.00 mm</span><div class="cap">Finer curves make more faces. A body keeps at most 100,000.</div></span></div>
     </div>
@@ -310,32 +311,31 @@ const SCREENS = {};
 
 SCREENS.menu = {
   title: '1 · Where the commands live: the File menu',
-  note: 'Two commands join the File menu, next to the other 3D-model formats: <b>Import IFC…</b> after Import GLB/glTF…, and <b>Export IFC…</b> after Export OBJ package…. A third, <b>Show IFC import report…</b>, is enabled only while the open model came from an IFC import in this session. Nothing else in the menu moves. All three are in command search (Ctrl+K), and none has a default shortcut. The commands stay enabled when the optional <span class="mono">sketchyup-ifc</span> package is not installed: they open the "not installed" sheet (screen 9) instead of leaving a dead menu item. The "new" tags are annotations of this mockup, not part of the interface.',
+  note: 'The File menu is drawn as it is today (its order and separators unchanged). Two commands join it, next to the other 3D-model formats: <b>Import IFC…</b> after Import GLB/glTF…, and <b>Export IFC…</b> after Export OBJ package…. A third, <b>Show IFC import report…</b>, is enabled only while the open model came from an IFC import in this session. Nothing else in the menu moves. The two commands are always in command search (Ctrl+K, which lists enabled actions only), and none has a default shortcut. The commands stay enabled when the optional <span class="mono">sketchyup-ifc</span> package is not installed: they open the "not installed" sheet (screen 9) instead of leaving a dead menu item. The "new" tags are annotations of this mockup, not part of the interface.',
   html: () => {
     const row = (t, o = {}) => `<div class="${o.cls || ''}"><span>${t}</span>${o.k ? `<kbd>${o.k}</kbd>` : ''}</div>`;
     const menu = `<div class="menu" style="left:12px;min-width:330px">
-      ${row('New', { k: 'Ctrl+N' })}${row('Open…', { k: 'Ctrl+O' })}${row('New from template…')}${row('Save template to library…')}<hr>
-      ${row('Import 2D DXF…')}${row('Export 2D DXF…')}${row('Import STL…')}${row('Export STL…')}${row('Import OBJ/MTL…')}${row('Import GLB/glTF…')}
-      ${row('Import IFC…', { cls: 'new on' })}${row('Show IFC import report…', { cls: 'new off' })}${row('Import Formline…')}${row('Import terrain…')}<hr>
-      ${row('Save', { k: 'Ctrl+S' })}${row('Save as…', { k: 'Ctrl+Shift+S' })}${row('Export measured PDF/SVG…')}${row('Export view as PNG…')}${row('Export OBJ package…')}
-      ${row('Export IFC…', { cls: 'new' })}<hr>
+      ${row('New', { k: 'Ctrl+N' })}${row('Open…', { k: 'Ctrl+O' })}${row('New from template…')}${row('Save template to library…')}
+      ${row('Import 2D DXF…')}${row('Export measured PDF/SVG…')}${row('Export 2D DXF…')}${row('Import STL…')}${row('Export STL…')}${row('Import OBJ/MTL…')}${row('Import GLB/glTF…')}
+      ${row('Import IFC…', { cls: 'new on' })}${row('Show IFC import report…', { cls: 'new off' })}${row('Import Formline…')}${row('Import terrain…')}
+      ${row('Save', { k: 'Ctrl+S' })}${row('Save as…', { k: 'Ctrl+Shift+S' })}${row('Export view as PNG…')}${row('Export OBJ package…')}${row('Export IFC…', { cls: 'new' })}<hr>
       ${row('Recover work…')}${row('Save recovery now')}${row('Recovery settings…')}<hr>${row('Example courtyard')}<hr>${row('Document units…')}${row('Site settings…')}${row('Quit', { k: 'Ctrl+Q' })}</div>`;
     const pal = `<div class="palette"><div class="q">ifc<i>&nbsp;</i></div>
-      <div class="r on"><span>Import IFC…</span><span>File</span></div><div class="r"><span>Export IFC…</span><span>File</span></div><div class="r"><span>Show IFC import report…</span><span>File · disabled</span></div></div>
-      <div class="mocknote" style="left:572px;top:236px">Ctrl+K, alternative path (shown beside the menu for comparison)</div>`;
+      <div class="r on"><span>Import IFC…</span><span></span></div><div class="r"><span>Export IFC…</span><span></span></div></div>
+      <div class="mocknote" style="left:572px;top:200px">Ctrl+K, the alternative path. Show IFC import report… is listed only while enabled.</div>`;
     return frame(0, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Import an IFC file as a new unsaved model'), menu + pal);
   },
 };
 
 SCREENS.options = {
   title: '2 · Import IFC: the file and four choices',
-  note: 'File → Import IFC… first opens the system file chooser (IFC files, <i>.ifc</i>), then this dialog. It shows what the application can know without starting the helper: size, the schema from the header and what wrote the file. Everything the helper learns (units, georeferencing, counts) arrives in the report. Four choices, each with its default: what to do if the file has <b>no length unit</b> (default: refuse; the unit is otherwise read, never asked), <b>spaces</b> hidden, shown or skipped, <b>georeferencing</b> (keep the axes, or the opt-in grid-aligned mode, with the consequence written beside it), and the <b>maximum deviation</b> of curves. Import is the default button; Esc cancels. The dirty-document prompt (screen 3) comes when Import is pressed.',
+  note: 'File → Import IFC… first opens the system file chooser (IFC files, <i>.ifc</i>), then this dialog. It shows what the application can know without starting the helper: size, the schema from the header and what wrote the file. Everything the helper learns (units, georeferencing, counts) arrives in the report. Four choices, each with its default: what to do if the file has <b>no length unit</b> (default: refuse; the unit is otherwise read, never asked), <b>spaces</b> hidden, shown or skipped, <b>georeferencing</b> (keep the axes, or the opt-in grid-aligned mode, with the consequence written beside it), and the <b>maximum deviation</b> of curves. Import is the default button; Esc cancels. The file chooser lists IFC files and, so that a zipped file can be refused with an explanation, All files. The dirty-document prompt (screen 3) comes when Import is pressed.',
   html: () => frame(-1, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Import IFC'), optionsDialog('ok')),
 };
 
 SCREENS.dirty = {
   title: '3 · Unsaved changes: before the helper starts',
-  note: 'Pressing Import with unsaved edits asks the question the other importers ask (Save / Discard / Cancel), but <b>earlier</b>: IFC import can take up to two minutes, so the answer is taken before the wait, not after it. The text says what actually happens: the current model stays open and unchanged until the new one is ready, and a refused or cancelled import leaves it exactly as it was, still unsaved. Save writes the model first (Save as… if it has no file). Discard means "replace it when the import succeeds". With no unsaved edits there is no prompt; a model that is an unedited import of the same file is also replaced without one (Import again, screen 5).',
+  note: 'Pressing Import with unsaved edits asks the question the other importers ask (Save / Discard / Cancel), but <b>earlier</b>: IFC import can take a long time, so the answer is taken before the wait, not after it. The text says what actually happens: the current model stays open and unchanged until the new one is ready, and a refused or cancelled import leaves it exactly as it was, still unsaved. Save writes the model first (Save as… if it has no file). Discard means "replace it when the import succeeds"; nothing irreversible (recovery data, the assistant session) happens until then. Cancel returns to the options. With no unsaved edits there is no prompt; a model that is an unedited import is also replaced without one (Import again, screen 5).',
   html: () => {
     const inner = `<div class="dh" style="padding-bottom:6px"><div class="dt" id="dt">Unsaved changes</div></div>
       <div style="padding:0 22px 12px"><b>Save "house" before importing?</b>
@@ -348,19 +348,19 @@ SCREENS.dirty = {
 
 SCREENS.progress = {
   title: '4 · Progress and Cancel while the helper works',
-  note: 'A modal sheet over the window, because the result replaces the model. Seven steps in plain words, each with a glyph <i>and</i> a word (Done, Working, Waiting). Only the step that has a count draws a bar: geometry reports "7 of 14 elements" as the helper finishes each. The elapsed time and the helper\'s limit are shown. <b>Cancel</b> is always live: it ends the helper process (the dialog returns control within 100 ms) and the current model is untouched. If the helper stops on one element, it is restarted without it and the sheet says so at once (amber line); the element is listed in the report. Esc is Cancel. The status bar and the main window are inert while this runs.',
+  note: 'A modal sheet over the window, because the result replaces the model. Seven steps in plain words, each with a glyph <i>and</i> a word (Done, Working, Waiting). Only the step that has a count draws a bar: geometry reports its elements as the helper finishes them (in blocks of 64 today, so a small model jumps). The elapsed time and each attempt\'s limit are shown. <b>Cancel</b> is always live but is not the default button, so a repeated Enter from pressing Import cannot cancel; Esc cancels. It ends the helper process (control returns within 100 ms) and the current model is untouched. If the helper stops, it is restarted without the element it stopped on and the sheet says so (amber line); the element is listed in the report. The status bar and the main window are inert while this runs.',
   html: () => {
     const step = (g, t, w, cls = '', extra = '') => `<div class="${cls}"><span class="g">${g}</span><span>${t}${extra}</span><span class="w">${w}</span></div>`;
-    const inner = head('Importing IFC', `<span class="mono">${FILE}</span> · into a new unsaved model`) + `<div class="rule"></div>
+    const inner = head('Importing IFC', `<span class="mono">hospital-wing.ifc</span> · into a new unsaved model`) + `<div class="rule"></div>
       <div style="padding:12px 22px 0" class="stepl" role="list" aria-label="Import steps">
         ${step('✓', 'Check the file', 'Done')}${step('✓', 'Read the file', 'Done')}${step('✓', 'Read units and structure', 'Done')}
-        ${step('●', 'Convert geometry', 'Working', 'now', `<div class="bar" role="progressbar" aria-label="Converting geometry, 7 of 14 elements" aria-valuemin="0" aria-valuemax="14" aria-valuenow="7"><i style="width:50%"></i></div><span class="sfx">7 of 14 elements</span>`)}
+        ${step('●', 'Convert geometry', 'Working', 'now', `<div class="bar" role="progressbar" aria-label="Converting geometry, 192 of 640 elements" aria-valuemin="0" aria-valuemax="640" aria-valuenow="192"><i style="width:30%"></i></div><span class="sfx">192 of 640 elements</span>`)}
         ${step('○', 'Build the model', 'Waiting', 'w')}${step('○', 'Check that nothing was dropped', 'Waiting', 'w')}${step('○', 'Create the new model', 'Waiting', 'w')}
       </div>
-      <div style="padding:6px 22px 0"><div class="dbn warn" style="margin:8px 0 0" role="status"><span class="k">⚠ Restarted once</span><span>The helper stopped on element #2314 and was restarted without it. It will be listed in the report.</span></div></div>
+      <div style="padding:6px 22px 0"><div class="dbn warn" style="margin:8px 0 0" role="status"><span class="k">⚠ Restarting</span><span>The helper stopped and was restarted (restart 1 of 3). The element it stopped on is left out and will be listed in the report.</span></div></div>
       <div style="flex:1"></div>
-      ${foot('Elapsed 0:07 · the helper stops after 2:00. Cancel leaves your model untouched.', btn('Cancel', 'def'))}`;
-    return frame(-1, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Importing bsi-ifc4-arch.ifc… Wait for the current file operation to finish.'), dlg(620, 440, inner, { name: 'Importing IFC' }));
+      ${foot('Elapsed 0:41 · each attempt stops after 2:00. Cancel leaves your model untouched.', btn('Cancel'))}`;
+    return frame(-1, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Importing hospital-wing.ifc… Wait for the current file operation to finish.'), dlg(620, 440, inner, { name: 'Importing IFC' }));
   },
 };
 
@@ -390,6 +390,7 @@ const IMPORT_REPORT = {
   accText: 'Each of the file\'s 371 entities is exactly one of these:',
   accLabel: '371 entities: 21 became model content, 339 supporting data, 11 left out',
   legend: `<div><span class="sw a"></span><span>Became model content</span><b>21</b></div><div><span class="sw b"></span><span>Supporting data <span class="sfx">(points, placements, profiles, units)</span></span><b>339</b></div><div><span class="sw c"></span><span>Left out <span class="sfx">(listed by class)</span></span><b>11</b></div>`,
+  accW: [6, 91, 3],
   sum: '21 + 339 + 11 = 371',
   how: 'How it was read',
   howRows: kv('Schema', 'IFC4') + kv('Length unit', 'millimetre → metre, exact') + kv('Curve deviation', '1.00 mm') + kv('Geometry kernel', 'OpenCASCADE') + kv('Spaces', 'hidden') + kv('Georeferencing', 'keep axes') + kv('Helper restarts', '0') + kv('Library', 'IfcOpenShell 0.9.0'),
@@ -400,22 +401,22 @@ const IMPORT_REPORT = {
     sub(1, '<b>Exterior wall A</b> · IfcWall · #267 · GlobalId 2O2Fr$t4X7Zf8NOew3FNr2<br>The library\'s cut was not trusted (the wall\'s surface is not closed), so the wall was converted <b>without</b> its opening. Opening 1 (#667) is hidden on the tag IFC Opening. Turn the tag on to see it.<br><span class="btn">Select wall and opening</span>') +
     it(1, '<span class="tw">▾</span><span><b>The file is georeferenced and rotated 60.0°</b> — axes kept, no site origin set</span>') +
     sub(1, 'Map conversion: E 729,013.349 · N 9,063,992.685 · height 1.300 m · rotation 60.0° · scale 0.001 · EPSG:32760. Recorded on the project group as <span class="mono">ifc.mapConversion.*</span>.<br><span class="btn">Import again, grid-aligned…</span>') +
-    grp('warn', 'Not imported', '3 elements') +
-    it(1, '<span class="tw">▾</span><span><b>IfcChimney</b> × 1 — no representation</span> <span class="sfx">Chimney 1 · #220</span>') +
+    grp('warn', 'Not imported', '3 elements').replace('>Attention<','>Warning<') +
+    it(1, '<span class="tw">▾</span><span><b>IfcChimney</b> × 1 — no representation</span> <span class="sfx">house - chimney · #220</span>') +
     it(1, '<span class="tw">▾</span><span><b>IfcAlignment</b> × 2 — infrastructure, not interpreted</span> <span class="sfx">#901, #902</span>') +
     grp('info', 'Notices', '3') +
-    it(1, '<span class="tw">▸</span><span>Elements held by no spatial container were put under the project</span> <span class="sfx">× 1</span>') +
-    it(1, '<span class="tw">▸</span><span>Material layers are described in properties only; the geometry is not split</span> <span class="sfx">× 2</span>') +
-    it(1, '<span class="tw">▸</span><span>True north recorded as ifc.TrueNorth; the solar settings are unchanged</span> <span class="sfx">× 1</span>') +
+    it(1, '<span class="tw">▸</span><span>Elements that no spatial container holds were placed under the project.</span> <span class="sfx">× 1</span>') +
+    it(1, '<span class="tw">▸</span><span>Material layer sets, constituent sets and profile sets are described in ifc.Material and ifc.MaterialLayers only; the geometry is not split into layers.</span> <span class="sfx">× 2</span>') +
+    it(1, '<span class="tw">▸</span><span>The context\'s true north is recorded as ifc.TrueNorth; the solar settings are not changed.</span> <span class="sfx">× 1</span>') +
     grp('ok', 'Entities left out, by class', '11', false) + grp('ok', 'Geometry library messages', '1', false) + grp('ok', 'Settings and limits used', '', false),
 };
 
 SCREENS.report = {
   title: '5 · The import report',
-  note: 'The report sheet is the one component of UX_DESIGN §6.4, laid out like the terrain import dialog: counts and the accounting on the left, a keyboard-navigable list on the right. <b>The accounting identity is stated and checked</b>: every one of the 371 entities in the file is model content, supporting data or left out, and "21 + 339 + 11 = 371" shows ✓ balanced (a ✕ and a plain statement if it ever were not). The bar uses solid, hatched and cross-hatched fills with a legend and numbers, so it needs no colour. The list is grouped: <b>Needs your attention</b> (the uncut wall with its hidden opening, and the georeferencing result with its next step), <b>Not imported</b> (unsupported entities, by class and reason, with STEP number), <b>Notices</b> (plain-language, with counts) and collapsed details. Select wall and opening selects the two bodies in the model; Esc or Close returns to the new model.',
+  note: 'The report sheet is the one component of UX_DESIGN §6.4, laid out like the terrain import dialog: counts and the accounting on the left, a keyboard-navigable list on the right. <b>The accounting identity is stated and checked</b>: every one of the 371 entities in the file is model content, supporting data or left out, and "21 + 339 + 11 = 371" shows ✓ balanced (a ✕ and a plain statement if it ever were not). The bar uses solid, hatched and cross-hatched fills with a legend and numbers, so it needs no colour. The list is grouped: <b>Needs your attention</b> (the uncut wall with its hidden opening, and the georeferencing result with its next step), <b>Not imported</b> (unsupported entities, by class and reason, with STEP number), <b>Notices</b> (plain-language, with counts) and collapsed details. Select wall and opening closes the sheet and selects the two bodies in the model (the status-bar chip reopens it); Esc or Close returns to the new model.',
   html: () => {
     const inner = head('IFC import report', `<span class="mono">${FILE}</span> · IFC4 · 139 KiB`) +
-      banner('ok', '✓ Imported', 'Opened as a new unsaved model. The IFC file was not changed. <b>2 items need your attention.</b> Save report… keeps this report; it is not stored in the model.') +
+      banner('ok', '✓ Imported', 'Opened as a new unsaved model. The IFC file was not changed. <b>2 items need your attention</b> and 3 elements were not imported. Save report… keeps this report; it is not stored in the model.') +
       '<div class="rule"></div>' + reportBody(IMPORT_REPORT) +
       foot('Row 2 of 13 selected · Enter expands · Ctrl+C copies the row', btn('Copy report') + btn('Save report…') + btn('Close', 'primary def'));
     return frame(-1, 'bsi-ifc4-arch', 'Edited', scene({ uncut: true }), side('Project · bsi-ifc4-arch', 'Outliner', OUT_HOUSE), status('Imported an unsaved IFC model · Source unchanged'), dlg(1040, 790, inner, { name: 'IFC import report' }));
@@ -424,7 +425,7 @@ SCREENS.report = {
 
 SCREENS.after = {
   title: '6 · Afterwards: the model, the tags and the report chip',
-  note: 'With the report closed, the new model is open and marked Edited. Class tags carry the visibility switches: <b>IFC Space</b> and <b>IFC Opening</b> start hidden and say "Hidden" in words, not only with a dimmed row. The selected wall is the uncut one; its hidden opening is drawn dashed here only to show where it sits (in the real viewport a hidden tag draws nothing). The status bar keeps a chip while this model is open in this session: "IFC import · 2 need attention · Show report" runs File → Show IFC import report…. The properties of any body (<span class="mono">ifc.Class</span>, <span class="mono">ifc.GlobalId</span>, <span class="mono">ifc.Step</span>, <span class="mono">ifc.Conversion</span>) are in Info, so a single element\'s story survives after the report is gone.',
+  note: 'With the report closed, the new model is open and marked Edited. Class tags carry the visibility switches: <b>IFC Space</b> and <b>IFC Opening</b> start hidden and say "Hidden" in words, not only with a dimmed row. The selected wall is the uncut one. The dashed box is an annotation of this mockup showing where its hidden opening sits (in the real viewport a hidden tag draws nothing and no callout is drawn). The status bar keeps a chip while this model is open in this session: "IFC import · 2 need attention · Show report" runs File → Show IFC import report…. The properties of any body (<span class="mono">ifc.Class</span>, <span class="mono">ifc.GlobalId</span>, <span class="mono">ifc.Step</span>, <span class="mono">ifc.Conversion</span>) are in Info, so a single element\'s story survives after the report is gone.',
   html: () => {
     const tag = (n, c, s, hidden = false) => `<div class="trow ${hidden ? '' : ''}"><span>${n}</span><span class="c">${c}</span><span class="s">${hidden ? '<b>◌ Hidden</b>' : '<b>◉ Shown</b>'}</span></div>`;
     const tags = `<div class="sec"><h3>Tags<span class="n">7 tags</span></h3></div>` +
@@ -438,7 +439,7 @@ SCREENS.after = {
 // Refusal sheets
 SCREENS.far = {
   title: '7 · Refused: the model is too far from the origin',
-  note: 'A refusal that the helper finds after reading the file. The sheet says in its first line that <b>nothing was created</b> and that the model and the file are unchanged, states the measured number against the limit, and ends in numbered next steps. The wording is the helper\'s own ("The model lies 2,000,000 m from the origin; coordinates beyond 1,000,000 m are not imported"). Save report… keeps the report so far (units, schema, spatial counts). <b>Choose another file…</b> returns to the file chooser. The same sheet shape serves the other refusals the helper reports (too many instances, nothing to import, the helper ran out of time or memory), each with its own facts and steps.',
+  note: 'A refusal that the helper finds after reading the file. The sheet says in its first line that <b>nothing was created</b> and that the model and the file are unchanged, states the measured number against the limit, and ends in numbered next steps. The wording is the helper\'s own ("The model lies 2,000,000 m from the origin; coordinates beyond 1,000,000 m are not imported"). Save report… keeps the report so far (the file\'s hash, size and schema). <b>Choose another file…</b> returns to the file chooser. The same sheet shape serves the other refusals the helper reports (too many instances, nothing to import, the helper ran out of time or memory), each with its own facts and steps.',
   html: () => {
     const inner = head('IFC import refused', `<span class="mono">tower-site.ifc</span> · IFC4 · 38 MiB`, '<span class="pill fail" style="font-size:12px">Refused</span>') +
       banner('fail', '✕ Nothing was imported', 'Your model is unchanged and the IFC file was not changed.') + '<div class="rule"></div>' +
@@ -447,13 +448,13 @@ SCREENS.far = {
         <div>The geometry lies 2,000,000 m from the project origin. SketchyUp holds coordinates up to 1,000,000 m from the origin. Files like this usually carry absolute map coordinates (a UTM or State Plane position) in the geometry itself, instead of a local origin.</div>
         <div style="margin:10px 0 2px;border:1px solid var(--border);background:var(--input);padding:4px 10px">
           <div class="kv"><span>Farthest point</span><span class="bad"><b>2,000,000 m</b> from the origin</span></div><div class="kv"><span>Limit</span><span>1,000,000 m</span></div>
-          <div class="kv"><span>Schema · length unit</span><span>IFC4 · metre</span></div></div>
+          <div class="kv"><span>File</span><span>IFC4 · 38 MiB</span></div></div>
         <div class="hd">What to do next</div>
         <ol class="steps">
           <li>In the program that made the file, move the model close to the project origin (often called the project base point or a local origin) and export it again.</li>
           <li>Keep the real-world position as the file's map conversion. SketchyUp reads that separately and can set the site origin from it.</li>
-          <li>SketchyUp does not shift the model for you in this version: that would change where it is without telling you.</li>
-        </ol></div></div>` +
+        </ol>
+        <div class="cap" style="margin-top:6px;font-size:12px">SketchyUp does not shift the model for you in this version: that would change where it is without telling you.</div></div></div>` +
       foot('Esc closes.', btn('Copy details') + btn('Save report…') + btn('Choose another file…') + btn('Close', 'primary def'));
     return frame(-1, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('IFC import refused: nothing was imported'), dlg(700, 530, inner, { name: 'IFC import refused' }));
   },
@@ -478,7 +479,7 @@ SCREENS.unavailable = {
           <div class="codebox"><span class="mono">sketchyup-ifc</span>${btn('Copy package name')}</div></li>
           <li>Choose File → Import IFC… again. No restart is needed.</li></ol>
         <div class="hd">Still works</div>
-        <ul class="plain"><li>Import and export of DXF, OBJ, STL, GLB/glTF and terrain files</li><li>Everything in modeling, Sheets and the assistant</li></ul>
+        <ul class="plain"><li>Import of DXF, OBJ, STL, GLB/glTF and terrain files, and the other exporters (DXF, STL, OBJ, PDF/SVG, PNG)</li><li>Everything in modeling, Sheets and the assistant</li></ul>
         <div class="cap" style="margin-top:8px">If the package is installed and you still see this, it is damaged or from another version: reinstall it.</div>
       </div></div>` +
       foot('Esc closes.', btn('Close', 'primary def'));
@@ -495,7 +496,7 @@ SCREENS.limited = {
 // Export
 SCREENS.export = {
   title: '11 · Export IFC: what will be written, what will not',
-  note: 'The scope notice of ADR 0171 §5, as a short form that is computed from the open model before anything is written. <b>Written</b> lists the mapping in counts. <b>Not written</b> counts each kind of thing IFC cannot carry here (terrain, guides, text, sections, scenes, textures, loose edges) so nobody finds out afterwards. <b>Georeferencing</b> says in advance whether the site origin and CRS will be written; here the label "Local grid" is not an authority code such as EPSG:32760, so it will not be, and the amber line says how to change that. There are no options: IFC4, tessellated, whole model, no claim of certification (stated). <b>Export to file…</b> opens the system Save dialog, which never replaces an existing file.',
+  note: 'The scope notice of ADR 0171 §5, as a short form that is computed from the open model before anything is written. <b>Written</b> lists the mapping in counts. <b>Not written</b> counts each kind of thing IFC cannot carry here (terrain, guides, text and dimensions, sections, scenes, sheets, reference images, component parameters, textures, loose edges and curves) so nobody finds out afterwards. <b>Georeferencing</b> says in advance whether the site origin and CRS will be written; here the label "Local grid" is not an authority code such as EPSG:32760, so neither the CRS nor the map conversion will be, and the amber line says how to change that. There are no options: IFC4, tessellated, whole model, no claim of certification (stated). <b>Export to file…</b> opens the system Save dialog, which never replaces an existing file.',
   html: () => {
     const row = (a, b, cls = '') => `<div class="fld"><label>${a}</label><span class="${cls}">${b}</span></div>`;
     const inner = head('Export IFC', 'Writes a new IFC4 file from this model. The model is not changed.') + '<div class="rule"></div>' +
@@ -511,14 +512,14 @@ SCREENS.export = {
         ${row('Identifiers', 'GlobalIds are kept from an import where valid and unique; the others are derived from the model, so exporting twice gives the same ids')}
       </div><div class="col" style="flex:1">
         <div class="hd">Not written <span class="sfx">(counted in the report)</span></div>
-        ${kv('Terrain', '1')}${kv('Guides', '14')}${kv('Text and dimensions', '6')}${kv('Sections and scenes', '2 and 3')}${kv('Textures', '2')}${kv('Edges not part of a face', '18')}
+        ${kv('Terrain', '1')}${kv('Guides', '14')}${kv('Text, dimensions, annotations', '6')}${kv('Sections', '2')}${kv('Scenes', '3')}${kv('Sheets', '1')}${kv('Reference images', '1')}${kv('Component parameters', '2')}${kv('Textures', '2')}${kv('Edges and curves not part of a face', '18')}
         <div class="hd">Georeferencing</div>
-        <div class="dbn warn" style="margin:0"><span class="k">⚠ Not written</span><span>The site origin is set, but the label "Local grid" is not an authority code like <span class="mono">EPSG:32760</span>, so no coordinate system is written. Change the label in File → Site settings…</span></div>
+        <div class="dbn warn" style="margin:0"><span class="k">⚠ Not written</span><span>The site origin is set, but the label "Local grid" is not an authority code like <span class="mono">EPSG:32760</span>, so <b>neither the coordinate system nor the map conversion is written</b>, and the origin is lost in the file. Change the label in File → Site settings…</span></div>
         <div class="hd">What this is</div>
         <div class="cap" style="font-size:12px">IFC4 with tessellated geometry. It is not a certified Reference View. Importing it again reproduces geometry, names and properties; other programs may differ.</div>
       </div></div>` +
       foot('A new file is created. An existing file is never replaced.', btn('Cancel') + btn('Export to file…', 'primary def'));
-    return frame(-1, 'house', 'Saved', scene(), side('House', 'Outliner', OUT_HOUSE), status('Export IFC'), dlg(900, 600, inner, { name: 'Export IFC' }));
+    return frame(-1, 'house', 'Saved', scene(), side('House', 'Outliner', OUT_HOUSE), status('Export IFC'), dlg(900, 640, inner, { name: 'Export IFC' }));
   },
 };
 
@@ -530,24 +531,24 @@ SCREENS.exported = {
       came: 'What was written',
       cameRows: kv('Groups', '6') + kv('Bodies', '31') + kv('Component placements', '12 <span class="sfx">as copies</span>') + kv('Faces', '2,284') + kv('Materials', '5') + kv('Properties', '214') + kv('File', '2.4 MiB'),
       accHead: 'Every item is accounted for',
-      accW: [39, 13, 48],
+      accW: [37, 12, 51],
       accText: 'Every item in the model is written, written as copies, or counted as not written:',
-      accLabel: '95 items: 37 written, 12 written as separate copies, 46 not written',
-      legend: `<div><span class="sw a"></span><span>Written</span><b>37</b></div><div><span class="sw b"></span><span>Written as separate copies <span class="sfx">(components)</span></span><b>12</b></div><div><span class="sw c"></span><span>Not written</span><b>46</b></div>`,
-      sum: '37 + 12 + 46 = 95',
+      accLabel: '99 items: 37 written, 12 written as separate copies, 50 not written',
+      legend: `<div><span class="sw a"></span><span>Written</span><b>37</b></div><div><span class="sw b"></span><span>Written as separate copies <span class="sfx">(components)</span></span><b>12</b></div><div><span class="sw c"></span><span>Not written</span><b>50</b></div>`,
+      sum: '37 + 12 + 50 = 99',
       how: 'Settings',
       howRows: kv('Schema', 'IFC4') + kv('Geometry', 'triangulated') + kv('View declared', 'none') + kv('Units', 'metre, m², m³') + kv('Timestamp', '2026-10-22 14:22') + kv('Library', 'IfcOpenShell 0.9.0'),
       treeName: 'Export report: items that need attention, what was not written, notices and details',
       tree:
         grp('warn', 'Needs your attention', '2') +
         it(1, '<span class="tw">▾</span><span><b>Coordinate system not written</b></span>') +
-        sub(1, 'The site origin is E 729,013.349 · N 9,063,992.685 · 1.300 m, but the label "Local grid" is not an authority code like EPSG:32760. Set the label in File → Site settings… and export again.') +
+        sub(1, 'The site origin is E 729,013.349 · N 9,063,992.685 · 1.300 m, but the label "Local grid" is not an authority code like EPSG:32760, so neither the coordinate system nor the map conversion was written. Set the label in File → Site settings… and export again.') +
         it(1, '<span class="tw">▾</span><span><b>1 GlobalId replaced</b> — a copy had the same id</span>', true) +
         sub(1, '<b>Exterior wall A (copy)</b> carried the GlobalId of the imported wall; it was given a derived one.<br><span class="btn">Select in model</span>') +
-        grp('warn', 'Not written', '46 items') +
+        grp('warn', 'Not written', '50 items').replace('>Attention<','>Warning<') +
         it(1, '<span class="tw">▸</span><span><b>Terrain</b> × 1 — omitted in this version</span>') +
-        it(1, '<span class="tw">▸</span><span><b>Guides</b> × 14 · <b>Text and dimensions</b> × 6 · <b>Sections</b> × 2 · <b>Scenes</b> × 3</span>') +
-        it(1, '<span class="tw">▸</span><span><b>Textures</b> × 2 · <b>Edges not part of a face</b> × 18</span>') +
+        it(1, '<span class="tw">▸</span><span><b>Guides</b> × 14 · <b>Text and dimensions</b> × 6 · <b>Sections</b> × 2 · <b>Scenes</b> × 3 · <b>Sheets</b> × 1</span>') +
+        it(1, '<span class="tw">▸</span><span><b>Reference images</b> × 1 · <b>Component parameters</b> × 2 · <b>Textures</b> × 2 · <b>Edges and curves not part of a face</b> × 18</span>') +
         grp('info', 'Notices', '2') +
         it(1, '<span class="tw">▸</span><span>Numbers are written as plain reals; no unit meaning survives</span>') +
         it(1, '<span class="tw">▸</span><span>12 component placements were written as separate geometry</span>') +

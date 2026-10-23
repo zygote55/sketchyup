@@ -1207,18 +1207,22 @@ design in the style of the DXF and terrain import dialogs and the shared report 
 adds no tool, no rail slot and no tray panel. The mockups are `mockups/ifc.html` (all screens, with
 notes) or `mockups/ifc.html?screen=<name>` (`menu`, `options`, `dirty`, `progress`, `report`,
 `after`, `far`, `size`, `unavailable`, `limited`, `export`, `exported`), drawn in the light theme of
-`src/app/theme.hpp`. The import report's numbers come from the R097.b helper run on the
-buildingSMART IFC4 Architecture sample; the uncut wall, the two alignments and the georeferencing
-result are illustrative (the fixtures `openings-hard` and the sample's own 60° map conversion).
+`src/app/theme.hpp`. The import report is shaped like the R097.b helper's output on the
+buildingSMART IFC4 Architecture sample (371 entities); its counts, the uncut wall, the notices, the
+two alignments and the georeferencing result are illustrative (the fixtures `openings-hard` and the
+sample's own 60° map conversion). Notice texts are the report's own words
+(`src/io/ifc_import.cpp`).
 
 ### 16.1 Where the commands live
 
 - **File menu.** Three entries, each next to its siblings and with no other change to the menu:
   *Import IFC…* after Import GLB/glTF…, *Export IFC…* after Export OBJ package…, and *Show IFC import
-  report…*, directly under Import IFC…. The last is enabled only while the open model came from an
-  IFC import in this session (the report is not stored in the `.sketchyup` file; Save report… keeps
-  it, 16.5). All three are in command search (Ctrl+K) and have no default shortcut; the shortcut
-  editor can assign one.
+  report…*, directly under Import IFC…. The last is enabled while the open model is the result of an
+  IFC import in this session, until the model is replaced (New, Open, another import) or closed;
+  edits and Save as… do not clear it. The report is not stored in the `.sketchyup` file; Save report…
+  keeps it (16.5). Command search (Ctrl+K) lists enabled actions only, so the two main commands are
+  always in it and the report command is while it is enabled. None has a default shortcut; the
+  shortcut editor can assign one. The rest of the menu keeps its order and separators.
 - **No dead entries.** The two main commands are never disabled. Without the optional
   `sketchyup-ifc` package they open the information sheet of 16.7, so the menu does not change with
   the install (principle 5: optional things fail alone).
@@ -1229,7 +1233,8 @@ result are illustrative (the fixtures `openings-hard` and the sample's own 60° 
 
 ### 16.2 Import IFC: the options dialog
 
-File → Import IFC… opens the system file chooser (filter: *IFC files (*.ifc)*), then this modal
+File → Import IFC… opens the system file chooser (filters: *IFC files (*.ifc)* and *All files*, so that a zipped or
+XML file can be chosen and refused with an explanation), then this modal
 dialog (screen `options`). It has a title, a one-line subline ("Opens the file as a new unsaved
 model. The IFC file is never changed."), a settings column and a short "What import does" column,
 and a footer with a status line, **Cancel** and **Import** (the default).
@@ -1247,14 +1252,15 @@ and a footer with a status line, **Cancel** and **Import** (the default).
   when shown.
 - **Georeferencing.** Two radios. **Keep the file's axes** (default) and **Grid-aligned** (opt in).
   The caption states, in this order, what each does: a plain-shift map conversion sets the site origin
-  in both modes; a rotated or scaled conversion is recorded and the axes kept unless Grid-aligned
-  is chosen; Grid-aligned rotates the model so +X points east and sets the origin, which turns the
-  walls off the model axes; and a model with a site origin opens only in SketchyUp 1.3.0 or later
-  (schema 29, ADR 0171 §3.6).
+  in both modes; a rotated conversion is recorded and the axes kept unless Grid-aligned is chosen;
+  Grid-aligned rotates the model so +X points east and sets the origin, which turns the walls off the
+  model axes; a conversion with a scale, map-unit or context mismatch is recorded and not applied in
+  either mode; and a model with a site origin opens only in SketchyUp 1.3.0 or later (schema 29,
+  ADR 0171 §3.6).
 - **Curved surfaces.** *Maximum deviation*, default 1.00 mm, in the Measurements box's units and
   syntax, with the cost stated ("Finer curves make more faces. A body keeps at most 100,000.").
-- **The helper line.** "✓ IfcOpenShell 0.9.0 · OpenCASCADE kernel", from `--probe` when the dialog
-  opens; the states in 16.7 change it. It also says the helper runs in its own process with limits,
+- **The helper line.** "✓ IfcOpenShell 0.9.0 · OpenCASCADE kernel", from a probe run when the dialog
+  opens (a new use of the helper's `--probe`); the states in 16.7 change it. It also says the helper runs in its own process with limits,
   up to two minutes, and that Cancel ends it.
 - **Cheap refusals.** The application checks, as soon as the file is chosen and in under a second, a
   regular readable file, at most 128 MiB, a STEP header and trailer, one accepted `FILE_SCHEMA`, and
@@ -1270,24 +1276,36 @@ edits needs the question the other importers ask: **Save / Discard / Cancel** (s
 button set of §6.1). It differs from them in when it is asked and in what the text promises.
 
 - **When.** When **Import** is pressed, before the helper starts. The existing importers convert first
-  and ask afterwards ("validate before asking to discard"); an IFC import can take two minutes, so
-  asking afterwards would make people wait and then answer. The file chooser and the options are not
-  held up by the prompt.
+  and ask afterwards ("validate before asking to discard"); an IFC import can take minutes, so asking
+  afterwards would make people wait and then answer. The file chooser and the options are not held up
+  by the prompt.
 - **What it says.** "Save "house" before importing? Importing <file> opens it as a new unsaved model
   in this window and replaces "house", which has unsaved changes. "house" stays open and unchanged
   until the import finishes. If the import is refused or cancelled, you keep it as it is."
 - **What the buttons do.** **Save** saves first (Save as… for a model with no file), then imports.
-  **Discard** means "replace it when the import succeeds": nothing is discarded until the new model
-  exists, so a refusal, a failure or Cancel leaves the old model open and still unsaved. **Cancel**
-  returns to the options. Save is the default, as in §6.1.
+  **Discard** means "replace it when the import succeeds". **Cancel** returns to the options.
+  Save is the default, as in §6.1.
+- **Two phases.** The promise is real only if nothing irreversible happens at the prompt. Today
+  `Window::canReplace()` asks and, on success, also clears the recovery journal, closes the assistant
+  session and cancels a terrain replay. R097.e splits it into a **confirm** phase (the question, and
+  Save) that runs when Import is pressed, and a **commit** phase (those three effects) that runs
+  only when the new model is ready. A refusal, a failure or Cancel therefore leaves the old model
+  open, still unsaved, with its recovery data and assistant session intact.
+- **While the helper runs.** If the assistant has an unreconciled outcome, Import is refused at the
+  confirm phase with the existing message ("Reconcile the assistant outcome…"), shown in the options
+  dialog. If the old model changes while the helper runs (an assistant edit lands), the commit phase
+  asks again before replacing it.
 - **No prompt.** A model with no unsaved edits is replaced without one. So is a model that is an
-  unedited import of the same file, which is what **Import again…** (16.5) opens.
+  unedited import (nothing has changed since the import finished: its history revision is the one
+  recorded at the end of the import), because its source file still holds everything. This is what
+  **Import again…** (16.5) relies on.
 
 ### 16.4 Progress and Cancel
 
-A modal sheet (screen `progress`) replaces the options dialog while the helper works; the window
-behind it is inert and the status bar says "Importing <file>…" (the existing "wait for the current
-file operation" rule).
+A new modal sheet (screen `progress`) replaces the options dialog while the helper works. It is not
+the tooltip-style file-operation progress of the other importers, which cannot be cancelled. The
+window behind it is inert and the status bar says "Importing <file>…" (the existing "wait for the
+current file operation" rule).
 
 - **Steps.** Seven, in plain words: *Check the file*, *Read the file*, *Read units and structure*,
   *Convert geometry*, *Build the model*, *Check that nothing was dropped*, *Create the new model*.
@@ -1295,16 +1313,24 @@ file operation" rule).
   (`parse`, `units`, `model`, `geometry`, `assemble`, `account`, `write`) and the application's own
   conversion.
 - **One bar.** Only the step that has a count draws a determinate bar: *Convert geometry*, with
-  "7 of 14 elements". There is no estimated time and no animation.
-- **Time.** "Elapsed 0:07 · the helper stops after 2:00." The deadline, memory and CPU limits are
-  the helper's (ADR 0171 §6.4); hitting one is a refusal (16.6).
-- **Cancel.** Always enabled, the default button and Esc. It ends the helper process, returns control
-  within 100 ms and leaves the current model untouched; the status bar says "IFC import cancelled ·
-  Your model is unchanged". No sheet follows a cancel.
-- **Restarts.** If the helper stops on one element (a crash, a timeout, memory), it is restarted
-  without that element (at most three times). An amber line appears at once: "Restarted once. The
-  helper stopped on element #2314 and was restarted without it. It will be listed in the report." It
-  is also the report's `restarted` notice and its `excluded` list. It is shown only after a restart.
+  "192 of 640 elements". The helper reports the task count (`tasks`) and then its progress in blocks
+  of 64 elements, so a small model moves in one jump; R097.e may ask the helper for finer reports.
+  There is no estimated time and no animation. Converting a host again after an untrusted cut starts a
+  second count, which the sheet shows as a new "Convert geometry" count, not a bar that goes back.
+- **Time.** "Elapsed 0:41 · each attempt stops after 2:00." The deadline, memory and CPU limits are
+  per helper run (ADR 0171 §6.4), and a restart starts a new run, so a bad file can take up to four
+  attempts. Hitting a limit is a refusal (16.6).
+- **Cancel.** Always enabled. It is a normal button and **not** the default one, so an Enter
+  repeating from pressing Import cannot cancel; Esc and Space cancel. It ends the helper process,
+  returns control within 100 ms and leaves the current model untouched; the status bar says "IFC
+  import cancelled · Your model is unchanged". No sheet follows a cancel.
+- **Restarts.** If the helper stops (a crash, a timeout, memory), it is restarted, and the first runs
+  cannot yet know which element is to blame (the application finds it by running again on one thread
+  and then diagnosing). An amber line appears when a restart begins: "Restarting. The helper stopped
+  and was restarted (restart 1 of 3). The element it stopped on is left out and will be listed in the
+  report." It is shown only after a restart. It needs a new callback from the worker run
+  (`IfcWorkerOptions` has none today); the report's `restarted` notice and `excluded` list name the
+  element afterwards.
 
 ### 16.5 The import report
 
@@ -1314,8 +1340,8 @@ list. It does not block anything the person needs: Close returns to the new mode
 be opened again (below).
 
 - **Banner.** "✓ Imported. Opened as a new unsaved model. The IFC file was not changed. 2 items need
-  your attention. Save report… keeps this report; it is not stored in the model." With none, "No items
-  need your attention".
+  your attention and 3 elements were not imported. Save report… keeps this report; it is not stored
+  in the model." With none, "Nothing needs your attention".
 - **What came in.** Elements, spaces (hidden or shown), groups, bodies, faces (and the source
   triangles they came from), materials, component definitions when there are some.
 - **Every entity is accounted for.** The accounting identity (ADR 0171 §4) as a sentence, a
@@ -1326,8 +1352,10 @@ be opened again (below).
   report would say the import is not trustworthy; this is a safeguard, not an expected state.
 - **How it was read.** Schema, length unit (and that it was exact), curve deviation, geometry kernel,
   spaces, georeferencing mode, helper restarts, library version.
-- **The grouped list.** Each group has a header with a word label (**Attention**, **Notice**,
-  **Info**), a title and a count; rows expand with the arrow keys. Groups, in this order:
+- **The grouped list.** Each group has a header with a word label (**Attention**, **Warning**,
+  **Notice**, **Info**), a title and a count; rows expand with the arrow keys. Only **Needs your
+  attention** counts toward "need your attention" and the status-bar chip; **Not imported** is a
+  warning about what is missing, counted in the banner on its own. Groups, in this order:
   - **Needs your attention.** Things the person may want to act on.
     - *Uncut hosts.* "1 wall imported uncut: its opening is hidden". Names the wall, class, STEP
       number and GlobalId, says why in words (the cut was not trusted because the surface is open;
@@ -1341,8 +1369,8 @@ be opened again (below).
     representation", "IfcAlignment × 2: infrastructure, not interpreted") with STEP numbers, up to 32
     per kind (the report's bound; the counts are complete). Also elements left out by a restart, and
     by a document limit with the limit named.
-  - **Notices.** The report's notices in plain language with their counts ("Elements held by no
-    spatial container were put under the project × 1"). Wording is the report's.
+  - **Notices.** The report's notices, in the report's own words, with their counts ("Elements that
+    no spatial container holds were placed under the project. × 1").
   - **Collapsed details.** *Entities left out, by class* (with the identity's 11), *Geometry library
     messages* (code, severity word, count) and *Settings and limits used*.
 - **Georeferencing row.** One of: *site origin set* (a notice: "Site origin set from the file's map
@@ -1355,16 +1383,19 @@ be opened again (below).
   north are recorded as properties with a notice; solar settings never change. This wording is
   proposed here for R097.c to use.
 - **Import again, grid-aligned…** Opens the options with the same file and the Grid-aligned radio
-  selected. Because the open model is an unedited import of that file, no dirty prompt appears (16.3).
-  The row has no such button when grid mode would not help (a scale or unit mismatch).
-- **Actions.** *Select wall and opening* (and every row that names bodies) selects them in the model,
-  so the Entity info and Outliner show them. Rows for elements that were not imported have no model
+  selected. Because the open model is an unedited import, no dirty prompt appears (16.3). If the
+  file has gone, the file chooser opens instead. The row has no such button when grid mode would not
+  help (a scale, map-unit or context mismatch, which neither mode applies).
+- **Actions.** *Select wall and opening* (and every row that names bodies) closes the sheet and
+  selects them in the model, so Entity info and the Outliner show them; the status-bar chip reopens
+  the sheet. Rows for elements that were not imported have no model
   entity; they offer **Copy row**, which copies the class, STEP number, GlobalId and reason.
   **Copy report** and **Save report…** follow the terrain dialog: the text form, and a `.txt` or
-  `.json` file (the report v1, at most 64 KiB, no host paths) written without replacing a file.
+  `.json` file (the report v1, at most 64 KiB, no host paths) chosen in the system Save dialog with
+  its overwrite confirmation.
 - **After Close.** The status bar keeps a chip while this model is open (screen `after`): "⚠ IFC
   import · 2 need attention · Show report", or "IFC import report" when nothing needs attention. It
-  runs File → Show IFC import report…. Class tags carry the visibility switches: *IFC Space* and *IFC
+  runs File → Show IFC import report… (lifetime: 16.1). Class tags carry the visibility switches: *IFC Space* and *IFC
   Opening* start hidden and the Tags panel says "Hidden" in words. A body's own story survives the
   report: `ifc.Class`, `ifc.GlobalId`, `ifc.Step` and `ifc.Conversion` are in Info (for the uncut wall,
   "tessellated, voids not subtracted (cut not trusted: converted uncut)").
@@ -1380,13 +1411,13 @@ sentence, never colour alone.
 | --- | --- | --- |
 | Options dialog, banner (found by the application) | Over 128 MiB; not a regular or readable file; not STEP; truncated; `.ifczip`, ifcXML or ifcJSON (the format is named; "extract the .ifc inside it" for a zip); no `FILE_SCHEMA`; several schemas; an unsupported schema (named, with the three accepted) | Choose another file; for size, export a smaller file (one building, storey or discipline) |
 | Sheet (found by the helper) | **Far from the origin** (screen `far`: "The model lies 2,000,000 m from the origin; coordinates beyond 1,000,000 m are not imported") | Move the model near its origin in the authoring program and export again; keep the real position as the map conversion; the app does not shift the model for you in this version |
-| Sheet | More than 2,000,000 instances; no or several `IfcProject`; nothing to import; a non-identity world coordinate system on the model context (the context is named); no length unit and no choice made; units that disagree; mixed unit claims; a model that does not fit the model chunk | Each names its number and limit. For no length unit, **Import again with a length unit…** reopens the options with the unit menu focused. Otherwise: export again, or choose another file |
+| Sheet | More than 2,000,000 instances; a file that cannot be parsed as STEP; no or several `IfcProject`; nothing to import; a non-identity world coordinate system on the model context (the context is named); no length unit and no choice made; an unsupported length, area, volume or angle unit; units that disagree; mixed unit claims; a model that does not fit the model chunk or fails the native checks | Each names its number, limit or unit. For no length unit, **Import again with a length unit…** reopens the options with the unit menu focused. Otherwise: export again, or choose another file |
 | Sheet | The helper stopped and could not finish (time, memory, crash, after its restarts) | Says which, with the bounded log tail under *Show details*; try again once, then export a smaller or cleaned file; **Save report…** includes the details |
 
 The helper's sheet is `IFC import refused` with a **Refused** label, the file's name, schema and
 size, the banner, a one-sentence headline, a small table of the figure and its limit, **What to do
-next**, and the buttons **Copy details**, **Save report…** (the report so far), **Choose another
-file…** and **Close** (the default). Per-element failures are never refusals: they are in the report
+next**, and the buttons **Copy details**, **Save report…** (the report so far: the file's hash, size
+and schema, and the reason), **Choose another file…** and **Close** (the default). Per-element failures are never refusals: they are in the report
 (16.5). Cancel is not a refusal and has no sheet.
 
 ### 16.7 When IFC is not available
@@ -1394,7 +1425,8 @@ file…** and **Close** (the default). Per-element failures are never refusals: 
 IFC lives in the optional `sketchyup-ifc` package (decision 22), so its absence is an information
 state, not a failure: no red, no nag, and the first sentence is that nothing else is affected.
 
-- **Package missing** (screen `unavailable`). *Import IFC…* and *Export IFC…* open the sheet "IFC import
+- **Package missing** (screen `unavailable`). The command looks for the helper first, before the
+  file chooser or the dialog, so nobody picks a file for nothing. *Import IFC…* and *Export IFC…* open the sheet "IFC import
   is not installed" (or "IFC export…"), labelled **Optional component**. It says what the package is
   and that it was not found next to this installation, **To get IFC** (install `sketchyup-ifc` at the
   same version as SketchyUp, with **Copy package name**, then choose the command again; no restart is
@@ -1407,6 +1439,10 @@ state, not a failure: no red, no nag, and the first sentence is that nothing els
   triangulated import; extruded, clipped and other solid shapes will be listed as not imported;
   export is not affected. The helper line changes to "⚠ … kernel: none". The report then carries the
   `kernelUnavailable` notice and lists each shape that could not be read.
+- **Helper present but cannot run** (a missing `libifcopenshell`, for example). The probe fails
+  where the helper would otherwise start, so the same sheet opens with the title "IFC cannot start",
+  the probe's bounded log tail under *Show details*, and "reinstall `sketchyup-ifc`". Without the
+  probe this would only surface as "the helper stopped" after a file was chosen.
 - **Export** needs the helper but not the kernel, so a missing kernel never affects it.
 
 ### 16.8 Export IFC
@@ -1422,26 +1458,31 @@ asks no dirty-document question.
   `IfcBuildingElementProxy`), component placements written as separate geometry (no instancing yet),
   materials and per-face colours, properties, hidden bodies (written, on a layer that is switched
   off) and identifiers (kept from an import where valid and unique, otherwise derived from the
-  model's identity so two exports give the same ids). Right, **Not written**, with counts: terrain
-  (omitted in this version), guides, text and dimensions, sections and scenes, textures, edges that
-  are not part of a face. Then **Georeferencing**: whether the site origin and CRS will be written.
-  An amber "Not written" says so in advance when the label is not an authority code such as
-  `EPSG:32760`, and where to change it (File → Site settings…). Last, **What this is**: IFC4 with
+  model's identity so two exports give the same ids). Right, **Not written**, one line per kind with
+  its count: terrain (omitted in this version), guides, text, dimensions and annotations, sections,
+  scenes, sheets, reference images, component parameters, textures, and edges and curves that are
+  not part of a face. (Edge appearance and smoothing are not written either, and are not counted.)
+  Then **Georeferencing**: whether the site origin and CRS will be written. An amber "Not written"
+  says so in advance when the label is not an authority code such as `EPSG:32760`: then **neither
+  the coordinate system nor the map conversion is written, so the site origin is lost in the file**,
+  and it says where to change the label (File → Site settings…). Last, **What this is**: IFC4 with
   tessellated geometry, not a certified Reference View; re-importing reproduces geometry, names and
   properties and other programs may differ (ADR 0171 §2).
 - **Destination.** The footer says "A new file is created. An existing file is never replaced." The
   button is **Export to file…**, which opens the system Save dialog with no overwrite prompt (as
-  File → Export 2D DXF…). A name that exists is refused with a message and the Save dialog opens again.
+  File → Export 2D DXF…). A name that exists is refused with a message and nothing is written.
 - **Progress.** The same sheet as 16.4, titled "Exporting IFC": *Capture the model*, *Build the
-  file*, *Check the file*, *Publish the file*. Cancel ends the helper, removes the private temporary
+  file*, *Check its size*, *Publish the file*. Cancel ends the helper, removes the private temporary
   file and writes nothing.
 - **Export report.** The same component as 16.5. The banner says "A new IFC file was written. The
   model is unchanged." The left column balances the model's contents the way the import balances
   entities: every item is written, written as separate copies (components) or counted as not
-  written ("37 + 12 + 46 = 95 ✓ balanced"). **Needs your attention** holds the coordinate-system
+  written ("37 + 12 + 50 = 99 ✓ balanced"). **Needs your attention** holds the coordinate-system
   row (and its fix) and any GlobalId that had to be replaced (a copy of an imported body carries the
   same id; **Select in model**). **Not written** and **Notices** repeat the dialog's counts, now
   final, plus "numbers are written as plain reals; no unit meaning survives".
+- **Keyboard.** Tab order: the scroll region of the form (arrow keys scroll it), Cancel, Export to
+  file…. Enter is Export to file…, Esc is Cancel.
 - **Refusals.** An empty model ("Nothing to export"), a destination that exists, an output over 256 MiB,
   and the unavailable states of 16.7, each in the 16.6 shape.
 
@@ -1454,7 +1495,8 @@ asks no dirty-document question.
   expand and collapse, Enter toggles a group, Home and End jump. A row's actions (**Select wall and
   opening**, **Import again, grid-aligned…**, **Select in model**) are the Tab stops right after the
   list while that row is current, and the footer buttons follow. The context-menu key on a row offers
-  Copy row. Close is the default, Esc closes. No step needs a pointer.
+  Copy row. Close is the default, Esc closes. No step needs a pointer. The progress sheet's Cancel is focused but not the default
+  button.
 - **Accessible names.** Every control has one (the dialogs follow the terrain import dialog's
   naming, for example "Spaces: Hidden"). The report list is named "Import report: items that need
   attention, elements not imported, notices and details". A row reads, for example: "Warning: 1 wall
@@ -1462,13 +1504,15 @@ asks no dirty-document question.
   bar is named "Converting geometry, 7 of 14 elements" with its value; each step reads "Done",
   "Working" or "Waiting". A refusal sheet is announced as an alert, its first line "Nothing was
   imported".
-- **Announcements.** At most one per step change and one when the import finishes ("IFC import
-  finished. 2 items need attention."), not one per element. The status bar's chip has the name "IFC
+- **Announcements.** At most one per step change, one when a restart begins ("Restarting: the helper
+  stopped"), and one when the import finishes ("IFC import finished. 2 items need attention."), not
+  one per element. The status bar's chip has the name "IFC
   import, 2 items need attention. Show report".
 - **Not colour alone.** Group labels are words (Attention, Notice, Info, Refused); states are glyph
   and word (✓ Done, ⚠ Restarted once, ✕ Refused, ◉ Shown, ◌ Hidden); the accounting bar is solid,
-  hatched and cross-hatched with a legend and numbers; the uncut wall's hidden opening is dashed in
-  the viewport and named in the label.
+  hatched and cross-hatched with a legend and numbers; the uncut wall's hidden opening is named in its
+  report row and the Tags panel says the tag is "Hidden" (a hidden tag draws nothing, and no viewport
+  callout is added).
 - **Motion and size.** No animation beyond the determinate bar. Text scales with the system's text
   size; at 200 % the report's two columns stack (summary above list), the dialog scrolls and the
   footer stays in view.
@@ -1479,7 +1523,8 @@ asks no dirty-document question.
 ### 16.10 Choices for the owner to look at
 
 1. **The dirty prompt comes before the helper starts**, and "Discard" takes effect only when the new
-   model exists (16.3). The other importers ask after converting.
+   model exists, which needs `canReplace()` split into confirm and commit (16.3). The other importers
+   ask after converting.
 2. **The options dialog is header-only.** Units, georeferencing and counts come from the helper, so the
    grid-aligned choice is made before the file's map conversion is known; the report's **Import
    again, grid-aligned…** (no dirty prompt for an unedited import) is the way to change your mind
