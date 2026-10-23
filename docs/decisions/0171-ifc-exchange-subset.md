@@ -1665,7 +1665,7 @@ fails if the helper's outcomes are not all defined or more than 2% of the runs c
 
 ## Implementation notes (R097.c)
 
-R097.c ships georeferencing on import: the worker reads the Model context's `IfcMapConversion` and
+R097.c ships georeferencing on import (pull request #421): the worker reads the Model context's `IfcMapConversion` and
 `IfcProjectedCRS`, decides what a translation-only site origin can hold, and the application sets the document's site
 origin (R095) from that, with the schema-29 notice. It adds `sketchyup-cli --import-ifc ... --ifc-georef keep|grid`
 (and the helper's `--georef keep|grid`) and no desktop UI (R097.e), no export (R097.d), and no command, query or
