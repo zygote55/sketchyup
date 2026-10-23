@@ -451,7 +451,7 @@ the R095.g precedent, with their token cost measured offline before the
 1.0.1-pinned `assistant_tool_surface_tests` baseline is re-pinned; the
 create/update/delete commands are hidden from the provider.
 
-**Desktop UI — the decisions a future `UX_DESIGN` section (proposed number 16)
+**Desktop UI — the decisions a future `UX_DESIGN` section (proposed number 17; §16 is the IFC design, PR #420)
 must make**, commissioned before R099.d (decision 14):
 
 1. **Where the path editor lives** (a section of the existing render panel
@@ -551,7 +551,7 @@ approved before R099.d.
   `render_preset.*` commands and `presentation.describe`; the assistant
   visibility change with the measured token cost and the re-pinned baseline.
 - **R099.d — Desktop UI.** Requires R099.c and the approved `UX_DESIGN`
-  section 16. The path editor, preset management, the batch dialog, the Jobs
+  section 17. The path editor, preset management, the batch dialog, the Jobs
   row, the results and error states, and the input test suite with the
   accessibility, keyboard-reachability and text-size extensions.
 - **R099.e — Acceptance record.** `docs/verification/R099e-presentation.md` with
@@ -626,7 +626,7 @@ decides; nothing here is decided yet.
     1.0.1-pinned baseline is re-pinned.** *Recommended —* the R095.g
     precedent, which is the only procedure that has kept the provider surface
     inside its token budget.
-14. **Desktop UX: commission `UX_DESIGN` section 16 (the §7 questions, with
+14. **Desktop UX: commission `UX_DESIGN` section 17 (the §7 questions, with
     mockups in `docs/mockups/presentation.html`) before R099.d; the one-shot
     animation sheet stays unchanged.** *Recommended —* the R096 practice: the
     interaction is approved before the UI slice, and the R072 surface is not
