@@ -157,6 +157,7 @@ void showIfcImportReport(QWidget *parent, const QString &fileName, const QJsonOb
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     sheet.footer->addStretch();
     sheet.footer->addWidget(ok);
+    sheet.buttons->hide();
     sheet.exec();
 }
 void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string &code,
@@ -188,6 +189,7 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     sheet.footer->addStretch();
     sheet.footer->addWidget(ok);
+    sheet.buttons->hide();
     sheet.exec();
 }
 void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirection) {
@@ -223,6 +225,7 @@ void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirec
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     sheet.footer->addStretch();
     sheet.footer->addWidget(ok);
+    sheet.buttons->hide();
     sheet.exec();
 }
 } // namespace sketchy

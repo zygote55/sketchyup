@@ -162,6 +162,7 @@ void Window::exportIfc() {
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     sheet.footer->addStretch();
     sheet.footer->addWidget(ok);
+    sheet.buttons->hide();
     sheet.exec();
 }
 void Window::showIfcImportReport() {

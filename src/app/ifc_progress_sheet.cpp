@@ -43,6 +43,7 @@ void IfcProgressSheet::build() {
     fileName->setObjectName("ifcProgressFile");
     root->addWidget(title);
     root->addWidget(fileName);
+    fileName->setText(QString::fromStdString(fileName));
     for (int i = 0; i < 7; ++i) {
         auto *row = new QHBoxLayout;
         auto *name = new QLabel(stepNames[i]);
