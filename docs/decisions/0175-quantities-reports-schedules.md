@@ -480,8 +480,8 @@ sketchyup-cli --input <model> --report <file.csv|file.json>
 
 The desktop work waits for an approved **UX_DESIGN section 19** (§16 is
 the IFC dialog work, §17 is the camera-path work (ADR 0173), §18 the
-styles work (ADR 0174), both in parallel
-drafts; neither section exists in `docs/UX_DESIGN.md` at this commit
+styles work (ADR 0174), all in parallel
+drafts; none of them exists in `docs/UX_DESIGN.md` at this commit
 **not verified** beyond that observation). That section must resolve:
 
 - **Entry point and default view.** A Quantities entry (an Info-tab
