@@ -14,6 +14,7 @@ void Window::importGltfPath(const QString &path) {
     if (!canReplace())
         return;
     doc_ = std::move(imported.document);
+    clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
     resetRecoveryContext();
     path_.clear();
     viewport_->cancel();
@@ -61,6 +62,7 @@ void Window::importFormlinePath(const QString &path) {
     if (!canReplace())
         return;
     doc_ = std::move(imported.document);
+    clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
     resetRecoveryContext();
     path_.clear(); // Save must choose a new native file, never overwrite the source.
     viewport_->cancel();

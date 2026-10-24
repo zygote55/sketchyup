@@ -2150,3 +2150,99 @@ pages and are marked as such.
   [the IFC2x3 georeferencing forum thread](https://forums.buildingsmart.org/t/geolocation-standards-in-ifc2x3-and-ifc4/2329)
   for the `ePset_MapConversion` convention (a proposal, not a standard).
 
+
+## Implementation notes (R097.e1)
+
+R097.e1 ships the desktop import screens (the UX design of decision 15 and §16): the **Import IFC…** options
+dialog (the file, the unit when the file doesn't declare one, the spaces choice, the georeference choice, the
+maximum deviation, the helper's state line, the Limited and the refusal banners, and the "what import does /
+what to do next" panels), the progress sheet (the seven steps, the bar, the elapsed time, Cancel), the report
+sheet (re-shown from the menu), the "not installed" and "cannot start" availability sheets, the import's
+runner and the window's flow (the on-demand probe, the picker, the two `canReplace()` gates of 16.3, the
+commit, the status lines and the report chip of the design's mockup `after`). It is pull request #428. There is no export screen yet (R097.e2) and no change to the helper:
+everything here is the application's capture of R097.b's conversion into the approved screens.
+
+### The flow, as built
+
+`Window::importIfc` runs the probe now when the user asks (it has its own deadline; a missing helper is the
+availability sheet, a broken one its "cannot start" with the helper's last log line), then the file picker,
+then the options dialog with the probe's state. A valid file runs `checkIfcSource` (the cheap refusals of
+16.7 as a red banner in the same dialog, Import disabled); the probe's **Limited** warning is the banner's
+own (the kernel is missing, only tessellated geometry will be converted) and outlives the file choice.
+Import asks about unsaved changes before the helper starts (16.3) and again at the commit (a cancel there
+discards the finished import). The conversion runs on `IfcImportRunner`, a `QThread` (the UI is never
+blocked; `phaseChanged` and `runFinished` are queued); the sheet maps phases to steps (`parse` to 2,
+`units`/`model` to 3, `geometry` to 4, `assemble`/`account`/`write` to 5, `tasks` and `done` to the bar),
+marks the working step and closes itself 150 ms after the result. The commit replaces the document with the
+converted one as one `Import IFC` history entry (undo takes it back), clears the path (a save must choose a
+new native file, never overwrite the source), fits the view and shows the report. Cancellation is
+cooperative through `IfcWorkerOptions::cancelled` (the helper exits `cancelled`); the window's status says
+what happened either way. The report chip is a hidden button on the bottom status row (the design's
+mockup `after`); the commit fills it ("⚠ IFC import · N need attention · Show report" when the
+helper did not convert N entities, "IFC import report" when it converted everything, the accessible
+name the design's 16.9 wording) and shows it, and a click reopens the report. Its lifetime is the
+imported model's: any other document (a new one, an opened one, another import, a template, a units
+change, a recovery) clears it, while a refused or a failed import, which leaves the model untouched,
+keeps it. A window shows no IFC widget until an import has committed: nothing is probed, and no widget
+is created, at startup.
+
+### What the suite found
+
+The suite's first version (S0 to S2) passed; S3 to S9 hung until the run showed the whole flow frozen at the
+progress sheet. Two app bugs, both fixed here:
+
+1. `IfcImportDialog::build` never created the unit `QComboBox`: the dialog's unit row had its label and no
+   control, and `options()`/`workerOptions()` read it null. The dialog builds it (m, mm, cm, in, ft, default
+   m) and the driver's checks run against it.
+2. `IfcImportRunner::begin` set the state and the clock and then did not `start()` the thread: the flow
+   opened the progress sheet and stopped there — the conversion never ran, the sheet never closed, and the
+   window's `runner->wait()` blocked the interface. `begin` starts the thread; the sheet's 150 ms close and
+   the window's `wasCancelled`/`hasResult`/`wait` sequence do the rest.
+
+Driving the dialog then exposed a third, the banner's ownership: `setFile` hid the banner when a valid file
+was chosen, so the **Limited** warning (the kernel isn't installed) vanished exactly when the user was
+about to convert. The banner is the probe's warning, not the file's: `setFile` now clears only a refusal
+(`applyProbeBanner` restores the probe's warning for a valid file, shows the refusal for an invalid one, and
+enables Import for the first).
+
+A fourth finding was the first implementation's own, caught by `narrow_layout_input_tests` before it
+reached CI: the window probed the helper at `showEvent` and put a permanent "IFC ready / IFC limited"
+chip in the window's `QStatusBar`. That went beyond the approved design (the chip is the post-import
+report chip on the status row, and the availability belongs to the dialog's helper line and the
+sheets), and it broke an existing test: materialising the `QStatusBar` shortens the central area, and
+the last tool on the rail drops into Qt's overflow menu, so "every tool shows on the wide rail"
+failed ("Pan" hidden at 900 px). The fix is the shape above: nothing at show; the probe on demand,
+when the import is opened; the chip a hidden button on the bottom status row that a hidden widget
+costs no layout.
+
+### The suite
+
+`ifc_import_dialog_tests` (registered as `ifc_import_dialog`, offscreen, in the four native display stages;
+`ci-path-map.json` and the line inventory follow) drives the real `Window` with stand-in helpers — `--probe`
+prints the probe's JSON (kernel available or not), `--import` copies the seed package
+`tests/fixtures/ifc/packages/rv-tessellated-item.skifc` to the output and prints `R {"status":"ok"}` (a
+refusal prints `R {"status":"refused",...}` and exits 3; a hung helper `exec`s `sleep 300`), a broken one
+prints a log line and exits 1 — and a `Window::setIfcWorkerPath` test hook points the window at it:
+
+- S0 the dialog on its own (the states, the unit row, the defaults, Enter accepts, Escape cancels, the
+  Choose… picker fills the facts); S1 a missing helper (the availability sheet, the export's pending sheet);
+  S2 a broken helper (cannot start, the helper's last log line).
+- S3 a limited helper, the full mouse flow: the Limited banner in the dialog, the progress sheet to 100 %
+  with the model step working while the geometry converts, the report, and Undo taking the import back
+  (the import replaced the document, so its identity and counters stay; the assertion is the terrain suite's
+  shape, the history's position). S4 an available helper, the keyboard flow (Enter on the dialog), the
+  available helper named, and the window's import equal to a direct `importIfcFile` conversion in every
+  respect but the document's unique identity (`documentId`, assigned at creation; the content is compared
+  with it normalized). S5 a non-IFC file (the cheap refusal in the dialog, Import disabled, nothing runs,
+  nothing is shown). S6 a refused import (the refusal sheet, the model unchanged). S7 a hung helper (the
+  check step is the working one and no step advanced; Cancel at the sheet leaves the model unchanged).
+  S8 a dirty model (Discard before the helper, Cancel at the commit phase: the finished import is
+  discarded, the model keeps its own). S9 a dirty model, both prompts answered: the import replaces the
+  model with the converted one as one `Import IFC` edit, the report's accounting intact.
+
+The driver records the dialog's and sheet's state on every tick, fires its one-shot actions only once the
+dialog has had a tick to settle (the first tick can land mid first layout), and reports an action failure at
+`stop()` instead of freezing; the assertions run after the flow returns, the same way the terrain import
+suite drives its `Settled` dialogs. The suite runs offscreen for CI parity; on a live Wayland session the
+`Settled` dialogs' focus activation delays `done()` until focus settles, which a scripted run does not
+control.
