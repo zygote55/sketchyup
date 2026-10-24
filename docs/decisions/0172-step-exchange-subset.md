@@ -480,8 +480,10 @@ coordinates are in metres, and the only scale step is `metresPerUnit = mmPerUnit
 `BRepMesh_IncrementalMesh(solid, deflection, Standard_False, angle, Standard_False)`
 (the constructor performs the meshing; not parallel, so the output is deterministic)
 and collected per face (`BRep_Tool::Triangulation` with the face's
-`TopLoc_Location`; the winding flipped for a `TopAbs_REVERSED` face or a mirror
-location, so the solid's triangles face out); a collapsed triangle is counted as
+`TopLoc_Location`; the winding flipped when exactly one of the face's `TopAbs_REVERSED`
+orientation and the location's mirror handedness applies — a reversed face under a
+mirror location is reversed twice and faces out — so the solid's triangles face out); a
+collapsed triangle is counted as
 degenerate, never silently dropped. The package is the existing writer: one mesh per
 transferred solid, one `IfcStepSolid` node per solid flat under one `IfcStepAssembly`
 root (the assembly and instance mapping is R098.b), every triangle's material the
@@ -498,7 +500,7 @@ counted entities.
 
 - **Verified (the pinned OCCT 7.9.3 build, the worker's own packages, the
   application's checked decoder from `src/io/ifc_package.cpp`):** the three corpus
-  packages decode — box 1 mesh, 36 vertices, 12 triangles, volume 6e-6 m^3 and area
+  packages decode — box 1 mesh, 24 vertices, 12 triangles, volume 6e-6 m^3 and area
   2.2e-3 m^2, both exact to the analytic values; cylinder 92 triangles, volume
   1.55291e-6 m^3 (0.989x the 1.5708e-6 analytic) and area 7.81817e-4 m^2 (0.995x
   the 7.85398e-4 analytic); the assembly 2 meshes, 104 triangles, the sum of the two.
@@ -517,23 +519,43 @@ counted entities.
   and the inch box, the deflection's tolerance for the cylinder — and the inch box
   at 0.254 x 0.508 x 0.762 m; the caps; the unit policy; the metadata unchanged).
 - **Section 6, measured (the pinned build, single threaded, 8 GiB address space,
-  2026-10-24):** the fixture model (the 3-file corpus, 104 triangles) tessellates in
+  2026-10-24, re-measured the same day against a generator that wires each copy as a
+  distinct product):** the fixture model (the 3-file corpus, 104 triangles) tessellates in
   0.03 s wall (read included) — the budget of 10 s with progress holds with a wide
-  margin. A generated 78.3 MiB file — the box solid repeated 5,000 times, each copy
-  renumbered into its own range with its own placement and representation, so 1,660,020
-  entities — parses and transfers in 6.41 s, and packages (its deduplicated shape) in
-  7.86 s. **The parse budget of 3 s (64 MiB) is missed** (about 5.2 s at 64 MiB scaled);
-  the 128 MiB case cannot be measured at all (a 10,000-copy file is 140.5 MiB, over
-  the 128 MiB input refusal). Two caveats on the 6.41 s: the reader deduplicated the
-  5,000 geometrically identical solids to one transferred shape (`roots` 1,
-  `transferred` 1, 6 faces), so the cost is the parse of 1.66M entities, not the
-  transfer of 5,000 shapes; and OCCT's reader logged 9,586 "Unresolved Reference"
-  warnings on the synthetic file while the read still reported done (the reference audit
-  of the file finds no missing reference; the warnings are the reader's own
-  bookkeeping on the repeated blocks). A file of 5,000 *distinct* solids would transfer
-  5,000 shapes and take longer; the IFC precedent (0.76 s for 1,000,000 instances) is a
-  different format's cost curve, and this measurement is the STEP one the budget line
-  asked to be measured before it is frozen.
+  margin. A generated 79.8 MiB file — 5,000 products, each a fresh
+  `PRODUCT`/`PRODUCT_DEFINITION_SHAPE`/`SHAPE_DEFINITION_REPRESENTATION` pair on its own
+  `AXIS2_PLACEMENT_3D` (the box solid 500 m away from the previous copy), 1,690,012
+  entities — parses and transfers in 13.89 s (peak 799 MiB), and packages the 5,000
+  transferred solids (60,000 triangles) in 18.08 s with no `ERR` from the reader and
+  5,000 of 5,000 converted. **The parse budget of 3 s (64 MiB) is missed** (13.89 s at
+  79.8 MiB, about 11 s at 64 MiB scaled linearly); the 128 MiB case cannot be measured at
+  all (a 10,000-copy file is 140.5 MiB, over the 128 MiB input refusal). The IFC
+  precedent (0.76 s for 1,000,000 instances) is a different format's cost curve, and this
+  measurement is the STEP one the budget line asked to be measured before it is frozen.
+  An earlier 78.3 MiB measurement (6.41 s parse) on a first draft of the generator is
+  discarded: that draft left the repeated solid blocks unreferenced by any
+  `PRODUCT_DEFINITION_SHAPE`, so the reader deduplicated them to one shape and the number
+  measured the parse, not the transfer; the wired 5,000-product file above is the honest
+  one.
+- **The mirrored solid (the review's winding question):** a placement in the step subset
+  is a proper isometry — a det -1 placement is not expressible (`AXIS2_PLACEMENT_3D`
+  carries a right-handed frame), and a degenerate one is normalised away by the reader —
+  so a mirror-image solid reaches the tessellator only as a valid B-rep, and its winding
+  is the face's own orientation (the `TopAbs_REVERSED` flag) under an identity location;
+  the mirror-location branch of the flip rule stands as the safety net for a shape that
+  carries one. Two fixtures put the box's coordinates at a negative x (the hand-crafted
+  `mirror-box.step` with its 3D points negated, and the OCCT-writer-generated
+  `box-negative.step` translated to x in [-10, 0]); both transfer as one solid, six faces,
+  and tessellate to the box's exact analytic volume (6e-6 m^3, positive signed volume) and
+  area (2.2e-3 m^2) — the triangles face out on the mirrored layout.
+- **The node names the application sees (R098.b input):** the package nodes are the
+  alphanumeric classes `IfcStepAssembly` (root) and `IfcStepSolid` (one per solid), and the
+  application's import names an unnamed body after its node class and tags it `Step
+  Solid` — so an R098.a2 import shows every body as `IfcSolid` with the `Step Solid`
+  tag, not the file's product name. R098.b maps the STEP product name to the body name
+  and chooses the tag naming deliberately (the `Ifc`-prefixed class name is deliberate for
+  R098.a2: it must be an `Ifc`-prefixed alphanumeric name the app's tree accepts, and it
+  keeps the STEP tree distinguishable from an IFC import).
 - **The 7.9.3 tessellation API, as the code uses it (the ADR-era names verified
   against the `V7_9_3` headers):** `BRepMesh_IncrementalMesh`'s constructor performs
   the meshing (no separate `Perform` call is made), with the linear deflection in the

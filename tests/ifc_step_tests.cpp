@@ -650,6 +650,50 @@ int main(int argc, char **argv) {
             }
         }
 
+        // The mirrored and offset solids (the review's winding check): a placement in the
+        // step subset is a proper isometry, so a mirror-image solid reaches the kernel only
+        // as a valid B-rep (a det -1 placement is not expressible and a degenerate one is
+        // right-handeded by the reader). Two independent fixtures put the box's coordinates
+        // at a negative x: one hand-crafted (the box's 3D points negated in x) and one the
+        // OpenCASCADE writer itself writes (a proper translation of the box to x in
+        // [-10, 0]). Both must come out a consistent outward-facing solid: the signed
+        // volume is positive and exact, the area exact.
+        const QString mirrorFixture = QStringLiteral(SOURCE_DIR "/tests/fixtures/step/mirror-box.step");
+        if (QFile::exists(mirrorFixture)) {
+            const auto mirror = importPackage(mirrorFixture, {});
+            check(mirror.code == 0 && mirror.json.value("status").toString() == "ok",
+                  "package import (the mirrored box): ok");
+            check(mirror.json.value("meshes").toInt() == 1 && mirror.json.value("converted").toInt() == 1
+                  && mirror.json.value("triangles").toInt() == 12,
+                  "package import (the mirrored box): one mesh, twelve triangles");
+            const QString mirrorPackage = temp.filePath("mirror-box.step.pkg");
+            check(checkPackage(mirrorPackage).isEmpty(), "package decode (the mirrored box): " + checkPackage(mirrorPackage).toStdString());
+            if (auto geometry = packageVolumeAndArea(mirrorPackage)) {
+                check(near(geometry->first, 0.01 * 0.02 * 0.03, 1e-9),
+                      "package mirror: the signed volume is positive and the analytic value, got " + std::to_string(geometry->first));
+                check(near(geometry->second, 2.0 * (0.01 * 0.02 + 0.01 * 0.03 + 0.02 * 0.03), 1e-9),
+                      "package mirror: the area is the analytic value, got " + std::to_string(geometry->second));
+            } else {
+                check(false, "package mirror: the geometry could not be read");
+            }
+        }
+        const QString negativeFixture = QStringLiteral(SOURCE_DIR "/tests/fixtures/step/box-negative.step");
+        if (QFile::exists(negativeFixture)) {
+            const auto negative = importPackage(negativeFixture, {});
+            check(negative.code == 0 && negative.json.value("status").toString() == "ok",
+                  "package import (the OCCT-written negative-x box): ok");
+            const QString negativePackage = temp.filePath("box-negative.step.pkg");
+            check(checkPackage(negativePackage).isEmpty(), "package decode (the negative-x box): " + checkPackage(negativePackage).toStdString());
+            if (auto geometry = packageVolumeAndArea(negativePackage)) {
+                check(near(geometry->first, 0.01 * 0.02 * 0.03, 1e-9),
+                      "package negative-x box: the signed volume is positive and the analytic value, got " + std::to_string(geometry->first));
+                check(near(geometry->second, 2.0 * (0.01 * 0.02 + 0.01 * 0.03 + 0.02 * 0.03), 1e-9),
+                      "package negative-x box: the area is the analytic value");
+            } else {
+                check(false, "package negative-x box: the geometry could not be read");
+            }
+        }
+
         // The metadata import is unchanged (R098.a): without --output the report stands, with
         // the units the import applies.
         const auto metadata = run({worker, "--import-step", boxFile});

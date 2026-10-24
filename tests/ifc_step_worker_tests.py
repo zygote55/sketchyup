@@ -426,6 +426,30 @@ def main():
         code, metadata = run("--import-step", str(box))
         expect(code == 0 and metadata.get("status") == "ok", "metadata import (no --output): the report stands")
         expect("units" in metadata and "nodes" not in metadata, "metadata import: the report is metadata, not a package")
+
+        # The committed mirror fixture (tests/fixtures/step/mirror-box.step, the corpus box
+        # with its 3D points negated in x): the step subset's placements are proper
+        # isometries, so the mirror-image solid reaches the kernel only as a valid B-rep;
+        # the metadata sees the mirrored bounding box and the C++ test checks the package's
+        # positive signed volume against the analytic values.
+        mirror_fixture = Path(__file__).resolve().parent.parent / "tests/fixtures/step/mirror-box.step"
+        if mirror_fixture.exists():
+            code, mirror_metadata = run("--import-step", str(mirror_fixture))
+            expect(code == 0 and mirror_metadata.get("status") == "ok",
+                   f"metadata import (the mirrored box) exited {code}: {mirror_metadata.get('status')}")
+            mirror_shapes = mirror_metadata.get("shapes", [])
+            expect(len(mirror_shapes) == 1 and mirror_shapes[0].get("solids") == 1
+                   and mirror_shapes[0].get("faces") == 6 if mirror_shapes else False,
+                   f"metadata import (the mirrored box): one solid, six faces, got {mirror_shapes}")
+            if mirror_shapes:
+                mbox = mirror_shapes[0].get("boundingBoxMm", [])
+                if len(mbox) == 6:
+                    expect(near(mbox[0], -10.0, absolute=1e-6) and near(mbox[3], 0.0, absolute=1e-6),
+                           f"metadata import (the mirrored box): the box spans x -10 to 0, got {mbox[0]}..{mbox[3]}")
+                    expect(near(mbox[1], 0.0, absolute=1e-6) and near(mbox[4], 20.0, absolute=1e-6),
+                           f"metadata import (the mirrored box): y 0 to 20, got {mbox[1]}..{mbox[4]}")
+                    expect(near(mbox[2], 0.0, absolute=1e-6) and near(mbox[5], 30.0, absolute=1e-6),
+                           f"metadata import (the mirrored box): z 0 to 30, got {mbox[2]}..{mbox[5]}")
     
     if failures:
         for failure in failures:

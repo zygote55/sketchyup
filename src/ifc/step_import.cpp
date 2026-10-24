@@ -12,8 +12,9 @@
 //    location; the triangulation's nodes are in the face's local (surface) coordinates, so
 //    a node's global position is node.Transformed(loc.Transformation()) (a no-op for the
 //    identity location a transferred solid carries);
-//  - a face's winding is flipped for a REVERSED face (or a mirror location, a negative
-//    determinant) so a solid's triangles all face out, as the STL writer does;
+//  - a face's winding is flipped when exactly one of the face's REVERSED orientation and a
+//    mirror location (a negative determinant) applies, so a solid's triangles all face out,
+//    as the STL writer does;
 //  - Poly_Triangulation's Node and Triangle are 1-based, and a Poly_Triangle's node indices
 //    1 to 3; the nodes are 3D (the mesh carries no UVs here).
 #include "ifc/step_import.hpp"
@@ -327,41 +328,62 @@ SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, 
       const Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(f, loc);
       if (!tri.IsNull()) {
         ++out.faces;
-        const bool flip = f.Orientation() == TopAbs_REVERSED || mirrorLocation(loc);
-        for (int t = 1; t <= tri->NbTriangles(); ++t) {
-          const Poly_Triangle tr = tri->Triangle(t);
-          gp_Pnt p1 = tri->Node(tr.Value(1));
-          gp_Pnt p2 = tri->Node(tr.Value(2));
-          gp_Pnt p3 = tri->Node(tr.Value(3));
-          if (!loc.IsIdentity()) {
-            p1.Transform(loc.Transformation());
-            p2.Transform(loc.Transformation());
-            p3.Transform(loc.Transformation());
-          }
+        // The winding is the product of the face's orientation and the location's handedness:
+        // a reversed face under a mirror location is reversed twice, which is forward —
+        // XOR, not OR (each rule fires once).
+        const bool flip = (f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc);
+        // Each node of the face's triangulation once (transformed and scaled); the triangles
+        // index into them. A node written per triangle would repeat the shared nodes up to
+        // six times (about 72 MB of vertex data at the 1,000,000-triangle cap, close to the
+        // 128 MiB mesh-chunk bound).
+        const int nodes = tri->NbNodes();
+        std::vector<double> faceVertices;
+        faceVertices.reserve(3 * static_cast<size_t>(nodes));
+        for (int i = 1; i <= nodes; ++i) {
+          const gp_Pnt node = tri->Node(i);
+          gp_Pnt p = node;
+          if (!loc.IsIdentity()) p.Transform(loc.Transformation());
           // The raw numbers (the cascade unit when the reader's context resolved, the
           // file's own unit when it did not) to metres; the unit policy (decideUnits) has
           // already decided which conversion applies, so this is the only scale step.
-          const double v[9] = {p1.X() * metresPerUnit, p1.Y() * metresPerUnit, p1.Z() * metresPerUnit,
-                               p2.X() * metresPerUnit, p2.Y() * metresPerUnit, p2.Z() * metresPerUnit,
-                               p3.X() * metresPerUnit, p3.Y() * metresPerUnit, p3.Z() * metresPerUnit};
-          const std::uint32_t base = static_cast<std::uint32_t>(out.vertices.size() / 3);
-          for (const double value : v) out.vertices.push_back(value);
-          const double ax = v[3] - v[0], ay = v[4] - v[1], az = v[5] - v[2];
-          const double bx = v[6] - v[0], by = v[7] - v[1], bz = v[8] - v[2];
+          faceVertices.push_back(p.X() * metresPerUnit);
+          faceVertices.push_back(p.Y() * metresPerUnit);
+          faceVertices.push_back(p.Z() * metresPerUnit);
+        }
+        const std::uint32_t base = static_cast<std::uint32_t>(out.vertices.size() / 3);
+        out.vertices.insert(out.vertices.end(), faceVertices.begin(), faceVertices.end());
+        for (int t = 1; t <= tri->NbTriangles(); ++t) {
+          const Poly_Triangle tr = tri->Triangle(t);
+          // The node numbers are 1-based (node i is the i - 1 group of faceVertices).
+          const double x1 = faceVertices[3 * static_cast<size_t>(tr.Value(1) - 1)];
+          const double y1 = faceVertices[3 * static_cast<size_t>(tr.Value(1) - 1) + 1];
+          const double z1 = faceVertices[3 * static_cast<size_t>(tr.Value(1) - 1) + 2];
+          const double x2 = faceVertices[3 * static_cast<size_t>(tr.Value(2) - 1)];
+          const double y2 = faceVertices[3 * static_cast<size_t>(tr.Value(2) - 1) + 1];
+          const double z2 = faceVertices[3 * static_cast<size_t>(tr.Value(2) - 1) + 2];
+          const double x3 = faceVertices[3 * static_cast<size_t>(tr.Value(3) - 1)];
+          const double y3 = faceVertices[3 * static_cast<size_t>(tr.Value(3) - 1) + 1];
+          const double z3 = faceVertices[3 * static_cast<size_t>(tr.Value(3) - 1) + 2];
+          const double ax = x2 - x1, ay = y2 - y1, az = z2 - z1;
+          const double bx = x3 - x1, by = y3 - y1, bz = z3 - z1;
           if (0.5 * std::abs(ay * bz - az * by) + 0.5 * std::abs(az * bx - ax * bz) +
               0.5 * std::abs(ax * by - ay * bx) < kDegenerateArea) {
             ++out.degenerate;  // counted (degenerateTriangles), the app's merge drops it
           }
           ++out.triangles;
-          // Outward for a forward face, flipped for a reversed one (the STL writer's rule).
+          // Outward for a forward face, flipped for a reversed one (the STL writer's rule),
+          // into the face's node table (node i is the i - 1 group of faceVertices).
+          const std::uint32_t n1 = base + static_cast<std::uint32_t>(tr.Value(1) - 1);
+          const std::uint32_t n2 = base + static_cast<std::uint32_t>(tr.Value(2) - 1);
+          const std::uint32_t n3 = base + static_cast<std::uint32_t>(tr.Value(3) - 1);
           if (flip) {
-            out.indices.push_back(base);
-            out.indices.push_back(base + 2);
-            out.indices.push_back(base + 1);
+            out.indices.push_back(n1);
+            out.indices.push_back(n3);
+            out.indices.push_back(n2);
           } else {
-            out.indices.push_back(base);
-            out.indices.push_back(base + 1);
-            out.indices.push_back(base + 2);
+            out.indices.push_back(n1);
+            out.indices.push_back(n2);
+            out.indices.push_back(n3);
           }
         }
       }
