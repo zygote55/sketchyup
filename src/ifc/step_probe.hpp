@@ -24,10 +24,13 @@ struct StepModelFacts {
   std::string readStatus;  // done / fail / error / exception / no-model
   std::string schema;  // the FILE_SCHEMA identifiers of the model's header
   bool unitsDeclared = false;  // the file has a LENGTH_UNIT declaration (the raw text says so)
-  std::string lengthUnit;  // the unit names as the model reads them
+  std::string lengthUnit;  // the unit the file's unit context assigns (FileUnits: "" = none)
   std::string angleUnit;
   std::string solidAngleUnit;
-  double lengthMetres = 1.0;  // the file's local length unit as a factor of metres (1.0: none declared)
+  bool lengthUnitResolved = false;  // the model resolved a length unit: the reader applied the
+                                   // file's unit to the geometry (the shapes come out in mm)
+  double lengthMetres = 0.0;  // the factor of metres of the unit the model resolves, from the
+                              // name (0.0: not resolved, or the name is not a known unit)
   long long entities = 0;
   long long roots = 0;
   long long transferred = 0;
@@ -36,14 +39,23 @@ struct StepModelFacts {
 };
 
 // Read a STEP file with the basic OCCT reader (STEPControl_Reader). Never throws: the failure
-// ends up in readStatus / error. lengthMetres is the model's LocalLengthUnit: the file's local
-// length unit as a factor of metres, 1.0 when the file declares no unit (the reader's default
-// is a metre). The shapes are the roots as transferred, un-scaled (in the file's local unit).
+// ends up in readStatus / error. lengthUnitResolved is the unit the file's unit context
+// assigns (FileUnits: the combined context wrappers only - a bare GLOBAL_UNIT_ASSIGNED_CONTEXT
+// is not resolved; a conversion-based file resolves the conversion unit, not the base unit the
+// raw text's first LENGTH_UNIT stands for): when resolved, TransferRoots has normalized the
+// geometry to the cascade unit (millimetre by default) - a metre-declaring box of 10 x 20 x 30
+// comes out 10000 x 20000 x 30000. A file the reader resolves no unit for comes out in the
+// file's own units. A bare ReadFile never sets the model's LocalLengthUnit (SystemLengthUnit
+// stays 1.0; the DESTEP XCAF provider is the only thing that sets it), so the factor is
+// resolved from the FileUnits name. The shapes are the roots as transferred, un-scaled by us.
 StepModelFacts readStepModel(const std::string& path);
 
 // The raw-text facts (the ADR 0172 unit policy reads the file as written): the ISO-10303-21
 // header, the FILE_SCHEMA name and its family (ap203 / ap214 / ap242 / other) and the unit
-// declarations. lengthMetres is meaningful only when lengthDeclared.
+// declarations - the first one in the text, which for a conversion-based file is the
+// conversion's base, not the unit in use (the model's resolution carries that). lengthMetres
+// is 0.0 when declared but not convertible from the raw text; it is the import's fallback for
+// a file the model resolves no unit for.
 struct StepFileFacts {
   bool readable = false;
   long long bytes = 0;
@@ -51,10 +63,12 @@ struct StepFileFacts {
   std::string schemaRaw;
   std::string schema;
   bool lengthDeclared = false;
-  std::string length;
+  std::string length;  // the first LENGTH_UNIT declaration as written (a conversion-based file:
+  // the conversion's base, e.g. "millimetre"; the conversion unit's name if it is first)
   std::string angle;
   std::string solidAngle;
-  double lengthMetres = 1.0;
+  double lengthMetres = 0.0;  // the raw text's declaration as a factor of metres (0.0: not
+  // convertible from the raw text; the model's factor stands)
 };
 
 StepFileFacts stepFileFacts(const std::string& path);

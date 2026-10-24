@@ -4,16 +4,23 @@
 // basic writer (once with the default schema, once with the AP242 option), which settles on
 // every run what schema the writer actually writes.
 //
-// The OpenCASCADE API the probe uses (verified against the V7_9_3 source; the 7.8 differences
-// are the version spelling and the writer parameter's name, both spelt out below):
-//  - STEPControl_Reader: ReadFile -> IFSelect_ReturnStatus; StepModel() ->
-//    StepData_StepModel (LocalLengthUnit: the file's local length unit as a factor of metres,
-//    1.0 when the file declares no unit); FileUnits (the unit names); SystemLengthUnit() ->
-//    that same factor. There is no Status() method and no FileUnitsDeclared(): the
-//    "declared" fact comes from the raw text, the model's from its local unit.
+// The OpenCASCADE API the probe uses (verified against the V7_9_3 source, and the pinned 7.9.3
+// build, recorded 2026-10-24):
+//  - STEPControl_Reader: ReadFile -> IFSelect_ReturnStatus (done when every entity parsed);
+//    StepModel() -> StepData_StepModel; FileUnits (the unit names: the unit the file's unit
+//    context assigns to the shapes - the conversion unit a conversion-based file applies, the
+//    file's own unit for a plain SI file; a bare GLOBAL_UNIT_ASSIGNED_CONTEXT is not
+//    resolved, only the combined context wrappers are). A bare ReadFile never sets the
+//    model's local unit (LocalLengthUnit stays 1.0; the DESTEP XCAF provider is the only
+//    thing that sets it, and SystemLengthUnit reads it), so the factor is resolved from the
+//    FileUnits name. There is no Status() method and no FileUnitsDeclared(): the
+//    "declared" fact comes from the raw text.
 //  - XSControl_Reader adds Transfer / NbShapes / Shape / OneShape; TransferRoots() returns
-//    the number of shapes transferred (not a status) and leaves them un-scaled, in the
-//    file's local unit.
+//    the number of shapes transferred (not a status). The transferred shapes are normalized
+//    to the cascade unit (millimetre by default) when the shape's unit context resolves: an
+//    inch-declaring box of 10 x 20 x 30 comes out 254 x 508 x 762, a metre-declaring one
+//    10000 x 20000 x 30000. A file the reader resolves no unit for comes out in the file's
+//    own units (the unit conversion is 1.0).
 //  - The schema lives in the header's HeaderSection_FileSchema (no static GetID() in 7.9);
 //    the identifiers are TCollection_HAsciiString handles, read with ToCString.
 //  - The writer takes a value-type parameter (DESTEP_Parameters in 7.9; renamed from
@@ -26,6 +33,7 @@
 #include "ifc/step_probe.hpp"
 
 #include <array>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -196,22 +204,55 @@ std::string entityAt(const std::string& text, std::size_t pos) {
 
 // The unit an entity carries, as (prefix, base-or-name): an SI_UNIT wins (an SI unit's
 // NAMED_UNIT carries the "*" name and sits before the SI_UNIT in the same entity);
-// otherwise a CONVERSION_BASED_UNIT; a bare NAMED_UNIT has no unit to read.
+// otherwise a CONVERSION_BASED_UNIT, whose name is a quoted string ('INCH'); a bare
+// NAMED_UNIT has no unit to read.
 std::optional<std::pair<std::string, std::string>> unitIn(const std::string& entity) {
-  if (const std::size_t si = entity.find("SI_UNIT(")) {
+  if (const std::size_t si = entity.find("SI_UNIT("); si != std::string::npos) {
     std::string prefix, base;
     if (siUnitArgs(entity, si, prefix, base)) {
       const std::pair<std::string, std::string> unit{prefix, base};
       return unit;
     }
   }
-  if (const std::size_t conv = entity.find("CONVERSION_BASED_UNIT(")) {
-    const std::size_t close = entity.find(')', conv);
-    if (close == std::string::npos) return std::nullopt;
-    const std::pair<std::string, std::string> unit{"", dotLiteral(entity.substr(conv + 20, close - conv - 20))};
+  if (const std::size_t conv = entity.find("CONVERSION_BASED_UNIT("); conv != std::string::npos) {
+    // The name is the quoted string the 22-character marker opens ('INCH' at conv + 23).
+    const std::size_t open = entity.find('\'', conv + 22);
+    if (open == std::string::npos || open - conv > 64) return std::nullopt;
+    const std::size_t close = entity.find('\'', open + 1);
+    if (close == std::string::npos || close - open > 64) return std::nullopt;
+    const std::pair<std::string, std::string> unit{"", entity.substr(open + 1, close - open - 1)};
     return unit;
   }
   return std::nullopt;
+}
+
+// The name as OCCT spells it is case-variant (the SI unit as getSiName spells it,
+// lowercase; the conversion unit as the file wrote its quoted name), so the factor lookups
+// fold the case before they compare.
+std::string foldName(const std::string& name) {
+  std::string folded = name;
+  for (std::size_t i = 0; i < folded.size(); ++i) folded[i] = std::tolower(static_cast<unsigned char>(folded[i]));
+  return folded;
+}
+
+// The factor to metres of a unit name as STEPControl_Reader::FileUnits returns it: the SI
+// unit as getSiName spells it (a lowercase prefix, the base "metre"; no prefix the plain
+// metre), the conversion unit as the file wrote its quoted name. The prefixes are the set
+// OCCT 7.9.3 spells (STEPControl_Reader.cxx, getSiName) with
+// STEPConstruct_UnitContext::ConvertSiPrefix's factors; the named units are the
+// ADR 0172 option set's inches and feet (0.0254 and 0.3048 m). nullopt: declared but not
+// convertible from the name; the raw text's factor stands.
+std::optional<double> unitMetres(const std::string& name) {
+  static const std::map<std::string, double> factors = {
+      {"millimetre", 1e-3}, {"centimetre", 1e-2}, {"decimetre", 1e-1}, {"metre", 1.0},
+      {"decametre", 1e1}, {"hectometre", 1e2}, {"kilometre", 1e3}, {"megametre", 1e6},
+      {"gigametre", 1e9}, {"terametre", 1e12}, {"petametre", 1e15}, {"exametre", 1e18},
+      {"nanometre", 1e-9}, {"micrometre", 1e-6}, {"picometre", 1e-12}, {"femtometre", 1e-15},
+      {"attometre", 1e-18},
+      {"inch", 0.0254}, {"foot", 0.3048},
+  };
+  const auto entry = factors.find(foldName(name));
+  return entry == factors.end() ? std::nullopt : std::optional<double>(entry->second);
 }
 
 RawUnits rawUnits(const std::string& text) {
@@ -230,7 +271,7 @@ RawUnits rawUnits(const std::string& text) {
         // 0.0: declared but not convertible from the raw text; the model's factor stands.
         units.lengthMetres = entry != prefix.end() ? entry->second : 0.0;
       } else {
-        const auto base = named.find(unit->second);
+        const auto base = named.find(foldName(unit->second));
         units.length = unit->second;
         units.lengthMetres = base != named.end() ? base->second : 0.0;
       }
@@ -317,14 +358,26 @@ StepModelFacts readStepModel(const std::string& path) {
         facts.schema += fileSchema->SchemaIdentifiersValue(i)->ToCString();
       }
     }
+    // The unit the file applies to its shapes: FileUnits resolves it from the shape's
+    // representation context (a conversion-based file, inches, resolves the conversion unit,
+    // not the base unit the raw text's first LENGTH_UNIT stands for; a bare
+    // GLOBAL_UNIT_ASSIGNED_CONTEXT is not resolved - only the combined context wrappers).
+    // When it resolves, TransferRoots has normalized the geometry to the cascade unit
+    // (millimetre by default: a metre-declaring box of 10 x 20 x 30 comes out 10000 x
+    // 20000 x 30000), so the factor is resolved from the name for the report only.
+    // A bare ReadFile never sets the model's local unit (SystemLengthUnit stays 1.0; the
+    // DESTEP XCAF provider is the only thing that sets it).
     TColStd_SequenceOfAsciiString length, angle, solid;
     reader.FileUnits(length, angle, solid);
-    if (length.Length() > 0) facts.lengthUnit = length.Value(1).ToCString();
+    if (length.Length() > 0) {
+      facts.lengthUnit = length.Value(1).ToCString();
+      facts.lengthUnitResolved = true;
+    }
     if (angle.Length() > 0) facts.angleUnit = angle.Value(1).ToCString();
     if (solid.Length() > 0) facts.solidAngleUnit = solid.Value(1).ToCString();
-    // The model's unit, un-touched: LocalLengthUnit as a factor of metres (SetSystemLengthUnit
-    // would overwrite it, and the shapes are read in the file's own unit).
-    facts.lengthMetres = reader.SystemLengthUnit();
+    if (const auto metres = unitMetres(facts.lengthUnit)) {
+      facts.lengthMetres = *metres;
+    }
     facts.entities = reader.Model()->NbEntities();
     facts.roots = reader.NbRootsForTransfer();
     facts.transferred = reader.TransferRoots();

@@ -433,6 +433,38 @@ remain in R098.b/c; this is the verified boundary they build on.
   the refusals; the three corpus files are committed under `tests/fixtures/step/`
   with `STEP-SOURCE.txt` (the CTest entries `ifc_step`/`ifc_step_worker`; the
   verify script's L6 checks the 26-library union on the installed tree).
+- **The unit policy and what a plain OCCT read really does (review round 2, 2026-10-24):**
+  `STEPControl_Reader::FileUnits` resolves the unit the file's unit context assigns
+  to the shapes: it walks each root's `ShapeDefinitionRepresentation` to the shape
+  representation's `ContextOfItems`, and `findUnits` only accepts the combined context
+  wrappers (`GEOMETRIC_REPRESENTATION_CONTEXT_AND_GLOBAL_UNIT_ASSIGNED_CONTEXT` and the
+  uncertainty variant) - a bare `GLOBAL_UNIT_ASSIGNED_CONTEXT` entity is not resolved.
+  A conversion-based file resolves the conversion unit (its name as the file wrote it,
+  e.g. `INCH`; the `ValueComponent` of the `LENGTH_MEASURE_WITH_UNIT` as the factor),
+  not the base unit the raw text's first `LENGTH_UNIT` declares. And the transfer is the
+  unit conversion: `TransferRoots` normalizes the geometry to the cascade length unit
+  (millimetre by default: a metre-declaring box of 10 x 20 x 30 comes out
+  10000 x 20000 x 30000, an inch-declaring one 254 x 508 x 762) - a file the reader
+  resolves no unit for comes out in the file's own units. A plain `ReadFile` never
+  sets the model's `LocalLengthUnit` (it stays 1.0; the DESTEP XCAF provider is the
+  only thing that sets it, and `SystemLengthUnit` reads it), so the probe resolves
+  the factor from the `FileUnits` name (the SI unit as `getSiName` spells it - a
+  lowercase prefix, the base `metre` - with the `ConvertSiPrefix` set; plus inch
+  0.0254 and foot 0.3048 m). A conversion-based file then imports at the conversion
+  unit: the committed `tests/fixtures/step/inch-units.step` (the corpus box, the
+  writer's geometry and header, with the context's `GLOBAL_UNIT_ASSIGNED_CONTEXT`
+  replaced by a hand-written `CONVERSION_BASED_UNIT('INCH')` unit block - the writer
+  writes the combined context wrappers the reader follows) comes out of the reader at
+  254 x 508 x 762 mm (the import's geometry scale is 1.0), the raw text's millimetre
+  base stays visible in the report (`units.length`), and a notice says the file
+  applies the conversion unit. A file with a conversion unit but no unit context the
+  reader resolves (a shapeless sample) imports at the raw text's first declaration
+  (1000 x its factor in metres, flagged); a file the raw text cannot convert and the
+  model resolves no unit for is refused (a unit is never guessed - decision 4). The
+  raw-text scan is kept for the `unitsDeclared` fact and the raw name report only (its
+  factor is the raw text's first declaration, the import's fallback); the `unitIn`
+  scan's `find` checks were inverted before this (a present `SI_UNIT` was treated as
+  absent and vice versa), so the raw report of a conversion-based entity was wrong.
 
 ## Owner decisions
 

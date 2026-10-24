@@ -134,6 +134,40 @@ def main():
             "import (with an option): the declared unit still wins",
         )
 
+        # 4b. The conversion-based unit without a unit context: the raw text's first declaration is
+        # the conversion's millimetre base; the reader resolves no unit for a file without a
+        # shape or a unit context it follows, so the raw text's declaration stands, flagged.
+        # (A full conversion-based file - the committed tests/fixtures/step/inch-units.step,
+        # the corpus box whose context applies the inch - is checked by the C++ test,
+        # against the reader's conversion: 25.4 mm per file unit, the box 254 x 508 x 762 mm.)
+        inch = temp_path / "inch-units-no-context.step"
+        inch.write_text(
+            "ISO-10303-21;\nHEADER;\n"
+            "FILE_DESCRIPTION(('x'),'2;1');\n"
+            "FILE_NAME('a','',(''),(''),'','','');\n"
+            "FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n"
+            "#1=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n"
+            "#2=( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );\n"
+            "#3=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#2);\n"
+            "#4=( CONVERSION_BASED_UNIT('INCH',#3) LENGTH_UNIT() NAMED_UNIT(#1) );\n"
+            "#5=( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );\n"
+            "#6=( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() );\n"
+            "ENDSEC;\nEND-ISO-10303-21;\n"
+        )
+        code, imported = run("--import-step", str(inch))
+        expect(code == 0, f"import (inch, no context) exited {code}")
+        expect(imported.get("status") == "no-shapes", f"import (inch, no context): no-shapes, got {imported.get('status')}")
+        units = imported.get("units", {})
+        expect(units.get("applied") == "declared", f"import (inch, no context): the declared unit is applied, got {units.get('applied')}")
+        expect(near(units.get("mmPerUnit", 0.0), 1.0, absolute=1e-12), "import (inch, no context): the raw text's millimetre base stands, 1 mm")
+        expect(near(units.get("rawLengthMetres", 0.0), 0.001, absolute=1e-12), "import (inch, no context): the raw text says 0.001 m per unit")
+        expect(units.get("length") == "millimetre", f"import (inch, no context): the raw text's first declaration is the base, got {units.get('length')}")
+        expect(imported.get("modelLengthUnit", "") == "", "import (inch, no context): the model resolved no unit")
+        expect(
+            any("raw text's declaration" in notice for notice in imported.get("notices", [])),
+            "import (inch, no context): a notice flags the raw text's declaration",
+        )
+
         # 5. The refusals: no ISO header, and a header without a length unit and without the option.
         no_header = temp_path / "no-header.step"
         no_header.write_text("this is not a STEP file\n")

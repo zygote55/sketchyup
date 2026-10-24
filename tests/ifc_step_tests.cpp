@@ -123,6 +123,51 @@ int main(int argc, char **argv) {
         const auto assemblyFixture = fixture("sketchyup-step-assembly.step");
         const auto asmShapes = assemblyFixture.value("shapes").toArray();
         check(asmShapes.size() == 1 && asmShapes[0].toObject().value("solids").toInt() == 2, "fixture assembly: one shape, two solids");
+        // The hand-written inch fixture (tests/fixtures/step/inch-units.step): the writer's box
+        // with the context's unit a CONVERSION_BASED_UNIT ('INCH'). The raw text's first
+        // declaration is the conversion's millimetre base (the unit entity the writer wrote
+        // stands before the conversion unit); the reader resolves the unit the context applies
+        // and normalizes the geometry to millimetres at read time.
+        const auto inchFixture = fixture("inch-units.step");
+        const auto inchShapes = inchFixture.value("shapes").toArray();
+        check(inchShapes.size() == 1 && inchShapes[0].toObject().value("solids").toInt() == 1
+              && inchShapes[0].toObject().value("faces").toInt() == 6, "fixture inch: one solid, six faces");
+        if (inchShapes.size() == 1) {
+            const auto box = inchShapes[0].toObject().value("boundingBox").toArray();
+            check(box.size() == 6, "fixture inch: a six-number bounding box");
+            if (box.size() == 6) {
+                check(near(box[0].toDouble(), 0.0, 1e-9) && near(box[1].toDouble(), 0.0, 1e-9)
+                      && near(box[2].toDouble(), 0.0, 1e-9), "fixture inch: the origin");
+                check(near(box[3].toDouble(), 254.0, 1e-9) && near(box[4].toDouble(), 508.0, 1e-9)
+                      && near(box[5].toDouble(), 762.0, 1e-9), "fixture inch: the reader delivered the geometry in millimetres");
+            }
+        }
+        check(inchFixture.value("modelLengthUnit").toString() == "INCH", "fixture inch: the model resolves the file's unit as the inch");
+        check(near(inchFixture.value("modelLengthMetres").toDouble(), 0.0254, 1e-9), "fixture inch: the inch is 0.0254 m");
+        const auto inchImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/inch-units.step")});
+        check(inchImport.code == 0 && inchImport.json.value("status").toString() == "ok", "fixture inch import: the box reads with the conversion unit");
+        check(inchImport.json.value("modelLengthUnit").toString() == "INCH", "fixture inch: the report carries the model's unit");
+        {
+            const auto u = inchImport.json.value("units").toObject();
+            check(u.value("applied").toString() == "declared", "fixture inch: the declared unit is applied");
+            check(near(u.value("mmPerUnit").toDouble(), 1.0, 1e-9), "fixture inch: the reader's conversion is applied (1.0)");
+            check(near(u.value("rawLengthMetres").toDouble(), 0.001, 1e-9), "fixture inch: the raw text's first declaration is the millimetre base");
+            check(u.value("length").toString() == "millimetre", "fixture inch: the raw text reports the base it declares");
+        }
+        {
+            const auto shapes = inchImport.json.value("shapes").toArray();
+            check(shapes.size() == 1, "fixture inch: one shape");
+            if (shapes.size() == 1) {
+                const auto boxMm = shapes[0].toObject().value("boundingBoxMm").toArray();
+                check(boxMm.size() == 6, "fixture inch: a six-number bounding box in mm");
+                if (boxMm.size() == 6) {
+                    check(near(boxMm[0].toDouble(), 0.0, 1e-9) && near(boxMm[1].toDouble(), 0.0, 1e-9)
+                          && near(boxMm[2].toDouble(), 0.0, 1e-9), "fixture inch: the origin in mm");
+                    check(near(boxMm[3].toDouble(), 254.0, 1e-9) && near(boxMm[4].toDouble(), 508.0, 1e-9)
+                          && near(boxMm[5].toDouble(), 762.0, 1e-9), "fixture inch: the box is 254 x 508 x 762 mm");
+                }
+            }
+        }
     }
 
     // 2. The box, probed with the round trip (ADR 0172 section 2).

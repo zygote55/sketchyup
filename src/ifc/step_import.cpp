@@ -65,6 +65,7 @@ std::string importStep(const StepImportOptions& options) {
   double mmPerUnit = 0.0;  // 0: no conversion (refused or failed)
   std::string unitsApplied;  // "declared" | "option"
   bool modelRead = false;
+  StepModelFacts model;
 
   if (file.bytes > kMaxInputBytes) {
     status = "refused-size";
@@ -78,46 +79,72 @@ std::string importStep(const StepImportOptions& options) {
   } else if (file.schema == "other") {
     status = "refused-schema";
     notices.push_back("the FILE_SCHEMA is not AP203, AP214 or AP242; it is refused");
-  } else if (file.lengthDeclared) {
-    // The file's declared unit is authoritative (ADR 0172 decision 4): the raw text says
-    // what the file declares, whatever the reader made of it.
-    unitsApplied = "declared";
-    mmPerUnit = 1000.0 * file.lengthMetres;
-    if (mmPerUnit <= 0.0) {
-      // Declared but not convertible from the raw text: read the model (once; it is
-      // needed below anyway), whose factor stands, flagged.
-      const StepModelFacts model = readStepModel(options.file);
-      if (model.read) {
-        modelRead = true;
-        mmPerUnit = 1000.0 * model.lengthMetres;
-      }
-      notices.push_back("the file's length unit declaration could not be converted from the raw "
-                        "text; the model's factor (1 unit = " +
-                        std::to_string(model.lengthMetres) + " m) is used instead");
-    }
-  } else if (!options.lengthUnitOverride.empty()) {
-    double factor = 0.0;
-    if (!optionFactor(options.lengthUnitOverride, factor)) {
-      status = "refused-option";
-      notices.push_back("--step-length-unit must be one of mm, cm, m, in or ft");
-    } else {
-      unitsApplied = "option";
-      mmPerUnit = 1000.0 * factor;
-      notices.push_back("the file declares no length unit; the option " + options.lengthUnitOverride +
-                        " (1 unit = " + std::to_string(factor) + " m) is used");
-    }
   } else {
-    status = "refused-units";
-    notices.push_back("the file declares no length unit and no --step-length-unit was given; it is "
-                      "refused (use --step-length-unit mm|cm|m|in|ft; a unit is never guessed)");
+    // The unit the import applies (ADR 0172 decision 4: the file's own unit is authoritative,
+    // whatever the reader made of it): the unit the file's unit context applies - for a
+    // conversion-based file the conversion unit (the inch), not the base unit the raw text's
+    // first LENGTH_UNIT declares (the conversion's millimetre base); the raw text's first
+    // declaration stands only for a file the model resolves no unit for (no shape or unit
+    // context the reader follows), and is then flagged.
+    model = readStepModel(options.file);
+    modelRead = model.read;
+    if (file.lengthDeclared) {
+      unitsApplied = "declared";
+      if (model.lengthUnitResolved) {
+        // The reader applied the file's unit: TransferRoots normalized the geometry to the
+        // cascade unit (millimetre by default), so no further scale.
+        mmPerUnit = 1.0;
+        if (model.lengthMetres > 0.0) {
+          if (file.lengthMetres > 0.0 && factorMismatch(file.lengthMetres, model.lengthMetres)) {
+            notices.push_back("the file applies a conversion-based unit: the raw text's first "
+                              "declaration is 1 unit = " + std::to_string(file.lengthMetres) + " m, the "
+                              "unit the file's context applies (" + model.lengthUnit + ") is 1 unit = " +
+                              std::to_string(model.lengthMetres) + " m; the geometry comes out in mm");
+          }
+        } else {
+          notices.push_back("the file's length unit (" + model.lengthUnit + ") could not be "
+                            "converted from the name; the reader's conversion stands (the geometry "
+                            "is in mm)");
+        }
+      } else if (file.lengthMetres > 0.0) {
+        // The reader resolved no unit: the geometry is in the file's units; the raw text's
+        // first declaration converts it, flagged.
+        mmPerUnit = 1000.0 * file.lengthMetres;
+        notices.push_back("the reader resolved no length unit for the file; the raw text's "
+                          "declaration (" + file.length + ", 1 unit = " + std::to_string(file.lengthMetres) +
+                          " m) is applied to the geometry");
+      } else if (model.read) {
+        // The raw text cannot convert the declaration and the model resolved no unit:
+        // a unit is never guessed. (A failed model read is not a refusal: the failed-read
+        // status below says why.)
+        status = "refused-units";
+        notices.push_back("the file's length unit cannot be converted; pass --step-length-unit "
+                          "to import it as a named unit");
+      }
+    } else if (!options.lengthUnitOverride.empty()) {
+      double factor = 0.0;
+      if (!optionFactor(options.lengthUnitOverride, factor)) {
+        status = "refused-option";
+        notices.push_back("--step-length-unit must be one of mm, cm, m, in or ft");
+      } else {
+        unitsApplied = "option";
+        mmPerUnit = 1000.0 * factor;
+        notices.push_back("the file declares no length unit; the option " + options.lengthUnitOverride +
+                          " (1 unit = " + std::to_string(factor) + " m) is used");
+      }
+    } else {
+      status = "refused-units";
+      notices.push_back("the file declares no length unit and no --step-length-unit was given; it is "
+                        "refused (use --step-length-unit mm|cm|m|in|ft; a unit is never guessed)");
+    }
   }
 
-  StepModelFacts model;
   if (!modelRead) model = readStepModel(options.file);
   json.field("readStatus", model.readStatus);
   if (!model.error.empty()) json.field("error", model.error);
   json.field("modelSchema", model.schema);
   json.field("modelLengthUnit", model.lengthUnit);
+  json.field("modelLengthResolved", model.lengthUnitResolved);
   json.field("modelLengthMetres", model.lengthMetres);
   json.key("units").beginObject()
       .field("declared", file.lengthDeclared)
@@ -129,14 +156,6 @@ std::string importStep(const StepImportOptions& options) {
       .field("applied", unitsApplied)
       .field("mmPerUnit", mmPerUnit)
       .endObject();
-  // A declared unit the model read differently: the file and the reader disagree; the raw
-  // text is authoritative, the disagreement is flagged.
-  if (status.empty() && file.lengthDeclared && file.lengthMetres > 0.0 &&
-      factorMismatch(file.lengthMetres, model.lengthMetres)) {
-    notices.push_back("the file and the reader disagree on the length unit (raw: 1 unit = " +
-                      std::to_string(file.lengthMetres) + " m, model: 1 unit = " +
-                      std::to_string(model.lengthMetres) + " m); the raw text is authoritative");
-  }
   if (status.empty()) {
     if (!model.read) {
       status = "failed-read";
