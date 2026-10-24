@@ -43,8 +43,11 @@ void usage(std::FILE* stream) {
       "           write a small IFC4 file with the typed writer, read it back and print the result\n"
       "       sketchyup-ifc-worker --probe-step FILE.step [--round-trip-directory DIR]\n"
       "           read a STEP file with the basic OCCT reader and print what it reports as JSON\n"
-      "       sketchyup-ifc-worker --import-step FILE.step [--step-length-unit mm|cm|m|in|ft]\n"
-      "           read a STEP file, apply the ADR 0172 unit policy and print the metadata as JSON\n"
+      "       sketchyup-ifc-worker --import-step FILE.step [--output PKG] [--step-length-unit mm|cm|m|in|ft]\n"
+      "           [--step-deflection-mm D] [--step-angle-deg A] [--step-max-triangles N] [--step-max-total-triangles N]\n"
+      "           read a STEP file, apply the ADR 0172 unit policy; without --output print the metadata as\n"
+      "           JSON, with --output tessellate the transferred solids (BRepMesh, the options' deflection\n"
+      "           and angle) and write the conversion package\n"
       "       sketchyup-ifc-worker --write-step DIR\n"
       "           write the self-generated STEP corpus of ADR 0172 (box, cylinder, assembly) into DIR\n",
       stream);
@@ -202,13 +205,20 @@ int main(int argc, char** argv) {
       for (int i = 2; i < argc; ++i) {
         const std::string argument = argv[i];
         const bool hasValue = i + 1 < argc;
-        if (argument == "--step-length-unit" && hasValue) options.lengthUnitOverride = argv[++i];
+        if (argument == "--output" && hasValue) options.output = argv[++i];
+        else if (argument == "--step-length-unit" && hasValue) options.lengthUnitOverride = argv[++i];
+        else if (argument == "--step-deflection-mm" && hasValue) options.deflectionMm = std::stod(argv[++i]);
+        else if (argument == "--step-angle-deg" && hasValue) options.angleDeg = std::stod(argv[++i]);
+        else if (argument == "--step-max-triangles" && hasValue) options.maxTrianglesPerElement = std::stoull(argv[++i]);
+        else if (argument == "--step-max-total-triangles" && hasValue) options.maxTotalTriangles = std::stoull(argv[++i]);
         else if (argument.rfind("--", 0) == 0) return fail("unknown option " + argument);
         else if (options.file.empty()) options.file = argument;
         else return fail("one input file only");
       }
       if (options.file.empty()) return fail("--import-step needs an input file");
-      return runStepImport(options);
+      if (options.output.empty()) return runStepImport(options);
+      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      return runStepImportPackage(options);
     }
     usage(stderr);
     return 2;
