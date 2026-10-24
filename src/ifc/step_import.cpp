@@ -48,7 +48,9 @@
 #include "TColStd_HArray1OfReal.hxx"
 #include "TColStd_HSequenceOfExtendedString.hxx"
 #include "TColStd_SequenceOfAsciiString.hxx"
+#include "TColStd_DataMapOfStringInteger.hxx"
 #include "TDataStd_DataMapOfStringByte.hxx"
+#include "TCollection_ExtendedString.hxx"
 #include "TDataStd_DataMapOfStringHArray1OfInteger.hxx"
 #include "TDataStd_DataMapOfStringHArray1OfReal.hxx"
 #include "TDataStd_DataMapOfStringReal.hxx"
@@ -216,12 +218,26 @@ UnitDecision decideUnits(const StepFileFacts& file, const StepModelFacts& model,
 // scale step is the file-unit number to metres (toMetres), exactly as the
 // metadata report's mmPerUnit says it is.
 
+// An ExtendedString (UTF-16 code units, the reader's strings) as UTF-8 bytes (its
+// ToUTF8CString fills a pre-allocated buffer and returns its length; its
+// LengthOfCString sizes that buffer). The app's names are bytes (UTF-8).
+std::string toUtf8(const TCollection_ExtendedString& s) {
+  const int len = s.LengthOfCString();
+  if (len <= 0) return {};
+  std::string out;
+  out.resize(static_cast<std::size_t>(len) + 1);  // the NUL its ToUTF8CString writes
+  char* buf = &out[0];  // its ToUTF8CString takes a non-const reference (it nulls it on failure)
+  const int used = s.ToUTF8CString(buf);
+  out.resize(static_cast<std::size_t>(used < 0 ? 0 : used));
+  return out;
+}
+
 // A label's name (the XDE's auto- or file-given name; the TDataStd_Name - 7.9
 // has no name tool).
 std::string labelName(const TDF_Label& L) {
   Handle(TDataStd_Name) name;
   if (L.FindAttribute(TDataStd_Name::GetID(), name) && !name->Get().IsEmpty())
-    return name->Get().ToCString();
+    return toUtf8(name->Get());
   return {};
 }
 
@@ -242,7 +258,8 @@ ColorDecision colorOf(const TDF_Label& L) {
     Quantity_ColorRGBA rgba;
     if (!XCAFDoc_ColorTool::GetColor(L, type, rgba)) continue;
     out.rgb = true;
-    out.color = {rgba.GetRGB().Red(), rgba.GetRGB().Green(), rgba.GetRGB().Blue()};
+    out.color = {static_cast<float>(rgba.GetRGB().Red()), static_cast<float>(rgba.GetRGB().Green()),
+                 static_cast<float>(rgba.GetRGB().Blue())};
     if (rgba.Alpha() <= 0.0f) {
       out.rgb = false;  // fully transparent: no colour to carry
       out.alphaDropped = true;
@@ -263,7 +280,9 @@ struct LayerDecision {
 
 LayerDecision layersOf(const TDF_Label& L) {
   LayerDecision out;
-  XCAFDoc_LayerTool tool;
+  const Handle(XCAFDoc_LayerTool) hTool = XCAFDoc_LayerTool::Set(L);  // the label's document's layer tool
+  if (hTool.IsNull()) return out;
+  XCAFDoc_LayerTool tool = *hTool;
   TDF_LabelSequence layers;
   if (!tool.GetLayers(L, layers) || layers.Length() == 0) return out;
   for (int i = 1; i <= layers.Length(); ++i) {
@@ -291,22 +310,25 @@ std::string metadataOf(const TDF_Label& L, bool& truncated) {
     if (count++ > 0) text += "; ";
     text += k + "=" + v;
   };
-  auto takeKey = [&](const TCollection_ExtendedString& k, const std::string& v) { take(k.ToCString(), v); };
+  auto takeKey = [&](const TCollection_ExtendedString& k, const std::string& v) { take(toUtf8(k), v); };
   {
-    auto& m = data.GetStringsContainer();
-    for (auto it = m; it.More(); it.Next()) takeKey(it.Key(), it.Value().ToCString());
+    const TDataStd_DataMapOfStringString& m = data->GetStringsContainer();
+    for (TDataStd_DataMapOfStringString::Iterator it(m); it.More(); it.Next())
+      takeKey(it.Key(), toUtf8(it.Value()));
   }
   {
-    auto& m = data.GetRealsContainer();
-    for (auto it = m; it.More(); it.Next()) takeKey(it.Key(), std::to_string(it.Value()));
+    const TDataStd_DataMapOfStringReal& m = data->GetRealsContainer();
+    for (TDataStd_DataMapOfStringReal::Iterator it(m); it.More(); it.Next())
+      takeKey(it.Key(), std::to_string(it.Value()));
   }
   {
-    auto& m = data.GetIntegersContainer();
-    for (auto it = m; it.More(); it.Next()) takeKey(it.Key(), std::to_string(it.Value()));
+    const TColStd_DataMapOfStringInteger& m = data->GetIntegersContainer();
+    for (TColStd_DataMapOfStringInteger::Iterator it(m); it.More(); it.Next())
+      takeKey(it.Key(), std::to_string(it.Value()));
   }
   {
-    auto& m = data.GetArraysOfIntegersContainer();
-    for (auto it = m; it.More(); it.Next()) {
+    const TDataStd_DataMapOfStringHArray1OfInteger& m = data->GetArraysOfIntegersContainer();
+    for (TDataStd_DataMapOfStringHArray1OfInteger::Iterator it(m); it.More(); it.Next()) {
       const Handle(TColStd_HArray1OfInteger) a = it.Value();
       std::string joined;
       for (int i = 1; i <= a->Length(); ++i) {
@@ -317,8 +339,8 @@ std::string metadataOf(const TDF_Label& L, bool& truncated) {
     }
   }
   {
-    auto& m = data.GetArraysOfRealsContainer();
-    for (auto it = m; it.More(); it.Next()) {
+    const TDataStd_DataMapOfStringHArray1OfReal& m = data->GetArraysOfRealsContainer();
+    for (TDataStd_DataMapOfStringHArray1OfReal::Iterator it(m); it.More(); it.Next()) {
       const Handle(TColStd_HArray1OfReal) a = it.Value();
       std::string joined;
       for (int i = 1; i <= a->Length(); ++i) {
@@ -329,11 +351,10 @@ std::string metadataOf(const TDF_Label& L, bool& truncated) {
     }
   }
   {
-    auto& m = data.GetBytesContainer();
-    for (auto it = m; it.More(); it.Next()) {
+    const TDataStd_DataMapOfStringByte& m = data->GetBytesContainer();
+    for (TDataStd_DataMapOfStringByte::Iterator it(m); it.More(); it.Next()) {
       const int v = it.Value();
-      const char hex[3] = {std::toupper(static_cast<unsigned char>(v >> 4 & 0xF)),
-                           std::toupper(static_cast<unsigned char>(v & 0xF)), 0};
+      const char hex[3] = {static_cast<char>(std::toupper(v >> 4 & 0xF)), static_cast<char>(std::toupper(v & 0xF)), 0};
       takeKey(it.Key(), std::string(hex));
     }
   }
@@ -662,10 +683,15 @@ int runStepImportPackage(const StepImportOptions& options) {
 
   // The XDE read: the file's product structure (the assemblies, the instances), its colours,
   // its layers and its named data, into a TDocStd_Document (STEPCAFControl_Reader's Transfer fills it).
-  XSControl_WorkSession ws;
-  STEPCAFControl_Reader xde;
-  xde.Init(ws, Standard_False);
-  TDocStd_Document doc("XCAF");
+  // Its modes on (the default constructor's): the colours, the layers, the names and the
+  // properties (the TDataStd_NamedData) transfer with it.
+  Handle(XSControl_WorkSession) ws(new XSControl_WorkSession());
+  STEPCAFControl_Reader xde(ws, Standard_False);
+  xde.SetColorMode(Standard_True);
+  xde.SetLayerMode(Standard_True);
+  xde.SetNameMode(Standard_True);
+  xde.SetPropsMode(Standard_True);
+  Handle(TDocStd_Document) doc(new TDocStd_Document("XCAF"));
   try {
     if (xde.ReadFile(options.file.c_str()) != IFSelect_RetDone)
       return refuse("read", "The STEP reader failed to read the file.");
@@ -678,7 +704,9 @@ int runStepImportPackage(const StepImportOptions& options) {
   } catch (const Standard_Failure& failure) {
     return refuse("read", clip(failure.GetMessageString(), 200));
   }
-  XCAFDoc_ShapeTool shapeTool;
+  const Handle(XCAFDoc_ShapeTool) hShapeTool = XCAFDoc_ShapeTool::Set(doc->Main());
+  if (hShapeTool.IsNull()) return refuse("no-shape-tool", "The document holds no shape tool.");
+  XCAFDoc_ShapeTool shapeTool = *hShapeTool;  // the document's shape tool
   TDF_LabelSequence freeShapes;
   shapeTool.GetFreeShapes(freeShapes);
 

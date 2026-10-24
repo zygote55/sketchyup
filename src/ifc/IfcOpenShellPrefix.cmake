@@ -140,8 +140,8 @@ set(SKETCHYUP_IFC_OCCT_VERSION "7.9.3" CACHE STRING "The OpenCASCADE version the
 if(SKETCHYUP_IFC_OCCT_VERSION MATCHES "^7\.9")
   # 7.9: the topologies (TopoDS/TopExp) live in TKBRep, the STEP reader and writer in
   # TKDESTEP, the primitives in TKPrim, the bounding boxes in TKTopAlgo, tessellation
-  # in TKMesh.
-  set(sketchyup_ifc_occt_libs TKernel TKMath TKBRep TKMesh TKTopAlgo TKPrim TKDESTEP TKXSBase TKXCAF)
+  # in TKMesh, the TDataStd_* attributes (the XDE's names, the named data) in TKLCAF.
+  set(sketchyup_ifc_occt_libs TKernel TKMath TKBRep TKMesh TKTopAlgo TKPrim TKDESTEP TKXSBase TKXCAF TKLCAF)
 else()
   set(sketchyup_ifc_occt_libs
     TKernel TKMath TKTopoDS TKBRep TKPrim TKSTEP TKSTEPAttr TKSTEP209
