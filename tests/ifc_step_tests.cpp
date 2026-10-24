@@ -136,10 +136,12 @@ int main(int argc, char **argv) {
             const auto box = inchShapes[0].toObject().value("boundingBox").toArray();
             check(box.size() == 6, "fixture inch: a six-number bounding box");
             if (box.size() == 6) {
-                check(near(box[0].toDouble(), 0.0, 1e-9) && near(box[1].toDouble(), 0.0, 1e-9)
-                      && near(box[2].toDouble(), 0.0, 1e-9), "fixture inch: the origin");
-                check(near(box[3].toDouble(), 254.0, 1e-9) && near(box[4].toDouble(), 508.0, 1e-9)
-                      && near(box[5].toDouble(), 762.0, 1e-9), "fixture inch: the reader delivered the geometry in millimetres");
+                // The reader's bounding box carries the file's 1e-7 uncertainty and float noise
+                // (the measured box is -1e-7 to 254.0000001), so the assertion uses the 1e-6 default.
+                check(near(box[0].toDouble(), 0.0) && near(box[1].toDouble(), 0.0)
+                      && near(box[2].toDouble(), 0.0), "fixture inch: the origin");
+                check(near(box[3].toDouble(), 254.0) && near(box[4].toDouble(), 508.0)
+                      && near(box[5].toDouble(), 762.0), "fixture inch: the reader delivered the geometry in millimetres");
             }
         }
         check(inchFixture.value("modelLengthUnit").toString() == "INCH", "fixture inch: the model resolves the file's unit as the inch");
@@ -161,10 +163,10 @@ int main(int argc, char **argv) {
                 const auto boxMm = shapes[0].toObject().value("boundingBoxMm").toArray();
                 check(boxMm.size() == 6, "fixture inch: a six-number bounding box in mm");
                 if (boxMm.size() == 6) {
-                    check(near(boxMm[0].toDouble(), 0.0, 1e-9) && near(boxMm[1].toDouble(), 0.0, 1e-9)
-                          && near(boxMm[2].toDouble(), 0.0, 1e-9), "fixture inch: the origin in mm");
-                    check(near(boxMm[3].toDouble(), 254.0, 1e-9) && near(boxMm[4].toDouble(), 508.0, 1e-9)
-                          && near(boxMm[5].toDouble(), 762.0, 1e-9), "fixture inch: the box is 254 x 508 x 762 mm");
+                    check(near(boxMm[0].toDouble(), 0.0) && near(boxMm[1].toDouble(), 0.0)
+                          && near(boxMm[2].toDouble(), 0.0), "fixture inch: the origin in mm");
+                    check(near(boxMm[3].toDouble(), 254.0) && near(boxMm[4].toDouble(), 508.0)
+                          && near(boxMm[5].toDouble(), 762.0), "fixture inch: the box is 254 x 508 x 762 mm");
                 }
             }
         }

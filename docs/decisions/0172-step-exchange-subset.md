@@ -455,7 +455,9 @@ remain in R098.b/c; this is the verified boundary they build on.
   writer's geometry and header, with the context's `GLOBAL_UNIT_ASSIGNED_CONTEXT`
   replaced by a hand-written `CONVERSION_BASED_UNIT('INCH')` unit block - the writer
   writes the combined context wrappers the reader follows) comes out of the reader at
-  254 x 508 x 762 mm (the import's geometry scale is 1.0), the raw text's millimetre
+  254 x 508 x 762 mm (the import's geometry scale is 1.0; the measured box is
+  -1e-7 to 254.0000001 - the file's 1e-7 uncertainty and float noise ride the box,
+  so the test asserts it at the 1e-6 default tolerance), the raw text's millimetre
   base stays visible in the report (`units.length`), and a notice says the file
   applies the conversion unit. A file with a conversion unit but no unit context the
   reader resolves (a shapeless sample) imports at the raw text's first declaration
