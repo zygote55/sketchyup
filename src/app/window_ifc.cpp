@@ -29,7 +29,9 @@ void setIfcReportChip(QPushButton *chip, const QJsonObject &report, bool visible
         chip->hide();
         return;
     }
-    const int attention = report["attention"].toInt(0);
+    // The import report has no `attention` member (only the export report does); what needs
+    // attention after an import is what the helper did not convert.
+    const int attention = report["accounting"].toObject()["omitted"].toInt(0);
     if (attention > 0) {
         chip->setText(QString("\u26a0 IFC import \u00b7 %1 need attention \u00b7 Show report").arg(attention));
         chip->setAccessibleName(
