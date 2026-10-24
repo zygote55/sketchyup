@@ -387,9 +387,10 @@ remain in R098.b/c; this is the verified boundary they build on.
   0.001 m, angle RADIAN); the AP242 option is
   `DESTEP_Parameters::WriteSchema = WriteMode_StepSchema_AP242DIS` and its output
   reads back as `AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4 }`
-  — the identifier carries **part 442, not 242** — with 350 entities and the same
-  geometry (the box's bounding box (0,0,0)-(10,20,30), 6 faces; the cylinder 3 faces;
-  the assembly 2 solids; 350 entities in both). `STEPControl_Reader::ReadFile`
+  — the standard identifier of the AP242 schema: the AP242 MIM is published as
+  **part 442** of ISO 10303, so the classifier maps 442 → `ap242` — with 350
+  entities and the same geometry (the box's bounding box (0,0,0)-(10,20,30),
+  6 faces; the cylinder 3 faces; the assembly 2 solids; 350 entities in both). `STEPControl_Reader::ReadFile`
   returns the `IFSelect_ReturnStatus` (there is no `Status()` method in 7.9.3),
   and the read flags live on `DESTEP_Parameters` (not the ADR-era
   `StepData_ConfParameters`). The 7.9.3 `STEPControl_StepModelType` enum replaces
@@ -410,8 +411,23 @@ remain in R098.b/c; this is the verified boundary they build on.
   TKPrim, TKDESTEP, TKXSBase, TKXCAF; the rest arrive transitively). `TKV3d`
   pulls the X11/font stack, so the ifc package's `depends` gains zlib, bzip2,
   libpng, brotli, expat, libx11, libxcb, libxau, libxdmcp, fontconfig and
-  freetype2 (L5's `allowed_owners` carries the same list). Nothing records a
-  Boost library (the `--as-needed` link and L5 check it); no VTK, Tcl or Tk.
+  freetype2 (L5's `allowed_owners` carries the same list) — this ADR expected
+  the ifc package's `depends` to be `sketchyup`, `gcc-libs` and `glibc` only;
+  the X11/font list is the measured correction. Nothing records a Boost
+  library (the `--as-needed` link and L5 check it); no VTK, Tcl or Tk.
+- **A contradiction with ADR 0171, accepted:** because the worker now links the
+  OCCT libraries itself, a missing private `libTK*` stops the **whole worker
+  from starting** (exit 127, the loader naming the library): the UI shows
+  "Broken" instead of ADR 0171's "Limited" (the helper missing, the IFC
+  conversion available), and IFC import is lost along with STEP. Before, the
+  worker linked only the IfcOpenShell libraries, and a missing OCCT library
+  kept the worker running with the kernel reported unavailable (exit 0). The
+  verify script's L6 now accepts the new behaviour (a library the worker links
+  stops the worker; a kernel-only library still reports the kernel unavailable).
+  Accepted trade-off: all 26 libraries ship in the same package, so a missing
+  one means a damaged install; and the R097.e1 "Limited" state stays reachable
+  when the kernel **plugin** is missing (the worker still starts, the kernel is
+  reported unavailable, the pass-through kernel works).
 - **Verification:** `tests/ifc_step_tests.cpp` (C++, through the worker) and
   `tests/ifc_step_worker_tests.py` (Python) cover the corpus, the round trip and
   the refusals; the three corpus files are committed under `tests/fixtures/step/`

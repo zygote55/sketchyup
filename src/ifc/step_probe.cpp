@@ -154,8 +154,10 @@ std::string classifySchema(const std::string& raw) {
 
 // The raw-text unit declaration (the unit policy, ADR 0172 decision 4, reads the file as
 // written): an SI unit with an optional prefix, or a conversion-based named unit. Each unit
-// type is looked for in a bounded window after its marker, so a unit's own entity is what is
-// read, not some later entity that merely mentions the same word.
+// type is looked for in its own entity, so the unit's own entity is what is read, not some
+// other entity that merely mentions the same word. The scan runs on a copy with the
+// whitespace outside quoted literals removed (a writer may write `LENGTH_UNIT ( )`), which
+// makes the markers exact.
 struct RawUnits {
   bool lengthDeclared = false;
   std::string length;
@@ -164,38 +166,63 @@ struct RawUnits {
   double lengthMetres = 1.0;
 };
 
-const std::size_t kWindow = 300;  // a STEP entity is well under this long
+// Whitespace outside single quotes (a quoted literal may carry spaces).
+std::string compactText(const std::string& text) {
+  std::string out;
+  out.reserve(text.size());
+  bool quoted = false;
+  for (const char c : text) {
+    if (c == '\'') {
+      quoted = !quoted;
+      out.push_back(c);
+      continue;
+    }
+    if (!quoted && std::isspace(static_cast<unsigned char>(c))) continue;
+    out.push_back(c);
+  }
+  return out;
+}
 
-// The unit the marker points at, as (prefix, base-or-name): the SI_UNIT in the window wins
-// (an SI unit's NAMED_UNIT carries the "*" name and sits before the SI_UNIT in the same
-// entity); otherwise a CONVERSION_BASED_UNIT; a bare NAMED_UNIT has no unit to read.
-std::optional<std::pair<std::string, std::string>> unitAfter(const std::string& text, std::size_t from) {
-  if (from + kWindow > text.size()) return std::nullopt;
-  const std::string window = text.substr(from, kWindow);
-  if (const std::size_t si = window.find("SI_UNIT(")) {
+// The entity a marker sits in (in the compacted text): from the previous ';' (or the start
+// of the text) to the next ';'. In a complex entity the parts are written in alphabetical
+// order, so the SI_UNIT can stand before the marker; the unit is read anywhere in the entity.
+std::string entityAt(const std::string& text, std::size_t pos) {
+  std::size_t start = 0;
+  if (const std::size_t before = text.rfind(';', pos); before != std::string::npos) start = before + 1;
+  std::size_t end = text.find(';', pos);
+  if (end == std::string::npos) end = text.size();
+  return text.substr(start, end - start);
+}
+
+// The unit an entity carries, as (prefix, base-or-name): an SI_UNIT wins (an SI unit's
+// NAMED_UNIT carries the "*" name and sits before the SI_UNIT in the same entity);
+// otherwise a CONVERSION_BASED_UNIT; a bare NAMED_UNIT has no unit to read.
+std::optional<std::pair<std::string, std::string>> unitIn(const std::string& entity) {
+  if (const std::size_t si = entity.find("SI_UNIT(")) {
     std::string prefix, base;
-    if (siUnitArgs(window, si, prefix, base)) {
+    if (siUnitArgs(entity, si, prefix, base)) {
       const std::pair<std::string, std::string> unit{prefix, base};
       return unit;
     }
   }
-  if (const std::size_t conv = window.find("CONVERSION_BASED_UNIT(")) {
-    const std::size_t close = window.find(')', conv);
+  if (const std::size_t conv = entity.find("CONVERSION_BASED_UNIT(")) {
+    const std::size_t close = entity.find(')', conv);
     if (close == std::string::npos) return std::nullopt;
-    const std::pair<std::string, std::string> unit{"", dotLiteral(window.substr(conv + 20, close - conv - 20))};
+    const std::pair<std::string, std::string> unit{"", dotLiteral(entity.substr(conv + 20, close - conv - 20))};
     return unit;
   }
   return std::nullopt;
 }
 
 RawUnits rawUnits(const std::string& text) {
+  const std::string compact = compactText(text);
   RawUnits units;
   static const std::map<std::string, double> prefix = {
       {"MILLI", 1e-3}, {"CENTI", 1e-2}, {"DECI", 1e-1}, {"KILO", 1e3}, {"", 1.0}};
   static const std::map<std::string, double> named = {
       {"INCH", 0.0254}, {"FOOT", 0.3048}, {"MILLIMETRE", 1e-3}, {"CENTIMETRE", 1e-2}, {"METRE", 1.0}};
-  if (const std::size_t at = text.find("LENGTH_UNIT()")) {
-    if (const auto unit = unitAfter(text, at)) {
+  if (const std::size_t at = compact.find("LENGTH_UNIT("); at != std::string::npos) {
+    if (const auto unit = unitIn(entityAt(compact, at))) {
       units.lengthDeclared = true;
       if (unit->second == "METRE") {
         units.length = unit->first == "MILLI" ? "millimetre" : unit->first == "CENTI" ? "centimetre" : unit->first == "KILO" ? "kilometre" : unit->first.empty() ? "metre" : unit->first;
@@ -209,13 +236,13 @@ RawUnits rawUnits(const std::string& text) {
       }
     }
   }
-  if (const std::size_t at = text.find("PLANE_ANGLE_UNIT()")) {
-    if (const auto unit = unitAfter(text, at)) {
+  if (const std::size_t at = compact.find("PLANE_ANGLE_UNIT("); at != std::string::npos) {
+    if (const auto unit = unitIn(entityAt(compact, at))) {
       if (unit->second == "RADIAN" || unit->second == "DEGREE") units.angle = unit->second;
     }
   }
-  if (const std::size_t at = text.find("SOLID_ANGLE_UNIT()")) {
-    if (const auto unit = unitAfter(text, at)) {
+  if (const std::size_t at = compact.find("SOLID_ANGLE_UNIT("); at != std::string::npos) {
+    if (const auto unit = unitIn(entityAt(compact, at))) {
       if (unit->second == "STERADIAN") units.solidAngle = unit->second;
     }
   }

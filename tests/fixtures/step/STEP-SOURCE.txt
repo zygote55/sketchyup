@@ -9,6 +9,7 @@ Self-generated corpus of ADR 0172 section 7, written by this repository's own
 | `sketchyup-step-box.step` | a box 10 x 20 x 30 at the origin |
 | `sketchyup-step-cylinder.step` | a cylinder of radius 5 and height 20 at the origin |
 | `sketchyup-step-assembly.step` | an assembly of the box and the cylinder |
+| `spaced-units.step` | hand-written: the unit entities with spaces in the parts (`SI_UNIT ( .MILLI., .METRE. )`) and no shapes — the scan's whitespace-tolerance case |
 
 - Generator: `sketchyup-ifc-worker --write-step tests/fixtures/step` (commit `f1ad42f8`,
   the build of 2026-10-23 in `sketchyup-ci-pinned:r097a-ifc`).
@@ -19,6 +20,7 @@ Self-generated corpus of ADR 0172 section 7, written by this repository's own
   - `sketchyup-step-assembly.step`  5d0d83307dfacb5716368df2ed8ee1d49bca2f5003cd41f9b22aa4bd0fe9bf8c
   - `sketchyup-step-box.step`  d58d273bdf7c0d956f50a84ca793d6edf8ae7b5fc5ac9c1dd0d045eb54aea621
   - `sketchyup-step-cylinder.step`  771866829f584a38d9c05a74b633abe1365ce91f6f5110be937ec979285e5118
+  - `spaced-units.step` — hand-written (no generation); its only content is the header and the three unit entities.
 
 The `FILE_NAME` carries a wall-clock timestamp, so a fresh write is not byte-identical
 to the committed files; the fixtures are regression **inputs** (`tests/ifc_step_tests.cpp`

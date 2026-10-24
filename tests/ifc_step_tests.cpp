@@ -189,6 +189,32 @@ int main(int argc, char **argv) {
         const auto units = noOption.json.value("units").toObject();
         check(units.value("applied").toString() == "declared", "import (no option): the declared unit is applied");
         check(near(units.value("mmPerUnit").toDouble(), 1.0, 1e-9), "import (no option): the millimetre is 1 mm");
+        check(units.value("solidAngle").toString() == "STERADIAN", "import (no option): the box's solid angle is the steradian");
+        // The raw-text unit scan reads the unit's own entity (the STEP complex entity writes its
+        // parts in alphabetical order, so the SI_UNIT can stand before the marker), with the
+        // whitespace tolerated:
+        const auto spaced = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/spaced-units.step")});
+        check(spaced.code == 0, "import (spaced units): exits 0");
+        {
+            const auto u = spaced.json.value("units").toObject();
+            check(u.value("length").toString() == "millimetre", "spaced units: the millimetre is read");
+            check(u.value("angle").toString() == "RADIAN", "spaced units: the radian is read");
+            check(u.value("solidAngle").toString() == "STERADIAN", "spaced units: the steradian is read");
+        }
+        const QString noSolid = temp.filePath("no-solid.step");
+        QFile noSolidOut(noSolid);
+        check(noSolidOut.open(QIODevice::WriteOnly), "the no-solid-angle file");
+        noSolidOut.write("ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('x'),'2;1');\n"
+                        "FILE_NAME('a','',(''),(''),'','','');\n"
+                        "FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 2 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n"
+                        "#1=( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );\n"
+                        "#2=( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );\nENDSEC;\n"
+                        "END-ISO-10303-21;\n");
+        noSolidOut.close();
+        const auto noSolidResult = run({worker, "--import-step", noSolid});
+        check(noSolidResult.code == 0, "import (no solid angle): exits 0");
+        check(noSolidResult.json.value("units").toObject().value("solidAngle").toString().isEmpty(),
+              "import (no solid angle): the solid angle is empty");
         const auto withOption = run({worker, "--import-step", box, "--step-length-unit", "in"});
         check(withOption.code == 0, "import (with an option): exits 0");
         check(withOption.json.value("units").toObject().value("applied").toString() == "declared",
