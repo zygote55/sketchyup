@@ -7,6 +7,7 @@
 #include "app/settled_dialog.hpp"
 #include "io/ifc_import.hpp"
 #include "io/ifc_worker.hpp"
+#include "io/step_worker.hpp"
 #include "app/ifc_availability.hpp"
 #include <QComboBox>
 #include <QLabel>
@@ -21,6 +22,13 @@ class IfcImportDialog : public Settled<QDialog> {
     void setFile(const QString &path); // runs the cheap checks; sets the facts or a refusal banner
     IfcImportOptions options() const;
     IfcWorkerOptions workerOptions() const; // deviation and unit (thread count and limits are fixed)
+    // R098.a3: the same screen as the STEP import's options (ADR 0172 section 8): the IFC-only
+    // choices (spaces, georeference) hidden and the tessellation's crease angle in their place.
+    // Call it before setFile; the default is IFC.
+    enum class Kind { Ifc, Step };
+    void setKind(Kind kind);
+    bool isStep() const { return kind_ == Kind::Step; }
+    StepWorkerOptions stepWorkerOptions() const; // deviation, angle and the unit for a file that declares none
     bool refused() const;
     QString fileName() const;
     void chooseFile(); // the "Choose…" / "Choose another file" button
@@ -35,12 +43,14 @@ class IfcImportDialog : public Settled<QDialog> {
     QRadioButton *geoKeep;
     QRadioButton *geoGrid;
     QDoubleSpinBox *deviation;
+    QDoubleSpinBox *angle; // the STEP crease angle, in degrees (the STEP kind only)
     QLabel *helperLine;
     QLabel *banner;
     QPushButton *importButton;
     bool refused_ = false;
     qint64 bytes_ = 0;
     QString schema_;
+    Kind kind_ = Kind::Ifc;
     IfcProbe probe_;
     void applyProbeBanner(); // the banner is the probe's own warning: shown when Limited, hidden otherwise
 };

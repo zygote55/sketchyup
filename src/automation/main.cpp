@@ -21,6 +21,7 @@
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
 #include "io/sheet_export.hpp"
+#include "io/step_worker.hpp"
 #include "io/stl_export.hpp"
 #include "sketchyup/version.hpp"
 #include <QCommandLineParser>
@@ -177,6 +178,20 @@ int main(int argc, char **argv) {
                       "time"});
     parser.addOption({"ifc-deadline", "IFC import and export: seconds the helper may run per attempt (default 120)", "seconds"});
     parser.addOption({"ifc-worker", "IFC import and export: path of the helper (development and tests)", "path"});
+    // R098.a3 (ADR 0172 section 8): the STEP import's own options; the helper is the IFC
+    // helper's, so its path and deadline are its own names, and the tessellation's policy
+    // (section 3) and the unit for a file that declares none (section 2) are named options.
+    parser.addOption({"import-step",
+                      "Import a STEP file (AP203, AP214, AP242) through the isolated helper; "
+                      "optional new native --output; without it, validate and print the report",
+                      "path"});
+    parser.addOption({"step-deflection-mm",
+                      "STEP import: maximum chord deviation of curved geometry in mm (default 1)", "mm"});
+    parser.addOption({"step-angle-deg", "STEP import: crease angle in degrees (default 30)", "deg"});
+    parser.addOption({"step-length-unit",
+                      "STEP import: length unit mm, cm, m, in or ft, used only when the file declares none", "unit"});
+    parser.addOption({"step-deadline", "STEP import: seconds the helper may run (default 120)", "seconds"});
+    parser.addOption({"step-worker", "STEP import: path of the helper (development and tests)", "path"});
     parser.addOption(
         {"export-obj", "Export all model geometry to a new OBJ package directory", "directory"});
     parser.addOption({"obj-unit", "Explicit OBJ coordinate unit: mm, cm, m, in or ft", "unit"});
@@ -780,9 +795,71 @@ int main(int argc, char **argv) {
             std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
             return 0;
         }
+        // R098.a3 (ADR 0172 section 8): the STEP import, the IFC import's own operation with the
+        // STEP's own names. The conversion is the IFC package's; the STEP's own options are the
+        // tessellation's policy (section 3) and the unit for a file that declares none (section 2).
+        if (parser.isSet("import-step")) {
+            auto invalid = [](const std::string &message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            if (!parser.positionalArguments().isEmpty())
+                invalid("STEP import requires named paths");
+            const QStringList allowed{"import-step",  "output",     "step-deflection-mm", "step-angle-deg",
+                                      "step-length-unit", "step-deadline", "step-worker"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("STEP import is a standalone operation");
+            sketchy::StepWorkerOptions worker;
+            if (parser.isSet("step-deflection-mm")) {
+                bool ok{};
+                worker.deflectionMm = parser.value("step-deflection-mm").toDouble(&ok);
+                if (!ok || !(worker.deflectionMm >= 0.1 && worker.deflectionMm <= 1000))
+                    invalid("--step-deflection-mm is 0.1 to 1000 millimetres");
+            }
+            if (parser.isSet("step-angle-deg")) {
+                bool ok{};
+                worker.angleDeg = parser.value("step-angle-deg").toDouble(&ok);
+                if (!ok || !(worker.angleDeg > 0 && worker.angleDeg <= 180))
+                    invalid("--step-angle-deg is 0 to 180 degrees");
+            }
+            if (parser.isSet("step-length-unit")) {
+                worker.lengthUnitOverride = parser.value("step-length-unit");
+                if (!QStringList{"mm", "cm", "m", "in", "ft"}.contains(worker.lengthUnitOverride))
+                    invalid("--step-length-unit is mm, cm, m, in or ft");
+            }
+            if (parser.isSet("step-deadline")) {
+                bool ok{};
+                worker.deadlineSeconds = parser.value("step-deadline").toInt(&ok);
+                if (!ok || worker.deadlineSeconds < 1 || worker.deadlineSeconds > 3600)
+                    invalid("--step-deadline is 1 to 3600 seconds");
+            }
+            if (parser.isSet("step-worker"))
+                worker.workerPath = parser.value("step-worker");
+            QJsonObject result;
+            try {
+                const auto imported = sketchy::importStepFile(parser.value("import-step"), worker);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } catch (const sketchy::IfcImportError &error) {
+                const std::string code = error.code();
+                const bool limit = code == "tooLarge" || code == "size" || code == "packageTooLarge" ||
+                                   code == "modelTooLarge" || code == "documentLimit" ||
+                                   code == "farFromOrigin";
+                throw sketchy::InspectionError(limit ? "LIMIT_EXCEEDED" : "INPUT_ERROR", error.what(),
+                                               QJsonObject{{"stepCode", QString::fromStdString(code)},
+                                                           {"importReport", error.report()}});
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
         for (const auto &option : parser.optionNames())
             if (option.startsWith("ifc-"))
                 throw sketchy::InspectionError("INVALID_REQUEST", "IFC options require --import-ifc or --export-ifc");
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("step-"))
+                throw sketchy::InspectionError("INVALID_REQUEST", "STEP options require --import-step");
         if (parser.isSet("import-gltf")) {
             if (!parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",
