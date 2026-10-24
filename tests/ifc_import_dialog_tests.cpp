@@ -859,6 +859,35 @@ int main(int argc, char **argv) {
                           chip->text().toStdString());
         }
 
+        // S7b: Escape on the progress sheet is Cancel: the sheet stays until the helper has ended,
+        // so the window never reads a running import (no refusal sheet, no blocked UI).
+        {
+            window.setIfcWorkerPath(hang);
+            const auto encoded = encodeContainer(window.document());
+            const auto history = window.document().history().total;
+            Driver driver;
+            driver.choose = model;
+            driver.confirmPlan = {QMessageBox::Discard};
+            driver.onDialog = [] (IfcImportDialog *dialog) {
+                if (auto *go = dialog->findChild<QPushButton *>("ifcImportGo"))
+                    QTest::mouseClick(go, Qt::LeftButton);
+            };
+            driver.onProgress = [] (IfcProgressSheet *sheet) {
+                QMetaObject::invokeMethod(sheet, [sheet] { QTest::keyClick(sheet, Qt::Key_Escape); },
+                                         Qt::QueuedConnection);
+            };
+            driver.start();
+            window.findChild<QAction *>("file.importIfc")->trigger();
+            driver.stop();
+            check(!driver.sheets.contains("ifcRefusal"),
+                  "Escape during the import shows no refusal sheet");
+            check(contains(status->text(), "cancelled"),
+                  "Escape cancels the import: " + status->text().toStdString());
+            check(encodeContainer(window.document()) == encoded &&
+                      window.document().history().total == history,
+                  "Escape leaves the model unchanged");
+        }
+
         // S8: a dirty model: Discard before the helper, Cancel at the commit phase.
         {
             window.setIfcWorkerPath(available);

@@ -14,6 +14,9 @@ class IfcProgressSheet : public Settled<QDialog> {
     Q_OBJECT
   public:
     IfcProgressSheet(IfcImportRunner *runner, const QString &fileName, QWidget *parent = nullptr);
+    // Escape or the title bar's close while the import runs is Cancel: it ends the helper, and
+    // the sheet closes when the runner has finished (so the window never reads a running import).
+    void reject() override;
   public slots:
     void phase(const QString &name, qint64 value);
   private:

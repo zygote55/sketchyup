@@ -2,6 +2,7 @@
 #include <QMutex>
 #include <QString>
 #include <QStringList>
+#include <atomic>
 namespace sketchy {
 struct IfcImportRunner::Private {
     QMutex mutex;
@@ -15,7 +16,7 @@ struct IfcImportRunner::Private {
     QString message;
     QJsonObject report;
     // Set by the progress sheet's Cancel; the helper checks it between tasks.
-    bool cancelRequested = false;
+    std::atomic<bool> cancelRequested = false; // read by the worker thread without the mutex
 };
 IfcImportRunner::IfcImportRunner() : p(new Private) {}
 IfcImportRunner::~IfcImportRunner() {
@@ -79,12 +80,12 @@ void IfcImportRunner::run() {
         worker = p->worker;
     }
     // Cancel: the helper is checked between tasks; the application's conversion checks it between nodes.
-    worker.cancelled = [this] { return p->cancelRequested; };
+    worker.cancelled = [this] { return p->cancelRequested.load(); };
     worker.progress = [this](const QString &phase, qint64 value) {
         QMetaObject::invokeMethod(this, [this, phase, value] { emit phaseChanged(phase, value); }, Qt::QueuedConnection);
     };
     try {
-        const auto imported = importIfcFile(path, import, worker);
+        auto imported = importIfcFile(path, import, worker);
         QMutexLocker lock(&p->mutex);
         p->result = std::move(imported);
         p->done = true;

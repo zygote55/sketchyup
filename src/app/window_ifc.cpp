@@ -100,7 +100,9 @@ void Window::importIfc() {
     auto *sheet = new IfcProgressSheet(runner, QFileInfo(path).fileName(), this);
     sheet->setAttribute(Qt::WA_DeleteOnClose);
     sheet->exec();
-    // The import is done (or cancelled). Take the result.
+    // The import is done (or cancelled). The sheet closes only after the runner has finished;
+    // wait anyway, so the result is never read from a running import.
+    runner->wait();
     if (runner->wasCancelled()) {
         status_->setText("The import was cancelled; nothing was changed.");
         runner->wait();

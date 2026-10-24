@@ -35,6 +35,13 @@ IfcProgressSheet::IfcProgressSheet(IfcImportRunner *runner, const QString &fileN
         QTimer::singleShot(150, this, [this] { done(QDialog::Accepted); });
     });
 }
+void IfcProgressSheet::reject() {
+    if (runner && runner->isRunning()) {
+        runner->requestCancel();
+        return;
+    }
+    Settled<QDialog>::reject();
+}
 void IfcProgressSheet::build(const QString &fileName) {
     auto *root = new QVBoxLayout(this);
     auto *title = new QLabel("Importing IFC");
