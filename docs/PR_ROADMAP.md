@@ -1421,7 +1421,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R098 — Deliver a documented STEP exchange subset
 
-**Status:** Planned. Design accepted ([ADR 0172](decisions/0172-step-exchange-subset.md), owner decisions approved 2026-10-23). **Track:** Interchange. **Scope:** F04. **UX:** —.
+**Status:** Design accepted ([ADR 0172](decisions/0172-step-exchange-subset.md), owner decisions approved 2026-10-23). The R098.a skeleton is delivered in #427: the worker's `--probe-step` (a hand-written ISO-10303-21 header scan plus the OCCT `STEPControl_Reader` model read and the write round trip in the default schema and the AP242 option), `--write-step` (the section 7 corpus) and `--import-step` (the section 5 metadata, the section 2 unit policy and the refusals); the private set gains 11 libraries (17.6 MiB, the 26-library closure now taken from the worker's own `DT_NEEDED` as well, and the X11/font `depends` of `TKV3d`), the fixtures and the verify-script update are in place (AP242 settles at part 442; [implementation notes](decisions/0172-step-exchange-subset.md#implementation-notes-r098a-skeleton-2026-10-23)); the tessellation, the mapping, the application's dialog and `sketchyup-cli` remain. **Track:** Interchange. **Scope:** F04. **UX:** —.
 
 **Requires:** [R089](#r089), [R073](#r073); milestone gate rule above.
 
