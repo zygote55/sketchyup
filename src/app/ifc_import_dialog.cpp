@@ -51,6 +51,7 @@ void IfcImportDialog::build() {
     left->addWidget(fileFacts);
     auto *unitRow = new QHBoxLayout;
     auto *unitLabel = new QLabel("Unit (when the file doesn't declare one):");
+    unit = new QComboBox(this);
     unit->setObjectName("ifcImportUnit");
     for (const char *u : {"m", "mm", "cm", "in", "ft"})
         unit->addItem(u);

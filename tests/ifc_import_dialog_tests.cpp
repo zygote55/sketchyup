@@ -128,7 +128,7 @@ QString importBody(const QString &package, const int sleepSeconds, const bool re
            + package
            + QString(R"(' "$out" || exit 1
     echo 'P phase geometry'
-    /bin/sleep ")")
+    /bin/sleep )")
            + QString::number(sleepSeconds)
            + QString(R"(
     echo 'P tasks 3'
@@ -249,21 +249,31 @@ struct Driver {
         }
     }
     void stepBody() {
+        static int steps = 0;
+        if (++steps % 20 == 1) {
+            QString names;
+            for (auto *w : QApplication::topLevelWidgets())
+                if (w->isVisible())
+                    names += QString(w->metaObject()->className()) + " ";
+            std::cerr << "DRV: " << names.toStdString() << std::endl;
+        }
         for (auto *widget : QApplication::topLevelWidgets()) {
             if (!widget->isVisible())
                 continue;
             if (auto *chooser = qobject_cast<QFileDialog *>(widget)) {
-                if (chooser->property("driven").toBool())
-                    continue;
-                chooser->setProperty("driven", true);
-                ++pickers;
+                if (!chooser->property("driven").toBool()) {
+                    chooser->setProperty("driven", true);
+                    ++pickers;
+                }
+                // The picker is driven on every tick: a selectFile+accept that lands before the
+                // picker's view is ready is a no-op (accept() without a selection does nothing),
+                // so the attempt is re-issued until it takes.
                 if (choose.isEmpty()) {
                     QMetaObject::invokeMethod(chooser, [chooser] { chooser->reject(); },
                                             Qt::QueuedConnection);
                     continue;
                 }
                 const QString path = choose;
-                choose.clear();
                 QMetaObject::invokeMethod(
                     chooser,
                     [chooser, path] {
@@ -375,8 +385,10 @@ int main(int argc, char **argv) {
     const QString hang = writeExecutable(
         root.path(), "worker-hang",
         standInScript(probeJson(true, {}), QStringLiteral("    exec /bin/sleep 300\n")));
+    std::cerr << "M:ref-begin" << std::endl;
     // The reference conversion (synchronous, stand-in): the expected document and report
     // the window flow must produce.
+    std::cerr << "M:ref-done" << std::endl;
     IfcWorkerOptions referenceWorker;
     referenceWorker.workerPath = available;
     IfcImport reference;
@@ -402,6 +414,7 @@ int main(int argc, char **argv) {
 
     try {
         // S0: the options dialog on its own.
+            std::cerr << "M:S0" << std::endl;
         {
             IfcImportDialog dialog(&window);
             auto *go = dialog.findChild<QPushButton *>("ifcImportGo");
@@ -413,7 +426,7 @@ int main(int argc, char **argv) {
                   "a bare dialog names no file");
             check(facts->text().isEmpty(), "a bare dialog shows no file facts");
             check(!go->isEnabled(), "Import is disabled without a file");
-            check(!banner->isVisible(), "a bare dialog shows no banner");
+            check(banner->isHidden(), "a bare dialog shows no banner");
             check(helper->text().isEmpty(), "a bare dialog shows no helper line");
             check(!dialog.refused(), "a bare dialog is not refused");
             check(dialog.options().spaces == IfcSpaces::Hidden &&
@@ -445,8 +458,7 @@ int main(int argc, char **argv) {
             availableProbe.ifcOpenShell = "0.9.0";
             dialog.setProbe(availableProbe);
             check(contains(helper->text(), "IfcOpenShell 0.9.0") &&
-                      contains(helper->text(), "OpenCASCADE kernel") &&
-                      !banner->isVisible(),
+                      contains(helper->text(), "OpenCASCADE kernel") && banner->isHidden(),
                   "the available helper is named");
             IfcProbe limitedProbe;
             limitedProbe.state = IfcState::Limited;
@@ -455,7 +467,7 @@ int main(int argc, char **argv) {
             check(contains(helper->text(), "kernel: none"),
                   "the limited helper line names the missing kernel");
             check(contains(banner->text(), "Limited") &&
-                      contains(banner->text(), "tessellated") && banner->isVisible(),
+                      contains(banner->text(), "tessellated") && !banner->isHidden(),
                   "the limited banner explains what is converted");
             IfcProbe brokenProbe;
             brokenProbe.state = IfcState::Broken;
@@ -491,13 +503,18 @@ int main(int argc, char **argv) {
 
             // Enter imports, Escape cancels.
             dialog.setFile(model);
+            std::cerr << "M:enter1" << std::endl;
             dialog.show();
             QTest::keyClick(&dialog, Qt::Key_Return);
+            std::cerr << "M:enter2" << std::endl;
             check(dialog.result() == QDialog::Accepted, "Enter accepts the dialog");
+            std::cerr << "M:esc1" << std::endl;
             IfcImportDialog second(&window);
             second.setFile(model);
             second.show();
+            std::cerr << "M:esc2" << std::endl;
             QTest::keyClick(&second, Qt::Key_Escape);
+            std::cerr << "M:esc3" << std::endl;
             check(second.result() == QDialog::Rejected, "Escape cancels the dialog");
         }
         // The Choose… button opens the picker and fills the facts.
@@ -508,8 +525,10 @@ int main(int argc, char **argv) {
             driver.choose = model;
             driver.onDialog = [] (IfcImportDialog *) {};
             driver.start();
+            std::cerr << "M:pick1" << std::endl;
             QTest::mouseClick(dialog.findChild<QPushButton *>("ifcImportChoose"),
                              Qt::LeftButton);
+            std::cerr << "M:pick2" << std::endl;
             driver.stop();
             check(driver.pickers == 1, "the picker opened once");
             check(dialog.fileName() == "model.ifc" &&
@@ -520,6 +539,7 @@ int main(int argc, char **argv) {
         }
 
         // S1: a missing helper is "not installed"; export offers the pending sheet.
+            std::cerr << "M:S1" << std::endl;
         {
             window.setIfcWorkerPath("");
             check(window.ifcProbe().state == IfcState::Missing, "no helper: missing");
@@ -561,6 +581,7 @@ int main(int argc, char **argv) {
         }
 
         // S2: a broken helper is "cannot start", with the helper's last log line.
+            std::cerr << "M:S2" << std::endl;
         {
             window.setIfcWorkerPath(broken);
             Driver driver;
@@ -582,6 +603,7 @@ int main(int argc, char **argv) {
         }
 
         // S3: a limited helper, the full mouse flow.
+            std::cerr << "M:S3" << std::endl;
         {
             window.setIfcWorkerPath(limited);
             const auto encoded = encodeContainer(window.document());
@@ -597,6 +619,8 @@ int main(int argc, char **argv) {
             driver.start();
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
+            std::cerr << "M:S3-progress: " << driver.progressBar
+                      << " elapsed: " << driver.progressElapsed.toStdString() << std::endl;
             check(driver.confirmations == 0, "an unsaved model prompt appears for a dirty "
                                                "model only");
             check(driver.progressBar == 100, "the progress bar ran to completion");
@@ -661,6 +685,7 @@ int main(int argc, char **argv) {
         }
 
         // S4: an available helper, the keyboard flow.
+            std::cerr << "M:S4" << std::endl;
         {
             window.setIfcWorkerPath(available);
             check(window.ifcProbe().state == IfcState::Available, "the probe ran");
@@ -692,6 +717,7 @@ int main(int argc, char **argv) {
         }
 
         // S5: a non-IFC file is refused in the dialog; nothing runs, nothing is shown.
+            std::cerr << "M:S5" << std::endl;
         {
             window.setIfcWorkerPath(available);
             const auto encoded = encodeContainer(window.document());
@@ -723,6 +749,7 @@ int main(int argc, char **argv) {
         }
 
         // S6: a refused import (the helper's words) shows the refusal sheet.
+            std::cerr << "M:S6" << std::endl;
         {
             window.setIfcWorkerPath(refused);
             const auto encoded = encodeContainer(window.document());
@@ -753,6 +780,7 @@ int main(int argc, char **argv) {
         }
 
         // S7: a hung helper: Cancel leaves the model unchanged.
+            std::cerr << "M:S7" << std::endl;
         {
             window.setIfcWorkerPath(hang);
             const auto encoded = encodeContainer(window.document());
@@ -780,6 +808,7 @@ int main(int argc, char **argv) {
         }
 
         // S8: a dirty model: Discard before the helper, Cancel at the commit phase.
+            std::cerr << "M:S8" << std::endl;
         {
             window.setIfcWorkerPath(available);
             window.demo();
@@ -807,6 +836,7 @@ int main(int argc, char **argv) {
         }
 
         // S9: a dirty model: Discard both prompts; the import replaces the model.
+            std::cerr << "M:S9" << std::endl;
         {
             window.demo();
             Driver driver;
