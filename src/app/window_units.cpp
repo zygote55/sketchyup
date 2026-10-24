@@ -103,9 +103,10 @@ void Window::unitsSettings(bool firstRun) {
             viewport_->cancel();
             // First-run defaults affect only a pristine blank document, never an opened model.
             if (firstRun && path_.isEmpty() && !doc_.dirty() && !doc_.canUndo() &&
-                doc_.bodies().empty() && doc_.revision() == 0)
+                doc_.bodies().empty() && doc_.revision() == 0) {
                 doc_ = Document(selected, places);
-            else if (!firstRun)
+                clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
+            } else if (!firstRun)
                 doc_.setDisplayUnits(selected, places);
             if (makeDefault->isChecked()) {
                 QSettings preferences("SketchyUp", "SketchyUp");

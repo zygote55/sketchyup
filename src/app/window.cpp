@@ -26,6 +26,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QCursor>
 #include <QColorDialog>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -372,6 +373,17 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
+    // R097.e1: the IFC report chip (ADR 0171 §16, the design's mockup `after`): on this row,
+    // after the status text, hidden until an import has produced it. A hidden widget takes no
+    // space, so the row's height is the row's before any import; the chip never grows the bar.
+    ifcReportChip_ = new QPushButton;
+    ifcReportChip_->setObjectName("ifcImportChip");
+    ifcReportChip_->setCursor(QCursor(Qt::PointingHandCursor));
+    ifcReportChip_->setMaximumHeight(24); // the row already holds a text edit of that height; the
+                                        // chip, when shown, must never grow the row
+    ifcReportChip_->hide();
+    QObject::connect(ifcReportChip_, &QPushButton::clicked, this, &Window::showIfcImportReport);
+    bottomLayout->addWidget(ifcReportChip_);
     auto *renderChip = new QPushButton;
     bottomLayout->addWidget(renderChip);
     render_ = new RenderPanel(doc_, *viewport_, *modelTabs, *renderChip, *this);
@@ -398,6 +410,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.new", "New", QKeySequence::New, [this] {
         if (canReplace()) {
             doc_ = Document(preferredUnits(), preferredPrecision());
+            clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
             resetRecoveryContext();
             path_.clear();
             viewport_->cancel();
@@ -1772,12 +1785,6 @@ bool Window::canReplace() {
     clearRecovery();
     return true;
 }
-void Window::showEvent(QShowEvent *e) {
-    QMainWindow::showEvent(e);
-    // R097.e1: probe the IFC helper once (off the UI thread) so the status chip and the
-    // "not installed" / "limited" states are current (ADR 0171 §16.7).
-    syncIfcAvailability();
-}
 void Window::openPath(const QString &path) {
     if (fileOperation_)
         throw std::runtime_error("Wait for the current file operation to finish");
@@ -1789,6 +1796,7 @@ void Window::openPath(const QString &path) {
     if (!canReplace())
         return;
     doc_ = std::move(loaded);
+    clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
     resetRecoveryContext();
     recoveryContext_ = {QFileInfo(path).absoluteFilePath(), doc_.revision(),
                         QFileInfo(path).lastModified().toUTC()};
@@ -1995,6 +2003,7 @@ void Window::demo() {
     box(-1, -.6, 2, 1.1, .8, "Table", {.67f, .48f, .30f});
     box(-1, -1.6, 2, .4, .45, "Bench", {.67f, .48f, .30f});
     doc_ = std::move(d);
+    clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
     resetRecoveryContext();
     path_.clear();
     viewport_->cancel();

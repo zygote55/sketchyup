@@ -16,6 +16,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPointer>
+#include <QPushButton>
 #include <array>
 #include <functional>
 #include <memory>
@@ -101,7 +102,13 @@ class Window : public QMainWindow {
     void importIfc();
     void exportIfc();
     void showIfcImportReport();
-    void syncIfcAvailability();
+    // The probe, on demand (the import is opened): a missing helper is the availability sheet, a
+    // broken one "cannot start" (ADR 0171 §16.7). It has its own deadline and is the user's
+    // action, so it runs on the UI thread; the conversion itself is on a worker thread (16.4).
+    void probeIfcNow();
+    // The report chip's lifetime (16.1): it belongs to the imported model; any other document
+    // clears it. Called by every document replacement and at the start of an import.
+    void clearIfcReportState();
     void setIfcWorkerPath(const QString &path); // tests, and a future "where the helper is"
     QString ifcWorkerPath();
     IfcProbe ifcProbe();
@@ -124,7 +131,6 @@ class Window : public QMainWindow {
     bool eventFilter(QObject *, QEvent *) override;
     void closeEvent(QCloseEvent *) override;
     void resizeEvent(QResizeEvent *) override;
-    void showEvent(QShowEvent *) override;
 
   private:
     bool closePending_{};
@@ -407,7 +413,10 @@ class Window : public QMainWindow {
     QString ifcImportFileName_;
     qint64 ifcImportElapsedMs_ = 0;
     int ifcImportRestarts_ = 0;
-    QLabel *ifcStatusChip_{};
+    // R097.e1: the IFC import's state (window_ifc.cpp). The report chip is a button on the
+    // bottom status row (the design's mockup), hidden until an import has produced it; a
+    // hidden widget takes no space, so the window's layout is untouched until then.
+    QPushButton *ifcReportChip_{};
     QAction *ifcReportAction_{};
     void tool(Viewport::Tool tool, const QString &instruction);
     // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the

@@ -256,6 +256,7 @@ void Window::showRecovery(bool onlyIfPresent) {
         if (!canReplace())
             return;
         doc_ = std::move(*current.document);
+        clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
         path_.clear();
         resetRecoveryContext();
         recoveredName_ = current.info.sourcePath.isEmpty()
@@ -282,6 +283,7 @@ void Window::showRecovery(bool onlyIfPresent) {
             if (!canReplace())
                 return;
             doc_ = std::move(loaded);
+            clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
             resetRecoveryContext();
             path_ = candidate->info.sourcePath;
             recoveryContext_ = {path_, doc_.revision(), QFileInfo(path_).lastModified().toUTC()};

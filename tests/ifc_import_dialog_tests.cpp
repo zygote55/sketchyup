@@ -443,8 +443,9 @@ int main(int argc, char **argv) {
     check(QTest::qWaitForWindowExposed(&window, 5000), "The window shows");
     auto *status = window.findChild<QLabel *>("statusMessage");
     check(status, "the status label is found");
-    auto *chip = window.findChild<QLabel *>("ifcStatusChip");
-    check(chip, "the IFC status chip is found");
+    auto *chip = window.findChild<QPushButton *>("ifcImportChip");
+    check(chip, "the IFC report chip is found");
+    check(!chip->isVisible(), "the chip is hidden before any import");
 
     try {
         // S0: the options dialog on its own.
@@ -662,9 +663,18 @@ int main(int argc, char **argv) {
             check(contains(status->text(), "Imported an unsaved IFC model") &&
                       contains(status->text(), "Source file unchanged"),
                   "the status names the outcome: " + status->text().toStdString());
-            check(contains(chip->text(), "entities") &&
-                      contains(chip->text(), QString::number(entities)),
-                  "the chip counts the imported entities");
+            // The report chip (the design's mockup `after`): it appears on the status row for
+            // the imported model; its attention count is what the helper did not convert.
+            const int attention = expected["accounting"].toObject()["omitted"].toInt(0);
+            if (attention > 0)
+                check(chip->isVisible() && contains(chip->text(), "IFC import") &&
+                          contains(chip->text(), QString::number(attention)) &&
+                          contains(chip->text(), "Show report"),
+                      "the chip names the import and its attention count: " +
+                          chip->text().toStdString());
+            else
+                check(chip->isVisible() && contains(chip->text(), "IFC import report"),
+                      "the chip offers the report: " + chip->text().toStdString());
             // The report.
             check(driver.sheets.contains("ifcImportReport"), "the report sheet was shown");
             check(contains(driver.banner["ifcImportReport"], "✓ Import finished") &&
@@ -713,12 +723,10 @@ int main(int argc, char **argv) {
         }
 
         // S4: an available helper, the keyboard flow.
+        // The probe is on-demand: it runs when the import is opened (synchronously, with its
+        // own deadline), not at window start.
         {
             window.setIfcWorkerPath(available);
-            window.syncIfcAvailability();
-            check(QTest::qWaitFor([&] { return window.ifcProbe().state == IfcState::Available; },
-                            5000),
-                  "the probe ran");
             const auto encoded = encodeContainer(window.document());
             Driver driver;
             driver.choose = model;
@@ -729,6 +737,8 @@ int main(int argc, char **argv) {
             driver.start();
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
+            check(window.ifcProbe().state == IfcState::Available,
+                  "the on-demand probe ran when the import opened");
             check(driver.confirmations == 0,
                   "the document is not dirty (S3's import was undone), so no prompt");
             check(contains(driver.dialogHelperText, "OpenCASCADE kernel"),
@@ -738,8 +748,16 @@ int main(int argc, char **argv) {
                   "the window's import matches the reference conversion");
             check(doc.history().total == 1 && doc.history().entries.back().label == "Import IFC",
                   "the import is one labelled edit");
-            check(contains(chip->text(), QString::number(entities)),
-                  "the chip counts the entities");
+            // The report chip for the imported model (the design's mockup `after`): its
+            // attention count is what the helper did not convert.
+            const int attention = expected["accounting"].toObject()["omitted"].toInt(0);
+            if (attention > 0)
+                check(chip->isVisible() && contains(chip->text(), QString::number(attention)),
+                      "the chip names the import and its attention count: " +
+                          chip->text().toStdString());
+            else
+                check(chip->isVisible() && contains(chip->text(), "IFC import report"),
+                      "the chip offers the report: " + chip->text().toStdString());
             // The source file is never modified.
             QFile source(model);
             check(source.open(QIODevice::ReadOnly), "the source opens");
@@ -836,6 +854,9 @@ int main(int argc, char **argv) {
             check(encodeContainer(window.document()) == encoded &&
                       window.document().history().total == history,
                   "cancelling leaves the model unchanged");
+            check(chip->isVisible(),
+                  "cancelling keeps the previous import's chip (the model is unchanged): " +
+                          chip->text().toStdString());
         }
 
         // S8: a dirty model: Discard before the helper, Cancel at the commit phase.
@@ -863,6 +884,8 @@ int main(int argc, char **argv) {
             check(encodeContainer(window.document()) == encoded &&
                       window.document().history().total == history,
                   "the model was not replaced");
+            check(!chip->isVisible(),
+                  "the chip is with the replaced model; the demo model has no import");
         }
 
         // S9: a dirty model: Discard both prompts; the import replaces the model.
@@ -885,8 +908,15 @@ int main(int argc, char **argv) {
                   "the replacement is one labelled edit");
             check(contains(status->text(), "Imported an unsaved IFC model"),
                   "the status names the outcome");
-            check(contains(chip->text(), QString::number(entities)),
-                  "the chip counts the imported entities");
+            // The report chip for the replaced model (the design's mockup `after`).
+            const int attention = expected["accounting"].toObject()["omitted"].toInt(0);
+            if (attention > 0)
+                check(chip->isVisible() && contains(chip->text(), QString::number(attention)),
+                      "the chip names the import and its attention count: " +
+                          chip->text().toStdString());
+            else
+                check(chip->isVisible() && contains(chip->text(), "IFC import report"),
+                      "the chip offers the report: " + chip->text().toStdString());
             check(window.findChild<QAction *>("file.ifcImportReport")->isEnabled(),
                   "the import report action is enabled");
         }

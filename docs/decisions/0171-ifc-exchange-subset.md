@@ -2158,8 +2158,8 @@ dialog (the file, the unit when the file doesn't declare one, the spaces choice,
 maximum deviation, the helper's state line, the Limited and the refusal banners, and the "what import does /
 what to do next" panels), the progress sheet (the seven steps, the bar, the elapsed time, Cancel), the report
 sheet (re-shown from the menu), the "not installed" and "cannot start" availability sheets, the import's
-runner and the window's flow (the probe, the picker, the two `canReplace()` gates of 16.3, the commit and the
-status lines). It is pull request #428. There is no export screen yet (R097.e2) and no change to the helper:
+runner and the window's flow (the on-demand probe, the picker, the two `canReplace()` gates of 16.3, the
+commit, the status lines and the report chip of the design's mockup `after`). It is pull request #428. There is no export screen yet (R097.e2) and no change to the helper:
 everything here is the application's capture of R097.b's conversion into the approved screens.
 
 ### The flow, as built
@@ -2177,7 +2177,14 @@ marks the working step and closes itself 150 ms after the result. The commit rep
 converted one as one `Import IFC` history entry (undo takes it back), clears the path (a save must choose a
 new native file, never overwrite the source), fits the view and shows the report. Cancellation is
 cooperative through `IfcWorkerOptions::cancelled` (the helper exits `cancelled`); the window's status says
-what happened either way.
+what happened either way. The report chip is a hidden button on the bottom status row (the design's
+mockup `after`); the commit fills it ("⚠ IFC import · N need attention · Show report" when the
+helper did not convert N entities, "IFC import report" when it converted everything, the accessible
+name the design's 16.9 wording) and shows it, and a click reopens the report. Its lifetime is the
+imported model's: any other document (a new one, an opened one, another import, a template, a units
+change, a recovery) clears it, while a refused or a failed import, which leaves the model untouched,
+keeps it. A window shows no IFC widget until an import has committed: nothing is probed, and no widget
+is created, at startup.
 
 ### What the suite found
 
@@ -2197,6 +2204,16 @@ was chosen, so the **Limited** warning (the kernel isn't installed) vanished exa
 about to convert. The banner is the probe's warning, not the file's: `setFile` now clears only a refusal
 (`applyProbeBanner` restores the probe's warning for a valid file, shows the refusal for an invalid one, and
 enables Import for the first).
+
+A fourth finding was the first implementation's own, caught by `narrow_layout_input_tests` before it
+reached CI: the window probed the helper at `showEvent` and put a permanent "IFC ready / IFC limited"
+chip in the window's `QStatusBar`. That went beyond the approved design (the chip is the post-import
+report chip on the status row, and the availability belongs to the dialog's helper line and the
+sheets), and it broke an existing test: materialising the `QStatusBar` shortens the central area, and
+the last tool on the rail drops into Qt's overflow menu, so "every tool shows on the wide rail"
+failed ("Pan" hidden at 900 px). The fix is the shape above: nothing at show; the probe on demand,
+when the import is opened; the chip a hidden button on the bottom status row that a hidden widget
+costs no layout.
 
 ### The suite
 

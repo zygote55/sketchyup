@@ -19,56 +19,61 @@
 #include <thread>
 namespace sketchy {
 namespace {
-void setChip(QLabel *chip, const IfcProbe &probe) {
+// The report chip (the design's mockup `after`): while the imported model is open it says what
+// the import produced and reopens the report; the accessible name follows the design's 16.9
+// wording. A cancel or a failed import (the model was not replaced) clears it.
+void setIfcReportChip(QPushButton *chip, const QJsonObject &report, bool visible) {
     if (!chip)
         return;
-    QString text;
-    if (probe.state == IfcState::Available)
-        text = "IFC ready";
-    else if (probe.state == IfcState::Limited)
-        text = "IFC limited";
-    chip->setText(text);
-    chip->setVisible(!text.isEmpty());
+    if (!visible) {
+        chip->hide();
+        return;
+    }
+    const int attention = report["attention"].toInt(0);
+    if (attention > 0) {
+        chip->setText(QString("\u26a0 IFC import \u00b7 %1 need attention \u00b7 Show report").arg(attention));
+        chip->setAccessibleName(
+            QString("IFC import, %1 items need attention. Show report").arg(attention));
+    } else {
+        chip->setText("IFC import report");
+        chip->setAccessibleName("IFC import report");
+    }
+    chip->show();
 }
 } // namespace
 void Window::setIfcWorkerPath(const QString &path) { ifcWorkerPath_ = path; }
 QString Window::ifcWorkerPath() { return ifcWorkerPath_; }
 IfcProbe Window::ifcProbe() { return ifcProbe_; }
-void Window::syncIfcAvailability() {
-    if (!ifcStatusChip_) {
-        ifcStatusChip_ = new QLabel(this);
-        ifcStatusChip_->setObjectName("ifcStatusChip");
-        statusBar()->addPermanentWidget(ifcStatusChip_);
-    }
+void Window::probeIfcNow() {
     const QString worker = resolveIfcWorker(ifcWorkerPath_);
+    // No helper: the availability's state, without a probe to run.
     if (worker.isEmpty()) {
         ifcProbe_ = IfcProbe(); // Missing.
-        setChip(ifcStatusChip_, ifcProbe_);
         return;
     }
-    // The probe starts the helper; run it off the UI thread so startup never blocks.
-    QPointer<Window> guard(this);
-    std::thread([guard, worker] {
-        const IfcProbe probe = runIfcProbe(worker);
-        QMetaObject::invokeMethod(guard.data(), [guard, probe] {
-            if (!guard)
-                return;
-            guard->ifcProbe_ = probe;
-            setChip(guard->ifcStatusChip_, probe);
-        }, Qt::QueuedConnection);
-    }).detach();
+    // The probe starts the helper; it has its own deadline, and it is the user's action, so it
+    // runs on the UI thread (a hung helper is "cannot start" when the deadline passes, 16.7).
+    ifcProbe_ = runIfcProbe(worker);
+}
+void Window::clearIfcReportState() {
+    ifcImportReport_ = QJsonObject();
+    ifcImportFileName_.clear();
+    ifcImportElapsedMs_ = 0;
+    ifcImportRestarts_ = 0;
+    setIfcReportChip(ifcReportChip_, QJsonObject(), false);
+    if (ifcReportAction_)
+        ifcReportAction_->setEnabled(false);
 }
 void Window::importIfc() {
-    const QString worker = resolveIfcWorker(ifcWorkerPath_);
-    if (worker.isEmpty()) {
-        IfcProbe probe; // Missing.
+    // A committed import replaces the model and (re)sets the report chip below; a refused or
+    // failed import leaves the model untouched, so the current import's chip, if any, stays
+    // (16.1's lifetime: the chip is with the imported model).
+    probeIfcNow();
+    const IfcProbe &probe = ifcProbe_;
+    if (probe.state == IfcState::Missing) {
         showIfcUnavailable(this, probe, false);
         return;
     }
-    // User-initiated: run the probe now (it has its own deadline).
-    const IfcProbe probe = runIfcProbe(worker);
-    ifcProbe_ = probe;
-    setChip(ifcStatusChip_, probe);
     if (probe.state == IfcState::Broken) {
         showIfcUnavailable(this, probe, false); // "IFC cannot start"
         return;
@@ -84,7 +89,7 @@ void Window::importIfc() {
         return;
     const IfcImportOptions import = dialog.options();
     IfcWorkerOptions workerOptions = dialog.workerOptions();
-    workerOptions.workerPath = worker;
+    workerOptions.workerPath = ifcProbe_.workerPath;
     // The confirm phase: before the helper starts, ask about unsaved changes (16.3).
     if (!canReplace())
         return;
@@ -126,24 +131,26 @@ void Window::importIfc() {
         ifcImportRestarts_ = restarts;
         if (ifcReportAction_)
             ifcReportAction_->setEnabled(true);
-        const int entities = report["accounting"].toObject()["entities"].toInt(0);
-        if (ifcStatusChip_)
-            ifcStatusChip_->setText(QString("IFC ready · %1 entities").arg(entities));
+        setIfcReportChip(ifcReportChip_, report, true); // the design's mockup `after`
         runner->wait();
         delete runner;
         ::sketchy::showIfcImportReport(this, path, report, elapsed, restarts);
         return;
     }
-    // A refusal or a failure after the restarts.
+    // A refusal or a failure after the restarts: the model was not replaced, so the current
+    // import's report chip, if any, stays with its model.
     showIfcRefusal(this, path, runner->code(), runner->message(), runner->report());
     runner->wait();
     delete runner;
 }
 void Window::exportIfc() {
-    const QString worker = resolveIfcWorker(ifcWorkerPath_);
-    if (worker.isEmpty()) {
-        IfcProbe probe; // Missing.
-        showIfcUnavailable(this, probe, true);
+    probeIfcNow();
+    if (ifcProbe_.state == IfcState::Missing) {
+        showIfcUnavailable(this, ifcProbe_, true);
+        return;
+    }
+    if (ifcProbe_.state == IfcState::Broken) {
+        showIfcUnavailable(this, ifcProbe_, true);
         return;
     }
     // Export is R097.e2; this release only offers the availability sheet.
