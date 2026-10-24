@@ -544,7 +544,11 @@ counted entities.
   node access is 1-based as well (the two index spaces are the common 7.9 trap);
   `TopExp_Explorer` is the shape traversal (the `TopoDS_Shape` of 7.9.3 has no
   convenient child iteration); and `TopoDS::Face` needs `TopoDS.hxx` (the `TopoDS`
-  free-function header), not the shape header alone.
+  free-function header), not the shape header alone. The worker records no TBB in its
+  `DT_NEEDED` (the pinned OpenCASCADE 7.9.3 libraries are built without it), so the
+  tessellation runs single threaded (the engine report says so) — decision 5's 4 threads
+  is the IFC kernel's own pool, which OCCT's `BRepMesh` does not use; a build that
+  ships the TBB runtime is where a parallel `BRepMesh` would pick up the pool.
 
 ## Owner decisions
 
