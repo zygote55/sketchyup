@@ -23,9 +23,10 @@ L3  The notices and the written source offer are installed (naming the OpenCASCA
     (`source` mode).
 L4  THIRD_PARTY_NOTICES lines, the PKGBUILD licences and dependencies.json are updated (`source` mode).
 L5  No GPL-3.0-or-later library is linked (ldd over the worker and the private libraries).
-L6  The OpenCASCADE libraries the kernel plugin records are exactly the set installed; with the
-    kernel plugin or any one of them removed, the probe reports "kernel unavailable" (exit 0, no
-    signal) and the pass-through kernel still works.
+L6  The OpenCASCADE libraries the kernel plugin and the worker record are exactly the set
+    installed; with the kernel plugin or any one of them removed, the OpenCASCADE kernel is
+    unavailable (the worker links the libraries itself, so a missing one stops the worker from
+    starting, ADR 0172 R098.a) and the pass-through kernel still works.
 
 Everything installed is untrusted data to the checks: they only read it, and run the helper's own
 --probe in a scratch copy.
@@ -81,9 +82,13 @@ def links_ifc(needed):
 
 
 def occt_closure(private):
-    """The libTK* closure that the kernel plugin records, by DT_NEEDED."""
-    kernel = private / "ifcopenshell_geometry_kernel_opencascade.so"
-    pending = [n for n in dynamic(kernel)[0] if n.startswith("libTK")]
+    """The libTK* closure the kernel plugin and the worker record, by DT_NEEDED (the union,
+    as the install's InstallOcct.cmake computes it: the worker links the STEP toolkits, ADR 0172)."""
+    roots = [private / "ifcopenshell_geometry_kernel_opencascade.so", private / WORKER]
+    pending = set()
+    for root in roots:
+        if root.exists():
+            pending.update(n for n in dynamic(root)[0] if n.startswith("libTK"))
     closure = set()
     while pending:
         name = pending.pop()
@@ -92,7 +97,7 @@ def occt_closure(private):
         closure.add(name)
         library = private / name
         if library.exists():
-            pending += [n for n in dynamic(library)[0] if n.startswith("libTK")]
+            pending.update(n for n in dynamic(library)[0] if n.startswith("libTK"))
     return closure
 
 
@@ -243,8 +248,12 @@ def check_l5(prefix, problems):
                                           if p.is_file() and not p.is_symlink() and is_elf(p)
                                           and any(re.match(x, p.name) for x in LIBRARY_PATTERNS))
     seen = set()
-    # gcc-libs is a set of packages (libgcc, libstdc++ and others) on current Arch
-    allowed_owners = {"glibc", "gcc-libs", "libgcc", "libstdc++"}
+    # gcc-libs is a set of packages (libgcc, libstdc++ and others) on current Arch. The
+    # X11/font stack belongs to the 3D toolkit of the private OCCT set (TKV3d): the ifc
+    # package's depends in the PKGBUILD carries it (ADR 0172, R098.a); keep the two in sync.
+    allowed_owners = {"glibc", "gcc-libs", "libgcc", "libstdc++", "zlib", "bzip2", "libpng",
+                     "brotli", "expat", "libx11", "libxcb", "libxau", "libxdmcp", "fontconfig",
+                     "freetype2"}
     for target in targets:
         if any(n.startswith("libboost") for n in dynamic(target)[0]):
             problems.append(f"L5: {target.name} records a Boost library; the package does not depend on boost-libs")
@@ -299,10 +308,10 @@ def check_l6(prefix, problems):
     recorded = closure
     present = installed | soname_links
     if recorded - present:
-        problems.append(f"L6: libraries the kernel records are not installed: {sorted(recorded - present)}")
+        problems.append(f"L6: libraries the kernel or the worker record are not installed: {sorted(recorded - present)}")
     surplus = {n for n in soname_links if n not in recorded}
     if surplus:
-        problems.append(f"L6: libraries installed but not recorded by the kernel: {sorted(surplus)}")
+        problems.append(f"L6: libraries installed but not recorded by the kernel or the worker: {sorted(surplus)}")
     # Remove the kernel plugin, then each OpenCASCADE library in turn, in a scratch copy.
     with tempfile.TemporaryDirectory(prefix="ifc-l6-") as scratch:
         victims = ["ifcopenshell_geometry_kernel_opencascade.so"] + sorted(recorded)
@@ -326,7 +335,10 @@ def check_l6(prefix, problems):
                         subprocess.run([patchelf, "--replace-needed", victim, victim + ".gone", str(file)], check=True)
             result = probe(copy / WORKER)
             if result.returncode != 0:
-                problems.append(f"L6: with {victim} removed the probe exited {result.returncode}: "
+                # The worker links the OCCT libraries directly (R098.a), so a missing library
+                # stops the worker from starting at all (127, the loader naming the library).
+                if "cannot open shared object file" not in result.stderr:
+                    problems.append(f"L6: with {victim} removed the probe exited {result.returncode} without a loader error: "
                                 f"{result.stderr[:200]}")
                 continue
             report = json.loads(result.stdout)

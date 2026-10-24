@@ -33,7 +33,9 @@ struct WorkerResult {
 };
 WorkerResult runWorker(const QString &worker, const QStringList &args) {
     QProcess process;
-    process.start(worker, args);
+    // QProcess::start prepends the program as argv[0]; the list carries it again, so drop the copy.
+    const auto arguments = args.first() == worker ? args.mid(1) : args;
+    process.start(worker, arguments);
     if (!process.waitForFinished(300000)) {
         process.kill();
         return {124, {}, "timeout"};
