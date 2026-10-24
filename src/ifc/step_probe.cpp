@@ -58,9 +58,15 @@
 #endif
 #include "Bnd_Box.hxx"
 #include "BRepBndLib.hxx"
+#include "BRepBuilderAPI_Transform.hxx"
 #include "BRep_Builder.hxx"
 #include "BRepPrimAPI_MakeBox.hxx"
 #include "BRepPrimAPI_MakeCylinder.hxx"
+#include "gp_Ax1.hxx"
+#include "gp_Dir.hxx"
+#include "gp_Pnt.hxx"
+#include "gp_Trsf.hxx"
+#include "gp_Vec.hxx"
 #include "HeaderSection_FileSchema.hxx"
 #include "Interface_EntityIterator.hxx"
 #include "STEPControl_Reader.hxx"
@@ -595,6 +601,20 @@ std::string writeStep(const std::string& directory) {
     builder.Add(assembly, BRepPrimAPI_MakeBox(10, 20, 30).Shape());
     builder.Add(assembly, BRepPrimAPI_MakeCylinder(5, 20).Shape());
     return assembly;
+  });
+  // The placement corpus (ADR 0172 §4): the same box, moved as its location (the placement the
+  // package's node transform carries, not a baked mesh), and mirrored about the origin (the
+  // negative-determinant placement, affine: the decoder admits it, the instance's winding is the
+  // mirror's).
+  writeOne("sketchyup-step-placed.step", [] {
+    gp_Trsf move;
+    move.SetTranslation(gp_Vec(5.0, 10.0, 15.0));
+    return BRepBuilderAPI_Transform(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), move).Shape();
+  });
+  writeOne("sketchyup-step-mirror.step", [] {
+    gp_Trsf mirror;
+    mirror.SetMirror(gp_Ax1(gp_Pnt(0.0, 0.0, 0.0), gp_Dir(1.0, 0.0, 0.0)));
+    return BRepBuilderAPI_Transform(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), mirror).Shape();
   });
   json.endArray();
   json.endObject();

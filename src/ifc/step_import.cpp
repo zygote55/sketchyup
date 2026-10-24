@@ -57,6 +57,7 @@
 #include "TDataStd_DataMapOfStringString.hxx"
 #include "TDataStd_Name.hxx"
 #include "TDataStd_NamedData.hxx"
+#include "TDF_ChildIterator.hxx"
 #include "TDF_Label.hxx"
 #include "TDF_LabelSequence.hxx"
 #include "TDF_TagSource.hxx"
@@ -64,6 +65,7 @@
 #include "TopExp_Explorer.hxx"
 #include "TopLoc_Location.hxx"
 #include "XCAFDoc_ColorTool.hxx"
+#include "XCAFDoc_DocumentTool.hxx"
 #include "XCAFDoc_LayerTool.hxx"
 #include "XCAFDoc_ShapeTool.hxx"
 #include "XSControl_WorkSession.hxx"
@@ -203,12 +205,10 @@ UnitDecision decideUnits(const StepFileFacts& file, const StepModelFacts& model,
 // with it. The package is the section 4 tree: the root, an assembly a group,
 // a part an element.
 //
-// A part's placement is not expressible in a package node transform (the
-// decoder admits affine transforms only, and a det -1 placement is not
-// affine), so a placed part carries the placement baked into its mesh (the
-// base's mesh in the file's unit scaled to metres, the winding flipped for a
-// mirror placement as for a reversed face) and an identity placement reuses
-// the base's mesh outright.
+// A part's instances share the base's mesh (in the base's own frame); the node's transform
+// carries the placement (the base's location, then the instance's). A mirror placement's
+// negative determinant is affine (the decoder admits it), so a mirrored instance is the
+// shared mesh under a mirrored transform, not a baked copy.
 //
 // The unit policy (decision 4) rides the reader's own unit handling: with a
 // resolved unit context the transfer has normalised the geometry to the
@@ -278,9 +278,9 @@ struct LayerDecision {
   bool hidden = false;
 };
 
-LayerDecision layersOf(const TDF_Label& L) {
+LayerDecision layersOf(const TDF_Label& L, const TDF_Label& layersSection) {
   LayerDecision out;
-  const Handle(XCAFDoc_LayerTool) hTool = XCAFDoc_LayerTool::Set(L);  // the label's document's layer tool
+  const Handle(XCAFDoc_LayerTool) hTool = XCAFDoc_LayerTool::Set(layersSection);  // the document's layer tool (the Layers section)
   if (hTool.IsNull()) return out;
   XCAFDoc_LayerTool tool = *hTool;
   TDF_LabelSequence layers;
@@ -385,8 +385,15 @@ bool mirrorLocation(const TopLoc_Location& loc) {
   return det < 0.0;
 }
 
+// The winding the decoder will see. The tessellator's raw winding is the face's own
+// orientation under the shape's own location (a mirror location reverses it, the ADR 0172
+// section 7 mirrored-solid measurement); the node's transform applies on top, and a
+// negative-determinant transform reverses the winding a second time. So the raw winding
+// is flipped when the face-orientation rule and the instance's handedness disagree: a
+// forward face under a mirror instance is stored reversed so the decoder's mirror leaves
+// it outward, and a reversed face under a mirror instance is stored forward.
 SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, const double angleRadians,
-                          const double metresPerUnit) {
+                          const double metresPerUnit, const bool instanceMirror) {
   SolidMesh out;
   try {
     // The constructor performs the meshing (OCCT 7.9.3; not parallel, so the output is
@@ -406,10 +413,14 @@ SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, 
       const Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(f, loc);
       if (!tri.IsNull()) {
         ++out.faces;
-        // The winding is the product of the face's orientation and the location's handedness:
-        // a reversed face under a mirror location is reversed twice, which is forward —
-        // XOR, not OR (each rule fires once).
-        const bool flip = (f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc);
+        // The winding is the product of three factors, XOR (each reverses at most once):
+        // the face's REVERSED orientation, the storage-location's handedness (a mirror
+        // location reverses the winding the storage-to-face transform applies, the ADR
+        // 0172 section 7 rule), and the instance's transform (the decoder applies the
+        // node transform on top of the mesh; a negative-determinant transform reverses
+        // the winding a second time, so a mirror instance stores the base's winding
+        // flipped and comes out outward).
+        const bool flip = (f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc) != instanceMirror;
         // Each node of the face's triangulation once (transformed and scaled); the triangles
         // index into them. A node written per triangle would repeat the shared nodes up to
         // six times (about 72 MB of vertex data at the 1,000,000-triangle cap, close to the
@@ -686,7 +697,9 @@ int runStepImportPackage(const StepImportOptions& options) {
   // Its modes on (the default constructor's): the colours, the layers, the names and the
   // properties (the TDataStd_NamedData) transfer with it.
   Handle(XSControl_WorkSession) ws(new XSControl_WorkSession());
-  STEPCAFControl_Reader xde(ws, Standard_False);
+  STEPCAFControl_Reader xde(ws, Standard_False);  // its controller's Init registers the STEP norm for the session
+  if (!ws->SelectNorm("STEP"))  // without a norm the session has no work library: the read could not happen
+    return refuse("read", "The STEP reader's session could not select the STEP norm.");
   xde.SetColorMode(Standard_True);
   xde.SetLayerMode(Standard_True);
   xde.SetNameMode(Standard_True);
@@ -704,65 +717,67 @@ int runStepImportPackage(const StepImportOptions& options) {
   } catch (const Standard_Failure& failure) {
     return refuse("read", clip(failure.GetMessageString(), 200));
   }
-  const Handle(XCAFDoc_ShapeTool) hShapeTool = XCAFDoc_ShapeTool::Set(doc->Main());
+  // The XDE's shape and layer tools attach to the document's sections (the Shapes and the Layers),
+  // not to the document's main label (which holds the sections, not the shapes).
+  const TDF_Label shapes = XCAFDoc_DocumentTool::ShapesLabel(doc->Main());
+  const TDF_Label layers = XCAFDoc_DocumentTool::LayersLabel(doc->Main());
+  const Handle(XCAFDoc_ShapeTool) hShapeTool = XCAFDoc_ShapeTool::Set(shapes);
   if (hShapeTool.IsNull()) return refuse("no-shape-tool", "The document holds no shape tool.");
-  XCAFDoc_ShapeTool shapeTool = *hShapeTool;  // the document's shape tool
-  TDF_LabelSequence freeShapes;
-  shapeTool.GetFreeShapes(freeShapes);
+  XCAFDoc_ShapeTool shapeTool = *hShapeTool;  // the document's shape tool (its Shapes section)
+
+  // The top-level products (the Shapes section's children): the assemblies and the free shapes (a
+  // shape that is a reference's base - repeated - is not a product of its own; XDE keeps it in
+  // the section for the reference to point at, and its IsFree is false).
 
   // The tree in walk order (a parent before its children): the label (its own entry), its base (the
   // reference's referred shape, or the label itself), the parent (in the walk order) and whether the
   // label is a reference (the instance evidence; a reference is one use of a repeated shape).
   struct FlatNode {
-    std::uint32_t tag = 0;
+    std::int32_t tag = -1;  // the label's tag (-1: a label the XDE left untagged)
     TDF_Label label;
-    std::uint32_t baseTag = 0;
+    std::size_t baseIndex = 0;  // its base in the unique-bases list (its mesh, its accounting)
     TDF_Label base;
     long long parent = -1;
     bool reference = false;
+    std::array<double, 16> transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};  // local (to the parent)
+    double detLocal = 1.0;  // the 3x3's determinant (1: identity or a degenerate placement)
+    double detChain = 1.0;   // the product of the chain's (the decoder composes the chain)
+    bool nonIdentity = false;
+    bool provenancePlaced = false;
+    bool degenerate = false;
+    bool isAssembly = false;
   };
   std::vector<FlatNode> order;
-  std::map<std::uint32_t, std::uint32_t> baseOrder;  // the base's tag -> its first-seen order
-  std::vector<std::uint32_t> baseTags;  // the unique bases, first-seen order
-  std::map<std::uint32_t, TDF_Label> baseLabels;  // the base's tag -> its label
-  std::map<std::uint32_t, int> seen;  // a label walked twice is not walked twice
+  std::vector<TDF_Label> baseLabels;  // the unique bases (their label identity - IsEqual - the XDE
+                                     // leaves its component and base labels untagged, so the tag
+                                     // is no key), first-seen order
   bool treeTooDeep = false;
-  auto labelTag = [](const TDF_Label& L) {
-    const Handle(TDF_TagSource) src = TDF_TagSource::Set(L);
-    return src.IsNull() ? 0u : static_cast<std::uint32_t>(src->Get());
+  auto baseIndexOf = [&](const TDF_Label& B) -> std::size_t {
+    for (std::size_t k = 0; k < baseLabels.size(); ++k)
+      if (baseLabels[k].IsEqual(B)) return k;
+    baseLabels.push_back(B);
+    return baseLabels.size() - 1;
   };
   auto walk = [&](auto&& self, const TDF_Label& L, const long long parent, const int depth) -> void {
-    const std::uint32_t tag = labelTag(L);
-    if (seen.count(tag)) return;
     if (depth > kMaxTreeDepth) {
       treeTooDeep = true;  // the package's node depth (128) is not left over
       return;
     }
-    seen[tag] = 1;
     FlatNode flat;
-    flat.tag = tag;
+    flat.tag = L.Tag();
     flat.label = L;
     flat.parent = parent;
     if (shapeTool.IsAssembly(L)) {
-      flat.base = L;
-      flat.baseTag = tag;
+      flat.base = L;  // a group: its own label is its base (a group always converts, no mesh)
     } else {
       flat.reference = shapeTool.IsReference(L);
       flat.base = L;
-      flat.baseTag = tag;
       if (flat.reference) {
         TDF_Label ref;
-        if (shapeTool.GetReferredShape(L, ref)) {
-          flat.base = ref;
-          flat.baseTag = labelTag(ref);
-        }
-      }
-      if (!baseOrder.count(flat.baseTag)) {
-        baseOrder[flat.baseTag] = static_cast<std::uint32_t>(baseTags.size());
-        baseTags.push_back(flat.baseTag);
-        baseLabels[flat.baseTag] = flat.base;
+        if (shapeTool.GetReferredShape(L, ref)) flat.base = ref;  // a repeated shape: the shape it refers to
       }
     }
+    flat.baseIndex = baseIndexOf(flat.base);
     const long long index = static_cast<long long>(order.size());
     order.push_back(flat);
     if (shapeTool.IsAssembly(L)) {
@@ -771,10 +786,85 @@ int runStepImportPackage(const StepImportOptions& options) {
       for (int i = 1; i <= comps.Length(); ++i) self(self, comps.Value(i), index, depth + 1);
     }
   };
-  for (int i = 1; i <= freeShapes.Length(); ++i) walk(walk, freeShapes.Value(i), -1, 0);
+  {
+    TDF_ChildIterator it(shapes);
+    while (it.More()) {
+      const TDF_Label L = it.Value();
+      it.Next();
+      if (shapeTool.IsAssembly(L) || shapeTool.IsFree(L)) walk(walk, L, -1, 0);
+    }
+  }
 
   if (order.empty()) return refuse("nothingToImport", "The file transferred, but the document holds no shape.");
   if (treeTooDeep) report.notice("treeTooDeep", 1);
+
+  auto compose = [](const std::array<double, 16>& A, const std::array<double, 16>& B) {
+    std::array<double, 16> C{};
+    for (int r = 0; r < 4; ++r)
+      for (int c = 0; c < 4; ++c) {
+        double v = 0;
+        for (int k = 0; k < 4; ++k) v += A[r * 4 + k] * B[k * 4 + c];
+        C[r * 4 + c] = v;
+      }
+    return C;
+  };
+  auto placementOf = [&](const TDF_Label& L) {
+    std::array<double, 16> W = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    const TopLoc_Location loc = shapeTool.GetLocation(L);
+    if (!loc.IsIdentity()) {
+      const gp_Trsf& t = loc.Transformation();
+      for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 4; ++c) W[r * 4 + c] = t.Value(r + 1, c + 1);
+    }
+    return W;
+  };
+  auto det3 = [](const std::array<double, 16>& W) {
+    const double a = W[0], b = W[1], c = W[2], d = W[4], e = W[5], f = W[6], g = W[8], h = W[9], i = W[10];
+    return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+  };
+  // Each node's placement (ADR 0172 section 4): a point of a part's mesh (in the base's own
+  // frame, in metres) is mapped through the base's location, then the label's (the
+  // reference's instance placement); the node's transform is the local one (the decoder
+  // composes the tree), and a degenerate (non-finite) placement falls back to the identity
+  // (the base's mesh, as written). The 3x3's determinant (a mirror's -1, a translation's
+  // +1, unaffected by the translation scale) decides the tessellator's winding factor.
+  // The pre-pass runs before the nodes exist, so the placement count and the placed
+  // provenance are carried on the entry and applied to the node as it is emitted.
+  long long placedCount = 0;
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    FlatNode& flat = order[i];
+    std::array<double, 16> W = placementOf(flat.label);
+    if (!shapeTool.IsAssembly(flat.base) && flat.reference && flat.base != flat.label)
+      W = compose(W, placementOf(flat.base));
+    W[3] *= toMetres;  // the placement is in the file's unit, the mesh's in metres
+    W[7] *= toMetres;
+    W[11] *= toMetres;
+    flat.isAssembly = shapeTool.IsAssembly(flat.base);
+    bool finite = true;
+    for (double v : W) finite = finite && std::isfinite(v);
+    if (!finite) {
+      flat.degenerate = true;  // a degenerate location: the identity (the base's mesh, as written)
+      W = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+      if (!shapeTool.IsAssembly(flat.base)) report.notice("degeneratePlacement", 1);
+    }
+    flat.detLocal = det3(W);
+    flat.transform = W;
+    bool identity = true;
+    for (int r = 0; r < 4; ++r)
+      for (int c = 0; c < 4; ++c) identity = identity && std::abs(W[r * 4 + c] - (r == c ? 1.0 : 0.0)) < 1e-12;
+    flat.nonIdentity = !identity;
+    if (flat.nonIdentity && !shapeTool.IsAssembly(flat.base)) {
+      ++placedCount;
+      flat.provenancePlaced = true;  // the node's step.Placement provenance
+    }
+  }
+  // The chain's determinant: the decoder composes the chain (the world transform is the
+  // product of the chain's), and the winding's mirror factor is the chain's (a mirror
+  // ancestor reverses every descendant's winding).
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    const double parentDet = order[i].parent >= 0 ? order[static_cast<std::size_t>(order[i].parent)].detChain : 1.0;
+    order[i].detChain = order[i].detLocal * parentDet;
+  }
 
   // The unique bases (the shapes the instances refer to), first-seen order: meshed once, shared by
   // every instance. A group (an assembly) is always converted; a part is converted, omitted (a cap)
@@ -782,14 +872,15 @@ int runStepImportPackage(const StepImportOptions& options) {
   // bases: converted + omitted + unsupported = bases.
   long long converted = 0, omitted = 0, unsupported = 0;
   long long triangles = 0, degenerate = 0, faces = 0, solidCount = 0, freeFaces = 0;
-  std::map<std::uint32_t, long long> baseMesh;  // the base's tag -> its package mesh
+  std::map<std::pair<std::size_t, int>, long long> baseMesh;  // (the base's index, its mirror
+                                                          // state) -> its package mesh
   const double deflection = options.deflectionMm / units.mmPerUnit;  // millimetres, in the shape's (file's) unit
   const double angleRadians = options.angleDeg * kPi / 180.0;
   progress.phase("tessellate");
-  progress.tasks(static_cast<std::uint32_t>(baseTags.size()));
-  for (const std::uint32_t baseTag : baseTags) {
-    progress.at(baseOrder.at(baseTag));
-    const TDF_Label& base = baseLabels.at(baseTag);
+  progress.tasks(static_cast<std::uint32_t>(baseLabels.size()));
+  for (std::size_t baseIndex_ = 0; baseIndex_ < baseLabels.size(); ++baseIndex_) {
+    progress.at(static_cast<std::uint32_t>(baseIndex_));
+    const TDF_Label& base = baseLabels[baseIndex_];
     if (shapeTool.IsAssembly(base)) {
       ++converted;  // a group, no mesh of its own (its parts carry the geometry)
       continue;
@@ -834,7 +925,10 @@ int runStepImportPackage(const StepImportOptions& options) {
       report.notImported("face", "free-surface", allFaces - solidFaces);
       report.notice("freeFaces", allFaces - solidFaces);
     }
-    SolidMesh mesh = tessellateSolid(shape, deflection, angleRadians, toMetres);
+    // The base's primary variant: tessellated in the base's own frame (the storage frame: the
+    // tessellator's raw winding is the face's orientation under the shape's location, the ADR
+    // 0172 section 7 rule; the instance's mirror is the second factor, the flip argument).
+    SolidMesh mesh = tessellateSolid(shape, deflection, angleRadians, toMetres, false);
     if (!mesh.ok) {
       report.notImported("StepPart", "tessellation-failed", 1);
       report.kernelMessage("tessellation", clip(mesh.error, 64), "error", clip(mesh.error, 240));
@@ -870,56 +964,49 @@ int runStepImportPackage(const StepImportOptions& options) {
       for (auto& c : pm.colors) c = color.color;
     }
     package.meshes.push_back(std::move(pm));
-    baseMesh[baseTag] = static_cast<long long>(package.meshes.size()) - 1;
+    baseMesh[std::make_pair(baseIndex_, 0)] = static_cast<long long>(package.meshes.size()) - 1;
     triangles += mesh.triangles;
     degenerate += mesh.degenerate;
     faces += mesh.faces;
     ++converted;
+    // A mirror instance of this base takes its own variant: the shared winding is single, and
+    // the decoder's negative-determinant transform reverses it (the variant is tessellated
+    // with the winding flipped). The variant's failure (a cap) skips its instances only.
+    bool needMirror = false;
+    for (std::size_t i = 0; i < order.size(); ++i)
+      if (!order[i].isAssembly && order[i].baseIndex == baseIndex_ && order[i].detChain < 0.0) {
+        needMirror = true;
+        break;
+      }
+    if (needMirror) {
+      SolidMesh mirror = tessellateSolid(shape, deflection, angleRadians, toMetres, true);
+      if (mirror.ok && mirror.triangles > 0 && mirror.triangles <= options.maxTrianglesPerElement
+          && triangles + mirror.triangles <= options.maxTotalTriangles) {
+        PackageMesh mpm;
+        mpm.vertices = std::move(mirror.vertices);
+        mpm.triangles = std::move(mirror.indices);
+        mpm.materials.assign(mpm.triangles.size() / 3, 0xFFFFFFFFu);
+        if (color.rgb) {
+          mpm.colors.resize(mpm.triangles.size() / 3);
+          for (auto& c : mpm.colors) c = color.color;
+        }
+        package.meshes.push_back(std::move(mpm));
+        baseMesh[std::make_pair(baseIndex_, 1)] = static_cast<long long>(package.meshes.size()) - 1;
+        triangles += mirror.triangles;
+        degenerate += mirror.degenerate;
+        faces += mirror.faces;
+      } else {
+        report.notice("mirrorVariantOmitted", 1);
+      }
+    }
   }
 
   // The package's nodes: the root (0) and one node per walked entry (the walk order, the package's
-  // node depth following the walk's, capped at 128, the package's depth limit). A part's placement
-  // is not expressible in a package node transform (the decoder admits affine transforms only, and a
-  // det -1 placement is not affine), so a placed part carries the placement baked into its mesh -
-  // the base's mesh in the file's unit scaled to metres, the winding flipped for a mirror placement
-  // as for a reversed face - and an identity placement reuses the base's mesh outright.
-  auto compose = [](const std::array<double, 16>& A, const std::array<double, 16>& B) {
-    std::array<double, 16> C{};
-    for (int r = 0; r < 4; ++r)
-      for (int c = 0; c < 4; ++c) {
-        double v = 0;
-        for (int k = 0; k < 4; ++k) v += A[r * 4 + k] * B[k * 4 + c];
-        C[r * 4 + c] = v;
-      }
-    return C;
-  };
-  auto placementOf = [&](const TDF_Label& L) {
-    std::array<double, 16> W = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-    const TopLoc_Location loc = shapeTool.GetLocation(L);
-    if (!loc.IsIdentity()) {
-      const gp_Trsf& t = loc.Transformation();
-      for (int r = 0; r < 3; ++r)
-        for (int c = 0; c < 4; ++c) W[r * 4 + c] = t.Value(r + 1, c + 1);
-    }
-    return W;
-  };
-  auto det33 = [](const std::array<double, 16>& W) {
-    return W[0] * (W[5] * W[10] - W[6] * W[9]) - W[1] * (W[4] * W[10] - W[6] * W[8]) + W[2] * (W[4] * W[9] - W[5] * W[8]);
-  };
-  auto placementChain = [&](const long long index) {
-    // The part's placement: its label's location, then the parent's, up to the root - BRep's
-    // convention: a component's point is mapped through its location, then the parent's (world =
-    // parent * local, as the application composes it).
-    std::vector<long long> chain;
-    for (long long j = index; j >= 0; --j) {
-      chain.push_back(j);
-      j = order[static_cast<std::size_t>(j)].parent;
-    }
-    std::array<double, 16> W = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-    for (auto it = chain.rbegin(); it != chain.rend(); ++it) W = compose(W, placementOf(order[static_cast<std::size_t>(*it)].label));
-    return W;
-  };
-
+  // node depth following the walk's, capped at 128, the package's depth limit). A part's instances
+  // share the base's mesh (in the base's own frame); the node's transform carries the placement
+  // (the base's location, then the instance's - a mirror's negative determinant is affine, the
+  // decoder admits it), and the application composes the tree (the world transform is the product
+  // of the chain's).
   // The root: the file as the tree's root (ADR 0172 §4: the product structure under one root).
   PackageNode root;
   root.step = 0;
@@ -934,110 +1021,54 @@ int runStepImportPackage(const StepImportOptions& options) {
 
   std::vector<long long> pkgIndex;  // the walk's order -> its package node
   pkgIndex.resize(order.size(), -1);
-  std::map<std::string, long long> baked;  // the base's tag + its placement -> its package mesh
-  long long assemblyCount = 0, referenceCount = 0, placedCount = 0, bodyCount = 0;
+  long long assemblyCount = 0, referenceCount = 0, bodyCount = 0;
   for (std::size_t i = 0; i < order.size(); ++i) {
     const FlatNode& flat = order[i];
     const long long parentPackage = flat.parent >= 0 ? pkgIndex[static_cast<std::size_t>(flat.parent)] : 0;
-    if (!shapeTool.IsAssembly(flat.base) && !baseMesh.count(flat.baseTag)) continue;  // its base did not convert: no node
     PackageNode node;
     node.step = 0;  // the provenance carries the shape's tag; the step is the app's own order
     node.parent = parentPackage;
-    node.provenance.push_back({"step.Entity", static_cast<double>(flat.tag)});
-    const LayerDecision layers = shapeTool.IsAssembly(flat.base) ? LayerDecision{} : layersOf(flat.base);
-    if (shapeTool.IsAssembly(flat.base)) {
+    node.provenance.push_back({"step.Entity", static_cast<double>(std::max(0, flat.tag))});
+    const LayerDecision layerDecision = flat.isAssembly ? LayerDecision{} : layersOf(flat.base, layers);
+    if (flat.isAssembly) {
       ++assemblyCount;
       node.className = "IfcStepAssembly";
       node.name = labelName(flat.label);
       if (node.name.empty()) node.name = "Assembly " + std::to_string(assemblyCount);
       node.role = "assembly";
+      // The assembly's placement (its label's location; its children are placed relative to
+      // it), from the pre-pass (the degenerate fallback applied).
+      node.transform = flat.transform;
     } else {
-      const long long mesh = baseMesh.at(flat.baseTag);
+      // The part's mesh: the base's, shared by every instance of the same handedness. A
+      // mirror instance (its chain's determinant -1, the decoder composes the chain) takes
+      // the mirror variant (tessellated with the winding flipped, the tessellateSolid's
+      // instanceMirror argument); a missing variant (its tessellation did not convert)
+      // has no node.
+      const auto key = std::make_pair(flat.baseIndex, flat.detChain < 0.0 ? 1 : 0);
+      const auto found = baseMesh.find(key);
+      if (found == baseMesh.end()) continue;
+      const long long mesh = found->second;
       ++bodyCount;
       node.className = "IfcStepSolid";
       node.name = labelName(flat.base);  // the part's name (its base's; the file's product name)
       if (node.name.empty()) node.name = "Part " + std::to_string(bodyCount);
       node.role = "element";
       node.mesh = mesh;
-      if (!layers.name.empty()) node.properties.push_back(PackageNode::Property{"step", "Layer", 2, PackageValue(layers.name)});
+      if (!layerDecision.name.empty()) node.properties.push_back(PackageNode::Property{"step", "Layer", 2, PackageValue(layerDecision.name)});
       bool truncated = false;
       const std::string metadata = metadataOf(flat.base, truncated);  // the part's metadata (its base's)
       if (!metadata.empty()) {
         node.properties.push_back(PackageNode::Property{"step", "Metadata", 2, PackageValue(clip(metadata, 2048))});
         if (truncated) report.notice("metadataTruncated", 1);
       }
-      // The part's placement: the base's mesh is at identity, the label's location is its placement.
-      std::array<double, 16> W = placementChain(i);
-      if (std::abs(det33(W)) < 1e-30) {
-        report.notice("degeneratePlacement", 1);  // a degenerate placement: the base's mesh, as written
-        node.mesh = mesh;
-      } else {
-        std::array<double, 16> scaled = W;
-        scaled[3] *= toMetres;
-        scaled[7] *= toMetres;
-        scaled[11] *= toMetres;
-        bool identity = true;
-        for (int r = 0; r < 4; ++r)
-          for (int c = 0; c < 4; ++c) identity = identity && std::abs(scaled[r * 4 + c] - (r == c ? 1.0 : 0.0)) < 1e-12;
-        if (identity) node.mesh = mesh;  // an identity placement: the base's mesh, shared
-        else {
-          placedCount++;
-          node.provenance.push_back({"step.Placement", 1.0});
-          std::vector<double> vertices;
-          const auto& baseVertices = package.meshes[static_cast<std::size_t>(mesh)].vertices;
-          vertices.reserve(baseVertices.size());
-          for (std::size_t k = 0; k < baseVertices.size(); k += 3) {
-            const double x = baseVertices[k];
-            const double y = baseVertices[k + 1];
-            const double z = baseVertices[k + 2];
-            const double px = (W[0] * x + W[1] * y + W[2] * z + W[3]) * toMetres;
-            const double py = (W[4] * x + W[5] * y + W[6] * z + W[7]) * toMetres;
-            const double pz = (W[8] * x + W[9] * y + W[10] * z + W[11]) * toMetres;
-            if (!std::isfinite(px) || !std::isfinite(py) || !std::isfinite(pz)
-                || std::abs(px) > kCoordinateLimit || std::abs(py) > kCoordinateLimit || std::abs(pz) > kCoordinateLimit)
-              return refuse("farFromOrigin", "A placement puts the part over 1e6 m from the origin; it is refused (ADR 0172 §2).");
-            vertices.push_back(px);
-            vertices.push_back(py);
-            vertices.push_back(pz);
-          }
-          const auto& baseTriangles = package.meshes[static_cast<std::size_t>(mesh)].triangles;
-          std::vector<std::uint32_t> t = baseTriangles;
-          if (det33(W) < 0.0)
-            for (std::size_t k = 0; k < t.size(); k += 3) {
-              const std::uint32_t a = t[k + 1];
-              t[k + 1] = t[k + 2];
-              t[k + 2] = a;
-            }
-          // The budget: a baked instance's triangles count against the package's total.
-          const long long bakedTriangles = static_cast<long long>(t.size() / 3);
-          if (triangles + bakedTriangles > options.maxTotalTriangles) {
-            report.notImported("StepPart", "triangleBudget", 1);
-            report.notice("triangleBudgetApplied", 1);
-            continue;  // the instance is omitted (its base was converted; its share is reported)
-          }
-          // The same base at the same placement is the same mesh (the instances share it).
-          std::string key = std::to_string(flat.baseTag) + ":";
-          for (double v : scaled) key += std::to_string(v) + ";";
-          auto found = baked.find(key);
-          if (found != baked.end()) node.mesh = found->second;
-          else {
-            PackageMesh pm;
-            pm.vertices = std::move(vertices);
-            pm.triangles = std::move(t);
-            pm.materials.assign(pm.triangles.size() / 3, 0xFFFFFFFFu);
-            const ColorDecision c = colorOf(flat.label);  // the instance's (its own, or the inherited)
-            if (c.alphaDropped) report.notice("colorAlphaDropped", 1);
-            if (c.rgb) {
-              pm.colors.resize(pm.triangles.size() / 3);
-              for (auto& cc : pm.colors) cc = c.color;
-            }
-            node.mesh = static_cast<long long>(package.meshes.size());
-            baked[key] = node.mesh;
-            triangles += bakedTriangles;
-            package.meshes.push_back(std::move(pm));
-          }
-        }
-      }
+      // The part's placement (ADR 0172 section 4): a point of the base's mesh (in the base's
+      // own frame, in metres) is mapped through the base's location, then the label's (the
+      // reference's instance placement); the node's transform is the local one (the pre-pass
+      // applied the degenerate fallback, the placement count and the step.Placement
+      // provenance were tallied there, so a node is never skipped on the transform).
+      node.transform = flat.transform;
+      if (flat.provenancePlaced) node.provenance.push_back({"step.Placement", 1.0});
       if (flat.reference) {
         ++referenceCount;
         node.provenance.push_back({"step.Reference", 1.0});
@@ -1045,7 +1076,7 @@ int runStepImportPackage(const StepImportOptions& options) {
     }
     node.hidden = !XCAFDoc_ColorTool::IsVisible(flat.label);
     if (node.hidden) report.notice("invisibleShapes", 1);
-    if (layers.hidden) {
+    if (layerDecision.hidden) {
       node.hidden = true;
       report.notice("layerHidden", 1);  // the file's layer visibility (an off layer hides its shapes)
     }
@@ -1063,7 +1094,7 @@ int runStepImportPackage(const StepImportOptions& options) {
   r.key("counts").beginObject()
       .field("shapes", static_cast<long long>(order.size()))
       .field("solids", solidCount)
-      .field("slots", static_cast<long long>(baseTags.size()))
+      .field("slots", static_cast<long long>(baseLabels.size()))
       .field("assemblies", assemblyCount)
       .field("references", referenceCount)
       .field("placed", placedCount)

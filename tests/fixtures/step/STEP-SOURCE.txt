@@ -11,6 +11,9 @@ Self-generated corpus of ADR 0172 section 7, written by this repository's own
 | `sketchyup-step-cylinder.step` | a cylinder of radius 5 and height 20 at the origin |
 | `sketchyup-step-assembly.step` | an assembly of the box and the cylinder |
 | `spaced-units.step` | hand-written: the unit entities with spaces in the parts (`SI_UNIT ( .MILLI., .METRE. )`) and no shapes — the scan's whitespace-tolerance case |
+| `sketchyup-step-placed.step` | the box translated by (5, 10, 15) mm, written with the location (the generator's `SetLocation`); the 7.9.3 writer bakes the location into the coordinates (the ADR 0172 section 7 measurement), so the file's geometry is the box at (5, 10, 15) mm and the reader's location is the identity |
+| `sketchyup-step-mirror.step` | the box mirrored about the OX line at the origin (the writer's `gp_Ax1` mirror is the point symmetry: y and z flip), written with `BRepBuilderAPI_Transform` (the det -1 placement is not expressible in the step subset — the mirror is the faces' orientation, ADR 0172 section 7); the tessellated winding is the box's own (the positive signed volume) |
+| `sketchyup-step-placed-assembly.step` | hand-written from the assembly fixture: the box component's `AXIS2_PLACEMENT_3D` offset to (50, 0, 0) mm — the ADR 0172 section 4 case (the file's local transformation applied as the instance placement); the 7.9.3 reader preserves it as the label's location, so the import's package node carries the (0.05, 0, 0) m transform and the report counts `placed` |
 
 - Generator: `sketchyup-ifc-worker --write-step tests/fixtures/step` (commit `f1ad42f8`,
   the build of 2026-10-23 in `sketchyup-ci-pinned:r097a-ifc`).
@@ -26,6 +29,9 @@ Self-generated corpus of ADR 0172 section 7, written by this repository's own
     unit entity replaced in the context by a `CONVERSION_BASED_UNIT('INCH')` unit - the shape is
     10 x 20 x 30 inches, 254 x 508 x 762 mm. 00f34a6005943c5257bc1611aa4efd23d3abdf0fb7707c36548e0cbb6ef59e8c
   - `spaced-units.step` — hand-written (no generation); its only content is the header and the three unit entities.
+  - `sketchyup-step-placed.step`  a15232f7be4de22e5d6a40affbd1382aec9677d72afb3fb75271bd5e974e611b
+  - `sketchyup-step-mirror.step`  56d8558fd4e9abeaf02fddccac049f90e6d53a7ba7a359220a553c3ec09229e6
+  - `sketchyup-step-placed-assembly.step` — hand-written (2026-10-24, R098.b): 468943a1e9dd4cd4fd87fd77f032de4c64be0eee58fdcb5e025e054e9ea62bfa
 
 The `FILE_NAME` carries a wall-clock timestamp, so a fresh write is not byte-identical
 to the committed files; the fixtures are regression **inputs** (`tests/ifc_step_tests.cpp`
@@ -34,3 +40,7 @@ Geometry ground truth: the box's bounding box is (0,0,0)-(10,20,30) and its six 
 the cylinder is one solid with three faces; the assembly is one shape with two solids.
 The inch fixture is the same box, the unit in inches: its bounding box is
 (0,0,0)-(254,508,762) mm at import (25.4 mm per unit).
+The placed fixture's bounding box is (5,10,15)-(15,30,45) mm (the writer bakes the
+location); the mirror's is (0,-20,-30)-(10,0,0) mm (the point symmetry about the OX
+line); the placed-assembly's is
+(-5,-5,0)-(60,20,30) mm (the box at (50,0,0) mm, the cylinder at the origin).
