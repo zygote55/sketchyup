@@ -42,5 +42,6 @@ class IfcImportDialog : public Settled<QDialog> {
     qint64 bytes_ = 0;
     QString schema_;
     IfcProbe probe_;
+    void applyProbeBanner(); // the banner is the probe's own warning: shown when Limited, hidden otherwise
 };
 } // namespace sketchy

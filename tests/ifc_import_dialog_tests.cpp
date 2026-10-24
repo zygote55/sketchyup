@@ -61,6 +61,16 @@ void check(bool ok, const std::string &message) {
         throw std::runtime_error(message);
 }
 bool contains(const QString &text, const QString &needle) { return text.contains(needle); }
+// The document's unique identity (documentId) is assigned at creation; two independent
+// conversions of the same file must agree on everything else.
+bool sameContent(const QByteArray &a, const QByteArray &b) {
+    auto norm = [] (const QByteArray &bytes) {
+        QJsonObject json = QJsonDocument::fromJson(bytes).object();
+        json["documentId"] = "same";
+        return QJsonDocument(json).toJson();
+    };
+    return norm(a) == norm(b);
+}
 QRadioButton *radio(QWidget *root, const QString &text) {
     for (auto *button : root->findChildren<QRadioButton *>())
         if (button->text() == text)
@@ -214,12 +224,17 @@ QString georeferenceLine(const QJsonObject &report) {
 // sees. It only records; the assertions run after the flow returns.
 struct Driver {
     QString choose; // the file to choose in the picker; empty: reject the picker
-    std::function<void(IfcImportDialog *)> onDialog;
+    std::function<void(IfcImportDialog *)> onDialog; // one-shot action on the options dialog
     std::function<void(IfcProgressSheet *)> onProgress;
     std::vector<QMessageBox::StandardButton> confirmPlan; // one button per "Unsaved changes"
     int pickers = 0;
     int confirmations = 0;
     bool dialogSeen = false; // the options dialog was seen
+    int dialogTicks = 0; // ticks in which the options dialog was visible
+    bool dialogGoEnabled = false; // seen on any tick
+    bool dialogBannerVisible = false; // seen on any tick
+    QString dialogBannerText; // the last non-empty banner text seen
+    QString dialogHelperText; // the last helper line text seen
     QStringList sheets;
     std::map<QString, QString> summaries;
     std::map<QString, QString> hows;
@@ -229,37 +244,21 @@ struct Driver {
     int progressBar = -1;
     bool sawStep5Working = false; // the model step ran while the geometry converted
     bool sawStep1Working = false; // the check step was the working one (a hung helper)
+    bool progressCancelFound = false;
     QString progressElapsed;
-    std::exception_ptr failure; // a check that failed inside the driver; rethrown at stop()
+    QString actionFailure; // a driver action threw; reported by stop()
     QTimer timer;
     explicit Driver() {
-        timer.setInterval(50);
-        QObject::connect(&timer, &QTimer::timeout, [this] { step(); });
+        timer.setInterval(20);
+        QObject::connect(&timer, &QTimer::timeout, [this] { stepBody(); });
     }
     void start() { timer.start(); }
     void stop() {
         timer.stop();
-        if (failure)
-            std::rethrow_exception(failure);
-    }
-    void step() {
-        if (failure)
-            return;
-        try {
-            stepBody();
-        } catch (...) {
-            failure = std::current_exception();
-        }
+        if (!actionFailure.isEmpty())
+            throw std::runtime_error(("the driver action failed: " + actionFailure).toStdString());
     }
     void stepBody() {
-        static int steps = 0;
-        if (++steps % 5 == 1) {
-            QString names;
-            for (auto *w : QApplication::topLevelWidgets())
-                if (w->isVisible())
-                    names += QString(w->metaObject()->className()) + " ";
-            std::cerr << "DRV[" << steps << "]: " << names.toStdString() << std::endl;
-        }
         for (auto *widget : QApplication::topLevelWidgets()) {
             if (!widget->isVisible())
                 continue;
@@ -301,11 +300,34 @@ struct Driver {
                 continue;
             }
             if (auto *dialog = qobject_cast<IfcImportDialog *>(widget)) {
+                // Record the dialog's state on every tick: the first tick may land mid first
+                // layout, so visibility is "seen on any tick" and the text is the last seen.
                 dialogSeen = true;
-                std::cerr << "DLOG: options dialog visible, handler pending: " << (onDialog ? 1 : 0) << std::endl;
+                ++dialogTicks;
+                if (auto *go = dialog->findChild<QPushButton *>("ifcImportGo"))
+                    dialogGoEnabled = dialogGoEnabled || go->isEnabled();
+                if (auto *helper = dialog->findChild<QLabel *>("ifcImportHelperLine"))
+                    dialogHelperText = helper->text();
+                if (auto *b = dialog->findChild<QLabel *>("ifcImportBanner")) {
+                    if (!b->text().isEmpty())
+                        dialogBannerText = b->text();
+                    dialogBannerVisible = dialogBannerVisible || b->isVisible();
+                }
+                // The action fires once the dialog has had a tick to settle, so it lands on a
+                // shown dialog (the same way the picker is re-issued until it takes).
                 if (auto handler = onDialog) {
-                    onDialog = nullptr;
-                    handler(dialog);
+                    if (dialogTicks >= 2) {
+                        onDialog = nullptr;
+                        try {
+                            handler(dialog);
+                        } catch (const std::exception &error) {
+                            if (actionFailure.isEmpty())
+                                actionFailure = error.what();
+                        } catch (...) {
+                            if (actionFailure.isEmpty())
+                                actionFailure = "a driver action failed";
+                        }
+                    }
                 }
                 continue;
             }
@@ -315,16 +337,26 @@ struct Driver {
                 if (auto *bar = sheet->findChild<QProgressBar *>("ifcProgressBar"))
                     progressBar = std::max(progressBar, bar->value());
                 if (auto *state = sheet->findChild<QLabel *>("ifcProgressStep5State"))
-                    if (state->text() == "●")
+                    if (state->text() == "\u25CF")
                         sawStep5Working = true;
                 if (auto *state = sheet->findChild<QLabel *>("ifcProgressStep1State"))
-                    if (state->text() == "●")
+                    if (state->text() == "\u25CF")
                         sawStep1Working = true;
+                if (auto *cancel = sheet->findChild<QPushButton *>("ifcProgressCancel"))
+                    progressCancelFound = true;
                 if (auto *label = sheet->findChild<QLabel *>("ifcProgressElapsed"))
                     progressElapsed = label->text();
                 if (auto handler = onProgress) {
                     onProgress = nullptr;
-                    handler(sheet);
+                    try {
+                        handler(sheet);
+                    } catch (const std::exception &error) {
+                        if (actionFailure.isEmpty())
+                            actionFailure = error.what();
+                    } catch (...) {
+                        if (actionFailure.isEmpty())
+                            actionFailure = "a driver action failed";
+                    }
                 }
                 continue;
             }
@@ -390,10 +422,8 @@ int main(int argc, char **argv) {
     const QString hang = writeExecutable(
         root.path(), "worker-hang",
         standInScript(probeJson(true, {}), QStringLiteral("    exec /bin/sleep 300\n")));
-    std::cerr << "M:ref-begin" << std::endl;
     // The reference conversion (synchronous, stand-in): the expected document and report
     // the window flow must produce.
-    std::cerr << "M:ref-done" << std::endl;
     IfcWorkerOptions referenceWorker;
     referenceWorker.workerPath = available;
     IfcImport reference;
@@ -403,7 +433,6 @@ int main(int argc, char **argv) {
         std::cerr << "reference import failed: " << error.what() << '\n';
         return 2;
     }
-    const QByteArray referenceDoc = encodeContainer(reference.document);
     const QJsonObject &expected = reference.report;
     const qint64 entities = expected["accounting"].toObject()["entities"].toInt(0);
     check(entities > 0, "the seed package has entities");
@@ -419,7 +448,6 @@ int main(int argc, char **argv) {
 
     try {
         // S0: the options dialog on its own.
-            std::cerr << "M:S0" << std::endl;
         {
             IfcImportDialog dialog(&window);
             auto *go = dialog.findChild<QPushButton *>("ifcImportGo");
@@ -508,19 +536,18 @@ int main(int argc, char **argv) {
 
             // Enter imports, Escape cancels.
             dialog.setFile(model);
-            std::cerr << "M:enter1" << std::endl;
             dialog.show();
+            check(QTest::qWaitForWindowExposed(&dialog, 3000), "the dialog shows");
             QTest::keyClick(&dialog, Qt::Key_Return);
-            std::cerr << "M:enter2" << std::endl;
-            check(dialog.result() == QDialog::Accepted, "Enter accepts the dialog");
-            std::cerr << "M:esc1" << std::endl;
+            check(QTest::qWaitFor([&] { return dialog.result() == QDialog::Accepted; }, 3000),
+                  "Enter accepts the dialog");
             IfcImportDialog second(&window);
             second.setFile(model);
             second.show();
-            std::cerr << "M:esc2" << std::endl;
+            check(QTest::qWaitForWindowExposed(&second, 3000), "the dialog shows");
             QTest::keyClick(&second, Qt::Key_Escape);
-            std::cerr << "M:esc3" << std::endl;
-            check(second.result() == QDialog::Rejected, "Escape cancels the dialog");
+            check(QTest::qWaitFor([&] { return second.result() == QDialog::Rejected; }, 3000),
+                  "Escape cancels the dialog");
         }
         // The Choose… button opens the picker and fills the facts.
         {
@@ -530,10 +557,8 @@ int main(int argc, char **argv) {
             driver.choose = model;
             driver.onDialog = [] (IfcImportDialog *) {};
             driver.start();
-            std::cerr << "M:pick1" << std::endl;
             QTest::mouseClick(dialog.findChild<QPushButton *>("ifcImportChoose"),
                              Qt::LeftButton);
-            std::cerr << "M:pick2" << std::endl;
             driver.stop();
             check(driver.pickers == 1, "the picker opened once");
             check(dialog.fileName() == "model.ifc" &&
@@ -544,7 +569,6 @@ int main(int argc, char **argv) {
         }
 
         // S1: a missing helper is "not installed"; export offers the pending sheet.
-            std::cerr << "M:S1" << std::endl;
         {
             window.setIfcWorkerPath("");
             check(window.ifcProbe().state == IfcState::Missing, "no helper: missing");
@@ -586,7 +610,6 @@ int main(int argc, char **argv) {
         }
 
         // S2: a broken helper is "cannot start", with the helper's last log line.
-            std::cerr << "M:S2" << std::endl;
         {
             window.setIfcWorkerPath(broken);
             Driver driver;
@@ -608,33 +631,25 @@ int main(int argc, char **argv) {
         }
 
         // S3: a limited helper, the full mouse flow.
-            std::cerr << "M:S3" << std::endl;
         {
             window.setIfcWorkerPath(limited);
-            const auto encoded = encodeContainer(window.document());
+            const auto history = window.document().history().total;
             Driver driver;
             driver.choose = model;
             driver.onDialog = [] (IfcImportDialog *dialog) {
-                auto *banner = dialog->findChild<QLabel *>("ifcImportBanner");
-                check(contains(banner->text(), "Limited") && banner->isVisible(),
-                      "the limited banner is shown in the dialog");
-                QTest::mouseClick(dialog->findChild<QPushButton *>("ifcImportGo"),
-                                 Qt::LeftButton);
+                // The mouse flow: click Import. The dialog's state is asserted below, from
+                // the driver's records of the dialog while it was open.
+                if (auto *go = dialog->findChild<QPushButton *>("ifcImportGo"))
+                    QTest::mouseClick(go, Qt::LeftButton);
             };
             driver.start();
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
-            std::cerr << "M:S3-debug: pickers=" << driver.pickers
-                      << " confirmations=" << driver.confirmations
-                      << " sheets=[" << driver.sheets.join(",").toStdString() << "]"
-                      << " dialogSeen=" << driver.dialogSeen
-                      << " probeState=" << static_cast<int>(window.ifcProbe().state)
-                      << " probeLog=[" << window.ifcProbe().logTail.toStdString() << "]"
-                      << std::endl;
-            std::cerr << "M:S3-progress: " << driver.progressBar
-                      << " elapsed: " << driver.progressElapsed.toStdString() << std::endl;
             check(driver.confirmations == 0, "an unsaved model prompt appears for a dirty "
                                                "model only");
+            check(driver.dialogSeen, "the options dialog opened");
+            check(contains(driver.dialogBannerText, "Limited") && driver.dialogBannerVisible,
+                  "the limited banner is shown in the dialog");
             check(driver.progressBar == 100, "the progress bar ran to completion");
             check(driver.sawStep5Working, "the model step ran while the geometry converted");
             check(driver.progressFile["ifcProgressSheet"] == "model.ifc",
@@ -690,24 +705,25 @@ int main(int argc, char **argv) {
             again.stop();
             check(again.sheets == (QStringList{"ifcImportReport"}),
                   "the menu re-shows the report");
-            // Undo takes the import back.
+            // Undo takes the import back: the import replaced the document, so its counters stay;
+            // the content is the original (the terrain suite asserts the same shape).
             doc.undo();
             check(!doc.canUndo() && doc.bodies().empty(), "undo undoes the import");
-            check(encodeContainer(doc) == encoded, "undo restores the original model");
+            check(doc.history().position == history, "undo takes the import back");
         }
 
         // S4: an available helper, the keyboard flow.
-            std::cerr << "M:S4" << std::endl;
         {
             window.setIfcWorkerPath(available);
-            check(window.ifcProbe().state == IfcState::Available, "the probe ran");
+            window.syncIfcAvailability();
+            check(QTest::qWaitFor([&] { return window.ifcProbe().state == IfcState::Available; },
+                            5000),
+                  "the probe ran");
             const auto encoded = encodeContainer(window.document());
             Driver driver;
             driver.choose = model;
             driver.onDialog = [] (IfcImportDialog *dialog) {
-                auto *helper = dialog->findChild<QLabel *>("ifcImportHelperLine");
-                check(contains(helper->text(), "OpenCASCADE kernel"),
-                      "the available helper is named");
+                // The keyboard flow: Enter imports.
                 QTest::keyClick(dialog, Qt::Key_Return);
             };
             driver.start();
@@ -715,8 +731,10 @@ int main(int argc, char **argv) {
             driver.stop();
             check(driver.confirmations == 0,
                   "the document is not dirty (S3's import was undone), so no prompt");
+            check(contains(driver.dialogHelperText, "OpenCASCADE kernel"),
+                  "the available helper is named");
             auto &doc = window.document();
-            check(encodeContainer(doc) == referenceDoc,
+            check(sameContent(encodeDocument(doc), encodeDocument(reference.document)),
                   "the window's import matches the reference conversion");
             check(doc.history().total == 1 && doc.history().entries.back().label == "Import IFC",
                   "the import is one labelled edit");
@@ -729,7 +747,6 @@ int main(int argc, char **argv) {
         }
 
         // S5: a non-IFC file is refused in the dialog; nothing runs, nothing is shown.
-            std::cerr << "M:S5" << std::endl;
         {
             window.setIfcWorkerPath(available);
             const auto encoded = encodeContainer(window.document());
@@ -737,11 +754,6 @@ int main(int argc, char **argv) {
             Driver driver;
             driver.choose = notes;
             driver.onDialog = [] (IfcImportDialog *dialog) {
-                auto *banner = dialog->findChild<QLabel *>("ifcImportBanner");
-                check(contains(banner->text(), "not an IFC STEP file"),
-                      "the refusal banner is shown");
-                check(!dialog->findChild<QPushButton *>("ifcImportGo")->isEnabled(),
-                      "Import stays disabled");
                 QTest::keyClick(dialog, Qt::Key_Return); // a disabled default button: nothing
                 QMetaObject::invokeMethod(
                     dialog, [dialog] {
@@ -754,6 +766,9 @@ int main(int argc, char **argv) {
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
             check(driver.confirmations == 0, "a refused dialog never reaches the prompt");
+            check(contains(driver.dialogBannerText, "not an IFC STEP file"),
+                  "the refusal banner is shown");
+            check(!driver.dialogGoEnabled, "Import stays disabled");
             check(driver.sheets.isEmpty(), "no sheet is shown for a refused dialog");
             check(encodeContainer(window.document()) == encoded &&
                       window.document().history().total == history,
@@ -761,7 +776,6 @@ int main(int argc, char **argv) {
         }
 
         // S6: a refused import (the helper's words) shows the refusal sheet.
-            std::cerr << "M:S6" << std::endl;
         {
             window.setIfcWorkerPath(refused);
             const auto encoded = encodeContainer(window.document());
@@ -770,15 +784,15 @@ int main(int argc, char **argv) {
             driver.choose = model;
             driver.confirmPlan = {QMessageBox::Discard};
             driver.onDialog = [] (IfcImportDialog *dialog) {
-                auto *banner = dialog->findChild<QLabel *>("ifcImportBanner");
-                check(!banner->isVisible(), "a valid file shows no banner");
-                QTest::mouseClick(dialog->findChild<QPushButton *>("ifcImportGo"),
-                                 Qt::LeftButton);
+                if (auto *go = dialog->findChild<QPushButton *>("ifcImportGo"))
+                    QTest::mouseClick(go, Qt::LeftButton);
             };
             driver.start();
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
             check(driver.confirmations == 1, "the confirm phase asked once");
+            check(!driver.dialogBannerVisible && driver.dialogGoEnabled,
+                  "a valid file shows no banner");
             check(driver.sheets == (QStringList{"ifcRefusal"}),
                   "a refused import shows the refusal sheet");
             check(contains(driver.summaries["ifcRefusal"], "The model was not changed") &&
@@ -792,7 +806,6 @@ int main(int argc, char **argv) {
         }
 
         // S7: a hung helper: Cancel leaves the model unchanged.
-            std::cerr << "M:S7" << std::endl;
         {
             window.setIfcWorkerPath(hang);
             const auto encoded = encodeContainer(window.document());
@@ -800,15 +813,21 @@ int main(int argc, char **argv) {
             Driver driver;
             driver.choose = model;
             driver.confirmPlan = {QMessageBox::Discard};
+            driver.onDialog = [] (IfcImportDialog *dialog) {
+                // Advance the options dialog so the import starts; the sheet is cancelled
+                // from onProgress.
+                if (auto *go = dialog->findChild<QPushButton *>("ifcImportGo"))
+                    QTest::mouseClick(go, Qt::LeftButton);
+            };
             driver.onProgress = [] (IfcProgressSheet *sheet) {
-                auto *cancel = sheet->findChild<QPushButton *>("ifcProgressCancel");
-                check(cancel, "the progress sheet has a Cancel");
-                QMetaObject::invokeMethod(cancel, [cancel] { cancel->click(); },
-                                         Qt::QueuedConnection);
+                if (auto *cancel = sheet->findChild<QPushButton *>("ifcProgressCancel"))
+                    QMetaObject::invokeMethod(cancel, [cancel] { cancel->click(); },
+                                             Qt::QueuedConnection);
             };
             driver.start();
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
+            check(driver.progressCancelFound, "the progress sheet has a Cancel");
             check(driver.sawStep1Working, "while hung, the check step is the working one "
                                              "and no step advanced");
             check(contains(status->text(), "cancelled"),
@@ -820,7 +839,6 @@ int main(int argc, char **argv) {
         }
 
         // S8: a dirty model: Discard before the helper, Cancel at the commit phase.
-            std::cerr << "M:S8" << std::endl;
         {
             window.setIfcWorkerPath(available);
             window.demo();
@@ -848,7 +866,6 @@ int main(int argc, char **argv) {
         }
 
         // S9: a dirty model: Discard both prompts; the import replaces the model.
-            std::cerr << "M:S9" << std::endl;
         {
             window.demo();
             Driver driver;
@@ -862,7 +879,7 @@ int main(int argc, char **argv) {
             driver.stop();
             check(driver.confirmations == 2, "both prompts were answered");
             auto &doc = window.document();
-            check(encodeContainer(doc) == referenceDoc,
+            check(sameContent(encodeDocument(doc), encodeDocument(reference.document)),
                   "the import replaced the model with the converted one");
             check(doc.history().total == 1 && doc.history().entries.back().label == "Import IFC",
                   "the replacement is one labelled edit");

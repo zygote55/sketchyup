@@ -160,13 +160,20 @@ void IfcImportDialog::setProbe(const IfcProbe &probe) {
     if (probe.state == IfcState::Available) {
         helperLine->setText(QString("✓ IfcOpenShell %1 · OpenCASCADE kernel").arg(probe.ifcOpenShell));
         helperLine->setStyleSheet("color: #2e7d32;");
-        banner->hide();
     } else if (probe.state == IfcState::Limited) {
         helperLine->setText(QString("⚠ IfcOpenShell %1 · kernel: none").arg(probe.ifcOpenShell));
         helperLine->setStyleSheet("color: #b26a00;");
+    }
+    applyProbeBanner();
+}
+void IfcImportDialog::applyProbeBanner() {
+    // The Limited warning is the probe's own: it outlives the file choice, which owns only the refusal.
+    if (probe_.state == IfcState::Limited) {
         banner->setText("⚠ Limited: the OpenCASCADE kernel isn't installed. Only tessellated geometry will be converted.");
-        banner->setStyleSheet("color: #b26a00;");
+        banner->setStyleSheet("color: #b26a00");
         banner->show();
+    } else {
+        banner->hide();
     }
 }
 void IfcImportDialog::setFile(const QString &path) {
@@ -178,7 +185,7 @@ void IfcImportDialog::setFile(const QString &path) {
     try {
         schema_ = checkIfcSource(path);
         fileFacts->setText(QString("%1 · %2").arg(schema_).arg(humanSize(bytes_)));
-        banner->hide();
+        applyProbeBanner(); // a valid file clears any refusal; the probe warning comes back
         if (importButton)
             importButton->setEnabled(true);
     } catch (const IfcImportError &error) {
