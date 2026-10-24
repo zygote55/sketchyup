@@ -240,13 +240,14 @@ std::optional<std::pair<double, double>> packageVolumeAndArea(const QString &pat
         const uint8_t *data = reinterpret_cast<const uint8_t *>(bytes.constData()) + 24 + manifestBytes + offset;
         std::vector<std::array<double, 3>> vertices;
         vertices.reserve(n);
-        for (int i = 0; i < n; ++i)
+        for (int i = 0; i < n; ++i) {
+            std::array<double, 3> coordinate{};
             for (int k = 0; k < 3; ++k) {
                 const uint64_t bits = qFromLittleEndian<uint64_t>(data + (int64_t(i) * 3 + k) * 8);
-                double v;
-                std::memcpy(&v, &bits, sizeof v);
-                vertices.emplace_back().fill(v);
+                std::memcpy(&coordinate[k], &bits, sizeof coordinate[k]);
             }
+            vertices.push_back(coordinate);
+        }
         for (int i = 0; i < t; ++i) {
             const int a = qFromLittleEndian<uint32_t>(data + n * 24 + i * 12);
             const int b = qFromLittleEndian<uint32_t>(data + n * 24 + i * 12 + 4);
