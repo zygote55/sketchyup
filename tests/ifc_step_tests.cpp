@@ -102,6 +102,29 @@ int main(int argc, char **argv) {
         }
     }
 
+    // 1b. The committed fixtures (tests/fixtures/step/): the corpus pinned in the repository.
+    // The FILE_NAME carries a wall-clock timestamp, so the fixture is a regression input, not a
+    // byte comparison of the fresh write: the probe and the import must see the same geometry.
+    {
+        const auto fixture = [&](const char *name) {
+            return run({worker, "--probe-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/") + name}).json;
+        };
+        const auto boxFixture = fixture("sketchyup-step-box.step");
+        const auto boxShapes = boxFixture.value("shapes").toArray();
+        check(boxShapes.size() == 1 && boxShapes[0].toObject().value("solids").toInt() == 1
+              && boxShapes[0].toObject().value("faces").toInt() == 6, "fixture box: one solid, six faces");
+        if (boxShapes.size() == 1)
+            boxGeometryCheck(boxShapes[0].toObject(), "fixture box");
+        const auto boxImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-box.step")});
+        check(boxImport.code == 0 && boxImport.json.value("status").toString() == "ok", "fixture import: the box reads with the declared unit");
+        const auto cylinderFixture = fixture("sketchyup-step-cylinder.step");
+        const auto cylShapes = cylinderFixture.value("shapes").toArray();
+        check(cylShapes.size() == 1 && cylShapes[0].toObject().value("faces").toInt() == 3, "fixture cylinder: one solid, three faces");
+        const auto assemblyFixture = fixture("sketchyup-step-assembly.step");
+        const auto asmShapes = assemblyFixture.value("shapes").toArray();
+        check(asmShapes.size() == 1 && asmShapes[0].toObject().value("solids").toInt() == 2, "fixture assembly: one shape, two solids");
+    }
+
     // 2. The box, probed with the round trip (ADR 0172 section 2).
     const QString box = temp.filePath("sketchyup-step-box.step");
     const QJsonObject probe = run({worker, "--probe-step", box, "--round-trip-directory", temp.filePath("rt")}).json;
