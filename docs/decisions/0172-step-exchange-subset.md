@@ -468,6 +468,110 @@ remain in R098.b/c; this is the verified boundary they build on.
   scan's `find` checks were inverted before this (a present `SI_UNIT` was treated as
   absent and vice versa), so the raw report of a conversion-based entity was wrong.
 
+## Implementation notes (R098.a2, 2026-10-24)
+
+The tessellation and the conversion package land in the same helper: `--import-step`
+gains `--output PKG` (plus `--step-deflection-mm`, `--step-angle-deg`,
+`--step-max-triangles`, `--step-max-total-triangles`; `--step-length-unit` as in the
+skeleton). The unit policy of the skeleton stands, and the transfer is the unit
+conversion: the reader's geometry is in the unit the file applies, the package
+coordinates are in metres, and the only scale step is `metresPerUnit = mmPerUnit
+* 0.001`. Each transferred solid is tessellated with
+`BRepMesh_IncrementalMesh(solid, deflection, Standard_False, angle, Standard_False)`
+(the constructor performs the meshing; not parallel, so the output is deterministic)
+and collected per face (`BRep_Tool::Triangulation` with the face's
+`TopLoc_Location`; the winding flipped when exactly one of the face's `TopAbs_REVERSED`
+orientation and the location's mirror handedness applies — a reversed face under a
+mirror location is reversed twice and faces out — so the solid's triangles face out); a
+collapsed triangle is counted as
+degenerate, never silently dropped. The package is the existing writer: one mesh per
+transferred solid, one `IfcStepSolid` node per solid flat under one `IfcStepAssembly`
+root (the assembly and instance mapping is R098.b), every triangle's material the
+package's `none` (STEP colour and material mapping is R098.b), no edges, no colours.
+A solid beyond the package's 1e6 m coordinate bound refuses the whole file (as the
+IFC import's `farFromOrigin`), not a clipped mesh. The caps of decision 6 are the
+options' defaults (100,000 per element, 1,000,000 total): a solid over the per-element
+cap is omitted and reported, a file over the total cap stops converting and says so
+in the report (`triangleCapApplied` / `triangleBudgetApplied`), and a file in which
+nothing converted is refused with nothing written (`nothingImported`). Solid-less
+shapes are omitted and reported (`no-solid`); their free faces are reported as not
+imported (`free-surface`), so the accounting identity holds with the solids as the
+counted entities.
+
+- **Verified (the pinned OCCT 7.9.3 build, the worker's own packages, the
+  application's checked decoder from `src/io/ifc_package.cpp`):** the three corpus
+  packages decode — box 1 mesh, 24 vertices, 12 triangles, volume 6e-6 m^3 and area
+  2.2e-3 m^2, both exact to the analytic values; cylinder 92 triangles, volume
+  1.55291e-6 m^3 (0.989x the 1.5708e-6 analytic) and area 7.81817e-4 m^2 (0.995x
+  the 7.85398e-4 analytic); the assembly 2 meshes, 104 triangles, the sum of the two.
+  The committed `inch-units.step` comes out 0.254 x 0.508 x 0.762 m (volume
+  0.0983224 m^3, exact): the reader's 25.4 mm-per-unit conversion stands, and the
+  declared unit wins over a mismatching `--step-length-unit` (`units.applied` is
+  `declared`). A file the reader resolves no unit for and no option for is refused
+  (`units`, a unit is never guessed); with the option it imports at the option's
+  unit (`units.applied` is `option`). A deflection of 0 refuses (`deflection`); a
+  solid beyond 1e6 m refuses (`farFromOrigin`); the per-element cap refuses a file
+  in which the only solid would exceed it (`nothingImported`, nothing written), and
+  the total cap omits the excess solids with the report's notice. Without `--output`
+  the import is the skeleton's metadata, unchanged. `tests/ifc_step_tests.cpp` and
+  `tests/ifc_step_worker_tests.py` cover it (E1: the three corpus packages through
+  the application's decoder against the analytic volume and area — 1e-3 for the box
+  and the inch box, the deflection's tolerance for the cylinder — and the inch box
+  at 0.254 x 0.508 x 0.762 m; the caps; the unit policy; the metadata unchanged).
+- **Section 6, measured (the pinned build, single threaded, 8 GiB address space,
+  2026-10-24, re-measured the same day against a generator that wires each copy as a
+  distinct product):** the fixture model (the 3-file corpus, 104 triangles) tessellates in
+  0.03 s wall (read included) — the budget of 10 s with progress holds with a wide
+  margin. A generated 79.8 MiB file — 5,000 products, each a fresh
+  `PRODUCT`/`PRODUCT_DEFINITION_SHAPE`/`SHAPE_DEFINITION_REPRESENTATION` pair on its own
+  `AXIS2_PLACEMENT_3D` (the box solid 500 m away from the previous copy), 1,690,012
+  entities — parses and transfers in 13.89 s (peak 799 MiB), and packages the 5,000
+  transferred solids (60,000 triangles) in 18.08 s with no `ERR` from the reader and
+  5,000 of 5,000 converted. **The parse budget of 3 s (64 MiB) is missed** (13.89 s at
+  79.8 MiB, about 11 s at 64 MiB scaled linearly); the 128 MiB case cannot be measured at
+  all (a 10,000-copy file is 140.5 MiB, over the 128 MiB input refusal). The IFC
+  precedent (0.76 s for 1,000,000 instances) is a different format's cost curve, and this
+  measurement is the STEP one the budget line asked to be measured before it is frozen.
+  An earlier 78.3 MiB measurement (6.41 s parse) on a first draft of the generator is
+  discarded: that draft left the repeated solid blocks unreferenced by any
+  `PRODUCT_DEFINITION_SHAPE`, so the reader deduplicated them to one shape and the number
+  measured the parse, not the transfer; the wired 5,000-product file above is the honest
+  one.
+- **The mirrored solid (the review's winding question):** a placement in the step subset
+  is a proper isometry — a det -1 placement is not expressible (`AXIS2_PLACEMENT_3D`
+  carries a right-handed frame), and a degenerate one is normalised away by the reader —
+  so a mirror-image solid reaches the tessellator only as a valid B-rep, and its winding
+  is the face's own orientation (the `TopAbs_REVERSED` flag) under an identity location;
+  the mirror-location branch of the flip rule stands as the safety net for a shape that
+  carries one. Two fixtures put the box's coordinates at a negative x (the hand-crafted
+  `mirror-box.step` with its 3D points negated, and the OCCT-writer-generated
+  `box-negative.step` translated to x in [-10, 0]); both transfer as one solid, six faces,
+  and tessellate to the box's exact analytic volume (6e-6 m^3, positive signed volume) and
+  area (2.2e-3 m^2) — the triangles face out on the mirrored layout.
+- **The node names the application sees (R098.b input):** the package nodes are the
+  alphanumeric classes `IfcStepAssembly` (root) and `IfcStepSolid` (one per solid), and the
+  application's import names an unnamed body after its node class and tags it `Step
+  Solid` — so an R098.a2 import shows every body as `IfcSolid` with the `Step Solid`
+  tag, not the file's product name. R098.b maps the STEP product name to the body name
+  and chooses the tag naming deliberately (the `Ifc`-prefixed class name is deliberate for
+  R098.a2: it must be an `Ifc`-prefixed alphanumeric name the app's tree accepts, and it
+  keeps the STEP tree distinguishable from an IFC import).
+- **The 7.9.3 tessellation API, as the code uses it (the ADR-era names verified
+  against the `V7_9_3` headers):** `BRepMesh_IncrementalMesh`'s constructor performs
+  the meshing (no separate `Perform` call is made), with the linear deflection in the
+  cascade unit (millimetre) and the angular deflection in radians; `Standard_True` /
+  `Standard_False` are macros in `Standard_TypeDef.hxx` (there is no `Standard_True.hxx`);
+  `TopoDS_Face`'s orientation is the inherited `TopoDS_Shape::Orientation` (a face's own
+  class does not define it); `Poly_Triangulation::Node` is 1-based and `Poly_Triangle`
+  node access is 1-based as well (the two index spaces are the common 7.9 trap);
+  `TopExp_Explorer` is the shape traversal (the `TopoDS_Shape` of 7.9.3 has no
+  convenient child iteration); and `TopoDS::Face` needs `TopoDS.hxx` (the `TopoDS`
+  free-function header), not the shape header alone. The worker records no TBB in its
+  `DT_NEEDED` (the pinned OpenCASCADE 7.9.3 libraries are built without it), so the
+  tessellation runs single threaded (the engine report says so) — decision 5's 4 threads
+  is the IFC kernel's own pool, which OCCT's `BRepMesh` does not use; a build that
+  ships the TBB runtime is where a parallel `BRepMesh` would pick up the pool.
+
 ## Owner decisions
 
 1. **The adapter (options A/B/C):** **option A** — OCCT STEP translation in

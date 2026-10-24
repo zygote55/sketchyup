@@ -1,6 +1,7 @@
-// The STEP import skeleton of ADR 0172 (R098.a): the file's metadata through the basic OCCT
-// reader and the unit policy of §2, with no document conversion yet (the tessellated import
-// builds on this). Everything is reported; nothing is ever silently rescaled.
+// The STEP import of ADR 0172 (R098.a): the file's metadata through the basic OCCT reader and
+// the unit policy of §2, and (R098.a2) the tessellated import - the reader's transferred
+// shapes tessellated with BRepMesh and shipped in the conversion package. Everything is
+// reported; nothing is ever silently rescaled and a unit is never guessed.
 #pragma once
 
 #include <string>
@@ -12,6 +13,19 @@ struct StepImportOptions {
   // The ADR 0172 §2 unit policy: used only when the file declares no length unit (mm, cm,
   // m, in or ft). An unrecognised value is a refusal, not a guess.
   std::string lengthUnitOverride;
+  // The ADR 0172 §3 tessellation defaults: 1 mm (the IFC chordDeviationMm default) and
+  // 30 degrees (the IFC tessellation default). The reader's unit context is applied at
+  // read time (the geometry comes out in the file's unit, normalized to millimetres), so
+  // the deflection is a maximum chord deviation in millimetres.
+  double deflectionMm = 1.0;
+  double angleDeg = 30.0;
+  // The ADR 0172 §6 triangle caps (100,000 per element, 1,000,000 in total). The test
+  // options lower them to check the refusal and the per-element report.
+  long long maxTrianglesPerElement = 100000;
+  long long maxTotalTriangles = 1000000;
+  // Empty: report the metadata only (the R098.a behaviour). Set: also tessellate the
+  // transferred solids and write the conversion package.
+  std::string output;
 };
 
 // --import-step: read the file and report its metadata as JSON (schema, the units with the
@@ -23,5 +37,14 @@ std::string importStep(const StepImportOptions& options);
 // was read (with or without transferred shapes), 1 when the read failed, 2 when the file
 // was refused (nothing is created either way).
 int runStepImport(const StepImportOptions& options);
+
+// The tessellated import (R098.a2, ADR 0172 §3): the reader's transferred shapes are
+// tessellated with BRepMesh at the options' deflection and angle, every solid becomes one
+// package node (flat under one root node, ADR 0172 §4 mapping is R098.b) with its faces'
+// triangulations (vertices in metres, the package's unit), and the package is written
+// through the IFC package writer. Progress lines and the final R line follow the IFC
+// import: 0 when the package was written, 3 on a refusal or a failure (nothing is
+// created, and the refusal names what it is).
+int runStepImportPackage(const StepImportOptions& options);
 
 }  // namespace sketchyup::ifc

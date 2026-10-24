@@ -5,14 +5,21 @@
 // is checked against the hand-computed geometry, and the refusals against the policy. Needs
 // sketchyup-ifc-worker (IFC_WORKER_PATH); exits 77 (skipped) when the helper is not built.
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
 #include <QTemporaryDir>
+#include <QtEndian>
+#include <array>
+#include <cctype>
 #include <cmath>
+#include <cstring>
+#include <optional>
 #include <iostream>
+#include <vector>
 #include <string>
 
 namespace {
@@ -43,10 +50,17 @@ WorkerResult runWorker(const QString &worker, const QStringList &args) {
     WorkerResult result;
     result.code = process.exitCode();
     result.error = process.readAllStandardError().trimmed();
-    // The OCCT transfer statistics share stdout; the report is the last line that opens with "{".
-    for (const auto &line : process.readAllStandardOutput().split('\n')) {
-        if (line.trimmed().startsWith('{'))
-            result.json = QJsonDocument::fromJson(line).object();
+    // The OCCT transfer statistics share stdout. The report is the worker's last result
+    // line: "R {json}" (the lifecycle runs) or a bare {json} (the metadata report).
+    const auto lines = process.readAllStandardOutput().split('\n');
+    for (int i = static_cast<int>(lines.size()) - 1; i >= 0; --i) {
+        const auto trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith("R {")) {
+            result.json = QJsonDocument::fromJson(trimmed.mid(2)).object();
+            break;
+        }
+        if (trimmed.startsWith("{"))
+            result.json = QJsonDocument::fromJson(trimmed).object();
     }
     return result;
 }
@@ -61,6 +75,203 @@ void boxGeometryCheck(const QJsonObject &shape, const char *where) {
     const double x1 = source[3].toDouble(), y1 = source[4].toDouble(), z1 = source[5].toDouble();
     check(near(x0, 0.0) && near(y0, 0.0) && near(z0, 0.0), std::string(where) + ": the origin");
     check(near(x1, 10.0) && near(y1, 20.0) && near(z1, 30.0), std::string(where) + ": the corner (10, 20, 30)");
+}
+// The worker's package, checked the way the application's decoder checks it (the same
+// invariants as src/io/ifc_package.cpp): the magic and the exact length, the reserved word,
+// the manifest's keys, the per-mesh layout (f64 x3 per vertex, u32 x3 per triangle, u32 per
+// triangle, u32 x2 per edge, f32 x3 per colour when present), the coordinate bound, the
+// indices, the material indices and the node classes.
+void decodePackageCheck(const QString &path, bool &ok, std::string &problem,
+                       int &nodesCount, int &rootClassIsAssembly) {
+    ok = false;
+    QFile in(path);
+    if (!in.open(QIODevice::ReadOnly)) {
+        problem = "could not open the package";
+        return;
+    }
+    const QByteArray bytes = in.readAll();
+    if (bytes.size() < 24 || bytes.left(8) != "SKIFCP01") {
+        problem = "bad magic or length";
+        return;
+    }
+    const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+    const uint32_t reserved = qFromLittleEndian<uint32_t>(bytes.constData() + 12);
+    const uint64_t meshBytes = qFromLittleEndian<uint64_t>(bytes.constData() + 16);
+    if (reserved != 0) {
+        problem = "the reserved word";
+        return;
+    }
+    if (manifestBytes > 32ull * 1024 * 1024 || meshBytes > 128ull * 1024 * 1024) {
+        problem = "a section over its bound";
+        return;
+    }
+    if (bytes.size() != static_cast<int>(24 + static_cast<int>(manifestBytes) + meshBytes)) {
+        problem = "the file is not exactly 24 + manifest + mesh bytes long";
+        return;
+    }
+    const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+    const QStringList keys{"format", "version", "meshSha256", "engine", "source", "units", "report",
+                           "meshes", "materials", "nodes"};
+    for (const auto &key : manifest.keys())
+        if (!keys.contains(key)) {
+            problem = "a manifest key the decoder does not know: " + key.toStdString();
+            return;
+        }
+    for (const auto &key : keys)
+        if (!manifest.contains(key)) {
+            problem = "the manifest lacks the key " + key.toStdString();
+            return;
+        }
+    if (manifest.value("format").toString() != "sketchyup-ifc-package" || manifest.value("version").toInt() != 1) {
+        problem = "the format or version is wrong";
+        return;
+    }
+    const auto meshes = manifest.value("meshes").toArray();
+    if (meshes.isEmpty()) {
+        problem = "no meshes";
+        return;
+    }
+    int64_t total = 0;
+    int meshOffset = 0;
+    for (const auto &value : meshes) {
+        const auto d = value.toObject();
+        const int64_t n = d.value("vertices").toInt(), t = d.value("triangles").toInt();
+        const int64_t e = d.value("edges").toInt();
+        const bool colors = d.value("colors").toBool();
+        if (n < 0 || t < 0 || e < 0 || n > 300000 || t > 100000) {
+            problem = "a mesh over the package's bounds";
+            return;
+        }
+        total += n * 24 + t * 12 + t * 4 + e * 8 + (colors ? t * 12 : 0);
+        const uint8_t *data = reinterpret_cast<const uint8_t *>(bytes.constData()) + 24 + manifestBytes + meshOffset;
+        for (int64_t i = 0; i < n * 3; ++i) {
+            const uint64_t bits = qFromLittleEndian<uint64_t>(data + i * 8);
+            double v;
+            std::memcpy(&v, &bits, sizeof v);
+            if (!std::isfinite(v) || std::abs(v) > 1e6) {
+                problem = "a vertex outside the coordinate bound";
+                return;
+            }
+        }
+        meshOffset += n * 24;
+        for (int64_t i = 0; i < t * 3; ++i) {
+            const uint32_t index = qFromLittleEndian<uint32_t>(data + n * 24 + i * 4);
+            if (index >= static_cast<uint32_t>(n)) {
+                problem = "a triangle index out of range";
+                return;
+            }
+        }
+        meshOffset += t * 12;
+        for (int64_t i = 0; i < t; ++i) {
+            const uint32_t material = qFromLittleEndian<uint32_t>(data + n * 24 + t * 12 + i * 4);
+            if (material != 0xFFFFFFFFu) {
+                problem = "a material index where the step import ships none (R098.b)";
+                return;
+            }
+        }
+        meshOffset += t * 4 + e * 8 + (colors ? t * 12 : 0);
+    }
+    if (total != static_cast<int64_t>(meshBytes)) {
+        problem = "the mesh chunk length disagrees with its meshes";
+        return;
+    }
+    const auto nodes = manifest.value("nodes").toArray();
+    nodesCount = static_cast<int>(nodes.size());
+    for (int i = 0; i < static_cast<int>(nodes.size()); ++i) {
+        const auto node = nodes.at(i).toObject();
+        const auto className = node.value("class").toString().toStdString();
+        if (className.size() < 4 || className.rfind("Ifc", 0) != 0) {
+            problem = "a node class without the Ifc prefix";
+            return;
+        }
+        for (const char c : className)
+            if (!std::isalnum(static_cast<unsigned char>(c))) {
+                problem = "a node class with a non-alphanumeric character";
+                return;
+            }
+        const auto transform = node.value("transform").toArray();
+        if (transform.size() != 16) {
+            problem = "a node transform that is not 16 numbers";
+            return;
+        }
+        for (int k = 0; k < 16; ++k) {
+            const double v = transform.at(k).toDouble();
+            if (!std::isfinite(v)) {
+                problem = "a non-finite transform entry";
+                return;
+            }
+        }
+        if (std::abs(transform.at(12).toDouble()) > 1e-12 || std::abs(transform.at(13).toDouble()) > 1e-12
+            || std::abs(transform.at(14).toDouble()) > 1e-12 || std::abs(transform.at(15).toDouble() - 1.0) > 1e-12) {
+            problem = "a non-affine node transform";
+            return;
+        }
+        const int parent = node.value("parent").toInt();
+        if (parent < -1 || parent >= static_cast<int>(i)) {
+            problem = "a node parent that is not an earlier node";
+            return;
+        }
+    }
+    if (nodes.isEmpty()) {
+        problem = "no nodes";
+        return;
+    }
+    rootClassIsAssembly = nodes.first().toObject().value("class").toString() == "IfcStepAssembly";
+    ok = true;
+}
+
+// The package's combined mesh volume and area (the triangles' signed volume sum and the area
+// sum), from the manifest's counts and the chunk's vertices and triangle indices.
+std::optional<std::pair<double, double>> packageVolumeAndArea(const QString &path) {
+    QFile in(path);
+    if (!in.open(QIODevice::ReadOnly))
+        return std::nullopt;
+    const QByteArray bytes = in.readAll();
+    if (bytes.size() < 24)
+        return std::nullopt;
+    const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+    const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+    double volume = 0.0, area = 0.0;
+    bool any = false;
+    int64_t offset = 0;
+    for (const auto &value : manifest.value("meshes").toArray()) {
+        const auto d = value.toObject();
+        const int64_t n = d.value("vertices").toInt(), t = d.value("triangles").toInt();
+        const uint8_t *data = reinterpret_cast<const uint8_t *>(bytes.constData()) + 24 + manifestBytes + offset;
+        std::vector<std::array<double, 3>> vertices;
+        vertices.reserve(n);
+        for (int i = 0; i < n; ++i) {
+            std::array<double, 3> coordinate{};
+            for (int k = 0; k < 3; ++k) {
+                const uint64_t bits = qFromLittleEndian<uint64_t>(data + (int64_t(i) * 3 + k) * 8);
+                std::memcpy(&coordinate[k], &bits, sizeof coordinate[k]);
+            }
+            vertices.push_back(coordinate);
+        }
+        for (int i = 0; i < t; ++i) {
+            const int a = qFromLittleEndian<uint32_t>(data + n * 24 + i * 12);
+            const int b = qFromLittleEndian<uint32_t>(data + n * 24 + i * 12 + 4);
+            const int c = qFromLittleEndian<uint32_t>(data + n * 24 + i * 12 + 8);
+            const auto &p = vertices[static_cast<size_t>(a)], &q = vertices[static_cast<size_t>(b)], &r = vertices[static_cast<size_t>(c)];
+            volume += (p[0] * (q[1] * r[2] - r[1] * q[2]) + p[1] * (r[0] * q[2] - q[0] * r[2])
+                       + p[2] * (q[0] * r[1] - r[0] * q[1])) / 6.0;
+            const double e1x = q[0] - p[0], e1y = q[1] - p[1], e1z = q[2] - p[2];
+            const double e2x = r[0] - p[0], e2y = r[1] - p[1], e2z = r[2] - p[2];
+            const double cx = e1y * e2z - e1z * e2y, cy = e1z * e2x - e1x * e2z, cz = e1x * e2y - e1y * e2x;
+            area += 0.5 * std::sqrt(cx * cx + cy * cy + cz * cz);
+            any = true;
+        }
+        offset += n * 24 + t * 12 + t * 4 + d.value("edges").toInt() * 8 + (d.value("colors").toBool() ? t * 12 : 0);
+    }
+    if (!any)
+        return std::nullopt;
+    return std::pair{volume, area};
+}
+
+// A relative comparison (the analytic values are small in metres; the default near() is
+// absolute for them).
+bool nearRel(double a, double b, double relative) {
+    return std::abs(a - b) <= relative * std::abs(b);
 }
 }  // namespace
 
@@ -292,6 +503,202 @@ int main(int argc, char **argv) {
         const auto noUnitsOption = run({worker, "--import-step", noUnits, "--step-length-unit", "mm"});
         check(noUnitsOption.json.value("units").toObject().value("applied").toString() == "option",
               "import (no units, with the option): the option is applied");
+    }
+
+    // 6. R098.a2: the tessellated package import (--import-step --output PKG), against the
+    // hand-computed geometry (ADR 0172 section 7 and E1): the box is exact, the cylinder and
+    // the assembly within the tessellation error of the analytic values, the unit policy and
+    // the triangle caps of section 6 held, and the package layout the application's decoder
+    // reads (SKIFCP01, the counts and the node tree).
+    {
+        const QString boxFile = temp.filePath("sketchyup-step-box.step");
+        const auto importPackage = [&](const QString &file, const QStringList &extra) {
+            QStringList args{worker, "--import-step", file, "--output", temp.filePath(QFileInfo(file).fileName() + ".pkg")};
+            args += extra;
+            return run(args);
+        };
+        const auto checkPackage = [&](const QString &file) -> QString {
+            bool ok = false;
+            std::string problem;
+            int nodes = 0, rootIsAssembly = 0;
+            decodePackageCheck(file, ok, problem, nodes, rootIsAssembly);
+            return ok ? QString() : QString::fromStdString(problem);
+        };
+
+        // The box: exact (planar faces carry no tessellation error).
+        const auto box = importPackage(boxFile, {});
+        check(box.code == 0, "package import (box): exits 0");
+        check(box.json.value("status").toString() == "ok", "package import (box): ok");
+        check(box.json.value("meshes").toInt() == 1 && box.json.value("converted").toInt() == 1
+              && box.json.value("triangles").toInt() == 12, "package import (box): one mesh, twelve triangles");
+        check(box.json.value("omitted").toInt() == 0 && box.json.value("unsupported").toInt() == 0,
+              "package import (box): nothing omitted or unsupported");
+        const QString boxPackage = temp.filePath("sketchyup-step-box.step.pkg");
+        check(checkPackage(boxPackage).isEmpty(), "package decode (box): " + checkPackage(boxPackage).toStdString());
+        if (auto geometry = packageVolumeAndArea(boxPackage)) {
+            check(near(geometry->first, 0.01 * 0.02 * 0.03, 1e-9),
+                  "package box: the volume is the analytic value, got " + std::to_string(geometry->first));
+            check(near(geometry->second, 2.0 * (0.01 * 0.02 + 0.01 * 0.03 + 0.02 * 0.03), 1e-9),
+                  "package box: the area is the analytic value, got " + std::to_string(geometry->second));
+        } else {
+            check(false, "package box: the geometry could not be read");
+        }
+
+        // The cylinder and the assembly: within the tessellation error (E1: 1e-3 relative for
+        // analytic primitives; the 1 mm deflection is far below the 10 mm radius, so a 5%
+        // envelope is a generous bound on the mesh's chord error).
+        const auto cylinder = importPackage(temp.filePath("sketchyup-step-cylinder.step"), {});
+        check(cylinder.code == 0 && cylinder.json.value("status").toString() == "ok",
+              "package import (cylinder): ok");
+        if (auto geometry = packageVolumeAndArea(temp.filePath("sketchyup-step-cylinder.step.pkg"))) {
+            check(nearRel(geometry->first, 1.5708e-06, 0.05),
+                  "package cylinder: the volume is within the tessellation error, got " + std::to_string(geometry->first));
+            check(nearRel(geometry->second, 0.000785398, 0.05),
+                  "package cylinder: the area is within the tessellation error, got " + std::to_string(geometry->second));
+        } else {
+            check(false, "package cylinder: the geometry could not be read");
+        }
+        const auto assembly = importPackage(temp.filePath("sketchyup-step-assembly.step"), {});
+        check(assembly.code == 0 && assembly.json.value("status").toString() == "ok",
+              "package import (assembly): ok");
+        check(assembly.json.value("meshes").toInt() == 2 && assembly.json.value("converted").toInt() == 2
+              && assembly.json.value("triangles").toInt() == 104,
+              "package import (assembly): two meshes, 104 triangles");
+        const QString assemblyPackage = temp.filePath("sketchyup-step-assembly.step.pkg");
+        check(checkPackage(assemblyPackage).isEmpty(), "package decode (assembly): " + checkPackage(assemblyPackage).toStdString());
+        if (auto geometry = packageVolumeAndArea(assemblyPackage)) {
+            check(nearRel(geometry->first, 0.01 * 0.02 * 0.03 + 1.5708e-06, 0.05),
+                  "package assembly: the combined volume is within the tessellation error");
+            check(nearRel(geometry->second, 0.0022 + 0.000785398, 0.05),
+                  "package assembly: the combined area is within the tessellation error");
+        } else {
+            check(false, "package assembly: the geometry could not be read");
+        }
+
+        // The unit policy (decision 4) held by the package import: the declared unit is
+        // authoritative (the option does not rescale), a file with no unit and no option
+        // refuses, and the option stands for a file that declares nothing.
+        const auto withOption = importPackage(boxFile, {"--step-length-unit", "in"});
+        check(withOption.code == 0 && withOption.json.value("status").toString() == "ok",
+              "package import (declared units, with a mismatching option): the declared unit still wins");
+        if (auto geometry = packageVolumeAndArea(boxPackage))
+            check(near(geometry->first, 0.01 * 0.02 * 0.03, 1e-9),
+                  "package import (with an option): the declared unit keeps the geometry unchanged");
+        const QString noUnitsShape = temp.filePath("no-units-shape.step");
+        {
+            QFile in(boxFile);
+            check(in.open(QIODevice::ReadOnly), "the box file for the no-units copy");
+            const QString text = QString::fromUtf8(in.readAll());
+            const QStringList snippets{QStringLiteral("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#349)) GLOBAL_UNIT_ASSIGNED_CONTEXT\n((#346,#347,#348)) "),
+                                      QStringLiteral("#346 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );\n"),
+                                      QStringLiteral("#347 = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );\n"),
+                                      QStringLiteral("#348 = ( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() );\n"),
+                                      QStringLiteral("#349 = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#346,\n  'distance_accuracy_value','confusion accuracy');\n")};
+            QString stripped = text;
+            for (const auto &snippet : snippets)
+                stripped.replace(snippet, "");
+            check(!stripped.contains("LENGTH_UNIT"), "the no-units copy: the length unit is stripped");
+            QFile out(noUnitsShape);
+            check(out.open(QIODevice::WriteOnly), "the no-units-with-a-shape file");
+            out.write(stripped.toUtf8());
+            out.close();
+        }
+        const auto noUnitsRefused = run({worker, "--import-step", noUnitsShape, "--output", temp.filePath("no-units.pkg")});
+        check(noUnitsRefused.code == 3, "package refusal (no units, no option): exit 3");
+        check(noUnitsRefused.json.value("status").toString() == "refused",
+              "package refusal (no units, no option): the status is refused");
+        const auto noUnitsOption = importPackage(noUnitsShape, {"--step-length-unit", "mm"});
+        check(noUnitsOption.code == 0 && noUnitsOption.json.value("status").toString() == "ok",
+              "package import (no units, with the option): ok");
+
+        // The caps (ADR 0172 section 6): a solid over its per-element cap is reported as not
+        // imported (and a file nothing converts writes no package), and the total budget the
+        // remaining solids report; the report carries the notice.
+        const auto capped = run({worker, "--import-step", temp.filePath("sketchyup-step-cylinder.step"),
+                                 "--output", temp.filePath("capped.pkg"), "--step-max-triangles", "50"});
+        check(capped.code == 3, "package import (the 92-triangle cylinder, per-element cap 50): refused");
+        check(capped.json.value("status").toString() == "refused",
+              "package import (capped): the status is refused (nothing left to convert)");
+        const auto budget = run({worker, "--import-step", temp.filePath("sketchyup-step-assembly.step"),
+                                "--output", temp.filePath("budget.pkg"), "--step-max-total-triangles", "50"});
+        check(budget.code == 0, "package import (the 104-triangle assembly, total cap 50): the first fits");
+        check(budget.json.value("converted").toInt() == 1 && budget.json.value("omitted").toInt() == 1,
+              "package import (total cap 50): the box converts, the cylinder is reported omitted");
+        const auto deflection = run({worker, "--import-step", boxFile, "--output", temp.filePath("bad.pkg"),
+                                     "--step-deflection-mm", "0"});
+        check(deflection.code == 3 && deflection.json.value("status").toString() == "refused",
+              "package import (deflection 0): refused");
+
+        // The committed inch fixture (the corpus box with a conversion-based inch unit the
+        // context applies): the reader's conversion (25.4 mm per file unit) stands, and the
+        // box comes out 0.254 x 0.508 x 0.762 m.
+        const QString inchFixture = QStringLiteral(SOURCE_DIR "/tests/fixtures/step/inch-units.step");
+        if (QFile::exists(inchFixture)) {
+            const auto inch = importPackage(inchFixture, {});
+            check(inch.code == 0 && inch.json.value("status").toString() == "ok",
+                  "package import (the inch fixture): ok");
+            const QString inchPackage = temp.filePath("inch-units.step.pkg");
+            check(checkPackage(inchPackage).isEmpty(), "package decode (inch): " + checkPackage(inchPackage).toStdString());
+            if (auto geometry = packageVolumeAndArea(inchPackage)) {
+                const double expected = 0.254 * 0.508 * 0.762;
+                check(nearRel(geometry->first, expected, 1e-3),
+                      "package inch: the volume is the analytic value (25.4 mm per file unit), got " + std::to_string(geometry->first));
+                check(nearRel(geometry->second, 2.0 * (0.254 * 0.508 + 0.254 * 0.762 + 0.508 * 0.762), 1e-3),
+                      "package inch: the area is the analytic value");
+            } else {
+                check(false, "package inch: the geometry could not be read");
+            }
+        }
+
+        // The mirrored and offset solids (the review's winding check): a placement in the
+        // step subset is a proper isometry, so a mirror-image solid reaches the kernel only
+        // as a valid B-rep (a det -1 placement is not expressible and a degenerate one is
+        // right-handeded by the reader). Two independent fixtures put the box's coordinates
+        // at a negative x: one hand-crafted (the box's 3D points negated in x) and one the
+        // OpenCASCADE writer itself writes (a proper translation of the box to x in
+        // [-10, 0]). Both must come out a consistent outward-facing solid: the signed
+        // volume is positive and exact, the area exact.
+        const QString mirrorFixture = QStringLiteral(SOURCE_DIR "/tests/fixtures/step/mirror-box.step");
+        if (QFile::exists(mirrorFixture)) {
+            const auto mirror = importPackage(mirrorFixture, {});
+            check(mirror.code == 0 && mirror.json.value("status").toString() == "ok",
+                  "package import (the mirrored box): ok");
+            check(mirror.json.value("meshes").toInt() == 1 && mirror.json.value("converted").toInt() == 1
+                  && mirror.json.value("triangles").toInt() == 12,
+                  "package import (the mirrored box): one mesh, twelve triangles");
+            const QString mirrorPackage = temp.filePath("mirror-box.step.pkg");
+            check(checkPackage(mirrorPackage).isEmpty(), "package decode (the mirrored box): " + checkPackage(mirrorPackage).toStdString());
+            if (auto geometry = packageVolumeAndArea(mirrorPackage)) {
+                check(near(geometry->first, 0.01 * 0.02 * 0.03, 1e-9),
+                      "package mirror: the signed volume is positive and the analytic value, got " + std::to_string(geometry->first));
+                check(near(geometry->second, 2.0 * (0.01 * 0.02 + 0.01 * 0.03 + 0.02 * 0.03), 1e-9),
+                      "package mirror: the area is the analytic value, got " + std::to_string(geometry->second));
+            } else {
+                check(false, "package mirror: the geometry could not be read");
+            }
+        }
+        const QString negativeFixture = QStringLiteral(SOURCE_DIR "/tests/fixtures/step/box-negative.step");
+        if (QFile::exists(negativeFixture)) {
+            const auto negative = importPackage(negativeFixture, {});
+            check(negative.code == 0 && negative.json.value("status").toString() == "ok",
+                  "package import (the OCCT-written negative-x box): ok");
+            const QString negativePackage = temp.filePath("box-negative.step.pkg");
+            check(checkPackage(negativePackage).isEmpty(), "package decode (the negative-x box): " + checkPackage(negativePackage).toStdString());
+            if (auto geometry = packageVolumeAndArea(negativePackage)) {
+                check(near(geometry->first, 0.01 * 0.02 * 0.03, 1e-9),
+                      "package negative-x box: the signed volume is positive and the analytic value, got " + std::to_string(geometry->first));
+                check(near(geometry->second, 2.0 * (0.01 * 0.02 + 0.01 * 0.03 + 0.02 * 0.03), 1e-9),
+                      "package negative-x box: the area is the analytic value");
+            } else {
+                check(false, "package negative-x box: the geometry could not be read");
+            }
+        }
+
+        // The metadata import is unchanged (R098.a): without --output the report stands, with
+        // the units the import applies.
+        const auto metadata = run({worker, "--import-step", boxFile});
+        check(metadata.code == 0 && metadata.json.value("status").toString() == "ok",
+              "metadata import (no --output): the report stands");
     }
 
     if (failures) {
