@@ -38,13 +38,19 @@ std::string importStep(const StepImportOptions& options);
 // was refused (nothing is created either way).
 int runStepImport(const StepImportOptions& options);
 
-// The tessellated import (R098.a2, ADR 0172 §3): the reader's transferred shapes are
-// tessellated with BRepMesh at the options' deflection and angle, every solid becomes one
-// package node (flat under one root node, ADR 0172 §4 mapping is R098.b) with its faces'
-// triangulations (vertices in metres, the package's unit), and the package is written
-// through the IFC package writer. Progress lines and the final R line follow the IFC
-// import: 0 when the package was written, 3 on a refusal or a failure (nothing is
-// created, and the refusal names what it is).
+// The XDE import (R098.a2's tessellated import, R098.b's mapping, ADR 0172 §3 and §4): the
+// file is transferred through the XDE reader (STEPCAFControl_Reader) into a
+// TDocStd_Document - the product structure (the assemblies and the repeated shapes, the
+// XDE's assembly / part / reference labels), the file's colours (XCAFDoc_ColorTool),
+// its layers (XCAFDoc_LayerTool) and its named data (TDataStd_NamedData) come with it.
+// The unique base shapes are tessellated once, with BRepMesh at the options' deflection
+// and angle, a part bakes its placement into its mesh (the package's node transform
+// admits affine transforms only, and a mirrored placement is not affine) and reuses the
+// base's mesh when its placement is the identity; the package is the §4 tree - the root,
+// an assembly a group, a part an element - shipped through the IFC package writer.
+// Progress lines and the final R line follow the IFC import: 0 when the package was
+// written, 3 on a refusal or a failure (nothing is created, and the refusal names what
+// it is).
 int runStepImportPackage(const StepImportOptions& options);
 
 }  // namespace sketchyup::ifc
