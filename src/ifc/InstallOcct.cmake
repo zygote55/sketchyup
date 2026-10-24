@@ -4,10 +4,12 @@
 # install(SCRIPT ...) with SKETCHYUP_IFC_PREFIX_LIB, SKETCHYUP_IFC_OCCT_LIB and
 # SKETCHYUP_IFC_PRIVATE_DIR set.
 #
-# The set is the closure of libTK* libraries that ifcopenshell_geometry_kernel_opencascade.so
-# records (it is linked with --as-needed, so only the toolkits it really uses), found by reading
-# DT_NEEDED with readelf. Each copy gets RUNPATH $ORIGIN: a library finds its dependencies by its
-# own RUNPATH, never by the executable's.
+# The set is the union of the closures of libTK* libraries that the kernel plugin and the
+# worker record (both are linked with --as-needed, so only the toolkits they really use),
+# found by reading DT_NEEDED with readelf. The worker's set is the basic STEP reader and
+# writer (ADR 0172, R098.a) plus the toolkits of the tessellated import. Each copy gets
+# RUNPATH $ORIGIN: a library finds its dependencies by its own RUNPATH, never by the
+# executable's.
 # file(INSTALL) prepends DESTDIR to an absolute destination itself; the other commands below
 # (MAKE_DIRECTORY, REAL_PATH, patchelf) work on the staged copy and need it spelled out.
 set(install_destination "${SKETCHYUP_IFC_PRIVATE_DIR}")
@@ -37,6 +39,20 @@ foreach(name IN LISTS initial)
     list(APPEND pending "${name}")
   endif()
 endforeach()
+# And the worker's own NEEDED (its direct OCCT use). The worker is staged by install(TARGETS),
+# so the DESTDIR prefix applies.
+if(DEFINED SKETCHYUP_IFC_WORKER)
+  set(worker "$ENV{DESTDIR}${SKETCHYUP_IFC_WORKER}")
+  if(NOT EXISTS "${worker}")
+    message(FATAL_ERROR "the worker ${worker} is not present; the OCCT closure of the ifc component cannot be computed")
+  endif()
+  needed_libraries("${worker}" more)
+  foreach(name IN LISTS more)
+    if(name MATCHES "^libTK")
+      list(APPEND pending "${name}")
+    endif()
+  endforeach()
+endif()
 set(closure)
 while(pending)
   list(POP_FRONT pending name)
@@ -45,7 +61,7 @@ while(pending)
   endif()
   list(APPEND closure "${name}")
   if(NOT EXISTS "${SKETCHYUP_IFC_OCCT_LIB}/${name}")
-    message(FATAL_ERROR "OpenCASCADE library ${name} (needed by the kernel plugin) is not in ${SKETCHYUP_IFC_OCCT_LIB}")
+    message(FATAL_ERROR "OpenCASCADE library ${name} (needed by the kernel plugin or the worker) is not in ${SKETCHYUP_IFC_OCCT_LIB}")
   endif()
   needed_libraries("${SKETCHYUP_IFC_OCCT_LIB}/${name}" more)
   foreach(dependency IN LISTS more)

@@ -69,8 +69,11 @@ package_sketchyup() {
 package_sketchyup-ifc() {
   pkgdesc='IFC helper for SketchyUp: IfcOpenShell and the OpenCASCADE libraries it needs (private copies)'
   license=('MIT' 'LGPL-3.0-or-later' 'LGPL-2.1-or-later' 'LicenseRef-OCCT-LGPL-exception')
-  # Linked with --as-needed, nothing shipped records a Boost library (L5 checks it).
-  depends=("sketchyup=$pkgver" 'gcc-libs' 'glibc')
+  # Linked with --as-needed, nothing shipped records a Boost library (L5 checks it). The worker
+  # links the OpenCASCADE libraries itself (ADR 0172, R098.a), and the 3D toolkit of the STEP set
+  # (TKV3d) brings the X11/font stack: these are the system libraries of the 26 private copies.
+  depends=("sketchyup=$pkgver" 'gcc-libs' 'glibc' 'zlib' 'bzip2' 'libpng' 'brotli' 'expat'
+          'libx11' 'libxcb' 'libxau' 'libxdmcp' 'fontconfig' 'freetype2')
   # /usr/lib/sketchyup/sketchyup-ifc-worker, libifcopenshell*.so, the ifcopenshell_*.so plugins and
   # the libTK*.so libraries, all in one flat private directory (a RUNPATH of $ORIGIN); the notices
   # and the written source offer (share/doc/sketchyup/IFC-SOURCE.txt).

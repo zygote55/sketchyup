@@ -742,7 +742,7 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     if(SKETCHYUP_BUILD_IFC AND TARGET sketchyup-ifc-worker)
       # R097.b: the whole import through the helper, against the raw-text scan (needs python3).
       find_package(Python3 REQUIRED COMPONENTS Interpreter)
-      foreach(ifc_test ifc_import ifc_worker_run ifc_export)
+      foreach(ifc_test ifc_import ifc_worker_run ifc_export ifc_step)
         add_executable(${ifc_test}_tests tests/${ifc_test}_tests.cpp)
         target_link_libraries(${ifc_test}_tests PRIVATE sketchyup_io)
         target_compile_definitions(${ifc_test}_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"

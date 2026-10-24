@@ -371,6 +371,103 @@ changing scale* — is checked by:
   in the user guide and the import dialog, the support-matrix row). Verify:
   the R098 Verify line in full; the M10 gate rule.
 
+## Implementation notes (R098.a skeleton, 2026-10-23)
+
+The worker skeleton landed first of R098.a: `--probe-step` (the §2 read report
+plus the write round trip), `--write-step` (the §7 corpus) and `--import-step`
+(the §5 metadata: schema family, units, entity count, roots, per-shape bounds
+in mm, status and refusal codes). The `BRepMesh` tessellation and the §4 mapping
+remain in R098.b/c; this is the verified boundary they build on.
+
+- **Empirical (the probe on the pinned OCCT 7.9.3 build, recorded 2026-10-23):**
+  the writer's default schema is AP214IS — the header's `FILE_SCHEMA` reads
+  `AUTOMOTIVE_DESIGN { 1 2 10303 214 0 1 1 1 }` (the §2 "no static `GetID()`":
+  the schema is walked from the `HeaderSection_FileSchema`); the `WriteUnit`
+  default is `UnitsMethods_LengthUnit_Millimeter` (the file declares millimetre,
+  0.001 m, angle RADIAN); the AP242 option is
+  `DESTEP_Parameters::WriteSchema = WriteMode_StepSchema_AP242DIS` and its output
+  reads back as `AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4 }`
+  — the standard identifier of the AP242 schema: the AP242 MIM is published as
+  **part 442** of ISO 10303, so the classifier maps 442 → `ap242` — with 350
+  entities and the same geometry (the box's bounding box (0,0,0)-(10,20,30),
+  6 faces; the cylinder 3 faces; the assembly 2 solids; 350 entities in both). `STEPControl_Reader::ReadFile`
+  returns the `IFSelect_ReturnStatus` (there is no `Status()` method in 7.9.3),
+  and the read flags live on `DESTEP_Parameters` (not the ADR-era
+  `StepData_ConfParameters`). The 7.9.3 `STEPControl_StepModelType` enum replaces
+  the ADR-era `STEPControl_ASO`/`STEPControl_ASOAll`; `TKDESTEP` carries both the
+  basic `STEPControl` and the XDE `STEPCAFControl` layers (both in its PACKAGES).
+  The §2 decision — AP242 writing is refused by the application and reported —
+  stands: the library exposes the write path but the 7.9 user guide documents
+  AP214 (default) and AP203 only.
+- **The private set grows by 11 libraries, 18,427,712 B (17.6 MiB
+  uncompressed): TKDESTEP 7,858,320 · TKV3d 3,110,976 · TKXSBase 2,001,072 ·
+  TKService 1,300,528 · TKHLR 1,148,976 · TKXCAF 915,504 · TKLCAF 866,360 ·
+  TKCAF 505,904 · TKCDF 351,328 · TKVCAF 223,288 · TKDE 145,456** (measured with
+  readelf on the real build; `TKDESTEP` records no TKDEIGES, so the set is
+  `TKDESTEP + TKXCAF + their transitives`). The 26-library total (the kernel's
+  15 + these 11) is what `InstallOcct.cmake` now installs — the closure is the
+  **union of the kernel plugin's and the worker's** `libTK*` `DT_NEEDED` (the
+  worker records 9 of them directly: TKernel, TKMath, TKBRep, TKMesh, TKTopAlgo,
+  TKPrim, TKDESTEP, TKXSBase, TKXCAF; the rest arrive transitively). `TKV3d`
+  pulls the X11/font stack, so the ifc package's `depends` gains zlib, bzip2,
+  libpng, brotli, expat, libx11, libxcb, libxau, libxdmcp, fontconfig and
+  freetype2 (L5's `allowed_owners` carries the same list) — this ADR expected
+  the ifc package's `depends` to be `sketchyup`, `gcc-libs` and `glibc` only;
+  the X11/font list is the measured correction. Nothing records a Boost
+  library (the `--as-needed` link and L5 check it); no VTK, Tcl or Tk.
+- **A contradiction with ADR 0171, accepted:** because the worker now links the
+  OCCT libraries itself, a missing private `libTK*` stops the **whole worker
+  from starting** (exit 127, the loader naming the library): the UI shows
+  "Broken" instead of ADR 0171's "Limited" (the helper missing, the IFC
+  conversion available), and IFC import is lost along with STEP. Before, the
+  worker linked only the IfcOpenShell libraries, and a missing OCCT library
+  kept the worker running with the kernel reported unavailable (exit 0). The
+  verify script's L6 now accepts the new behaviour (a library the worker links
+  stops the worker; a kernel-only library still reports the kernel unavailable).
+  Accepted trade-off: all 26 libraries ship in the same package, so a missing
+  one means a damaged install; and the R097.e1 "Limited" state stays reachable
+  when the kernel **plugin** is missing (the worker still starts, the kernel is
+  reported unavailable, the pass-through kernel works).
+- **Verification:** `tests/ifc_step_tests.cpp` (C++, through the worker) and
+  `tests/ifc_step_worker_tests.py` (Python) cover the corpus, the round trip and
+  the refusals; the three corpus files are committed under `tests/fixtures/step/`
+  with `STEP-SOURCE.txt` (the CTest entries `ifc_step`/`ifc_step_worker`; the
+  verify script's L6 checks the 26-library union on the installed tree).
+- **The unit policy and what a plain OCCT read really does (review round 2, 2026-10-24):**
+  `STEPControl_Reader::FileUnits` resolves the unit the file's unit context assigns
+  to the shapes: it walks each root's `ShapeDefinitionRepresentation` to the shape
+  representation's `ContextOfItems`, and `findUnits` only accepts the combined context
+  wrappers (`GEOMETRIC_REPRESENTATION_CONTEXT_AND_GLOBAL_UNIT_ASSIGNED_CONTEXT` and the
+  uncertainty variant) - a bare `GLOBAL_UNIT_ASSIGNED_CONTEXT` entity is not resolved.
+  A conversion-based file resolves the conversion unit (its name as the file wrote it,
+  e.g. `INCH`; the `ValueComponent` of the `LENGTH_MEASURE_WITH_UNIT` as the factor),
+  not the base unit the raw text's first `LENGTH_UNIT` declares. And the transfer is the
+  unit conversion: `TransferRoots` normalizes the geometry to the cascade length unit
+  (millimetre by default: a metre-declaring box of 10 x 20 x 30 comes out
+  10000 x 20000 x 30000, an inch-declaring one 254 x 508 x 762) - a file the reader
+  resolves no unit for comes out in the file's own units. A plain `ReadFile` never
+  sets the model's `LocalLengthUnit` (it stays 1.0; the DESTEP XCAF provider is the
+  only thing that sets it, and `SystemLengthUnit` reads it), so the probe resolves
+  the factor from the `FileUnits` name (the SI unit as `getSiName` spells it - a
+  lowercase prefix, the base `metre` - with the `ConvertSiPrefix` set; plus inch
+  0.0254 and foot 0.3048 m). A conversion-based file then imports at the conversion
+  unit: the committed `tests/fixtures/step/inch-units.step` (the corpus box, the
+  writer's geometry and header, with the context's `GLOBAL_UNIT_ASSIGNED_CONTEXT`
+  replaced by a hand-written `CONVERSION_BASED_UNIT('INCH')` unit block - the writer
+  writes the combined context wrappers the reader follows) comes out of the reader at
+  254 x 508 x 762 mm (the import's geometry scale is 1.0; the measured box is
+  -1e-7 to 254.0000001 - the file's 1e-7 uncertainty and float noise ride the box,
+  so the test asserts it at the 1e-6 default tolerance), the raw text's millimetre
+  base stays visible in the report (`units.length`), and a notice says the file
+  applies the conversion unit. A file with a conversion unit but no unit context the
+  reader resolves (a shapeless sample) imports at the raw text's first declaration
+  (1000 x its factor in metres, flagged); a file the raw text cannot convert and the
+  model resolves no unit for is refused (a unit is never guessed - decision 4). The
+  raw-text scan is kept for the `unitsDeclared` fact and the raw name report only (its
+  factor is the raw text's first declaration, the import's fallback); the `unitIn`
+  scan's `find` checks were inverted before this (a present `SI_UNIT` was treated as
+  absent and vice versa), so the raw report of a conversion-based entity was wrong.
+
 ## Owner decisions
 
 1. **The adapter (options A/B/C):** **option A** — OCCT STEP translation in

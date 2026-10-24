@@ -90,6 +90,11 @@ public:
     for (double number : numbers) value(number);
     return endArray();
   }
+  JsonOut& strings(const std::vector<std::string>& items) {
+    beginArray();
+    for (const auto& item : items) value(item);
+    return endArray();
+  }
 
   const std::string& str() const { return out_; }
 

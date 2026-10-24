@@ -15,6 +15,8 @@
 #include "ifc/export.hpp"
 #include "ifc/import.hpp"
 #include "ifc/probe.hpp"
+#include "ifc/step_import.hpp"
+#include "ifc/step_probe.hpp"
 #include "sketchyup/version.hpp"
 
 namespace {
@@ -38,7 +40,13 @@ void usage(std::FILE* stream) {
       "                            [--exclude-step N]... FILE.ifc\n"
       "           run FILE through the geometry iterator and print what the library returns\n"
       "       sketchyup-ifc-worker --probe-write FILE.ifc\n"
-      "           write a small IFC4 file with the typed writer, read it back and print the result\n",
+      "           write a small IFC4 file with the typed writer, read it back and print the result\n"
+      "       sketchyup-ifc-worker --probe-step FILE.step [--round-trip-directory DIR]\n"
+      "           read a STEP file with the basic OCCT reader and print what it reports as JSON\n"
+      "       sketchyup-ifc-worker --import-step FILE.step [--step-length-unit mm|cm|m|in|ft]\n"
+      "           read a STEP file, apply the ADR 0172 unit policy and print the metadata as JSON\n"
+      "       sketchyup-ifc-worker --write-step DIR\n"
+      "           write the self-generated STEP corpus of ADR 0172 (box, cylinder, assembly) into DIR\n",
       stream);
 }
 
@@ -170,6 +178,37 @@ int main(int argc, char** argv) {
       if (options.file.empty()) return fail("--probe-api needs an input file");
       std::puts(probeGeometry(options).c_str());
       return 0;
+    }
+    if (argc >= 3 && std::strcmp(argv[1], "--probe-step") == 0) {
+      StepProbeOptions options;
+      for (int i = 2; i < argc; ++i) {
+        const std::string argument = argv[i];
+        const bool hasValue = i + 1 < argc;
+        if (argument == "--round-trip-directory" && hasValue) options.roundTripDirectory = argv[++i];
+        else if (argument.rfind("--", 0) == 0) return fail("unknown option " + argument);
+        else if (options.file.empty()) options.file = argument;
+        else return fail("one input file only");
+      }
+      if (options.file.empty()) return fail("--probe-step needs an input file");
+      std::puts(probeStep(options).c_str());
+      return runStepProbe(options);
+    }
+    if (argc == 3 && std::strcmp(argv[1], "--write-step") == 0) {
+      std::puts(writeStep(argv[2]).c_str());
+      return 0;
+    }
+    if (argc >= 3 && std::strcmp(argv[1], "--import-step") == 0) {
+      StepImportOptions options;
+      for (int i = 2; i < argc; ++i) {
+        const std::string argument = argv[i];
+        const bool hasValue = i + 1 < argc;
+        if (argument == "--step-length-unit" && hasValue) options.lengthUnitOverride = argv[++i];
+        else if (argument.rfind("--", 0) == 0) return fail("unknown option " + argument);
+        else if (options.file.empty()) options.file = argument;
+        else return fail("one input file only");
+      }
+      if (options.file.empty()) return fail("--import-step needs an input file");
+      return runStepImport(options);
     }
     usage(stderr);
     return 2;

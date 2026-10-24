@@ -127,3 +127,36 @@ target_link_directories(sketchyup_ifc_libraries INTERFACE "${sketchyup_ifc_prefi
 target_link_libraries(sketchyup_ifc_libraries INTERFACE
   ifcopenshell.geometry ifcopenshell.parse ifcopenshell.plugin
   -l:ifcopenshell_parse_schema_ifc4.so Boost::headers Eigen3::Eigen)
+
+# The worker's direct OpenCASCADE use (ADR 0172, R098.a): the basic STEP reader and writer.
+# The version is the configured one (the headers' spelling differs between 7.8 and 7.9: the
+# build selects it, see step_probe.cpp). The libraries are found in the system directory; the
+# private copy the `ifc` component installs is found through the worker's RUNPATH.
+# 7.9 consolidated the toolkits: the STEP stack (STEPControl, the 209 and 242 protocols,
+# the DESTEP writer) went into TKDESTEP, the topology (TopoDS, TopExp) into TKBRep and the
+# tessellator (BRepMesh) into TKMesh; the 7.8 TKSTEP, TKSTEPAttr, TKSTEP209, TKTopoDS,
+# TKXDESTEP and TKTessellate are gone.
+set(SKETCHYUP_IFC_OCCT_VERSION "7.9.3" CACHE STRING "The OpenCASCADE version the worker's headers and toolkits are selected against")
+if(SKETCHYUP_IFC_OCCT_VERSION MATCHES "^7\.9")
+  # 7.9: the topologies (TopoDS/TopExp) live in TKBRep, the STEP reader and writer in
+  # TKDESTEP, the primitives in TKPrim, the bounding boxes in TKTopAlgo, tessellation
+  # in TKMesh.
+  set(sketchyup_ifc_occt_libs TKernel TKMath TKBRep TKMesh TKTopAlgo TKPrim TKDESTEP TKXSBase TKXCAF)
+else()
+  set(sketchyup_ifc_occt_libs
+    TKernel TKMath TKTopoDS TKBRep TKPrim TKSTEP TKSTEPAttr TKSTEP209
+    TKXSBase TKDESTEP TKXDESTEP TKXCAF TKG3d TKBool TKPrism TKShHealing TKTessellate)
+endif()
+foreach(sketchyup_ifc_occt_lib_name IN LISTS sketchyup_ifc_occt_libs)
+  if(NOT EXISTS "${sketchyup_ifc_occt_lib}/lib${sketchyup_ifc_occt_lib_name}.so")
+    message(FATAL_ERROR "SKETCHYUP_BUILD_IFC needs the OpenCASCADE library ${sketchyup_ifc_occt_lib}/lib${sketchyup_ifc_occt_lib_name}.so (Arch: pacman -S opencascade)")
+  endif()
+endforeach()
+add_library(sketchyup_ifc_occt INTERFACE)
+target_include_directories(sketchyup_ifc_occt SYSTEM INTERFACE "${sketchyup_ifc_occt_include}")
+target_link_directories(sketchyup_ifc_occt INTERFACE "${sketchyup_ifc_occt_lib}")
+# The basic reader (the STEP control and data, the AP203/214/242 protocol, the XDE
+# selection), the basic writer (the DESTEP writer and the XCAF document it writes) and the
+# geometry the probe walks (the B-rep, the primitives, the tessellator and its helpers,
+# for the tessellated import of R098.b).
+target_link_libraries(sketchyup_ifc_occt INTERFACE ${sketchyup_ifc_occt_libs})

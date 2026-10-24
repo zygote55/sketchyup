@@ -11,11 +11,13 @@ include("${CMAKE_CURRENT_LIST_DIR}/IfcOpenShellPrefix.cmake")
 
 add_executable(sketchyup-ifc-worker
   worker_main.cpp probe_environment.cpp probe_geometry.cpp probe_writer.cpp
-  access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp georeference.cpp package.cpp report.cpp import.cpp export_package.cpp export.cpp check.cpp)
+  access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp georeference.cpp package.cpp report.cpp import.cpp export_package.cpp export.cpp check.cpp
+  step_probe.cpp step_import.cpp)
 target_include_directories(sketchyup-ifc-worker PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(sketchyup-ifc-worker PRIVATE
-  SKETCHYUP_IFC_PIN_COMMIT_STRING="${SKETCHYUP_IFC_PIN_COMMIT}")
-target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_libraries sketchyup_version)
+  SKETCHYUP_IFC_PIN_COMMIT_STRING="${SKETCHYUP_IFC_PIN_COMMIT}"
+  SKETCHYUP_IFC_OCCT_VERSION_STRING="${SKETCHYUP_IFC_OCCT_VERSION}")
+target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_libraries sketchyup_ifc_occt sketchyup_version)
 target_compile_options(sketchyup-ifc-worker PRIVATE -Wall -Wextra -Wpedantic)
 add_dependencies(sketchyup-ifc-worker sketchyup_ifcopenshell_prefix)
 # The private directory is flat: the helper and every library sit in /usr/lib/sketchyup. A
@@ -51,7 +53,8 @@ option(SKETCHYUP_IFC_BUNDLE_OCCT "Install a private copy of the OpenCASCADE libr
 if(SKETCHYUP_IFC_BUNDLE_OCCT)
   install(CODE "set(SKETCHYUP_IFC_PREFIX_LIB \"${sketchyup_ifc_prefix}/lib\")
 set(SKETCHYUP_IFC_OCCT_LIB \"${sketchyup_ifc_occt_lib}\")
-set(SKETCHYUP_IFC_PRIVATE_DIR \"\${CMAKE_INSTALL_PREFIX}/lib/sketchyup\")" COMPONENT ifc)
+set(SKETCHYUP_IFC_PRIVATE_DIR \"\${CMAKE_INSTALL_PREFIX}/lib/sketchyup\")
+set(SKETCHYUP_IFC_WORKER \"\${CMAKE_INSTALL_PREFIX}/lib/sketchyup/sketchyup-ifc-worker\")" COMPONENT ifc)
   install(SCRIPT "${CMAKE_CURRENT_LIST_DIR}/InstallOcct.cmake" COMPONENT ifc)
 endif()
 # The notices and the written source offer are installed by the top-level CMakeLists.txt, where
@@ -87,16 +90,22 @@ if(BUILD_TESTING)
   add_test(NAME ifc_export_worker COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_export_worker_tests.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc")
+  # R098.a: the STEP probe and import against the worker's own writer (ADR 0172): the self-generated
+  # corpus, the raw-text units, the round trip and the unit policy. No fixtures; the corpus is written
+  # by the worker itself, so the test needs no files on disk.
+  add_test(NAME ifc_step_worker COMMAND "${Python3_EXECUTABLE}" -I
+    "${PROJECT_SOURCE_DIR}/tests/ifc_step_worker_tests.py"
+    "$<TARGET_FILE:sketchyup-ifc-worker>")
   add_test(NAME ifc_worker_fault_corpus COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_worker_fault_corpus.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc" 64 2)
   add_test(NAME ifc_worker_fault_corpus_full COMMAND "${Python3_EXECUTABLE}" -I
     "${PROJECT_SOURCE_DIR}/tests/ifc_worker_fault_corpus.py"
     "$<TARGET_FILE:sketchyup-ifc-worker>" "${PROJECT_SOURCE_DIR}/tests/fixtures/ifc" 512 2)
-  set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus PROPERTIES TIMEOUT 900)
+  set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus ifc_step_worker PROPERTIES TIMEOUT 900)
   set_tests_properties(ifc_worker_fault_corpus_full PROPERTIES TIMEOUT 3000 LABELS full)
   if(SKETCHYUP_SANITIZE)
-    set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus ifc_worker_fault_corpus_full PROPERTIES
+    set_tests_properties(ifc_import_worker ifc_georeference ifc_export_worker ifc_worker_fault_corpus ifc_worker_fault_corpus_full ifc_step_worker PROPERTIES
       ENVIRONMENT "IFC_NO_ADDRESS_LIMIT=1;ASAN_OPTIONS=detect_leaks=0;UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
   endif()
   # Checks L1 to L6 of ADR 0171 section 6.3 on a scratch install of the ifc component.

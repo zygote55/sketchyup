@@ -1,0 +1,36 @@
+# STEP fixture provenance (ADR 0172, R098.a)
+
+Self-generated corpus of ADR 0172 section 7, written by this repository's own
+`sketchyup-ifc-worker --write-step DIR` (the basic OCCT `STEPControl_Writer` in
+`src/ifc/step_probe.cpp`), so no third-party licence question:
+
+| file | shape |
+|---|---|
+| `sketchyup-step-box.step` | a box 10 x 20 x 30 at the origin |
+| `inch-units.step` | the box with a hand-written unit block: `GLOBAL_UNIT_ASSIGNED_CONTEXT` applies `CONVERSION_BASED_UNIT('INCH')` (the raw text's first declaration, the millimetre base, stands before it) - the conversion-unit case of the unit policy (ADR 0172, section 2) |
+| `sketchyup-step-cylinder.step` | a cylinder of radius 5 and height 20 at the origin |
+| `sketchyup-step-assembly.step` | an assembly of the box and the cylinder |
+| `spaced-units.step` | hand-written: the unit entities with spaces in the parts (`SI_UNIT ( .MILLI., .METRE. )`) and no shapes — the scan's whitespace-tolerance case |
+
+- Generator: `sketchyup-ifc-worker --write-step tests/fixtures/step` (commit `f1ad42f8`,
+  the build of 2026-10-23 in `sketchyup-ci-pinned:r097a-ifc`).
+- Schema: AP214IS, `AUTOMOTIVE_DESIGN { 1 2 10303 214 0 1 1 1 }`; units declared in
+  millimetres (the writer's `WriteUnit` default), angle RADIAN.
+- OCCT: 7.9.3.
+- SHA-256 at generation (2026-10-23):
+  - `sketchyup-step-assembly.step`  5d0d83307dfacb5716368df2ed8ee1d49bca2f5003cd41f9b22aa4bd0fe9bf8c
+  - `sketchyup-step-box.step`  d58d273bdf7c0d956f50a84ca793d6edf8ae7b5fc5ac9c1dd0d045eb54aea621
+  - `sketchyup-step-cylinder.step`  771866829f584a38d9c05a74b633abe1365ce91f6f5110be937ec979285e5118
+  - `inch-units.step` - hand-written (2026-10-24, the review round 2 of the R098.a skeleton):
+    the corpus box (the writer's geometry, the writer's header) with the writer's millimetre
+    unit entity replaced in the context by a `CONVERSION_BASED_UNIT('INCH')` unit - the shape is
+    10 x 20 x 30 inches, 254 x 508 x 762 mm. 00f34a6005943c5257bc1611aa4efd23d3abdf0fb7707c36548e0cbb6ef59e8c
+  - `spaced-units.step` — hand-written (no generation); its only content is the header and the three unit entities.
+
+The `FILE_NAME` carries a wall-clock timestamp, so a fresh write is not byte-identical
+to the committed files; the fixtures are regression **inputs** (`tests/ifc_step_tests.cpp`
+probes them), and the test's own determinism check compares a second write's sizes.
+Geometry ground truth: the box's bounding box is (0,0,0)-(10,20,30) and its six faces;
+the cylinder is one solid with three faces; the assembly is one shape with two solids.
+The inch fixture is the same box, the unit in inches: its bounding box is
+(0,0,0)-(254,508,762) mm at import (25.4 mm per unit).
