@@ -39,6 +39,7 @@ void IfcImportRunner::begin(const QString &path, IfcImportOptions import, IfcWor
         p->report = {};
     }
     clock.start();
+    start(); // the import runs on this thread; the UI reads it back through the queued signals
 }
 void IfcImportRunner::requestCancel() {
     QMutexLocker lock(&p->mutex);

@@ -149,12 +149,14 @@ QString writeExecutable(const QString &dir, const QString &name, const QString &
           "make the stand-in executable");
     return path;
 }
-// The --probe bodies: the JSON the app expects, with the kernel present or absent.
+// The --probe bodies: the JSON the app expects, as a shell command (the probe runs in a
+// scrubbed environment, where a bare JSON line is a command name, not a value).
 QString probeJson(const bool kernel, const QString &kernelReason) {
-    return kernel ? QStringLiteral(R"({"worker":{"version":"stand-in"},"ifcopenshell":{"version":"0.9.0"},"kernelAvailable":true,"kernels":[]})")
-                  : QStringLiteral(R"({"worker":{"version":"stand-in"},"ifcopenshell":{"version":"0.9.0"},"kernelAvailable":false,"kernels":[{"name":"opencascade","available":false,"reason":")") +
-                        kernelReason +
-                        QStringLiteral(R"(}]})");
+    const QString json = kernel ? QStringLiteral(R"({"worker":{"version":"stand-in"},"ifcopenshell":{"version":"0.9.0"},"kernelAvailable":true,"kernels":[]})")
+                               : QStringLiteral(R"({"worker":{"version":"stand-in"},"ifcopenshell":{"version":"0.9.0"},"kernelAvailable":false,"kernels":[{"name":"opencascade","available":false,"reason":")") +
+                             kernelReason +
+                             QStringLiteral(R"("}]})");
+    return QStringLiteral("    echo '") + json + QStringLiteral("'\n    exit 0\n");
 }
 // The fixtures, as the cheap checks see them.
 QByteArray modelIfc() {
@@ -217,6 +219,7 @@ struct Driver {
     std::vector<QMessageBox::StandardButton> confirmPlan; // one button per "Unsaved changes"
     int pickers = 0;
     int confirmations = 0;
+    bool dialogSeen = false; // the options dialog was seen
     QStringList sheets;
     std::map<QString, QString> summaries;
     std::map<QString, QString> hows;
@@ -250,12 +253,12 @@ struct Driver {
     }
     void stepBody() {
         static int steps = 0;
-        if (++steps % 20 == 1) {
+        if (++steps % 5 == 1) {
             QString names;
             for (auto *w : QApplication::topLevelWidgets())
                 if (w->isVisible())
                     names += QString(w->metaObject()->className()) + " ";
-            std::cerr << "DRV: " << names.toStdString() << std::endl;
+            std::cerr << "DRV[" << steps << "]: " << names.toStdString() << std::endl;
         }
         for (auto *widget : QApplication::topLevelWidgets()) {
             if (!widget->isVisible())
@@ -298,6 +301,8 @@ struct Driver {
                 continue;
             }
             if (auto *dialog = qobject_cast<IfcImportDialog *>(widget)) {
+                dialogSeen = true;
+                std::cerr << "DLOG: options dialog visible, handler pending: " << (onDialog ? 1 : 0) << std::endl;
                 if (auto handler = onDialog) {
                     onDialog = nullptr;
                     handler(dialog);
@@ -619,6 +624,13 @@ int main(int argc, char **argv) {
             driver.start();
             window.findChild<QAction *>("file.importIfc")->trigger();
             driver.stop();
+            std::cerr << "M:S3-debug: pickers=" << driver.pickers
+                      << " confirmations=" << driver.confirmations
+                      << " sheets=[" << driver.sheets.join(",").toStdString() << "]"
+                      << " dialogSeen=" << driver.dialogSeen
+                      << " probeState=" << static_cast<int>(window.ifcProbe().state)
+                      << " probeLog=[" << window.ifcProbe().logTail.toStdString() << "]"
+                      << std::endl;
             std::cerr << "M:S3-progress: " << driver.progressBar
                       << " elapsed: " << driver.progressElapsed.toStdString() << std::endl;
             check(driver.confirmations == 0, "an unsaved model prompt appears for a dirty "
