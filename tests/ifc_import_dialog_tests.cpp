@@ -84,26 +84,26 @@ QString humanMs(qint64 ms) {
 // environment (only LC_ALL is set; there is no PATH), so every command is an absolute path.
 // `probe` is the --probe body, `import` the --import body.
 QString standInScript(const QString &probeBody, const QString &importBody) {
-    return QString(R"(#!/bin/sh
+    return QString(R"PROG(#!/bin/sh
 # A stand-in for sketchyup-ifc-worker (R097.e1 dialog tests).
 mode="$1"
 case "$mode" in
   --probe)
-")"
+)PROG"
            + probeBody
-           + R"(
+           + R"PROG(
     ;;
   --import)
-")"
+)PROG"
            + importBody
-           + R"(
+           + R"PROG(
     ;;
   *)
     echo 'usage: sketchyup-ifc-worker --probe | --import <file> --output <file>' >&2
     exit 2
     ;;
 esac
-)";
+)PROG");
 }
 // The --import body: take the --output argument, write the converted package there, play a
 // little progress, then report. `sleep` seconds of work, via /bin/sleep (the scrubbed
@@ -355,7 +355,8 @@ int main(int argc, char **argv) {
     const QString truncated = writeFixture(root.path(), "truncated.ifc", truncatedIfc());
     const QString seed =
         QString(SOURCE_DIR) + "/tests/fixtures/ifc/packages/rv-tessellated-item.skifc";
-    check(QFile::exists(seed), "the seed conversion package is present: " + seed);
+    check(QFile::exists(seed),
+          (QString("the seed conversion package is present: ") + seed).toStdString());
     const QString available = writeExecutable(
         root.path(), "worker-available", standInScript(probeJson(true, {}),
                                                       importBody(seed, 1, false)));
@@ -421,21 +422,11 @@ int main(int argc, char **argv) {
             check(dialog.workerOptions().chordDeviationMm == 0.5 &&
                       dialog.workerOptions().lengthUnit == "m",
                   "the defaults are a 0.5 mm deviation and metres");
-            auto *hidden = dialog.findChild<QRadioButton *>([] (QRadioButton *b) {
-                return b->text() == "Hidden";
-            });
-            auto *shown = dialog.findChild<QRadioButton *>([] (QRadioButton *b) {
-                return b->text() == "Shown";
-            });
-            auto *skip = dialog.findChild<QRadioButton *>([] (QRadioButton *b) {
-                return b->text() == "Skip";
-            });
-            auto *keep = dialog.findChild<QRadioButton *>([] (QRadioButton *b) {
-                return b->text() == "Keep the project axes";
-            });
-            auto *grid = dialog.findChild<QRadioButton *>([] (QRadioButton *b) {
-                return b->text() == "Align to the grid";
-            });
+            auto *hidden = radio(&dialog, "Hidden");
+            auto *shown = radio(&dialog, "Shown");
+            auto *skip = radio(&dialog, "Skip");
+            auto *keep = radio(&dialog, "Keep the project axes");
+            auto *grid = radio(&dialog, "Align to the grid");
             check(hidden && shown && skip && keep && grid, "the choice controls are found");
             check(hidden->isChecked() && keep->isChecked(), "the defaults are checked");
             shown->setChecked(true);
