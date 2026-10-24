@@ -1,0 +1,27 @@
+# STEP fixture provenance (ADR 0172, R098.a)
+
+Self-generated corpus of ADR 0172 section 7, written by this repository's own
+`sketchyup-ifc-worker --write-step DIR` (the basic OCCT `STEPControl_Writer` in
+`src/ifc/step_probe.cpp`), so no third-party licence question:
+
+| file | shape |
+|---|---|
+| `sketchyup-step-box.step` | a box 10 x 20 x 30 at the origin |
+| `sketchyup-step-cylinder.step` | a cylinder of radius 5 and height 20 at the origin |
+| `sketchyup-step-assembly.step` | an assembly of the box and the cylinder |
+
+- Generator: `sketchyup-ifc-worker --write-step tests/fixtures/step` (commit `f1ad42f8`,
+  the build of 2026-10-23 in `sketchyup-ci-pinned:r097a-ifc`).
+- Schema: AP214IS, `AUTOMOTIVE_DESIGN { 1 2 10303 214 0 1 1 1 }`; units declared in
+  millimetres (the writer's `WriteUnit` default), angle RADIAN.
+- OCCT: 7.9.3.
+- SHA-256 at generation (2026-10-23):
+  - `sketchyup-step-assembly.step`  5d0d83307dfacb5716368df2ed8ee1d49bca2f5003cd41f9b22aa4bd0fe9bf8c
+  - `sketchyup-step-box.step`  d58d273bdf7c0d956f50a84ca793d6edf8ae7b5fc5ac9c1dd0d045eb54aea621
+  - `sketchyup-step-cylinder.step`  771866829f584a38d9c05a74b633abe1365ce91f6f5110be937ec979285e5118
+
+The `FILE_NAME` carries a wall-clock timestamp, so a fresh write is not byte-identical
+to the committed files; the fixtures are regression **inputs** (`tests/ifc_step_tests.cpp`
+probes them), and the test's own determinism check compares a second write's sizes.
+Geometry ground truth: the box's bounding box is (0,0,0)-(10,20,30) and its six faces;
+the cylinder is one solid with three faces; the assembly is one shape with two solids.
