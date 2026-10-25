@@ -572,6 +572,51 @@ counted entities.
   is the IFC kernel's own pool, which OCCT's `BRepMesh` does not use; a build that
   ships the TBB runtime is where a parallel `BRepMesh` would pick up the pool.
 
+## Implementation notes (R098.a3, 2026-10-25)
+
+The application side of the import (§8): the runner, `sketchyup-cli --import-step` and
+File › Import STEP….
+
+- **The runner** (`src/io/step_worker.{hpp,cpp}`, in `sketchyup_io`) is the STEP twin of
+  the IFC worker runner (ADR 0171 §1.6). It applies the same private 0700 copy and hash, the
+  scrubbed environment, `setsid` and `PR_SET_PDEATHSIG`, the resource limits, the deadline and
+  cancel, the `P`/`R` line protocol and the package size bound. It decodes the helper's
+  package with the checked decoder and converts it with the unchanged
+  package-to-document conversion. The report is then post-processed into the STEP shape
+  (`format` `STEP`, the `step`, `units`, `tessellation` and `accounting` blocks).
+- **The application's own checks** run before the helper starts (§5): a regular file of at
+  most 128 MiB, the `ISO-10303-21` header and a `FILE_SCHEMA` in {AP203, AP214, AP242}. The
+  refusal codes are `tooLarge`, `notStep` and `noSchema`, plus the unsupported-schema refusal.
+  The same scan reads the first `LENGTH_UNIT` (the SI prefix or the conversion name) for the
+  dialog's facts line. That reading is for display only: the helper's unit decision (§2)
+  stays the authority for the conversion factor. The scan is duplicated in `sketchyup_io` on
+  purpose, so the application does not link `src/ifc`.
+- **The command line** mirrors `--import-ifc`, with `--step-deflection-mm`,
+  `--step-angle-deg`, `--step-length-unit`, `--step-deadline` and `--step-worker`. The report
+  JSON goes to stdout. A size or limit refusal is `LIMIT_EXCEEDED`; any other refusal is
+  `INPUT_ERROR`.
+- **The screens:**
+  - The R097.e1 options dialog gains a STEP kind. It shows the title, the subline, the
+    declared unit and the crease angle, and hides the IFC-only spaces and georeference
+    sections. A Limited IFC helper does not block STEP, which needs no IFC kernel.
+  - The progress sheet, the report, refusal and unavailable sheets and the report chip are
+    STEP siblings of the IFC screens (`step_import_runner`, `step_progress_sheet`,
+    `window_step`), not a shared generalisation. This duplicates about 400 lines, which a
+    later refactor can fold together.
+  - Escape or closing the progress sheet cancels the import, and the window waits for the
+    runner before reading its result (the R097.e1 rule).
+- **Known limitation:** a STEP import commits as one undoable edit labelled `Import IFC`.
+  The label comes from the shared conversion in `src/io/ifc_import.cpp`, which R098.b
+  changes.
+- **Tests:**
+  - `step_import_tests` (the IFC job's CTest list) covers the checks on the seven
+    fixtures, the refusals, a full conversion through a stand-in helper and the command
+    line.
+  - `step_import_dialog_tests` (the fast tier's X11 and Wayland lines, beside
+    `ifc_import_dialog_tests`) covers scenarios S0–S6 offscreen with stand-in helpers.
+  - A stand-in helper's result line must begin `R `. An unprefixed last line is a worker
+    failure, which is what made S6 fail during development.
+
 ## Owner decisions
 
 1. **The adapter (options A/B/C):** **option A** — OCCT STEP translation in
