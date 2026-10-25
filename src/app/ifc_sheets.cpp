@@ -548,6 +548,11 @@ ImportReportFace stepImportReportFace() {
             .arg(stepUnitsLine(report))
             .arg(stepTessellationLine(report));
     };
+    // R098.d (ADR 0172 section 3): the editability loss, in the plain words the dialog and the user guide use.
+    face.note = [](const ImportReportState &) {
+        return QStringLiteral("Imported geometry is a mesh of flat faces. Curved surfaces (NURBS, B-spline and others) "
+                              "cannot be edited as curves, and an export writes the mesh only.");
+    };
     face.groups = [](const ImportReportState &state) {
         const QJsonObject report = state.report;
         std::vector<std::pair<QString, QStringList>> groups;
