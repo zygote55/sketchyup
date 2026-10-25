@@ -15,7 +15,7 @@ L1  Only sketchyup-skp-worker links the parser (OpenSKP and its miniz). Its symb
     install mode) or its DT_NEEDED entry (shared build) identify the link; no other installed
     executable has either.
 L2  The worker's DT_NEEDED entries are the C and C++ runtime, and in a package every library it
-    loads resolves to the system (ldd). A shared build names the parser library, so its closure is
+    loads resolves outside the package's private lib/sketchyup directory (ldd). A shared build names the parser library, so its closure is
     checked in the static package only.
 L3  The notices and the source record are installed: OpenSKP-LICENSE and miniz-LICENSE (MIT) under
     share/licenses/sketchyup, and share/doc/sketchyup/SKP-SOURCE.txt, which names the pinned commit.
@@ -110,7 +110,10 @@ def check_l2(prefix, problems, with_ldd):
             if "not found" in line:
                 problems.append(f"L2: {WORKER} cannot find a library: {line.strip()}")
             match = re.search(r"=> (\S+)", line)
-            if match and str(prefix) in match.group(1):
+            # The package's own libraries are the private directory beside the helper. The prefix
+            # itself is no test: a package installs to /usr, where the system runtime also lives.
+            private = str(prefix / "lib" / "sketchyup") + "/"
+            if match and match.group(1).startswith(private):
                 problems.append(f"L2: {WORKER} loads {match.group(1)} from the package itself")
 
 
