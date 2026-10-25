@@ -195,9 +195,11 @@ int main(int argc, char **argv) {
             for (const auto &[id, definition] : loaded.definitions())
                 parametric = parametric || definition->parameters;
             const auto sheets = !loaded.drawingSheets().empty();
+            const auto presentation = !loaded.cameraPaths().empty() || !loaded.renderPresets().empty();
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (parametric ? nativeTerrainFreeDocumentVersion
+                          (presentation ? nativeDocumentVersion
+                           : parametric ? nativeTerrainFreeDocumentVersion
                            : sheets   ? nativeParameterFreeDocumentVersion
                                       : nativeSheetFreeDocumentVersion),
                   "Migration report identifies public schema");
@@ -227,7 +229,8 @@ int main(int argc, char **argv) {
                      {19, {"sections", "nextSectionId", "activeSections"}},
                      {21, {"annotations", "nextAnnotationId"}},
                      {23, {"solar"}},
-                     {25, {"displayPrecision"}}})
+                     {25, {"displayPrecision"}},
+                     {30, {"presentation"}}})
                 if (version < introduced)
                     for (const auto &field : fields)
                         tree.remove(field);
@@ -248,6 +251,11 @@ int main(int argc, char **argv) {
                 tree["site"] = QJsonValue::Null;
                 tree["terrainMesh"] = QJsonValue::Null;
             }
+            if (version >= 30)
+                tree["presentation"] = QJsonObject{{"cameraPaths", QJsonArray{}},
+                                                  {"nextCameraPathId", "1"},
+                                                  {"renderPresets", QJsonArray{}},
+                                                  {"nextRenderPresetId", "1"}};
             if (version == 1)
                 tree.remove("revision");
             const auto source = files.filePath(QString("raw-v%1.json").arg(version));
