@@ -1517,6 +1517,11 @@ install(FILES third_party/manifold/LICENSE DESTINATION share/licenses/sketchyup 
 install(FILES third_party/manifold/AUTHORS DESTINATION share/licenses/sketchyup RENAME Manifold-AUTHORS)
 install(FILES third_party/cdt/LICENSE DESTINATION share/licenses/sketchyup RENAME CDT-LICENSE)
 install(FILES third_party/cdt/LICENSE-predicates.txt DESTINATION share/licenses/sketchyup RENAME CDT-predicates-LICENSE)
+# OpenSKP and miniz (MIT; ADR 0176 section 1): the SKP helper ships in the main package, so these
+# notices do too. The source record names the pinned commits and what is vendored.
+install(FILES third_party/openskp/LICENSE DESTINATION share/licenses/sketchyup RENAME OpenSKP-LICENSE)
+install(FILES third_party/openskp/miniz/LICENSE DESTINATION share/licenses/sketchyup RENAME miniz-LICENSE)
+install(FILES third_party/openskp/SKP-SOURCE.txt DESTINATION share/doc/sketchyup)
 # IfcOpenShell and OpenCASCADE (ADR 0171 section 1.3): installed with the ifc component, so only
 # the sketchyup-ifc package carries them. The lines stay unindented: scripts/release-artifacts.sh
 # collects the install(FILES ...) lines of this file into THIRD_PARTY_NOTICES by line.
