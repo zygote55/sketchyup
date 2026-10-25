@@ -1,0 +1,29 @@
+{
+ "layer": "R097.f",
+ "date": "2026-10-25",
+ "branch": "docs/r097f-ifc-acceptance",
+ "base": {
+  "main": "78058393"
+ },
+ "commits": {
+  "productCodeRunAt": "78058393"
+ },
+ "pullRequests": {
+  "record": null
+ },
+ "status": "in progress",
+ "checks": {
+  "A1": "pending", "A2": "pending", "A3": "pending", "A4": "pending", "A5": "pending",
+  "B1": "pending", "B2": "pending", "B3": "pending", "B4": "pending", "B5": "pending", "B6": "pending", "B7": "pending",
+  "C1": "pending", "C2": "pending", "C3": "pending", "C4": "pending", "C5": "pending", "C6": "pending",
+  "D1": "pending", "D2": "pending", "D3": "pending", "D4": "pending",
+  "E1": "pending", "E2": "pending", "E3": "pending", "E4": "pending", "E5": "pending", "E6": "pending", "E7": "pending",
+  "F1": "pending", "F2": "pending", "F3": "pending", "F4": "pending",
+  "G1": "pending", "G2": "pending", "G3": "pending", "G4": "pending", "G5": "pending", "G6": "pending", "G7": "pending",
+  "H1": "pending", "H2": "pending",
+  "I1": "pending", "I2": "pending", "I3": "pending",
+  "J1": "pending", "J2": "pending", "J3": "pending", "J4": "pending",
+  "K1": "pending", "K2": "pending",
+  "L1": "pending", "L2": "pending", "L3": "pending", "L4": "pending", "L5": "pending", "L6": "pending"
+ }
+}
