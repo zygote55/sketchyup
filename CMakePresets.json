@@ -144,6 +144,9 @@
       "targets": [
         "sketchyup-skp-worker",
         "sketchyup-cli",
+        "sketchyup-extension-worker",
+        "sketchyup-text-worker",
+        "sketchyup_assemblies",
         "skp_package_tests",
         "skp_import_tests",
         "skp_mapping_tests"

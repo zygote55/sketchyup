@@ -30,6 +30,11 @@ if(SKETCHYUP_SANITIZE)
   set(SKETCHYUP_LIBRARY_TYPE SHARED)
   set(BUILD_SHARED_LIBS ON)
 endif()
+# The SKP helper and its supervisor have no 4 GiB address-space limit in the sanitizer and fuzzer
+# builds: ASan and the fuzzer reserve more address space than that (ADR 0176 section 1.6).
+if(SKETCHYUP_SANITIZE OR SKETCHYUP_BUILD_FUZZERS)
+  add_compile_definitions(SKP_WORKER_NO_ADDRESS_LIMIT=1)
+endif()
 # The CI fast tier (ADR 0170) links each test against shared project libraries too: about
 # 330 test executables then link in seconds instead of each embedding the static stack.
 if(SKETCHYUP_SHARED_LIBS)
