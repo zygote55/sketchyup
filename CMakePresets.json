@@ -127,6 +127,10 @@
       "targets": [
         "sketchyup-ifc-worker"
       ]
+    },
+    {
+      "name": "skp",
+      "configurePreset": "skp"
     }
   ],
   "testPresets": [
