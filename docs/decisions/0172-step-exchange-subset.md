@@ -660,7 +660,11 @@ conversion extended for STEP packages (the R098.a3 runner converts through it un
   the XDE writer), `sketchyup-step-named.step`, `sketchyup-step-colored.step` and
   `sketchyup-step-layered.step` (self-generated, the XDE writer's
   `AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }`); [source notes](../tests/fixtures/step/STEP-SOURCE.txt).
-- **Verification.** `tests/ifc_step_tests.cpp` (C++, through the worker) and
+- **Verification.** `tests/ifc_step_tests.cpp` (C++, through the worker),
+  `tests/ifc_step_worker_tests.py` (the worker's own Python test: the nine-file
+  `--write-step` corpus, and R098.b's counts — a group always converts, so the
+  assembly's converted count is its two parts plus the root, and a material
+  index is checked against the manifest's materials) and
   `tests/ifc_import_tests.cpp` (the application, on the R098.a3 runner) cover it;
   the local sets run green (the CI IFC set and the R098.a3 `step_import` suites,
   the sanitize set 5/5 under ASan, where the tests run without `ulimit -v` —
