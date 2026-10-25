@@ -3,7 +3,7 @@
 Date: 2026-10-03. Roadmap: R005. Status: research recorded; unsupported formats.
 
 **Update 2026-10-25:** for **reading** SKP this is superseded by [ADR 0176](0176-skp-import.md)
-(proposed): an MIT-licensed, reverse-engineered reader (OpenSKP) now exists and runs on Linux.
+(accepted 2026-10-25): an MIT-licensed, reverse-engineered reader (OpenSKP) now exists and runs on Linux.
 Writing SKP, and everything below about DWG, still stands.
 
 The Core editor will not link a proprietary file SDK in this initial build.

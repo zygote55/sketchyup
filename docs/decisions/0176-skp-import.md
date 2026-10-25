@@ -1,11 +1,11 @@
 # 0176 — SketchUp (.skp) import
 
-**Status: Proposed (2026-10-25).** This is the design for
-[R102](../PR_ROADMAP.md#r102) ("Deliver SKP support only after feasibility passes"),
-scope row C01, import direction only. It replaces [ADR 0003](0003-compatibility-gaps.md)'s
-"unsupported" stance for **reading** `.skp`. Writing stays unsupported. The owner asked for
-`.skp` import on 2026-10-25 ("We need a way to import .skp files") and chose the route
-recommended here (decision 1). The remaining decisions below need his approval. No
+**Status: Accepted (2026-10-25).** The owner approved decisions 2 to 9 as recommended on
+2026-10-25; decision 1 (the reader) was his own choice earlier that day. This is the design
+for [R102](../PR_ROADMAP.md#r102) ("Deliver SKP support only after feasibility passes"),
+scope row C01, import direction only. For **reading** `.skp`, it supersedes
+[ADR 0003](0003-compatibility-gaps.md)'s "unsupported" stance. Writing stays unsupported. The
+owner asked for `.skp` import on 2026-10-25 ("We need a way to import .skp files"). No
 implementation has started.
 
 ## Context
@@ -276,22 +276,21 @@ sample locations per kind). It records:
    2026-10-25.*
 2. **Isolation and packaging:** run the parser only in a new `sketchyup-skp-worker` helper
    (sandboxed as in ADR 0171 §1.6), shipped in the main package, not the optional IFC
-   component. *Recommended.*
+   component. *Approved 2026-10-25.*
 3. **Versions:** 2021+ supported; 2013–2020 best effort with a clear refusal on failure;
-   before 2013 refused. *Recommended.*
+   before 2013 refused. *Approved 2026-10-25.*
 4. **Package:** a new polygon-face package `SKSKPP01`, not triangles in `SKIFCP01`.
-   *Recommended.*
+   *Approved 2026-10-25.*
 5. **Mapping:** native faces with holes, components, groups, tags, materials and textures
    as in §4. Scenes, styles, section planes, texts and dimensions are not imported in R102.
-   *Recommended.*
-6. **Budgets:** a 256 MiB input file and the §6 limits. *Recommended.*
+   *Approved 2026-10-25.*
+6. **Budgets:** a 256 MiB input file and the §6 limits. *Approved 2026-10-25.*
 7. **Corpus:** CI uses synthetic fixtures only. The owner's files stay local
-   (`.local/skp-corpus/`) and are never committed. *The owner's rule as of 2026-10-25,
-   for BanyanHarbor.skp.*
+   (`.local/skp-corpus/`) and are never committed. *Approved 2026-10-25 (the owner's rule for BanyanHarbor.skp).*
 8. **Wording:** "Import SketchUp (.skp)…", with the trademark and non-affiliation note.
-   *Recommended.*
+   *Approved 2026-10-25.*
 9. **Import only:** no `.skp` export. OpenSKP writes only the pre-2021 container, so an
-   export would produce old files. *Recommended.*
+   export would produce old files. *Approved 2026-10-25.*
 
 ## Sources
 
