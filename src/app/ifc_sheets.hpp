@@ -16,7 +16,8 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
                       const QString &message, const QJsonObject &report);
 // R097.e2: the IFC export screens (ADR 0171 section 16.8) — the result and the refusal, the
 // import's own shapes with the export's words: nothing was written, the model is unchanged.
-void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject &report);
+void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject &report,
+                          qint64 elapsedMs);
 void showIfcExportRefusal(QWidget *parent, const QString &path, const std::string &code,
                           const QString &message, const QJsonObject &report);
 // The helper is missing (16.7): "IFC import is not installed". Nothing else is affected.

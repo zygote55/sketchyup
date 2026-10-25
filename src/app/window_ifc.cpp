@@ -4,6 +4,8 @@
 // (16.7). Export is R097.e2, so Export IFC… opens the availability sheet only.
 #include "app/window.hpp"
 #include "app/ifc_export_dialog.hpp"
+#include "app/ifc_export_progress_sheet.hpp"
+#include "app/ifc_export_runner.hpp"
 #include "app/ifc_import_dialog.hpp"
 #include "app/ifc_import_runner.hpp"
 #include "app/ifc_progress_sheet.hpp"
@@ -163,7 +165,7 @@ void Window::exportIfc() {
     IfcExportDialog dialog(this);
     dialog.setProbe(probe);
     dialog.setDocument(doc_);
-    if (dialog.exec() != QDialog::Accepted)
+    if (dialog.exec() != QDialog::Accepted || dialog.refused())
         return;
     // The system Save dialog, as File > Export 2D DXF... (no overwrite prompt).
     QFileDialog save(this, "New IFC file");
@@ -183,27 +185,34 @@ void Window::exportIfc() {
                              "That file already exists. An existing file is never replaced; choose a new name.", QJsonObject());
         return;
     }
-    // (R097.e2 step 2 moves this to a worker thread.)
-    IfcExportOptions options;
-    IfcWorkerOptions worker;
-    worker.workerPath = probe.workerPath;
-    QJsonObject report;
-    QString message;
-    std::string code;
-    try {
-        const auto exported = exportIfcFile(doc_, path, options, worker);
-        report = exported.report;
-    } catch (const IfcExportError &error) {
-        code = error.code();
-        message = QString::fromUtf8(error.what()).left(240);
-        report = error.report();
+    // 16.4: the export runs on a worker thread, so the UI is never blocked. It does not replace
+    // the model, so it asks no dirty-document question.
+    IfcWorkerOptions workerOptions;
+    workerOptions.workerPath = probe.workerPath;
+    auto *runner = new IfcExportRunner;
+    runner->begin(doc_, path, IfcExportOptions{}, workerOptions);
+    auto *sheet = new IfcExportProgressSheet(runner, QFileInfo(path).fileName(), this);
+    sheet->setAttribute(Qt::WA_DeleteOnClose);
+    sheet->exec();
+    // The export is done (or cancelled); the sheet closes only after the runner has finished,
+    // so wait anyway, and never read a running export.
+    runner->wait();
+    if (runner->wasCancelled()) {
+        status_->setText("The export was cancelled; nothing was written.");
+        delete runner;
+        return;
     }
-    if (code.empty()) {
+    if (runner->hasResult()) {
+        const qint64 elapsed = runner->clock.elapsed();
+        const QJsonObject report = runner->report();
         status_->setText("Exported a new IFC file · Model unchanged");
-        showIfcExportReport(this, path, report);
-    } else {
-        showIfcExportRefusal(this, path, code, message, report);
+        delete runner;
+        ::sketchy::showIfcExportReport(this, path, report, elapsed);
+        return;
     }
+    // A refusal or a failure: the model is unchanged and nothing was written.
+    showIfcExportRefusal(this, path, runner->code(), runner->message(), runner->report());
+    delete runner;
 }
 void Window::showIfcImportReport() {
     if (ifcImportReport_.isEmpty())

@@ -214,10 +214,11 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
 }
 // R097.e2 (provisional until the step-3 report): the export's result sheet — the import's own
 // shape: a green banner, the file's line, OK. The model is unchanged.
-void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject &report) {
+void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject &report,
+                          qint64 elapsedMs) {
     ReportSheet sheet("ifcExportReport", "IFC export report", parent);
     sheet.resize(640, 420);
-    auto *banner = new QLabel("✓ Exported");
+    auto *banner = new QLabel(QString("✓ Exported · %1").arg(humanMs(elapsedMs)));
     banner->setObjectName("ifcReportBanner");
     banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
     sheet.body->addWidget(banner);
