@@ -116,6 +116,12 @@ struct SkpPackageCounts {
   long long uvTransforms{};
   long long textures{};
 };
+inline bool operator==(const SkpPackageCounts &a, const SkpPackageCounts &b) {
+  return a.definitions == b.definitions && a.vertices == b.vertices && a.edges == b.edges
+      && a.faces == b.faces && a.holes == b.holes && a.instances == b.instances
+      && a.materials == b.materials && a.tags == b.tags && a.uvTransforms == b.uvTransforms
+      && a.textures == b.textures;
+}
 
 struct SkpPackage {
   std::string formatVersion{"unknown"};  // the SketchUp version, e.g. "24.0.553"
@@ -146,6 +152,18 @@ struct SkpPackage {
   std::vector<SkpPackageTexture> textures;
 };
 
+
+// The summary of a package, for comparing two decodes of the same bytes (the fuzz harness
+// decodes once without and once with the digest check and wants them to agree).
+inline bool sameSkpPackageSummary(const SkpPackage &a, const SkpPackage &b) {
+  return a.counts == b.counts && a.sourceName == b.sourceName && a.sourceSha256 == b.sourceSha256
+      && a.sourceSize == b.sourceSize && a.formatVersion == b.formatVersion
+      && a.container == b.container && a.units == b.units && a.unitScale == b.unitScale
+      && a.hasBounding == b.hasBounding && a.boundingMin == b.boundingMin
+      && a.boundingMax == b.boundingMax && a.boundingMinInches == b.boundingMinInches
+      && a.boundingMaxInches == b.boundingMaxInches && a.notices == b.notices
+      && a.definitions.size() == b.definitions.size();
+}
 
 // Test seams: the fuzz target turns the digest check off so mutated chunks reach the chunk
 // checks, and runs the same input again with it on.

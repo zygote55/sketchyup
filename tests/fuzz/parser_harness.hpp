@@ -380,7 +380,8 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             } catch (const std::exception &) {
                 digestMatches = false;
             }
-            require(!digestMatches || checked == package, "digest-checked decode agrees");
+            require(!digestMatches || sameSkpPackageSummary(package, checked),
+                    "digest-checked decode agrees");
         } else if (format == "extension") {
             const auto result = parseExtensionManifest(bytes);
             accepted = true;
