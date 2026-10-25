@@ -57,7 +57,8 @@ void validateCameraPathRecords(const CameraPathRecords &paths, Id next) {
                 "Camera path would plan " + std::to_string(frames) + " frames (1 + " +
                 std::to_string(keyframes) + " x " + std::to_string(path->timing.holdSteps) +
                 " + " + std::to_string(keyframes - 1) + " x " +
-                std::to_string(path->timing.transitionSteps) + "); the limit is 240");
+                std::to_string(path->timing.transitionSteps) + "); the limit is " +
+                std::to_string(cameraPathFrameLimit));
         bytes += cameraPathBytes(path);
         if (bytes > cameraPathBytesLimit)
             throw std::runtime_error("Camera paths exceed the 512 KiB record budget");
