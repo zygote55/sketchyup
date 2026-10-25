@@ -419,7 +419,8 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
         holesTotal = 0, uvTotal = 0;
     for (std::size_t i = 0; i < definitionEntries.size(); ++i) {
         const auto d = object(definitionEntries[i], "definition");
-        onlyKeys(d, {"name", "guid", "vertices", "edges", "faces", "instances"}, "definition");
+        onlyKeysOr(d, {"name", "guid", "vertices", "edges", "faces", "instances"},
+                   {"instanceNames", "instanceAttributes"}, "definition");
         const auto expectedVertices =
             std::uint64_t(integer(d["vertices"], 0, SkpPackageLimits::vertices, "definition vertices"));
         const auto expectedEdges =
@@ -556,6 +557,44 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
             }
             require(instance.transform[15] == 1.0, "instance transform w is not 1");
             definition.instances.push_back(std::move(instance));
+        }
+        // R102.b: the instances' names and attributes, aligned with the instances (optional: a package the
+        // earlier helper wrote has neither, and its instances keep no name and no attributes).
+        if (d.contains("instanceNames")) {
+            const auto names = array(d["instanceNames"], std::size_t(instanceCount), "instance names");
+            require(std::uint64_t(names.size()) == instanceCount, "instance names disagree with the instances");
+            for (std::size_t n = 0; n < names.size(); ++n)
+                definition.instances[n].name = text(names[n], SkpPackageLimits::nameBytes, "instance name");
+        }
+        if (d.contains("instanceAttributes")) {
+            const auto lists = array(d["instanceAttributes"], std::size_t(instanceCount), "instance attributes");
+            require(std::uint64_t(lists.size()) == instanceCount, "instance attributes disagree with the instances");
+            for (std::size_t n = 0; n < lists.size(); ++n) {
+                const auto list = array(lists[n], SkpPackageLimits::attributesPerInstance, "an instance's attributes");
+                for (const auto &entry : list) {
+                    const auto a = object(entry, "attribute");
+                    onlyKeys(a, {"dictionary", "key", "type", "value"}, "attribute");
+                    SkpPackageAttribute attribute;
+                    attribute.dictionary = text(a["dictionary"], SkpPackageLimits::nameBytes, "attribute dictionary");
+                    attribute.key = text(a["key"], SkpPackageLimits::nameBytes, "attribute key");
+                    require(!attribute.key.empty(), "attribute key is empty");
+                    const auto type = text(a["type"], 16, "attribute type");
+                    if (type == "string") {
+                        attribute.kind = SkpPackageAttribute::Kind::String;
+                        attribute.text = text(a["value"], SkpPackageLimits::stringBytes, "attribute value");
+                    } else if (type == "number") {
+                        attribute.kind = SkpPackageAttribute::Kind::Number;
+                        attribute.number = finite(a["value"], "attribute value");
+                    } else if (type == "boolean") {
+                        require(a["value"].isBool(), "a boolean attribute holds no boolean");
+                        attribute.kind = SkpPackageAttribute::Kind::Boolean;
+                        attribute.flag = a["value"].toBool();
+                    } else {
+                        fail("attribute type is unknown");
+                    }
+                    definition.instances[n].attributes.push_back(std::move(attribute));
+                }
+            }
         }
 
         package.definitions.push_back(std::move(definition));

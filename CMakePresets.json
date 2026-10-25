@@ -130,7 +130,13 @@
     },
     {
       "name": "skp",
-      "configurePreset": "skp"
+      "configurePreset": "skp",
+      "targets": [
+        "sketchyup-skp-worker",
+        "skp_package_tests",
+        "skp_import_tests",
+        "skp_mapping_tests"
+      ]
     }
   ],
   "testPresets": [

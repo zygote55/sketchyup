@@ -21,9 +21,13 @@ pinned checkout above, e.g. $OPENSKP=/path/to/openskp@23a15e87...):
     tests/fixtures/skp/generate.cpp $BUILD/libOpenSkp.a -o /tmp/gen_skp
   /tmp/gen_skp tests/fixtures/skp/
 
-The generator is deterministic: rerunning it overwrites the fixtures byte-for-byte
-(verified: the SHAs below reproduce on a clean build). The writer takes no random input
-and the archive layout is order-stable, so the bytes do not depend on the machine.
+The generator is NOT byte-reproducible for the component fixtures (R102.b check, 2026-10-25):
+the writer stamps each component definition with a random GUID (std::random_device) and a
+timestamp, so a rerun changes component_instances.skp, nested_component.skp, and (R102.b)
+scaled_instance.skp and mirrored_instance.skp. The other fixtures reproduce byte-for-byte on a
+clean build (box, face_with_hole, hidden_tag, soft_smooth_edges and two_materials, and
+textured_face). The committed bytes are the reference: rerunning the generator is not a way to
+refresh them, and a changed component fixture needs its SHA below updated in the same change.
 
 SHA-256 of the committed fixtures (tests/fixtures/skp/):
   box.skp                  05eb8f096a3b95e1a36d11c8c2c481f0f53e527579be60e1f6edeade9966c78f
@@ -44,3 +48,35 @@ Contents (all coordinates in inches, as the .skp format stores them):
   hidden_tag.skp           a face on a layer set to hidden
   nested_component.skp     "Outer" (a 2x2 face + an instance of "Inner" at (0.5,0.5,0)),
                            placed once at the root
+
+# R102.b additions (ADR 0176 section 4, the w question)
+
+Three more fixtures, from the same writer and generator (tests/fixtures/skp/generate.cpp, now
+run with two arguments: OUTPUT_DIR and CHECKER_PNG):
+
+  scaled_instance.skp     a 1-inch block with outward faces (6 faces), placed with the
+                          row-major 3x3 [2, 0.5, 0; 0, 1, 0; 0, 0, 1.5] (a shear and a
+                          non-uniform scale) at (1, 2, 3) inches. The writer writes w = 1.
+  mirrored_instance.skp   the same block, mirrored in X (3x3 diag(-1, 1, 1), determinant -1),
+                          at (2, 0, 0) inches. The writer writes w = 1.
+  textured_face.skp       a 4 x 4 inch face with the checker image (checker.png, 4 x 4 RGB,
+                          80 bytes, committed) as a material with a 2 x 2 inch applied size, and
+                          three explicit (point, (u, v)) pairs: (0,0,0)->(0,0), (4,0,0)->(1,0),
+                          (0,4,0)->(0,1).
+
+  checker.png             the image (tests/fixtures/skp/checker.png)
+
+SHA-256 (the bytes committed; the two component fixtures are not reproducible, see above):
+  scaled_instance.skp      31fb214ee14fd1410ae557d32be3a15d99f0002b0620b8a612cf928572559dac
+  mirrored_instance.skp    0f121df377a264b1f43ca57b2fbecce09d6adae075f068894f87fd4b944c6718
+  textured_face.skp        7767a716a1fe924782d58fd3533b48c89d3de0ad4fb1ef0131374a65f3094e9f
+  checker.png              75e1a0c3dbbcab080407eb46c89cb2b2a97180f8d9bba42c527bdc7df0e82643
+  named_attributes.skp     c74bf456ba1d6e030b8d12b18b468602103980e3aacd9ce3f4ac30bb29996d8b
+                           (two placements of one "Chair", named "Chair A" and "Chair B"; the
+                           first with a string, an integer, a float, a boolean and a Length
+                           attribute; the component, so not byte-reproducible)
+
+The w question (ADR 0176 section 4): the writer can make a scaled and a mirrored instance (the
+scale and the mirror are the placement's 3x3; no separate scale is written) and always writes
+w = 1, so no writer-made file has w other than 1. The import's rule (divide the translation by w,
+with the scaledPlacement notice) is therefore exercised by no fixture.

@@ -35,6 +35,7 @@ struct SkpPackageLimits {
   static constexpr std::size_t nameBytes = 4096;
   static constexpr std::size_t locationsPerKind = 32;
   static constexpr std::size_t noticeCodes = 64;
+  static constexpr std::size_t attributesPerInstance = 256;  // the attributes of one instance (R102.b)
 };
 
 struct SkpPackageTag {
@@ -81,12 +82,29 @@ struct SkpPackageFace {
   std::array<double, 9> uvBack{};  // when hasUvBack
 };
 
+// One attribute of an instance (R102.b, ADR 0176 section 4): a value of SketchUp's attribute
+// dictionaries, of the three kinds the import keeps (a Length, a vector or a nested value is not kept).
+struct SkpPackageAttribute {
+  enum class Kind : std::uint8_t { String, Number, Boolean };
+  std::string dictionary;
+  std::string key;
+  Kind kind{Kind::String};
+  std::string text;  // String
+  double number{};   // Number (finite)
+  bool flag{};       // Boolean
+};
+
 struct SkpPackageInstance {
   long long definition{-1};
   bool hidden{};
   long long tag{-1};
   long long material{-1};
-  std::array<double, 16> transform{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};  // row-major 4x4
+  // The 4x4 as the worker writes it: the 3x3 row-major in the top-left (index r * 4 + c), the translation in
+  // metres in the bottom row (indices 12 to 14), and 1 in index 15. The native Transform is column-major, so the
+  // importer transposes the 3x3 (R102.b, ADR 0176 implementation notes).
+  std::array<double, 16> transform{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+  std::string name;                          // the instance's name ("" when it has none)
+  std::vector<SkpPackageAttribute> attributes;
 };
 
 struct SkpPackageDefinition {

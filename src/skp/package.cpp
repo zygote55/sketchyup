@@ -305,15 +305,42 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
   json.raw(reportJson(package));
   json.key("definitions");
   json.beginArray();
-  for (const auto& definition : package.definitions)
+  for (const auto& definition : package.definitions) {
     json.beginObject()
         .field("name", clip(definition.name, SkpPackageLimits::nameBytes))
         .field("guid", clip(definition.guid, SkpPackageLimits::stringBytes))
         .field("vertices", definition.vertices.size())
         .field("edges", definition.edges.size())
         .field("faces", definition.faces.size())
-        .field("instances", definition.instances.size())
-        .endObject();
+        .field("instances", definition.instances.size());
+    // R102.b: the instances' names and attributes, one entry per instance (the decoder's optional members).
+    json.key("instanceNames").beginArray();
+    for (const auto& instance : definition.instances)
+      json.value(clip(instance.name, SkpPackageLimits::nameBytes));
+    json.endArray().key("instanceAttributes").beginArray();
+    for (const auto& instance : definition.instances) {
+      json.beginArray();
+      for (const auto& attribute : instance.attributes) {
+        json.beginObject()
+            .field("dictionary", clip(attribute.dictionary, SkpPackageLimits::nameBytes))
+            .field("key", clip(attribute.key, SkpPackageLimits::nameBytes));
+        switch (attribute.kind) {
+          case SkpPackageAttribute::Kind::String:
+            json.field("type", "string").field("value", clip(attribute.text, SkpPackageLimits::stringBytes));
+            break;
+          case SkpPackageAttribute::Kind::Number:
+            json.field("type", "number").field("value", attribute.number);
+            break;
+          case SkpPackageAttribute::Kind::Boolean:
+            json.field("type", "boolean").field("value", attribute.flag);
+            break;
+        }
+        json.endObject();
+      }
+      json.endArray();
+    }
+    json.endArray().endObject();
+  }
   json.endArray().key("tags");
   json.beginArray();
   for (const auto& tag : package.tags)
