@@ -456,7 +456,7 @@ default 120) to allow the helper more or less time.
 | SketchUp that saved the file | Import |
 |---|---|
 | 2021 and later | **Supported.** Tested with a SketchUp 2024 model. A version newer than the ones tested is read and labelled "newer than tested" in the report |
-| 2013 to 2020 | **Best effort**, labelled as such in the report. These files use an older container that the reader handles less completely. A file it cannot read is refused with the advice below; it is never imported in part |
+| 2013 to 2020 | **Best effort**, labelled as such in the report. These files use an older container that the reader handles less completely. Some of them cannot be read yet, because the reader fails on certain text labels in them (OpenSKP issue 442). A file it cannot read is refused with the advice below; it is never imported in part |
 | Before 2013 | **Refused:** "This SketchUp file is from before 2013. Save it from SketchUp 2021 or later and try again." |
 
 If a file is refused, save it again from SketchUp 2021 or later and import that copy.
