@@ -371,7 +371,9 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
         const double opacity = finite(m["opacity"], "material opacity");
         require(opacity >= 0 && opacity <= 1, "material opacity is outside 0..1");
         material.opacity = opacity;
-        material.texture = integer(m["texture"], -1, std::int64_t(package.textures.size()),
+        // -1 is "no texture"; otherwise an index into the texture table, so at most size - 1 (the
+        // integer bound is inclusive: size itself would point one past the end).
+        material.texture = integer(m["texture"], -1, std::int64_t(package.textures.size()) - 1,
                                    "material texture index");
         package.materials.push_back(std::move(material));
     }
