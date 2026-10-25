@@ -333,7 +333,8 @@ int main(int argc, char **argv) {
     // S1 to S5 and the undo on each fixture.
     const char *fixtures[] = {"box.skp", "face_with_hole.skp", "soft_smooth_edges.skp", "two_materials.skp",
                               "component_instances.skp", "hidden_tag.skp", "nested_component.skp",
-                              "scaled_instance.skp", "mirrored_instance.skp", "textured_face.skp"};
+                              "scaled_instance.skp", "mirrored_instance.skp", "textured_face.skp",
+                              "named_attributes.skp"};
     for (const char *name : fixtures) {
         const QString file = fixture(name);
         const auto package = packageOf(file, temp);
@@ -342,6 +343,7 @@ int main(int argc, char **argv) {
         checkBox(name, package, imported);
         const auto &doc = imported.document;
         check(doc.displayUnits() == DisplayUnit::Meters, std::string(name) + ": the display units are metres");
+        check(imported.report["notCarried"].toArray().size() == 8, std::string(name) + ": the report names what the package does not carry");
         // The root group is named after the file (without its extension).
         bool rootNamed = false;
         for (const auto &[id, body] : doc.bodies())
@@ -355,6 +357,12 @@ int main(int argc, char **argv) {
         auto imported = importOf(fixture("component_instances.skp"));
         auto &doc = imported.document;
         check(doc.definitions().size() == 1, "S3: one definition");
+        int hidden = 0;
+        for (const auto &[root, instance] : doc.instances()) {
+            (void)instance;
+            hidden += doc.bodies().at(root)->hidden ? 1 : 0;
+        }
+        check(hidden == 1, "S3: the hidden third placement is hidden");
         check(doc.instances().size() == 3, "S3: three instances");
         if (doc.definitions().size() == 1 && doc.instances().size() == 3) {
             const Id definition = doc.definitions().begin()->first;
@@ -388,6 +396,47 @@ int main(int argc, char **argv) {
         doc.undo();
         doc.undo();
         check(doc.bodies().empty() && doc.definitions().empty(), "S3: undo takes back the edit and the import");
+    }
+
+    // Names and attributes (ADR 0176 section 4): the placements' names, their attributes as properties.
+    {
+        auto imported = importOf(fixture("named_attributes.skp"));
+        const auto &doc = imported.document;
+        const Body *first = nullptr, *second = nullptr;
+        for (const auto &[id, body] : doc.bodies()) {
+            (void)id;
+            if (body->kind == BodyKind::Group && body->name == "Chair A")
+                first = body.get();
+            if (body->kind == BodyKind::Group && body->name == "Chair B")
+                second = body.get();
+        }
+        check(first && second, "names: the two placements are named Chair A and Chair B");
+        if (first) {
+            const auto text = [&](const char *key) -> std::string {
+                const auto found = first->properties.find(key);
+                return found != first->properties.end() && std::holds_alternative<std::string>(found->second)
+                           ? std::get<std::string>(found->second) : std::string("(missing)");
+            };
+            const auto number = [&](const char *key) -> double {
+                const auto found = first->properties.find(key);
+                return found != first->properties.end() && std::holds_alternative<double>(found->second)
+                           ? std::get<double>(found->second) : -1e300;
+            };
+            check(text("skp.attributes.Material") == "Oak", "attributes: the string Material is Oak");
+            check(number("skp.attributes.Count") == 3.0, "attributes: the integer Count is 3");
+            check(number("skp.attributes.Price") == 9.5, "attributes: the float Price is 9.5");
+            const auto fire = first->properties.find("skp.attributes.Fire");
+            check(fire != first->properties.end() && std::holds_alternative<bool>(fire->second) && std::get<bool>(fire->second),
+                  "attributes: the boolean Fire is true");
+            check(!first->properties.contains("skp.attributes.Span"), "attributes: a Length is not imported");
+        }
+        if (second)
+            check(second->properties.empty(), "an instance with no attributes has no properties");
+        bool named = false;
+        for (const auto &[id, definition] : doc.definitions())
+            named |= definition->name == "Chair" && id != 0;
+        check(named, "names: the definition is named Chair");
+        checkUndo("named_attributes.skp", imported);
     }
 
     // S4: the hidden tag, the soft and smooth edges, the holed face.

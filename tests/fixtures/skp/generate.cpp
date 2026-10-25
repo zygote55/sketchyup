@@ -21,6 +21,8 @@
 
 namespace fs = std::filesystem;
 
+using openskp::AttributeBool;
+using openskp::AttributeLength;
 using openskp::Color3;
 using openskp::ComponentDefinitionBuilder;
 using openskp::FaceOptions;
@@ -175,6 +177,29 @@ static void texturedFace(const fs::path& out, const fs::path& image) {
   b->save(out);
 }
 
+// 11. Named instances with attributes (R102.b): two placements of one "Chair", named. The first
+// carries a string, an integer, a float, a boolean and a Length attribute (a Length is not imported);
+// the second carries none.
+static void namedAttributes(const fs::path& out) {
+  auto b = create();
+  auto& chair = b->add_component_definition("Chair");
+  chair.add_face({Point3{0, 0, 0}, Point3{1, 0, 0}, Point3{1, 1, 0}, Point3{0, 1, 0}});
+  chair.close();
+  InstanceOptions first;
+  first.name = std::string("Chair A");
+  first.attributes = {{"Material", std::string("Oak")},
+                      {"Count", std::int32_t(3)},
+                      {"Price", 9.5},
+                      {"Fire", AttributeBool{true}},
+                      {"Span", AttributeLength{12.0}}};
+  b->add_instance(chair, first);
+  InstanceOptions second;
+  second.name = std::string("Chair B");
+  second.translation = {2, 0, 0};
+  b->add_instance(chair, second);
+  b->save(out);
+}
+
 int main(int argc, char** argv) {
   if (argc != 3) {
     std::cerr << "usage: skp_fixture_generator OUTPUT_DIR CHECKER_PNG\n";
@@ -206,5 +231,8 @@ int main(int argc, char** argv) {
   const fs::path textured = dir / "textured_face.skp";
   texturedFace(textured, checker);
   std::cout << "textured_face.skp " << fs::file_size(textured) << " bytes\n";
+  const fs::path named = dir / "named_attributes.skp";
+  namedAttributes(named);
+  std::cout << "named_attributes.skp " << fs::file_size(named) << " bytes\n";
   return 0;
 }

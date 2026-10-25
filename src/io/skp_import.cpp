@@ -24,6 +24,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace sketchy {
@@ -182,12 +183,38 @@ struct Cost {
 // One canonical definition: its members (member 1 is the root), its nested placements
 // (references) and the native counts of its own geometry.
 struct Canonical {
-    bool built{};
     std::map<Id, BodyPtr> members;  // member id -> the body (member 1 is the root)
     std::map<Id, Id> references;    // a nested placement's member -> the definition it places
     Id nextMember{2};
     Cost own;                       // this definition's own geometry, not its nested placements
 };
+
+// The instance's attributes as the body's properties skp.<dictionary>.<key> (ADR 0176 section 4): a string,
+// a number or a boolean. The native caps hold: 128 properties a body, keys of at most 128 bytes and strings
+// of at most 2,048 bytes; what does not fit is dropped and counted (propertiesDropped).
+void addAttributeProperties(std::map<std::string, std::variant<bool, double, std::string>> &properties,
+                            const SkpPackageInstance &instance, std::map<std::string, long long> &notices) {
+    for (const auto &attribute : instance.attributes) {
+        std::string key = "skp." + attribute.dictionary + "." + attribute.key;
+        if (key.size() > 128 || properties.size() >= 128) {
+            notices["propertiesDropped"] += 1;
+            continue;
+        }
+        std::variant<bool, double, std::string> value;
+        switch (attribute.kind) {
+        case SkpPackageAttribute::Kind::String:
+            value = std::string(clipUtf8(attribute.text, 2048));
+            break;
+        case SkpPackageAttribute::Kind::Number:
+            value = attribute.number;
+            break;
+        case SkpPackageAttribute::Kind::Boolean:
+            value = attribute.flag;
+            break;
+        }
+        properties.emplace(std::move(key), std::move(value));
+    }
+}
 
 // One body under construction: the faces with one tag and one visibility.
 struct Bucket {
@@ -494,7 +521,6 @@ Canonical Converter::buildDefinition(std::size_t d) {
     checkCancel();
     const auto &definition = pkg.definitions[d];
     Canonical canon;
-    canon.built = true;
     auto root = std::make_shared<Body>();
     root->id = 1;
     root->kind = BodyKind::Group;
@@ -693,7 +719,8 @@ Canonical Converter::buildDefinition(std::size_t d) {
             node->id = canon.nextMember++;
             node->kind = BodyKind::Group;
             node->parent = 1;
-            node->name = plainText(pkg.definitions[std::size_t(instance.definition)].name, nameBytes);
+            node->name = plainText(instance.name.empty() ? pkg.definitions[std::size_t(instance.definition)].name : instance.name, nameBytes);
+            addAttributeProperties(node->properties, instance, notices);
             node->transform = placement;
             node->tag = tagOf(instance.tag);
             node->hidden = instance.hidden;
@@ -772,7 +799,8 @@ void Converter::placeTopLevel(std::size_t k, Id parent) {
     group->id = nextBody++;
     group->kind = BodyKind::Group;
     group->parent = parent;
-    group->name = plainText(pkg.definitions[d].name, nameBytes);
+    group->name = plainText(instance.name.empty() ? pkg.definitions[d].name : instance.name, nameBytes);
+    addAttributeProperties(group->properties, instance, notices);
     group->transform = placement;
     group->tag = tagOf(instance.tag);
     group->hidden = instance.hidden;
@@ -888,6 +916,9 @@ SkpImport Converter::run() {
     account("instances", counts.instances, importedInstances);
     account("materials", counts.materials, static_cast<long long>(materialRecords.size()));
 
+    // What the SketchUp file holds that the package does not carry (ADR 0176 section 5): counted as none.
+    QJsonArray notCarried{"scenes", "styles", "sectionPlanes", "texts", "dimensions", "camera", "constructionLines",
+                          "constructionPoints"};
     QJsonObject notes;
     for (const auto &[code, count] : notices)
         notes[QString::fromStdString(code)] = qint64(count);
@@ -929,6 +960,7 @@ SkpImport Converter::run() {
         {"sourceTotals", sourceTotals},
         {"omittedByWorker", omittedWorker},
         {"notices", notes},
+        {"notCarried", notCarried},
         {"locations", where},
     };
     return result;

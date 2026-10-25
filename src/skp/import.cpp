@@ -527,6 +527,47 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       out.hidden = instance.hidden;
       out.tag = tagOf(instance.layer);
       out.material = materialOf(instance.material_id);
+      // R102.b: the instance's name, and its attribute dictionaries of the three kinds the import keeps
+      // (a string, a number or a boolean; a Length, a vector, an array or a null is not kept).
+      out.name = clip(instance.name, SkpPackageLimits::nameBytes);
+      for (const auto& [dictionary, values] : instance.attribute_dictionaries) {
+        for (const auto& [key, value] : values) {
+          if (key.empty()) continue;
+          if (out.attributes.size() >= SkpPackageLimits::attributesPerInstance) {
+            report.notice("attributesOverLimit");
+            break;
+          }
+          SkpPackageAttribute attribute;
+          attribute.dictionary = clip(dictionary, SkpPackageLimits::nameBytes);
+          attribute.key = clip(key, SkpPackageLimits::nameBytes);
+          switch (value.kind) {
+            case openskp::ParsedAttribute::Kind::String:
+              attribute.kind = SkpPackageAttribute::Kind::String;
+              attribute.text = clip(value.text, SkpPackageLimits::stringBytes);
+              break;
+            case openskp::ParsedAttribute::Kind::Integer:
+              attribute.kind = SkpPackageAttribute::Kind::Number;
+              attribute.number = static_cast<double>(value.integer);
+              break;
+            case openskp::ParsedAttribute::Kind::Float:
+              if (!std::isfinite(value.number)) {
+                report.notice("attributeNotImported");
+                continue;
+              }
+              attribute.kind = SkpPackageAttribute::Kind::Number;
+              attribute.number = value.number;
+              break;
+            case openskp::ParsedAttribute::Kind::Boolean:
+              attribute.kind = SkpPackageAttribute::Kind::Boolean;
+              attribute.flag = value.integer != 0;
+              break;
+            default:
+              report.notice("attributeNotImported");
+              continue;
+          }
+          out.attributes.push_back(std::move(attribute));
+        }
+      }
       // The 4x4: the parser's 3x3 (unitless), the translation in metres. The parser's own
       // transform ignores the 13th value, w; ADR 0176 section 4 divides the translation by w
       // when it is not 1 and records the scaled placement.
