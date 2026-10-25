@@ -16,63 +16,92 @@ commit it ran at. "Not run" always comes with the reason.
 
 | Check | Clause (ADR 0171 §6.3) | Proof: CTest suite or command | Result today | Commit |
 | --- | --- | --- | --- | --- |
-| A1 | Units: mm, m and ft fixtures to 1e-9 m | `ifc_import_worker`, `ifc_import` | pending | — |
-| A2 | Quantity values equal the raw-text scan's (7 area, 7 volume, 11 length) | `ifc_import_worker` | pending | — |
-| A3 | Missing length unit refused; accepted with the override, reported | `ifc_import_worker`, `ifc_import` | pending | — |
-| A4 | Non-SI, non-inch, non-foot length unit refused (furlong) | `ifc_import_worker`, `ifc_import` | pending | — |
-| A5 | Property or quantity with its own `Unit` converted or listed | `ifc_import_worker`, `ifc_import` | pending | — |
-| B1 | Group tree equals the raw-text scan's by `GlobalId` | `ifc_import_worker`, `ifc_import` | pending | — |
-| B2 | Counts per class equal the scan's | `ifc_import_worker` | pending | — |
-| B3 | Element order within a parent follows the file | `ifc_import_worker` | pending | — |
-| B4 | `ifc.Groups` equals the file's group, system and zone membership | `ifc_import_worker` | pending | — |
-| B5 | Tags per class | `ifc_import`, `ifc_convert` | pending | — |
-| B6 | Duplicate `GlobalId`, two parents, containment cycle noticed or reported | `ifc_import_worker` | pending | — |
-| B7 | A layer with `LayerOn` false imports its bodies hidden | `ifc_import_worker`, `ifc_import` | pending | — |
-| C1 | Every `Pset.Property` and `Qto.Quantity` equals the scan's | `ifc_import_worker`, `ifc_import` | pending | — |
-| C2 | `\X2\` and `\S\` escapes decode | `ifc_import_worker` | pending | — |
-| C3 | 128-per-body cap, 8 MiB aggregate cap, chunk-remainder cap; over-chunk geometry refused | `ifc_convert` | pending | — |
-| C4 | `ifc.GlobalId`, `ifc.Class`, `ifc.Step`, `ifc.Representation` on every body | `ifc_import` | pending | — |
-| C5 | Classification reference retained with its URI | `ifc_import_worker` | pending | — |
-| C6 | Per-face colours equal the file's `IfcIndexedColourMap` | `ifc_import_worker`, `ifc_import` | pending | — |
-| D1 | Accounting identity holds on every fixture | `ifc_import_worker`, `ifc_georeference`, `ifc_import` | pending | — |
-| D2 | `unsupported-all.ifc` lists each class, ≤ 32 locations, complete counts | `ifc_import_worker` | pending | — |
-| D3 | Unsupported placement, cycle or no geometry: not imported, located, nothing at the origin | `ifc_import_worker`, `ifc_import` | pending | — |
-| D4 | Reference to an undefined ID is a notice, not a crash | `ifc_import_worker` | pending | — |
-| E1 | Native validation (`decodeDocument(encodeDocument())`); save and reopen bit-exact | `ifc_convert`, `ifc_import` | pending | — |
-| E2 | Tessellated and polygonal-profile areas and volumes to 1e-6 relative | `ifc_import_worker`, `ifc_import` | pending | — |
-| E3 | Reference View wall volume with the opening subtracted; the uncut file is larger | `ifc_import_worker`, `ifc_import` | pending | — |
-| E4 | Coplanar triangles merge into polygon faces; non-planar counted | `ifc_convert`, `ifc_import` | pending | — |
-| E5 | One undo step for the whole import | `ifc_import`, `ifc_import_dialog` (S9) | pending | — |
-| E6 | Provenance properties resolve to the right source entity | `ifc_import` | pending | — |
-| E7 | Mesh volumes and areas agree with `NetVolume` and `GrossArea` within 1e-3 | `ifc_import_worker`, `ifc_import` | pending | — |
-| F1 | θ = 0 and matching scale set the site origin to E, N, H within 1e-9 m | `ifc_georeference`, `ifc_import` | pending | — |
-| F2 | 60° fixtures: `keepAxes` sets no origin; grid mode maps each vertex | `ifc_georeference`, `ifc_import` | pending | — |
-| F3 | Model beyond ±1e6 m refused, naming the extent | `ifc_georeference` | pending | — |
-| F4 | Survey foot, WCS, two conversions and the other F4 cases handled as specified | `ifc_georeference` | pending | — |
-| G1 | Goldens pass the raw-text scan, `--check`, `ifcopenshell.validate`; hosted service by a person | `ifc_export`, `ifc_export_worker`; `ifcopenshell.validate` by hand (below); hosted service pending: owner | pending | — |
-| G2 | Export then re-import reproduces bodies, vertices, hierarchy and properties | `ifc_export` | pending | — |
-| G3 | Two exports with a fixed time are byte-identical | `ifc_export`, `ifc_export_worker` | pending | — |
-| G4 | Every non-exported kind is counted; the identity holds | `ifc_export`, `ifc_export_worker` | pending | — |
-| G5 | CRS label of authority-code form required for `IfcMapConversion` | `ifc_export` | pending | — |
-| G6 | Golden exports checked in; CI compares bytes | `ifc_export` | pending | — |
-| G7 | Duplicate and invalid `GlobalId` values get derived identifiers | `ifc_export`, `ifc_export_worker` | pending | — |
-| H1 | Two imports of every fixture give identical encodings | `ifc_import`, `ifc_georeference` | pending | — |
-| H2 | Shuffled instances give the same document except `ifc.Step` and file order | `ifc_import_worker` | pending | — |
-| I1 | 128 MiB limit and over-limit entity count refuse with the limit named | `ifc_worker_run` | pending | — |
-| I2 | Messages ≤ 256 bytes; report ≤ 64 KiB | `ifc_import`, `ifc_convert` | pending | — |
-| I3 | Worker killed, over limit or past deadline: element left out, app keeps running | `ifc_worker_run` | pending | — |
-| J1 | Package decoder: bounds, re-encode; `parser_fuzz_ifc_package` | `ifc_package`, `parser_fault_corpus`; fuzz run (below) | pending | — |
-| J2 | 512 mutations of each certification file through the dry run, in a child | `ifc_worker_fault_corpus_full` (label `full`) | pending | — |
-| J3 | Upstream `ifcparse_fuzzer` and a `worker` target, ≥ 5 min each, sanitizers | manual campaigns (below) | pending | — |
-| J4 | Harness runs every input twice and compares | `tests/fuzz/parser_harness.hpp` (`ifc-package`), exercised by the J1 run | pending | — |
-| K1 | Support matrix row, user guide section, exchange-boundaries entry state exactly the claims | manual, against the report's kinds (below) | pending | — |
-| K2 | Fixture `NOTICE.md` carries CC BY 4.0 and the IFC trademark credit; fixtures unmodified | `ifc_import_worker` | pending | — |
-| L1 | No dynamic dependency on IfcOpenShell or OCCT outside the worker | `ifc_library_install` | pending | — |
-| L2 | `LD_LIBRARY_PATH` replacement makes the worker use the replaced libraries | `ifc_library_install` | pending | — |
-| L3 | Package carries the notices; vendored tree equals the pinned commit | `ifc_library_source`, `scripts/vendor-ifcopenshell.py check` | pending | — |
-| L4 | `THIRD_PARTY_NOTICES`, PKGBUILD licence array and `dependencies.json` updated | `ifc_library_source` | pending | — |
-| L5 | No GPL-3.0-or-later library linked | `ifc_library_install` (`verify-ifc-library.py`) | pending | — |
-| L6 | Kernel removal reports "kernel unavailable", no abort | `ifc_library_install` | pending | — |
+| A1 | Units: mm, m and ft fixtures to 1e-9 m | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| A2 | Quantity values equal the raw-text scan's (7 area, 7 volume, 11 length) | `ifc_import_worker` | pass | 78058393 |
+| A3 | Missing length unit refused; accepted with the override, reported | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| A4 | Non-SI, non-inch, non-foot length unit refused (furlong) | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| A5 | Property or quantity with its own `Unit` converted or listed | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| B1 | Group tree equals the raw-text scan's by `GlobalId` | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| B2 | Counts per class equal the scan's | `ifc_import_worker` | pass | 78058393 |
+| B3 | Element order within a parent follows the file | `ifc_import_worker` | pass | 78058393 |
+| B4 | `ifc.Groups` equals the file's group, system and zone membership | `ifc_import_worker` | pass | 78058393 |
+| B5 | Tags per class | `ifc_import`, `ifc_convert` | pass | 78058393 |
+| B6 | Duplicate `GlobalId`, two parents, containment cycle noticed or reported | `ifc_import_worker` | pass | 78058393 |
+| B7 | A layer with `LayerOn` false imports its bodies hidden | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| C1 | Every `Pset.Property` and `Qto.Quantity` equals the scan's | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| C2 | `\X2\` and `\S\` escapes decode | `ifc_import_worker` | pass | 78058393 |
+| C3 | 128-per-body cap, 8 MiB aggregate cap, chunk-remainder cap; over-chunk geometry refused | `ifc_convert` | pass | 78058393 |
+| C4 | `ifc.GlobalId`, `ifc.Class`, `ifc.Step`, `ifc.Representation` on every body | `ifc_import` | pass | 78058393 |
+| C5 | Classification reference retained with its URI | `ifc_import_worker` | pass | 78058393 |
+| C6 | Per-face colours equal the file's `IfcIndexedColourMap` | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| D1 | Accounting identity holds on every fixture | `ifc_import_worker`, `ifc_georeference`, `ifc_import` | pass | 78058393 |
+| D2 | `unsupported-all.ifc` lists each class, ≤ 32 locations, complete counts | `ifc_import_worker` | pass | 78058393 |
+| D3 | Unsupported placement, cycle or no geometry: not imported, located, nothing at the origin | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| D4 | Reference to an undefined ID is a notice, not a crash | `ifc_import_worker` | pass | 78058393 |
+| E1 | Native validation (`decodeDocument(encodeDocument())`); save and reopen bit-exact | `ifc_convert`, `ifc_import` | pass | 78058393 |
+| E2 | Tessellated and polygonal-profile areas and volumes to 1e-6 relative | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| E3 | Reference View wall volume with the opening subtracted; the uncut file is larger | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| E4 | Coplanar triangles merge into polygon faces; non-planar counted | `ifc_convert`, `ifc_import` | pass | 78058393 |
+| E5 | One undo step for the whole import | `ifc_import`, `ifc_import_dialog` (S9) | pass (desktop S9 not run here: native matrix, see below) | 78058393 |
+| E6 | Provenance properties resolve to the right source entity | `ifc_import` | pass | 78058393 |
+| E7 | Mesh volumes and areas agree with `NetVolume` and `GrossArea` within 1e-3 | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
+| F1 | θ = 0 and matching scale set the site origin to E, N, H within 1e-9 m | `ifc_georeference`, `ifc_import` | pass | 78058393 |
+| F2 | 60° fixtures: `keepAxes` sets no origin; grid mode maps each vertex | `ifc_georeference`, `ifc_import` | pass | 78058393 |
+| F3 | Model beyond ±1e6 m refused, naming the extent | `ifc_georeference` | pass | 78058393 |
+| F4 | Survey foot, WCS, two conversions and the other F4 cases handled as specified | `ifc_georeference` | pass | 78058393 |
+| G1 | Goldens pass the raw-text scan, `--check`, `ifcopenshell.validate`; hosted service by a person | `ifc_export`, `ifc_export_worker`; `ifcopenshell.validate` by hand (below); hosted service pending: owner | partial: pass for the scan, --check and the helper's own tests; ifcopenshell.validate pending its run; hosted service pending owner | 78058393 |
+| G2 | Export then re-import reproduces bodies, vertices, hierarchy and properties | `ifc_export` | pass | 78058393 |
+| G3 | Two exports with a fixed time are byte-identical | `ifc_export`, `ifc_export_worker` | pass | 78058393 |
+| G4 | Every non-exported kind is counted; the identity holds | `ifc_export`, `ifc_export_worker` | pass | 78058393 |
+| G5 | CRS label of authority-code form required for `IfcMapConversion` | `ifc_export` | pass | 78058393 |
+| G6 | Golden exports checked in; CI compares bytes | `ifc_export` | pass | 78058393 |
+| G7 | Duplicate and invalid `GlobalId` values get derived identifiers | `ifc_export`, `ifc_export_worker` | pass | 78058393 |
+| H1 | Two imports of every fixture give identical encodings | `ifc_import`, `ifc_georeference` | pass | 78058393 |
+| H2 | Shuffled instances give the same document except `ifc.Step` and file order | `ifc_import_worker` | pass | 78058393 |
+| I1 | 128 MiB limit and over-limit entity count refuse with the limit named | `ifc_worker_run` | pass | 78058393 |
+| I2 | Messages ≤ 256 bytes; report ≤ 64 KiB | `ifc_import`, `ifc_convert` | pass | 78058393 |
+| I3 | Worker killed, over limit or past deadline: element left out, app keeps running | `ifc_worker_run` | pass | 78058393 |
+| J1 | Package decoder: bounds, re-encode; `parser_fuzz_ifc_package` | `ifc_package`, `parser_fault_corpus`; fuzz run (below) | partial: pass for ifc_package and parser_fault_corpus; the 5-minute libFuzzer run pending | 78058393 |
+| J2 | 512 mutations of each certification file through the dry run, in a child | `ifc_worker_fault_corpus_full` (label `full`) | pass (64 and 512 mutations per file) | 78058393 |
+| J3 | Upstream `ifcparse_fuzzer` and a `worker` target, ≥ 5 min each, sanitizers | manual campaigns (below) | pending (fuzz campaigns) | 78058393 |
+| J4 | Harness runs every input twice and compares | `tests/fuzz/parser_harness.hpp` (`ifc-package`), exercised by the J1 run | pending (the twice-run harness is exercised by the seed generator and the J1 run) | 78058393 |
+| K1 | Support matrix row, user guide section, exchange-boundaries entry state exactly the claims | manual, against the report's kinds (below) | pending (docs) | 78058393 |
+| K2 | Fixture `NOTICE.md` carries CC BY 4.0 and the IFC trademark credit; fixtures unmodified | `ifc_import_worker` | pass | 78058393 |
+| L1 | No dynamic dependency on IfcOpenShell or OCCT outside the worker | `ifc_library_install` | pass | 78058393 |
+| L2 | `LD_LIBRARY_PATH` replacement makes the worker use the replaced libraries | `ifc_library_install` | pass | 78058393 |
+| L3 | Package carries the notices; vendored tree equals the pinned commit | `ifc_library_source`, `scripts/vendor-ifcopenshell.py check` | pass (the tree-equals-archive check is run separately, see below) | 78058393 |
+| L4 | `THIRD_PARTY_NOTICES`, PKGBUILD licence array and `dependencies.json` updated | `ifc_library_source` | pass | 78058393 |
+| L5 | No GPL-3.0-or-later library linked | `ifc_library_install` (`verify-ifc-library.py`) | pass | 78058393 |
+| L6 | Kernel removal reports "kernel unavailable", no abort | `ifc_library_install` | pass | 78058393 |
+
+## Test runs
+
+All run on 2026-10-25 in `sketchyup-ci-pinned:r097a-ifc` (GCC 16.2.1, OpenCASCADE 7.9.3, Boost 1.92.0,
+Clang 23.1.1, Python 3.14), four CPUs and 10 GB, the IfcOpenShell prefix from the cache (stamp `7ba70197`,
+not rebuilt). Product code at `78058393`. Logs are kept in the build cache and are not committed.
+
+| Build (CMake preset) | Command | Result |
+| --- | --- | --- |
+| `ifc` (helper only, CI fast tier) | `cmake --preset ifc -DSKETCHYUP_IFC_PREFIX=/ifc-cache/ifc-prefix`, then `cmake --build --preset ifc` | exit 0 |
+| `ifc-app` (helper, CLI, IFC tests) | `cmake --preset ifc-app -DCMAKE_LINKER_TYPE=BFD`, then `cmake --build --preset ifc-app --parallel 4` | exit 0, 263 steps, 4 min |
+
+**Helper suite, CI fast-tier selection** (`ctest --test-dir build/ifc -R '^ifc_' -LE full --parallel 2`):
+8 of 8 passed, 100 %. `ifc_worker_probe` 2.31 s, `ifc_import_worker` 14.28 s, `ifc_georeference` 6.92 s,
+`ifc_export_worker` 7.51 s, `ifc_step_worker` 0.67 s, `ifc_worker_fault_corpus` (64 per file) 30.69 s,
+`ifc_library_install` 13.20 s, `ifc_library_source` 0.14 s.
+
+**Application suites, CI selection** (`ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import)$'`):
+8 of 8 passed. `ifc_package` 0.16 s, `step_import` 1.19 s, `ifc_convert` 7.29 s, `ifc_worker_run` 9.87 s,
+`ifc_import` 16.37 s, `ifc_step` 1.49 s, `ifc_step_export` 0.30 s, `ifc_export` 12.06 s.
+
+**`parser_fault_corpus`** is not a target of the `ifc-app` preset, so the first selection reported it
+"Not Run". It was built with `cmake --build build/ifc-app --target parser_fault_corpus_tests` (the fast
+tier builds it with the application) and passed: 8.48 s.
+
+**The damaged-file corpus at 512 mutations per file** (`ifc_worker_fault_corpus_full`, label `full`):
+passed, 278.18 s. The direct run's outcome counts are in the J2 notes below.
+
+**Sanitizers, helper** (`ifc-sanitize`): pending; see the J3 and sanitizer notes.
 
 ## Commands
 
