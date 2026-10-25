@@ -774,10 +774,6 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
           set_tests_properties(${ifc_test} PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0;UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
         endif()
       endforeach()
-      # R098.c: the STEP export's budget (ADR 0172 section 6), a generated 1,000,000-triangle model timed through the helper.
-      # Full tier only: it is not in the fast tier's ctest selection.
-      add_test(NAME ifc_step_export_budget COMMAND ifc_step_export_tests --budget)
-      set_tests_properties(ifc_step_export_budget PROPERTIES TIMEOUT 900 LABELS full)
     endif()
     add_executable(document_limits_io_tests tests/document_limits_io_tests.cpp)
     target_link_libraries(document_limits_io_tests PRIVATE sketchyup_io)

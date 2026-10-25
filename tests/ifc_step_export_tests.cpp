@@ -349,10 +349,10 @@ void refusals(const Document &doc, const QString &directory) {
 
 // The budget (ADR 0172 section 6): a generated model of 1,000,000 triangles (ten bodies, each a thousand planar 102-gons of
 // 100 triangles), exported and timed. The 5 s target and the 256 MiB output cap are reported as measured; nothing is assumed.
-Document budgetModel() {
+Document budgetModel(int bodies, int facesPerBody) {
     Document doc;
     Edit edit{"Budget model", {}};
-    constexpr int bodies = 10, facesPerBody = 1000, sides = 102;
+    constexpr int sides = 102;
     Id next = 1;
     for (int b = 0; b < bodies; ++b) {
         auto body = std::make_shared<Body>();
@@ -375,14 +375,23 @@ Document budgetModel() {
     return doc;
 }
 
-void budget(const QString &directory) {
-    const Document doc = budgetModel();
+void budget(const QString &directory, int bodies, int facesPerBody) {
     QElapsedTimer clock;
     clock.start();
-    const auto exported = exportStepFile(doc, QDir(directory).filePath("budget.step"), StepExportOptions{}, exportOptions());
+    const Document doc = budgetModel(bodies, facesPerBody);
+    const qint64 built = clock.elapsed();
+    clock.restart();
+    IfcWorkerOptions options = exportOptions();
+    QElapsedTimer phases;
+    phases.start();
+    options.progress = [&phases](const QString &phase, qint64) {
+        std::cout << "  phase " << phase.toStdString() << " at " << phases.elapsed() << " ms" << std::endl;
+    };
+    const auto exported = exportStepFile(doc, QDir(directory).filePath("budget.step"), StepExportOptions{}, options);
     const qint64 milliseconds = clock.elapsed();
-    std::cout << "budget: 1000000 triangles, " << exported.bytes << " bytes, " << milliseconds << " ms (target 5000 ms, cap 256 MiB)"
-              << '\n';
+    const long long triangles = 1LL * bodies * facesPerBody * 100;
+    std::cout << "budget: " << triangles << " triangles, " << exported.bytes << " bytes, export " << milliseconds
+              << " ms (model built in " << built << " ms; target 5000 ms, cap 256 MiB)" << '\n';
 }
 
 } // namespace
@@ -396,7 +405,9 @@ int main(int argc, char **argv) {
         QTemporaryDir directory;
         check(directory.isValid(), "a temporary directory");
         if (argc > 1 && std::string(argv[1]) == "--budget") {
-            budget(directory.path());
+            // ifc_step_export_tests --budget [BODIES FACES]: the default is 2 x 100 (20,000 triangles, seconds); the
+            // 1,000,000-triangle model is 20 500 (its model takes hours to build through the document API, see ADR 0172).
+            budget(directory.path(), argc > 2 ? std::stoi(argv[2]) : 2, argc > 3 ? std::stoi(argv[3]) : 100);
             return 0;
         }
         const Document doc = roundTripModel();
