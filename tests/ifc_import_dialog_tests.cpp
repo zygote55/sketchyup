@@ -21,6 +21,7 @@
 // only records; the assertions run after the flow returns.
 
 #include "app/ifc_availability.hpp"
+#include "app/ifc_export_dialog.hpp"
 #include "app/ifc_import_dialog.hpp"
 #include "app/ifc_progress_sheet.hpp"
 #include "app/report_sheet.hpp"
@@ -230,6 +231,8 @@ struct Driver {
     int pickers = 0;
     int confirmations = 0;
     bool dialogSeen = false; // the options dialog was seen
+    bool exportDialogSeen = false; // the IFC export plan dialog was seen (R097.e2)
+    QString exportDialogBanner; // its last non-empty banner text
     int dialogTicks = 0; // ticks in which the options dialog was visible
     bool dialogGoEnabled = false; // seen on any tick
     bool dialogBannerVisible = false; // seen on any tick
@@ -328,6 +331,20 @@ struct Driver {
                                 actionFailure = "a driver action failed";
                         }
                     }
+                }
+                continue;
+            }
+            if (auto *exportDialog = qobject_cast<IfcExportDialog *>(widget)) {
+                // The IFC export plan dialog (R097.e2): record it and cancel it.
+                exportDialogSeen = true;
+                if (auto *banner = exportDialog->findChild<QLabel *>("ifcExportBanner"))
+                    if (!banner->text().isEmpty())
+                        exportDialogBanner = banner->text();
+                if (!exportDialog->property("closed").toBool()) {
+                    exportDialog->setProperty("closed", true);
+                    if (auto *cancel = exportDialog->findChild<QPushButton *>("ifcExportCancel"))
+                        QMetaObject::invokeMethod(cancel, [cancel] { cancel->click(); },
+                                                 Qt::QueuedConnection);
                 }
                 continue;
             }
@@ -569,7 +586,7 @@ int main(int argc, char **argv) {
             check(!dialog.refused(), "the chosen file is accepted");
         }
 
-        // S1: a missing helper is "not installed"; export offers the pending sheet.
+        // S1: a missing helper is "not installed"; export opens the plan dialog (R097.e2).
         {
             window.setIfcWorkerPath("");
             check(window.ifcProbe().state == IfcState::Missing, "no helper: missing");
@@ -596,18 +613,16 @@ int main(int argc, char **argv) {
             check(contains(exportDriver.summaries["ifcUnavailable"], "IFC export") &&
                       contains(exportDriver.summaries["ifcUnavailable"], "not installed"),
                   "the sheet names the export and what is missing");
-            // Export with a helper present: the pending sheet (R097.e2).
+            // Export with a helper present: the plan dialog (R097.e2); an empty model is a
+            // cheap refusal in the dialog, with Export disabled before a file is chosen.
             window.setIfcWorkerPath(available);
             Driver pendingDriver;
             pendingDriver.start();
             window.findChild<QAction *>("file.exportIfc")->trigger();
             pendingDriver.stop();
-            check(pendingDriver.sheets == (QStringList{"ifcExportPending"}),
-                  "export with a helper shows the pending sheet");
-            check(contains(pendingDriver.summaries["ifcExportPending"],
-                           "not available in this build yet") &&
-                      contains(pendingDriver.summaries["ifcExportPending"], "R097.e2"),
-                  "the pending sheet names the roadmap");
+            check(pendingDriver.exportDialogSeen, "export with a helper opens the plan dialog");
+            check(contains(pendingDriver.exportDialogBanner, "Nothing to export"),
+                  "an empty model refuses in the dialog, before a file is chosen");
         }
 
         // S2: a broken helper is "cannot start", with the helper's last log line.

@@ -3,10 +3,12 @@
 // never blocked (16.4). A missing helper is "not installed"; a missing kernel is "limited"
 // (16.7). Export is R097.e2, so Export IFC… opens the availability sheet only.
 #include "app/window.hpp"
+#include "app/ifc_export_dialog.hpp"
 #include "app/ifc_import_dialog.hpp"
 #include "app/ifc_import_runner.hpp"
 #include "app/ifc_progress_sheet.hpp"
 #include "app/ifc_sheets.hpp"
+#include "io/ifc_export.hpp"
 #include "io/ifc_worker.hpp"
 #include <QCoreApplication>
 #include <QFileDialog>
@@ -149,33 +151,59 @@ void Window::importIfc() {
 }
 void Window::exportIfc() {
     probeIfcNow();
-    if (ifcProbe_.state == IfcState::Missing) {
-        showIfcUnavailable(this, ifcProbe_, true);
+    const IfcProbe &probe = ifcProbe_;
+    if (probe.state == IfcState::Missing || probe.state == IfcState::Broken) {
+        // 16.7: export needs the helper (not the kernel); a missing helper is an information
+        // state, with the install and "still works" lines.
+        showIfcUnavailable(this, probe, true);
         return;
     }
-    if (ifcProbe_.state == IfcState::Broken) {
-        showIfcUnavailable(this, ifcProbe_, true);
+    // 16.8: the plan, computed from the open model before anything is written, with no
+    // options; a cheap refusal is a red banner in the dialog with Export disabled.
+    IfcExportDialog dialog(this);
+    dialog.setProbe(probe);
+    dialog.setDocument(doc_);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    // The system Save dialog, as File > Export 2D DXF... (no overwrite prompt).
+    QFileDialog save(this, "New IFC file");
+    save.setObjectName("ifcExportFileDialog");
+    save.setAcceptMode(QFileDialog::AcceptSave);
+    save.setFileMode(QFileDialog::AnyFile);
+    save.setOption(QFileDialog::DontConfirmOverwrite);
+    save.setNameFilter("IFC models (*.ifc *.IFC);;All files (*.*)");
+    save.setDefaultSuffix("ifc");
+    if (save.exec() != QDialog::Accepted || save.selectedFiles().isEmpty())
+        return;
+    const QString path = save.selectedFiles().first();
+    // A name that exists is a refusal (16.8): nothing is built and nothing is written.
+    const QFileInfo info(path);
+    if (info.exists() || info.isSymLink()) {
+        showIfcExportRefusal(this, path, "destinationExists",
+                             "That file already exists. An existing file is never replaced; choose a new name.", QJsonObject());
         return;
     }
-    // Export is R097.e2; this release only offers the availability sheet.
-    ReportSheet sheet("ifcExportPending", "IFC export", this);
-    sheet.resize(600, 320);
-    sheet.summary->setObjectName("ifcExportPendingSummary");
-    sheet.summary->setWordWrap(true);
-    sheet.summary->setTextFormat(Qt::PlainText);
-    sheet.summary->setText(
-        "IFC export is not available in this build yet.\n\n"
-        "The helper is present, but the export screen arrives in a later release "
-        "(roadmap R097.e2). Import IFC… is available now.");
-    sheet.body->addWidget(sheet.summary);
-    auto *ok = new QPushButton("OK");
-    ok->setObjectName("ifcExportPendingOK");
-    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
-    footerLayout->addStretch();
-    footerLayout->addWidget(ok);
-    sheet.buttons->hide();
-    sheet.exec();
+    // (R097.e2 step 2 moves this to a worker thread.)
+    IfcExportOptions options;
+    IfcWorkerOptions worker;
+    worker.workerPath = probe.workerPath;
+    QJsonObject report;
+    QString message;
+    std::string code;
+    try {
+        const auto exported = exportIfcFile(doc_, path, options, worker);
+        report = exported.report;
+    } catch (const IfcExportError &error) {
+        code = error.code();
+        message = QString::fromUtf8(error.what()).left(240);
+        report = error.report();
+    }
+    if (code.empty()) {
+        status_->setText("Exported a new IFC file · Model unchanged");
+        showIfcExportReport(this, path, report);
+    } else {
+        showIfcExportRefusal(this, path, code, message, report);
+    }
 }
 void Window::showIfcImportReport() {
     if (ifcImportReport_.isEmpty())

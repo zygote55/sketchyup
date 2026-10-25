@@ -212,6 +212,68 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
     sheet.buttons->hide();
     sheet.exec();
 }
+// R097.e2 (provisional until the step-3 report): the export's result sheet — the import's own
+// shape: a green banner, the file's line, OK. The model is unchanged.
+void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject &report) {
+    ReportSheet sheet("ifcExportReport", "IFC export report", parent);
+    sheet.resize(640, 420);
+    auto *banner = new QLabel("✓ Exported");
+    banner->setObjectName("ifcReportBanner");
+    banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
+    sheet.body->addWidget(banner);
+    sheet.summary->setObjectName("ifcReportSummary");
+    sheet.summary->setWordWrap(true);
+    sheet.summary->setTextFormat(Qt::PlainText);
+    const QJsonObject target = report["target"].toObject();
+    sheet.summary->setText(
+        QString("%1\nIFC4 · %2\n\nThe model is unchanged.\n")
+            .arg(QFileInfo(path).fileName())
+            .arg(humanSize(target["bytes"].toInteger(0))));
+    sheet.body->addWidget(sheet.summary);
+    auto *ok = new QPushButton("OK");
+    ok->setObjectName("ifcReportOK");
+    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
+    sheet.buttons->hide();
+    sheet.exec();
+}
+// R097.e2 (provisional until the step-4 refusals): the export's refusal — the import's own
+// shape with the export's words: nothing was written, the model is unchanged.
+void showIfcExportRefusal(QWidget *parent, const QString &path, const std::string &code,
+                          const QString &message, const QJsonObject &report) {
+    ReportSheet sheet("ifcExportRefusal", "IFC export refused", parent);
+    sheet.resize(640, 420);
+    sheet.summary->setObjectName("ifcExportRefusalSummary");
+    sheet.summary->setWordWrap(true);
+    sheet.summary->setTextFormat(Qt::PlainText);
+    sheet.summary->setText(
+        QString("✗ %1\n\nThe model is unchanged. Nothing was written.\n\n"
+                "The check that failed: %2\nThe words used: %3\n\n"
+                "Not affected: the open model, the sheets, the assistant, your settings and "
+                "recovery.")
+            .arg(QFileInfo(path).fileName())
+            .arg(QString::fromStdString(code))
+            .arg(message));
+    sheet.body->addWidget(sheet.summary);
+    if (!report.isEmpty()) {
+        auto *details = new QPlainTextEdit;
+        details->setObjectName("ifcExportRefusalDetails");
+        details->setAccessibleName("refusal details");
+        details->setReadOnly(true);
+        details->setPlainText(QString::fromUtf8(QJsonDocument(report).toJson(QJsonDocument::Indented)));
+        sheet.body->addWidget(details, 1);
+    }
+    auto *ok = new QPushButton("OK");
+    ok->setObjectName("ifcExportRefusalOK");
+    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
+    sheet.buttons->hide();
+    sheet.exec();
+}
 void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirection) {
     // "Not installed" and "cannot start" are different states with different sheet names; the
     // broken state shows the helper's own last log line at the bottom of the message, so a
