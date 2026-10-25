@@ -283,8 +283,8 @@ every file. Notes for reading the result:
 The full tier (ADR 0170) runs X11 and Wayland at 1× and 2× (the IFC dialog suites `ifc_import_dialog` and
 `ifc_export_dialog`, which include S9, the dirty-model undo, and T7, the cancelled export), the sanitizer step, and
 the damaged-file corpus at 512 mutations (label `full`). It runs when the pull request carries the `full-ci` label.
-**Pending: the label is added to the pull request of this branch, and its CI run is not finished at the time of this
-record.** The desktop suites were not run in this record, so E5's S9 and the export's T7 are not claimed here.
+**Pending: the label is set on pull request [#442](https://github.com/zygote55/sketchyup/pull/442), and its CI run is not
+finished at the time of this record.** The desktop suites were not run in this record, so E5's S9 and the export's T7 are not claimed here.
 
 ## Published claims (K1)
 
