@@ -2324,3 +2324,43 @@ by `Window::setIfcWorkerPath`:
 
 The driver and the stand-in helper follow the R097.e1 suite; the suite runs offscreen for CI parity, the
 same way the import suite does.
+
+## Implementation notes (R098.e1, 2026-10-25)
+
+The screens refactor: the IFC import, the STEP import and the IFC export share the runner, the
+progress sheet, the report and the sheet builders (the ADR 0172 R098.a3 note's "about 400 lines
+of duplication that a later refactor can fold together" is folded here). The three uneditable
+screen suites — `ifc_import_dialog`, `step_import_dialog` and `ifc_export_dialog` — are untouched
+and pass.
+
+- **The shared runner** (`src/app/exchange_runner.{hpp,cpp}`): one `ExchangeRunner` (a `QThread`
+  with mutex-guarded state, the queued `phaseChanged` and `runFinished` signals, the cooperative
+  `requestCancel` and the finished run's `code`/`message`/`report`/`document`/`bytes` on a
+  `wasCancelled` flag) runs a job with the worker's own hooks (the cancel and the progress
+  callbacks). `IfcImportRunner`, `StepImportRunner` and `IfcExportRunner` are thin subclasses that
+  bind their jobs; a failed job keeps the helper's own refusal (its `code`, its `message` and its
+  `report`), a cancel is the `cancelled` result, and the window reads the outcome through the
+  runner's accessors after `wait()` (the R097.e1 rule). The next format (R102.c, the `.skp` import)
+  needs only its job, its step list and its strings.
+- **The shared progress sheet** (`src/app/exchange_progress_sheet.{hpp,cpp}`): one
+  `ExchangeProgressSheet` (the `Settled` dialog with the title, the file label, the step list, the
+  bar, the elapsed time and the `… Cancel` action) with a config (the title, the step labels, the
+  bar and the widget object names, the cancel word); `IfcProgressSheet`, `StepProgressSheet` and
+  `IfcExportProgressSheet` are thin subclasses that keep the class names and the object names the
+  suites assert.
+- **The shared import report** (`src/app/import_report.{hpp,cpp}`, the builder in `ifc_sheets.cpp`):
+  one `ImportReportState` (done, the file name, the report, the elapsed ms, the restarts), one
+  `setImportReportChip` (the chip's words and the face's own attention — the IFC's accounting-omitted,
+  the STEP's helper-omitted) and one `showImportReport` (the banner, the summary, the accounting
+  identity with its bar, how it was read, the face's grouped list, the notices, the footer); the
+  IFC and STEP faces supply the strings, the attention and the chip word. The window's 16 state
+  members become two states; the chip's lifetime is unchanged (it belongs to the imported model;
+  a new document clears it; a failed or cancelled import leaves the previous state, and the chip
+  stays hidden until a committed import produces it).
+- **The shared sheet builders** (`ifc_sheets.cpp`): the three refusal sheets (the IFC import's
+  §16.6 shape, the STEP's own words, the IFC export's what-to-do and **Copy details**) are thin
+  wrappers over one `showRefusalSheet`, and the two availability sheets (the §16.7 shapes with the
+  IFC's and the STEP's words) over one `showAvailabilitySheet`.
+
+All seven suites pass (`ifc_import_dialog`, `step_import_dialog`, `ifc_export_dialog`,
+`narrow_layout_input`, `step_import`, `ifc_package`, `ifc_convert`); `ctest -j2` is green.
