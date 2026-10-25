@@ -9,6 +9,7 @@
 
 #include "io/ifc_import.hpp"
 #include "io/step_worker.hpp"
+#include "ifc_package_fixtures.hpp"
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
@@ -22,6 +23,7 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <sys/stat.h>
 #include <tuple>
 
 using namespace sketchy;
@@ -64,60 +66,27 @@ QString executable(const QString &dir, const QString &name, const QString &scrip
     check(::chmod(path.toLocal8Bit().constData(), 0755) == 0, "chmod " + name.toStdString());
     return path;
 }
-// A conversion package the test builds itself: an assembly of one 20 x 20 x 20 millimetre box
-// (the same mesh the real helper's tessellator would write for the box fixture, in millimetres,
-// at the file's position). The source bytes are fixed to the encoded package's own size
-// (iteratively: the guard checks the number against the file).
+// A conversion package the test builds itself, as the real helper's tessellator would write it:
+// an assembly root and one box solid, a 20 x 20 x 20 millimetre box (0.02 metres in the element's
+// own frame, the package's own unit) with its twelve triangles.
 QByteArray stepBoxPackage(const QString &sourceFile) {
-    QJsonObject mesh;
-    mesh["name"] = "box";
-    QJsonArray vertices;
-    const double a = 0.0, b = 20.0;
-    for (const auto &v : {std::pair<double, double>(a, a), {a, b}, {b, a}, {b, b}})
-        for (const double h : {0.0, 20.0})
-            vertices.append(QJsonObject{{"x", v.first}, {"y", v.second}, {"z", h}});
-    QJsonArray triangles;
-    for (const auto &tri : {QJsonArray{0, 1, 3}, {0, 3, 2}, {4, 5, 7}, {4, 7, 6},
-                            {0, 4, 5}, {0, 5, 1}, {2, 6, 7}, {2, 7, 3},
-                            {0, 2, 3}, {0, 3, 7}, {1, 4, 5}, {1, 5, 6}})
-        triangles.append(tri);
-    mesh["vertices"] = vertices;
-    mesh["triangles"] = triangles;
-    QJsonObject root;
-    root["className"] = "STEP_ASSEMBLY";
-    root["name"] = "box.2p";
-    root["role"] = "assembly";
-    root["parent"] = -1;
-    root["mesh"] = -1;
-    QJsonObject solid;
-    solid["className"] = "ADVANCED_FACE";
-    solid["name"] = "the box";
-    solid["role"] = "element";
-    solid["parent"] = 0;
-    solid["mesh"] = 0;
-    QJsonObject package;
-    package["format"] = "sketchyup-ifc-package";
-    package["version"] = 1;
-    package["engine"] = QJsonObject{{"workerVersion", "stand-in"}, {"ifcOpenShell", "stand-in"}};
-    package["source"] = QJsonObject{{"file", sourceFile}, {"schema", "ap214"}};
-    package["units"] = QJsonObject{{"length", "mm"}, {"override", false}, {"metresPerUnit", 0.001}};
-    package["report"] = QJsonObject{{"counts", QJsonObject{{"solids", 1}}},
-                                    {"notImported", QJsonArray()},
-                                    {"notices", QJsonArray()},
-                                    {"kernelMessages", QJsonArray()}};
-    package["meshes"] = QJsonArray{mesh};
-    package["materials"] = QJsonArray();
-    package["nodes"] = QJsonArray{root, solid};
-    // The guard checks the source bytes against the encoded package's own size: fix it in a few
-    // passes (the number's digits keep the size stable).
-    for (int pass = 0; pass < 8; ++pass) {
-        const QByteArray bytes = encodeIfcPackage(package);
-        const int size = static_cast<int>(bytes.size());
-        if (package["source"].toObject()["bytes"].toInt(0) == size)
-            return bytes;
-        package["source"] = QJsonObject{{"file", sourceFile}, {"bytes", size}, {"schema", "ap214"}};
-    }
-    return {};
+    IfcPackage package;
+    package.engine = QJsonObject{{"workerVersion", "stand-in"}, {"ifcOpenShell", "stand-in"}};
+    package.source = QJsonObject{{"file", sourceFile}, {"bytes", 12345}, {"schema", "ap214"}};
+    package.units = QJsonObject{{"length", "mm"}, {"applied", "declared"}, {"mmPerUnit", 1.0},
+                                {"metresPerUnit", 0.001}};
+    package.report = QJsonObject{{"counts", QJsonObject{{"solids", 1}}}, {"notImported", QJsonArray()}, {"notices", QJsonArray()}};
+    package.meshes = {ifc_fixture::cubeMesh(0.02)};
+    auto root = ifc_fixture::node(1, "STEP_ASSEMBLY", "box.2p", -1, IfcNodeRole::Assembly);
+    auto solid = ifc_fixture::node(2, "ADVANCED_FACE", "the box", 0, IfcNodeRole::Element, 0);
+    // The classes ride the real worker's own package layout: IFC-labelled nodes, the STEP
+    // meaning in the role (the package's decoder requires IFC classes).
+    root.className = "IfcStepAssembly";
+    solid.className = "IfcStepSolid";
+    root.step = 0;
+    solid.step = 0;
+    package.nodes = {root, solid};
+    return encodeIfcPackage(package);
 }
 // The stand-in that writes the package and plays the helper's progress protocol (the same lines
 // the helper prints for one shape: read, the slots, the shapes as they are tessellated, write,
@@ -125,10 +94,10 @@ QByteArray stepBoxPackage(const QString &sourceFile) {
 QString packageBody(const QString &packageFile) {
     return QStringLiteral(R"(
     out=""
+    prev=""
     for arg in "$@"; do
-        case "$arg" in
-        --output=*) out="${arg#--output=}";;
-        esac
+        if [ "$prev" = "--output" ]; then out="$arg"; fi
+        prev="$arg"
     done
     [ -n "$out" ] || exit 9
     echo 'P phase read'
@@ -235,19 +204,25 @@ int main(int argc, char **argv) {
             StepWorkerOptions worker = workerOptions(available);
             const auto result = importStepFile(fixture("sketchyup-step-box.step"), worker);
             const Document &document = result.document;
-            check(document.bodies.size() == 1, "the box converted to one body");
-            const Body &body = document.bodies.at(0);
-            check(body.faces.size() == 6, "the box has its six faces");
-            check(body.vertices.size() >= 8, "the box has its eight vertices");
+            const QJsonObject report = result.report;
+            // The assembly root becomes a group body and the solid its one geometry body.
+            check(document.bodies().size() == 2, "the box converted to a group and one body");
+            const Body *box = nullptr;
+            for (const auto &[id, body] : document.bodies())
+                if (body->surface.faces.size() > 0)
+                    box = body.get();
+            check(box != nullptr, "one of the two bodies is the box's geometry");
+            check(box->surface.faces.size() == 6, "the box has its six faces");
+            check(box->surface.vertices.size() >= 8, "the box has its eight vertices");
+            check(report["geometry"].toObject()["groups"].toInteger() == 1, "the assembly is the group");
             // The report is the step's own: the format is corrected to STEP (the helper's
             // converter writes IFC's, and the application owns the correction), and the
             // tessellation is the helper's own (deflection and angle, as the application chose
             // them, and the result).
-            const QJsonObject report = result.report;
             check(report["format"].toString() == "STEP", "the report says STEP");
             check(report["tessellation"].toObject()["deflectionMm"].toDouble() == 1.0,
                   "the tessellation's deflection is the application's (1 millimetre)");
-            check(report["tessellation"].toObject()["angleDegrees"].toDouble() == 30.0,
+            check(report["tessellation"].toObject()["angleDeg"].toDouble() == 30.0,
                   "the tessellation's angle is the application's (30 degrees)");
             check(report["units"].toObject()["length"].toString() == "mm", "the report carries the package's unit");
             check(report["step"].toObject()["omitted"].toInt(0) >= 0, "the report carries the step's own counts");
@@ -270,8 +245,8 @@ int main(int argc, char **argv) {
                 importStepFile(fixture("sketchyup-step-box.step"), worker);
                 check(false, "the stand-in's refusal is expected");
             } catch (const IfcImportError &error) {
-                check(error.code == "units", "the refusal's code is the helper's: " + error.code);
-                check(error.message.find("length unit") != std::string::npos, "the refusal's words are the helper's");
+                check(error.code() == "units", "the refusal's code is the helper's: " + error.code());
+                check(std::string(error.what()).find("length unit") != std::string::npos, "the refusal's words are the helper's");
                 const QJsonObject report = error.report();
                 check(report["format"].toString() == "STEP", "the refusal report says STEP");
                 check(report["direction"].toString() == "import", "the refusal report is an import");
@@ -286,8 +261,8 @@ int main(int argc, char **argv) {
                 importStepFile(fixture("sketchyup-step-box.step"), worker);
                 check(false, "the hanging stand-in is expected to time out");
             } catch (const IfcImportError &error) {
-                check(error.code == "workerFailed", "a timed-out helper is a failed run: " + error.code);
-                check(error.message.find("timeout") != std::string::npos,
+                check(error.code() == "workerFailed", "a timed-out helper is a failed run: " + error.code());
+                check(std::string(error.what()).find("timeout") != std::string::npos,
                       "the stop's reason is the deadline's timeout");
             }
         }
@@ -299,7 +274,7 @@ int main(int argc, char **argv) {
                 importStepFile(fixture("sketchyup-step-box.step"), worker);
                 check(false, "the cancelled run is expected to fail");
             } catch (const IfcImportError &error) {
-                check(error.code == "cancelled", "a cancel is a stop: " + error.code);
+                check(error.code() == "cancelled", "a cancel is a stop: " + error.code());
             }
         }
         // C7: a helper the application cannot find is a refusal of the application's own (the
@@ -310,7 +285,7 @@ int main(int argc, char **argv) {
                 importStepFile(fixture("sketchyup-step-box.step"), worker);
                 check(false, "a missing helper is expected to fail");
             } catch (const IfcImportError &error) {
-                check(error.code == "workerMissing", "a missing helper is refused as workerMissing");
+                check(error.code() == "workerMissing", "a missing helper is refused as workerMissing");
             }
         }
     } catch (const std::exception &error) {
@@ -321,7 +296,7 @@ int main(int argc, char **argv) {
     // L1: the application's CLI: --import-step is a standalone operation with its own options.
     {
         const auto cli = QString::fromUtf8(CLI_PATH);
-        const auto run = [](const QStringList &args) {
+        const auto run = [&cli](const QStringList &args) {
             QProcess process;
             process.start(cli, args);
             const bool finished = process.waitForStarted(10000) && process.waitForFinished(60000);
@@ -357,7 +332,7 @@ int main(int argc, char **argv) {
                   "the CLI's refusal is an INPUT_ERROR: " + errText.toStdString());
             check(result["details"].toObject()["stepCode"].toString() == "units",
                   "the CLI's refusal carries the helper's code");
-            check(result["error"].toString().find("length unit") != std::string::npos,
+            check(result["error"].toString().contains("length unit"),
                   "the CLI's refusal carries the helper's words");
         }
         // L1c: the step options are validated like the IFC's are (bounds, and the unit's spelling).

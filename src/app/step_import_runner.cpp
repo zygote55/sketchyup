@@ -77,9 +77,9 @@ void StepImportRunner::run() {
     }
     // Cancel: the helper is checked between tasks; the application's conversion checks it between nodes.
     worker.cancelled = [this] { return p->cancelRequested.load(); };
-    worker.progress = [this](const QString &phase, qint64 value) {
-        QMetaObject::invokeMethod(this, [this, phase, value] { emit phaseChanged(phase, value); }, Qt::QueuedConnection);
-    };
+    // The signals go straight to the UI (the auto connection queues them there): the progress is
+    // live while the helper works, not a batch at the thread's end.
+    worker.progress = [this](const QString &phase, qint64 value) { emit phaseChanged(phase, value); };
     try {
         auto imported = importStepFile(path, worker);
         QMutexLocker lock(&p->mutex);
@@ -102,7 +102,7 @@ void StepImportRunner::run() {
         p->code = "error";
         p->message = "The STEP import failed.";
     }
-    QMetaObject::invokeMethod(this, [this] { emit runFinished(); }, Qt::QueuedConnection);
+    emit runFinished(); // the auto connection delivers it to the UI; the thread ends right after
 }
 } // namespace sketchy
 #include "app/step_import_runner.moc"

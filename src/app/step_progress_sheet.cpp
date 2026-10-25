@@ -31,10 +31,10 @@ StepProgressSheet::StepProgressSheet(StepImportRunner *runner, const QString &fi
     build(fileName);
     QObject::connect(runner, &StepImportRunner::phaseChanged, this, &StepProgressSheet::phase);
     QObject::connect(runner, &StepImportRunner::runFinished, this, [this] {
-        for (int i = 0; i < 7; ++i)
-            markStep(i, false);
+        markStep(7, false); // every step is done
         for (auto *state : stepState)
             state->setText("✓");
+        bar->setValue(100); // the import is done; the bar finishes
         // Show the finished state briefly, then close so the window can take the result.
         QTimer::singleShot(150, this, [this] { done(QDialog::Accepted); });
     });
@@ -93,22 +93,23 @@ void StepProgressSheet::build(const QString &fileName) {
             elapsed->setText(QString("%1 s").arg(runner->clock.elapsed() / 1000));
     });
     clock->start();
-    markStep(0, true); // the check ran before the helper
+    markStep(1, true); // the check step is working; the rest follow as the helper reports
     setMinimumWidth(460);
 }
 void StepProgressSheet::markStep(int index, bool working) {
-    if (index < 0 || index > 6)
+    // index is the step number, 1-based (the first step is 1); the array is 0-based.
+    if (index < 1 || index > 7)
         return;
     for (int i = 0; i < 7; ++i) {
-        if (i < index)
+        if (i < index - 1)
             stepState[i]->setText("✓");
-        else if (i == index)
+        else if (i == index - 1)
             stepState[i]->setText(working ? "●" : "✓");
         else
             stepState[i]->setText("○");
     }
     if (working)
-        currentStep = index;
+        currentStep = index - 1;
 }
 void StepProgressSheet::phase(const QString &name, qint64 value) {
     if (name == "tasks") {
@@ -130,9 +131,7 @@ void StepProgressSheet::phase(const QString &name, qint64 value) {
     const int step = stepForPhase(name);
     if (step < 0)
         return;
-    markStep(step, true);
-    if (step > currentStep)
-        currentStep = step;
+    markStep(step, true); // the helper's steps are 1-based, as markStep expects
 }
 } // namespace sketchy
 #include "app/step_progress_sheet.moc"

@@ -34,18 +34,27 @@ class IfcImportDialog : public Settled<QDialog> {
     void chooseFile(); // the "Choose…" / "Choose another file" button
   private:
     void build();
+    QLabel *title;
+    QLabel *subline;
     QLabel *fileRow;
     QLabel *fileFacts;
     QComboBox *unit;
+    QWidget *spacesSection;
+    QLabel *spacesHeading;
     QRadioButton *spaceHidden;
     QRadioButton *spaceShown;
     QRadioButton *spaceSkip;
+    QWidget *geoSection;
+    QLabel *geoHeading;
     QRadioButton *geoKeep;
     QRadioButton *geoGrid;
     QDoubleSpinBox *deviation;
+    QLabel *angleLabel;
     QDoubleSpinBox *angle; // the STEP crease angle, in degrees (the STEP kind only)
     QLabel *helperLine;
     QLabel *banner;
+    QLabel *doesText;
+    QLabel *nextText;
     QPushButton *importButton;
     bool refused_ = false;
     qint64 bytes_ = 0;

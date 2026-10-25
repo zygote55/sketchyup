@@ -86,9 +86,9 @@ QString compactText(const QString &text) {
 // unit's own entity is read, not some other entity that merely mentions the same word).
 QString entityAt(const QString &text, int pos) {
     int start = 0;
-    if (const int before = text.rfind(';', pos); before >= 0)
+    if (const int before = text.lastIndexOf(';', pos); before >= 0)
         start = before + 1;
-    int end = text.find(';', pos);
+    int end = text.indexOf(';', pos);
     if (end < 0)
         end = text.size();
     return text.mid(start, end - start);
@@ -140,16 +140,6 @@ std::optional<std::pair<QString, QString>> unitIn(const QString &entity) {
 // prefix (millimetre, ...), or the conversion unit's quoted name (INCH, FOOT, ...), as the
 // helper's scan spells it.
 QString declaredLengthUnit(const QString &text) {
-    static const QHash<QString, QString> prefix = {QStringLiteral("MILLI"), QStringLiteral("millimetre"),
-                                                  {QStringLiteral("CENTI"), QStringLiteral("centimetre")},
-                                                  {QStringLiteral("DECI"), QStringLiteral("decimetre")},
-                                                  {QStringLiteral("KILO"), QStringLiteral("kilometre")},
-                                                  {QString(), QStringLiteral("metre")}};
-    static const QHash<QString, QString> named = {QStringLiteral("INCH"), QStringLiteral("INCH"),
-                                                 {QStringLiteral("FOOT"), QStringLiteral("FOOT")},
-                                                 {QStringLiteral("MILLIMETRE"), QStringLiteral("MILLIMETRE")},
-                                                 {QStringLiteral("CENTIMETRE"), QStringLiteral("CENTIMETRE")},
-                                                 {QStringLiteral("METRE"), QStringLiteral("METRE")}};
     const int at = text.indexOf("LENGTH_UNIT(");
     if (at < 0)
         return {};
@@ -157,11 +147,22 @@ QString declaredLengthUnit(const QString &text) {
     const auto unit = unitIn(entity);
     if (!unit)
         return {};
-    if (unit->second == "METRE")
-        return prefix.value(unit->first, unit->first); // declared but a prefix the table does not know
-    const QString folded = unit->second.toLower();
-    if (const auto found = named.constFind(folded); found != named.cend())
-        return *found;
+    if (unit->second == "METRE") {
+        if (unit->first == "MILLI")
+            return "millimetre";
+        if (unit->first == "CENTI")
+            return "centimetre";
+        if (unit->first == "DECI")
+            return "decimetre";
+        if (unit->first == "KILO")
+            return "kilometre";
+        if (unit->first.isEmpty())
+            return "metre";
+        return unit->first; // declared but a prefix the table does not know
+    }
+    const QString folded = unit->second.toUpper();
+    if (folded == "INCH" || folded == "FOOT" || folded == "MILLIMETRE" || folded == "CENTIMETRE" || folded == "METRE")
+        return folded;
     return unit->second; // declared, a name the table does not know
 }
 } // namespace
@@ -201,10 +202,10 @@ StepScan checkStepSource(const QString &path) {
     QString schema;
     if (at >= 0) {
         int pos = at + 5;
-        while (pos < raw.size() && !QChar::isDigit(raw.at(pos)))
+        while (pos < raw.size() && !raw.at(pos).isDigit())
             ++pos;
         const int digits = pos;
-        while (pos < raw.size() && QChar::isDigit(raw.at(pos)))
+        while (pos < raw.size() && raw.at(pos).isDigit())
             ++pos;
         if (pos > digits && pos - digits <= 5) {
             const QString part = raw.mid(digits, pos - digits);
@@ -329,6 +330,9 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
             clock.restart();
         }
     }
+    // The process's exit can be observed while its final output is still in flight; wait for the
+    // delivery to finish so the last line (the R result) is not lost.
+    process.waitForFinished(2000);
     readLines();
     errors += process.readAllStandardError();
     run.logTail = shortLog(QString::fromUtf8(errors));
@@ -465,9 +469,10 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     if (run.kind != RunResult::Finished && run.kind != RunResult::Refused) {
         // The STEP import has no per-element restart protocol: a stop is a failure, reported with what the helper
         // left behind.
+        QStringList stops{run.reason + " (" + run.phase + ")"};
+        QJsonObject engine{{"completed", false}, {"restarts", 0}, {"stops", QJsonArray::fromStringList(stops)}};
         QJsonObject report{{"apiVersion", 1}, {"format", "STEP"}, {"direction", "import"},
-                           {"engine", QJsonObject{{"completed", false}, {"restarts", 0},
-                                                  {"stops", QJsonArray::fromStringList(QStringList{run.reason + " (" + run.phase + ")"})}},
+                           {"engine", engine},
                            {"logTail", run.logTail}};
         throw IfcImportError("workerFailed", "The STEP helper stopped (" + run.reason.toStdString() + ").", report);
     }
@@ -482,10 +487,10 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
         message.replace(control, " ");
         while (message.toUtf8().size() > 240)
             message.chop(1);
-        throw IfcImportError(code.toStdString(), message.toStdString(),
-                             QJsonObject{{"apiVersion", 1}, {"format", "STEP"}, {"direction", "import"},
-                                         {"source", QJsonObject{{"sha256", QString::fromLatin1(hash.result().toHex())},
-                                                                {"bytes", QFileInfo(input).size()}, {"schema", schema}}}});
+        QJsonObject source{{"sha256", QString::fromLatin1(hash.result().toHex())},
+                           {"bytes", QFileInfo(input).size()}, {"schema", schema}};
+        QJsonObject report{{"apiVersion", 1}, {"format", "STEP"}, {"direction", "import"}, {"source", source}};
+        throw IfcImportError(code.toStdString(), message.toStdString(), report);
     }
     QFile packageFile(output);
     if (!packageFile.open(QIODevice::ReadOnly) || packageFile.size() > maxPackageBytes)

@@ -322,7 +322,7 @@ void showStepImportReport(QWidget *parent, const QString &fileName, const QJsonO
     list->setRootIsDecorated(true);
     auto *helper = new QTreeWidgetItem(list, {"The STEP helper", QString()});
     for (const char *key : {"nodes", "meshes", "converted", "omitted", "unsupported", "triangles"})
-        new QTreeWidgetItem(helper, {key, QString::number(step[key].toInteger(0)));
+        new QTreeWidgetItem(helper, {key, QString::number(step[key].toInteger(0))});
     auto *geometry = new QTreeWidgetItem(list, {"Geometry", QString()});
     const QJsonObject geometryReport = report["geometry"].toObject();
     for (const char *key : {"bodies", "vertices", "faces", "edges"})
