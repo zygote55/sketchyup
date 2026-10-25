@@ -1,0 +1,56 @@
+third_party/openskp: the OpenSKP parser subset, vendored and pinned (ADR 0176, R102.a)
+================================================================
+
+OpenSKP (MIT, an open-source SketchUp (.skp) reader, not affiliated with Trimble)
+  Upstream: https://github.com/iamahsanmehmood/openskp
+  Commit: 23a15e8742e936694bf14aa029cb0e2862dce5b9 (2026-10-22)
+  Commit archive: https://github.com/iamahsanmehmood/openskp/archive/23a15e8742e936694bf14aa029cb0e2862dce5b9.tar.gz
+  Archive SHA-256: 5b304cc024b2d72504ac5a6676968166fdd300f180d3f1078efe8b959951e1a5
+  Vendored: the parser subset - the model, the VFF and MFC containers, the TLV and page/
+  dimension decoding, the attribute and transform support, and the public headers - plus the
+  miniz files it builds with. No exporters, no writer, no scene baker, no tinygltf, no
+  flatbuffers. Two files are patched (patches/, documented in PATCHES.md). The licence is in
+  LICENSE.
+
+miniz (MIT, the ZIP reader OpenSKP's VFF container uses)
+  Upstream: https://github.com/richgel999/miniz
+  Commit: 77d0dce8627735138c51770d1799a1ef48f2117d (2026-07-01)
+  Commit archive: https://github.com/richgel999/miniz/archive/77d0dce8627735138c51770d1799a1ef48f2117d.tar.gz
+  Archive SHA-256: baa14349e7c5efb4a493a03af7d2f29d0ef45d87d488567fe5360edb33f8b7ba
+  Vendored: the miniz sources and headers the build uses, and its licence in miniz/LICENSE.
+
+SHA-256 of every vendored file (upstream bytes at the commit; the patched files are the
+patched bytes, the result of applying their patch to the upstream file):
+c5fe106f01282725135e5dc0c5882cd6a3b8006378193d1a1ef95a53b73199c3  include/openskp/errors.hpp
+8ee5cca5d784f44e24bb4b0b1ae8465cc46b04217731919e8aa5315ab692093f  include/openskp/instanced_scene.hpp
+770f29965462629092cfc36656cdb2ae9bb560e5d2cef6ee07d0fd8b8792d11c  include/openskp/model.hpp
+19549ee98625c4bc06a28f007c9d5dd70967b0e877945bc8a3f4f89b0956bc7c  include/openskp/observability.hpp
+e15dab77d56e1e89234c0a7e27928987e9d36e2a5e0ab778ab50984148760b8e  include/openskp/parser.hpp
+5156fd6392bd82215466cbdb85f9b99254d6f49de1404b1d35233b0693b2eeaf  include/openskp/scene.hpp
+2ec54496c29fdb7a7b3a16c0a0ed6a47772800d2381e3ea80c8c8af586d1c988  src/core.cpp
+2d21e1c0f4ac7c13720d2c685b4cefa1ce4f63ce058b9aee79a4f5305e324275  src/errors.cpp
+f059dae0444e7a6f59552a54b54ae7dbda7a1a2fbcc19194ac6eec6498a850e9  src/geometry.cpp
+b968d7ea8c2acb9e050049f096685653cddf534448d6feccf641394de9613993  src/legacy.cpp
+3e558ae3d3de24086eb33bbab107c308bd73d62e5ccd5ae985b648a479046a7b  src/model.cpp
+e5767006b2bcd49fc3b0c3d1236050b1ad7cdb81345e894aa1fe4bbbfe0f9910  src/observability.cpp
+da296cc5522f1cf9bd53a93e140391628f046fb9918c7752f48233c52796d716  src/pages_dimensions.cpp
+f35a64bb92fb30c617e039b1128985591f9e5128413d8642d6d2316b0af00b61  src/tlv.cpp
+7a9b49d734e172c05015f36761b250f2ee0ec83346cefb7982e0984dadbf0e5f  src/transforms.cpp
+149d80a96df81aeaf08b24602a38270f1b2e9beedd4fb0e102a48539973e4f28  src/vff.cpp
+f4a29c095f7420a61f3a93bae3f1574521ba8441900f48d4ff6647c30606d653  src/internal.hpp (patched)
+8ace9dc0b22a96c7ea45256be53e0f6a34e7e64c06b0ca4b14c06f3670ec621c  src/parser.cpp (patched)
+195259dc89fb3f83a96426a90ee03dc45acef113150cd3475ea9cfbf1f7784f3  cmake/miniz_export.h.in
+7c70ac0b7916390744a5f6361c59008cada08149a54348530b767953e050dbc6  LICENSE
+f0b67217bdd8e45b74eb9b7c2c7ae20ed6760a1d76f3276b93617039ebd082df  miniz/miniz.h
+f1ba29821c8caef83585b328196aa346c5da7c82890a70a3d10d77c6cec0ed39  miniz/miniz_common.h
+85b93205232d51d092f24041934d951f11f9edc02df1f475e8ceb7b281a1e7f6  miniz/miniz_tdef.c
+d62da02953c3834dfcbde4db026c6d9345013ef9b0e53185131016a3a4e48c33  miniz/miniz_tdef.h
+2296ebd21ef9af5ebbefd5b454d4bb67d8fb4af2d24945e7fb32114374f75a76  miniz/miniz_tinfl.c
+da4850920fdf09f8877d9affabe1ebba1852ce4b1ebbd121f2ba7a7ea8e57e5d  miniz/miniz_tinfl.h
+f23204efee2bfaffb72a974d2e28c64c3c1d9787144b5c5890f129c465e467bd  miniz/miniz.c
+b70e502c425e2a31146178c1466dccaf1874390009950774be2be9bd4ec908a9  miniz/miniz_zip.c
+b062a5def545445c73fd1d664e35a89165dfb0d996ab848f507244e819cfcf04  miniz/miniz_zip.h
+0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3  miniz/LICENSE
+
+scripts/vendor-openskp.py recreates this tree from the two commit archives and fails on any
+mismatch; its pin check agrees the commit and archive SHA-256 with dependencies.json.

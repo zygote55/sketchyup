@@ -620,14 +620,19 @@
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus)$' --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --build --preset ifc --parallel "$(nproc)"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --build --preset ifc-app --parallel "$(nproc)"
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --build --preset skp --parallel "$(nproc)"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --preset ifc
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --preset ifc-app
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --preset skp
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -L full --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import)$' --output-on-failure --no-tests=error --parallel 2
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real)$' --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] echo "key=ifc-prefix-v1-${{ steps.package-cache-key.outputs.sum }}-$sum" >> "$GITHUB_OUTPUT"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-ifcopenshell.py check /tmp/ifcopenshell-upstream/ifcopenshell-v0.9.0.tar.gz
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-ifcopenshell.py fetch /tmp/ifcopenshell-upstream
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-openskp.py check /tmp/openskp-upstream
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-openskp.py fetch /tmp/openskp-upstream
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] sum=$({ find third_party/ifcopenshell -type f ! -name README.sketchyup.md ! -name PATCHES.md ! -name TRIM.txt ! -name IFC-SOURCE.txt ! -path '*/occt/*'; echo src/ifc/IfcOpenShellPrefix.cmake; echo src/ifc/WriteStamp.cmake; } | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-32)
 [tier=full|package image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: CMAKE_BUILD_PARALLEL_LEVEL=4 SKETCHYUP_PRIOR_RELEASE_PACKAGE=/work/release/sketchyup-1.2.0-1-x86_64.pkg.tar.zst] SKETCHYUP_PACKAGE_SANDBOX=1 bash /work/package/verify-package.sh
 [tier=full|package image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: CMAKE_BUILD_PARALLEL_LEVEL=4 SKETCHYUP_PRIOR_RELEASE_PACKAGE=/work/release/sketchyup-1.2.0-1-x86_64.pkg.tar.zst] cp packaging/arch/verify-package.sh /work/package/

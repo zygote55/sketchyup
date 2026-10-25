@@ -1,0 +1,16 @@
+--- a/internal.hpp
++++ b/internal.hpp
+@@ -13,7 +13,12 @@
+ #include <unordered_map>
+ #include <vector>
+ 
+-#include <openskp/openskp.hpp>
++#include <openskp/errors.hpp>
++#include <openskp/instanced_scene.hpp>
++#include <openskp/model.hpp>
++#include <openskp/observability.hpp>
++#include <openskp/parser.hpp>
++#include <openskp/scene.hpp>
+ 
+ namespace openskp {
+ struct TlvNode {

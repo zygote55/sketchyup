@@ -671,6 +671,27 @@ conversion extended for STEP packages (the R098.a3 runner converts through it un
   ASan's shadow reservation needs more address space than an 8 GiB virtual
   limit gives, and the docker memory cap bounds the run).
 
+## Implementation notes (exchange screens refactor, 2026-10-25)
+
+The screens refactor (delivered in the R097 IFC screens' own ADR, 0171) folds this slice's
+application screens into the shared components, and the R098.a3 note's "this duplicates about
+400 lines, which a later refactor can fold together" is folded here:
+
+- `StepImportRunner` is a thin subclass of the shared `ExchangeRunner` (the IFC import and
+  export are siblings of it); the STEP job keeps the helper's own `--import-step`, the
+  application's own source checks and the post-processed STEP report, and the cancel and the
+  finish rules are the runner's.
+- `StepProgressSheet` is a thin subclass of the shared `ExchangeProgressSheet` (the class name
+  and the `stepProgress*` object names the suite asserts are kept by the face's config).
+- The STEP report and its chip run through the shared import report with the STEP face (the
+  helper's own counts under the application's conversion, the tessellation line, the
+  helper-omitted attention); the STEP refusal and availability sheets are wrappers over the
+  shared refusal and availability builders with the STEP's words.
+- The `step_import_dialog` suite (S0–S6) is unmodified and passes; the IFC suites pass too.
+
+The next format (R102.c, the `.skp` import) plugs in with its own job, step list and face.
+
+## Owner decisions
 
 1. **The adapter (options A/B/C):** **option A** — OCCT STEP translation in
    the shared helper, on the IFC helper's private OCCT set. *Rationale: it

@@ -1,14 +1,166 @@
 {
   "version": 6,
   "configurePresets": [
-    {"name":"dev", "generator":"Ninja", "binaryDir":"${sourceDir}/build/dev", "cacheVariables":{"CMAKE_BUILD_TYPE":"Debug"}},
-    {"name":"headless", "inherits":"dev", "binaryDir":"${sourceDir}/build/headless", "cacheVariables":{"SKETCHYUP_BUILD_DESKTOP":"OFF","SKETCHYUP_BUILD_CLI":"OFF"}},
-    {"name":"sanitize", "inherits":"headless", "binaryDir":"${sourceDir}/build/sanitize", "cacheVariables":{"SKETCHYUP_SANITIZE":"ON"}},
-    {"name":"ci-fast", "inherits":"dev", "displayName":"CI fast tier (ADR 0170): dev without debug info, shared libraries, mold", "cacheVariables":{"CMAKE_CXX_FLAGS_DEBUG":"-g0", "SKETCHYUP_SHARED_LIBS":"ON", "CMAKE_LINKER_TYPE":"MOLD", "CMAKE_AUTOGEN_ORIGIN_DEPENDS":"OFF", "CMAKE_SHARED_LINKER_FLAGS":"-Wl,-Bsymbolic-functions"}}
-    ,{"name":"ifc", "inherits":"dev", "displayName":"IFC helper (ADR 0171): IfcOpenShell prefix and sketchyup-ifc-worker only, no Qt", "binaryDir":"${sourceDir}/build/ifc", "cacheVariables":{"SKETCHYUP_BUILD_DESKTOP":"OFF","SKETCHYUP_BUILD_CLI":"OFF","SKETCHYUP_BUILD_IFC":"ON","SKETCHYUP_IFC_PREFIX":"${sourceDir}/build/ifc-prefix"}},
-    {"name":"ifc-app", "inherits":"ci-fast", "displayName":"IFC import through the application (R097.b): the helper, the CLI and the IFC tests, no desktop", "binaryDir":"${sourceDir}/build/ifc-app", "cacheVariables":{"SKETCHYUP_BUILD_DESKTOP":"OFF","SKETCHYUP_BUILD_CLI":"ON","SKETCHYUP_BUILD_IFC":"ON","SKETCHYUP_IFC_PREFIX":"${sourceDir}/build/ifc-prefix"}},
-    {"name":"ifc-sanitize", "inherits":"ifc", "displayName":"IFC helper under ASan and UBSan (the library itself is not instrumented)", "binaryDir":"${sourceDir}/build/ifc-sanitize", "cacheVariables":{"SKETCHYUP_SANITIZE":"ON"}}
+    {
+      "name": "dev",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "headless",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/headless",
+      "cacheVariables": {
+        "SKETCHYUP_BUILD_DESKTOP": "OFF",
+        "SKETCHYUP_BUILD_CLI": "OFF"
+      }
+    },
+    {
+      "name": "sanitize",
+      "inherits": "headless",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "cacheVariables": {
+        "SKETCHYUP_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "ci-fast",
+      "inherits": "dev",
+      "displayName": "CI fast tier (ADR 0170): dev without debug info, shared libraries, mold",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_DEBUG": "-g0",
+        "SKETCHYUP_SHARED_LIBS": "ON",
+        "CMAKE_LINKER_TYPE": "MOLD",
+        "CMAKE_AUTOGEN_ORIGIN_DEPENDS": "OFF",
+        "CMAKE_SHARED_LINKER_FLAGS": "-Wl,-Bsymbolic-functions"
+      }
+    },
+    {
+      "name": "ifc",
+      "inherits": "dev",
+      "displayName": "IFC helper (ADR 0171): IfcOpenShell prefix and sketchyup-ifc-worker only, no Qt",
+      "binaryDir": "${sourceDir}/build/ifc",
+      "cacheVariables": {
+        "SKETCHYUP_BUILD_DESKTOP": "OFF",
+        "SKETCHYUP_BUILD_CLI": "OFF",
+        "SKETCHYUP_BUILD_IFC": "ON",
+        "SKETCHYUP_IFC_PREFIX": "${sourceDir}/build/ifc-prefix"
+      }
+    },
+    {
+      "name": "ifc-app",
+      "inherits": "ci-fast",
+      "displayName": "IFC import through the application (R097.b): the helper, the CLI and the IFC tests, no desktop",
+      "binaryDir": "${sourceDir}/build/ifc-app",
+      "cacheVariables": {
+        "SKETCHYUP_BUILD_DESKTOP": "OFF",
+        "SKETCHYUP_BUILD_CLI": "ON",
+        "SKETCHYUP_BUILD_IFC": "ON",
+        "SKETCHYUP_IFC_PREFIX": "${sourceDir}/build/ifc-prefix"
+      }
+    },
+    {
+      "name": "ifc-sanitize",
+      "inherits": "ifc",
+      "displayName": "IFC helper under ASan and UBSan (the library itself is not instrumented)",
+      "binaryDir": "${sourceDir}/build/ifc-sanitize",
+      "cacheVariables": {
+        "SKETCHYUP_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "skp",
+      "inherits": "ci-fast",
+      "displayName": "SKP helper and import (ADR 0176): the worker, the package tests and the CLI, no desktop",
+      "binaryDir": "${sourceDir}/build/skp",
+      "cacheVariables": {
+        "SKETCHYUP_BUILD_DESKTOP": "OFF",
+        "SKETCHYUP_BUILD_CLI": "ON"
+      }
+    }
   ],
-  "buildPresets":[{"name":"dev","configurePreset":"dev"},{"name":"headless","configurePreset":"headless"},{"name":"sanitize","configurePreset":"sanitize"},{"name":"ci-fast","configurePreset":"ci-fast"},{"name":"ifc","configurePreset":"ifc","targets":["sketchyup-ifc-worker"]},{"name":"ifc-app","configurePreset":"ifc-app","targets":["sketchyup-ifc-worker","sketchyup-cli","ifc_package_tests","ifc_convert_tests","ifc_import_tests","ifc_worker_run_tests","ifc_export_tests","ifc_step_tests","ifc_step_export_tests","step_import_tests"]},{"name":"ifc-sanitize","configurePreset":"ifc-sanitize","targets":["sketchyup-ifc-worker"]}],
-  "testPresets":[{"name":"dev","configurePreset":"dev","output":{"outputOnFailure":true}},{"name":"headless","configurePreset":"headless","output":{"outputOnFailure":true}},{"name":"sanitize","configurePreset":"sanitize","output":{"outputOnFailure":true}}]
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev"
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless"
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize"
+    },
+    {
+      "name": "ci-fast",
+      "configurePreset": "ci-fast"
+    },
+    {
+      "name": "ifc",
+      "configurePreset": "ifc",
+      "targets": [
+        "sketchyup-ifc-worker"
+      ]
+    },
+    {
+      "name": "ifc-app",
+      "configurePreset": "ifc-app",
+      "targets": [
+        "sketchyup-ifc-worker",
+        "sketchyup-cli",
+        "ifc_package_tests",
+        "ifc_convert_tests",
+        "ifc_import_tests",
+        "ifc_worker_run_tests",
+        "ifc_export_tests",
+        "ifc_step_tests",
+        "ifc_step_export_tests",
+        "step_import_tests"
+      ]
+    },
+    {
+      "name": "ifc-sanitize",
+      "configurePreset": "ifc-sanitize",
+      "targets": [
+        "sketchyup-ifc-worker"
+      ]
+    },
+    {
+      "name": "skp",
+      "configurePreset": "skp",
+      "targets": [
+        "sketchyup-skp-worker",
+        "skp_package_tests",
+        "skp_import_tests",
+        "skp_mapping_tests"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
 }
