@@ -754,6 +754,11 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       target_include_directories(skp_import_tests PRIVATE src tests)
       target_compile_definitions(skp_import_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      # R102.c: the CLI's --import-skp cases (the real helper, as the import's own cases).
+      if(SKETCHYUP_BUILD_CLI)
+        target_compile_definitions(skp_import_tests PRIVATE CLI_PATH="$<TARGET_FILE:sketchyup-cli>")
+        add_dependencies(skp_import_tests sketchyup-cli)
+      endif()
       add_test(NAME skp_import COMMAND skp_import_tests)
       add_test(NAME skp_import_real COMMAND skp_import_tests --real)
       set_tests_properties(skp_import_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)

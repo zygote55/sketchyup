@@ -21,6 +21,7 @@
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
 #include "io/sheet_export.hpp"
+#include "io/skp_worker.hpp"
 #include "io/step_worker.hpp"
 #include "io/stl_export.hpp"
 #include "sketchyup/version.hpp"
@@ -192,6 +193,15 @@ int main(int argc, char **argv) {
                       "STEP import: length unit mm, cm, m, in or ft, used only when the file declares none", "unit"});
     parser.addOption({"step-deadline", "STEP import: seconds the helper may run (default 120)", "seconds"});
     parser.addOption({"step-worker", "STEP import: path of the helper (development and tests)", "path"});
+    // R102.c (ADR 0176 section 9): the SketchUp (.skp) import, the STEP import's own operation with
+    // the SketchUp helper (sketchyup-skp-worker). The import has no options of its own beyond the
+    // helper's deadline and path (the file's facts are the report's).
+    parser.addOption({"import-skp",
+                      "Import a SketchUp (.skp) file through the isolated sketchyup-skp-worker helper; "
+                      "optional new native --output; without it, validate and print the report",
+                      "path"});
+    parser.addOption({"skp-deadline", "SKP import: seconds the helper may run (default 120)", "seconds"});
+    parser.addOption({"skp-worker", "SKP import: path of the helper (development and tests)", "path"});
     parser.addOption(
         {"export-obj", "Export all model geometry to a new OBJ package directory", "directory"});
     parser.addOption({"obj-unit", "Explicit OBJ coordinate unit: mm, cm, m, in or ft", "unit"});
@@ -854,12 +864,54 @@ int main(int argc, char **argv) {
             std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
             return 0;
         }
+        // R102.c (ADR 0176 section 9): the SketchUp (.skp) import, the STEP import's operation with the
+        // SketchUp helper's own options (the deadline and the path). The conversion is the package's
+        // (R102.b), so the import has no options of its own.
+        if (parser.isSet("import-skp")) {
+            auto invalid = [](const std::string &message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            if (!parser.positionalArguments().isEmpty())
+                invalid("SketchUp import requires named paths");
+            const QStringList allowed{"import-skp", "output", "skp-deadline", "skp-worker"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("SketchUp import is a standalone operation");
+            sketchy::SkpWorkerOptions worker;
+            if (parser.isSet("skp-deadline")) {
+                bool ok{};
+                worker.deadlineSeconds = parser.value("skp-deadline").toInt(&ok);
+                if (!ok || worker.deadlineSeconds < 1 || worker.deadlineSeconds > 3600)
+                    invalid("--skp-deadline is 1 to 3600 seconds");
+            }
+            if (parser.isSet("skp-worker"))
+                worker.workerPath = parser.value("skp-worker");
+            QJsonObject result;
+            try {
+                const auto imported = sketchy::importSkpFile(parser.value("import-skp"), worker);
+                result = {{"status", "imported"}, {"importReport", imported.report}};
+                if (parser.isSet("output"))
+                    result["nativeFile"] =
+                        sketchy::createNativeFile(imported.document, parser.value("output"));
+            } catch (const sketchy::IfcImportError &error) {
+                const std::string code = error.code();
+                const bool limit = code == "tooLarge" || code == "packageTooLarge" || code == "documentLimit";
+                throw sketchy::InspectionError(limit ? "LIMIT_EXCEEDED" : "INPUT_ERROR", error.what(),
+                                               QJsonObject{{"skpCode", QString::fromStdString(code)},
+                                                           {"importReport", error.report()}});
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
         for (const auto &option : parser.optionNames())
             if (option.startsWith("ifc-"))
                 throw sketchy::InspectionError("INVALID_REQUEST", "IFC options require --import-ifc or --export-ifc");
         for (const auto &option : parser.optionNames())
             if (option.startsWith("step-"))
                 throw sketchy::InspectionError("INVALID_REQUEST", "STEP options require --import-step");
+        for (const auto &option : parser.optionNames())
+            if (option.startsWith("skp-"))
+                throw sketchy::InspectionError("INVALID_REQUEST", "SketchUp options require --import-skp");
         if (parser.isSet("import-gltf")) {
             if (!parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",

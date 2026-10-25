@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <vector>
 using namespace sketchy;
 namespace {
@@ -249,6 +250,74 @@ int main(int argc, char** argv) {
         check(r.exitCode == 3, QString("the pre-2013 refusal (exit %1)").arg(r.exitCode).toStdString());
         check(r.report["code"] == "pre2013", "the pre-2013 refusal says " + jstr(r.report["message"]));
     }
+#ifdef CLI_PATH
+    // R102.c (ADR 0176 section 9): the application's CLI, --import-skp, through the real helper, with
+    // the STEP import's own contract: the compact JSON on stdout, the native file when asked, and a
+    // refusal as an INPUT_ERROR on the error stream with the helper's code.
+    {
+        const auto cli = QString::fromUtf8(CLI_PATH);
+        const auto runCli = [&cli](const QStringList& args) {
+            QProcess process;
+            process.start(cli, args);
+            const bool finished = process.waitForStarted(10000) && process.waitForFinished(120000);
+            return std::make_tuple(finished && process.exitStatus() == QProcess::NormalExit, process.exitCode(),
+                                   process.readAllStandardOutput(), process.readAllStandardError());
+        };
+        const QString worker = QString::fromUtf8(SKP_WORKER_PATH);
+        // L1a: an import of a fixture through the real helper, with a native file.
+        {
+            const QString out = temp.path() + "/cli-box.sketchyup";
+            auto [ok, code, outText, errText] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", worker, "--output", out});
+            check(ok && code == 0, "the CLI's SketchUp import runs: " + errText.toStdString());
+            const QJsonObject result = QJsonDocument::fromJson(outText).object();
+            check(result["status"].toString() == "imported", "the CLI says imported: " + outText.toStdString());
+            const QJsonObject report = result["importReport"].toObject();
+            check(report["format"].toString() == "SketchUp", "the CLI's report says SketchUp");
+            check(report["counts"].toObject()["faces"].toInteger() > 0, "the CLI's report counts the faces");
+            check(QFile::exists(out), "the CLI wrote the native file");
+        }
+        // L1b: a file that is not a SketchUp file is refused before the helper starts, as an INPUT_ERROR
+        // with the code notSkp; nothing is written.
+        {
+            const QString notSkp = temp.path() + "/cli-not-skp.skp";
+            {
+                std::ofstream out(notSkp.toStdString(), std::ios::binary);
+                out << "this is not a SketchUp file";
+            }
+            auto [ok, code, outText, errText] = runCli({"--import-skp", notSkp, "--skp-worker", worker});
+            check(ok && code == 1, "the CLI's refusal ends 1");
+            const QJsonObject result = QJsonDocument::fromJson(errText).object();
+            check(result["status"].toString() == "failed" && result["code"].toString() == "INPUT_ERROR",
+                  "the CLI's refusal is an INPUT_ERROR: " + errText.toStdString());
+            check(result["details"].toObject()["skpCode"].toString() == "notSkp", "the CLI's refusal carries notSkp");
+        }
+        // L1c: a helper that is not there is the workerMissing refusal (the application's availability
+        // sheet, in the window), as an INPUT_ERROR.
+        {
+            auto [ok, code, outText, errText] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", temp.path() + "/no-such-worker"});
+            check(ok && code == 1, "the CLI's missing helper ends 1");
+            check(QJsonDocument::fromJson(errText).object()["details"].toObject()["skpCode"].toString() ==
+                      "workerMissing",
+                  "the CLI's missing helper is workerMissing: " + errText.toStdString());
+        }
+        // L1d: the options are validated, and the operation is standalone.
+        {
+            auto [ok, code, outText, errText] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", worker, "--skp-deadline", "0"});
+            check(ok && code == 1 && QJsonDocument::fromJson(errText).object()["code"].toString() == "INVALID_REQUEST",
+                  "the CLI rejects a deadline below its bound: " + errText.toStdString());
+            auto [ok2, code2, outText2, errText2] = runCli({"--skp-deadline", "30"});
+            check(ok2 && code2 == 1 && QJsonDocument::fromJson(errText2).object()["code"].toString() == "INVALID_REQUEST",
+                  "a SketchUp option without the operation is refused: " + errText2.toStdString());
+            auto [ok3, code3, outText3, errText3] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", worker, "--step-length-unit", "mm"});
+            check(ok3 && code3 == 1 && QJsonDocument::fromJson(errText3).object()["code"].toString() == "INVALID_REQUEST",
+                  "the SketchUp import is standalone: " + errText3.toStdString());
+        }
+    }
+#endif
     // The owner's own file (local only, never committed): the numbers the ADR notes record.
     // SKETCHYUP_SKP_CORPUS names the directory that holds it; unset or missing, the case skips.
     if (real) {
