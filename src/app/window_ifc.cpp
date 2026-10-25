@@ -122,10 +122,10 @@ void Window::importIfc() {
             return;
         }
         const int restarts =
-            runner->result().report["engine"].toObject()["restarts"].toInt(0);
+            runner->report()["engine"].toObject()["restarts"].toInt(0);
         const qint64 elapsed = runner->clock.elapsed();
-        const QJsonObject report = runner->result().report;
-        doc_ = std::move(runner->result().document);
+        const QJsonObject report = runner->report();
+        doc_ = std::move(*runner->document()); // the import's document, moved out of the runner
         resetRecoveryContext();
         path_.clear(); // Save must choose a new native file, never overwrite the source.
         viewport_->cancel();
