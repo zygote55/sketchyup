@@ -15,9 +15,6 @@ add_executable(sketchyup-skp-worker worker_main.cpp)
 target_include_directories(sketchyup-skp-worker PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(sketchyup-skp-worker PRIVATE sketchyup_skp sketchyup_version)
 target_compile_options(sketchyup-skp-worker PRIVATE -Wall -Wextra -Wpedantic)
-if(SKETCHYUP_SANITIZE)
-  # The sanitizer's reservations exceed the 4 GiB address ceiling; the tests run the helper
-  # without it (the IFC tests do the same with IFC_NO_ADDRESS_LIMIT).
-  target_compile_definitions(sketchyup-skp-worker PRIVATE SKP_WORKER_NO_ADDRESS_LIMIT=1)
-endif()
+# SKP_WORKER_NO_ADDRESS_LIMIT (the sanitizer and fuzzer builds) is set for the whole tree in the top
+# CMakeLists.txt, so the helper and its supervisor agree on it.
 install(TARGETS sketchyup-skp-worker RUNTIME DESTINATION lib/sketchyup)

@@ -7,6 +7,8 @@ to the pinned commit.
 
 ## src/parser.cpp — drop the scene-builder wrappers
 
+The patch file is `patches/parser.cpp.patch`.
+
 Upstream's `parser.cpp` defines `SkpFile::build_scene`, `SkpFile::build_instanced_scene`,
 `build_scene` and `build_instanced_scene`; their bodies call `build_scene_raw` and
 `build_instanced_scene_raw`, which live in `scene.cpp` and `instanced_scene.cpp` - the scene
@@ -36,6 +38,8 @@ calls them. The patch deletes the four definitions; the declarations in `parser.
 ```
 
 ## src/internal.hpp — include the public headers it uses, not the umbrella
+
+The patch file is `patches/internal.hpp.patch`.
 
 Upstream's `internal.hpp` includes `openskp/openskp.hpp`, the umbrella that includes every
 public header, exporters included; the exporters are the only headers that need tinygltf and

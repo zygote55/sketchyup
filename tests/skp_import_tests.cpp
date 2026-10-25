@@ -227,28 +227,33 @@ int main(int argc, char** argv) {
         check(nested.counts.definitions == 3, "the nested component keeps both definitions and the root");
         check(nested.counts.instances == 2, "the nested and the outer instance are both kept");
     }
-    // S6: a pre-2013 header. The version sits in the file's own header JSON (UTF-16LE): the
-    // major of the box's "17.0.1" is 0x31 0x37 at the fixed offset below; 0x34 (14) is before
-    // 2013 and the body is otherwise untouched, so the parser parses and the gate refuses.
+    // S6: the pre-2013 gate (ADR 0176 section 2). The version sits in the file's own header JSON
+    // (UTF-16LE): the major of the box's "17.0.1" has its units digit at the fixed offset below.
+    // 2013 to 2020 is read best-effort, so only a major below 13 is refused: "12.0.1" is refused
+    // with the advice, and "13.0.1" is not refused as pre-2013 (it parses or fails as any file).
     {
         bool read;
         const auto whole = readAll(fixture("box.skp"), read);
-        check(read, "read box.skp for the pre-2013 refusal");
-        auto patched = whole;
+        check(read, "read box.skp for the pre-2013 gate");
         // "SketchUp Model" (14 UTF-16 chars) after the 4-byte marker, then ff fe ff 08, then
         // the JSON { " 1 7 . 0 . 1 - the major's 7 is at byte 4 + 28 + 4 + 4.
         const size_t at = 4 + 28 + 4 + 4;
-        check(at + 1 < patched.size() && patched[at] == 0x37 && patched[at + 1] == 0x00,
+        check(at + 1 < whole.size() && whole[at] == 0x37 && whole[at + 1] == 0x00,
               "the version major is where the test expects it");
-        patched[at] = 0x34;  // 14
-        const auto pre2013 = temp.path() + "/pre2013.skp";
-        {
-            std::ofstream out(pre2013.toStdString(), std::ios::binary);
+        const auto withUnits = [&](std::uint8_t digit, const char* name) {
+            auto patched = whole;
+            patched[at] = digit;
+            const auto path = temp.path() + "/" + name;
+            std::ofstream out(path.toStdString(), std::ios::binary);
             out.write(reinterpret_cast<const char*>(patched.data()), static_cast<std::streamsize>(patched.size()));
-        }
-        const auto r = run({"--probe", pre2013});
-        check(r.exitCode == 3, QString("the pre-2013 refusal (exit %1)").arg(r.exitCode).toStdString());
-        check(r.report["code"] == "pre2013", "the pre-2013 refusal says " + jstr(r.report["message"]));
+            return path;
+        };
+        const auto before = run({"--probe", withUnits(0x32, "pre2013.skp")});  // 12
+        check(before.exitCode == 3, QString("the pre-2013 refusal (exit %1)").arg(before.exitCode).toStdString());
+        check(before.report["code"] == "pre2013", "the pre-2013 refusal says " + jstr(before.report["message"]));
+        const auto best = run({"--probe", withUnits(0x33, "best-effort-2013.skp")});  // 13
+        check(best.report["code"].toString() != "pre2013",
+              "a 2013 file is read best-effort, not refused as pre-2013: " + jstr(best.report["code"]));
     }
 #ifdef CLI_PATH
     // R102.c (ADR 0176 section 9): the application's CLI, --import-skp, through the real helper, with
