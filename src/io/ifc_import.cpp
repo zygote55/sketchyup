@@ -368,6 +368,23 @@ std::string ifcTagName(const std::string &className) {
     }
     return "IFC " + (spaced.empty() ? std::string("Other") : spaced);
 }
+// R098.b (ADR 0172 section 4): the STEP package's classes (IfcStepSolid, IfcStepAssembly, ...)
+// take the "Ifc" and "Step" prefixes off, are spaced and carried on the tag family STEP.
+std::string stepTagName(const std::string &className) {
+    std::string name = className;
+    if (name.rfind("IfcStep", 0) == 0)
+        name = name.substr(7);
+    std::string spaced;
+    for (std::size_t i = 0; i < name.size(); ++i) {
+        const char c = name[i];
+        if (i > 0 && std::isupper(static_cast<unsigned char>(c)) &&
+            (std::islower(static_cast<unsigned char>(name[i - 1])) ||
+             (i + 1 < name.size() && std::islower(static_cast<unsigned char>(name[i + 1])))))
+            spaced += ' ';
+        spaced += c;
+    }
+    return "STEP " + (spaced.empty() ? std::string("Other") : spaced);
+}
 namespace {
 
 const std::map<std::string, std::string> &noticeTexts() {
@@ -409,7 +426,20 @@ const std::map<std::string, std::string> &noticeTexts() {
         {"propertyTextClipped", "A property text longer than 32 KiB was shortened."},
         {"propertiesOmitted", "Properties beyond 4,096 on one element, or beyond 8 MiB of text in all, were left out by the helper."},
         {"materialsOverLimit", "More than 1,024 materials: the rest keep the body's own colour."},
-        {"tagsOverLimit", "More than 128 class tags: the rest are on the tag IFC Other."},
+        {"tagsOverLimit", "More than 128 class tags: the rest are on the format's Other tag."},
+        // R098.b (ADR 0172 section 4): the STEP import's notices.
+        {"nameTruncated", "A name longer than 2,048 bytes was truncated."},
+        {"defaultMaterial", "A product without a style was given the DefaultMaterial (0.7 grey)."},
+        {"colorAlphaDropped", "A colour with an opacity that is not 1 was imported opaque."},
+        {"invisibleShapes", "A shape the file marks invisible was imported hidden."},
+        {"degeneratePlacement", "A placement the kernel could not apply was replaced by the identity; the shape keeps its own frame."},
+        {"freeFaces", "A solid with a face that no solid bounds was imported as a body of its own faces."},
+        {"metadataTruncated", "A name or property longer than its cap was truncated."},
+        {"mirrorVariantOmitted", "A mirror instance's second mesh variant was left out of the package by the budget; the instance keeps the first."},
+        {"noSolids", "A shape transferred but held no solid; it was not converted."},
+        {"treeTooDeep", "The assembly is deeper than the kernel's 128 levels; the deeper parts were attached to the deepest kept assembly."},
+        {"triangleBudgetApplied", "The conversion stopped at the triangle budget; the rest of the file is not converted."},
+        {"triangleCapApplied", "A shape reached the 100,000-triangle cap and was tessellated with the deflection relaxed until it fit."},
         {"spacesSkipped", "Spaces were not imported (skipped on request)."},
         {"definitionsOverLimit", "More shared geometries than the 1,024 component definitions allow: the rest are expanded."},
     };
@@ -576,7 +606,7 @@ struct Counters {
 class Converter {
   public:
     Converter(const IfcPackage &p, const IfcImportOptions &o, const IfcRunFacts &f, const IfcConversionHooks &h)
-        : pkg(p), options(o), facts(f), hooks(h) {}
+        : pkg(p), options(o), facts(f), hooks(h), step(p.engine["kernel"].toString() == QLatin1String("step")) {}
     IfcImport run();
 
   private:
@@ -584,6 +614,9 @@ class Converter {
     IfcImportOptions options;
     IfcRunFacts facts;
     IfcConversionHooks hooks;
+    // R098.b: the package the worker's STEP import wrote (engine.kernel "step"): the bodies take
+    // the tag family STEP and the edit is labelled Import STEP (ADR 0172 section 4).
+    bool step;
 
     // Persistent across attempts.
     std::map<std::string, Id> tagIds;
@@ -637,7 +670,7 @@ Id Converter::tagFor(const IfcPackageNode &node) {
         break;
     case IfcNodeRole::Element:
     case IfcNodeRole::Assembly:
-        name = ifcTagName(node.className);
+        name = step ? stepTagName(node.className) : ifcTagName(node.className);
         family = true;
         break;
     default:
@@ -645,10 +678,11 @@ Id Converter::tagFor(const IfcPackageNode &node) {
     }
     if (const auto found = tagIds.find(name); found != tagIds.end())
         return found->second;
-    // At most 128 class-family tags; the rest share "IFC Other". The space and opening tags are not among them.
+    // At most 128 class-family tags; the rest share the format's Other. The space and opening tags are not among them.
+    const char *other = step ? "STEP Other" : "IFC Other";
     if (family && familyTags >= maxFamilyTags) {
         note("tagsOverLimit");
-        name = "IFC Other";
+        name = other;
         if (const auto found = tagIds.find(name); found != tagIds.end())
             return found->second;
     }
@@ -658,7 +692,7 @@ Id Converter::tagFor(const IfcPackageNode &node) {
     tag->visible = visible;
     tags.push_back(tag);
     tagIds[name] = tag->id;
-    if (family && name != "IFC Other")
+    if (family && name != other)
         ++familyTags;
     return tag->id;
 }
@@ -927,7 +961,7 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
     Attempt attempt;
     propertiesDropped.clear();
     const auto plans = planProperties(aggregateBudget);
-    Edit edit{"Import IFC", {}};
+    Edit edit{step ? "Import STEP" : "Import IFC", {}};
     {
         auto [block, origin] = evaluateGeoreference();
         attempt.georeference = std::move(block);
@@ -1147,7 +1181,8 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
                     auto d = std::make_shared<ComponentDefinition>();
                     d->id = nextDefinition++;
                     d->root = 1;
-                    d->name = plainText(node.className + " " + std::to_string(node.step), 200);
+                    // A STEP instance keeps its product's name (ADR 0172); an IFC definition keeps the class name.
+                    d->name = plainText(step && !node.name.empty() ? node.name : (node.className + " " + std::to_string(node.step)), 200);
                     auto root = std::make_shared<Body>();
                     root->id = 1;
                     root->kind = BodyKind::Group;
@@ -1157,6 +1192,12 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
                     member->id = 2;
                     member->parent = 1;
                     member->name = "Geometry";
+                    // A STEP instance keeps the part's provenance on the canonical member (ADR 0172 section 4):
+                    // the instance's placed bodies are its exact copies, so the keys ride there.
+                    if (step) {
+                        for (const auto &[key, value] : plans[i].provenance)
+                            member->properties.emplace(key, value);
+                    }
                     d->members[2] = member;
                     d->nextMemberId = 3;
                     definition = d;
