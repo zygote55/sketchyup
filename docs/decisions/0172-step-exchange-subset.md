@@ -645,14 +645,17 @@ conversion extended for STEP packages (the R098.a3 runner converts through it un
 - **Units and caps.** The R098.a2 unit policy and the section 6 triangle caps are
   unchanged; a file that declares no length unit refuses (`units`) unless the
   option is given, and a nonsense option refuses (`option`).
-- **Application (the R098.a3 runner's two gaps).** The worker's `--import-step`
+- **Application (the R098.a3 runner's three gaps).** The worker's `--import-step`
   gains the IFC import's rlimit options (`--rlimit-as`, `--rlimit-cpu`,
   `--rlimit-fsize`): the R098.a3 runner passes them by default (a 4 GiB
   `addressSpaceBytes`), and the worker at the R098.a2 point refused them as
   unknown options, which the stand-in tests could not see. The conversion gains
   the STEP family (the R098.a3 known limitation, closed): the tag from the class
   name (`STEP Assembly`, `STEP Solid`, `STEP Other` at the 128-family limit), the
-  edit label `Import STEP`, and the STEP notice wordings beside the IFC ones.
+  edit label `Import STEP`, and the STEP notice wordings beside the IFC ones. The
+  runner's private copy keeps the file's name (the stand-in tests could not see
+  that a fixed `input.step` copy names the document's root body after the copy,
+  not after the file the user chose).
 - **Fixtures.** `sketchyup-step-instanced.step` (one part, three placed instances,
   the XDE writer), `sketchyup-step-named.step`, `sketchyup-step-colored.step` and
   `sketchyup-step-layered.step` (self-generated, the XDE writer's
