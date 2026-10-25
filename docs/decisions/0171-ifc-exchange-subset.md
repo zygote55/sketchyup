@@ -2246,3 +2246,81 @@ dialog has had a tick to settle (the first tick can land mid first layout), and 
 suite drives its `Settled` dialogs. The suite runs offscreen for CI parity; on a live Wayland session the
 `Settled` dialogs' focus activation delays `done()` until focus settles, which a scripted run does not
 control.
+
+## Implementation notes (R097.e2)
+
+R097.e2 ships the desktop export screens of §16: **File → Export IFC…** opens the plan dialog, then the
+system Save dialog, then the export runs on a worker thread with a four-step progress sheet, and the
+result is the report (or a refusal, or nothing for a cancel). It reuses the R097.e1 import screens rather
+than copying them: `IfcExportRunner` mirrors `IfcImportRunner` (a `QThread`, the `cancelled` flag captured
+under the mutex, `worker.progress` emitting queued `phaseChanged`, `exportIfcFile` off the UI thread),
+`IfcExportProgressSheet` mirrors the import progress sheet (the step row, the bar, the elapsed label,
+`reject()` as cooperative cancel, the sheet closing only once the runner has finished), and the report and
+refusal use the import suite's `ReportSheet` and the §16.6 refusal shape. What is new is the plan dialog
+itself (the numbers of `planIfcExport` before anything is written), the report's content (the balance line,
+Needs your attention, Not written, Notices) and `selectInModel` (a report row that selects the body in the
+viewport, wired through `Viewport::setSelection`). The export does not touch the open model, so it asks no
+unsaved-changes question.
+
+### The flow, as built
+
+`Window::exportIfc` opens the plan dialog (`IfcExportDialog`): the **Written** lines (structure, groups,
+bodies, components, colours, properties, hidden, identifiers), one **Not written** line per kind with its
+count (a zero count hides the line), the **Georeferencing** row (a green `Written` line when the site label
+is an authority code, an amber `Not written — no coordinate system` note otherwise, and the neutral no-site
+line) and the **What this is** panel; the footer says a new file is created and an existing one is never
+replaced. Enter is **Export to file…**, Esc cancels, the arrows scroll the form. The dialog refuses an empty
+model (a `Nothing to export` banner, Export disabled) and a missing helper (the availability sheet). On
+accept it opens the Save picker — a non-native `QFileDialog` (`ifcExportFileDialog`, `AcceptSave`,
+`AnyFile`, `DontConfirmOverwrite`, an IFC name filter and a default `.ifc` suffix) — and a name that
+already exists (or is a symlink) is the `destinationExists` refusal; nothing is built. A new name starts
+`IfcExportRunner`, which copies the document under a mutex, sets `worker.cancelled`, and runs
+`exportIfcFile` on its thread; the progress sheet (Capture the model, Build the file, Check its size,
+Publish the file) maps the worker's `capture`/`build`/`check`/`publish` phases, works the current step, and
+its **Cancel** and Escape call `requestCancel` (the helper exits `cancelled` and the scratch package is
+removed; the sheet closes with `QDialog::Rejected` so it never flashes the all-done state). The window
+waits for the runner, then shows the report for a success, the refusal for a failure, and nothing but the
+status line for a cancel.
+
+### The report
+
+The report is the §16.5 component: the banner (**A new IFC file was written. The model is unchanged.**),
+the file/size/schema/geometry/elapsed summary, the accounting identity (**N + M + K = total ✓ balanced**,
+with a segment bar of the three dispositions), **Needs your attention** (the coordinate-system row with its
+fix, and each replaced `GlobalId` with a **Select in model** row), **Not written** (a count per kind) and
+**Notices** (including the plain-reals note). A refusal keeps the §16.6 shape — the red **Nothing was
+written.**, the code, the file, the reason, numbered next steps, the not-affected line, an optional
+read-only details block and **Copy details** to the clipboard.
+
+### What the suite found
+
+Driving the export's Save picker offscreen exposed a Qt platform gap: a member-object `QFileDialog` (the
+`save.exec()` shape, the one the DXF export and this export use) does not build its widget tree on the
+`offscreen` platform — it has no children and `exec()` never returns — while the static
+`QFileDialog::getOpenFileName` (the import picker's shape) does. The pickers in this suite and
+`dxf_input_tests` are therefore non-native (`DontUseNativeDialog`): on a headless or portal-less host the
+widget picker is the only picker, and the driver can reach its `fileNameEdit` and call `accept` (the
+driver's pattern). The import's static picker is left as it is; its suite already passes offscreen.
+
+### The suite
+
+`ifc_export_dialog_tests` (registered as `ifc_export_dialog`, offscreen, in the four native display stages;
+`ci-path-map.json` and the line inventory follow) drives the real `Window` with stand-in helpers — `--probe`
+prints the probe's JSON, `--export` writes a small IFC file and prints `R {"status":"ok",...}` (a refusal
+prints `R {"status":"refused",...}` and exits 1) and `--check` prints `R {"status":"ok"}` — pointed at them
+by `Window::setIfcWorkerPath`:
+
+- T1 the plan dialog on its own (the written lines, the not-written lines with and without a count,
+  the georeference's green and amber lines, the helper line, What this is, and the keyboard: Enter is
+  Export to file…, Esc cancels, the arrows scroll).
+- T2 an empty model (the `Nothing to export` banner, Export disabled); T3 a site origin whose label is not
+  an authority code (the amber `Not written — no coordinate system` line).
+- T4 the full flow (plan → Save → progress → report): the progress sheet's four steps, the IFC file
+  written, the report's banner, summary and balance line, and the window's status line.
+- T5 a destination that exists (the refusal, the existing file untouched); T6 a failed helper (the
+  refusal, nothing written).
+- T7 a cancelled export (nothing written, the scratch package gone, no report and no refusal); T8 a missing
+  helper (the not-installed sheet).
+
+The driver and the stand-in helper follow the R097.e1 suite; the suite runs offscreen for CI parity, the
+same way the import suite does.
