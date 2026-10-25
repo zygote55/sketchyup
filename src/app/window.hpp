@@ -102,6 +102,13 @@ class Window : public QMainWindow {
     void importIfc();
     void exportIfc();
     void showIfcImportReport();
+    // R098.a3: File › Import STEP… (window_step.cpp). The heavy work is the same helper's
+    // (sketchyup-ifc-worker, ADR 0172 section 8: one component, one helper, two directions);
+    // the import runs on a worker thread (StepImportRunner), the IFC import's own runner.
+    // A missing helper is the same availability sheet; the STEP import needs no kernel, so
+    // the helper's Limited state (no OpenCASCADE kernel) is not a limitation for STEP.
+    void importStep();
+    void showStepImportReport();
     // The probe, on demand (the import is opened): a missing helper is the availability sheet, a
     // broken one "cannot start" (ADR 0171 §16.7). It has its own deadline and is the user's
     // action, so it runs on the UI thread; the conversion itself is on a worker thread (16.4).
@@ -109,6 +116,7 @@ class Window : public QMainWindow {
     // The report chip's lifetime (16.1): it belongs to the imported model; any other document
     // clears it. Called by every document replacement and at the start of an import.
     void clearIfcReportState();
+    void clearStepReportState(); // R098.a3: the STEP chip's lifetime is the IFC chip's own
     void setIfcWorkerPath(const QString &path); // tests, and a future "where the helper is"
     QString ifcWorkerPath();
     IfcProbe ifcProbe();
@@ -418,6 +426,14 @@ class Window : public QMainWindow {
     // hidden widget takes no space, so the window's layout is untouched until then.
     QPushButton *ifcReportChip_{};
     QAction *ifcReportAction_{};
+    // R098.a3: the STEP import's state (window_step.cpp), the IFC import's own screens for
+    // STEP: the report and its chip with the IFC import's own lifetime.
+    QJsonObject stepImportReport_;
+    QString stepImportFileName_;
+    qint64 stepImportElapsedMs_ = 0;
+    int stepImportRestarts_ = 0;
+    QPushButton *stepReportChip_{};
+    QAction *stepReportAction_{};
     void tool(Viewport::Tool tool, const QString &instruction);
     // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the
     // same shortcut may be used once per non-overlapping scope (ADR 0164 §4).

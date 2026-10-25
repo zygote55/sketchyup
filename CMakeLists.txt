@@ -383,7 +383,7 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_test(NAME text_geometry COMMAND text_geometry_tests)
     set_tests_properties(text_geometry PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME=generic;QT_IM_MODULE=compose")
   endif()
-  add_library(sketchyup_io src/io/skp_package.cpp src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/extension_worker.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
+  add_library(sketchyup_io src/io/skp_package.cpp src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/step_worker.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/extension_worker.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
   target_link_libraries(sketchyup_io PRIVATE sketchyup_cgltf)
   # R095.c terrain import uses the triangulation adapter.
   target_link_libraries(sketchyup_io PUBLIC sketchyup_terrain_triangulation)
@@ -763,6 +763,19 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_include_directories(ifc_convert_tests PRIVATE tests)
     add_test(NAME ifc_convert COMMAND ifc_convert_tests)
     set_tests_properties(ifc_convert PROPERTIES TIMEOUT 600)
+    # R098.a3 (ADR 0172): the STEP import through the helper, against a stand-in helper
+    # (the real worker is the IFC worker's, R098.a2); no IfcOpenShell or real worker
+    # involved.
+    add_executable(step_import_tests tests/step_import_tests.cpp)
+    target_link_libraries(step_import_tests PRIVATE sketchyup_io)
+    target_include_directories(step_import_tests PRIVATE tests)
+    target_compile_definitions(step_import_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    if(SKETCHYUP_BUILD_CLI)
+      target_compile_definitions(step_import_tests PRIVATE CLI_PATH="$<TARGET_FILE:sketchyup-cli>")
+      add_dependencies(step_import_tests sketchyup-cli)
+    endif()
+    add_test(NAME step_import COMMAND step_import_tests)
+    set_tests_properties(step_import PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77)
     if(SKETCHYUP_BUILD_IFC AND TARGET sketchyup-ifc-worker)
       # R097.b: the whole import through the helper, against the raw-text scan (needs python3).
       find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -1140,7 +1153,12 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R097.e1 (ADR 0171): the IFC import screens — the availability probe, the options
   # dialog, the progress sheet (import on a worker thread), the report/refusal/
   # unavailable sheets, and the File menu flow.
-  target_sources(sketchyup_desktop PRIVATE src/app/ifc_availability.cpp src/app/ifc_import_dialog.cpp src/app/ifc_import_runner.cpp src/app/ifc_progress_sheet.cpp src/app/ifc_sheets.cpp src/app/window_ifc.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/ifc_availability.cpp src/app/ifc_export_dialog.cpp src/app/ifc_export_progress_sheet.cpp src/app/ifc_export_runner.cpp src/app/ifc_import_dialog.cpp src/app/ifc_import_runner.cpp src/app/ifc_progress_sheet.cpp src/app/ifc_sheets.cpp src/app/window_ifc.cpp)
+  # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
+  # progress sheet (import on a worker thread), the report/refusal/unavailable sheets,
+  # and the File menu flow; the helper is the IFC helper's, so the IFC availability
+  # states are its own.
+  target_sources(sketchyup_desktop PRIVATE src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1407,6 +1425,26 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME ifc_import_dialog COMMAND ifc_import_dialog_tests)
     set_tests_properties(ifc_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                    TIMEOUT 600)
+    # R097.e2 (ADR 0171): the IFC export screens — the plan dialog, the Save dialog, the
+    # progress sheet, the report, the refusals, and a cancelled export — offscreen,
+    # driven by a stand-in helper.
+    add_executable(ifc_export_dialog_tests tests/ifc_export_dialog_tests.cpp)
+    target_link_libraries(ifc_export_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(ifc_export_dialog_tests PRIVATE tests)
+    target_compile_definitions(ifc_export_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME ifc_export_dialog COMMAND ifc_export_dialog_tests)
+    set_tests_properties(ifc_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
+    # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
+    # progress sheet, the report, the refusal, and the not-installed state — offscreen,
+    # driven by a stand-in helper.
+    add_executable(step_import_dialog_tests tests/step_import_dialog_tests.cpp)
+    target_link_libraries(step_import_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(step_import_dialog_tests PRIVATE tests)
+    target_compile_definitions(step_import_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME step_import_dialog COMMAND step_import_dialog_tests)
+    set_tests_properties(step_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                     TIMEOUT 600)
     # R095.e1: the Entity info Terrain section, settings, Regenerate, Explode, create from
     # selection and the tools' refusal over terrain (offscreen).
     add_executable(terrain_desktop_tests tests/terrain_desktop_tests.cpp)

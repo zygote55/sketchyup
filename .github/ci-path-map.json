@@ -113,8 +113,11 @@
         "third_party/ifcopenshell/**",
         "src/ifc/**",
         "src/io/ifc_*",
+        "src/io/step_*",
         "tests/ifc*",
+        "tests/step_*",
         "tests/fixtures/ifc/**",
+        "tests/fixtures/step/**",
         "scripts/vendor-ifcopenshell.py",
         "scripts/verify-ifc-library.py",
         "dependencies.json",
@@ -202,9 +205,11 @@
       ]
     },
     {
-      "why": "The R097.e1 import screens suite (ADR 0171): the options dialog, the progress sheet, the report and the refusal and unavailable sheets, offscreen and driven by a stand-in helper. It links the desktop but not the IFC library, so it runs in the fast tier (build and the native display lines) as well as the IFC job the generic IFC rule selects.",
+      "why": "The R097.e1 import screens suite (ADR 0171), its R098.a3 STEP twin (ADR 0172) and the R097.e2 export screens suite (ADR 0171): the options dialog, the progress sheet, the report and the refusal and unavailable sheets, offscreen and driven by a stand-in helper. They link the desktop but not the IFC library, so they run in the fast tier (build and the native display lines) as well as the IFC job the generic IFC rule selects.",
       "paths": [
-        "tests/ifc_import_dialog_tests.cpp"
+        "tests/ifc_import_dialog_tests.cpp",
+        "tests/step_import_dialog_tests.cpp",
+        "tests/ifc_export_dialog_tests.cpp"
       ],
       "areas": [
         "build",
