@@ -131,7 +131,10 @@ public:
     std::uint32_t colour;
   };
 
-  explicit Shaper(const StepExportMesh& mesh) : mesh_(mesh), vertices_(mesh.vertices.size() / 3) {}
+  // `placement` moves every vertex: a top-level element is built already placed (a free label with identity location,
+  // which the writer keeps as one part; a located free shape is written as a one-component assembly instead).
+  explicit Shaper(const StepExportMesh& mesh, const gp_Trsf& placement = gp_Trsf())
+      : mesh_(mesh), placement_(placement), vertices_(mesh.vertices.size() / 3) {}
 
   // The mesh's shape: a solid when the mesh is closed, else a shell. `faces` lists every face with its colour.
   TopoDS_Shape build(std::vector<Colored>& faces) {
@@ -170,7 +173,8 @@ private:
   }
 
   gp_Pnt point(std::uint32_t i) const {
-    return gp_Pnt(mesh_.vertices[std::size_t(i) * 3], mesh_.vertices[std::size_t(i) * 3 + 1], mesh_.vertices[std::size_t(i) * 3 + 2]);
+    const gp_Pnt p(mesh_.vertices[std::size_t(i) * 3], mesh_.vertices[std::size_t(i) * 3 + 1], mesh_.vertices[std::size_t(i) * 3 + 2]);
+    return p.Transformed(placement_);
   }
 
   TopoDS_Vertex vertex(std::uint32_t i) {
@@ -284,6 +288,7 @@ private:
   }
 
   const StepExportMesh& mesh_;
+  gp_Trsf placement_;
   std::vector<TopoDS_Vertex> vertices_;
   std::unordered_map<std::uint64_t, TopoDS_Edge> edges_;
 };
@@ -359,13 +364,12 @@ private:
   // visibility. An element with no area is refused, since its component would have nothing to reference.
   TDF_Label makePart(const StepExportNode& node, const gp_Trsf* placed) {
     const StepExportMesh& mesh = package_.meshes[std::size_t(node.mesh)];
-    Shaper shaper(mesh);
+    Shaper shaper(mesh, placed != nullptr ? *placed : gp_Trsf());
     std::vector<Shaper::Colored> faces;
-    TopoDS_Shape shape = shaper.build(faces);
+    const TopoDS_Shape shape = shaper.build(faces);
     counts_.fallbacks += shaper.fallbacks;
     counts_.degenerate += shaper.degenerate;
     if (shape.IsNull()) throw Refusal("meshInvalid", "An element has no triangle with an area; nothing was written.");
-    if (placed != nullptr) shape = shape.Moved(TopLoc_Location(*placed));
     const TDF_Label part = shapeTool_->AddShape(shape, Standard_False, Standard_False);
     counts_.solids += shape.ShapeType() == TopAbs_SOLID ? 1 : 0;
     counts_.shells += shape.ShapeType() == TopAbs_SOLID ? 0 : 1;

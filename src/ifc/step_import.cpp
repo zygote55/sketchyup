@@ -780,9 +780,11 @@ int runStepImportPackage(const StepImportOptions& options) {
     flat.baseIndex = baseIndexOf(flat.base);
     const long long index = static_cast<long long>(order.size());
     order.push_back(flat);
-    if (shapeTool.IsAssembly(L)) {
+    // A group's components, and the components of the group a reference refers to (a sub-assembly occurrence:
+    // the sub-assembly's own components, placed under this node).
+    if (shapeTool.IsAssembly(flat.base)) {
       TDF_LabelSequence comps;
-      shapeTool.GetComponents(L, comps);
+      shapeTool.GetComponents(flat.base, comps);
       for (int i = 1; i <= comps.Length(); ++i) self(self, comps.Value(i), index, depth + 1);
     }
   };
@@ -791,7 +793,8 @@ int runStepImportPackage(const StepImportOptions& options) {
     while (it.More()) {
       const TDF_Label L = it.Value();
       it.Next();
-      if (shapeTool.IsAssembly(L) || shapeTool.IsFree(L)) walk(walk, L, -1, 0);
+      // Roots are the free labels: a sub-assembly is walked under the occurrence that places it, not as a root.
+      if (shapeTool.IsFree(L)) walk(walk, L, -1, 0);
     }
   }
 
@@ -1052,7 +1055,7 @@ int runStepImportPackage(const StepImportOptions& options) {
     if (flat.isAssembly) {
       ++assemblyCount;
       node.className = "IfcStepAssembly";
-      node.name = labelName(flat.label);
+      node.name = labelName(flat.base);  // a sub-assembly occurrence is named after the sub-assembly it places
       if (node.name.empty()) node.name = node.className;  // an unnamed assembly is named after its class
       node.role = "assembly";
       // The assembly's placement (its label's location; its children are placed relative to
