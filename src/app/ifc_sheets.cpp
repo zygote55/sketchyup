@@ -154,10 +154,13 @@ void showImportReport(QWidget *parent, const ImportReportFace &face, const Impor
     const QJsonObject engine = report["engine"].toObject();
     const int engineRestarts = engine["restarts"].toInteger(0);
     const int shownRestarts = std::max(state.restarts, engineRestarts);
-    banner->setText(QString("✓ Import finished · %1 · %2 restart%3")
-                       .arg(humanMs(state.elapsedMs))
-                       .arg(shownRestarts)
-                       .arg(shownRestarts == 1 ? QString() : QString("s")));
+    if (face.restarts)
+        banner->setText(QString("✓ Import finished · %1 · %2 restart%3")
+                           .arg(humanMs(state.elapsedMs))
+                           .arg(shownRestarts)
+                           .arg(shownRestarts == 1 ? QString() : QString("s")));
+    else
+        banner->setText(QString("✓ Import finished · %1").arg(humanMs(state.elapsedMs)));
     banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
     sheet.summary->setObjectName(face.prefix + "Summary");
     sheet.summary->setText(face.summary(state));
@@ -169,16 +172,21 @@ void showImportReport(QWidget *parent, const ImportReportFace &face, const Impor
     auto *identity = new QLabel;
     identity->setObjectName(face.prefix + "Identity");
     const QJsonObject accounting = report["accounting"].toObject();
-    identity->setText(
-        QString("%1 read %2 = converted to geometry %3 + structure and metadata %4 + omitted %5")
-            .arg(face.identitySubject)
-            .arg(accounting["entities"].toInteger(0))
-            .arg(accounting["converted"].toInteger(0))
-            .arg(accounting["supporting"].toInteger(0))
-            .arg(accounting["omitted"].toInteger(0)));
-    sheet.body->addWidget(identity);
-    addSegmentBar(sheet.body, accounting["converted"].toInteger(0), accounting["supporting"].toInteger(0),
-                   accounting["omitted"].toInteger(0));
+    if (face.identity) {
+        identity->setText(face.identity(state));
+        sheet.body->addWidget(identity);
+    } else {
+        identity->setText(
+            QString("%1 read %2 = converted to geometry %3 + structure and metadata %4 + omitted %5")
+                .arg(face.identitySubject)
+                .arg(accounting["entities"].toInteger(0))
+                .arg(accounting["converted"].toInteger(0))
+                .arg(accounting["supporting"].toInteger(0))
+                .arg(accounting["omitted"].toInteger(0)));
+        sheet.body->addWidget(identity);
+        addSegmentBar(sheet.body, accounting["converted"].toInteger(0), accounting["supporting"].toInteger(0),
+                       accounting["omitted"].toInteger(0));
+    }
     // How it was read.
     auto *how = new QPlainTextEdit;
     how->setObjectName(face.prefix + "How");
@@ -201,7 +209,7 @@ void showImportReport(QWidget *parent, const ImportReportFace &face, const Impor
             new QTreeWidgetItem(item, {group.second[i], group.second[i + 1]});
     }
     auto *notices = new QTreeWidgetItem(list, {"Notices", QString()});
-    const auto noticeList = report["notices"].toArray();
+    const QJsonArray noticeList = face.notices ? face.notices(state) : report["notices"].toArray();
     for (const auto &value : noticeList) {
         const QJsonObject notice = value.toObject();
         new QTreeWidgetItem(notices, {notice["message"].toString(),
@@ -210,6 +218,15 @@ void showImportReport(QWidget *parent, const ImportReportFace &face, const Impor
     if (noticeList.isEmpty())
         new QTreeWidgetItem(notices, {"None", QString()});
     sheet.body->addWidget(list, 1);
+    // The face's note under the list (the SketchUp trademark note, ADR 0176 section 8).
+    const QString note = face.note ? face.note(state) : QString();
+    if (!note.isEmpty()) {
+        auto *noteLabel = new QLabel(note);
+        noteLabel->setObjectName(face.prefix + "Note");
+        noteLabel->setWordWrap(true);
+        noteLabel->setStyleSheet("color: gray; font-size: 12px;");
+        sheet.body->addWidget(noteLabel);
+    }
     // The footer.
     auto *ok = new QPushButton("OK");
     ok->setObjectName(face.prefix + "OK");
@@ -589,4 +606,245 @@ void showStepUnavailable(QWidget *parent, const IfcProbe &probe) {
     }
     showAvailabilitySheet(parent, face);
 }
+// R102.c (ADR 0176 section 9): the SketchUp import's own screens. The report is the shared builder's
+// with this face: the file's version and container, the counts, the accounting identity per kind
+// (counted = imported + omitted, section 5), the notices in plain words, what the package does not
+// carry, and the trademark note (section 8).
+namespace {
+// The helper's version string is the file's own ("{24.0.553}"); the report shows it without the braces.
+QString skpVersion(const QJsonObject &report) {
+    QString version = report["formatVersion"].toString();
+    version.remove('{');
+    version.remove('}');
+    return version.isEmpty() ? QStringLiteral("unknown version") : version;
+}
+QString skpContainerLine(const QJsonObject &report) {
+    if (report["container"].toString() == "vff")
+        return QStringLiteral("SketchUp 2021 and later (VFF container)");
+    return QStringLiteral("SketchUp 2013-2020 (MFC container), read best-effort");
+}
+// The plain-language line for each notice the import can give (ADR 0176 section 4 and the R102.b caps).
+// A code the table does not name is shown as it is, so a new notice is never dropped from the report.
+QString skpNoticeMessage(const QString &code) {
+    if (code == "invalidFaces")
+        return QStringLiteral("Faces the native model refuses (not planar, self-intersecting or collapsed): dropped");
+    if (code == "truncatedNames")
+        return QStringLiteral("Names cut to the native 1,024-byte limit");
+    if (code == "untaggedHidden")
+        return QStringLiteral("The default layer is hidden in the file; the Untagged tag has no visibility of its own");
+    if (code == "duplicateTagNamesRenamed")
+        return QStringLiteral("Tags with the same name renamed to keep them apart");
+    if (code == "duplicateMaterialNamesRenamed")
+        return QStringLiteral("Materials with the same name renamed to keep them apart");
+    if (code == "propertiesDropped")
+        return QStringLiteral("Attributes over the property limits, or not a string, number or boolean: not imported");
+    if (code == "textureMissing")
+        return QStringLiteral("Textures named in the file with no image data: the faces are untextured");
+    if (code == "textureUnreadable")
+        return QStringLiteral("Texture images that could not be decoded: the faces are untextured");
+    if (code == "textureTooLarge")
+        return QStringLiteral("Texture images over 4,096 by 4,096 pixels: not imported");
+    if (code == "texturesOverLimit")
+        return QStringLiteral("Textures over the native texture limit: not imported");
+    if (code == "materialsOverLimit")
+        return QStringLiteral("Materials over the native limit of 1,024: not imported");
+    if (code == "bodyLimit")
+        return QStringLiteral("Geometry over the native limit for one body: counted, not imported");
+    if (code == "documentLimit")
+        return QStringLiteral("Geometry over the native document limit: not imported");
+    if (code == "placementLimit")
+        return QStringLiteral("Placed geometry over the native limit: not imported");
+    if (code == "nestingTooDeep")
+        return QStringLiteral("Components nested more than 64 levels deep, or a cycle: not imported");
+    if (code == "uvPerspective")
+        return QStringLiteral("A perspective texture mapping: the default projection is used");
+    if (code == "unitsUnknown")
+        return QStringLiteral("The file's units are not known: inches are assumed");
+    if (code == "scaledPlacement")
+        return QStringLiteral("A placement with a scale in its last value: the translation is divided by it");
+    if (code == "newerThanTested")
+        return QStringLiteral("A SketchUp version newer than the import was tested on: read and labelled so");
+    return code;
+}
+// What the package does not carry (ADR 0176 section 4), in the report's words.
+QString skpNotCarriedLabel(const QString &key) {
+    if (key == "scenes")
+        return QStringLiteral("Scenes");
+    if (key == "styles")
+        return QStringLiteral("Styles");
+    if (key == "sectionPlanes")
+        return QStringLiteral("Section planes");
+    if (key == "texts")
+        return QStringLiteral("Texts");
+    if (key == "dimensions")
+        return QStringLiteral("Dimensions");
+    if (key == "camera")
+        return QStringLiteral("Camera");
+    if (key == "constructionLines")
+        return QStringLiteral("Construction lines");
+    if (key == "constructionPoints")
+        return QStringLiteral("Construction points");
+    return key;
+}
+} // namespace
+
+ImportReportFace skpImportReportFace() {
+    ImportReportFace face;
+    face.sheetName = "skpImportReport";
+    face.title = "SketchUp import report";
+    face.prefix = "skpReport";
+    face.identitySubject = "faces";
+    face.chipWord = "SketchUp";
+    face.restarts = false; // the helper has no restart protocol (ADR 0176 section 1)
+    face.attention = [](const ImportReportState &state) {
+        // What the import omitted (the native validator's refusals and the caps), summed over the kinds.
+        const QJsonObject accounting = state.report["accounting"].toObject();
+        qint64 omitted = 0;
+        for (const char *kind : {"faces", "edges", "instances", "materials"})
+            omitted += accounting[kind].toObject()["omitted"].toInteger(0);
+        return int(omitted);
+    };
+    face.summary = [](const ImportReportState &state) {
+        const QJsonObject report = state.report;
+        const QJsonObject source = report["source"].toObject();
+        const QJsonObject counts = report["counts"].toObject();
+        return QString("%1\nSketchUp %2 · %3\nFaces: %4 · Instances: %5 · Materials: %6")
+            .arg(QFileInfo(state.fileName).fileName())
+            .arg(skpVersion(report))
+            .arg(humanSize(source["bytes"].toInteger(0)))
+            .arg(counts["faces"].toInteger(0))
+            .arg(counts["instances"].toInteger(0))
+            .arg(counts["materials"].toInteger(0));
+    };
+    face.how = [](const ImportReportState &state) {
+        const QJsonObject report = state.report;
+        const QString units = report["units"].toString();
+        QStringList lines;
+        lines << QString("Format: SketchUp %1, %2").arg(skpVersion(report)).arg(skpContainerLine(report));
+        lines << QString("Units: %1; the geometry is read in inches and converted to metres")
+                     .arg(units.isEmpty() ? QStringLiteral("none declared") : units);
+        if (report["container"].toString() == "mfc")
+            lines << QStringLiteral("Best effort: a file this reader cannot read is refused, never imported in part");
+        return lines.join('\n');
+    };
+    face.identity = [](const ImportReportState &state) {
+        // The accounting identity of ADR 0176 section 5, per kind: counted = imported + omitted.
+        const QJsonObject accounting = state.report["accounting"].toObject();
+        QStringList lines;
+        for (const char *kind : {"faces", "edges", "instances", "materials"}) {
+            const QJsonObject item = accounting[kind].toObject();
+            lines << QString("%1 read %2 = imported %3 + omitted %4")
+                         .arg(QString::fromLatin1(kind))
+                         .arg(item["counted"].toInteger(0))
+                         .arg(item["imported"].toInteger(0))
+                         .arg(item["omitted"].toInteger(0));
+        }
+        return lines.join('\n');
+    };
+    face.groups = [](const ImportReportState &state) {
+        const QJsonObject report = state.report;
+        const QJsonObject counts = report["counts"].toObject();
+        std::vector<std::pair<QString, QStringList>> groups;
+        auto &structure = groups.emplace_back("Structure", QStringList{});
+        for (const char *key : {"definitions", "placements", "instances", "tags"})
+            structure.second << QStringList{key, QString::number(counts[key].toInteger(0))};
+        auto &geometry = groups.emplace_back("Geometry", QStringList{});
+        for (const char *key : {"faces", "holes", "invalidHoles", "edges", "wires", "materials", "textures"})
+            geometry.second << QStringList{key, QString::number(counts[key].toInteger(0))};
+        auto &carried = groups.emplace_back("Not carried by this import", QStringList{});
+        for (const auto &value : report["notCarried"].toArray())
+            carried.second << QStringList{skpNotCarriedLabel(value.toString()), "not imported"};
+        return groups;
+    };
+    face.notices = [](const ImportReportState &state) {
+        // The helper's notices are a map of code to count; the report's rows are {message, count}.
+        QJsonArray rows;
+        const QJsonObject notices = state.report["notices"].toObject();
+        for (auto it = notices.constBegin(); it != notices.constEnd(); ++it)
+            rows.append(QJsonObject{{"message", skpNoticeMessage(it.key())}, {"count", it.value().toInteger(0)}});
+        return rows;
+    };
+    face.note = [](const ImportReportState &) {
+        // The user guide's words (ADR 0176 section 8): the trademark and the non-affiliation, and what the
+        // independent reader means for some files.
+        return QStringLiteral(
+            "SketchUp is a trademark of Trimble Inc. SketchyUp is not affiliated with or endorsed by Trimble; "
+            "this import uses an independent open-source reader, so some files may not import exactly.");
+    };
+    return face;
+}
+
+// R102.c (ADR 0176 sections 5 and 9): the SketchUp import's refusal. What was checked and what failed,
+// the advice that helps (a file from before 2013 or one the reader cannot read is saved again from
+// SketchUp 2021 or later), and the helper's own words when it gave any. The model is unchanged, and
+// nothing was written.
+void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string &code,
+                    const QString &message, const QJsonObject &report) {
+    const QString codeText = QString::fromStdString(code);
+    const QString stop = report["helper"].toObject()["stop"].toString();
+    const QString saveAgain = QStringLiteral(
+        "1. Open the file in SketchUp 2021 or later and save it.\n2. Import the saved file again.");
+    const QString tryAgain = QStringLiteral("1. Try again once.\n2. If it repeats, report it with the details.");
+    QString reason = message;
+    QString whatToDo = tryAgain;
+    if (codeText == "notSkp") {
+        reason = QStringLiteral("The file does not start with a SketchUp header, so it is not a SketchUp (.skp) file.");
+        whatToDo = QStringLiteral("1. Choose a SketchUp (.skp) file.\n2. Import it again.");
+    } else if (codeText == "tooLarge") {
+        reason = QStringLiteral("The file is larger than the 256 MiB the import takes.");
+        whatToDo = QStringLiteral("1. Import a smaller file, or save the model in parts.\n2. Import it again.");
+    } else if (codeText == "pre2013") {
+        reason = QStringLiteral("This SketchUp file is from before 2013, which the import cannot read.");
+        whatToDo = saveAgain;
+    } else if (codeText == "parse") {
+        reason = QStringLiteral("The SketchUp reader could not read this file.");
+        whatToDo = saveAgain;
+    } else if ((codeText == "workerFailed" && stop == "timeout") || codeText == "deadline") {
+        reason = QStringLiteral("The SketchUp helper ran past its time limit and was stopped, so nothing was read.");
+    } else if (codeText == "workerFailed") {
+        reason = QStringLiteral("The SketchUp helper stopped before it finished (%1).")
+                     .arg(stop.isEmpty() ? QStringLiteral("no reason given") : stop);
+    } else if (codeText == "package") {
+        reason = QStringLiteral("The helper's package could not be read.");
+    } else if (reason.isEmpty()) {
+        reason = QStringLiteral("The import could not be completed.");
+    }
+    // The helper's own words are shown for a refusal it made; a stop has its reason in the sentence already.
+    const bool helperWords = !message.isEmpty() && message != reason && codeText != "workerFailed" && codeText != "deadline";
+    RefusalSheet face;
+    face.sheetName = "skpRefusal";
+    face.title = "SketchUp import refused";
+    face.width = 680;
+    face.height = 480;
+    face.prefix = "skpRefusal";
+    face.refusedLine = "Refused: " + codeText;
+    face.summary =
+        QString("%1\n\nThe model was not changed. Nothing was written.\n\n%2%3\n\nWhat to do next:\n%4\n\n"
+                "Not affected: the open model, the sheets, the assistant, your settings and recovery.")
+            .arg(QFileInfo(fileName).fileName())
+            .arg(reason)
+            .arg(helperWords ? QStringLiteral("\n\nThe words the helper used: %1").arg(message) : QString())
+            .arg(whatToDo);
+    face.report = report;
+    face.copyDetails = true;
+    face.closeIsDefault = true;
+    showRefusalSheet(parent, face);
+}
+
+// R102.c (ADR 0176 section 9): the helper is not installed. The availability sheet with the application's
+// words; everything else is unaffected.
+void showSkpUnavailable(QWidget *parent) {
+    AvailabilitySheet face;
+    face.sheetName = "skpUnavailable";
+    face.title = "SketchUp import";
+    face.prefix = "skpUnavailable";
+    face.text = QStringLiteral(
+        "SketchUp import is not installed.\n\n"
+        "The sketchyup-skp-worker helper is not installed on this machine.\n"
+        "Everything else is unaffected: the open model, the sheets, the assistant, your settings and "
+        "recovery all work as before.\n\n"
+        "The helper ships with SketchyUp; reinstall SketchyUp to restore it.");
+    showAvailabilitySheet(parent, face);
+}
+
 } // namespace sketchy

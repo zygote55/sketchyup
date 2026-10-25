@@ -326,6 +326,8 @@ SkpImport importSkpFile(const QString &path, const SkpWorkerOptions &worker) {
             message.chop(1);
         throw IfcImportError(code.toStdString(), message.toStdString(), envelope);
     }
+    if (worker.progress)
+        worker.progress("build", 0); // the application's own phases: the package is decoded, then converted
     QFile packageFile(output);
     if (!packageFile.open(QIODevice::ReadOnly) || packageFile.size() > maxPackageBytes)
         throw IfcImportError("package", "The SketchUp helper's package is missing or larger than its bound.");
@@ -337,7 +339,11 @@ SkpImport importSkpFile(const QString &path, const SkpWorkerOptions &worker) {
     } catch (const std::exception &error) {
         throw IfcImportError("package", error.what(), envelope);
     }
-    SkpImport imported = importSkpPackage(package, SkpImportOptions{});
+    if (worker.progress)
+        worker.progress("create", 0);
+    // The conversion checks the cancel between elements too, so a Cancel during the decode or the
+    // conversion ends the import with nothing changed.
+    SkpImport imported = importSkpPackage(package, SkpImportOptions{}, SkpConversionHooks{worker.cancelled});
     imported.report["helper"] = run.result;
     imported.report["run"] = QJsonObject{{"deadlineSeconds", worker.deadlineSeconds},
                                          {"addressSpaceBytes", worker.addressSpaceBytes}};

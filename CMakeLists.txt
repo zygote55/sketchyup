@@ -1174,6 +1174,10 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # and the File menu flow; the helper is the IFC helper's, so the IFC availability
   # states are its own.
   target_sources(sketchyup_desktop PRIVATE src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
+  # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet (the import
+  # on a worker thread), the report, the refusal and the availability sheets, and the File menu flow;
+  # the helper is sketchyup-skp-worker, which the application finds beside it and never links.
+  target_sources(sketchyup_desktop PRIVATE src/app/skp_import_runner.cpp src/app/skp_progress_sheet.cpp src/app/window_skp.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
