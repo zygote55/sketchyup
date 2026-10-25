@@ -794,6 +794,67 @@ an export package of its own (`SKSTPX01`). The IFC package is unchanged. The app
   (refused). Material names and opacity. Hidden layers. Splitting T-junction vertices. Merging coplanar triangles
   across native faces.
 
+## Implementation notes (R098.c2, 2026-10-25)
+
+R098.c2 is File › Export STEP…, the STEP twin of the IFC export screen (ADR 0171 section 16.8). It adds no
+export engine code and no helper change: the export is `exportStepFile` (R098.c), run from the desktop on the
+shared exchange screens.
+
+- **The flow.** Export STEP… sits after Export IFC…. A missing or broken helper opens the availability sheet
+  with the export's words; a Limited helper does not (STEP needs no kernel, as the STEP import does). The plan
+  dialog (`StepExportDialog`) opens next. Export to file… opens the system Save dialog (`*.step *.stp`, default
+  `.step`, no overwrite prompt); a name that exists is refused before anything is built. The export runs on a
+  worker thread (`StepExportRunner`) over a copy of the document, with the four-step progress sheet (the IFC
+  export's steps: Capture the model, Build the file, Check its size, Publish the file). Cancel and Escape
+  cancel; the sheet closes only after the runner has finished. A success shows the report; a refusal shows
+  the refusal sheet; a cancel sets the status line only.
+- **The plan.** It is the capture's own plan (`captureStepExport`), computed from the open model before anything
+  is written: the same numbers the export checks. It runs on the UI thread, as the capture does in the export's
+  first phase. R098.c measured the capture at 0.3 s for 20,000 triangles; this change did not measure the
+  dialog's own cost on a larger model.
+- **Schema.** AP214 is the default and AP203 is the choice; the schema sits above the form in the Tab order.
+  AP242 is not offered; a request for it is refused with the `schema` code (the refusal sheet names the choice).
+  The AP203 choice reaches the helper's `--step-schema` argument (the suite checks the argument list).
+- **Size.** The amber note appears above 250,000 triangles (the plan's `triangles`) and says the file may exceed
+  256 MiB and be refused. It is a note, not a refusal: the R098.c budget measurement missed the 256 MiB limit at
+  about 280,000 triangles of unshared faces, so 250,000 leaves a margin. The threshold is a constant
+  (`StepExportDialog::kTriangleWarningLimit`); the suite sets a lower one.
+- **Not written, one list.** The dialog and the report read the same list (`stepNotWrittenKinds`): terrain and
+  reference images, faces that could not be tessellated and zero-area triangles carry the counts the capture
+  gives; the other kinds (a layer's own switch, material names and opacity, textures, guides, text, dimensions,
+  sections, scenes, sheets, edges and curves that are not part of a face, and the site origin with its
+  coordinate system) are listed by name without a count. The capture does not count them, and a per-kind count
+  would change the engine's plan, which this change does not do.
+- **The site origin is not written.** The STEP export never reads the site origin or its CRS, so there is no
+  georeference line in the STEP dialog (the IFC export's georeference row has no STEP twin). The site line is
+  in the not-written list.
+- **Errors inside the runner.** `StepExportError` is not an `IfcExportError`, and the shared `ExchangeRunner`
+  catches only the IFC types: a STEP refusal would have lost its code and become "error". The STEP job reads
+  its own refusals (the code, the words and the report so far; a cancel is the `cancelled` result), as the
+  shared runner keeps the IFC's.
+- **The report.** The banner, the file, its size, the schema, the geometry and the elapsed time, the plan
+  check (the helper's groups and placed occurrences match the plan, which a finished export has passed),
+  Needs your attention (faces written one per triangle, faces not tessellated), Written, Not written and
+  Notices (the mesh, the millimetre units, the zero-area triangles left out).
+- **The refusals.** One sheet, the IFC export refusal's shape with the STEP words: nothing was written, the
+  code, the reason and the next step for each code (destination, destinationExists, schema, outputTooLarge,
+  meshTooLarge, tooManyTriangles, packageTooLarge, emptyModel, workerMissing, workerFailed, and a default).
+- **Verification.** `step_export_dialog` (S1 to S11, offscreen, stand-in helper) passes: the plan numbers, the
+  not-written counts, the size note, the empty-model refusal, a successful export (AP214 in the helper's
+  argv), AP203 in the argv, an existing destination refused and untouched, a helper that stops, Cancel and
+  Escape (no file, no report, no private directory left: `TMPDIR` points at the test's folder), the Tab order
+  and a missing helper. The regression suites `ifc_export_dialog`, `ifc_import_dialog`, `step_import_dialog`
+  and `narrow_layout_input` pass offscreen on the same tree. The suite is registered in `CMakeLists.txt`, the
+  four X11 and Wayland lines of `native.yml`, the dialog-suite rule of `ci-path-map.json` and the line
+  inventory; `ci-line-inventory.py check` and `ci-plan.py check` pass.
+- **Not verified.** The suite drives a stand-in helper. No real `sketchyup-ifc-worker` was built here (OCCT is
+  not on this host), so a real export through the desktop is not run by this change; the engine's E5 round trip
+  (R098.c) is the evidence for the file itself. A Limited helper is shown as available, as the STEP import
+  treats it, but that has not been run against a real helper for export.
+- **Not done.** Per-kind counts of the not-written kinds (an engine change to the plan). The plan on a worker
+  thread (the capture is on the UI thread). A georeference for the STEP export. The UX design note for the STEP
+  screens: §16.8 describes the IFC screen; the STEP differences above are not yet in `docs/UX_DESIGN.md`.
+
 ## Appendix: evidence and sources
 
 **Verified** (against `origin/main 34910469` or the named upstream source):
