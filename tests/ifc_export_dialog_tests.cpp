@@ -403,6 +403,8 @@ struct Driver {
 int main(int argc, char **argv) {
     QTemporaryDir preferences;
     qputenv("XDG_CONFIG_HOME", preferences.path().toUtf8());
+    // The widget file dialogs, which the driver fills in (the app itself uses the system dialog).
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
     if (!resolveIfcWorker("").isEmpty()) {
         std::cout << "skipping: a real sketchyup-ifc-worker is present; the stand-in suite "

@@ -2,10 +2,14 @@
 #include <QMutex>
 #include <QString>
 #include <atomic>
+#include <optional>
 namespace sketchy {
 struct IfcExportRunner::Private {
     QMutex mutex;
-    const Document *document = nullptr;
+    // A copy, not the window's document: the export reads it on the worker thread. A document is
+    // a value over shared immutable bodies, so the copy is cheap and nothing the UI does later
+    // can change what is being written.
+    std::optional<Document> document;
     QString path;
     IfcExportOptions options;
     IfcWorkerOptions worker;
@@ -30,7 +34,7 @@ void IfcExportRunner::begin(const Document &document, const QString &path, IfcEx
                              IfcWorkerOptions worker) {
     {
         QMutexLocker lock(&p->mutex);
-        p->document = &document;
+        p->document = document;
         p->path = path;
         p->options = options;
         p->worker = worker;
@@ -73,7 +77,7 @@ const QJsonObject &IfcExportRunner::report() const {
     return p->report;
 }
 void IfcExportRunner::run() {
-    const Document *document = nullptr;
+    std::optional<Document> document;
     QString path;
     IfcExportOptions options;
     IfcWorkerOptions worker;

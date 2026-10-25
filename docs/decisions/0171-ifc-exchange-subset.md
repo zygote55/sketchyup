@@ -2271,10 +2271,11 @@ is an authority code, an amber `Not written — no coordinate system` note other
 line) and the **What this is** panel; the footer says a new file is created and an existing one is never
 replaced. Enter is **Export to file…**, Esc cancels, the arrows scroll the form. The dialog refuses an empty
 model (a `Nothing to export` banner, Export disabled) and a missing helper (the availability sheet). On
-accept it opens the Save picker — a non-native `QFileDialog` (`ifcExportFileDialog`, `AcceptSave`,
+accept it opens the system Save picker — a `QFileDialog` object, as File › Export 2D DXF… does (`ifcExportFileDialog`, `AcceptSave`,
 `AnyFile`, `DontConfirmOverwrite`, an IFC name filter and a default `.ifc` suffix) — and a name that
 already exists (or is a symlink) is the `destinationExists` refusal; nothing is built. A new name starts
-`IfcExportRunner`, which copies the document under a mutex, sets `worker.cancelled`, and runs
+`IfcExportRunner`, which keeps its own copy of the document (a value over shared immutable bodies, so
+nothing the UI does later can change what is written), sets `worker.cancelled`, and runs
 `exportIfcFile` on its thread; the progress sheet (Capture the model, Build the file, Check its size,
 Publish the file) maps the worker's `capture`/`build`/`check`/`publish` phases, works the current step, and
 its **Cancel** and Escape call `requestCancel` (the helper exits `cancelled` and the scratch package is
@@ -2294,13 +2295,12 @@ read-only details block and **Copy details** to the clipboard.
 
 ### What the suite found
 
-Driving the export's Save picker offscreen exposed a Qt platform gap: a member-object `QFileDialog` (the
-`save.exec()` shape, the one the DXF export and this export use) does not build its widget tree on the
-`offscreen` platform — it has no children and `exec()` never returns — while the static
-`QFileDialog::getOpenFileName` (the import picker's shape) does. The pickers in this suite and
-`dxf_input_tests` are therefore non-native (`DontUseNativeDialog`): on a headless or portal-less host the
-widget picker is the only picker, and the driver can reach its `fileNameEdit` and call `accept` (the
-driver's pattern). The import's static picker is left as it is; its suite already passes offscreen.
+A `QFileDialog` object (the `save.exec()` shape, as the DXF export) uses the platform dialog unless told
+otherwise, and an offscreen run has none: it builds no widget tree and `exec()` never returns. The first
+version of this piece forced `DontUseNativeDialog` on the application's picker. The review moved that
+switch into the suite instead (`QApplication::setAttribute(Qt::AA_DontUseNativeDialogs)` before the
+application object, as `dxf_input_tests`, `file_operation_input_tests` and others do), so users keep the
+system dialog and the driver still reaches the widget picker's `fileNameEdit` and calls `accept`.
 
 ### The suite
 

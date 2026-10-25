@@ -173,9 +173,6 @@ void Window::exportIfc() {
     save.setAcceptMode(QFileDialog::AcceptSave);
     save.setFileMode(QFileDialog::AnyFile);
     save.setOption(QFileDialog::DontConfirmOverwrite);
-    // A non-native picker: a headless or portal-less host has no system dialog, and the widget
-    // picker is the portable one (it is also what the tests drive).
-    save.setOption(QFileDialog::DontUseNativeDialog);
     save.setNameFilter("IFC models (*.ifc *.IFC);;All files (*.*)");
     save.setDefaultSuffix("ifc");
     if (save.exec() != QDialog::Accepted || save.selectedFiles().isEmpty())
