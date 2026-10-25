@@ -684,7 +684,11 @@ Recorded 2026-10-25 for the records slice, branch `feat/r099a-presentation-recor
   the schema-30 fixture `tests/fixtures/presentation-v30.sketchyup` with exit 1,
   `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`,
   and the file is byte-identical afterwards. That is not the newer-format wording §6 names:
-  the container's field check fires first. The 1.3.0 CLI was not run locally.
+  the container's field check fires first. The released **1.3.0** CLI (`sketchyup-cli 1.3.0`, the
+  published `sketchyup-1.3.0-1-x86_64.pkg.tar.zst`, sha256 `5f5c0cf8…a833b`) was run in review on
+  `presentation-v30.sketchyup` with `--validate-native`: exit 1 with the same
+  `Unsupported container field` refusal, and the file byte-identical afterwards. Both released
+  readers refuse schema 30 safely; neither uses the newer-format wording §6 names.
 - **Package acceptance.** `packaging/arch/verify-package.sh` refuses every fixture newer than
   the prior CLI reads, so the new fixture is checked whenever `SKETCHYUP_PRIOR_RELEASE_PACKAGE`
   is set. The script's prior is still 1.2.0-1 (reads 28). The next format release needs
