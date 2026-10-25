@@ -438,6 +438,62 @@ explicit retries. Open scene in Blender produces a one-way `.blend` handoff.
 Scene animation exports a bounded PNG sequence and timing manifest; it does not
 encode a movie or resume an interrupted sequence automatically.
 
+## IFC import and export
+
+IFC support covers the building subset of three schemas for import, and IFC4 for export. Both
+directions are limited to what the report states: read the report for every file. The
+[format matrix](SUPPORT_MATRIX.md#exchange-boundaries) has the claimed schemas and directions.
+
+**File → Import IFC…** reads an `.ifc` file of schema `IFC2X3`, `IFC4` (IFC4 ADD2 TC1) or
+`IFC4X3_ADD2` (IFC 4.3.2.0). It keeps the spatial structure (project, site, building, storey and
+space), the elements that have a body, their properties and quantities, materials and colours, and
+the object classification with its URI. The result is a new unsaved model; the source file is not
+changed, and the whole import is one undo step. Before the import starts, the dialog states the
+unit, the spaces choice, the georeference choice and the maximum deviation.
+
+- **Units.** A file must declare a length unit: a metre with an SI prefix, an inch, a foot, a yard or a
+  US survey foot. A furlong is refused. A file without a length unit is refused unless you choose one
+  in the dialog (or pass `--length-unit`); the choice is reported.
+- **Georeference.** A map conversion with no rotation sets the site origin, and the report says so.
+  A rotated conversion keeps the project axes, unless the georeference choice in the dialog (or
+  `sketchyup-cli --import-ifc ... --ifc-georef grid`) turns the model to the map grid. A map unit that
+  is not the metre (US survey feet, for example), several conversions and several model contexts are
+  reported and not georeferenced.
+  A world coordinate system that is not the identity refuses the file.
+- **Limits.** A file over 128 MiB, or with more than 2,000,000 entities, is refused with the limit
+  named. A model over the document limits (100,000 unique vertices or faces, 10,000 bodies) imports
+  partly, and the report names the elements left out. Geometry more than 1,000,000 m from the
+  origin is refused.
+- **Not imported.** Advanced breps, NURBS, CSG, swept solids, revolutions and parametric profiles may
+  produce geometry, but they are not claimed; check the report. IFC 4.3 infrastructure (alignments,
+  linear placement, rail, road, bridge and tunnel) is reported, not imported. Elements whose placement
+  cannot be composed, and elements in a cycle, are not imported and are located in the report.
+- **What the report names.** The report counts every entity as converted to geometry, kept as
+  structure and metadata, or omitted. The command line's report lists the omitted entities by IFC
+  class, and the elements not imported by class and reason. For example, `IfcGrid` and `IfcRelNests`
+  are counted as omitted, and `IfcAnnotation` and `IfcVirtualElement` are not imported, with the reason
+  `unsupportedClass`.
+- **Loss.** Geometry arrives as meshes: planar faces are merged where they are flat, and curved or
+  tessellated surfaces keep their facets. Openings the library could not cut are shown hidden, on
+  the tag `IFC Opening`, and the report says so. Relationships are kept where the report says so: the
+  spatial tree, groups, systems and zones, materials, layers and classification. Everything else is
+  counted as omitted. Check the report before you rely on imported dimensions or materials.
+
+**File → Export IFC…** writes an IFC4 (IFC4 ADD2 TC1) file of the open model. No other IFC schema is
+written, and the file is not a buildingSMART certified view: it declares no view definition.
+
+- **What is written.** The spatial structure (project, site, building, storey and space), groups as
+  assemblies, bodies as tessellated face sets, materials and colours, properties, and hidden state.
+  A site origin is written as the map conversion only when its label is an authority code such as
+  `EPSG:32760`; otherwise the export says the georeference is not written.
+- **What is not written.** The dialog lists each kind before anything is written. Terrain, reference
+  images, guides, loose edges, curves, annotations, sections, scenes, sheets, component parameters and
+  textures are not written. Native history and topology do not appear in IFC.
+- **Loss.** Importing the exported file gives back the same bodies, with vertices within 1e-9 m, the
+  same hierarchy and the same properties. Face counts can differ by a few faces on a second import.
+  No other program's reading is promised.
+- **The file is new.** Export never replaces an existing file; choose a new name.
+
 ## Terrain and site tools
 
 **File → Import terrain…** adds a terrain to the open model from a DXF with contours

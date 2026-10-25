@@ -1,13 +1,18 @@
 # R097.f — IFC exchange subset: acceptance record
 
 2026-10-25. Branch `docs/r097f-ifc-acceptance`, based on `main` at `78058393` (R098.c merged as
-PR #438). Product code is unchanged by this record; every check below runs at `78058393` unless the
-row says otherwise. Checks are those of [ADR 0171 §6.3](../decisions/0171-ifc-exchange-subset.md#63-checks-for-the-verify-line).
+PR #438). Product code is unchanged by this record; the one file it adds is the J3 `worker` harness,
+`scripts/ifc-fuzz/worker_fuzzer.cpp`. Every check below ran at `78058393` unless its row says otherwise. The checks are those of
+[ADR 0171 §6.3](../decisions/0171-ifc-exchange-subset.md#63-checks-for-the-verify-line).
 
 [Summary](R097f-ifc-exchange.json).
 
-**Status: in progress.** This skeleton holds the check map. The result column is filled in as each
-check runs; a check is marked passed only when a run of today proves it.
+**Status.** Every check that a run can prove has been run and passes, with the exceptions named in its row. Two
+items are not complete: the buildingSMART hosted validation service, which needs a person (owner, section G1; the export
+claim is conditional on it), and the native matrix, which runs on the pull request with the `full-ci` label (section
+Native matrix). Budgets: seven of the eight rows measured in §6.4 are met (the cancel row only for the control's return, not the helper's exit); the 100,000-face, 10,000-body row is missed for its 10,000-body case.
+
+The budgets and the claims are in their sections below.
 
 ## Check map
 
@@ -42,14 +47,14 @@ commit it ran at. "Not run" always comes with the reason.
 | E2 | Tessellated and polygonal-profile areas and volumes to 1e-6 relative | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
 | E3 | Reference View wall volume with the opening subtracted; the uncut file is larger | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
 | E4 | Coplanar triangles merge into polygon faces; non-planar counted | `ifc_convert`, `ifc_import` | pass | 78058393 |
-| E5 | One undo step for the whole import | `ifc_import`, `ifc_import_dialog` (S9) | pass (desktop S9 not run here: native matrix, see below) | 78058393 |
+| E5 | One undo step for the whole import | `ifc_import`, `ifc_import_dialog` (S9) | pass for the import's one undo (`ifc_import`); the desktop suite S9 is not run here (native matrix) | 78058393 |
 | E6 | Provenance properties resolve to the right source entity | `ifc_import` | pass | 78058393 |
 | E7 | Mesh volumes and areas agree with `NetVolume` and `GrossArea` within 1e-3 | `ifc_import_worker`, `ifc_import` | pass | 78058393 |
 | F1 | θ = 0 and matching scale set the site origin to E, N, H within 1e-9 m | `ifc_georeference`, `ifc_import` | pass | 78058393 |
 | F2 | 60° fixtures: `keepAxes` sets no origin; grid mode maps each vertex | `ifc_georeference`, `ifc_import` | pass | 78058393 |
 | F3 | Model beyond ±1e6 m refused, naming the extent | `ifc_georeference` | pass | 78058393 |
 | F4 | Survey foot, WCS, two conversions and the other F4 cases handled as specified | `ifc_georeference` | pass | 78058393 |
-| G1 | Goldens pass the raw-text scan, `--check`, `ifcopenshell.validate`; hosted service by a person | `ifc_export`, `ifc_export_worker`; `ifcopenshell.validate` by hand (below); hosted service pending: owner | partial: pass for the scan, --check and the helper's own tests; ifcopenshell.validate pending its run; hosted service pending owner | 78058393 |
+| G1 | Goldens pass the raw-text scan, `--check`, `ifcopenshell.validate`; hosted service by a person | `ifc_export`, `ifc_export_worker`; `ifcopenshell.validate` by hand (below); hosted service pending: owner | partial: `ifcopenshell.validate` 0 statements on the six goldens, with a positive control (1 statement); the buildingSMART hosted service is **pending: owner** | 78058393 |
 | G2 | Export then re-import reproduces bodies, vertices, hierarchy and properties | `ifc_export` | pass | 78058393 |
 | G3 | Two exports with a fixed time are byte-identical | `ifc_export`, `ifc_export_worker` | pass | 78058393 |
 | G4 | Every non-exported kind is counted; the identity holds | `ifc_export`, `ifc_export_worker` | pass | 78058393 |
@@ -61,15 +66,15 @@ commit it ran at. "Not run" always comes with the reason.
 | I1 | 128 MiB limit and over-limit entity count refuse with the limit named | `ifc_worker_run` | pass | 78058393 |
 | I2 | Messages ≤ 256 bytes; report ≤ 64 KiB | `ifc_import`, `ifc_convert` | pass | 78058393 |
 | I3 | Worker killed, over limit or past deadline: element left out, app keeps running | `ifc_worker_run` | pass | 78058393 |
-| J1 | Package decoder: bounds, re-encode; `parser_fuzz_ifc_package` | `ifc_package`, `parser_fault_corpus`; fuzz run (below) | partial: pass for ifc_package and parser_fault_corpus; the 5-minute libFuzzer run pending | 78058393 |
-| J2 | 512 mutations of each certification file through the dry run, in a child | `ifc_worker_fault_corpus_full` (label `full`) | pass (64 and 512 mutations per file) | 78058393 |
-| J3 | Upstream `ifcparse_fuzzer` and a `worker` target, ≥ 5 min each, sanitizers | manual campaigns (below) | pending (fuzz campaigns) | 78058393 |
-| J4 | Harness runs every input twice and compares | `tests/fuzz/parser_harness.hpp` (`ifc-package`), exercised by the J1 run | pending (the twice-run harness is exercised by the seed generator and the J1 run) | 78058393 |
-| K1 | Support matrix row, user guide section, exchange-boundaries entry state exactly the claims | manual, against the report's kinds (below) | pending (docs) | 78058393 |
+| J1 | Package decoder: bounds, re-encode; `parser_fuzz_ifc_package` | `ifc_package`, `parser_fault_corpus`; fuzz run (below) | pass (`ifc_package`, `parser_fault_corpus`); the 300-second run of `parser_fuzz_ifc_package`: 1,246,993 runs, no finding | 78058393 |
+| J2 | 512 mutations of each certification file through the dry run, in a child | `ifc_worker_fault_corpus_full` (label `full`) | pass (64 and 512 mutations per file); direct 512 run: 2,514 ok, 2,605 refused, 1 crash (`rv-wall-with-opening-and-window.ifc`, index 453) | 78058393 |
+| J3 | Upstream `ifcparse_fuzzer` and a `worker` target, ≥ 5 min each, sanitizers | manual campaigns (below) | pass for five minutes per campaign: `ifcparse_fuzzer` 32,923 runs, `worker` 27,463 runs, no finding; the library is not coverage-instrumented (see the fuzz caveats) | 78058393 |
+| J4 | Harness runs every input twice and compares | `tests/fuzz/parser_harness.hpp` (`ifc-package`), exercised by the J1 run | pass as the harness is written (the ifc-package decode runs twice and compares; the seed generator and the J1 run exercised it); the two runs differ in one setting | 78058393 |
+| K1 | Support matrix row, user guide section, exchange-boundaries entry state exactly the claims | manual, against the report's kinds (below) | pending (claims section below) | 78058393 |
 | K2 | Fixture `NOTICE.md` carries CC BY 4.0 and the IFC trademark credit; fixtures unmodified | `ifc_import_worker` | pass | 78058393 |
 | L1 | No dynamic dependency on IfcOpenShell or OCCT outside the worker | `ifc_library_install` | pass | 78058393 |
 | L2 | `LD_LIBRARY_PATH` replacement makes the worker use the replaced libraries | `ifc_library_install` | pass | 78058393 |
-| L3 | Package carries the notices; vendored tree equals the pinned commit | `ifc_library_source`, `scripts/vendor-ifcopenshell.py check` | pass (the tree-equals-archive check is run separately, see below) | 78058393 |
+| L3 | Package carries the notices; vendored tree equals the pinned commit | `ifc_library_source`, `scripts/vendor-ifcopenshell.py check` | pass (`ifc_library_source`; the vendored tree equals the pinned archive, 326 files, `scripts/vendor-ifcopenshell.py check`) | 78058393 |
 | L4 | `THIRD_PARTY_NOTICES`, PKGBUILD licence array and `dependencies.json` updated | `ifc_library_source` | pass | 78058393 |
 | L5 | No GPL-3.0-or-later library linked | `ifc_library_install` (`verify-ifc-library.py`) | pass | 78058393 |
 | L6 | Kernel removal reports "kernel unavailable", no abort | `ifc_library_install` | pass | 78058393 |
@@ -102,6 +107,67 @@ tier builds it with the application) and passed: 8.48 s.
 passed, 278.18 s. The direct run's outcome counts are in the J2 notes below.
 
 **Sanitizers, helper** (`cmake --preset ifc-sanitize`, the full tier's sanitizer step, `ASAN_OPTIONS=detect_leaks=0`): 5 of 5 passed. `ifc_worker_probe` 28.99 s, `ifc_georeference` 93.88 s, `ifc_export_worker` 31.19 s, `ifc_import_worker` 162.96 s, `ifc_worker_fault_corpus` (64 per file) 167.95 s. The library itself is not instrumented in this build; the instrumented library is the J3 build below.
+
+## Budgets (ADR 0171 §6.4)
+
+Measured on this machine, 2026-10-25, in the pinned image with a Release build of the helper and the command line
+(`build/release`, `-DCMAKE_BUILD_TYPE=Release`, `BUILD_TESTING=OFF`), four CPUs and 10 GB. Each figure is the
+spread of three runs. The helper's time is the `--dry-run` (parse, index and the accounting traversal). Memory is
+the peak resident size of the command and its waited-for children, so the import figures include the helper; the
+budget is for the application, so these are upper bounds.
+
+| 6.4 budget | Measured | Verdict |
+| --- | --- | --- |
+| Parse and index a 64 MiB, 1,000,000-instance IFC4 file ≤ 3 s | 0.737 to 0.758 s on a padded 67,108,864-byte file of 1,000,000 points; 274 to 275 MiB resident | **Met** |
+| Parse and index a 128 MiB, 2,000,000-instance file ≤ 6 s | 1.461 to 1.469 s on a padded 134,217,728-byte file; 525 MiB resident | **Met** |
+| At one instance below the limit, the file is refused with the count named | 1.476 s; `entityLimit`, "The file has 2000000 instances; the limit is 1999999" | **Met** (the budget's 3 s; the text's 1.4 s is 1.48 s) |
+| Refuse a file over 128 MiB ≤ 1 s | 0.008 s for a sparse 134,217,729-byte file; `tooLarge`, "larger than 128 MiB (134217729 bytes)" | **Met** |
+| Interpret, convert and commit the 100,000-face, 10,000-body model ≤ 10 s | Two measurements, not one model: 100,000 faces and 5,000 bodies (`ico-5k`): 9.01, 9.27 and 9.66 s total, 326 MiB; 9,996 bodies and 59,976 faces (`walls-20k`, 10,004 bodies over the body limit): 11.14, 11.44 and 11.76 s total | **Missed** for the 10,000-body case. The 100,000-face case is met, at 0.3 to 1.0 s of margin |
+| Cancel returns control in ≤ 100 ms; the helper ends within 1 s | 1 ms (`ifc_worker_run`, the cancel test). The time the helper takes to exit was not measured separately | **Met** for the return; the exit time is **not measured** |
+| Export of the 100,000-face model ≤ 5 s; output ≤ 256 MiB | `ico-5k` as an IFC export through the command line: 1.770, 1.789 and 1.792 s; output 5,166,408 bytes (5.2 MB) | **Met** |
+| Application memory during import ≤ 1 GiB | 325 to 326 MiB (`ico-5k`); 404 MiB (`walls-20k`) | **Met** |
+
+**Frozen values.** Only the met rows are frozen, at the measured value: parse 64 MiB at 0.76 s, parse 128 MiB at
+1.47 s, the size refusal at 0.01 s, the instance refusal at 1.48 s, the export at 1.79 s, and the application's
+memory at 326 MiB. The 100,000-face import row and its 10,000-body case are not frozen: the row is missed as written.
+
+**The 10,000-body case is an ADR problem, not only a speed problem.** The document limits (100,000 unique vertices
+and 10,000 bodies) cannot hold a 100,000-face, 10,000-body model at once: a box-like model reaches about 6,000
+elements before the vertex limit. The row describes a model the limits do not allow. The owner decides whether to
+relax the row to what the limits allow (the 100,000-face model at 5,000 bodies, met), or to change the limits. The
+partial import of the 20,000-wall file is the other case the limits produce, and it takes 11.1 to 11.8 s.
+
+**Progress and cancel of the export.** The export's cancel is covered by `ifc_export` (the process runner is cancelled
+while it runs, and the scratch directory is removed). Its progress display is in the desktop runner, whose suites
+(`ifc_export_dialog`, `ifc_import_dialog`) were not run in this record; see the native matrix below.
+
+**Size of the budget files.** The 6.4 rows name a 64 MiB and a 128 MiB file. The generator in `tests/ifc_budgets.py`
+writes 43 MB and 86 MB files, so the padded files above were made for the two parse rows: the instances are the
+same points, and the padding is trailing zeros in the first coordinate, a valid STEP number. The generated files
+measure 0.69 s and 1.31 s, in the same range.
+
+## J2: the damaged-file corpus, direct run
+
+`tests/ifc_worker_fault_corpus.py` mutates each of the ten buildingSMART files and runs the helper's dry run on each
+mutation in a child process. The test passes when every run ends in a defined outcome and the crashes and timeouts stay
+under 2 %. The 512-per-file run of the full label passed under CTest (278.18 s). Its outcome counts are printed only
+when the script runs by itself, so the same run was repeated directly:
+
+| Mutations (10 files × 512) | `ok` | `refused` | `crash` | `timeout` | `error` |
+| --- | --- | --- | --- | --- | --- |
+| 5,120 | 2,514 | 2,605 | 1 | 0 | 0 |
+
+- **The crash** is on `rv-wall-with-opening-and-window.ifc`, mutation index 453, seed `208281516466520` (the seed
+  is a hash of the file name and the index, so the script reproduces it; no input file is committed, because the
+  mutated input is derived from a third-party file). It is a child that died on a signal or a limit (the script's `crash`
+  outcome; the script does not record which signal, and the child printed nothing on stderr). The process
+  boundary contained it, and the test counts it. It is a finding to report upstream if it is the
+  library's, and is not fixed here (the ADR says not to fix library internals). Whether it is the same defect as
+  R097.b's finding 9 (`IfcMaterialLayerSetUsage` with a wrongly typed `ForLayerSet`) was not checked.
+- **The split differs from R097.b's record** (2,548 `ok`, 2,571 `refused`, 1 `crash` there). The total and the crash
+  count agree and the mutations are the same (seeded per file and index). The shift is in the helper's refusals.
+  It was not traced to a slice. Later slices added refusals (R097.c's world-coordinate-system refusal and the
+  georeference checks), which is a plausible cause, but that is not verified.
 
 ## J1 and J3: the fuzz campaigns
 
@@ -212,7 +278,77 @@ every file. Notes for reading the result:
 | `obj-concave-paint.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
 | `rv-individual-colors.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
 
+## Native matrix
+
+The full tier (ADR 0170) runs X11 and Wayland at 1× and 2× (the IFC dialog suites `ifc_import_dialog` and
+`ifc_export_dialog`, which include S9, the dirty-model undo, and T7, the cancelled export), the sanitizer step, and
+the damaged-file corpus at 512 mutations (label `full`). It runs when the pull request carries the `full-ci` label.
+**Pending: the label is added to the pull request of this branch, and its CI run is not finished at the time of this
+record.** The desktop suites were not run in this record, so E5's S9 and the export's T7 are not claimed here.
+
+## Published claims (K1)
+
+The claims are published in three places, and each states the same schemas and directions:
+
+- the **support matrix** row (`docs/SUPPORT_MATRIX.md`, Exchange boundaries, "IFC (F04, not in release 1.3.0)"),
+  which marks the row as not part of release 1.3.0;
+- the **user guide** section "IFC import and export" (`docs/USER_GUIDE.md`);
+- the **exchange-boundaries entry** for F04, which is the same support-matrix row.
+
+What is claimed, and no more:
+
+- **Import:** the schemas `IFC2X3`, `IFC4` and `IFC4X3_ADD2`, into a new unsaved model. The code accepts exactly these
+  three (`src/io/ifc_worker.cpp` and `src/ifc/import.cpp`); any other schema is refused, with the schema named.
+- **Export:** `IFC4` only, tessellated, with no view definition. The code writes exactly that (`src/ifc/export.cpp`,
+  `FILE_SCHEMA` and `FILE_DESCRIPTION`). **The export claim is conditional** on the owner's buildingSMART hosted run
+  (G1 above); the support-matrix row says so.
+- **Not claimed:** IFC2X3 and IFC4X3 export, `.ifczip`, `.ifcXML`, `.ifcJSON` and IFC5 (refused with the format named,
+  tested by `ifc_worker_run`), IFC4X1 and IFC4X2, the IFC 4.3 release candidates and ADD1 (refused with the schema
+  named; `ifc_worker_run` tests IFC4X1 and a file that declares two schemas, the others by the same rule), advanced breps, NURBS, CSG, swept solids,
+  revolutions and parametric profiles, and the 4.3 infrastructure entities.
+- **Unsupported classes as the report names them:** the tests of `ifc_import_worker` check that `IfcGrid` and
+  `IfcRelNests` are counted as omitted (`omittedEntities`), and that `IfcAnnotation` and `IfcVirtualElement` are not
+  imported with the reason `unsupportedClass` (D2). The user guide names those classes; the support matrix names the
+  kinds (4.3 infrastructure, the advanced geometry classes and the other file formats).
+- **Not written on export:** the kinds the export dialog and report list (terrain, terrain tiles, reference images,
+  guides, loose edges, curves, annotations, sections, scenes, sheets, component parameters, textures, empty groups and
+  bodies without faces), counted by G4.
+
+**K1 result: pass as written, on the text published here.** The schemas and directions above match the code paths cited;
+the unsupported classes match D2's assertions. The desktop screens' wording of the report is counts and notices; the
+per-class lists are in the command line's report, which the user guide says.
+
 ## Commands
 
 Every command runs in the pinned image `sketchyup-ci-pinned:r097a-ifc`, with the IfcOpenShell prefix
 cache mounted at `/ifc-cache` (its stamp matches the pin `7ba70197`), four CPUs and 10 GB.
+
+### Commands run for this record
+
+Each command ran inside the pinned image with `--cpus=4 --memory=10g --memory-swap=10g`, the worktree mounted at
+`/src` and the IfcOpenShell prefix cache at `/ifc-cache`, one job at a time on the machine.
+
+- Build: `cmake --preset ifc -DSKETCHYUP_IFC_PREFIX=/ifc-cache/ifc-prefix`, `cmake --build --preset ifc`, then
+  `cmake --preset ifc-app -DCMAKE_LINKER_TYPE=BFD` and `cmake --build --preset ifc-app --parallel 4`.
+- Tests: `ctest --test-dir build/ifc -R '^ifc_' -LE full --parallel 2`;
+  `ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import)$' --parallel 2`;
+  `cmake --build build/ifc-app --target parser_fault_corpus_tests`, then `ctest -R '^parser_fault_corpus$'`;
+  `ctest --test-dir build/ifc-app -R '^ifc_worker_fault_corpus_full$'`.
+- Sanitizers: `cmake --preset ifc-sanitize`, `cmake --build --preset ifc-sanitize`, then
+  `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus)$'`.
+- Direct runs for the printed measurements: `build/ifc-app/ifc_worker_run_tests`, `build/ifc-app/ifc_import_tests`,
+  `python3 -I tests/ifc_import_worker_tests.py WORKER tests/fixtures/ifc`, and
+  `python3 -I tests/ifc_worker_fault_corpus.py WORKER tests/fixtures/ifc 512 2`.
+- Budgets: `cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DSKETCHYUP_BUILD_DESKTOP=OFF -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_IFC=ON -DSKETCHYUP_IFC_PREFIX=/ifc-cache/ifc-prefix -DCMAKE_LINKER_TYPE=BFD`,
+  then `python3 -I tests/ifc_budgets.py WORKER CLI DIR` three times; the padded parse files, the export of the
+  generated 100,000-face model (`sketchyup-cli --input ... --export-ifc ...`) and the 128 MiB + 1 byte refusal were
+  measured with a small wrapper that reads `wait4` for the peak resident size.
+- Fuzzing: `cmake -S third_party/ifcopenshell/cmake -B DIR -G Ninja` with `CC`/`CXX` Clang, `-fsanitize=address,undefined
+  -fno-sanitize-recover=all -g -O1 -fno-omit-frame-pointer`, `BUILD_FUZZERS=ON`, IfcGeom and the OpenCASCADE kernel, then
+  `ifcparse_fuzzer` from `ifcfuzz/`; the `worker` target is `scripts/ifc-fuzz/worker_fuzzer.cpp` compiled with
+  `clang++ -fsanitize=fuzzer,address,undefined` against the built libraries; `parser_fuzz_ifc_package` from
+  `cmake -DSKETCHYUP_BUILD_FUZZERS=ON` with Clang. The campaigns: `-max_total_time=300`, `ASAN_OPTIONS=detect_leaks=0`
+  for the two library targets and `detect_leaks=1` for J1.
+- Validator: `python3 -m venv` and `pip install ifcopenshell==0.9.0.post1 pytest` in a new directory inside the
+  container; `python -I scripts/ifc-external-validators/validate_ifcos.py FILE 20` on each golden.
+- Vendored tree: `python3 scripts/vendor-ifcopenshell.py fetch DIR`, then `check DIR/ifcopenshell-v0.9.0.tar.gz`.
