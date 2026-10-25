@@ -14,7 +14,7 @@ namespace sketchyup::skp {
 struct SkpImportOptions {
   std::string input;
   std::string output;
-  std::uint64_t sizeLimitBytes{2048 * 1024 * 1024};  // the --size-limit-bytes test override
+  std::uint64_t sizeLimitBytes{256 * 1024ULL * 1024};  // the --size-limit-bytes test override
   int deadlineSeconds{120};
   std::uint64_t rlimitAs{};  // 0 = leave the address-space limit alone
   int rlimitCpu{480};

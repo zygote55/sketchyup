@@ -37,7 +37,7 @@
 // geometrySha256, textureSha256, source {name, size, sha256}, formatVersion, container, units
 // (string or null), unitScale, report, definitions [{name, guid, vertices, edges, faces,
 // instances} (the counts the decoder checks against the chunk)], tags [{name, color, hidden}],
-// materials [{name, color, opacity, texture}], textures [{filename, width, height}], counts.
+// materials [{name, color, opacity, texture}], textures [{filename, width, height, bytes}], counts.
 // Vertex coordinates are metres in the definition's own frame, the definition's raw coordinates
 // converted with the model's unit system (unitScale metres per raw unit). An instance's
 // transform takes that frame to the placement.
@@ -163,6 +163,10 @@ struct SkpPackage {
   // The report block (the IFC report shape, ADR 0176 section 4).
   SkpPackageCounts counts;
   std::map<std::string, long long> notices;
+  std::map<std::string, long long> omitted;  // the report block: entities left out, per kind
+  std::map<std::string, long long> sourceTotals;  // the file's own counts (the identity: counts +
+                                                 // omitted = sourceTotals, for edges, faces,
+                                                 // instances and materials)
   std::vector<SkpPackageLocation> locations;  // clipped to 32 per kind
   std::map<std::string, int> locationTotals;
   std::vector<SkpPackageDefinition> definitions;  // definitions[0] the root

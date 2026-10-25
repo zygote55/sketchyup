@@ -5,6 +5,7 @@
 #include "io/ifc_package.hpp"
 #include "io/library_bundle.hpp"
 #include "io/obj_source.hpp"
+#include "io/skp_package.hpp"
 #include "io/stl_source.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
@@ -27,7 +28,8 @@ inline constexpr size_t inputLimit = 1024 * 1024;
 inline constexpr const char *formats[] = {
     "native-json", "native-container", "glb",       "stl-binary", "stl-ascii",           "obj",
     "dxf",         "template",         "component", "extension",  "parameter-expression",
-    "terrain-mesh", "terrain-dxf",     "terrain-points", "terrain-edits", "ifc-package"};
+    "terrain-mesh", "terrain-dxf",     "terrain-points", "terrain-edits", "ifc-package",
+    "skp-package"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -178,6 +180,66 @@ inline void ifcPackageInvariants(const IfcPackage &package) {
     const auto encoded = encodeIfcPackage(package);
     require(decodeIfcPackage(encoded) == package, "accepted IFC package re-encodes to an equal package");
 }
+// R102.a (ADR 0176 section 1.6): the invariants the .skp decoder guarantees the conversion
+// (R102.b) can rely on: every count within its limit, every index in range, every coordinate
+// finite and bounded, every loop a valid polygon, and the package's totals agreeing.
+inline void skpPackageInvariants(const SkpPackage &package) {
+    require(!package.definitions.empty(), "SKP package has a root definition");
+    require(package.definitions.size() <= SkpPackageLimits::definitions &&
+                package.materials.size() <= SkpPackageLimits::materials &&
+                package.tags.size() <= SkpPackageLimits::tags &&
+                package.textures.size() <= SkpPackageLimits::textures,
+            "SKP package counts within limits");
+    long long v = 0, e = 0, f = 0, inst = 0, holes = 0, uv = 0;
+    for (const auto &definition : package.definitions) {
+        v += std::size_t(definition.vertices.size());
+        e += std::size_t(definition.edges.size());
+        f += std::size_t(definition.faces.size());
+        inst += std::size_t(definition.instances.size());
+        for (const auto &point : definition.vertices)
+            for (const double x : point)
+                require(std::isfinite(x) && std::abs(x) <= 1e6, "SKP vertex within 1e6 m");
+        for (const auto &edge : definition.edges)
+            require(edge.v1 < definition.vertices.size() && edge.v2 < definition.vertices.size(),
+                    "SKP edge index in range");
+        for (const auto &face : definition.faces) {
+            require(!face.loops.empty() && face.loops.size() <= SkpPackageLimits::loopsPerFace,
+                    "SKP face loops bounded");
+            for (std::size_t l = 0; l < face.loops.size(); ++l) {
+                const auto &loop = face.loops[l];
+                require(loop.size() >= 3 && loop.size() <= SkpPackageLimits::loopVertices,
+                        "SKP face loop a valid polygon");
+                if (l > 0)
+                    holes++;
+                for (const auto index : loop)
+                    require(index < definition.vertices.size(), "SKP face loop index in range");
+            }
+            require(face.materialFront == -1 || face.materialFront < package.materials.size(),
+                    "SKP face material in range");
+            require(face.materialBack == -1 || face.materialBack < package.materials.size(),
+                    "SKP face material in range");
+            require(face.tag == -1 || face.tag < package.tags.size(), "SKP face tag in range");
+            if (face.hasUvFront)
+                uv++;
+            if (face.hasUvBack)
+                uv++;
+        }
+        for (const auto &instance : definition.instances)
+            require(instance.definition == -1 || instance.definition < package.definitions.size(),
+                    "SKP instance reference in range");
+    }
+    require(v <= SkpPackageLimits::vertices && e <= SkpPackageLimits::edges &&
+                f <= SkpPackageLimits::faces && inst <= SkpPackageLimits::instances,
+            "SKP package totals within limits");
+    require(package.counts.definitions == std::size_t(package.definitions.size()) &&
+                package.counts.vertices == v && package.counts.edges == e &&
+                package.counts.faces == f && package.counts.instances == inst &&
+                package.counts.holes == holes && package.counts.uvTransforms == uv,
+            "SKP package totals agree with its chunks");
+    for (const auto &material : package.materials)
+        require(material.texture == -1 || material.texture < package.textures.size(),
+                "SKP material texture in range");
+}
 inline void registerTerrainTestKinds() {
     static const bool registered = [] {
         terrain_test_kinds::registerKinds();
@@ -298,6 +360,23 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             IfcPackage checked;
             try {
                 checked = decodeIfcPackage(bytes, {true});
+            } catch (const std::exception &) {
+                digestMatches = false;
+            }
+            require(!digestMatches || checked == package, "digest-checked decode agrees");
+        } else if (format == "skp-package") {
+            // The digest check is off so mutated chunks reach the structural checks.
+            const auto package = decodeSkpPackage(std::vector<std::uint8_t>(
+                bytes.constData(), bytes.constData() + bytes.size()),
+                SkpPackageDecodeOptions{false, true});
+            accepted = true;
+            skpPackageInvariants(package);
+            bool digestMatches = true;
+            SkpPackage checked;
+            try {
+                checked = decodeSkpPackage(std::vector<std::uint8_t>(
+                    bytes.constData(), bytes.constData() + bytes.size()),
+                    SkpPackageDecodeOptions{true, true});
             } catch (const std::exception &) {
                 digestMatches = false;
             }

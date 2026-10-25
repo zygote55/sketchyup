@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 namespace sketchyup::skp {
@@ -21,7 +22,7 @@ void putU32(Bytes& out, std::uint32_t value) {
 }
 
 void putU64(Bytes& out, std::uint64_t value) {
-  for (int i = 7; i >= 0; --i) out.push_back(static_cast<std::uint8_t>((value >> (i * 8)) & 0xFF));
+  for (int i = 0; i <= 7; ++i) out.push_back(static_cast<std::uint8_t>((value >> (i * 8)) & 0xFF));
 }
 
 void putF64(Bytes& out, double value) {
@@ -77,6 +78,12 @@ std::string reportJson(const SkpPackage& package) {
   json.endArray().key("locationTotals");
   json.beginObject();
   for (const auto& [kind, total] : package.locationTotals) json.field(kind, total);
+  json.endObject().key("omitted");
+  json.beginObject();
+  for (const auto& [code, count] : package.omitted) json.field(code, count);
+  json.endObject().key("source");
+  json.beginObject();
+  for (const auto& [kind, total] : package.sourceTotals) json.field(kind, total);
   json.endObject().endObject();
   return json.str();
 }
@@ -321,9 +328,10 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
         .field("filename", clip(texture.filename, SkpPackageLimits::nameBytes))
         .field("width", texture.width)
         .field("height", texture.height)
+        .field("bytes", texture.bytes.size())
         .endObject();
   json.endArray();
-  json.key("counts").raw(reportJson(package).empty() ? "{}" : countsJson(package));
+  json.key("counts").raw(countsJson(package));
   json.endObject();
   if (json.str().size() > SkpPackageLimits::manifestBytes)
     return (problem = "The manifest is " + std::to_string(json.str().size()) +
@@ -331,6 +339,7 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
                         " (names and GUIDs are clipped, so this should not happen)."),
            std::string();
 
+  // The manifest.
   Bytes file;
   file.insert(file.end(), 'S');
   file.insert(file.end(), 'K');

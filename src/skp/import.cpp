@@ -11,6 +11,7 @@
 #include <cctype>
 #include <climits>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -108,6 +109,20 @@ int runProbe(const std::string& input, Progress& progress) {
   progress.phase("parse");
   try {
     const openskp::SkpModel model = openskp::parse_skp(bytes);
+    // ADR 0176 section 2: before 2013 (major < 15) is refused with the advice; a version the
+    // reader could not read (-1) is reported, not refused.
+    const int major = versionMajor(model.version);
+    if (major > 0 && major < 15) {
+      JsonOut json;
+      json.beginObject()
+          .field("status", "refused")
+          .field("code", "pre2013")
+          .field("message", "This SketchUp file is from before 2013. Save it from SketchUp 2021 "
+                            "or later and try again.")
+          .endObject();
+      progress.line("R " + json.str());
+      return 3;
+    }
     SkpReport report;
     // The probe counts (ADR 0176 section 4): every definition, the model's root included.
     const auto countOne = [&](const openskp::Definition& definition) {
@@ -204,6 +219,21 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
     return 3;
   }
 
+  // ADR 0176 section 2: before 2013 (major < 15) is refused with the advice; a version the
+  // reader could not read (-1) is attempted as-is, and one newer than the corpus is labelled.
+  const int major = versionMajor(model.version);
+  if (major > 0 && major < 15) {
+    JsonOut json;
+    json.beginObject()
+        .field("status", "refused")
+        .field("code", "pre2013")
+        .field("message", "This SketchUp file is from before 2013. Save it from SketchUp 2021 "
+                          "or later and try again.")
+        .endObject();
+    progress.line("R " + json.str());
+    return 3;
+  }
+
   // The unit system: display metadata, kept in the manifest for the user. The conversion
   // below is the fixed inches-to-metres scale (the parser's raw is inches, always).
   std::string units = model.units ? *model.units : std::string();
@@ -211,8 +241,8 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
   progress.phase("package");
   SkpPackage package;
   SkpReport report;
+  if (major > 25) report.notice("newerThanTested");
   package.formatVersion = model.version;
-  const int major = versionMajor(model.version);
   package.container = major > 20 ? "vff" : "mfc";
   package.units = units;
   package.unitScale = kInchesToMetres;
@@ -282,6 +312,19 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       definitionIndex[definition.id] = index++;
     }
   }
+  // The file's totals, for the report's accounting identity (imported + omitted = counted).
+  long long sourceEdges = 0, sourceFaces = 0, sourceInstances = 0;
+  const auto totalOf = [&](const openskp::Definition& definition) {
+    sourceEdges += static_cast<long long>(definition.edges.size());
+    sourceFaces += static_cast<long long>(definition.faces.size());
+    sourceInstances += static_cast<long long>(definition.instances.size());
+  };
+  totalOf(model.root());
+  for (const auto& [id, definition] : model.definitions) {
+    (void)id;
+    totalOf(definition);
+  }
+  const long long sourceMaterials = static_cast<long long>(model.materials.size());
   auto addDefinition = [&](const openskp::Definition& source, const std::string& name, const std::string& guid) {
     SkpPackageDefinition definition;
     definition.name = clip(name, SkpPackageLimits::nameBytes);
@@ -333,7 +376,10 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       const auto v2 = indexOf(edge.v2_id, "edge");
       const auto e1 = vertexIndex.find(edge.v1_id);
       const auto e2 = vertexIndex.find(edge.v2_id);
-      if (e1 == vertexIndex.end() || e2 == vertexIndex.end()) continue;
+      if (e1 == vertexIndex.end() || e2 == vertexIndex.end()) {
+        report.omitted("edge");
+        continue;
+      }
       SkpPackageEdge out;
       out.v1 = v1;
       out.v2 = v2;
@@ -393,7 +439,9 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       if (face.uv_transform_back) out.uvBack = *face.uv_transform_back;
       if (out.hasUvFront) report.counts_.uvTransforms++;
       if (out.hasUvBack) report.counts_.uvTransforms++;
+      if (!out.hasUvFront && !out.hasUvBack) report.notice("missingUv");
       if (out.loops.empty()) {
+        report.omitted("face");
         report.locate("notImported", definition.name, "A face has no readable loop and is left out.");
         continue;
       }
@@ -411,14 +459,23 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       out.hidden = instance.hidden;
       out.tag = tagOf(instance.layer);
       out.material = materialOf(instance.material_id);
-      // The 4x4: the parser's 3x3 (unitless), the translation in metres, w dropped (the
-      // parser's own glTF exporter drops it too).
+      // The 4x4: the parser's 3x3 (unitless), the translation in metres. The parser's own
+      // transform ignores the 13th value, w; ADR 0176 section 4 divides the translation by w
+      // when it is not 1 and records the scaled placement.
+      double wScale = 1.0;
+      if (instance.matrix.size() >= 13) {
+        const double w = instance.matrix[12];
+        if (std::abs(w - 1.0) > 1e-9) {
+          report.notice("scaledPlacement");
+          if (w != 0.0) wScale = 1.0 / w;
+        }
+      }
       const auto value = [&](int i) { return instance.matrix.size() > static_cast<std::size_t>(i) ? instance.matrix[static_cast<std::size_t>(i)] : 0.0; };
       for (int r = 0; r < 3; ++r)
         for (int c = 0; c < 3; ++c) out.transform[r * 4 + c] = value(r * 3 + c);
-      out.transform[12] = value(9) * kInchesToMetres;
-      out.transform[13] = value(10) * kInchesToMetres;
-      out.transform[14] = value(11) * kInchesToMetres;
+      out.transform[12] = value(9) * kInchesToMetres * wScale;
+      out.transform[13] = value(10) * kInchesToMetres * wScale;
+      out.transform[14] = value(11) * kInchesToMetres * wScale;
       out.transform[15] = 1.0;
       definition.instances.push_back(std::move(out));
     }
@@ -438,6 +495,9 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
 
   // The report block.
   for (const auto& [code, count] : report.notices_) package.notices[code] = count;
+  package.omitted = report.omitted_;
+  package.sourceTotals = {{"edges", sourceEdges}, {"faces", sourceFaces},
+                          {"instances", sourceInstances}, {"materials", sourceMaterials}};
   package.locations = report.locations_;
   package.locationTotals = report.locationsPerKind_;
   package.counts = report.counts_;

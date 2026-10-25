@@ -4,10 +4,9 @@
 #
 # The build mirrors the upstream CMakeLists (packages/cpp) for the parser subset only: no
 # exporters, no writer, no scene builder, no tinygltf, no flatbuffers.
-# miniz is C; the top-level project enables only CXX, so enable it here.
-if(NOT CMAKE_C_COMPILER)
-  enable_language(C)
-endif()
+# miniz is C; the top-level project enables only CXX. enable_language(C) is idempotent: without
+# it, a re-run of CMake (with CMAKE_C_COMPILER already in the cache) drops the .c sources again.
+enable_language(C)
 add_library(sketchyup_openskp ${SKETCHYUP_LIBRARY_TYPE}
   src/core.cpp
   src/errors.cpp
@@ -27,7 +26,9 @@ add_library(sketchyup_openskp ${SKETCHYUP_LIBRARY_TYPE}
 target_compile_features(sketchyup_openskp PUBLIC cxx_std_17)
 target_include_directories(sketchyup_openskp
   PUBLIC include
-  PRIVATE src miniz "${CMAKE_BINARY_DIR}/generated")
+  # PUBLIC: the public OpenSKP headers include openskp/export.hpp, which the consumer compiles.
+  PUBLIC "${CMAKE_BINARY_DIR}/generated"
+  PRIVATE src miniz)
 # The upstream generates openskp/export.hpp for a target named OpenSkp (the OPENSKP_EXPORT macro);
 # generate it the same way here (BASE_NAME keeps the macro names identical to upstream).
 include(GenerateExportHeader)

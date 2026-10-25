@@ -18,11 +18,14 @@ using SkpLocation = SkpPackageLocation;
 class SkpReport {
 public:
   void notice(const std::string& code, long long count = 1) { notices_[code] += count; }
+  // An entity the conversion left out; the report's identity is imported + omitted = counted.
+  void omitted(const std::string& code, long long count = 1) { omitted_[code] += count; }
   // Keeps at most 32 locations per kind; the totals stay complete.
   void locate(const std::string& kind, const std::string& definition, const std::string& message);
 
   SkpCounts counts_;
   std::map<std::string, long long> notices_;
+  std::map<std::string, long long> omitted_;
   std::vector<SkpLocation> locations_;
   std::map<std::string, int> locationsPerKind_;
 };

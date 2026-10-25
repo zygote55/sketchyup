@@ -740,6 +740,23 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_include_directories(ifc_package_tests PRIVATE tests)
     target_compile_definitions(ifc_package_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME ifc_package COMMAND ifc_package_tests)
+    # R102.a: the SKSKPP01 package writer and the checked decoder (ADR 0176); the test links both
+    # sides, which is the meeting point that the application itself never provides.
+    add_executable(skp_package_tests tests/skp_package_tests.cpp)
+    target_link_libraries(skp_package_tests PRIVATE sketchyup_io sketchyup_skp)
+    target_include_directories(skp_package_tests PRIVATE src tests)
+    add_test(NAME skp_package COMMAND skp_package_tests)
+    # R102.a: the import through the helper, against the raw-text scan of the source .skp.
+    if(SKETCHYUP_BUILD_SKP AND TARGET sketchyup-skp-worker)
+      add_executable(skp_import_tests tests/skp_import_tests.cpp)
+      target_link_libraries(skp_import_tests PRIVATE sketchyup_io sketchyup_skp)
+      target_include_directories(skp_import_tests PRIVATE src tests)
+      target_compile_definitions(skp_import_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      add_test(NAME skp_import COMMAND skp_import_tests)
+      add_test(NAME skp_import_real COMMAND skp_import_tests --real)
+      set_tests_properties(skp_import_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+    endif()
     add_executable(ifc_convert_tests tests/ifc_convert_tests.cpp)
     target_link_libraries(ifc_convert_tests PRIVATE sketchyup_io)
     target_include_directories(ifc_convert_tests PRIVATE tests)
