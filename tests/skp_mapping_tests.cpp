@@ -356,6 +356,10 @@ int main(int argc, char **argv) {
         auto imported = importOf(file);
         checkCounts(name, package, imported);
         checkBox(name, package, imported);
+        // A face without a texture mapping is a notice only where its material has a texture.
+        if (std::string(name) != "textured_face.skp")
+            check(!imported.report["notices"].toObject().contains("missingUv"),
+                  std::string(name) + ": an untextured model raises no missingUv notice");
         const auto &doc = imported.document;
         check(doc.displayUnits() == DisplayUnit::Meters, std::string(name) + ": the display units are metres");
         check(imported.report["notCarried"].toArray().size() == 8, std::string(name) + ": the report names what the package does not carry");
@@ -610,6 +614,8 @@ int main(int argc, char **argv) {
         std::cout << "owner's file: import " << elapsed << " ms, counts " << QJsonDocument(counts).toJson(QJsonDocument::Compact).toStdString() << "\n";
         const auto [boxLo, boxHi] = worldBox(imported.document);
         std::cout << "owner's file: world box " << (boxHi[0] - boxLo[0]) << " x " << (boxHi[1] - boxLo[1]) << " x " << (boxHi[2] - boxLo[2]) << " m\n";
+        check(!imported.report["notices"].toObject().contains("missingUv"),
+              "the owner's untextured file raises no missingUv notice");
         std::cout << "owner's file: notices " << QJsonDocument(imported.report["notices"].toObject()).toJson(QJsonDocument::Compact).toStdString() << "\n";
         std::cout << "owner's file: locations " << QJsonDocument(imported.report["locations"].toObject()).toJson(QJsonDocument::Compact).toStdString() << "\n";
         checkUndo("BanyanHarbor.skp", imported);
