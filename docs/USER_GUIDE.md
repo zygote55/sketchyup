@@ -489,7 +489,7 @@ about 100,000 triangles; the bodies that would go over it are left out and repor
 writes into a 256 MiB file and is refused above it. Measured: about 2.4 KB per triangle face, so a
 model made of triangle faces reaches the limit at about 110,000 faces; large flat faces take about
 0.9 KB per triangle, so the limit is reached at about 280,000 triangles. The export dialog's size
-note appears above 250,000 triangles, which comes after triangle-faced models have passed the limit.
+note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
 
 ## Terrain and site tools
 

@@ -815,7 +815,7 @@ shared exchange screens.
 - **Schema.** AP214 is the default and AP203 is the choice; the schema sits above the form in the Tab order.
   AP242 is not offered; a request for it is refused with the `schema` code (the refusal sheet names the choice).
   The AP203 choice reaches the helper's `--step-schema` argument (the suite checks the argument list).
-- **Size.** The amber note appears above 250,000 triangles (the plan's `triangles`) and says the file may exceed
+- **Size.** The amber note appears above 100,000 triangles (250,000 in R098.c2; lowered in the R098.d review) (the plan's `triangles`) and says the file may exceed
   256 MiB and be refused. It is a note, not a refusal: the R098.c budget measurement missed the 256 MiB limit at
   about 280,000 triangles of unshared faces, so 250,000 leaves a margin. The threshold is a constant
   (`StepExportDialog::kTriangleWarningLimit`); the suite sets a lower one.
@@ -920,7 +920,8 @@ the tessellation (`tests/step_budget_model.cpp`) is the stand-in for the 1,000,0
    two solids with `triangleBudgetApplied`).
 4. **The export size note.** §8 and R098.c2 put the amber note at 250,000 triangles, based on about 900 bytes per triangle
    for large flat faces. A triangle-faced model writes about 2.4 KB per face (223,950,326 bytes for 90,954 faces), so the
-   256 MiB limit is reached at about 110,000 faces, before the note. The threshold constant is not changed here.
+   256 MiB limit is reached at about 110,000 faces, before the note. **Changed in review:** the note now appears above
+   100,000 triangles (`kTriangleWarningLimit`), so it warns before the worst case is refused.
 5. **The corpus path.** §7 places the corpus in `tests/resources/step/`. It is `tests/fixtures/step/`, as R098.a built it.
 6. **E1's cylinder bound.** §7 says "within the reported deflection". `ifc_step` asserts 5 % relative. The measured area and
    volume are 0.995 and 0.989 of the analytic values (R098.a2).

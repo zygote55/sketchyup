@@ -146,7 +146,8 @@ the licence, and where the SketchyUp STEP code is in the source archive. `verify
    assumed the 1,000,000-triangle total would hold; in a document it holds about one tenth of that. The owner
    decides whether the curved import should merge or sample, or whether the 1,000,000-triangle figure is a
    helper figure only.
-4. **The export size note comes too late for triangle faces.** The export dialog warns above 250,000 triangles.
+4. **The export size note came too late for triangle faces** (fixed in the review: the note now appears above
+   100,000 triangles). It warned above 250,000 triangles.
    The measured output of a triangle-faced model is about 2.4 KB per face (223,950,326 bytes for 90,954 faces),
    so the 256 MiB limit is reached at about 110,000 faces; the warning does not appear before the refusal. The
    user guide and the support matrix now state the measured figures. The threshold constant
