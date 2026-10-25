@@ -1,2 +1,6 @@
 /build/
 *.user
+
+# Python bytecode caches (scripts run during builds regenerate them).
+__pycache__/
+*.pyc
