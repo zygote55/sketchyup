@@ -69,6 +69,7 @@ struct StepFileFacts {
   std::string solidAngle;
   double lengthMetres = 0.0;  // the raw text's declaration as a factor of metres (0.0: not
   // convertible from the raw text; the model's factor stands)
+  std::string sha256;  // the file's digest (the provenance's step.Source, ADR 0172 §4)
 };
 
 StepFileFacts stepFileFacts(const std::string& path);

@@ -131,6 +131,7 @@ void decodePackageCheck(const QString &path, bool &ok, std::string &problem,
         problem = "no meshes";
         return;
     }
+    const auto materials = manifest.value("materials").toArray();
     int64_t total = 0;
     int meshOffset = 0;
     for (const auto &value : meshes) {
@@ -164,8 +165,11 @@ void decodePackageCheck(const QString &path, bool &ok, std::string &problem,
         meshOffset += t * 12;
         for (int64_t i = 0; i < t; ++i) {
             const uint32_t material = qFromLittleEndian<uint32_t>(data + n * 24 + t * 12 + i * 4);
-            if (material != 0xFFFFFFFFu) {
-                problem = "a material index where the step import ships none (R098.b)";
+            // R098.b: the import ships a material index per triangle (0 for the DefaultMaterial of
+            // an unstyled product, 0xFFFFFFFF for a shape whose style is a colour, not a material).
+            // An index must reference a declared material of the manifest.
+            if (material != 0xFFFFFFFFu && static_cast<uint32_t>(materials.size()) <= material) {
+                problem = "a material index past the manifest's materials";
                 return;
             }
         }
@@ -220,9 +224,21 @@ void decodePackageCheck(const QString &path, bool &ok, std::string &problem,
     ok = true;
 }
 
-// The package's combined mesh volume and area (the triangles' signed volume sum and the area
-// sum), from the manifest's counts and the chunk's vertices and triangle indices.
-std::optional<std::pair<double, double>> packageVolumeAndArea(const QString &path) {
+// The package's combined mesh volume, area, vertex bounds, and the count of the nodes whose
+// transform is not the identity, from the manifest's counts and the chunk's vertices and
+// triangle indices. The bounds are the mesh's coordinates as written: the node transforms
+// are not applied, so the placement a file carries rides on the transforms while the bounds
+// are the geometry the reader delivered.
+struct PackageGeometry {
+    double volume = 0.0;
+    double area = 0.0;
+    double min[3] = {0.0, 0.0, 0.0};
+    double max[3] = {0.0, 0.0, 0.0};
+    int nonIdentityTransforms = 0;
+    int placed = 0;  // the report's non-identity placement count
+    double firstNonIdentity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+};
+std::optional<PackageGeometry> packageGeometry(const QString &path) {
     QFile in(path);
     if (!in.open(QIODevice::ReadOnly))
         return std::nullopt;
@@ -231,7 +247,7 @@ std::optional<std::pair<double, double>> packageVolumeAndArea(const QString &pat
         return std::nullopt;
     const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
     const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
-    double volume = 0.0, area = 0.0;
+    PackageGeometry out;
     bool any = false;
     int64_t offset = 0;
     for (const auto &value : manifest.value("meshes").toArray()) {
@@ -253,19 +269,55 @@ std::optional<std::pair<double, double>> packageVolumeAndArea(const QString &pat
             const int b = qFromLittleEndian<uint32_t>(data + n * 24 + i * 12 + 4);
             const int c = qFromLittleEndian<uint32_t>(data + n * 24 + i * 12 + 8);
             const auto &p = vertices[static_cast<size_t>(a)], &q = vertices[static_cast<size_t>(b)], &r = vertices[static_cast<size_t>(c)];
-            volume += (p[0] * (q[1] * r[2] - r[1] * q[2]) + p[1] * (r[0] * q[2] - q[0] * r[2])
-                       + p[2] * (q[0] * r[1] - r[0] * q[1])) / 6.0;
+            out.volume += (p[0] * (q[1] * r[2] - r[1] * q[2]) + p[1] * (r[0] * q[2] - q[0] * r[2])
+                          + p[2] * (q[0] * r[1] - r[0] * q[1])) / 6.0;
             const double e1x = q[0] - p[0], e1y = q[1] - p[1], e1z = q[2] - p[2];
             const double e2x = r[0] - p[0], e2y = r[1] - p[1], e2z = r[2] - p[2];
             const double cx = e1y * e2z - e1z * e2y, cy = e1z * e2x - e1x * e2z, cz = e1x * e2y - e1y * e2x;
-            area += 0.5 * std::sqrt(cx * cx + cy * cy + cz * cz);
+            out.area += 0.5 * std::sqrt(cx * cx + cy * cy + cz * cz);
             any = true;
+        }
+        if (n > 0) {
+            for (int axis = 0; axis < 3; ++axis) {
+                double lo = vertices[0][static_cast<size_t>(axis)], hi = lo;
+                for (const auto &v : vertices) {
+                    lo = std::min(lo, v[static_cast<size_t>(axis)]);
+                    hi = std::max(hi, v[static_cast<size_t>(axis)]);
+                }
+                out.min[axis] = lo;
+                out.max[axis] = hi;
+            }
         }
         offset += n * 24 + t * 12 + t * 4 + d.value("edges").toInt() * 8 + (d.value("colors").toBool() ? t * 12 : 0);
     }
+    for (const auto &value : manifest.value("nodes").toArray()) {
+        const auto transform = value.toObject().value("transform").toArray();
+        if (transform.size() != 16)
+            continue;
+        const double i16[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        bool identity = true;
+        for (int k = 0; k < 16 && identity; ++k)
+            identity = std::abs(transform.at(k).toDouble() - i16[k]) <= 1e-12;
+        if (!identity) {
+            ++out.nonIdentityTransforms;
+            if (out.nonIdentityTransforms == 1)
+                for (int k = 0; k < 16; ++k)
+                    out.firstNonIdentity[k] = transform.at(k).toDouble();
+        }
+    }
+    out.placed = manifest.value("report").toObject().value("counts").toObject().value("placed").toInt();
     if (!any)
         return std::nullopt;
-    return std::pair{volume, area};
+    return out;
+}
+
+// The original two-number form the existing checks use (the bounds and the transform count
+// are the R098.b additions; the volume and the area are the ADR 0172 section 7 values).
+std::optional<std::pair<double, double>> packageVolumeAndArea(const QString &path) {
+    auto geometry = packageGeometry(path);
+    if (!geometry)
+        return std::nullopt;
+    return std::pair{geometry->volume, geometry->area};
 }
 
 // A relative comparison (the analytic values are small in metres; the default near() is
@@ -294,7 +346,7 @@ int main(int argc, char **argv) {
         const auto result = run({worker, "--write-step", temp.path()});
         check(result.code == 0, "write-step exits 0");
         const auto files = result.json.value("files").toArray();
-        check(files.size() == 3, "write-step writes three files");
+        check(files.size() == 9, "write-step writes nine files (the box, the cylinder, the assembly, the placed box, the mirrored box, the instanced assembly, the named corpus, the coloured corpus, the layer corpus)");
         for (const auto &value : files) {
             const auto file = value.toObject();
             check(file.value("written").toBool(), std::string("write-step: ") + file.value("file").toString().toStdString());
@@ -334,6 +386,100 @@ int main(int argc, char **argv) {
         const auto assemblyFixture = fixture("sketchyup-step-assembly.step");
         const auto asmShapes = assemblyFixture.value("shapes").toArray();
         check(asmShapes.size() == 1 && asmShapes[0].toObject().value("solids").toInt() == 2, "fixture assembly: one shape, two solids");
+        // The placed and the mirrored fixtures (the R098.b corpus additions): the writer bakes
+        // the placement into the coordinates (a det -1 placement is not expressible in the
+        // step subset - the mirror is the face's orientation, ADR 0172 section 7), so both
+        // read as one solid with the box's six faces at the placed or mirrored coordinates.
+        const auto placedFixture = fixture("sketchyup-step-placed.step");
+        const auto placedShapes = placedFixture.value("shapes").toArray();
+        check(placedShapes.size() == 1 && placedShapes[0].toObject().value("solids").toInt() == 1
+              && placedShapes[0].toObject().value("faces").toInt() == 6, "fixture placed: one solid, six faces");
+        if (placedShapes.size() == 1) {
+            const auto box = placedShapes[0].toObject().value("boundingBox").toArray();
+            check(box.size() == 6, "fixture placed: a six-number bounding box in mm");
+            if (box.size() == 6) {
+                // The (5, 10, 15) mm translation, in millimetres.
+                check(near(box[0].toDouble(), 5.0) && near(box[1].toDouble(), 10.0) && near(box[2].toDouble(), 15.0),
+                      "fixture placed: the origin is the translation");
+                check(near(box[3].toDouble(), 15.0) && near(box[4].toDouble(), 30.0) && near(box[5].toDouble(), 45.0),
+                      "fixture placed: the box is 10 x 20 x 30 mm at the translation");
+            }
+        }
+        const auto mirrorFixture = fixture("sketchyup-step-mirror.step");
+        const auto mirrorShapes = mirrorFixture.value("shapes").toArray();
+        check(mirrorShapes.size() == 1 && mirrorShapes[0].toObject().value("solids").toInt() == 1
+              && mirrorShapes[0].toObject().value("faces").toInt() == 6, "fixture mirror: one solid, six faces");
+        if (mirrorShapes.size() == 1) {
+            const auto box = mirrorShapes[0].toObject().value("boundingBox").toArray();
+            check(box.size() == 6, "fixture mirror: a six-number bounding box in mm");
+            if (box.size() == 6) {
+                // The writer's mirror is the point symmetry about the OX line at the origin
+                // (gp_Ax1's mirror): y and z flip, x is kept - the box at [0, 10] x [-20, 0] x [-30, 0].
+                check(near(box[0].toDouble(), 0.0) && near(box[1].toDouble(), -20.0) && near(box[2].toDouble(), -30.0),
+                  "fixture mirror: the mirrored origin");
+                check(near(box[3].toDouble(), 10.0) && near(box[4].toDouble(), 0.0) && near(box[5].toDouble(), 0.0),
+                  "fixture mirror: the box is 10 x 20 x 30 mm mirrored about the OX line");
+            }
+        }
+        const auto placedImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-placed.step")});
+        check(placedImport.code == 0 && placedImport.json.value("status").toString() == "ok",
+              "fixture placed import: the placed box reads with the declared unit");
+        const auto mirrorImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-mirror.step")});
+        check(mirrorImport.code == 0 && mirrorImport.json.value("status").toString() == "ok",
+              "fixture mirror import: the mirrored box reads with the declared unit");
+        // The hand-crafted placed-assembly fixture (ADR 0172 section 4: the file's local
+        // transformation as the instance placement): the assembly fixture with the box's
+        // placement offset to (50, 0, 0) mm. The 7.9.3 reader preserves the component's
+        // AXIS2_PLACEMENT_3D as the label's location, so the probe's bounding box is the
+        // offset box's, and the import's package node carries the placement.
+        const auto placedAsmFixture = fixture("sketchyup-step-placed-assembly.step");
+        const auto placedAsmShapes = placedAsmFixture.value("shapes").toArray();
+        check(placedAsmShapes.size() == 1 && placedAsmShapes[0].toObject().value("solids").toInt() == 2
+              && placedAsmShapes[0].toObject().value("faces").toInt() == 9,
+              "fixture placed-assembly: one shape, two solids, nine faces");
+        if (placedAsmShapes.size() == 1) {
+            const auto box = placedAsmShapes[0].toObject().value("boundingBox").toArray();
+            check(box.size() == 6, "fixture placed-assembly: a six-number bounding box");
+            if (box.size() == 6) {
+                // The box at (50, 0, 0) mm, the cylinder at the origin.
+                check(near(box[0].toDouble(), -5.0) && near(box[3].toDouble(), 60.0)
+                      && near(box[1].toDouble(), -5.0) && near(box[4].toDouble(), 20.0)
+                      && near(box[2].toDouble(), 0.0) && near(box[5].toDouble(), 30.0),
+                      "fixture placed-assembly: the bounding box is the offset box's, got [" + std::to_string(box[0].toDouble()) + ", " + std::to_string(box[3].toDouble()) + "]");
+            }
+        }
+        const auto placedAsmImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-placed-assembly.step")});
+        check(placedAsmImport.code == 0 && placedAsmImport.json.value("status").toString() == "ok",
+              "fixture placed-assembly import: the offset component placement reads");
+        // R098.b fixture (a): the two-level assembly with one part instanced three times (the
+        // writer's NEXT_ASSEMBLY_USAGE_OCCURRENCE structure, the ADR 0172 section 4 corpus):
+        // the probe sees the assembly's three placed instances (the basic reader normalises the
+        // placements into the coordinates), and the import reads the XDE structure (the part
+        // shared by the three instances, each placement a transform, the shared-mesh design).
+        const auto instFixture = fixture("sketchyup-step-instanced.step");
+        const auto instShapes = instFixture.value("shapes").toArray();
+        check(instShapes.size() == 1 && instShapes[0].toObject().value("solids").toInt() == 3
+              && instShapes[0].toObject().value("faces").toInt() == 18,
+              "fixture instanced: one shape, three solids, eighteen faces");
+        if (instShapes.size() == 1) {
+            const auto box = instShapes[0].toObject().value("boundingBox").toArray();
+            check(box.size() == 6, "fixture instanced: a six-number bounding box");
+            if (box.size() == 6) {
+                // The three instances of the 10 x 20 x 30 box at (50, 0, 0), (0, 50, 0) and
+                // (0, 0, 50) mm. The writer keeps the placements in one shared shape
+                // representation, and the basic reader applies a context-dependent shape's
+                // placements as a chain, so the transferred shape's bounding box reaches
+                // (60, 70, 80) (the import's XDE read keeps the placements as node
+                // transforms, the package test below).
+                check(near(box[0].toDouble(), 0.0) && near(box[3].toDouble(), 60.0)
+                      && near(box[1].toDouble(), 0.0) && near(box[4].toDouble(), 70.0)
+                      && near(box[2].toDouble(), 0.0) && near(box[5].toDouble(), 80.0),
+                      "fixture instanced: the bounding box carries the placements, got [" + std::to_string(box[3].toDouble()) + ", " + std::to_string(box[4].toDouble()) + ", " + std::to_string(box[5].toDouble()) + "]");
+            }
+        }
+        const auto instImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-instanced.step")});
+        check(instImport.code == 0 && instImport.json.value("status").toString() == "ok",
+              "fixture instanced import: the three instances read");
         // The hand-written inch fixture (tests/fixtures/step/inch-units.step): the writer's box
         // with the context's unit a CONVERSION_BASED_UNIT ('INCH'). The raw text's first
         // declaration is the conversion's millimetre base (the unit entity the writer wrote
@@ -561,9 +707,9 @@ int main(int argc, char **argv) {
         const auto assembly = importPackage(temp.filePath("sketchyup-step-assembly.step"), {});
         check(assembly.code == 0 && assembly.json.value("status").toString() == "ok",
               "package import (assembly): ok");
-        check(assembly.json.value("meshes").toInt() == 2 && assembly.json.value("converted").toInt() == 2
+        check(assembly.json.value("meshes").toInt() == 2 && assembly.json.value("converted").toInt() == 3
               && assembly.json.value("triangles").toInt() == 104,
-              "package import (assembly): two meshes, 104 triangles");
+              "package import (assembly): two meshes, 104 triangles (the group converts as a slot, no mesh of its own)");
         const QString assemblyPackage = temp.filePath("sketchyup-step-assembly.step.pkg");
         check(checkPackage(assemblyPackage).isEmpty(), "package decode (assembly): " + checkPackage(assemblyPackage).toStdString());
         if (auto geometry = packageVolumeAndArea(assemblyPackage)) {
@@ -573,6 +719,391 @@ int main(int argc, char **argv) {
                   "package assembly: the combined area is within the tessellation error");
         } else {
             check(false, "package assembly: the geometry could not be read");
+        }
+
+        // The placed and the mirrored fixtures (the R098.b corpus additions): the writer
+        // bakes the placement into the coordinates (a det -1 placement is not expressible in
+        // the step subset - the mirror is the face's orientation, ADR 0172 section 7), and
+        // the 7.9.3 reader normalises the location to identity - so the package's mesh is
+        // the geometry at the placed position, the node transforms are the identity (the
+        // placement is not double applied), and the tessellated winding is the box's own
+        // (the positive signed volume, the ADR 0172 section 7 mirrored-solid measurement).
+        const auto placedImport = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-placed.step"), {});
+        check(placedImport.code == 0 && placedImport.json.value("status").toString() == "ok",
+              "package import (placed): ok");
+        check(placedImport.json.value("meshes").toInt() == 1 && placedImport.json.value("converted").toInt() == 1
+              && placedImport.json.value("triangles").toInt() == 12,
+              "package import (placed): one mesh, twelve triangles");
+        const QString placedPackage = temp.filePath("sketchyup-step-placed.step.pkg");
+        check(checkPackage(placedPackage).isEmpty(), "package decode (placed): " + checkPackage(placedPackage).toStdString());
+        if (auto geometry = packageGeometry(placedPackage)) {
+            // The (5, 10, 15) mm translation, in the package's metres.
+            check(near(geometry->min[0], 0.005) && near(geometry->max[0], 0.015)
+                  && near(geometry->min[1], 0.01) && near(geometry->max[1], 0.03)
+                  && near(geometry->min[2], 0.015) && near(geometry->max[2], 0.045),
+                  "package placed: the mesh is at the translated coordinates, got [" + std::to_string(geometry->min[0]) + ", " + std::to_string(geometry->max[0]) + "]");
+            check(near(geometry->volume, 0.01 * 0.02 * 0.03, 1e-9),
+                  "package placed: the signed volume is the analytic value (the winding is the box's own), got " + std::to_string(geometry->volume));
+            check(geometry->nonIdentityTransforms == 0,
+                  "package placed: the node transforms are the identity (the placement is not double applied)");
+        } else {
+            check(false, "package placed: the geometry could not be read");
+        }
+        const auto mirror = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-mirror.step"), {});
+        check(mirror.code == 0 && mirror.json.value("status").toString() == "ok",
+              "package import (mirror): ok");
+        check(mirror.json.value("meshes").toInt() == 1 && mirror.json.value("converted").toInt() == 1
+              && mirror.json.value("triangles").toInt() == 12,
+              "package import (mirror): one mesh, twelve triangles");
+        const QString mirrorPackage = temp.filePath("sketchyup-step-mirror.step.pkg");
+        check(checkPackage(mirrorPackage).isEmpty(), "package decode (mirror): " + checkPackage(mirrorPackage).toStdString());
+        if (auto geometry = packageGeometry(mirrorPackage)) {
+            // The mirror is the point symmetry about the OX line at the origin (the writer's
+            // gp_Ax1 mirror): y and z flip, x is kept - the box at [0, 0.01] x [-0.02, 0] x [-0.03, 0] m.
+            check(near(geometry->min[0], 0.0) && near(geometry->max[0], 0.01)
+                  && near(geometry->min[1], -0.02) && near(geometry->max[1], 0.0)
+                  && near(geometry->min[2], -0.03) && near(geometry->max[2], 0.0),
+                  "package mirror: the mesh is at the mirrored coordinates, got [" + std::to_string(geometry->min[0]) + ", " + std::to_string(geometry->max[0]) + "]");
+            check(near(geometry->volume, 0.01 * 0.02 * 0.03, 1e-9),
+                  "package mirror: the signed volume is positive (the winding survives the mirror - the ADR 0172 section 7 mirrored-solid measurement), got " + std::to_string(geometry->volume));
+            check(geometry->nonIdentityTransforms == 0,
+                  "package mirror: the node transforms are the identity (a det -1 placement is not expressible in the step subset - the mirror is the face's orientation, not a transform)");
+        } else {
+            check(false, "package mirror: the geometry could not be read");
+        }
+        // The hand-crafted placed-assembly fixture (ADR 0172 section 4): the 7.9.3 reader
+        // preserves the component's placement as a non-identity XDE location (unlike the
+        // writer-generated cases, which normalise it), so the import applies it as the node
+        // transform (in metres, the 50 mm offset) and the report counts it; the meshes stay
+        // in the bases' own frames (the shared-mesh design).
+        const auto placedAsm = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-placed-assembly.step"), {});
+        check(placedAsm.code == 0 && placedAsm.json.value("status").toString() == "ok",
+              "package import (placed assembly): ok");
+        check(placedAsm.json.value("meshes").toInt() == 2 && placedAsm.json.value("converted").toInt() == 3
+              && placedAsm.json.value("triangles").toInt() == 104,
+              "package import (placed assembly): two meshes, three slots, 104 triangles (as the unplaced assembly)");
+        const QString placedAsmPackage = temp.filePath("sketchyup-step-placed-assembly.step.pkg");
+        check(checkPackage(placedAsmPackage).isEmpty(), "package decode (placed assembly): " + checkPackage(placedAsmPackage).toStdString());
+        if (auto geometry = packageGeometry(placedAsmPackage)) {
+            check(geometry->nonIdentityTransforms == 1,
+                  "package placed assembly: exactly one node carries the placement (the offset component)");
+            const double expected[16] = {1, 0, 0, 0.05, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+            bool transformOk = true;
+            for (int k = 0; k < 16 && transformOk; ++k)
+                transformOk = std::abs(geometry->firstNonIdentity[k] - expected[k]) <= 1e-12;
+            check(transformOk,
+                  "package placed assembly: the node transform is the (0.05, 0, 0) m translation (the 50 mm offset, in metres)");
+            check(geometry->placed == 1,
+                  "package placed assembly: the report counts the placement (placed = 1)");
+            check(nearRel(geometry->volume, 0.01 * 0.02 * 0.03 + 1.5708e-06, 0.05),
+                  "package placed assembly: the combined volume is within the tessellation error (the meshes are in the bases' own frames)");
+        } else {
+            check(false, "package placed assembly: the geometry could not be read");
+        }
+
+        // R098.b fixture (a) (ADR 0172 section 4): the two-level assembly with one part
+        // instanced three times at different placements. The import shares the part's mesh
+        // (tessellated once, in the base's own frame) across the three instances; each node's
+        // transform carries the placement (the shared-mesh design).
+        const auto instanced = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-instanced.step"), {});
+        check(instanced.code == 0 && instanced.json.value("status").toString() == "ok",
+              "package import (instanced): ok");
+        check(instanced.json.value("meshes").toInt() == 1 && instanced.json.value("converted").toInt() == 2
+              && instanced.json.value("triangles").toInt() == 12,
+              "package import (instanced): one shared mesh, the group and the part converted, twelve triangles");
+        check(instanced.json.value("nodes").toInt() == 5,
+              "package import (instanced): five nodes (the root, the assembly, three instances)");
+        const QString instancedPackage = temp.filePath("sketchyup-step-instanced.step.pkg");
+        check(checkPackage(instancedPackage).isEmpty(), "package decode (instanced): " + checkPackage(instancedPackage).toStdString());
+        {
+            QFile in(instancedPackage);
+            check(in.open(QIODevice::ReadOnly), "the instanced package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 5, "package instanced: five manifest nodes");
+            if (nodes.size() == 5) {
+                const auto root = nodes.at(0).toObject();
+                const auto group = nodes.at(1).toObject();
+                check(root.value("class").toString() == "IfcStepAssembly" && root.value("parent").toInt() == -1,
+                      "package instanced: the root is an assembly");
+                check(group.value("class").toString() == "IfcStepAssembly" && group.value("parent").toInt() == 0
+                      && group.value("name").toString() == "Assembly",
+                      "package instanced: the assembly node is the file's product, under the root");
+                // The three instance nodes: one shared mesh index, three distinct placements (in
+                // metres, the file's millimetres), all under the assembly, in the write order.
+                bool sameMesh = true, distinct = true, parentsOk = true;
+                const std::array<double, 3> expected[3] = {{0.05, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.05}};
+                for (int i = 2; i < 5; ++i) {
+                    const auto node = nodes.at(i).toObject();
+                    if (node.value("class").toString() != "IfcStepSolid" || node.value("parent").toInt() != 1)
+                        parentsOk = false;
+                    if (i > 2 && node.value("mesh").toInt() != nodes.at(2).toObject().value("mesh").toInt())
+                        sameMesh = false;
+                    const auto transform = node.value("transform").toArray();
+                    if (transform.size() != 16) {
+                        distinct = false;
+                        continue;
+                    }
+                    const double tx = transform.at(3).toDouble(), ty = transform.at(7).toDouble(), tz = transform.at(11).toDouble();
+                    const auto &e = expected[static_cast<size_t>(i) - 2];
+                    if (!near(tx, e[0]) || !near(ty, e[1]) || !near(tz, e[2])) distinct = false;
+                    // The placement is a pure translation: the 3x3 is the identity.
+                    if (std::abs(transform.at(0).toDouble() - 1.0) > 1e-12 || std::abs(transform.at(1).toDouble()) > 1e-12
+                        || std::abs(transform.at(2).toDouble()) > 1e-12 || std::abs(transform.at(4).toDouble()) > 1e-12
+                        || std::abs(transform.at(5).toDouble() - 1.0) > 1e-12 || std::abs(transform.at(6).toDouble()) > 1e-12
+                        || std::abs(transform.at(8).toDouble()) > 1e-12 || std::abs(transform.at(9).toDouble()) > 1e-12
+                        || std::abs(transform.at(10).toDouble() - 1.0) > 1e-12 || std::abs(transform.at(12).toDouble()) > 1e-12
+                        || std::abs(transform.at(13).toDouble()) > 1e-12 || std::abs(transform.at(14).toDouble()) > 1e-12
+                        || std::abs(transform.at(15).toDouble() - 1.0) > 1e-12)
+                        distinct = false;
+                }
+                check(sameMesh, "package instanced: the three instances share one mesh index");
+                check(distinct, "package instanced: the three instances carry the three distinct placements (in metres)");
+                check(parentsOk, "package instanced: the three instances sit under the assembly, in the write order");
+            }
+            const auto counts = manifest.value("report").toObject().value("counts").toObject();
+            check(counts.value("references").toInt() == 3 && counts.value("placed").toInt() == 3
+                  && counts.value("assemblies").toInt() == 1 && counts.value("shapes").toInt() == 4
+                  && counts.value("slots").toInt() == 2 && counts.value("solids").toInt() == 1,
+                  "package instanced: the report counts the three references, the three placements and the two slots");
+        }
+        if (auto geometry = packageGeometry(instancedPackage)) {
+            // The shared mesh is the box in its own frame: [0, 0.01] x [0, 0.02] x [0, 0.03] m, one box's volume.
+            check(near(geometry->min[0], 0.0) && near(geometry->max[0], 0.01)
+                  && near(geometry->min[1], 0.0) && near(geometry->max[1], 0.02)
+                  && near(geometry->min[2], 0.0) && near(geometry->max[2], 0.03),
+                  "package instanced: the shared mesh is in the base's own frame");
+            check(near(geometry->volume, 0.01 * 0.02 * 0.03, 1e-9),
+                  "package instanced: the shared mesh's volume is one box's (the tessellation is exact for the box)");
+            check(geometry->nonIdentityTransforms == 3,
+                  "package instanced: the three instance nodes carry the three placements (the group is the identity)");
+        } else {
+            check(false, "package instanced: the geometry could not be read");
+        }
+
+        // R098.b item 2 (ADR 0172 section 4): the named corpus. The product name becomes the
+        // node name; the 2,048-byte cap (the 3,000-character name is clipped with the notice);
+        // an unnamed product is named after its class. Every body carries the step.*
+        // provenance (the file's SHA-256 as step.Source, the schema, the entity label).
+        const auto named = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-named.step"), {});
+        check(named.code == 0 && named.json.value("status").toString() == "ok",
+              "package import (named): ok");
+        check(named.json.value("meshes").toInt() == 4 && named.json.value("converted").toInt() == 4
+              && named.json.value("nodes").toInt() == 5,
+              "package import (named): the four products, four meshes, five nodes");
+        const QString namedPackage = temp.filePath("sketchyup-step-named.step.pkg");
+        check(checkPackage(namedPackage).isEmpty(), "package decode (named): " + checkPackage(namedPackage).toStdString());
+        {
+            QFile in(namedPackage);
+            check(in.open(QIODevice::ReadOnly), "the named package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            // The over-cap name is a notice (the import clipped the 3,000-character name to 2,048).
+            const auto notices = manifest.value("report").toObject().value("notices").toArray();
+            bool truncated = false;
+            for (const auto &value : notices) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "nameTruncated" && notice.value("count").toInt() >= 1)
+                    truncated = true;
+            }
+            check(truncated, "package named: the over-cap name is a notice");
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 5, "package named: five manifest nodes");
+            if (nodes.size() == 5) {
+                // The write order: Bracket, Bolt, the 3,000-character name, the anonymous product.
+                check(nodes.at(1).toObject().value("name").toString() == "Bracket",
+                      "package named: the product name is the node name");
+                check(nodes.at(2).toObject().value("name").toString() == "Bolt",
+                      "package named: the second product name is the node name");
+                const auto longName = nodes.at(3).toObject().value("name").toString();
+                check(longName.size() == 2048 && longName == QString(2048, 'A'),
+                      "package named: the 3,000-character name is clipped to 2,048");
+                check(nodes.at(4).toObject().value("name").toString() == "SOLID",
+                      "package named: the unnamed product carries the name the reader supplies (SOLID)");
+                // The provenance (the R098.b item 5 shape): step.Schema (the file's schema),
+                // step.Source (the file's SHA-256) and step.Entity (the source entity's label).
+                for (int i = 1; i < 5; ++i) {
+                    const auto node = nodes.at(i).toObject();
+                    const auto props = node.value("ifc").toArray();
+                    bool schema = false, source = false, entity = false, sourceIsHash = false;
+                    for (const auto &value : props) {
+                        const auto prop = value.toArray();
+                        if (prop.size() != 3) continue;
+                        const auto key = prop.at(0).toString();
+                        if (key == "step.Schema" && prop.at(2).toString() == "AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }")
+                            schema = true;
+                        if (key == "step.Source") { source = true; sourceIsHash = prop.at(2).toString().size() == 64; }
+                        if (key == "step.Entity" && prop.at(2).toDouble() >= 1)
+                            entity = true;
+                    }
+                    check(schema && source && entity && sourceIsHash,
+                          ("package named: the provenance (the schema, the file's SHA-256, the entity) on node " + QString::number(i)).toStdString());
+                }
+                const auto root = nodes.at(0).toObject();
+                bool rootSchema = false, rootSource = false, rootSourceIsHash = false;
+                for (const auto &value : root.value("ifc").toArray()) {
+                    const auto prop = value.toArray();
+                    if (prop.size() != 3) continue;
+                    const auto key = prop.at(0).toString();
+                    if (key == "step.Schema" && prop.at(2).toString() == "AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }")
+                        rootSchema = true;
+                    if (key == "step.Source") { rootSource = true; rootSourceIsHash = prop.at(2).toString().size() == 64; }
+                }
+                check(rootSchema && rootSource && rootSourceIsHash, "package named: the root's provenance is the schema and the file's SHA-256");
+            }
+            // The uncontained notice (the four free products are not in any assembly's reference;
+            // the report's notice carries the count, the counts object has no per-kind bound here).
+            const auto notices2 = manifest.value("report").toObject().value("notices").toArray();
+            int uncontained = 0;
+            for (const auto &value : notices2) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "uncontainedElements")
+                    uncontained += notice.value("count").toInt();
+            }
+            check(uncontained == 4, "package named: the four free products are uncontained");
+        }
+
+        // R098.b item 3 (ADR 0172 section 4): the colour corpus. The XDE's colour mode gives
+        // the per-face colour (the red box); an unstyled product gets the DefaultMaterial
+        // (0.7 grey) with the notice (the IFC pattern).
+        const auto colored = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-colored.step"), {});
+        check(colored.code == 0 && colored.json.value("status").toString() == "ok",
+              "package import (coloured): ok");
+        check(colored.json.value("meshes").toInt() == 2 && colored.json.value("converted").toInt() == 2
+              && colored.json.value("nodes").toInt() == 3,
+              "package import (coloured): two products, two meshes, three nodes");
+        const QString coloredPackage = temp.filePath("sketchyup-step-colored.step.pkg");
+        check(checkPackage(coloredPackage).isEmpty(), "package decode (coloured): " + checkPackage(coloredPackage).toStdString());
+        {
+            QFile in(coloredPackage);
+            check(in.open(QIODevice::ReadOnly), "the coloured package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            // The unstyled product is a DefaultMaterial notice (the IFC pattern).
+            const auto notices = manifest.value("report").toObject().value("notices").toArray();
+            int defaultMaterial = 0;
+            for (const auto &value : notices) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "defaultMaterial")
+                    defaultMaterial += notice.value("count").toInt();
+            }
+            check(defaultMaterial == 1, "package coloured: the unstyled product is a DefaultMaterial notice");
+            // The materials: one DefaultMaterial (0.7 grey, opaque) for the unstyled product.
+            const auto materials = manifest.value("materials").toArray();
+            check(materials.size() == 1 && materials.at(0).toObject().value("name").toString() == "DefaultMaterial",
+                  "package coloured: one material, the DefaultMaterial");
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 3, "package coloured: three manifest nodes");
+            // Find the two product nodes and their meshes.
+            int redMesh = -1, plainMesh = -1;
+            for (int i = 1; i < 3; ++i) {
+                const auto node = nodes.at(i).toObject();
+                if (node.value("name").toString() == "Red") redMesh = node.value("mesh").toInt();
+                if (node.value("name").toString() == "Plain") plainMesh = node.value("mesh").toInt();
+            }
+            check(redMesh >= 0 && plainMesh >= 0 && redMesh != plainMesh, "package coloured: two distinct meshes");
+            const auto meshes = manifest.value("meshes").toArray();
+            const auto meshData = reinterpret_cast<const uint8_t *>(bytes.constData()) + 24 + manifestBytes;
+            const auto readMesh = [&](int index) {
+                const auto d = meshes.at(index).toObject();
+                const int n = d.value("vertices").toInt(), t = d.value("triangles").toInt();
+                const uint8_t *data = meshData;
+                int64_t offset = 0;
+                for (int m = 0; m < index; ++m) {
+                    const auto other = meshes.at(m).toObject();
+                    offset += other.value("vertices").toInt() * 24 + other.value("triangles").toInt() * 12 + other.value("triangles").toInt() * 4 + other.value("edges").toInt() * 8 + (other.value("colors").toBool() ? other.value("triangles").toInt() * 12 : 0);
+                }
+                data += offset;
+                struct MeshInfo { int materialsCount = 0; bool anyMaterialZero = false; int colors = 0; float redR = -1, redG = -1, redB = -1; float plainColor = -1; };
+                MeshInfo info;
+                // Materials: after the triangle indices (n*24 + t*12), one u32 per triangle.
+                const uint8_t *mat = data + n * 24 + t * 12;
+                for (int i = 0; i < t; ++i) {
+                    const uint32_t m = qFromLittleEndian<uint32_t>(mat + i * 4);
+                    if (m == 0) info.anyMaterialZero = true;
+                }
+                if (d.value("colors").toBool()) {
+                    const uint8_t *col = data + n * 24 + t * 12 + t * 4 + d.value("edges").toInt() * 8;
+                    for (int i = 0; i < t; ++i) {
+                        float r = 0, g = 0, b = 0;
+                        std::memcpy(&r, col + i * 12, 4);
+                        std::memcpy(&g, col + i * 12 + 4, 4);
+                        std::memcpy(&b, col + i * 12 + 8, 4);
+                        if (std::isnan(r)) continue;
+                        if (index == redMesh) { info.colors = std::max(info.colors, 1); if (std::abs(r - 1.0f) <= 1e-3 && std::abs(g) <= 1e-3 && std::abs(b) <= 1e-3) { info.redR = r; info.redG = g; info.redB = b; } }
+                        else { info.colors = std::max(info.colors, 1); info.plainColor = r; }
+                    }
+                }
+                return info;
+            };
+            const auto redInfo = readMesh(redMesh);
+            check(redInfo.colors >= 1 && redInfo.redR >= 0.99f && std::abs(redInfo.redG) <= 1e-2f && std::abs(redInfo.redB) <= 1e-2f,
+                  "package coloured: the red box carries its red colour (per the XDE's colour mode)");
+            check(!redInfo.anyMaterialZero, "package coloured: the styled box has no material (the colour is the style)");
+            const auto plainInfo = readMesh(plainMesh);
+            check(plainInfo.anyMaterialZero, "package coloured: the unstyled box carries the DefaultMaterial index");
+            // The hidden state of the named corpus is not in this fixture; the layer corpus below
+            // carries the hidden evidence (the shape's own visibility, the 7.9.3 XDE's round trip).
+        }
+
+        // R098.b item 4 (ADR 0172 section 4): the layer corpus. The layer becomes the step.Layer
+        // property on the body; a layer that is off or frozen imports its bodies hidden with the
+        // notice. The 7.9.3 writer writes every layer 'visible' (the layer's off state does not
+        // survive the XDE round trip), so the hidden evidence is the shape's own visibility, which
+        // the reader carries back through the XDE's colour tool.
+        const auto layered = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-layered.step"), {});
+        check(layered.code == 0 && layered.json.value("status").toString() == "ok",
+              "package import (layered): ok");
+        check(layered.json.value("meshes").toInt() == 2 && layered.json.value("converted").toInt() == 2
+              && layered.json.value("nodes").toInt() == 3,
+              "package import (layered): two products, two meshes, three nodes");
+        const QString layeredPackage = temp.filePath("sketchyup-step-layered.step.pkg");
+        check(checkPackage(layeredPackage).isEmpty(), "package decode (layered): " + checkPackage(layeredPackage).toStdString());
+        {
+            QFile in(layeredPackage);
+            check(in.open(QIODevice::ReadOnly), "the layered package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 3, "package layered: three manifest nodes");
+            if (nodes.size() == 3) {
+                int layeredNode = -1, hiddenNode = -1;
+                for (int i = 1; i < 3; ++i) {
+                    const auto node = nodes.at(i).toObject();
+                    if (node.value("name").toString() == "Layered") layeredNode = i;
+                    if (node.value("name").toString() == "Hidden") hiddenNode = i;
+                }
+                check(layeredNode >= 0 && hiddenNode >= 0, "package layered: the two named products");
+                // The layer's name is the step.Layer property on the body.
+                const auto props = nodes.at(layeredNode).toObject().value("props").toArray();
+                bool layerProp = false;
+                for (const auto &value : props) {
+                    const auto prop = value.toArray();
+                    // [set, name, origin, type, value]
+                    if (prop.size() == 5 && prop.at(0).toString() == "step" && prop.at(1).toString() == "Layer"
+                          && prop.at(4).toString() == "LayerA")
+                        layerProp = true;
+                }
+                check(layerProp, "package layered: the layer is the step.Layer property on the body");
+                check(!nodes.at(layeredNode).toObject().value("hidden").toBool(),
+                      "package layered: the layer's shape is visible (the layer is visible)");
+                check(nodes.at(hiddenNode).toObject().value("hidden").toBool(),
+                      "package layered: the shape the file marks invisible is hidden");
+            }
+            // The invisible-shape notice (the import counts it, the ADR 0172 section 7 report).
+            const auto notices = manifest.value("report").toObject().value("notices").toArray();
+            int invisible = 0;
+            for (const auto &value : notices) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "invisibleShapes")
+                    invisible += notice.value("count").toInt();
+            }
+            check(invisible == 1, "package layered: the invisible shape is a notice");
         }
 
         // The unit policy (decision 4) held by the package import: the declared unit is
@@ -622,8 +1153,8 @@ int main(int argc, char **argv) {
         const auto budget = run({worker, "--import-step", temp.filePath("sketchyup-step-assembly.step"),
                                 "--output", temp.filePath("budget.pkg"), "--step-max-total-triangles", "50"});
         check(budget.code == 0, "package import (the 104-triangle assembly, total cap 50): the first fits");
-        check(budget.json.value("converted").toInt() == 1 && budget.json.value("omitted").toInt() == 1,
-              "package import (total cap 50): the box converts, the cylinder is reported omitted");
+        check(budget.json.value("converted").toInt() == 2 && budget.json.value("omitted").toInt() == 1,
+              "package import (total cap 50): the group and the box convert, the cylinder is reported omitted");
         const auto deflection = run({worker, "--import-step", boxFile, "--output", temp.filePath("bad.pkg"),
                                      "--step-deflection-mm", "0"});
         check(deflection.code == 3 && deflection.json.value("status").toString() == "refused",

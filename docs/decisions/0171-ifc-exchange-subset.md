@@ -2325,7 +2325,7 @@ by `Window::setIfcWorkerPath`:
 The driver and the stand-in helper follow the R097.e1 suite; the suite runs offscreen for CI parity, the
 same way the import suite does.
 
-## Implementation notes (R098.e1, 2026-10-25)
+## Implementation notes (exchange screens refactor, 2026-10-25)
 
 The screens refactor: the IFC import, the STEP import and the IFC export share the runner, the
 progress sheet, the report and the sheet builders (the ADR 0172 R098.a3 note's "about 400 lines

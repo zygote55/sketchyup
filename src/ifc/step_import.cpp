@@ -1,7 +1,8 @@
-// The STEP import (ADR 0172, R098.a and R098.a2): the file's metadata through the basic OCCT
-// reader and the unit policy of §2, and the tessellated import - the reader's transferred
-// solids tessellated with BRepMesh and shipped in the conversion package. Nothing is ever
-// silently rescaled and a unit is never guessed.
+// The STEP import (ADR 0172, R098.a, R098.a2 and R098.b): the file's metadata through the
+// basic OCCT reader and the unit policy of §2, and the package import - R098.b's XDE tree
+// (the assemblies, the instances, the names, the colours, the layers and the provenance)
+// tessellated with BRepMesh and shipped in the conversion package. Nothing is ever silently
+// rescaled and a unit is never guessed.
 //
 // The tessellation (R098.a2, ADR 0172 §3) uses the OpenCASCADE 7.9.3 API as installed
 // (the pinned build's headers; the same spelling the probe records):
@@ -38,15 +39,41 @@
 #include "Interface_EntityIterator.hxx"
 #include "Poly_Triangle.hxx"
 #include "Poly_Triangulation.hxx"
+#include "Quantity_ColorRGBA.hxx"
+#include "STEPCAFControl_Reader.hxx"
 #include "STEPControl_Reader.hxx"
 #include "Standard_Failure.hxx"
 #include "StepData_StepModel.hxx"
+#include "TColStd_HArray1OfInteger.hxx"
+#include "TColStd_HArray1OfReal.hxx"
+#include "TColStd_HSequenceOfExtendedString.hxx"
 #include "TColStd_SequenceOfAsciiString.hxx"
+#include "TColStd_DataMapOfStringInteger.hxx"
+#include "TDataStd_DataMapOfStringByte.hxx"
+#include "TCollection_ExtendedString.hxx"
+#include "TDataStd_DataMapOfStringHArray1OfInteger.hxx"
+#include "TDataStd_DataMapOfStringHArray1OfReal.hxx"
+#include "TDataStd_DataMapOfStringReal.hxx"
+#include "TDataStd_DataMapOfStringString.hxx"
+#include "TDataStd_Name.hxx"
+#include "TDataStd_NamedData.hxx"
+#include "TDF_ChildIterator.hxx"
+#include "TDF_Label.hxx"
+#include "TDF_LabelSequence.hxx"
+#include "TDF_TagSource.hxx"
+#include "TDocStd_Document.hxx"
 #include "TopExp_Explorer.hxx"
+#include "TopLoc_Location.hxx"
+#include "XCAFDoc_ColorTool.hxx"
+#include "XCAFDoc_DocumentTool.hxx"
+#include "XCAFDoc_LayerTool.hxx"
+#include "XCAFDoc_ShapeTool.hxx"
+#include "XSControl_WorkSession.hxx"
 #include "TopoDS.hxx"
 #include "TopoDS_Face.hxx"
 #include "TopoDS_Shape.hxx"
 #include "TopoDS_Solid.hxx"
+#include "gp_Trsf.hxx"
 
 // The OpenCASCADE spelling (7.9+ installs Standard_VersionInfo.hxx, 7.8 the other way
 // round), as the probe selects it.
@@ -70,6 +97,9 @@ const long long kMaxInputBytes = 128ll * 1024 * 1024;  // the application's inpu
 const double kCoordinateLimit = 1e6;  // metres (the package's coordinate bound, ADR 0172 §6)
 const double kDegenerateArea = 1e-12;  // m^2: a triangle this small is counted, not hidden
 const double kPi = 3.14159265358979323846;
+const int kMaxTreeDepth = 127;  // a walked tree level: the package node's level (its parents + the
+                                // root) must stay at the decoder's depth limit (128)
+const int kMaxMetadataEntries = 64;  // a part's metadata, truncated (a property text is 2048 bytes)
 
 // ADR 0172 §2: the --step-length-unit option values as a factor of metres.
 bool optionFactor(const std::string& unit, double& metres) {
@@ -100,26 +130,6 @@ bool optionFactor(const std::string& unit, double& metres) {
 // reader made of it).
 bool factorMismatch(const double raw, const double model) {
   return std::abs(raw - model) > 1e-9 * std::max(1.0, std::abs(model));
-}
-
-// The factor to metres of a unit name as STEPControl_Reader::FileUnits returns it (the same
-// table as the probe's, so the report and the import agree): the SI unit as getSiName
-// spells it (a lowercase prefix, the base "metre"; no prefix the plain metre), the
-// conversion unit as the file wrote its quoted name. nullopt: declared but not
-// convertible from the name.
-std::optional<double> unitMetres(const std::string& name) {
-  static const std::map<std::string, double> factors = {
-      {"millimetre", 1e-3}, {"centimetre", 1e-2}, {"decimetre", 1e-1}, {"metre", 1.0},
-      {"decametre", 1e1}, {"hectometre", 1e2}, {"kilometre", 1e3}, {"megametre", 1e6},
-      {"gigametre", 1e9}, {"terametre", 1e12}, {"petametre", 1e15}, {"exametre", 1e18},
-      {"nanometre", 1e-9}, {"micrometre", 1e-6}, {"picometre", 1e-12}, {"femtometre", 1e-15},
-      {"attometre", 1e-18},
-      {"inch", 0.0254}, {"foot", 0.3048},
-  };
-  std::string folded = name;
-  for (std::size_t i = 0; i < folded.size(); ++i) folded[i] = std::tolower(static_cast<unsigned char>(folded[i]));
-  const auto entry = factors.find(folded);
-  return entry == factors.end() ? std::nullopt : std::optional<double>(entry->second);
 }
 
 struct UnitDecision {
@@ -183,104 +193,172 @@ UnitDecision decideUnits(const StepFileFacts& file, const StepModelFacts& model,
   return units;
 }
 
-// One transferred shape for the tessellation: its solids (the importable entities, ADR
-// 0172 §3) and its free faces (surfaces without volume, reported as not imported).
-struct StepShapeTessellation {
-  TopoDS_Shape shape;
-  std::vector<TopoDS_Shape> solids;
-  long long faces = 0;
-  long long freeFaces = 0;
+// ---------------------------------------------------------------------------
+// R098.b: the XDE tree (the assemblies, the instances, the names, the colours,
+// the layers and the provenance - ADR 0172 section 4).
+//
+// STEPCAFControl_Reader transfers the file into a TDocStd_Document: the product
+// structure is an XDE shape tree (an assembly label with component and
+// reference children, a part label with its shape, a reference label for a
+// repeated shape), and the file's colours (XCAFDoc_ColorTool), the layer
+// visibility (XCAFDoc_LayerTool) and the named data (TDataStd_NamedData) come
+// with it. The package is the section 4 tree: the root, an assembly a group,
+// a part an element.
+//
+// A part's instances share the base's mesh (in the base's own frame); the node's transform
+// carries the placement (the base's location, then the instance's). A mirror placement's
+// negative determinant is affine (the decoder admits it), so a mirrored instance is the
+// shared mesh under a mirrored transform, not a baked copy.
+//
+// The unit policy (decision 4) rides the reader's own unit handling: with a
+// resolved unit context the transfer has normalised the geometry to the
+// cascade unit (millimetres) and nothing is rescaled; without one the raw
+// text's first declaration converts the geometry, flagged; the option stands
+// only for a file that declares nothing; a unit is never guessed. The one
+// scale step is the file-unit number to metres (toMetres), exactly as the
+// metadata report's mmPerUnit says it is.
+
+// An ExtendedString (UTF-16 code units, the reader's strings) as UTF-8 bytes (its
+// ToUTF8CString fills a pre-allocated buffer and returns its length; its
+// LengthOfCString sizes that buffer). The app's names are bytes (UTF-8).
+std::string toUtf8(const TCollection_ExtendedString& s) {
+  const int len = s.LengthOfCString();
+  if (len <= 0) return {};
+  std::string out;
+  out.resize(static_cast<std::size_t>(len) + 1);  // the NUL its ToUTF8CString writes
+  char* buf = &out[0];  // its ToUTF8CString takes a non-const reference (it nulls it on failure)
+  const int used = s.ToUTF8CString(buf);
+  out.resize(static_cast<std::size_t>(used < 0 ? 0 : used));
+  return out;
+}
+
+// A label's name (the XDE's auto- or file-given name; the TDataStd_Name - 7.9
+// has no name tool).
+std::string labelName(const TDF_Label& L) {
+  Handle(TDataStd_Name) name;
+  if (L.FindAttribute(TDataStd_Name::GetID(), name) && !name->Get().IsEmpty())
+    return toUtf8(name->Get());
+  return {};
+}
+
+// A part's colour: the XDE's colour entry (the surface over the curve over the
+// generic, the specific over the generic) with the file's transparency. A fully
+// transparent colour is no colour (the package carries RGB); a partial one keeps
+// its RGB and the dropped transparency is a notice.
+struct ColorDecision {
+  bool rgb = false;
+  std::array<float, 3> color{};
+  bool alphaDropped = false;
 };
 
-struct StepTessellationModel {
-  StepModelFacts facts;  // the model's facts (read, schema, units, entities, roots, transferred)
-  std::vector<StepShapeTessellation> shapes;
+ColorDecision colorOf(const TDF_Label& L) {
+  ColorDecision out;
+  const XCAFDoc_ColorType types[3] = {XCAFDoc_ColorSurf, XCAFDoc_ColorCurv, XCAFDoc_ColorGen};
+  for (const XCAFDoc_ColorType type : types) {
+    Quantity_ColorRGBA rgba;
+    if (!XCAFDoc_ColorTool::GetColor(L, type, rgba)) continue;
+    out.rgb = true;
+    out.color = {static_cast<float>(rgba.GetRGB().Red()), static_cast<float>(rgba.GetRGB().Green()),
+                 static_cast<float>(rgba.GetRGB().Blue())};
+    if (rgba.Alpha() <= 0.0f) {
+      out.rgb = false;  // fully transparent: no colour to carry
+      out.alphaDropped = true;
+      return out;
+    }
+    if (rgba.Alpha() < 1.0f) out.alphaDropped =  true;  // the transparency is dropped (a notice)
+    return out;
+  }
+  return out;
+}
+
+// A label's layers: their names (the layer labels' names, joined) and the file's
+// layer visibility (an invisible layer hides its shapes).
+struct LayerDecision {
+  std::string name;
+  bool hidden = false;
 };
 
-// Read, transfer and keep the shapes for the tessellated import (the probe's reader, with
-// the shapes retained and the free faces counted).
-StepTessellationModel readStepTessellationModel(const std::string& path) {
-  StepTessellationModel m;
-  m.facts.unitsDeclared = stepFileFacts(path).lengthDeclared;  // the "declared" fact (the raw text)
-  STEPControl_Reader reader;
-  try {
-    const IFSelect_ReturnStatus status = reader.ReadFile(path.c_str());
-    m.facts.read = status == IFSelect_RetDone;
-    m.facts.readStatus = m.facts.read ? "done" : status == IFSelect_RetFail ? "fail" : "error";
-  } catch (const Standard_Failure& failure) {
-    m.facts.readStatus = "exception";
-    m.facts.error = failure.GetMessageString();
-    return m;
+LayerDecision layersOf(const TDF_Label& L, const TDF_Label& layersSection) {
+  LayerDecision out;
+  const Handle(XCAFDoc_LayerTool) hTool = XCAFDoc_LayerTool::Set(layersSection);  // the document's layer tool (the Layers section)
+  if (hTool.IsNull()) return out;
+  XCAFDoc_LayerTool tool = *hTool;
+  TDF_LabelSequence layers;
+  if (!tool.GetLayers(L, layers) || layers.Length() == 0) return out;
+  for (int i = 1; i <= layers.Length(); ++i) {
+    if (i > 1) out.name += "; ";
+    out.name += labelName(layers.Value(i));
+    out.hidden = out.hidden || !tool.IsVisible(layers.Value(i));
   }
-  if (!m.facts.read) return m;
-  try {
-    const Handle(StepData_StepModel) model = Handle(StepData_StepModel)::DownCast(reader.Model());
-    if (model.IsNull()) {
-      m.facts.read = false;
-      m.facts.readStatus = "no-model";
-      return m;
+  return out;
+}
+
+// A label's named data (the reader's ReadMetadata) as a `k=v` text: the strings
+// first, then the reals, the integers and the arrays (joined with `,`), the
+// bytes as two hex digits; truncated at kMaxMetadataEntries.
+std::string metadataOf(const TDF_Label& L, bool& truncated) {
+  Handle(TDataStd_NamedData) data;
+  if (!L.FindAttribute(TDataStd_NamedData::GetID(), data)) return {};
+  std::string text;
+  int count = 0;
+  truncated = false;
+  auto take = [&](const std::string& k, const std::string& v) {
+    if (count >= kMaxMetadataEntries) {
+      truncated = true;
+      return;
     }
-    // The schema: the header's FILE_SCHEMA entity (7.9 has no static GetID; walk the
-    // header, as the probe does).
-    Handle(HeaderSection_FileSchema) fileSchema;
-    Interface_EntityIterator header = model->Header();
-    while (header.More()) {
-      fileSchema = Handle(HeaderSection_FileSchema)::DownCast(header.Value());
-      if (!fileSchema.IsNull()) break;
-      header.Next();
-    }
-    if (!fileSchema.IsNull()) {
-      for (int i = 1; i <= fileSchema->NbSchemaIdentifiers(); ++i) {
-        if (i > 1) m.facts.schema += " ";
-        m.facts.schema += fileSchema->SchemaIdentifiersValue(i)->ToCString();
-      }
-    }
-    // The unit the file applies to its shapes (FileUnits; the model-level source the raw
-    // text's factor stands behind when it resolves no unit - decideUnits carries the
-    // policy).
-    TColStd_SequenceOfAsciiString length, angle, solid;
-    reader.FileUnits(length, angle, solid);
-    if (length.Length() > 0) {
-      m.facts.lengthUnit = length.Value(1).ToCString();
-      m.facts.lengthUnitResolved = true;
-    }
-    if (angle.Length() > 0) m.facts.angleUnit = angle.Value(1).ToCString();
-    if (solid.Length() > 0) m.facts.solidAngleUnit = solid.Value(1).ToCString();
-    if (const auto metres = unitMetres(m.facts.lengthUnit)) m.facts.lengthMetres = *metres;
-    m.facts.entities = reader.Model()->NbEntities();
-    m.facts.roots = reader.NbRootsForTransfer();
-    m.facts.transferred = reader.TransferRoots();
-    for (int i = 1; i <= reader.NbShapes(); ++i) {
-      StepShapeTessellation st;
-      st.shape = reader.Shape(i);
-      {
-        TopExp_Explorer e(st.shape, TopAbs_FACE);
-        while (e.More()) {
-          ++st.faces;
-          e.Next();
-        }
-      }
-      long long solidFaces = 0;
-      TopExp_Explorer e(st.shape, TopAbs_SOLID);
-      while (e.More()) {
-        const TopoDS_Shape solid = e.Current();
-        {
-          TopExp_Explorer f(solid, TopAbs_FACE);
-          while (f.More()) {
-            ++solidFaces;
-            f.Next();
-          }
-        }
-        st.solids.push_back(solid);
-        e.Next();
-      }
-      st.freeFaces = std::max(0LL, st.faces - solidFaces);
-      m.shapes.push_back(std::move(st));
-    }
-  } catch (const Standard_Failure& failure) {
-    m.facts.error = failure.GetMessageString();
+    if (count++ > 0) text += "; ";
+    text += k + "=" + v;
+  };
+  auto takeKey = [&](const TCollection_ExtendedString& k, const std::string& v) { take(toUtf8(k), v); };
+  {
+    const TDataStd_DataMapOfStringString& m = data->GetStringsContainer();
+    for (TDataStd_DataMapOfStringString::Iterator it(m); it.More(); it.Next())
+      takeKey(it.Key(), toUtf8(it.Value()));
   }
-  return m;
+  {
+    const TDataStd_DataMapOfStringReal& m = data->GetRealsContainer();
+    for (TDataStd_DataMapOfStringReal::Iterator it(m); it.More(); it.Next())
+      takeKey(it.Key(), std::to_string(it.Value()));
+  }
+  {
+    const TColStd_DataMapOfStringInteger& m = data->GetIntegersContainer();
+    for (TColStd_DataMapOfStringInteger::Iterator it(m); it.More(); it.Next())
+      takeKey(it.Key(), std::to_string(it.Value()));
+  }
+  {
+    const TDataStd_DataMapOfStringHArray1OfInteger& m = data->GetArraysOfIntegersContainer();
+    for (TDataStd_DataMapOfStringHArray1OfInteger::Iterator it(m); it.More(); it.Next()) {
+      const Handle(TColStd_HArray1OfInteger) a = it.Value();
+      std::string joined;
+      for (int i = 1; i <= a->Length(); ++i) {
+        if (i > 1) joined += ",";
+        joined += std::to_string(a->Value(i));
+      }
+      takeKey(it.Key(), joined);
+    }
+  }
+  {
+    const TDataStd_DataMapOfStringHArray1OfReal& m = data->GetArraysOfRealsContainer();
+    for (TDataStd_DataMapOfStringHArray1OfReal::Iterator it(m); it.More(); it.Next()) {
+      const Handle(TColStd_HArray1OfReal) a = it.Value();
+      std::string joined;
+      for (int i = 1; i <= a->Length(); ++i) {
+        if (i > 1) joined += ",";
+        joined += std::to_string(a->Value(i));
+      }
+      takeKey(it.Key(), joined);
+    }
+  }
+  {
+    const TDataStd_DataMapOfStringByte& m = data->GetBytesContainer();
+    for (TDataStd_DataMapOfStringByte::Iterator it(m); it.More(); it.Next()) {
+      const int v = it.Value();
+      const char hex[3] = {static_cast<char>(std::toupper(v >> 4 & 0xF)), static_cast<char>(std::toupper(v & 0xF)), 0};
+      takeKey(it.Key(), std::string(hex));
+    }
+  }
+  return text;
 }
 
 // A solid's mesh (ADR 0172 §3): BRepMesh at the options' deflection (the cascade unit,
@@ -307,8 +385,15 @@ bool mirrorLocation(const TopLoc_Location& loc) {
   return det < 0.0;
 }
 
+// The winding the decoder will see. The tessellator's raw winding is the face's own
+// orientation under the shape's own location (a mirror location reverses it, the ADR 0172
+// section 7 mirrored-solid measurement); the node's transform applies on top, and a
+// negative-determinant transform reverses the winding a second time. So the raw winding
+// is flipped when the face-orientation rule and the instance's handedness disagree: a
+// forward face under a mirror instance is stored reversed so the decoder's mirror leaves
+// it outward, and a reversed face under a mirror instance is stored forward.
 SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, const double angleRadians,
-                          const double metresPerUnit) {
+                          const double metresPerUnit, const bool instanceMirror) {
   SolidMesh out;
   try {
     // The constructor performs the meshing (OCCT 7.9.3; not parallel, so the output is
@@ -328,10 +413,14 @@ SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, 
       const Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(f, loc);
       if (!tri.IsNull()) {
         ++out.faces;
-        // The winding is the product of the face's orientation and the location's handedness:
-        // a reversed face under a mirror location is reversed twice, which is forward —
-        // XOR, not OR (each rule fires once).
-        const bool flip = (f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc);
+        // The winding is the product of three factors, XOR (each reverses at most once):
+        // the face's REVERSED orientation, the storage-location's handedness (a mirror
+        // location reverses the winding the storage-to-face transform applies, the ADR
+        // 0172 section 7 rule), and the instance's transform (the decoder applies the
+        // node transform on top of the mesh; a negative-determinant transform reverses
+        // the winding a second time, so a mirror instance stores the base's winding
+        // flipped and comes out outward).
+        const bool flip = (f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc) != instanceMirror;
         // Each node of the face's triangulation once (transformed and scaled); the triangles
         // index into them. A node written per triangle would repeat the shared nodes up to
         // six times (about 72 MB of vertex data at the 1,000,000-triangle cap, close to the
@@ -566,42 +655,27 @@ int runStepImportPackage(const StepImportOptions& options) {
   if (options.maxTrianglesPerElement < 1) return refuse("cap", "The per-element triangle cap must be at least 1.");
   if (options.maxTotalTriangles < 1) return refuse("cap", "The total triangle cap must be at least 1.");
 
-  const StepTessellationModel in = readStepTessellationModel(options.file);
-  const StepModelFacts& model = in.facts;
+  // ADR 0172 §2 decision 4 (the probe's facts as the source): the file's declaration wins a mismatch,
+  // the option stands only for a file that declares nothing, an unconvertible unit is refused, a unit
+  // is never guessed. The XDE transfer carries the geometry through the reader's own unit handling
+  // (a resolved unit context normalises it to the cascade unit, millimetres; without one it stays in
+  // the file's own unit), so the one scale step is the file's unit to metres (toMetres, the report's
+  // mmPerUnit). Nothing is ever silently rescaled.
+  const StepModelFacts model = readStepModel(options.file);
   if (!model.read || !model.error.empty())
     return refuse("read", model.error.empty() ? "The STEP reader failed to read the file." : clip(model.error, 200));
-
   const UnitDecision units = decideUnits(file, model, options.lengthUnitOverride);
   if (!units.status.empty()) return refuse(units.status == "refused-option" ? "option" : "units", units.notices.front());
-  const double metresPerUnit = units.mmPerUnit * 0.001;  // mm -> m: the package's unit, the only scale step
-
-  if (in.shapes.empty()) return refuse("nothingToImport", "The file read, but no shape could be transferred.");
-  long long totalSolids = 0, noSolidShapes = 0, freeFaces = 0;
-  for (const StepShapeTessellation& s : in.shapes) {
-    totalSolids += static_cast<long long>(s.solids.size());
-    if (s.solids.empty()) ++noSolidShapes;
-    freeFaces += s.freeFaces;
-  }
-  // ADR 0172 §3: the accounting identity (converted + supporting + omitted = counted) is
-  // kept with the solids as the counted entities, a shape without a solid counting for its
-  // not-imported share, and a solid's free faces reported, never silently dropped.
-  long long slots = totalSolids + noSolidShapes;
-
+  const double toMetres = units.mmPerUnit * 0.001;  // file unit -> metres: the package's unit, the only scale step
   Report report;
-  long long converted = 0, omitted = 0, unsupported = 0, triangles = 0, degenerate = 0, faces = 0;
-  for (const StepShapeTessellation& s : in.shapes) {
-    if (s.solids.empty()) report.notImported("shape", "no-solid", 1);
-    if (s.freeFaces > 0) report.notImported("face", "free-surface", s.freeFaces);
-  }
-  if (noSolidShapes > 0) report.notice("noSolidShapes", noSolidShapes);
-  if (freeFaces > 0) report.notice("freeFaces", freeFaces);
+  for (const std::string& notice : units.notices) report.notice(notice, 1);
 
-  progress.phase("tessellate");
-  progress.tasks(slots);
+  // The package's fixed fields (independent of the document): the engine, the source facts and
+  // the unit decision (ADR 0172 §2, the report's units block).
   PackageData package;
   package.engineJson = engineReportJson();
   JsonOut source;
-  source.beginObject().field("file", baseName(options.file)).field("bytes", file.bytes).field("schema", file.schema).field("schemaRaw", file.schemaRaw).field("entities", model.entities).endObject();
+  source.beginObject().field("file", baseName(options.file)).field("bytes", file.bytes).field("schema", file.schema).field("schemaRaw", file.schemaRaw).field("sha256", file.sha256).field("entities", model.entities).endObject();
   package.sourceJson = source.str();
   JsonOut unitsJson;
   unitsJson.beginObject()
@@ -612,104 +686,441 @@ int runStepImportPackage(const StepImportOptions& options) {
       .field("modelLengthMetres", model.lengthMetres)
       .field("applied", units.applied)
       .field("mmPerUnit", units.mmPerUnit)
-      .field("metresPerUnit", metresPerUnit)
+      .field("metresPerUnit", toMetres)
       .field("angle", file.angle)
       .field("solidAngle", file.solidAngle)
       .endObject();
   package.unitsJson = unitsJson.str();
-  for (const std::string& notice : units.notices) report.notice(notice, 1);
 
-  std::vector<TopoDS_Shape> slot;  // every solid, and a marker per solid-less shape
-  slot.reserve(slots);
-  auto mark = [&] { slot.push_back(TopoDS_Shape()); };
-  for (const StepShapeTessellation& s : in.shapes) {
-    if (s.solids.empty()) mark();
-    for (const TopoDS_Shape& solid : s.solids) slot.push_back(solid);
+  // The XDE read: the file's product structure (the assemblies, the instances), its colours,
+  // its layers and its named data, into a TDocStd_Document (STEPCAFControl_Reader's Transfer fills it).
+  // Its modes on (the default constructor's): the colours, the layers, the names and the
+  // properties (the TDataStd_NamedData) transfer with it.
+  Handle(XSControl_WorkSession) ws(new XSControl_WorkSession());
+  STEPCAFControl_Reader xde(ws, Standard_False);  // its controller's Init registers the STEP norm for the session
+  if (!ws->SelectNorm("STEP"))  // without a norm the session has no work library: the read could not happen
+    return refuse("read", "The STEP reader's session could not select the STEP norm.");
+  xde.SetColorMode(Standard_True);
+  xde.SetLayerMode(Standard_True);
+  xde.SetNameMode(Standard_True);
+  xde.SetPropsMode(Standard_True);
+  Handle(TDocStd_Document) doc(new TDocStd_Document("XCAF"));
+  try {
+    if (xde.ReadFile(options.file.c_str()) != IFSelect_RetDone)
+      return refuse("read", "The STEP reader failed to read the file.");
+  } catch (const Standard_Failure& failure) {
+    return refuse("read", clip(failure.GetMessageString(), 200));
   }
-  int solidOrdinal = 0;
-  for (long long i = 0; i < static_cast<long long>(slot.size()); ++i) {
-    progress.at(i);
-    const TopoDS_Shape& s = slot[static_cast<std::size_t>(i)];
-    if (s.IsNull()) {  // a solid-less shape: omitted and reported, nothing to convert
-      ++omitted;
+  if (xde.NbRootsForTransfer() == 0) return refuse("nothingToImport", "The file read, but no shape could be transferred.");
+  try {
+    if (!xde.Transfer(doc)) return refuse("nothingToImport", "The reader could not transfer the file into the document.");
+  } catch (const Standard_Failure& failure) {
+    return refuse("read", clip(failure.GetMessageString(), 200));
+  }
+  // The XDE's shape and layer tools attach to the document's sections (the Shapes and the Layers),
+  // not to the document's main label (which holds the sections, not the shapes).
+  const TDF_Label shapes = XCAFDoc_DocumentTool::ShapesLabel(doc->Main());
+  const TDF_Label layers = XCAFDoc_DocumentTool::LayersLabel(doc->Main());
+  const Handle(XCAFDoc_ShapeTool) hShapeTool = XCAFDoc_ShapeTool::Set(shapes);
+  if (hShapeTool.IsNull()) return refuse("no-shape-tool", "The document holds no shape tool.");
+  XCAFDoc_ShapeTool shapeTool = *hShapeTool;  // the document's shape tool (its Shapes section)
+
+  // The top-level products (the Shapes section's children): the assemblies and the free shapes (a
+  // shape that is a reference's base - repeated - is not a product of its own; XDE keeps it in
+  // the section for the reference to point at, and its IsFree is false).
+
+  // The tree in walk order (a parent before its children): the label (its own entry), its base (the
+  // reference's referred shape, or the label itself), the parent (in the walk order) and whether the
+  // label is a reference (the instance evidence; a reference is one use of a repeated shape).
+  struct FlatNode {
+    std::int32_t tag = -1;  // the label's tag (-1: a label the XDE left untagged)
+    TDF_Label label;
+    std::size_t baseIndex = 0;  // its base in the unique-bases list (its mesh, its accounting)
+    TDF_Label base;
+    long long parent = -1;
+    bool reference = false;
+    std::array<double, 16> transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};  // local (to the parent)
+    double detLocal = 1.0;  // the 3x3's determinant (1: identity or a degenerate placement)
+    double detChain = 1.0;   // the product of the chain's (the decoder composes the chain)
+    bool nonIdentity = false;
+    bool provenancePlaced = false;
+    bool degenerate = false;
+    bool isAssembly = false;
+  };
+  std::vector<FlatNode> order;
+  std::vector<TDF_Label> baseLabels;  // the unique bases (their label identity - IsEqual - the XDE
+                                     // leaves its component and base labels untagged, so the tag
+                                     // is no key), first-seen order
+  bool treeTooDeep = false;
+  auto baseIndexOf = [&](const TDF_Label& B) -> std::size_t {
+    for (std::size_t k = 0; k < baseLabels.size(); ++k)
+      if (baseLabels[k].IsEqual(B)) return k;
+    baseLabels.push_back(B);
+    return baseLabels.size() - 1;
+  };
+  auto walk = [&](auto&& self, const TDF_Label& L, const long long parent, const int depth) -> void {
+    if (depth > kMaxTreeDepth) {
+      treeTooDeep = true;  // the package's node depth (128) is not left over
+      return;
+    }
+    FlatNode flat;
+    flat.tag = L.Tag();
+    flat.label = L;
+    flat.parent = parent;
+    if (shapeTool.IsAssembly(L)) {
+      flat.base = L;  // a group: its own label is its base (a group always converts, no mesh)
+    } else {
+      flat.reference = shapeTool.IsReference(L);
+      flat.base = L;
+      if (flat.reference) {
+        TDF_Label ref;
+        if (shapeTool.GetReferredShape(L, ref)) flat.base = ref;  // a repeated shape: the shape it refers to
+      }
+    }
+    flat.baseIndex = baseIndexOf(flat.base);
+    const long long index = static_cast<long long>(order.size());
+    order.push_back(flat);
+    if (shapeTool.IsAssembly(L)) {
+      TDF_LabelSequence comps;
+      shapeTool.GetComponents(L, comps);
+      for (int i = 1; i <= comps.Length(); ++i) self(self, comps.Value(i), index, depth + 1);
+    }
+  };
+  {
+    TDF_ChildIterator it(shapes);
+    while (it.More()) {
+      const TDF_Label L = it.Value();
+      it.Next();
+      if (shapeTool.IsAssembly(L) || shapeTool.IsFree(L)) walk(walk, L, -1, 0);
+    }
+  }
+
+  if (order.empty()) return refuse("nothingToImport", "The file transferred, but the document holds no shape.");
+  if (treeTooDeep) report.notice("treeTooDeep", 1);
+  // ADR 0172 §4: an element with no parent (a free part; a free assembly is a top-level group)
+  // goes under the top-level group, counted as a notice (the IFC uncontainedElements pattern).
+  long long uncontained = 0;
+  for (const auto& flat : order)
+    if (!flat.isAssembly && flat.parent < 0) ++uncontained;
+  if (uncontained > 0) report.notice("uncontainedElements", uncontained);
+
+  auto compose = [](const std::array<double, 16>& A, const std::array<double, 16>& B) {
+    std::array<double, 16> C{};
+    for (int r = 0; r < 4; ++r)
+      for (int c = 0; c < 4; ++c) {
+        double v = 0;
+        for (int k = 0; k < 4; ++k) v += A[r * 4 + k] * B[k * 4 + c];
+        C[r * 4 + c] = v;
+      }
+    return C;
+  };
+  auto placementOf = [&](const TDF_Label& L) {
+    std::array<double, 16> W = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    const TopLoc_Location loc = shapeTool.GetLocation(L);
+    if (!loc.IsIdentity()) {
+      const gp_Trsf& t = loc.Transformation();
+      for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 4; ++c) W[r * 4 + c] = t.Value(r + 1, c + 1);
+    }
+    return W;
+  };
+  auto det3 = [](const std::array<double, 16>& W) {
+    const double a = W[0], b = W[1], c = W[2], d = W[4], e = W[5], f = W[6], g = W[8], h = W[9], i = W[10];
+    return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+  };
+  // Each node's placement (ADR 0172 section 4): a point of a part's mesh (in the base's own
+  // frame, in metres) is mapped through the base's location, then the label's (the
+  // reference's instance placement); the node's transform is the local one (the decoder
+  // composes the tree), and a degenerate (non-finite) placement falls back to the identity
+  // (the base's mesh, as written). The 3x3's determinant (a mirror's -1, a translation's
+  // +1, unaffected by the translation scale) decides the tessellator's winding factor.
+  // The pre-pass runs before the nodes exist, so the placement count and the placed
+  // provenance are carried on the entry and applied to the node as it is emitted.
+  long long placedCount = 0;
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    FlatNode& flat = order[i];
+    std::array<double, 16> W = placementOf(flat.label);
+    if (!shapeTool.IsAssembly(flat.base) && flat.reference && flat.base != flat.label)
+      W = compose(W, placementOf(flat.base));
+    W[3] *= toMetres;  // the placement is in the file's unit, the mesh's in metres
+    W[7] *= toMetres;
+    W[11] *= toMetres;
+    flat.isAssembly = shapeTool.IsAssembly(flat.base);
+    bool finite = true;
+    for (double v : W) finite = finite && std::isfinite(v);
+    if (!finite) {
+      flat.degenerate = true;  // a degenerate location: the identity (the base's mesh, as written)
+      W = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+      if (!shapeTool.IsAssembly(flat.base)) report.notice("degeneratePlacement", 1);
+    }
+    flat.detLocal = det3(W);
+    flat.transform = W;
+    bool identity = true;
+    for (int r = 0; r < 4; ++r)
+      for (int c = 0; c < 4; ++c) identity = identity && std::abs(W[r * 4 + c] - (r == c ? 1.0 : 0.0)) < 1e-12;
+    flat.nonIdentity = !identity;
+    if (flat.nonIdentity && !shapeTool.IsAssembly(flat.base)) {
+      ++placedCount;
+      flat.provenancePlaced = true;  // the node's step.Placement provenance
+    }
+  }
+  // The chain's determinant: the decoder composes the chain (the world transform is the
+  // product of the chain's), and the winding's mirror factor is the chain's (a mirror
+  // ancestor reverses every descendant's winding).
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    const double parentDet = order[i].parent >= 0 ? order[static_cast<std::size_t>(order[i].parent)].detChain : 1.0;
+    order[i].detChain = order[i].detLocal * parentDet;
+  }
+
+  // The unique bases (the shapes the instances refer to), first-seen order: meshed once, shared by
+  // every instance. A group (an assembly) is always converted; a part is converted, omitted (a cap)
+  // or unsupported (nothing meshable) - the accounting stays the ADR 0172 §3 identity over the
+  // bases: converted + omitted + unsupported = bases.
+  long long converted = 0, omitted = 0, unsupported = 0;
+  long long triangles = 0, degenerate = 0, faces = 0, solidCount = 0, freeFaces = 0;
+  std::map<std::pair<std::size_t, int>, long long> baseMesh;  // (the base's index, its mirror
+                                                          // state) -> its package mesh
+  const double deflection = options.deflectionMm / units.mmPerUnit;  // millimetres, in the shape's (file's) unit
+  const double angleRadians = options.angleDeg * kPi / 180.0;
+  progress.phase("tessellate");
+  progress.tasks(static_cast<std::uint32_t>(baseLabels.size()));
+  for (std::size_t baseIndex_ = 0; baseIndex_ < baseLabels.size(); ++baseIndex_) {
+    progress.at(static_cast<std::uint32_t>(baseIndex_));
+    const TDF_Label& base = baseLabels[baseIndex_];
+    if (shapeTool.IsAssembly(base)) {
+      ++converted;  // a group, no mesh of its own (its parts carry the geometry)
       continue;
     }
-    if (triangles >= options.maxTotalTriangles) {
-      report.notImported("solid", "triangleBudget", 1);
-      ++omitted;
-      report.notice("triangleBudgetApplied", 1);
+    TopoDS_Shape shape;
+    shapeTool.GetShape(base, shape);
+    if (shape.IsNull()) {
+      report.notImported("StepPart", "no-shape", 1);
+      ++unsupported;
       continue;
     }
     std::string tooFar;
-    if (solidTooFarFromOrigin(s, metresPerUnit, tooFar)) return refuse("farFromOrigin", tooFar);
-    SolidMesh mesh = tessellateSolid(s, options.deflectionMm, options.angleDeg * kPi / 180.0, metresPerUnit);
+    if (solidTooFarFromOrigin(shape, toMetres, tooFar)) return refuse("farFromOrigin", tooFar);
+    // The shape's free faces (surfaces without volume, not imported: ADR 0172 §3) and its solids.
+    long long allFaces = 0, solidFaces = 0, solids = 0;
+    {
+      TopExp_Explorer e(shape, TopAbs_FACE);
+      while (e.More()) {
+        ++allFaces;
+        e.Next();
+      }
+      TopExp_Explorer s(shape, TopAbs_SOLID);
+      while (s.More()) {
+        ++solids;
+        TopExp_Explorer f(s.Current(), TopAbs_FACE);
+        while (f.More()) {
+          ++solidFaces;
+          f.Next();
+        }
+        s.Next();
+      }
+    }
+    solidCount += solids;
+    if (solids == 0) {
+      report.notImported("StepPart", "no-solids", 1);
+      report.notice("noSolids", 1);
+      ++omitted;  // a counted slot, omitted: nothing of volume to convert
+      continue;
+    }
+    if (allFaces > solidFaces) {
+      freeFaces += allFaces - solidFaces;
+      report.notImported("face", "free-surface", allFaces - solidFaces);
+      report.notice("freeFaces", allFaces - solidFaces);
+    }
+    // The base's primary variant: tessellated in the base's own frame (the storage frame: the
+    // tessellator's raw winding is the face's orientation under the shape's location, the ADR
+    // 0172 section 7 rule; the instance's mirror is the second factor, the flip argument).
+    SolidMesh mesh = tessellateSolid(shape, deflection, angleRadians, toMetres, false);
     if (!mesh.ok) {
-      report.notImported("solid", "tessellation-failed", 1);
+      report.notImported("StepPart", "tessellation-failed", 1);
       report.kernelMessage("tessellation", clip(mesh.error, 64), "error", clip(mesh.error, 240));
       ++unsupported;
       continue;
     }
     if (mesh.triangles == 0) {
-      report.notImported("solid", "no-triangles", 1);
+      report.notImported("StepPart", "no-triangles", 1);
       ++unsupported;
       continue;
     }
     if (mesh.triangles > options.maxTrianglesPerElement) {
-      report.notImported("solid", "meshTriangleLimit", 1);
-      ++omitted;
+      report.notImported("StepPart", "meshTriangleLimit", 1);
       report.notice("triangleCapApplied", 1);
+      ++omitted;
       continue;
     }
     if (triangles + mesh.triangles > options.maxTotalTriangles) {
-      report.notImported("solid", "triangleBudget", 1);
-      ++omitted;
+      report.notImported("StepPart", "triangleBudget", 1);
       report.notice("triangleBudgetApplied", 1);
+      ++omitted;
       continue;
     }
-    const int meshIndex = static_cast<int>(package.meshes.size());
+    const ColorDecision color = colorOf(base);  // the file's colour (the reader's colour propagation)
+    if (color.alphaDropped) report.notice("colorAlphaDropped", 1);
+    // A shape without a file colour takes the DefaultMaterial (0.7 grey) with the notice (the
+    // IFC pattern, ADR 0172 section 4): the package carries the material once, and the
+    // unstyled mesh's triangles reference it (a styled one keeps the no-material index - the
+    // colour is its own, per triangle).
+    std::uint32_t materialIndex = 0xFFFFFFFFu;
+    if (!color.rgb) {
+      if (package.materials.empty())
+        package.materials.push_back(PackageMaterial{"DefaultMaterial", {0.7f, 0.7f, 0.7f}, 1.0f});
+      materialIndex = 0u;
+      report.notice("defaultMaterial", 1);
+    }
     PackageMesh pm;
     pm.vertices = std::move(mesh.vertices);
     pm.triangles = std::move(mesh.indices);
-    // No material (0xFFFFFFFF, the decoder's noMaterial): the step import's colours and
-    // materials ride R098.b's mapping; the package's material list stays empty. One entry
-    // per triangle (the decoder reads one u32 per triangle, the manifest the /3 count).
-    pm.materials.assign(pm.triangles.size() / 3, 0xFFFFFFFFu);
+    pm.materials.assign(pm.triangles.size() / 3, materialIndex);
+    if (color.rgb) {
+      pm.colors.resize(pm.triangles.size() / 3);
+      for (auto& c : pm.colors) c = color.color;
+    }
     package.meshes.push_back(std::move(pm));
-    PackageNode node;
-    node.step = 0;  // the solid's shape index rides the provenance; the step is the app's own order
-    node.className = "IfcStepSolid";
-    node.name = "Solid " + std::to_string(++solidOrdinal);
-    node.role = "element";
-    node.parent = 0;  // the root node
-    node.mesh = meshIndex;
-    node.provenance.push_back({"step.Solid", static_cast<double>(solidOrdinal)});
-    package.nodes.push_back(std::move(node));
+    baseMesh[std::make_pair(baseIndex_, 0)] = static_cast<long long>(package.meshes.size()) - 1;
     triangles += mesh.triangles;
     degenerate += mesh.degenerate;
     faces += mesh.faces;
     ++converted;
+    // A mirror instance of this base takes its own variant: the shared winding is single, and
+    // the decoder's negative-determinant transform reverses it (the variant is tessellated
+    // with the winding flipped). The variant's failure (a cap) skips its instances only.
+    bool needMirror = false;
+    for (std::size_t i = 0; i < order.size(); ++i)
+      if (!order[i].isAssembly && order[i].baseIndex == baseIndex_ && order[i].detChain < 0.0) {
+        needMirror = true;
+        break;
+      }
+    if (needMirror) {
+      SolidMesh mirror = tessellateSolid(shape, deflection, angleRadians, toMetres, true);
+      if (mirror.ok && mirror.triangles > 0 && mirror.triangles <= options.maxTrianglesPerElement
+          && triangles + mirror.triangles <= options.maxTotalTriangles) {
+        PackageMesh mpm;
+        mpm.vertices = std::move(mirror.vertices);
+        mpm.triangles = std::move(mirror.indices);
+        mpm.materials.assign(mpm.triangles.size() / 3, materialIndex);
+        if (color.rgb) {
+          mpm.colors.resize(mpm.triangles.size() / 3);
+          for (auto& c : mpm.colors) c = color.color;
+        }
+        package.meshes.push_back(std::move(mpm));
+        baseMesh[std::make_pair(baseIndex_, 1)] = static_cast<long long>(package.meshes.size()) - 1;
+        triangles += mirror.triangles;
+        degenerate += mirror.degenerate;
+        faces += mirror.faces;
+      } else {
+        report.notice("mirrorVariantOmitted", 1);
+      }
+    }
   }
-  if (converted == 0) return refuse("nothingImported", "No solid could be converted; the package is not written.");
-  // The root: the file's product structure as one group (ADR 0172 §4's assembly mapping is
-  // R098.b; a flat tree under one root keeps the package decodable and the solids named).
+
+  // The package's nodes: the root (0) and one node per walked entry (the walk order, the package's
+  // node depth following the walk's, capped at 128, the package's depth limit). A part's instances
+  // share the base's mesh (in the base's own frame); the node's transform carries the placement
+  // (the base's location, then the instance's - a mirror's negative determinant is affine, the
+  // decoder admits it), and the application composes the tree (the world transform is the product
+  // of the chain's).
+  // The root: the file as the tree's root (ADR 0172 §4: the product structure under one root).
   PackageNode root;
+  root.step = 0;
   root.className = "IfcStepAssembly";
-  root.name = clip(baseName(options.file), 4096);
+  root.name = clip(baseName(options.file), 2048);  // the 2,048-byte name cap (ADR 0172 §4)
   root.role = "assembly";
   root.parent = -1;
   root.provenance.push_back({"step.Schema", file.schemaRaw});
-  root.provenance.push_back({"step.Source", baseName(options.file)});
+  root.provenance.push_back({"step.Source", file.sha256});  // the file's SHA-256 (ADR 0172 §4)
   root.provenance.push_back({"step.Entities", static_cast<double>(model.entities)});
-  package.nodes.insert(package.nodes.begin(), std::move(root));  // the root first: the node 0 every solid parents to
+  package.nodes.push_back(root);
+
+  std::vector<long long> pkgIndex;  // the walk's order -> its package node
+  pkgIndex.resize(order.size(), -1);
+  long long assemblyCount = 0, referenceCount = 0, bodyCount = 0;
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    const FlatNode& flat = order[i];
+    const long long parentPackage = flat.parent >= 0 ? pkgIndex[static_cast<std::size_t>(flat.parent)] : 0;
+    PackageNode node;
+    node.step = 0;  // the provenance carries the shape's tag; the step is the app's own order
+    node.parent = parentPackage;
+    node.provenance.push_back({"step.Entity", static_cast<double>(std::max(0, flat.tag))});
+    // ADR 0172 §4: the body resolves back to its origin - the entity, the schema, the file's digest.
+    node.provenance.push_back({"step.Schema", file.schemaRaw});
+    node.provenance.push_back({"step.Source", file.sha256});
+    const LayerDecision layerDecision = flat.isAssembly ? LayerDecision{} : layersOf(flat.base, layers);
+    if (flat.isAssembly) {
+      ++assemblyCount;
+      node.className = "IfcStepAssembly";
+      node.name = labelName(flat.label);
+      if (node.name.empty()) node.name = node.className;  // an unnamed assembly is named after its class
+      node.role = "assembly";
+      // The assembly's placement (its label's location; its children are placed relative to
+      // it), from the pre-pass (the degenerate fallback applied).
+      node.transform = flat.transform;
+    } else {
+      // The part's mesh: the base's, shared by every instance of the same handedness. A
+      // mirror instance (its chain's determinant -1, the decoder composes the chain) takes
+      // the mirror variant (tessellated with the winding flipped, the tessellateSolid's
+      // instanceMirror argument); a missing variant (its tessellation did not convert)
+      // has no node.
+      const auto key = std::make_pair(flat.baseIndex, flat.detChain < 0.0 ? 1 : 0);
+      const auto found = baseMesh.find(key);
+      if (found == baseMesh.end()) continue;
+      const long long mesh = found->second;
+      ++bodyCount;
+      node.className = "IfcStepSolid";
+      node.name = labelName(flat.base);  // the part's name (its base's; the file's product name)
+      if (node.name.empty()) node.name = node.className;  // an unnamed part is named after its class
+      node.role = "element";
+      node.mesh = mesh;
+      if (!layerDecision.name.empty()) node.properties.push_back(PackageNode::Property{"step", "Layer", 2, PackageValue(layerDecision.name)});
+      bool truncated = false;
+      const std::string metadata = metadataOf(flat.base, truncated);  // the part's metadata (its base's)
+      if (!metadata.empty()) {
+        node.properties.push_back(PackageNode::Property{"step", "Metadata", 2, PackageValue(clip(metadata, 2048))});
+        if (truncated) report.notice("metadataTruncated", 1);
+      }
+      // The part's placement (ADR 0172 section 4): a point of the base's mesh (in the base's
+      // own frame, in metres) is mapped through the base's location, then the label's (the
+      // reference's instance placement); the node's transform is the local one (the pre-pass
+      // applied the degenerate fallback, the placement count and the step.Placement
+      // provenance were tallied there, so a node is never skipped on the transform).
+      node.transform = flat.transform;
+      if (flat.provenancePlaced) node.provenance.push_back({"step.Placement", 1.0});
+      if (flat.reference) {
+        ++referenceCount;
+        node.provenance.push_back({"step.Reference", 1.0});
+      }
+    }
+    // The 2,048-byte cap (ADR 0172 §4): over it the name is truncated with the notice.
+    if (node.name.size() > 2048) {
+      report.notice("nameTruncated", 1);
+      node.name = clip(node.name, 2048);
+    }
+    node.hidden = !XCAFDoc_ColorTool::IsVisible(flat.label);
+    if (node.hidden) report.notice("invisibleShapes", 1);
+    if (layerDecision.hidden) {
+      node.hidden = true;
+      report.notice("layerHidden", 1);  // the file's layer visibility (an off layer hides its shapes)
+    }
+    pkgIndex[i] = static_cast<long long>(package.nodes.size());
+    package.nodes.push_back(std::move(node));
+  }
+  if (bodyCount == 0)
+    return refuse("nothingImported", "The file transferred, but no part with volume was converted; it is refused (ADR 0172 §3).");
 
   if (degenerate > 0) report.notice("degenerateTriangles", degenerate);
   JsonOut r;
   r.beginObject();
   r.field("apiVersion", 1);
   r.key("counts").beginObject()
-      .field("shapes", static_cast<long long>(in.shapes.size()))
-      .field("solids", totalSolids)
-      .field("slots", slots)
+      .field("shapes", static_cast<long long>(order.size()))
+      .field("solids", solidCount)
+      .field("slots", static_cast<long long>(baseLabels.size()))
+      .field("assemblies", assemblyCount)
+      .field("references", referenceCount)
+      .field("placed", placedCount)
       .field("converted", converted)
       .field("omitted", omitted)
       .field("unsupported", unsupported)

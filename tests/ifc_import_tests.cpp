@@ -3,6 +3,7 @@
 // (ADR 0171 section 6.3: A1-A5, B1-B5, C1, C4-C6, D1, D3, E1-E7, H1). Needs sketchyup-ifc-worker
 // (IFC_WORKER_PATH) and python3; exits 77 (skipped) when the helper is not built.
 #include "io/ifc_worker.hpp"
+#include "io/step_worker.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QFile>
@@ -28,6 +29,15 @@ IfcWorkerOptions workerOptions(int threads = 1) {
     IfcWorkerOptions options;
     options.workerPath = QStringLiteral(IFC_WORKER_PATH);
     options.threads = threads;
+    options.deadlineSeconds = 120;
+#ifdef IFC_NO_ADDRESS_LIMIT
+    options.addressSpaceBytes = 0;
+#endif
+    return options;
+}
+StepWorkerOptions stepWorkerOptions() {
+    StepWorkerOptions options;
+    options.workerPath = QStringLiteral(IFC_WORKER_PATH);
     options.deadlineSeconds = 120;
 #ifdef IFC_NO_ADDRESS_LIMIT
     options.addressSpaceBytes = 0;
@@ -663,6 +673,109 @@ int main(int argc, char **argv) {
             check(after.open(QIODevice::ReadOnly) && after.readAll() == sourceBytes, "CLI: the source stays byte exact");
         }
 #endif
+        // ---- STEP import (R098.b, ADR 0172): the instanced assembly through the application --------------
+        {
+            const StepWorkerOptions worker = stepWorkerOptions();
+            const auto imported = importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-instanced.step"), worker);
+            const auto &doc = imported.document;
+            // E1: validates as a whole; a save and reopen is bit-exact.
+            const auto container = encodeContainer(doc);
+            check(encodeContainer(decodeContainer(container)) == container, "step: save and reopen");
+            (void)decodeDocument(encodeDocument(doc));
+            // E5: one history entry, labelled Import STEP, and one undo removes everything.
+            const auto history = doc.history();
+            check(history.total == 1, "step: one history entry");
+            check(!history.entries.empty() && history.entries.back().label == "Import STEP", "step: the entry is labelled Import STEP");
+            Document undone = doc;
+            undone.undo();
+            check(undone.bodies().empty() && undone.tags().empty() && undone.materials().empty() && undone.definitions().empty(), "step: one undo");
+            // One part mesh, used three times: one component definition, three instances (the shared-mesh design).
+            check(doc.definitions().size() == 1 && doc.instances().size() == 3, "step: one component definition, three instances");
+            const auto &definition = *doc.definitions().begin()->second;
+            check(definition.name == "Part", "step: the definition keeps the product's name");
+            // The body names are the product names: the root is the file's base name (its extension included),
+            // the assembly its own.
+            const Body *root = byName(doc, "sketchyup-step-instanced.step");
+            check(root->kind == BodyKind::Group, "step: the root is a group");
+            const Body *assembly = byName(doc, "Assembly");
+            check(assembly->kind == BodyKind::Group, "step: the assembly is a group");
+            // The three instances are the 10 x 20 x 30 mm box, at (50,0,0), (0,50,0) and (0,0,50) mm.
+            std::size_t geometryBodies = 0;
+            double totalVolume = 0;
+            for (const auto &[id, body] : doc.bodies())
+                if (body->kind == BodyKind::Geometry) {
+                    ++geometryBodies;
+                    totalVolume += worldVolume(doc, id);
+                    check(near(worldVolume(doc, id), 6.0e-6, 1e-6), "step: an instance is 10 x 20 x 30 mm, in metres");
+                }
+            check(geometryBodies == 3, "step: three instance bodies");
+            check(near(totalVolume, 1.8e-5, 1e-6), "step: the three instances, 18,000 mm in all");
+            // The STEP tag family: the assembly and the solid, and no IFC tag.
+            bool sawAssembly = false, sawSolid = false, sawIfc = false;
+            for (const auto &[id, tag] : doc.tags()) {
+                sawAssembly = sawAssembly || tag->name == "STEP Assembly";
+                sawSolid = sawSolid || tag->name == "STEP Solid";
+                sawIfc = sawIfc || tag->name.rfind("IFC", 0) == 0;
+            }
+            check(sawAssembly && sawSolid && !sawIfc, "step: the tags are the STEP family");
+            // The step.* provenance: the file's schema and digest, the body's entity (ADR 0172 section 4).
+            check(stringProperty(*root, "step.Source").size() == 64, "step: the root carries the file's sha256");
+            check(!stringProperty(*root, "step.Schema").empty(), "step: the root carries the file's schema");
+            const auto doubleProperty = [](const Body &body, const std::string &key) {
+                const auto found = body.properties.find(key);
+                if (found == body.properties.end())
+                    return 0.0;
+                if (const auto *number = std::get_if<double>(&found->second))
+                    return *number;
+                return 0.0;
+            };
+            check(doubleProperty(*root, "step.Entities") >= 1, "step: the root carries the entity count");
+            for (const auto &[id, body] : doc.bodies())
+                if (body->kind == BodyKind::Geometry) {
+                    check(stringProperty(*body, "step.Source") == stringProperty(*root, "step.Source"), "step: the instance shares the file's digest");
+                    check(doubleProperty(*body, "step.Entity") >= 1, "step: the instance resolves to its source entity");
+                }
+            // The report within its bounds, its notices worded.
+            check(QJsonDocument(imported.report).toJson(QJsonDocument::Compact).size() <= 64 * 1024, "step: report within 64 KiB");
+            std::cerr << "sketchyup-step-instanced.step ok\n";
+        }
+        // ---- STEP refusals through the application (F: a unit is never guessed) ----------------------------------
+        {
+            QTemporaryDir stepTemp;
+            check(stepTemp.isValid(), "a temporary directory for the STEP refusals");
+            const auto writeStep = [&](const QString &name, const QByteArray &text) {
+                const auto path = stepTemp.filePath(name);
+                QFile out(path);
+                check(out.open(QIODevice::WriteOnly), name.toStdString() + ": the file");
+                out.write(text);
+                out.close();
+                return path;
+            };
+            const auto noUnits = writeStep("no-units.step", "ISO-10303-21;\nHEADER;\n"
+                                             "FILE_DESCRIPTION(('x'),'2;1');\n"
+                                             "FILE_NAME('a','',(''),(''),'','','');\n"
+                                             "FILE_SCHEMA(('AP214 { 1 0 10303 214 1 1 1 1 }'))\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n");
+            auto refused = [&](const QString &path, const std::string &code, const QString &unit = {}) {
+                StepWorkerOptions stepWorker = stepWorkerOptions();
+                stepWorker.lengthUnitOverride = unit;
+                try {
+                    (void)importStepFile(path, stepWorker);
+                    check(false, path.toStdString() + ": it must be refused");
+                } catch (const IfcImportError &error) {
+                    check(error.code() == code, path.toStdString() + ": refused with " + error.code() + ", expected " + code);
+                }
+            };
+            refused(noUnits, "units"); // no length unit, no option: a unit is never guessed
+            refused(noUnits, "option", "furlong"); // the option names no unit
+            // And a declared unit stands over a nonsense option (it is not a refusal, ADR 0172 decision 4).
+            {
+                StepWorkerOptions stepWorker = stepWorkerOptions();
+                stepWorker.lengthUnitOverride = "furlong";
+                (void)importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-box.step"), stepWorker);
+                std::cerr << "step: the declared unit stands over the option\n";
+            }
+            std::cerr << "step refusals ok\n";
+        }
         std::cout << "ifc_import ok\n";
         return 0;
     } catch (const std::exception &error) {
