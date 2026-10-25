@@ -34,6 +34,14 @@ one, a rejected list one entry over the bound, a rejected contour at two elevati
 smooth of nine iterations, a rejected pad whose rays run backwards and a rejected drape whose
 split names its segment's larger end first; `parser_fault_corpus_tests` mutates the valid list
 (with two source edits, a sculpt, a smooth, a pad and a drape) 512 times.
+One more covers the R099.a presentation records (`presentation`; [ADR 0173 section 3](decisions/0173-camera-paths-batch-output.md#3-the-render-preset-record)):
+the `presentation` object of a schema-30 document, with its camera path table (at most 64
+records of 2 to 32 keyframes and at most 240 planned frames) and its render preset table (at
+most 16). The harness decodes each input twice and requires equal results; an accepted object
+must be within every bound, with allocators above its identities, and must re-encode to a
+canonical object that decodes to equal tables and encodes to the same bytes. Its seeds are a
+tour with a broken path and two presets, an empty table, and three rejected inputs (a path of
+one keyframe, a keyframe of zero and a preset 63 pixels wide).
 One more covers the R097.b IFC conversion package decoder (`ifc-package`;
 [ADR 0171 section 1.6](decisions/0171-ifc-exchange-subset.md#16-process-isolation-decision-19)): the bounded,
 versioned container the isolated IFC helper writes and the application decodes (a manifest of at most 32 MiB,
