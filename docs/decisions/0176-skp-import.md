@@ -523,6 +523,52 @@ lifetime. `skp_import_tests` passes, with the CLI cases through the real helper.
 local check used the CLI). The dialog suite was not run under the sanitizers, and the X11 and Wayland
 display lines run only in CI.
 
+## Implementation notes (R102.d)
+
+R102.d is implemented on the branch `feat/r102d-skp-publish`: the notices and the source record, the
+linkage check, the sanitizer and fuzz lines, the user-guide page, the support-matrix row and the
+exchange-boundaries entry, and the pin re-check. Findings, 2026-10-25.
+
+**Packaging.** The helper already installed into the main package, because its install rule has no
+component. R102.d adds the notices (`OpenSKP-LICENSE` and `miniz-LICENSE`, both MIT, through install
+lines beside the other third-party licences) and `share/doc/sketchyup/SKP-SOURCE.txt`, which records the
+pinned commits, the archive digests, the licences, the vendored file list, the two patches and the
+non-affiliation. The pin check had been failing since R102.a: `dependencies.json` had no OpenSKP entry,
+and `PATCHES.md` did not name the patch files. Both are recorded now. The pin itself did not move.
+
+**The linkage check** (`scripts/verify-skp-library.py`, ADR section 1 and 9). makepkg strips the
+installed binaries, which hides the parser's symbols, so the check has two halves. The install mode reads
+the unstripped install tree, with symbols: only `sketchyup-skp-worker` carries OpenSKP or miniz symbols
+(or names the parser library in a shared build), and its DT_NEEDED is the C and C++ runtime. The package
+mode reads the installed package by DT_NEEDED and `ldd`, and checks the notices and the source record.
+Package acceptance runs both, the install mode on the build tree the package was made from. The source
+mode checks the pins, the install lines and the helper's install rule.
+
+**A deviation from ADR section 2, corrected.** The gate refused a header major below 15, so SketchUp 2013
+and 2014 files were refused as "from before 2013" before the parser ran. Section 2 reads 2013 to 2020 as
+best effort and refuses only before 2013 (V3 to V8). The gate is now below 13 in the probe and the import
+paths. Test S6 writes major 12 (refused with the advice) and major 13 (not refused as pre-2013). The UI's
+own container line already said "SketchUp 2013-2020 ... best-effort".
+
+**The pin re-check (not moved).** On 2026-10-25 upstream `main` is still `23a15e8` (PR #443, 2026-10-22),
+so nothing has landed after the pin: the compare with the pin is "identical". Issue #442 is open (created
+2026-10-21, no comments, no linked PR). Its two causes, against the pinned C++ reader:
+
+- The 4, 5 and 2019 layout fixes are in the pin (PR #443 ports them to C++: the texture DIB, the camera
+  and thumbnail, the material record width and the component definition's base block). That is the
+  "partial port" that the Context describes.
+- The first cause in #442, the CText arrow type, is **not** fixed in C++. `legacy.cpp` still requires
+  arrow type 3 exactly, so a text label of another type stops the reader with "text delimiter not found"
+  (V4 to 2016 files, per the issue).
+- The second cause, "expected a string record" (2017 and later), is not understood upstream and is not
+  fixed in the pinned reader.
+
+Consequence for the import: a 2013 to 2020 file with such a label is refused by the helper's parse
+refusal, with the advice to save again from SketchUp 2021 or later. It is never imported in part. The
+user guide and the support-matrix row say so. Recommendation: no pin change now, because no newer upstream
+commit exists. Move the pin only after #442's CText and 2017+ items close upstream, and then re-run the
+owner's corpus, the fixtures and the L1 check.
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue
