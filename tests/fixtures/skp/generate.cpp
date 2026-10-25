@@ -5,6 +5,11 @@
 // generator takes the output directory as its only argument and writes one file per fixture.
 // The exact build + run command and the resulting SHA-256s are recorded in SKP-SOURCE.txt.
 //
+// R102.b adds scaled_instance.skp, mirrored_instance.skp and textured_face.skp (the last takes the
+// checker image, checker.png). The component fixtures are not byte-reproducible: the writer stamps a
+// random GUID and a timestamp on each definition, so a rerun changes component_instances.skp and
+// nested_component.skp. The committed bytes are the reference (SKP-SOURCE.txt).
+//
 // Every fixture is small on purpose: the import test compares its package against the helper's
 // --probe and the raw (inches) bounding box x 0.0254, so the expected values stay hand-checkable.
 
@@ -17,10 +22,13 @@
 namespace fs = std::filesystem;
 
 using openskp::Color3;
+using openskp::ComponentDefinitionBuilder;
 using openskp::FaceOptions;
 using openskp::InstanceOptions;
 using openskp::LayerOptions;
+using openskp::Matrix3x3;
 using openskp::Point3;
+using openskp::UvCorrespondence;
 using openskp::create;
 
 // 1. A box: a 1 x 1 x 1 inch cube, six coplanar faces.
@@ -119,12 +127,61 @@ static void nestedComponent(const fs::path& out) {
   b->save(out);
 }
 
+// 8. A scaled instance (R102.b): a 1-inch block with outward faces, placed with a sheared,
+// non-uniform 3x3 (the scale and the shear live in the placement's matrix; the writer writes w = 1).
+// Row-major: x' = 2x + 0.5y, y' = y, z' = 1.5z, then moved to (1, 2, 3) inches.
+static void addBlock(ComponentDefinitionBuilder& block) {
+  block.add_face({Point3{0, 0, 0}, Point3{0, 1, 0}, Point3{1, 1, 0}, Point3{1, 0, 0}});  // bottom
+  block.add_face({Point3{0, 0, 1}, Point3{1, 0, 1}, Point3{1, 1, 1}, Point3{0, 1, 1}});  // top
+  block.add_face({Point3{0, 0, 0}, Point3{1, 0, 0}, Point3{1, 0, 1}, Point3{0, 0, 1}});  // front (y = 0)
+  block.add_face({Point3{0, 1, 0}, Point3{0, 1, 1}, Point3{1, 1, 1}, Point3{1, 1, 0}});  // back (y = 1)
+  block.add_face({Point3{0, 0, 0}, Point3{0, 0, 1}, Point3{0, 1, 1}, Point3{0, 1, 0}});  // left (x = 0)
+  block.add_face({Point3{1, 0, 0}, Point3{1, 1, 0}, Point3{1, 1, 1}, Point3{1, 0, 1}});  // right (x = 1)
+  block.close();
+}
+static void scaledInstance(const fs::path& out) {
+  auto b = create();
+  auto& block = b->add_component_definition("Block");
+  addBlock(block);
+  InstanceOptions scaled;
+  scaled.translation = {1, 2, 3};
+  scaled.matrix3x3 = Matrix3x3{2, 0.5, 0, 0, 1, 0, 0, 0, 1.5};
+  b->add_instance(block, scaled);
+  b->save(out);
+}
+
+// 9. A mirrored instance (R102.b): the same block, mirrored in X (determinant -1), moved to x = 2.
+static void mirroredInstance(const fs::path& out) {
+  auto b = create();
+  auto& block = b->add_component_definition("Block");
+  addBlock(block);
+  InstanceOptions mirrored;
+  mirrored.translation = {2, 0, 0};
+  mirrored.matrix3x3 = Matrix3x3{-1, 0, 0, 0, 1, 0, 0, 0, 1};
+  b->add_instance(block, mirrored);
+  b->save(out);
+}
+
+// 10. A textured face (R102.b): a 4 x 4 square with a checker image, positioned by three explicit
+// (point, (u, v)) pairs, so the stored UV transform is known exactly. The image is applied 2 inches
+// to a tile (the texture's own width and height in the file).
+static void texturedFace(const fs::path& out, const fs::path& image) {
+  auto b = create();
+  const int checker = b->add_texture_material("Checker", image, 2.0, 2.0);
+  FaceOptions o;
+  o.material = checker;
+  o.front_uv = UvCorrespondence{{Point3{0, 0, 0}, {0, 0}}, {Point3{4, 0, 0}, {1, 0}}, {Point3{0, 4, 0}, {0, 1}}};
+  b->add_face({Point3{0, 0, 0}, Point3{4, 0, 0}, Point3{4, 4, 0}, Point3{0, 4, 0}}, o);
+  b->save(out);
+}
+
 int main(int argc, char** argv) {
-  if (argc != 2) {
-    std::cerr << "usage: skp_fixture_generator OUTPUT_DIR\n";
+  if (argc != 3) {
+    std::cerr << "usage: skp_fixture_generator OUTPUT_DIR CHECKER_PNG\n";
     return 2;
   }
   const fs::path dir = argv[1];
+  const fs::path checker = argv[2];
   std::error_code ec;
   fs::create_directories(dir, ec);
   struct {
@@ -138,11 +195,16 @@ int main(int argc, char** argv) {
       {"component_instances.skp", componentInstances},
       {"hidden_tag.skp", hiddenTag},
       {"nested_component.skp", nestedComponent},
+      {"scaled_instance.skp", scaledInstance},
+      {"mirrored_instance.skp", mirroredInstance},
   };
   for (const auto& f : fixtures) {
     const fs::path path = dir / f.name;
     f.write(path);
     std::cout << f.name << " " << fs::file_size(path) << " bytes\n";
   }
+  const fs::path textured = dir / "textured_face.skp";
+  texturedFace(textured, checker);
+  std::cout << "textured_face.skp " << fs::file_size(textured) << " bytes\n";
   return 0;
 }
