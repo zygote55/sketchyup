@@ -271,6 +271,23 @@ ColorDecision colorOf(const TDF_Label& L) {
   return out;
 }
 
+// The colour of each face of a part that has its own colour (the surface colour of its sub-shape), keyed by the face's
+// TShape: the solid's faces are the same TShapes as the part's sub-shapes, whatever the location or orientation.
+using FaceColours = std::map<const TopoDS_TShape*, std::array<float, 3>>;
+
+FaceColours faceColoursOf(const XCAFDoc_ShapeTool& shapeTool, const TDF_Label& part) {
+  FaceColours out;
+  TDF_LabelSequence subs;
+  shapeTool.GetSubShapes(part, subs);
+  for (int i = 1; i <= subs.Length(); ++i) {
+    TopoDS_Shape face;
+    if (!shapeTool.GetShape(subs.Value(i), face) || face.ShapeType() != TopAbs_FACE) continue;
+    const ColorDecision color = colorOf(subs.Value(i));
+    if (color.rgb) out[face.TShape().operator->()] = color.color;
+  }
+  return out;
+}
+
 // A label's layers: their names (the layer labels' names, joined) and the file's
 // layer visibility (an invisible layer hides its shapes).
 struct LayerDecision {
@@ -373,6 +390,9 @@ struct SolidMesh {
   std::string error;
   std::vector<double> vertices;  // metres, 3 per vertex
   std::vector<std::uint32_t> indices;
+  // One colour per triangle, when the part has face colours (empty otherwise): a face's own colour, the part's
+  // colour for a face without one, none when neither.
+  std::vector<std::optional<std::array<float, 3>>> colors;
 };
 
 // A mirror location (a negative determinant) reverses the winding like a reversed face.
@@ -393,7 +413,8 @@ bool mirrorLocation(const TopLoc_Location& loc) {
 // forward face under a mirror instance is stored reversed so the decoder's mirror leaves
 // it outward, and a reversed face under a mirror instance is stored forward.
 SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, const double angleRadians,
-                          const double metresPerUnit, const bool instanceMirror) {
+                          const double metresPerUnit, const bool instanceMirror, const FaceColours& faceColours,
+                          const ColorDecision& partColour) {
   SolidMesh out;
   try {
     // The constructor performs the meshing (OCCT 7.9.3; not parallel, so the output is
@@ -421,6 +442,9 @@ SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, 
         // the winding a second time, so a mirror instance stores the base's winding
         // flipped and comes out outward).
         const bool flip = (f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc) != instanceMirror;
+        std::optional<std::array<float, 3>> faceColour;
+        if (const auto found = faceColours.find(f.TShape().operator->()); found != faceColours.end()) faceColour = found->second;
+        else if (partColour.rgb) faceColour = partColour.color;
         // Each node of the face's triangulation once (transformed and scaled); the triangles
         // index into them. A node written per triangle would repeat the shared nodes up to
         // six times (about 72 MB of vertex data at the 1,000,000-triangle cap, close to the
@@ -460,6 +484,7 @@ SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, 
             ++out.degenerate;  // counted (degenerateTriangles), the app's merge drops it
           }
           ++out.triangles;
+          if (!faceColours.empty()) out.colors.push_back(faceColour);
           // Outward for a forward face, flipped for a reversed one (the STL writer's rule),
           // into the face's node table (node i is the i - 1 group of faceVertices).
           const std::uint32_t n1 = base + static_cast<std::uint32_t>(tr.Value(1) - 1);
@@ -937,7 +962,9 @@ int runStepImportPackage(const StepImportOptions& options) {
     // The base's primary variant: tessellated in the base's own frame (the storage frame: the
     // tessellator's raw winding is the face's orientation under the shape's location, the ADR
     // 0172 section 7 rule; the instance's mirror is the second factor, the flip argument).
-    SolidMesh mesh = tessellateSolid(shape, deflection, angleRadians, toMetres, false);
+    const ColorDecision color = colorOf(base);  // the file's colour (the reader's colour propagation)
+    const FaceColours faceColours = faceColoursOf(shapeTool, base);
+    SolidMesh mesh = tessellateSolid(shape, deflection, angleRadians, toMetres, false, faceColours, color);
     if (!mesh.ok) {
       report.notImported("StepPart", "tessellation-failed", 1);
       report.kernelMessage("tessellation", clip(mesh.error, 64), "error", clip(mesh.error, 240));
@@ -961,7 +988,6 @@ int runStepImportPackage(const StepImportOptions& options) {
       ++omitted;
       continue;
     }
-    const ColorDecision color = colorOf(base);  // the file's colour (the reader's colour propagation)
     if (color.alphaDropped) report.notice("colorAlphaDropped", 1);
     // A shape without a file colour takes the DefaultMaterial (0.7 grey) with the notice (the
     // IFC pattern, ADR 0172 section 4): the package carries the material once, and the
@@ -978,7 +1004,9 @@ int runStepImportPackage(const StepImportOptions& options) {
     pm.vertices = std::move(mesh.vertices);
     pm.triangles = std::move(mesh.indices);
     pm.materials.assign(pm.triangles.size() / 3, materialIndex);
-    if (color.rgb) {
+    if (!mesh.colors.empty()) {
+      pm.colors = std::move(mesh.colors);
+    } else if (color.rgb) {
       pm.colors.resize(pm.triangles.size() / 3);
       for (auto& c : pm.colors) c = color.color;
     }
@@ -998,14 +1026,16 @@ int runStepImportPackage(const StepImportOptions& options) {
         break;
       }
     if (needMirror) {
-      SolidMesh mirror = tessellateSolid(shape, deflection, angleRadians, toMetres, true);
+      SolidMesh mirror = tessellateSolid(shape, deflection, angleRadians, toMetres, true, faceColours, color);
       if (mirror.ok && mirror.triangles > 0 && mirror.triangles <= options.maxTrianglesPerElement
           && triangles + mirror.triangles <= options.maxTotalTriangles) {
         PackageMesh mpm;
         mpm.vertices = std::move(mirror.vertices);
         mpm.triangles = std::move(mirror.indices);
         mpm.materials.assign(mpm.triangles.size() / 3, materialIndex);
-        if (color.rgb) {
+        if (!mirror.colors.empty()) {
+          mpm.colors = std::move(mirror.colors);
+        } else if (color.rgb) {
           mpm.colors.resize(mpm.triangles.size() / 3);
           for (auto& c : mpm.colors) c = color.color;
         }
