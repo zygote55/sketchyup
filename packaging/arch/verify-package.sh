@@ -303,7 +303,7 @@ ifc_package=sketchyup-ifc-$package_version-$package_release-x86_64.pkg.tar.zst
 [[ -s $ifc_package ]]
 # (into a variable first: with pipefail, grep -q closing the pipe early could hide a match)
 base_files=$(pacman -Qlq sketchyup)
-if grep -qE 'ifcopenshell|libTK|sketchyup-ifc-worker|IfcOpenShell|OpenCASCADE|IFC-SOURCE' <<< "$base_files"; then
+if grep -qE 'ifcopenshell|libTK|sketchyup-ifc-worker|IfcOpenShell|OpenCASCADE|IFC-SOURCE|STEP-SOURCE' <<< "$base_files"; then
   echo 'The sketchyup package contains IfcOpenShell or OpenCASCADE files.' >&2
   exit 1
 fi

@@ -120,6 +120,8 @@
         "tests/fixtures/step/**",
         "scripts/vendor-ifcopenshell.py",
         "scripts/verify-ifc-library.py",
+        "docs/STEP-SOURCE.txt",
+        "tests/step_budgets.py",
         "dependencies.json",
         "CMakeLists.txt",
         "CMakePresets.json"
