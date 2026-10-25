@@ -212,27 +212,107 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
     sheet.buttons->hide();
     sheet.exec();
 }
-// R097.e2 (provisional until the step-3 report): the export's result sheet — the import's own
-// shape: a green banner, the file's line, OK. The model is unchanged.
+// R097.e2 (16.8): the export's result sheet — the import's own component with the export's own
+// words. The banner says "A new IFC file was written. The model is unchanged." The left column
+// balances the model's contents the way the import balances entities (every item is written,
+// written as a separate copy, or counted as not written). Needs your attention holds the
+// coordinate-system row (and its fix) and the GlobalIds that had to be replaced (Select in
+// model). Not written and Notices repeat the dialog's counts, now final, plus "numbers are
+// written as plain reals; no unit meaning survives."
 void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject &report,
-                          qint64 elapsedMs) {
+                          qint64 elapsedMs, const std::function<void(qint64)> &selectInModel) {
     ReportSheet sheet("ifcExportReport", "IFC export report", parent);
-    sheet.resize(640, 420);
-    auto *banner = new QLabel(QString("✓ Exported · %1").arg(humanMs(elapsedMs)));
-    banner->setObjectName("ifcReportBanner");
+    sheet.resize(760, 560);
+    auto *banner = new QLabel("✓ A new IFC file was written. The model is unchanged.");
+    banner->setObjectName("ifcExportReportBanner");
     banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
     sheet.body->addWidget(banner);
-    sheet.summary->setObjectName("ifcReportSummary");
+    sheet.summary->setObjectName("ifcExportReportSummary");
     sheet.summary->setWordWrap(true);
     sheet.summary->setTextFormat(Qt::PlainText);
     const QJsonObject target = report["target"].toObject();
     sheet.summary->setText(
-        QString("%1\nIFC4 · %2\n\nThe model is unchanged.\n")
+        QString("%1 · %2\n%3 · %4 · %5")
             .arg(QFileInfo(path).fileName())
-            .arg(humanSize(target["bytes"].toInteger(0))));
+            .arg(humanSize(target["bytes"].toInteger(0)))
+            .arg(target["schema"].toString())
+            .arg(target["geometry"].toString())
+            .arg(humanMs(elapsedMs)));
     sheet.body->addWidget(sheet.summary);
+    // The accounting identity (16.8): every item is written, written as a separate copy
+    // (components), or counted as not written.
+    const QJsonObject accounting = report["accounting"].toObject();
+    auto *identity = new QLabel(
+        QString("%1 = %2 + %3 + %4 %5")
+            .arg(accounting["items"].toInt(0))
+            .arg(accounting["written"].toInt(0))
+            .arg(accounting["writtenAsCopies"].toInt(0))
+            .arg(accounting["notWritten"].toInt(0))
+            .arg(accounting["balanced"].toBool(true) ? "✓ balanced" : "✗ unbalanced"));
+    identity->setObjectName("ifcExportReportIdentity");
+    sheet.body->addWidget(identity);
+    addSegmentBar(sheet.body, accounting["written"].toInt(0), accounting["writtenAsCopies"].toInt(0),
+                   accounting["notWritten"].toInt(0));
+    auto *list = new QTreeWidget;
+    list->setObjectName("ifcExportReportList");
+    list->setAccessibleName(
+        "export report: what needs attention, what was written, what was not written, and the notices");
+    list->setColumnCount(2);
+    list->setHeaderLabels({"What", "Count"});
+    list->setRootIsDecorated(true);
+    // Needs your attention: the coordinate-system row (and its fix) and the replaced GlobalIds.
+    const int attentionCount = report["attention"].toInt(0);
+    auto *attentionItem = new QTreeWidgetItem(list, {"Needs your attention", QString::number(attentionCount)});
+    const QJsonObject geo = report["georeference"].toObject();
+    if (geo["result"].toString() == "notWritten")
+        new QTreeWidgetItem(
+            attentionItem,
+            {QString("⚠ %1").arg(geo["reason"].toString() == "noCrsLabel"
+                 ? "The site origin is set but has no coordinate system label, so neither the coordinate system nor the map conversion was written and the origin is lost in the file. Set the label to an authority code such as EPSG:32760 in File, Site settings."
+                 : "The site origin's label is not an authority code such as EPSG:32760, so neither the coordinate system nor the map conversion was written and the origin is lost in the file. Change the label in File, Site settings."),
+             "1"});
+    for (const auto &value : report["locations"].toArray()) {
+        const QJsonObject location = value.toObject();
+        if (location["kind"].toString() != "globalIdReplaced")
+            continue;
+        auto *item = new QTreeWidgetItem(attentionItem, {location["name"].toString(), location["message"].toString()});
+        auto *button = new QPushButton("Select in model");
+        button->setObjectName("ifcExportSelectBody");
+        const qint64 bodyId = location["bodyId"].toInteger(0);
+        QObject::connect(button, &QPushButton::clicked, &sheet, [bodyId, selectInModel, &sheet] {
+            if (selectInModel)
+                selectInModel(bodyId);
+            sheet.accept();
+        });
+        list->setItemWidget(item, 1, button);
+    }
+    if (attentionCount == 0)
+        attentionItem->setHidden(true);
+    // Written: the dialog's counts, now final.
+    auto *writtenItem = new QTreeWidgetItem(list, {"Written", QString()});
+    const QJsonObject written = report["written"].toObject();
+    for (const char *key : {"groups", "bodies", "placements", "materials", "properties", "hidden", "triangles"})
+        if (written[key].toInt(0) > 0)
+            new QTreeWidgetItem(writtenItem, {key, QString::number(written[key].toInt(0))});
+    // Not written: one line per kind, as the dialog had it.
+    auto *notWrittenItem = new QTreeWidgetItem(list, {"Not written", QString()});
+    const QJsonObject notWritten = report["notWritten"].toObject();
+    for (const char *key : {"terrain", "terrainTiles", "referenceImages", "guides", "annotations",
+                           "looseEdges", "curves", "sections", "scenes", "sheets",
+                           "componentParameters", "textures", "emptyGroups", "bodiesWithoutFaces"})
+        if (notWritten[key].toInteger(0) > 0)
+            new QTreeWidgetItem(notWrittenItem, {key, QString::number(notWritten[key].toInteger(0))});
+    // Notices, now final.
+    auto *noticesItem = new QTreeWidgetItem(list, {"Notices", QString()});
+    const auto noticeList = report["notices"].toArray();
+    for (const auto &value : noticeList)
+        new QTreeWidgetItem(noticesItem, {value.toObject()["message"].toString(),
+                                            QString::number(value.toObject()["count"].toInteger(0))});
+    if (noticeList.isEmpty())
+        new QTreeWidgetItem(noticesItem, {"None", QString()});
+    sheet.body->addWidget(list, 1);
     auto *ok = new QPushButton("OK");
-    ok->setObjectName("ifcReportOK");
+    ok->setObjectName("ifcExportReportOK");
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
     footerLayout->addStretch();

@@ -207,7 +207,12 @@ void Window::exportIfc() {
         const QJsonObject report = runner->report();
         status_->setText("Exported a new IFC file · Model unchanged");
         delete runner;
-        ::sketchy::showIfcExportReport(this, path, report, elapsed);
+        // A replaced GlobalId's row can select its body in the model (16.8).
+        auto selectInModel = [this](qint64 bodyId) {
+            if (viewport_)
+                viewport_->setSelection(static_cast<Id>(bodyId));
+        };
+        ::sketchy::showIfcExportReport(this, path, report, elapsed, selectInModel);
         return;
     }
     // A refusal or a failure: the model is unchanged and nothing was written.
