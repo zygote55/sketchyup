@@ -114,6 +114,7 @@
         "src/io/ifc_*",
         "tests/ifc*",
         "tests/fixtures/ifc/**",
+        "tests/fixtures/step/**",
         "scripts/vendor-ifcopenshell.py",
         "scripts/verify-ifc-library.py",
         "dependencies.json",
