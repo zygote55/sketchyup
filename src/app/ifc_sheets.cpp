@@ -220,38 +220,73 @@ void showImportReport(QWidget *parent, const ImportReportFace &face, const Impor
     sheet.buttons->hide();
     sheet.exec();
 }
-void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string &code,
-                      const QString &message, const QJsonObject &report) {
-    ReportSheet sheet("ifcRefusal", "IFC import refused", parent);
-    sheet.resize(640, 420);
-    sheet.summary->setObjectName("ifcRefusalSummary");
+// The one shared refusal sheet: a red top line, the summary, the helper's own details (when it
+// has any, and the copy button when the face asks), the footer.
+void showRefusalSheet(QWidget *parent, const RefusalSheet &face) {
+    ReportSheet sheet(face.sheetName, face.title, parent);
+    sheet.resize(face.width, face.height);
+    if (!face.leadingLine.isEmpty()) {
+        auto *first = new QLabel(face.leadingLine);
+        first->setObjectName(face.prefix + "First");
+        first->setStyleSheet("font-size: 18px; font-weight: 600; color: #c62828;");
+        sheet.body->addWidget(first);
+    }
+    if (!face.refusedLine.isEmpty()) {
+        auto *refused = new QLabel(face.refusedLine);
+        refused->setObjectName(face.prefix + "Refused");
+        refused->setStyleSheet("font-weight: 600; color: #c62828;");
+        sheet.body->addWidget(refused);
+    }
+    sheet.summary->setObjectName(face.prefix + "Summary");
     sheet.summary->setWordWrap(true);
     sheet.summary->setTextFormat(Qt::PlainText);
-    sheet.summary->setText(
+    sheet.summary->setText(face.summary);
+    sheet.body->addWidget(sheet.summary);
+    if (!face.report.isEmpty()) {
+        auto *details = new QPlainTextEdit;
+        details->setObjectName(face.prefix + "Details");
+        details->setAccessibleName("refusal details");
+        details->setReadOnly(true);
+        details->setPlainText(QString::fromUtf8(QJsonDocument(face.report).toJson(QJsonDocument::Indented)));
+        sheet.body->addWidget(details, 1);
+        if (face.copyDetails) {
+            auto *copy = new QPushButton("Copy details");
+            copy->setObjectName(face.prefix + "Copy");
+            QObject::connect(copy, &QPushButton::clicked, &sheet, [details] {
+                QApplication::clipboard()->setText(details->toPlainText());
+            });
+            sheet.body->addWidget(copy, 0, Qt::AlignLeft);
+        }
+    }
+    auto *close = new QPushButton(face.closeButton);
+    close->setObjectName(face.prefix + face.closeSuffix);
+    if (face.closeIsDefault)
+        close->setDefault(true);
+    QObject::connect(close, &QPushButton::clicked, &sheet, &QDialog::accept);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(close);
+    sheet.buttons->hide();
+    sheet.exec();
+}
+// The IFC import's refusal (16.6): what was checked and what failed, the words the helper used,
+// what is unaffected. The model is unchanged.
+void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string &code,
+                      const QString &message, const QJsonObject &report) {
+    RefusalSheet face;
+    face.sheetName = "ifcRefusal";
+    face.title = "IFC import refused";
+    face.prefix = "ifcRefusal";
+    face.summary =
         QString("✗ %1\n\nThe model was not changed. Nothing was written.\n\n"
                 "The check that failed: %2\nThe words the helper used: %3\n\n"
                 "Not affected: the open model, the sheets, the assistant, your settings and "
                 "recovery.")
             .arg(QFileInfo(fileName).fileName())
             .arg(QString::fromStdString(code))
-            .arg(message));
-    sheet.body->addWidget(sheet.summary);
-    if (!report.isEmpty()) {
-        auto *details = new QPlainTextEdit;
-        details->setObjectName("ifcRefusalDetails");
-        details->setAccessibleName("refusal details");
-        details->setReadOnly(true);
-        details->setPlainText(QString::fromUtf8(QJsonDocument(report).toJson(QJsonDocument::Indented)));
-        sheet.body->addWidget(details, 1);
-    }
-    auto *ok = new QPushButton("OK");
-    ok->setObjectName("ifcRefusalOK");
-    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
-    footerLayout->addStretch();
-    footerLayout->addWidget(ok);
-    sheet.buttons->hide();
-    sheet.exec();
+            .arg(message);
+    face.report = report;
+    showRefusalSheet(parent, face);
 }
 // R097.e2 (16.8): the export's result sheet — the import's own component with the export's own
 // words. The banner says "A new IFC file was written. The model is unchanged." The left column
@@ -368,20 +403,15 @@ void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject
 // is not a refusal and has no sheet.
 void showIfcExportRefusal(QWidget *parent, const QString &path, const std::string &code,
                           const QString &message, const QJsonObject &report) {
-    ReportSheet sheet("ifcExportRefusal", "IFC export refused", parent);
-    sheet.resize(680, 480);
-    auto *first = new QLabel("✗ Nothing was written.");
-    first->setObjectName("ifcExportRefusalFirst");
-    first->setStyleSheet("font-size: 18px; font-weight: 600; color: #c62828;");
-    sheet.body->addWidget(first);
+    RefusalSheet face;
+    face.sheetName = "ifcExportRefusal";
+    face.title = "IFC export refused";
+    face.width = 680;
+    face.height = 480;
+    face.prefix = "ifcExportRefusal";
+    face.leadingLine = "✗ Nothing was written.";
     const QString codeText = QString::fromStdString(code);
-    auto *refused = new QLabel("Refused: " + codeText);
-    refused->setObjectName("ifcExportRefused");
-    refused->setStyleSheet("font-weight: 600; color: #c62828;");
-    sheet.body->addWidget(refused);
-    sheet.summary->setObjectName("ifcExportRefusalSummary");
-    sheet.summary->setWordWrap(true);
-    sheet.summary->setTextFormat(Qt::PlainText);
+    face.refusedLine = "Refused: " + codeText;
     QString whatToDo;
     if (codeText == "destinationExists")
         whatToDo = "1. Choose a new name — an existing file is never replaced.\n2. Export again.";
@@ -399,35 +429,36 @@ void showIfcExportRefusal(QWidget *parent, const QString &path, const std::strin
         whatToDo = "1. Try again once.\n2. If it repeats, report it with the details.";
     else
         whatToDo = "1. Try again once.\n2. If it repeats, report it with the details.";
-    sheet.summary->setText(
+    face.summary =
         QString("%1\n\n%2\n\nWhat to do next:\n%3\n\nNot affected: the open model, the "
                 "sheets, the assistant, your settings and recovery.")
             .arg(QFileInfo(path).fileName())
             .arg(message)
-            .arg(whatToDo));
+            .arg(whatToDo);
+    face.report = report;
+    face.copyDetails = true;
+    face.closeButton = "Close";
+    face.closeSuffix = "Close";
+    face.closeIsDefault = true;
+    showRefusalSheet(parent, face);
+}
+// The one shared availability sheet: the helper's own states (not installed, cannot start,
+// limited) with the application's own words; the broken state shows the helper's own last log
+// line at the bottom of the message, so a person can act on it (ADR 0171 §16.6).
+void showAvailabilitySheet(QWidget *parent, const AvailabilitySheet &face) {
+    ReportSheet sheet(face.sheetName, face.title, parent);
+    sheet.resize(face.width, face.height);
+    sheet.summary->setObjectName(face.prefix + "Summary");
+    sheet.summary->setWordWrap(true);
+    sheet.summary->setTextFormat(Qt::PlainText);
+    sheet.summary->setText(face.text);
     sheet.body->addWidget(sheet.summary);
-    if (!report.isEmpty()) {
-        auto *details = new QPlainTextEdit;
-        details->setObjectName("ifcExportRefusalDetails");
-        details->setAccessibleName("refusal details");
-        details->setReadOnly(true);
-        const QString text = QString::fromUtf8(QJsonDocument(report).toJson(QJsonDocument::Indented));
-        details->setPlainText(text);
-        sheet.body->addWidget(details, 1);
-        auto *copy = new QPushButton("Copy details");
-        copy->setObjectName("ifcExportRefusalCopy");
-        QObject::connect(copy, &QPushButton::clicked, &sheet, [details] {
-            QApplication::clipboard()->setText(details->toPlainText());
-        });
-        sheet.body->addWidget(copy, 0, Qt::AlignLeft);
-    }
-    auto *close = new QPushButton("Close");
-    close->setObjectName("ifcExportRefusalClose");
-    close->setDefault(true);
-    QObject::connect(close, &QPushButton::clicked, &sheet, &QDialog::accept);
+    auto *ok = new QPushButton("OK");
+    ok->setObjectName(face.prefix + "OK");
+    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
     footerLayout->addStretch();
-    footerLayout->addWidget(close);
+    footerLayout->addWidget(ok);
     sheet.buttons->hide();
     sheet.exec();
 }
@@ -439,40 +470,31 @@ void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirec
         probe.state == IfcState::Missing  ? "ifcUnavailable"
         : probe.state == IfcState::Broken ? "ifcBroken"
                                           : "ifcLimited";
-    ReportSheet sheet(sheetName, exportDirection ? "IFC export" : "IFC import", parent);
-    sheet.resize(600, 380);
-    sheet.summary->setObjectName("ifcUnavailableSummary");
-    sheet.summary->setWordWrap(true);
-    sheet.summary->setTextFormat(Qt::PlainText);
+    AvailabilitySheet face;
+    face.sheetName = sheetName;
+    face.title = exportDirection ? "IFC export" : "IFC import";
+    face.prefix = "ifcUnavailable";
     if (probe.state == IfcState::Missing) {
-        sheet.summary->setText(
+        face.text =
             QString("IFC %1 is not installed.\n\n"
                     "The sketchyup-ifc package is not installed on this machine.\n"
                     "Everything else is unaffected: the open model, the sheets, the assistant, "
                     "your settings and recovery all work as before.\n\n"
                     "To enable IFC %1, install the sketchyup-ifc package.")
-                .arg(exportDirection ? QStringLiteral("export") : QStringLiteral("import")));
+                .arg(exportDirection ? QStringLiteral("export") : QStringLiteral("import"));
     } else if (probe.state == IfcState::Broken) {
-        sheet.summary->setText(
+        face.text =
             QString("IFC %1 cannot start.\n\nThe helper could not be started.\n\n%2")
-            .arg(exportDirection ? QStringLiteral("export") : QStringLiteral("import"))
-            .arg(probe.logTail));
+                .arg(exportDirection ? QStringLiteral("export") : QStringLiteral("import"))
+                .arg(probe.logTail);
     } else {
-        sheet.summary->setText(
+        face.text =
             QString("IFC %1 is limited.\n\nThe OpenCASCADE kernel is not installed, so only "
                     "tessellated geometry will be converted.\n\n%2")
                 .arg(exportDirection ? QStringLiteral("export") : QStringLiteral("import"))
-                .arg(probe.kernelReason));
+                .arg(probe.kernelReason);
     }
-    sheet.body->addWidget(sheet.summary);
-    auto *ok = new QPushButton("OK");
-    ok->setObjectName("ifcUnavailableOK");
-    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
-    footerLayout->addStretch();
-    footerLayout->addWidget(ok);
-    sheet.buttons->hide();
-    sheet.exec();
+    showAvailabilitySheet(parent, face);
 }
 // The STEP import's face (ADR 0172 section 8): the IFC report's own screen for STEP — the
 // helper's own counts (they ride the report as `step`) beside the application's conversion;
@@ -526,68 +548,45 @@ ImportReportFace stepImportReportFace() {
 // R098.a3: the STEP refusal — the IFC refusal's own words. The check that failed is named
 // (the application's own, or the helper's as its words come back); the model is unchanged
 // and nothing was written.
+// The STEP import's refusal (ADR 0172 section 8): the IFC refusal's own sheet with the STEP's
+// own words.
 void showStepRefusal(QWidget *parent, const QString &fileName, const std::string &code,
                       const QString &message, const QJsonObject &report) {
-    ReportSheet sheet("stepRefusal", "STEP import refused", parent);
-    sheet.resize(640, 420);
-    sheet.summary->setObjectName("stepRefusalSummary");
-    sheet.summary->setWordWrap(true);
-    sheet.summary->setTextFormat(Qt::PlainText);
-    sheet.summary->setText(
+    RefusalSheet face;
+    face.sheetName = "stepRefusal";
+    face.title = "STEP import refused";
+    face.prefix = "stepRefusal";
+    face.summary =
         QString("✗ %1\n\nThe model was not changed. Nothing was written.\n\n"
                 "The check that failed: %2\nThe words used: %3\n\n"
                 "Not affected: the open model, the sheets, the assistant, your settings and "
                 "recovery.")
             .arg(QFileInfo(fileName).fileName())
             .arg(QString::fromStdString(code))
-            .arg(message));
-    sheet.body->addWidget(sheet.summary);
-    if (!report.isEmpty()) {
-        auto *details = new QPlainTextEdit;
-        details->setObjectName("stepRefusalDetails");
-        details->setAccessibleName("refusal details");
-        details->setReadOnly(true);
-        details->setPlainText(QString::fromUtf8(QJsonDocument(report).toJson(QJsonDocument::Indented)));
-        sheet.body->addWidget(details, 1);
-    }
-    auto *ok = new QPushButton("OK");
-    ok->setObjectName("stepRefusalOK");
-    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
-    footerLayout->addStretch();
-    footerLayout->addWidget(ok);
-    sheet.buttons->hide();
-    sheet.exec();
+            .arg(message);
+    face.report = report;
+    showRefusalSheet(parent, face);
 }
 // R098.a3: the STEP import's availability — the IFC helper's own states. The STEP import
 // needs none of the IFC kernel, so the helper's Limited state is not shown; the window
 // calls this only for Missing and Broken.
 void showStepUnavailable(QWidget *parent, const IfcProbe &probe) {
-    const QString sheetName = probe.state == IfcState::Missing ? "stepUnavailable" : "stepBroken";
-    ReportSheet sheet(sheetName, "STEP import", parent);
-    sheet.resize(600, 380);
-    sheet.summary->setObjectName("stepUnavailableSummary");
-    sheet.summary->setWordWrap(true);
-    sheet.summary->setTextFormat(Qt::PlainText);
+    AvailabilitySheet face;
+    face.sheetName = probe.state == IfcState::Missing ? "stepUnavailable" : "stepBroken";
+    face.title = "STEP import";
+    face.prefix = "stepUnavailable";
     if (probe.state == IfcState::Missing) {
-        sheet.summary->setText(
+        face.text =
             QString("STEP import is not installed.\n\n"
                     "The sketchyup-ifc package is not installed on this machine.\n"
                     "Everything else is unaffected: the open model, the sheets, the assistant, "
                     "your settings and recovery all work as before.\n\n"
-                    "To enable STEP import, install the sketchyup-ifc package."));
+                    "To enable STEP import, install the sketchyup-ifc package.");
     } else {
-        sheet.summary->setText(
-            QString("STEP import cannot start.\n\nThe helper could not be started.\n\n%1").arg(probe.logTail));
+        face.text =
+            QString("STEP import cannot start.\n\nThe helper could not be started.\n\n%1")
+                .arg(probe.logTail);
     }
-    sheet.body->addWidget(sheet.summary);
-    auto *ok = new QPushButton("OK");
-    ok->setObjectName("stepUnavailableOK");
-    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
-    footerLayout->addStretch();
-    footerLayout->addWidget(ok);
-    sheet.buttons->hide();
-    sheet.exec();
+    showAvailabilitySheet(parent, face);
 }
 } // namespace sketchy
