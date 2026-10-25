@@ -103,6 +103,53 @@ passed, 278.18 s. The direct run's outcome counts are in the J2 notes below.
 
 **Sanitizers, helper** (`cmake --preset ifc-sanitize`, the full tier's sanitizer step, `ASAN_OPTIONS=detect_leaks=0`): 5 of 5 passed. `ifc_worker_probe` 28.99 s, `ifc_georeference` 93.88 s, `ifc_export_worker` 31.19 s, `ifc_import_worker` 162.96 s, `ifc_worker_fault_corpus` (64 per file) 167.95 s. The library itself is not instrumented in this build; the instrumented library is the J3 build below.
 
+## J1 and J3: the fuzz campaigns
+
+**Builds.** Three instrumented builds, each in the pinned image with Clang 23.1.1:
+
+- **The library (J3).** The vendored tree (`third_party/ifcopenshell/cmake`) configured with Clang, ASan and
+  UBSan (`-fsanitize=address,undefined -fno-sanitize-recover=all -g -O1 -fno-omit-frame-pointer`), upstream's
+  `BUILD_FUZZERS=ON`, the three schemas, IfcGeom and the OpenCASCADE kernel (OCCT 7.9.3); no CGAL, Manifold,
+  converter or Python. 340 steps, 28 minutes (15:27 to 15:55 UTC). Its `ifcparse_fuzzer` is upstream's harness
+  (`src/ifcfuzz`).
+- **The `worker` target (J3).** `scripts/ifc-fuzz/worker_fuzzer.cpp`, committed with this record. It parses the
+  input from memory with IfcParse, then iterates its geometry with the OpenCASCADE kernel the way the helper's
+  import does (welded vertices, the import's deflections, one thread, the Model context's Body representation),
+  and reads every triangulation. It is built with `clang++ -fsanitize=fuzzer,address,undefined` against the
+  instrumented library. Upstream's harness stops at the parser, and upstream does not fuzz geometry.
+- **The application's package decoder (J1).** `cmake -DSKETCHYUP_BUILD_FUZZERS=ON` with Clang, RelWithDebInfo,
+  no desktop and no CLI, and the target `parser_fuzz_ifc_package` (`docs/PARSER_FUZZING.md`). 224 steps, 6 minutes.
+
+**Runs.** Each campaign ran 300 seconds (libFuzzer `-max_total_time=300`) from the seeds. The seeds are the 60
+IFC files of `tests/fixtures/ifc/` (for the two library targets) and the eight package seeds of
+`parser_fuzz_seeds` (for J1). Options: `-max_len=1048576 -timeout=10` (30 for the worker) `-rss_limit_mb=3072`.
+Sanitizer options: `ASAN_OPTIONS=detect_leaks=0` for the two library targets, as ADR F12 requires (IfcParse leaks
+the instances of every file it parses); `detect_leaks=1` for J1, whose decoder is ours.
+
+| Campaign | Target | Runs | Exec/s | Peak RSS | Findings |
+| --- | --- | --- | --- | --- | --- |
+| J3 | `ifcparse_fuzzer` (upstream, IfcParse instrumented) | 32,923 | 109 | 798 MiB | none; no artifact, no sanitizer report |
+| J3 | `worker` (parse plus geometry iteration, OCCT kernel) | 27,463 | 91 | 518 MiB | none; no artifact, no sanitizer report |
+| J1 | `parser_fuzz_ifc_package` (the application's decoder) | 1,246,993 | 4,142 | 533 MiB | none; no artifact, no sanitizer report |
+
+Exit status 0 for all three. The artifact directories are empty. No crash, timeout or out-of-memory input was
+found, so `tests/fixtures/ifc/fuzz-findings/` has nothing to hold, and no upstream report is needed.
+
+**Caveats, which bound what these runs show.**
+
+- **Coverage.** The upstream build adds `-fsanitize=fuzzer` only to its harness target, so libFuzzer's coverage
+  feedback covers the harness code, not the library. The campaigns are mutation-driven against the library: the
+  `ifcparse_fuzzer` run reached 37 coverage edges and the `worker` run 72, both in the harness. J1's coverage
+  (1,248 edges) is real, since its code is ours and instrumented. A library-wide coverage build (the library
+  compiled with `-fsanitize=fuzzer-no-link`) would be the stronger campaign. It is not done here; it is a follow-up
+  that needs about 30 minutes of build.
+- **Length.** Five minutes each, the ADR's minimum per release; the library campaigns have run only that long.
+- **J4.** The ADR asks that the harness run every input twice and compare. The `ifc-package` branch of
+  `tests/fuzz/parser_harness.hpp` decodes each input twice, once with the digest check off and once with it on, and
+  requires the two packages to agree when the digest matches. This satisfies the wording as written, but the two
+  runs differ in one setting; a same-setting repeat is not in the harness. The worker's own determinism is H1
+  (two imports of each fixture), which passes.
+
 ## G1: external validators
 
 ADR 0171 §6.3 G1 asks for two validators on the golden exports, run by hand at acceptance; neither is a CI
