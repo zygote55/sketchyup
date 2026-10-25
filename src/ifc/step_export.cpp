@@ -426,6 +426,11 @@ std::string jsonEscaped(std::string text) {
 int runExportStep(const StepExportOptions& options) {
   Progress progress(true);
   try {
+    // The schema first (no package is read for a refusal): AP214 DIS by default, AP203 as the option. AP242 writing is not supported (ADR 0172 section 2).
+    std::string schema = options.schema.empty() ? "ap214" : options.schema;
+    if (schema == "ap242") throw Refusal("schema", "AP242 writing is not supported; the export writes AP214 (the default) or AP203.");
+    if (schema != "ap214" && schema != "ap203") throw Refusal("schema", "The schema is ap214 (the default) or ap203.");
+    if (options.output.empty()) throw Refusal("outputMissing", "The export needs an output file.");
     progress.phase("read");
     const std::string bytes = readFile(options.input, "package");
     StepExportPackage package;
@@ -434,11 +439,6 @@ int runExportStep(const StepExportOptions& options) {
     } catch (const std::runtime_error& problem) {
       throw Refusal("packageInvalid", problem.what());
     }
-    // AP214 DIS by default, AP203 as the option. AP242 writing is not supported (ADR 0172 section 2).
-    std::string schema = options.schema.empty() ? "ap214" : options.schema;
-    if (schema == "ap242") throw Refusal("schema", "AP242 writing is not supported; the export writes AP214 (the default) or AP203.");
-    if (schema != "ap214" && schema != "ap203") throw Refusal("schema", "The schema is ap214 (the default) or ap203.");
-    if (options.output.empty()) throw Refusal("outputMissing", "The export needs an output file.");
     const bool anyElement = std::any_of(package.nodes.begin(), package.nodes.end(), [](const StepExportNode& n) { return !n.assembly; });
     if (!anyElement) throw Refusal("emptyModel", "The model has no body to export; nothing was written.");
 
@@ -471,7 +471,8 @@ int runExportStep(const StepExportOptions& options) {
 
     const Counts& counts = document.counts();
     std::ostringstream json;
-    json << R"({"status":"ok","schema":")" << schema << R"(","unit":"mm","bytes":)" << text.size() << R"(,"parts":)" << counts.parts
+    json << R"({"status":"ok","schema":")" << schema << R"(","unit":"mm","occt":")" << SKETCHYUP_IFC_OCCT_VERSION_STRING
+         << R"(","bytes":)" << text.size() << R"(,"parts":)" << counts.parts
          << R"(,"assemblies":)" << counts.assemblies << R"(,"instances":)" << counts.instances << R"(,"faces":)" << counts.faces
          << R"(,"solids":)" << counts.solids << R"(,"shells":)" << counts.shells << R"(,"fallbacks":)" << counts.fallbacks
          << R"(,"degenerate":)" << counts.degenerate << R"(,"hidden":)" << counts.hidden << R"(,"layers":)" << counts.layers.size()

@@ -1,4 +1,5 @@
 #include "io/ifc_export.hpp"
+#include "io/ifc_worker_run.hpp"
 
 #include "core/appearance.hpp"
 #include "core/component_parameter_records.hpp"
@@ -1301,100 +1302,6 @@ QJsonObject planIfcExport(const Document &document) {
 }
 
 namespace {
-struct WorkerRun {
-    enum Kind { Finished, Refused, Stopped, Cancelled } kind{Stopped};
-    QString reason, logTail;
-    QJsonObject result;
-    int exitCode{-1};
-};
-
-// Runs the helper once with a fixed argv and a scrubbed environment, in its own session, with a deadline; the
-// parent ends it (terminate, then kill after a second) on cancel, on the deadline or when it floods its output.
-WorkerRun runWorker(const QString &worker, const QString &directory, const QStringList &args, const IfcWorkerOptions &options) {
-    WorkerRun run;
-    QProcess process;
-    process.setProgram(worker);
-    process.setArguments(args);
-    process.setWorkingDirectory(directory);
-    QProcessEnvironment environment;
-    environment.insert("LC_ALL", "C.UTF-8");
-    process.setProcessEnvironment(environment);
-    process.setChildProcessModifier([] {
-        ::setsid();
-        ::prctl(PR_SET_PDEATHSIG, SIGKILL);
-    });
-    process.start(QIODevice::ReadOnly);
-    if (!process.waitForStarted(10000)) {
-        run.reason = "start";
-        run.logTail = process.errorString();
-        return run;
-    }
-    QElapsedTimer clock;
-    clock.start();
-    QByteArray pending, errors;
-    bool killed = false, cancelled = false, timedOut = false, flooded = false;
-    const auto readLines = [&] {
-        errors += process.readAllStandardError();
-        if (errors.size() > 16 * 1024)
-            errors = errors.right(8 * 1024);
-        pending += process.readAllStandardOutput();
-        if (pending.size() > 64 * 1024 && pending.indexOf('\n') < 0) {
-            flooded = true;
-            pending.clear();
-        }
-        qsizetype at;
-        while ((at = pending.indexOf('\n')) >= 0) {
-            const auto line = QString::fromUtf8(pending.left(at)).trimmed();
-            pending.remove(0, at + 1);
-            if (line.startsWith("R "))
-                run.result = QJsonDocument::fromJson(line.mid(2).toUtf8()).object();
-        }
-    };
-    while (process.state() != QProcess::NotRunning) {
-        if (!process.waitForReadyRead(50))
-            process.waitForFinished(1);
-        readLines();
-        if (!killed && options.cancelled && options.cancelled()) {
-            cancelled = true;
-            process.terminate();
-            killed = true;
-            clock.restart();
-        } else if (!killed && flooded) {
-            process.terminate();
-            killed = true;
-            clock.restart();
-        } else if (!killed && clock.elapsed() > qint64(options.deadlineSeconds) * 1000) {
-            timedOut = true;
-            process.terminate();
-            killed = true;
-            clock.restart();
-        } else if (killed && clock.elapsed() > 1000 && process.state() != QProcess::NotRunning) {
-            process.kill();
-            clock.restart();
-        }
-    }
-    readLines();
-    errors += process.readAllStandardError();
-    run.logTail = QString::fromUtf8(errors).trimmed().right(2048);
-    run.exitCode = process.exitCode();
-    if (cancelled) {
-        run.kind = WorkerRun::Cancelled;
-    } else if (timedOut) {
-        run.reason = "timeout";
-    } else if (flooded) {
-        run.reason = "error";
-    } else if (process.exitStatus() == QProcess::NormalExit && run.exitCode == 0 && run.result["status"] == "ok") {
-        run.kind = WorkerRun::Finished;
-    } else if (process.exitStatus() == QProcess::NormalExit && run.exitCode == 3 && run.result["status"] == "refused") {
-        run.kind = WorkerRun::Refused;
-    } else {
-        run.reason = process.exitStatus() == QProcess::CrashExit ? "crash"
-                     : (run.logTail.contains("bad_alloc") || run.logTail.contains("length_error")) ? "memory"
-                                                                                                   : "error";
-    }
-    return run;
-}
-
 // The report's bounds (ADR 0171 section 4): 64 KiB, 64 kinds, 32 locations a kind, 256-byte messages; counts stay
 // complete.
 QString clipMessage(QString message) {
@@ -1531,11 +1438,11 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
     limits << "--rlimit-cpu" << QString::number(qint64(worker.deadlineSeconds) * 4);
     exportArguments += limits;
     exportArguments << "--rlimit-fsize" << QString::number(qint64(maxIfcBytes) + 1024 * 1024);
-    const auto run = runWorker(workerPath, directory.path(), exportArguments, worker);
+    const auto run = runIfcWorker(workerPath, directory.path(), exportArguments, worker);
     auto report = capture.plan;
-    if (run.kind == WorkerRun::Cancelled)
+    if (run.kind == IfcWorkerRun::Cancelled)
         refuse("cancelled", "The export was cancelled; nothing was written.");
-    if (run.kind == WorkerRun::Refused) {
+    if (run.kind == IfcWorkerRun::Refused) {
         static const QRegularExpression identifier("^[A-Za-z][A-Za-z0-9]{0,39}\\z");
         static const QRegularExpression control("[\\x00-\\x1f\\x7f]");
         QString code = run.result["code"].toString();
@@ -1547,7 +1454,7 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
             message.chop(1);
         refuse(code.toStdString(), message.toStdString(), report);
     }
-    if (run.kind != WorkerRun::Finished) {
+    if (run.kind != IfcWorkerRun::Finished) {
         const QFileInfo produced(outputPath);
         if (produced.exists() && produced.size() >= qint64(maxIfcBytes))
             refuse("outputTooLarge", "The IFC file would be larger than 256 MiB; nothing was written.", report);
@@ -1575,16 +1482,16 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
     // The file that is about to be published is read again by the helper's IfcParse and every attribute is checked against the
     // schema (not an independent validator: the same library wrote it).
     {
-        const auto checked = runWorker(workerPath, directory.path(), QStringList{"--check", outputPath} + limits, worker);
-        if (checked.kind == WorkerRun::Cancelled)
+        const auto checked = runIfcWorker(workerPath, directory.path(), QStringList{"--check", outputPath} + limits, worker);
+        if (checked.kind == IfcWorkerRun::Cancelled)
             refuse("cancelled", "The export was cancelled; nothing was written.");
-        if (checked.kind != WorkerRun::Finished && checked.result["status"] != "invalid") {
+        if (checked.kind != IfcWorkerRun::Finished && checked.result["status"] != "invalid") {
             // The check itself stopped (a crash, the deadline, memory): that is the helper failing, not the file.
             auto failed = report;
             failed["logTail"] = scrubPaths(QString(checked.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>"));
             refuse("workerFailed", "The IFC helper stopped while checking its file (" + checked.reason.toStdString() + "); nothing was written.", failed);
         }
-        if (checked.kind != WorkerRun::Finished) {
+        if (checked.kind != IfcWorkerRun::Finished) {
             QStringList issues;
             for (const auto &issue : checked.result["issues"].toArray())
                 if (issues.size() < 8)
