@@ -93,74 +93,113 @@ QString stepTessellationLine(const QJsonObject &report) {
         .arg(QString::number(tessellation["maxTotalTriangles"].toInteger(1000000)));
 }
 } // namespace
-void showIfcImportReport(QWidget *parent, const QString &fileName, const QJsonObject &report,
-                          qint64 elapsedMs, int restarts) {
-    ReportSheet sheet("ifcImportReport", "IFC import report", parent);
+// The IFC import's face (ADR 0171 section 16.5): the banner, the accounting identity with its
+// bar, the notices and the footer are the shared builder's; the face supplies the strings,
+// the summary, how it was read and the grouped list. The next format (R102.c, the .skp
+// import) plugs in here: a face and a state, nothing else.
+ImportReportFace ifcImportReportFace() {
+    ImportReportFace face;
+    face.sheetName = "ifcImportReport";
+    face.title = "IFC import report";
+    face.prefix = "ifcReport";
+    face.identitySubject = "entities";
+    face.chipWord = "IFC";
+    face.attention = [](const ImportReportState &state) {
+        // The import report has no `attention` member (only the export report does); what
+        // needs attention after an import is what the helper did not convert.
+        return state.report["accounting"].toObject()["omitted"].toInteger(0);
+    };
+    face.summary = [](const ImportReportState &state) {
+        const QJsonObject source = state.report["source"].toObject();
+        return QString("%1\n%2 · %3\nEntities read: %4")
+            .arg(QFileInfo(state.fileName).fileName())
+            .arg(source["schema"].toString())
+            .arg(humanSize(source["bytes"].toInteger(0)))
+            .arg(state.report["accounting"].toObject()["entities"].toInteger(0));
+    };
+    face.how = [](const ImportReportState &state) {
+        const QJsonObject report = state.report;
+        const QJsonObject source = report["source"].toObject();
+        return QString("Schema: %1\nUnits: %2\nGeoreference: %3\nMaximum deviation: %4 mm")
+            .arg(source["schema"].toString())
+            .arg(unitsLine(report))
+            .arg(georeferenceLine(report))
+            .arg(QString::number(report["precision"].toObject().value("chordDeviationMm").toDouble(0.5), 'f', 2));
+    };
+    face.groups = [](const ImportReportState &state) {
+        const QJsonObject report = state.report;
+        std::vector<std::pair<QString, QStringList>> groups;
+        auto &spatial = groups.emplace_back("Spatial structure", QStringList{});
+        const QJsonObject spatialCounts = report["spatial"].toObject();
+        for (const char *key : {"projects", "sites", "buildings", "storeys", "spaces"})
+            spatial.second << QStringList{key, QString::number(spatialCounts[key].toInteger(0))};
+        auto &geometry = groups.emplace_back("Geometry", QStringList{});
+        const QJsonObject geometryReport = report["geometry"].toObject();
+        for (const char *key : {"bodies", "meshes", "triangles", "instances"})
+            geometry.second << QStringList{key, QString::number(geometryReport[key].toInteger(0))};
+        return groups;
+    };
+    return face;
+}
+// One "show the last report" path (the screens refactor): the IFC and STEP import reports
+// differ only in the face. The banner, the identity with its bar, the notices and the
+// footer are the shared behaviour.
+void showImportReport(QWidget *parent, const ImportReportFace &face, const ImportReportState &state) {
+    const QJsonObject &report = state.report;
+    ReportSheet sheet(face.sheetName, face.title, parent);
     sheet.resize(720, 560);
     // The banner.
     auto *banner = new QLabel;
-    banner->setObjectName("ifcReportBanner");
+    banner->setObjectName(face.prefix + "Banner");
     const QJsonObject engine = report["engine"].toObject();
-    const int engineRestarts = engine["restarts"].toInt(0);
-    const int shownRestarts = std::max(restarts, engineRestarts);
+    const int engineRestarts = engine["restarts"].toInteger(0);
+    const int shownRestarts = std::max(state.restarts, engineRestarts);
     banner->setText(QString("✓ Import finished · %1 · %2 restart%3")
-                       .arg(humanMs(elapsedMs))
+                       .arg(humanMs(state.elapsedMs))
                        .arg(shownRestarts)
                        .arg(shownRestarts == 1 ? QString() : QString("s")));
     banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
-    sheet.summary->setObjectName("ifcReportSummary");
-    const QJsonObject source = report["source"].toObject();
-    const QJsonObject accounting = report["accounting"].toObject();
-    const qint64 entities = accounting["entities"].toInt(0);
-    sheet.summary->setText(
-        QString("%1\n%2 · %3\nEntities read: %4")
-            .arg(QFileInfo(fileName).fileName())
-            .arg(source["schema"].toString())
-            .arg(humanSize(source["bytes"].toInteger(0)))
-            .arg(entities));
+    sheet.summary->setObjectName(face.prefix + "Summary");
+    sheet.summary->setText(face.summary(state));
     sheet.summary->setTextFormat(Qt::PlainText);
     sheet.summary->setWordWrap(true);
     sheet.body->addWidget(banner);
     sheet.body->addWidget(sheet.summary);
     // The accounting identity with its bar.
     auto *identity = new QLabel;
-    identity->setObjectName("ifcReportIdentity");
+    identity->setObjectName(face.prefix + "Identity");
+    const QJsonObject accounting = report["accounting"].toObject();
     identity->setText(
-        QString("entities read %1 = converted to geometry %2 + structure and metadata %3 + omitted %4")
-            .arg(accounting["entities"].toInt(0))
-            .arg(accounting["converted"].toInt(0))
-            .arg(accounting["supporting"].toInt(0))
-            .arg(accounting["omitted"].toInt(0)));
+        QString("%1 read %2 = converted to geometry %3 + structure and metadata %4 + omitted %5")
+            .arg(face.identitySubject)
+            .arg(accounting["entities"].toInteger(0))
+            .arg(accounting["converted"].toInteger(0))
+            .arg(accounting["supporting"].toInteger(0))
+            .arg(accounting["omitted"].toInteger(0)));
     sheet.body->addWidget(identity);
-    addSegmentBar(sheet.body, accounting["converted"].toInt(0), accounting["supporting"].toInt(0),
-                   accounting["omitted"].toInt(0));
+    addSegmentBar(sheet.body, accounting["converted"].toInteger(0), accounting["supporting"].toInteger(0),
+                   accounting["omitted"].toInteger(0));
     // How it was read.
     auto *how = new QPlainTextEdit;
-    how->setObjectName("ifcReportHow");
+    how->setObjectName(face.prefix + "How");
     how->setAccessibleName("how it was read");
     how->setReadOnly(true);
     how->setMaximumHeight(96);
-    how->setPlainText(QString("Schema: %1\nUnits: %2\nGeoreference: %3\nMaximum deviation: %4 mm")
-                         .arg(source["schema"].toString())
-                         .arg(unitsLine(report))
-                         .arg(georeferenceLine(report))
-                         .arg(QString::number(report["precision"].toObject().value("chordDeviationMm").toDouble(0.5), 'f', 2)));
+    how->setPlainText(face.how(state));
     sheet.body->addWidget(how);
-    // The grouped list.
+    // The grouped list (the face's groups, then the notices).
     auto *list = new QTreeWidget;
-    list->setObjectName("ifcReportList");
+    list->setObjectName(face.prefix + "List");
     list->setAccessibleName("import report details");
     list->setColumnCount(2);
     list->setHeaderLabels({"What", "Count"});
     list->setRootIsDecorated(true);
-    auto *spatialItem = new QTreeWidgetItem(list, {"Spatial structure", QString()});
-    const QJsonObject spatialCounts = report["spatial"].toObject();
-    for (const char *key : {"projects", "sites", "buildings", "storeys", "spaces"})
-        new QTreeWidgetItem(spatialItem, {key, QString::number(spatialCounts[key].toInt(0))});
-    auto *geometry = new QTreeWidgetItem(list, {"Geometry", QString()});
-    const QJsonObject geometryReport = report["geometry"].toObject();
-    for (const char *key : {"bodies", "meshes", "triangles", "instances"})
-        new QTreeWidgetItem(geometry, {key, QString::number(geometryReport[key].toInteger(0))});
+    for (const auto &group : face.groups(state)) {
+        auto *item = new QTreeWidgetItem(list, {group.first, QString()});
+        // The face's rows are flat "label, value, label, value…" pairs.
+        for (size_t i = 0; i + 1 < group.second.size(); i += 2)
+            new QTreeWidgetItem(item, {group.second[i], group.second[i + 1]});
+    }
     auto *notices = new QTreeWidgetItem(list, {"Notices", QString()});
     const auto noticeList = report["notices"].toArray();
     for (const auto &value : noticeList) {
@@ -173,7 +212,7 @@ void showIfcImportReport(QWidget *parent, const QString &fileName, const QJsonOb
     sheet.body->addWidget(list, 1);
     // The footer.
     auto *ok = new QPushButton("OK");
-    ok->setObjectName("ifcReportOK");
+    ok->setObjectName(face.prefix + "OK");
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
     footerLayout->addStretch();
@@ -435,96 +474,54 @@ void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirec
     sheet.buttons->hide();
     sheet.exec();
 }
-// R098.a3: the STEP import report (ADR 0172 section 8) — the IFC report's own screen for
-// STEP: the banner, what came in (the helper's own counts, which ride the report as `step`),
-// the accounting identity with its bar, how it was read (the schema, the units, the
-// application's own tessellation policy), the grouped list, the footer.
-void showStepImportReport(QWidget *parent, const QString &fileName, const QJsonObject &report,
-                          qint64 elapsedMs, int restarts) {
-    ReportSheet sheet("stepImportReport", "STEP import report", parent);
-    sheet.resize(720, 560);
-    auto *banner = new QLabel;
-    banner->setObjectName("stepReportBanner");
-    const QJsonObject engine = report["engine"].toObject();
-    const int engineRestarts = engine["restarts"].toInt(0);
-    const int shownRestarts = std::max(restarts, engineRestarts);
-    banner->setText(QString("✓ Import finished · %1 · %2 restart%3")
-                       .arg(humanMs(elapsedMs))
-                       .arg(shownRestarts)
-                       .arg(shownRestarts == 1 ? QString() : QString("s")));
-    banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
-    sheet.summary->setObjectName("stepReportSummary");
-    const QJsonObject source = report["source"].toObject();
-    const QJsonObject step = report["step"].toObject(); // the helper's own line (the application's runner attached it)
-    sheet.summary->setText(
-        QString("%1\n%2 · %3\nConverted: %4 · Triangles: %5")
-            .arg(QFileInfo(fileName).fileName())
+// The STEP import's face (ADR 0172 section 8): the IFC report's own screen for STEP — the
+// helper's own counts (they ride the report as `step`) beside the application's conversion;
+// the tessellation policy and the triangle caps come from the application's own choice (the
+// report's `tessellation`).
+ImportReportFace stepImportReportFace() {
+    ImportReportFace face;
+    face.sheetName = "stepImportReport";
+    face.title = "STEP import report";
+    face.prefix = "stepReport";
+    face.identitySubject = "nodes";
+    face.chipWord = "STEP";
+    face.attention = [](const ImportReportState &state) {
+        // The attention is the helper's own: the solids it read but did not convert (the
+        // budget and the tessellation failures); the conversion omits nothing.
+        return state.report["step"].toObject()["omitted"].toInteger(0);
+    };
+    face.summary = [](const ImportReportState &state) {
+        const QJsonObject source = state.report["source"].toObject();
+        const QJsonObject step = state.report["step"].toObject(); // the helper's own line (the application's runner attached it)
+        return QString("%1\n%2 · %3\nConverted: %4 · Triangles: %5")
+            .arg(QFileInfo(state.fileName).fileName())
             .arg(source["schema"].toString())
             .arg(humanSize(source["bytes"].toInteger(0)))
             .arg(QString::number(step["converted"].toInteger(0)))
-            .arg(QString::number(step["triangles"].toInteger(0))));
-    sheet.summary->setTextFormat(Qt::PlainText);
-    sheet.summary->setWordWrap(true);
-    sheet.body->addWidget(banner);
-    sheet.body->addWidget(sheet.summary);
-    // The accounting identity with its bar. The application's runner computes it for the
-    // STEP package (the helper's package carries the converted nodes and the root; the
-    // conversion omits nothing — the helper refuses before writing anything it cannot convert).
-    const QJsonObject accounting = report["accounting"].toObject();
-    auto *identity = new QLabel;
-    identity->setObjectName("stepReportIdentity");
-    identity->setText(
-        QString("nodes read %1 = converted to geometry %2 + structure and metadata %3 + omitted %4")
-            .arg(accounting["entities"].toInteger(0))
-            .arg(accounting["converted"].toInteger(0))
-            .arg(accounting["supporting"].toInteger(0))
-            .arg(accounting["omitted"].toInteger(0)));
-    sheet.body->addWidget(identity);
-    addSegmentBar(sheet.body, accounting["converted"].toInteger(0), accounting["supporting"].toInteger(0),
-                   accounting["omitted"].toInteger(0));
-    // How it was read.
-    auto *how = new QPlainTextEdit;
-    how->setObjectName("stepReportHow");
-    how->setAccessibleName("how it was read");
-    how->setReadOnly(true);
-    how->setMaximumHeight(96);
-    how->setPlainText(QString("Schema: %1\nUnits: %2\nTessellation: %3\nNo georeference: the STEP import keeps the helper's axes")
-                         .arg(source["schema"].toString())
-                         .arg(stepUnitsLine(report))
-                         .arg(stepTessellationLine(report)));
-    sheet.body->addWidget(how);
-    // The grouped list: the helper's own counts, the application's conversion, the notices.
-    auto *list = new QTreeWidget;
-    list->setObjectName("stepReportList");
-    list->setAccessibleName("import report details");
-    list->setColumnCount(2);
-    list->setHeaderLabels({"What", "Count"});
-    list->setRootIsDecorated(true);
-    auto *helper = new QTreeWidgetItem(list, {"The STEP helper", QString()});
-    for (const char *key : {"nodes", "meshes", "converted", "omitted", "unsupported", "triangles"})
-        new QTreeWidgetItem(helper, {key, QString::number(step[key].toInteger(0))});
-    auto *geometry = new QTreeWidgetItem(list, {"Geometry", QString()});
-    const QJsonObject geometryReport = report["geometry"].toObject();
-    for (const char *key : {"bodies", "vertices", "faces", "edges"})
-        new QTreeWidgetItem(geometry, {key, QString::number(geometryReport[key].toInteger(0))});
-    auto *notices = new QTreeWidgetItem(list, {"Notices", QString()});
-    const auto noticeList = report["notices"].toArray();
-    for (const auto &value : noticeList) {
-        const QJsonObject notice = value.toObject();
-        new QTreeWidgetItem(notices, {notice["message"].toString(),
-                                       QString::number(notice["count"].toInteger(0))});
-    }
-    if (noticeList.isEmpty())
-        new QTreeWidgetItem(notices, {"None", QString()});
-    sheet.body->addWidget(list, 1);
-    auto *ok = new QPushButton("OK");
-    ok->setObjectName("stepReportOK");
-    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
-    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
-    footerLayout->addStretch();
-    footerLayout->addWidget(ok);
-    sheet.buttons->hide();
-    sheet.exec();
+            .arg(QString::number(step["triangles"].toInteger(0)));
+    };
+    face.how = [](const ImportReportState &state) {
+        const QJsonObject report = state.report;
+        const QJsonObject source = report["source"].toObject();
+        return QString("Schema: %1\nUnits: %2\nTessellation: %3\nNo georeference: the STEP import keeps the helper's axes")
+            .arg(source["schema"].toString())
+            .arg(stepUnitsLine(report))
+            .arg(stepTessellationLine(report));
+    };
+    face.groups = [](const ImportReportState &state) {
+        const QJsonObject report = state.report;
+        std::vector<std::pair<QString, QStringList>> groups;
+        auto &helper = groups.emplace_back("The STEP helper", QStringList{});
+        const QJsonObject step = report["step"].toObject();
+        for (const char *key : {"nodes", "meshes", "converted", "omitted", "unsupported", "triangles"})
+            helper.second << QStringList{key, QString::number(step[key].toInteger(0))};
+        auto &geometry = groups.emplace_back("Geometry", QStringList{});
+        const QJsonObject geometryReport = report["geometry"].toObject();
+        for (const char *key : {"bodies", "vertices", "faces", "edges"})
+            geometry.second << QStringList{key, QString::number(geometryReport[key].toInteger(0))};
+        return groups;
+    };
+    return face;
 }
 // R098.a3: the STEP refusal — the IFC refusal's own words. The check that failed is named
 // (the application's own, or the helper's as its words come back); the model is unchanged
