@@ -512,6 +512,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         action("file.exportObj", "Export OBJ package…", {}, [this] { exportObjDialog(); }));
     // R097.e1: Export IFC… after Export OBJ package… (the export screen is R097.e2).
     file->addAction(action("file.exportIfc", "Export IFC…", {}, [this] { exportIfc(); }));
+    // R098.c2: Export STEP… after Export IFC… (the STEP twin of the IFC export screen).
+    file->addAction(action("file.exportStep", "Export STEP…", {}, [this] { exportStep(); }));
     file->addSeparator();
     file->addAction(action("file.recovery", "Recover work…", {}, [this] { showRecovery(); }));
     file->addAction(action("file.recoveryNow", "Save recovery now", {}, [this] {

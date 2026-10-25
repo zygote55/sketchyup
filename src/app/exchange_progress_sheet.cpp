@@ -106,6 +106,15 @@ ExchangeProgressConfig ifcExportProgressConfig() {
     config.focusCancel = true;
     return config;
 }
+ExchangeProgressConfig stepExportProgressConfig() {
+    // The STEP export runs the same four steps, on the same phases (capture, build, check,
+    // publish), as the IFC export (R098.c2, ADR 0172 section 8); only the title and the names differ.
+    ExchangeProgressConfig config = ifcExportProgressConfig();
+    config.sheetName = "stepExportProgressSheet";
+    config.windowTitle = "Exporting STEP";
+    config.prefix = "stepExportProgress";
+    return config;
+}
 ExchangeProgressSheet::ExchangeProgressSheet(ExchangeRunner *runner, const ExchangeProgressConfig &cfg,
                                             const QString &fileName, QWidget *parent)
     : Settled<QDialog>(parent), runner(runner), config(cfg),

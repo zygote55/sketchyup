@@ -1173,7 +1173,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # progress sheet (import on a worker thread), the report/refusal/unavailable sheets,
   # and the File menu flow; the helper is the IFC helper's, so the IFC availability
   # states are its own.
-  target_sources(sketchyup_desktop PRIVATE src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/step_export_dialog.cpp src/app/step_export_progress_sheet.cpp src/app/step_export_runner.cpp src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
   # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet (the import
   # on a worker thread), the report, the refusal and the availability sheets, and the File menu flow;
   # the helper is sketchyup-skp-worker, which the application finds beside it and never links.
@@ -1463,6 +1463,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_compile_definitions(step_import_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME step_import_dialog COMMAND step_import_dialog_tests)
     set_tests_properties(step_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                     TIMEOUT 600)
+    # R098.c2 (ADR 0172 section 8): the STEP export screens — the plan dialog with its schema choice
+    # and size note, the Save dialog, the progress sheet with Cancel and Escape, the report, the
+    # refusals and the missing helper — offscreen, driven by a stand-in helper.
+    add_executable(step_export_dialog_tests tests/step_export_dialog_tests.cpp)
+    target_link_libraries(step_export_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(step_export_dialog_tests PRIVATE tests)
+    target_compile_definitions(step_export_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME step_export_dialog COMMAND step_export_dialog_tests)
+    set_tests_properties(step_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                      TIMEOUT 600)
     # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet, the report
     # and its chip, the refusals and the not-installed sheet, and the File menu flow — offscreen, driven

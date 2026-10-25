@@ -1,4 +1,5 @@
 #include "app/ifc_sheets.hpp"
+#include "app/step_export_dialog.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
@@ -586,25 +587,178 @@ void showStepRefusal(QWidget *parent, const QString &fileName, const std::string
 }
 // R098.a3: the STEP import's availability — the IFC helper's own states. The STEP import
 // needs none of the IFC kernel, so the helper's Limited state is not shown; the window
-// calls this only for Missing and Broken.
-void showStepUnavailable(QWidget *parent, const IfcProbe &probe) {
+// calls this only for Missing and Broken. R098.c2: the STEP export's, with its own words (the
+// same helper, the same two states).
+void showStepUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirection) {
+    const QString direction = exportDirection ? QStringLiteral("export") : QStringLiteral("import");
     AvailabilitySheet face;
-    face.sheetName = probe.state == IfcState::Missing ? "stepUnavailable" : "stepBroken";
-    face.title = "STEP import";
-    face.prefix = "stepUnavailable";
+    face.sheetName = probe.state == IfcState::Missing ? (exportDirection ? "stepExportUnavailable" : "stepUnavailable")
+                                                      : (exportDirection ? "stepExportBroken" : "stepBroken");
+    face.title = exportDirection ? "STEP export" : "STEP import";
+    face.prefix = exportDirection ? "stepExportUnavailable" : "stepUnavailable";
     if (probe.state == IfcState::Missing) {
         face.text =
-            QString("STEP import is not installed.\n\n"
+            QString("STEP %1 is not installed.\n\n"
                     "The sketchyup-ifc package is not installed on this machine.\n"
                     "Everything else is unaffected: the open model, the sheets, the assistant, "
                     "your settings and recovery all work as before.\n\n"
-                    "To enable STEP import, install the sketchyup-ifc package.");
+                    "To enable STEP %1, install the sketchyup-ifc package.")
+                .arg(direction);
     } else {
         face.text =
-            QString("STEP import cannot start.\n\nThe helper could not be started.\n\n%1")
+            QString("STEP %1 cannot start.\n\nThe helper could not be started.\n\n%2")
+                .arg(direction)
                 .arg(probe.logTail);
     }
     showAvailabilitySheet(parent, face);
+}
+// R098.c2 (ADR 0172 section 8): the STEP export's refusal — the IFC export refusal's shape with the
+// STEP export's words: first, that nothing was written and the model is unchanged; then the reason;
+// then the numbered next step for the check that failed. Red and the word "Refused", never colour
+// alone. Cancel is not a refusal and has no sheet.
+void showStepExportRefusal(QWidget *parent, const QString &path, const std::string &code,
+                           const QString &message, const QJsonObject &report) {
+    RefusalSheet face;
+    face.sheetName = "stepExportRefusal";
+    face.title = "STEP export refused";
+    face.width = 680;
+    face.height = 480;
+    face.prefix = "stepExportRefusal";
+    face.leadingLine = "✗ Nothing was written.";
+    const QString codeText = QString::fromStdString(code);
+    face.refusedLine = "Refused: " + codeText;
+    QString whatToDo;
+    if (codeText == "destinationExists")
+        whatToDo = "1. Choose a new name — an existing file is never replaced.\n2. Export again.";
+    else if (codeText == "destination")
+        whatToDo = "1. Choose another location.\n2. Export again.";
+    else if (codeText == "schema")
+        whatToDo = "1. Choose AP214 (the default) or AP203; AP242 is not written.\n2. Export again.";
+    else if (codeText == "outputTooLarge")
+        whatToDo = "1. Export a smaller part of the model (one building, storey or group).\n2. Export again.";
+    else if (codeText == "meshTooLarge")
+        whatToDo = "1. Split the body that is too large into smaller bodies.\n2. Export again.";
+    else if (codeText == "tooManyTriangles")
+        whatToDo = "1. Export a smaller part of the model; the export takes at most 1,000,000 triangles.\n2. Export again.";
+    else if (codeText == "packageTooLarge")
+        whatToDo = "1. The model is larger than the export takes; export a smaller part of it.\n2. Export again.";
+    else if (codeText == "emptyModel")
+        whatToDo = "1. Add something to the model (a group or a body with faces).\n2. Export again.";
+    else if (codeText == "workerMissing")
+        whatToDo = "1. Install the sketchyup-ifc package.\n2. Export again; no restart is needed.";
+    else if (codeText == "workerFailed")
+        whatToDo = "1. Try again once.\n2. Then export a smaller part of the model.";
+    else
+        whatToDo = "1. Try again once.\n2. If it repeats, report it with the details.";
+    face.summary =
+        QString("%1\n\n%2\n\nWhat to do next:\n%3\n\nNot affected: the open model, the "
+                "sheets, the assistant, your settings and recovery.")
+            .arg(QFileInfo(path).fileName())
+            .arg(message)
+            .arg(whatToDo);
+    face.report = report;
+    face.copyDetails = true;
+    face.closeButton = "Close";
+    face.closeSuffix = "Close";
+    face.closeIsDefault = true;
+    showRefusalSheet(parent, face);
+}
+// R098.c2 (ADR 0172 section 8, UX 16.8): the STEP export's result — the report component with the
+// export's own words. The banner says a new file was written and the model is unchanged. The identity
+// line is the plan check: the helper's own count of groups and placed occurrences matched the plan, or
+// the export would have been refused. Needs your attention holds the faces written one per triangle
+// and the faces that could not be tessellated. Written and Not written are the plan's counts (the
+// not-written kinds as the dialog lists them, the counted ones with their counts). Notices carry the
+// mesh, the units and what was left out.
+void showStepExportReport(QWidget *parent, const QString &path, const QJsonObject &report, qint64 elapsedMs) {
+    ReportSheet sheet("stepExportReport", "STEP export report", parent);
+    sheet.resize(760, 560);
+    auto *banner = new QLabel("✓ A new STEP file was written. The model is unchanged.");
+    banner->setObjectName("stepExportReportBanner");
+    banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
+    sheet.body->addWidget(banner);
+    sheet.summary->setObjectName("stepExportReportSummary");
+    sheet.summary->setWordWrap(true);
+    sheet.summary->setTextFormat(Qt::PlainText);
+    const QJsonObject target = report["target"].toObject();
+    sheet.summary->setText(
+        QString("%1 · %2\n%3 · %4 · %5")
+            .arg(QFileInfo(path).fileName())
+            .arg(humanSize(target["bytes"].toInteger(0)))
+            .arg(target["schema"].toString())
+            .arg(target["geometry"].toString())
+            .arg(humanMs(elapsedMs)));
+    sheet.body->addWidget(sheet.summary);
+    const QJsonObject plan = report["plan"].toObject();
+    const QJsonObject file = report["file"].toObject();
+    auto *identity = new QLabel(QString("Checked against the plan: %1 groups and %2 placed occurrences match the file ✓")
+                                    .arg(plan["groups"].toInteger(0))
+                                    .arg(plan["instances"].toInteger(0)));
+    identity->setObjectName("stepExportReportIdentity");
+    identity->setWordWrap(true);
+    sheet.body->addWidget(identity);
+
+    auto *list = new QTreeWidget;
+    list->setObjectName("stepExportReportList");
+    list->setAccessibleName("STEP export report: what needs attention, what was written, what was not written, and the notices");
+    list->setColumnCount(2);
+    list->setHeaderLabels({"What", "Count"});
+    list->setRootIsDecorated(true);
+    // Needs your attention: the faces the helper wrote one per triangle (their boundary did not close)
+    // and the faces that could not be tessellated (left out).
+    const qint64 fallbacks = file["fallbacks"].toInteger(0);
+    const qint64 untessellated = plan["notTriangulated"].toInteger(0);
+    const qint64 attentionCount = fallbacks + untessellated;
+    auto *attentionItem = new QTreeWidgetItem(list, {"Needs your attention", QString::number(attentionCount)});
+    if (fallbacks > 0)
+        new QTreeWidgetItem(attentionItem, {"Faces written one per triangle, because their boundary did not close", QString::number(fallbacks)});
+    if (untessellated > 0)
+        new QTreeWidgetItem(attentionItem, {"Faces that could not be tessellated, not written", QString::number(untessellated)});
+    if (attentionCount == 0)
+        attentionItem->setHidden(true);
+    // Written: the plan's counts, and the helper's parts and occurrences.
+    auto *writtenItem = new QTreeWidgetItem(list, {"Written", QString()});
+    const struct {
+        const char *label;
+        qint64 count;
+    } written[] = {
+        {"Groups", plan["groups"].toInteger(0)},
+        {"Bodies", plan["elements"].toInteger(0)},
+        {"Parts", file["parts"].toInteger(0)},
+        {"Placed occurrences", file["instances"].toInteger(0)},
+        {"Faces", plan["faces"].toInteger(0)},
+        {"Triangles", plan["triangles"].toInteger(0)},
+        {"Hidden", plan["hidden"].toInteger(0)},
+    };
+    for (const auto &line : written)
+        if (line.count > 0)
+            new QTreeWidgetItem(writtenItem, {line.label, QString::number(line.count)});
+    // Not written: one line per kind, as the dialog had it (the counted kinds only when the model has some).
+    auto *notWrittenItem = new QTreeWidgetItem(list, {"Not written", QString()});
+    for (const auto &kind : stepNotWrittenKinds()) {
+        const int count = stepNotWrittenCount(plan, kind);
+        if (kind.countKey && count == 0)
+            continue;
+        new QTreeWidgetItem(notWrittenItem, {QString::fromUtf8(kind.label), kind.countKey ? QString::number(count) : QString()});
+    }
+    // Notices, now final: the mesh, the units and what the export left out.
+    auto *noticesItem = new QTreeWidgetItem(list, {"Notices", QString()});
+    new QTreeWidgetItem(noticesItem, {"The file holds a mesh: each face is one flat face; parametric and NURBS surfaces are not created", QString()});
+    new QTreeWidgetItem(noticesItem, {"Lengths are written in millimetres; the model is in metres", QString()});
+    const qint64 degenerate = plan["degenerateTriangles"].toInteger(0);
+    if (degenerate > 0)
+        new QTreeWidgetItem(noticesItem, {"Zero-area triangles were left out", QString::number(degenerate)});
+    sheet.body->addWidget(list, 1);
+
+    auto *ok = new QPushButton("OK");
+    ok->setObjectName("stepExportReportOK");
+    ok->setDefault(true); // the close is the default; Esc closes (16.9)
+    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
+    sheet.buttons->hide();
+    sheet.exec();
 }
 // R102.c (ADR 0176 section 9): the SketchUp import's own screens. The report is the shared builder's
 // with this face: the file's version and container, the counts, the accounting identity per kind

@@ -110,6 +110,11 @@ class Window : public QMainWindow {
     // the helper's Limited state (no OpenCASCADE kernel) is not a limitation for STEP.
     void importStep();
     void showStepImportReport(); // the same path, the STEP face
+    // R098.c2: File › Export STEP… (window_step.cpp). The plan dialog (the schema, the written and
+    // not-written lines, the size warning), then the system Save dialog, then the export on a worker
+    // thread from a copy of the document (the same helper; ADR 0172 section 8). Export needs the helper,
+    // not the kernel: a missing or broken helper is the availability sheet, a Limited one is not.
+    void exportStep();
     // R102.c: File › Import SketchUp (.skp)… (window_skp.cpp, ADR 0176 section 9). The parser runs only
     // in sketchyup-skp-worker; the import runs on a worker thread (SkpImportRunner). A missing helper is
     // the availability sheet. The import has no options, so the file picker leads to the progress sheet.
