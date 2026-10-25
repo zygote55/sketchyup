@@ -55,9 +55,12 @@ RenderEngine engine(const QJsonValue &value) {
     throw std::runtime_error("Unknown render engine");
 }
 } // namespace
-QJsonObject encodePresentation(const Document &doc) {
+PresentationTables presentationTablesOf(const Document &doc) {
+    return {doc.cameraPaths(), doc.nextCameraPathId(), doc.renderPresets(), doc.nextRenderPresetId()};
+}
+QJsonObject encodePresentation(const PresentationTables &tables) {
     QJsonArray paths;
-    for (const auto &[id, path] : doc.cameraPaths()) {
+    for (const auto &[id, path] : tables.cameraPaths) {
         QJsonArray keyframes;
         for (const auto scene : path->keyframes)
             keyframes.append(QString::number(scene));
@@ -72,7 +75,7 @@ QJsonObject encodePresentation(const Document &doc) {
                                    {"holdSteps", t.holdSteps}}}});
     }
     QJsonArray presets;
-    for (const auto &[id, preset] : doc.renderPresets()) {
+    for (const auto &[id, preset] : tables.renderPresets) {
         const auto &s = preset->settings;
         presets.append(QJsonObject{
             {"id", QString::number(id)},
@@ -84,9 +87,9 @@ QJsonObject encodePresentation(const Document &doc) {
                                      {"engine", s.engine == RenderEngine::Eevee ? "eevee" : "cycles"}}}});
     }
     return {{"cameraPaths", paths},
-            {"nextCameraPathId", QString::number(doc.nextCameraPathId())},
+            {"nextCameraPathId", QString::number(tables.nextCameraPathId)},
             {"renderPresets", presets},
-            {"nextRenderPresetId", QString::number(doc.nextRenderPresetId())}};
+            {"nextRenderPresetId", QString::number(tables.nextRenderPresetId)}};
 }
 PresentationTables decodePresentation(const QJsonValue &value) {
     const auto fields = object(value,

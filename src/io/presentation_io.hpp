@@ -12,6 +12,7 @@ struct PresentationTables {
     RenderPresetRecords renderPresets;
     Id nextRenderPresetId{1};
 };
-QJsonObject encodePresentation(const Document &doc);
+PresentationTables presentationTablesOf(const Document &doc);
+QJsonObject encodePresentation(const PresentationTables &tables);
 PresentationTables decodePresentation(const QJsonValue &value);
 } // namespace sketchy

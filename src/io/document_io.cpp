@@ -496,7 +496,7 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
     }
     // Schema 30 (ADR 0173 §3): the camera path and render preset tables.
     if (version >= 30)
-        root["presentation"] = encodePresentation(doc);
+        root["presentation"] = encodePresentation(presentationTablesOf(doc));
     if (version >= 27) {
         root["drawingSheets"] = encodeDrawingSheets(doc.drawingSheets());
         root["nextDrawingSheetId"] = sid(doc.nextDrawingSheetId());
