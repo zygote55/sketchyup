@@ -569,6 +569,54 @@ user guide and the support-matrix row say so. Recommendation: no pin change now,
 commit exists. Move the pin only after #442's CText and 2017+ items close upstream, and then re-run the
 owner's corpus, the fixtures and the L1 check.
 
+**Verification on this machine (2026-10-25; the numbers, not the owner's files).**
+
+- **Shared build** (the `skp` preset, shared libraries): `skp_package`, `skp_import`, `skp_import_real`,
+  `skp_mapping`, `skp_mapping_real`, `skp_library_install` and `skp_library_source` pass (7 of 7). The
+  install check takes the shared-parser branch: the worker names `libsketchyup_openskp.so`, and its
+  closure is left to the static package.
+- **Static release build** (Release, shared libraries off, the same targets): the same 7 pass. The helper's
+  DT_NEEDED is `libstdc++.so.6`, `libm.so.6`, `libgcc_s.so.1` and `libc.so.6` only, and it carries 317
+  OpenSKP and miniz symbols; `sketchyup-cli` carries none. A scratch install, stripped as makepkg strips,
+  passes package mode: L1 by dynamic linkage, L2 by `ldd`, and L3 (the notices and the source record).
+- **Sanitized build** (`skp-sanitize`, ASan and UBSan): `skp_package`, `skp_import` and `skp_mapping` pass
+  (3 of 3). The test binaries and the helper carry the sanitizer runtime, and no report appears in the logs.
+- **Package decoder fuzz smoke** (Clang 23, `RelWithDebInfo -O1`, ASan and UBSan, `parser_fuzz_skp_package
+  -runs=200000 -seed=1 -max_len=65536`): seeds are the five packages the helper writes for the box,
+  face-with-hole, two-materials, textured-face and nested-component fixtures (1,560 to 2,363 bytes). The
+  run finished 200,000 executions in 30 s with no crash and no sanitizer report: 1,719 covered edges,
+  4,881 features, 198 corpus entries (357 KB), 6,666 executions a second, 498 MB resident.
+- **The owner's file** (`skp_import_tests --real`, `skp_mapping_tests --real`, through
+  `SKETCHYUP_SKP_CORPUS`): the package is 59,342 bytes. The R102.a record gave 59,138 before the instance
+  names and attributes were added to the manifest; I did not trace the difference further. The probe
+  reports 2 definitions (the root and "Teddy"), 1,261 vertices, 1,422 edges, 159 faces, 5 holes, 1
+  instance, 18 materials and 1 tag (the default layer). The mapping keeps 158 faces and drops 1 (the
+  `invalidFaces` notice: "Teddy", a repeated outer-loop vertex), keeps 4 of 5 holes (`invalidHoles` 1),
+  and imports 1,422 edges (153 of them wires), 18 materials, no tags (the default layer maps to Untagged),
+  and one component definition plus the root geometry. The world bounding box is 13.4389 × 8.27065 ×
+  2.4384 m. Five timed imports on the idle machine took 24 to 29 ms (R102.b measured 194 to 239 ms under a
+  load of about 30).
+
+**Faults found by running the CI lines, fixed in this PR.**
+
+- The sanitized helper ran out of address space: the application's supervisor passes `--rlimit-as` of
+  4 GiB, which overrode the helper's own exemption, and ASan maps more than that. The exemption is now one
+  definition (`SKP_WORKER_NO_ADDRESS_LIMIT`) for every sanitizer and fuzzer build, and the supervisor's
+  default follows it. The fuzz build generates its seeds with the helper, so it needs the same exemption.
+- `skp_library_install` failed because `cmake --install` needs every installed target built. The `skp`
+  preset builds the two workers that ship in the main package and the assembly bundles.
+- The Clang fuzz build rejected a narrowing in the helper's CPU limit, which GCC accepts. The first field is
+  now cast.
+- The fuzz step ran the helper from the wrong path. It now runs `build/skp-fuzz/src/skp/sketchyup-skp-worker`.
+
+**Not run here.**
+
+- The CI jobs themselves, and the Arch package acceptance in the pinned container. The package-acceptance
+  lines (install mode on `/work/package/src/build`, package mode and source mode) are not executed.
+- The desktop application and `skp_import_dialog_tests`. The header change to `skp_worker.hpp` is compiled
+  by the CLI and the import library built here, but not by the desktop targets.
+- The full `dev` test tree.
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue
