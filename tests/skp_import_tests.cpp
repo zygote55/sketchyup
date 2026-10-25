@@ -128,9 +128,9 @@ int main(int argc, char** argv) {
                                                      jstr(r.report["code"]));
         }
         const auto probe = run({"--probe", path});
-        check(probe.exitCode == 0, QString("%1: the probe (exit %2) %3").arg(name).arg(probe.exitCode).arg(jstr(probe.report["message"])).toStdString());
+        check(probe.exitCode == 0, QString("%1: the probe (exit %2) %3").arg(name).arg(probe.exitCode).arg(QString::fromStdString(jstr(probe.report["message"]))).toStdString());
         const auto import = run({"--import", path, "--output", temp.path() + QString("/%1.skp-package").arg(name)});
-        check(import.exitCode == 0, QString("%1: the import (exit %2) %3").arg(name).arg(import.exitCode).arg(jstr(import.report["message"])).toStdString());
+        check(import.exitCode == 0, QString("%1: the import (exit %2) %3").arg(name).arg(import.exitCode).arg(QString::fromStdString(jstr(import.report["message"]))).toStdString());
         check(import.report["status"] == "ok", "the import of " + std::string(name) + " says " +
                                                 jstr(import.report["status"]));
         check(import.report["bytes"].toDouble(-1) > 0, "the import of " + std::string(name) + " has no package");
