@@ -66,4 +66,8 @@ void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject
 // failed (AP242 is refused for the schema, the size limits, the helper stopping or a mismatch).
 void showStepExportRefusal(QWidget *parent, const QString &path, const std::string &code,
                            const QString &message, const QJsonObject &report);
+// R098.c2: the STEP export's result (ADR 0172 section 8, UX 16.8): the banner (a new file was written,
+// the model is unchanged), the file, its size, the schema, the geometry and the elapsed time, the plan
+// check, Needs your attention, Written, Not written and Notices.
+void showStepExportReport(QWidget *parent, const QString &path, const QJsonObject &report, qint64 elapsedMs);
 } // namespace sketchy

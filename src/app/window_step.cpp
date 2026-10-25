@@ -161,8 +161,11 @@ void Window::exportStep() {
         return;
     }
     if (runner->hasResult()) {
+        const qint64 elapsed = runner->clock.elapsed();
+        const QJsonObject report = runner->report();
         status_->setText("Exported a new STEP file · Model unchanged");
         delete runner;
+        ::sketchy::showStepExportReport(this, path, report, elapsed);
         return;
     }
     // A refusal or a failure: the model is unchanged and nothing was written.

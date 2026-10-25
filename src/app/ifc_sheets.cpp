@@ -1,4 +1,5 @@
 #include "app/ifc_sheets.hpp"
+#include "app/step_export_dialog.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
@@ -644,5 +645,102 @@ void showStepExportRefusal(QWidget *parent, const QString &path, const std::stri
     face.closeSuffix = "Close";
     face.closeIsDefault = true;
     showRefusalSheet(parent, face);
+}
+// R098.c2 (ADR 0172 section 8, UX 16.8): the STEP export's result — the report component with the
+// export's own words. The banner says a new file was written and the model is unchanged. The identity
+// line is the plan check: the helper's own count of groups and placed occurrences matched the plan, or
+// the export would have been refused. Needs your attention holds the faces written one per triangle
+// and the faces that could not be tessellated. Written and Not written are the plan's counts (the
+// not-written kinds as the dialog lists them, the counted ones with their counts). Notices carry the
+// mesh, the units and what was left out.
+void showStepExportReport(QWidget *parent, const QString &path, const QJsonObject &report, qint64 elapsedMs) {
+    ReportSheet sheet("stepExportReport", "STEP export report", parent);
+    sheet.resize(760, 560);
+    auto *banner = new QLabel("✓ A new STEP file was written. The model is unchanged.");
+    banner->setObjectName("stepExportReportBanner");
+    banner->setStyleSheet("font-size: 16px; font-weight: 600; color: #2e7d32;");
+    sheet.body->addWidget(banner);
+    sheet.summary->setObjectName("stepExportReportSummary");
+    sheet.summary->setWordWrap(true);
+    sheet.summary->setTextFormat(Qt::PlainText);
+    const QJsonObject target = report["target"].toObject();
+    sheet.summary->setText(
+        QString("%1 · %2\n%3 · %4 · %5")
+            .arg(QFileInfo(path).fileName())
+            .arg(humanSize(target["bytes"].toInteger(0)))
+            .arg(target["schema"].toString())
+            .arg(target["geometry"].toString())
+            .arg(humanMs(elapsedMs)));
+    sheet.body->addWidget(sheet.summary);
+    const QJsonObject plan = report["plan"].toObject();
+    const QJsonObject file = report["file"].toObject();
+    auto *identity = new QLabel(QString("Checked against the plan: %1 groups and %2 placed occurrences match the file ✓")
+                                    .arg(plan["groups"].toInteger(0))
+                                    .arg(plan["instances"].toInteger(0)));
+    identity->setObjectName("stepExportReportIdentity");
+    identity->setWordWrap(true);
+    sheet.body->addWidget(identity);
+
+    auto *list = new QTreeWidget;
+    list->setObjectName("stepExportReportList");
+    list->setAccessibleName("STEP export report: what needs attention, what was written, what was not written, and the notices");
+    list->setColumnCount(2);
+    list->setHeaderLabels({"What", "Count"});
+    list->setRootIsDecorated(true);
+    // Needs your attention: the faces the helper wrote one per triangle (their boundary did not close)
+    // and the faces that could not be tessellated (left out).
+    const qint64 fallbacks = file["fallbacks"].toInteger(0);
+    const qint64 untessellated = plan["notTriangulated"].toInteger(0);
+    const qint64 attentionCount = fallbacks + untessellated;
+    auto *attentionItem = new QTreeWidgetItem(list, {"Needs your attention", QString::number(attentionCount)});
+    if (fallbacks > 0)
+        new QTreeWidgetItem(attentionItem, {"Faces written one per triangle, because their boundary did not close", QString::number(fallbacks)});
+    if (untessellated > 0)
+        new QTreeWidgetItem(attentionItem, {"Faces that could not be tessellated, not written", QString::number(untessellated)});
+    if (attentionCount == 0)
+        attentionItem->setHidden(true);
+    // Written: the plan's counts, and the helper's parts and occurrences.
+    auto *writtenItem = new QTreeWidgetItem(list, {"Written", QString()});
+    const struct {
+        const char *label;
+        qint64 count;
+    } written[] = {
+        {"Groups", plan["groups"].toInteger(0)},
+        {"Bodies", plan["elements"].toInteger(0)},
+        {"Parts", file["parts"].toInteger(0)},
+        {"Placed occurrences", file["instances"].toInteger(0)},
+        {"Faces", plan["faces"].toInteger(0)},
+        {"Triangles", plan["triangles"].toInteger(0)},
+        {"Hidden", plan["hidden"].toInteger(0)},
+    };
+    for (const auto &line : written)
+        if (line.count > 0)
+            new QTreeWidgetItem(writtenItem, {line.label, QString::number(line.count)});
+    // Not written: one line per kind, as the dialog had it (the counted kinds only when the model has some).
+    auto *notWrittenItem = new QTreeWidgetItem(list, {"Not written", QString()});
+    for (const auto &kind : stepNotWrittenKinds()) {
+        const int count = stepNotWrittenCount(plan, kind);
+        if (kind.countKey && count == 0)
+            continue;
+        new QTreeWidgetItem(notWrittenItem, {QString::fromUtf8(kind.label), kind.countKey ? QString::number(count) : QString()});
+    }
+    // Notices, now final: the mesh, the units and what the export left out.
+    auto *noticesItem = new QTreeWidgetItem(list, {"Notices", QString()});
+    new QTreeWidgetItem(noticesItem, {"The file holds a mesh: each face is one flat face; parametric and NURBS surfaces are not created", QString()});
+    new QTreeWidgetItem(noticesItem, {"Lengths are written in millimetres; the model is in metres", QString()});
+    const qint64 degenerate = plan["degenerateTriangles"].toInteger(0);
+    if (degenerate > 0)
+        new QTreeWidgetItem(noticesItem, {"Zero-area triangles were left out", QString::number(degenerate)});
+    sheet.body->addWidget(list, 1);
+
+    auto *ok = new QPushButton("OK");
+    ok->setObjectName("stepExportReportOK");
+    ok->setDefault(true); // the close is the default; Esc closes (16.9)
+    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
+    auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
+    footerLayout->addStretch();
+    footerLayout->addWidget(ok);
+    sheet.buttons->hide();
+    sheet.exec();
 }
 } // namespace sketchy
