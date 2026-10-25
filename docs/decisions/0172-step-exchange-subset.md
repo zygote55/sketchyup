@@ -572,59 +572,98 @@ counted entities.
   is the IFC kernel's own pool, which OCCT's `BRepMesh` does not use; a build that
   ships the TBB runtime is where a parallel `BRepMesh` would pick up the pool.
 
+## Implementation notes (R098.a3, 2026-10-25)
+
+The application side of the import (§8): the runner, `sketchyup-cli --import-step` and
+File › Import STEP….
+
+- **The runner** (`src/io/step_worker.{hpp,cpp}`, in `sketchyup_io`) is the STEP twin of
+  the IFC worker runner (ADR 0171 §1.6). It applies the same private 0700 copy and hash, the
+  scrubbed environment, `setsid` and `PR_SET_PDEATHSIG`, the resource limits, the deadline and
+  cancel, the `P`/`R` line protocol and the package size bound. It decodes the helper's
+  package with the checked decoder and converts it with the unchanged
+  package-to-document conversion. The report is then post-processed into the STEP shape
+  (`format` `STEP`, the `step`, `units`, `tessellation` and `accounting` blocks).
+- **The application's own checks** run before the helper starts (§5): a regular file of at
+  most 128 MiB, the `ISO-10303-21` header and a `FILE_SCHEMA` in {AP203, AP214, AP242}. The
+  refusal codes are `tooLarge`, `notStep` and `noSchema`, plus the unsupported-schema refusal.
+  The same scan reads the first `LENGTH_UNIT` (the SI prefix or the conversion name) for the
+  dialog's facts line. That reading is for display only: the helper's unit decision (§2)
+  stays the authority for the conversion factor. The scan is duplicated in `sketchyup_io` on
+  purpose, so the application does not link `src/ifc`.
+- **The command line** mirrors `--import-ifc`, with `--step-deflection-mm`,
+  `--step-angle-deg`, `--step-length-unit`, `--step-deadline` and `--step-worker`. The report
+  JSON goes to stdout. A size or limit refusal is `LIMIT_EXCEEDED`; any other refusal is
+  `INPUT_ERROR`.
+- **The screens:**
+  - The R097.e1 options dialog gains a STEP kind. It shows the title, the subline, the
+    declared unit and the crease angle, and hides the IFC-only spaces and georeference
+    sections. A Limited IFC helper does not block STEP, which needs no IFC kernel.
+  - The progress sheet, the report, refusal and unavailable sheets and the report chip are
+    STEP siblings of the IFC screens (`step_import_runner`, `step_progress_sheet`,
+    `window_step`), not a shared generalisation. This duplicates about 400 lines, which a
+    later refactor can fold together.
+  - Escape or closing the progress sheet cancels the import, and the window waits for the
+    runner before reading its result (the R097.e1 rule).
+- **Known limitation:** a STEP import commits as one undoable edit labelled `Import IFC`.
+  The label comes from the shared conversion in `src/io/ifc_import.cpp`, which R098.b
+  changes.
+- **Tests:**
+  - `step_import_tests` (the IFC job's CTest list) covers the checks on the seven
+    fixtures, the refusals, a full conversion through a stand-in helper and the command
+    line.
+  - `step_import_dialog_tests` (the fast tier's X11 and Wayland lines, beside
+    `ifc_import_dialog_tests`) covers scenarios S0–S6 offscreen with stand-in helpers.
+  - A stand-in helper's result line must begin `R `. An unprefixed last line is a worker
+    failure, which is what made S6 fail during development.
+
 ## Implementation notes (R098.b, 2026-10-25)
 
-The §4 mapping lands in the same helper and the application, on the R098.a2 package:
+The §4 mapping lands in the same helper, on the R098.a2 package, with the application's
+conversion extended for STEP packages (the R098.a3 runner converts through it unchanged):
 
 - **Worker (`--import-step` with `--output`).** The flat `IfcStepSolid`-per-solid layout of
-  R098.a2 becomes the §4 tree: the XDE read (the XCAF document the XDE STEP translator
-  fills) walks the product structure; a product with a shape becomes a node (an assembly
-  `IfcStepAssembly`, a part `IfcStepSolid`), one mesh is tessellated once and every
-  instance of it references the same mesh (the shared-mesh design of the placement-carrying
-  node transform, R098.a's commit `27ac62cc`), the instance's placement rides the node's
-  transform and the basic reader's instanced bounding box comes out chained (a 10 x 20 x 30
-  mm part at (50, 0, 0), (0, 50, 0) and (0, 0, 50) reaches (60, 70, 80)). The names, the
-  colours, the layers and the visibility come from the XDE document (`XCAFDoc_ShapeTool`
-  name, `XCAFDoc_ColorTool` colour and `IsVisible`), the provenance per §4
-  (`step.Entity` the shape's tag, `step.Schema` the file's schema as written, `step.Source`
-  the file's SHA-256, on the bodies; `step.Entities` the entity count on the root), and an
-  unstyled product takes the package's `DefaultMaterial` (0.7 grey) with a notice.
-- **Application (`importStepFile`).** The same helper boundary the IFC import uses:
-  a cheap source check first (regular file, ≤ 128 MiB, `ISO-10303-21;`, one `FILE_SCHEMA`
-  in {AP203, AP214, AP242}, classified by the `10303-XXX` number the worker's own
-  `classifySchema` uses — the schema name carries its version, e.g. `AUTOMOTIVE_DESIGN
-  { 1 0 10303 214 1 1 1 1 }`), then the private copy **keeps the file's base name** (the
-  conversion names the root after it), `sketchyup-ifc-worker --import-step` under the same
-  rlimits and deadline (the worker's `--import-step` gains the IFC side's `--rlimit-*`
-  machinery), a whole-file retry (the conversion is one kernel transfer, so a stopped run
-  is retried on the file, at most `maxRestarts`, not a per-element exclusion), a refusal
-  (exit 2 or 3 with the JSON's `status` `refused`) surfaced as a small report with the
-  source's `sha256` / `bytes` / `schema`, and the package decoded and converted through
-  the existing `Converter`, which for a STEP package takes the tag family `STEP` (the class
-  name with the `IfcStep` prefix off and CamelCase spased, `STEP Other` at the 128-family
-  cap), the edit label `Import STEP`, the STEP notice wordings, and — for a shared-mesh
-  instance — the part's provenance on the canonical member (the placed bodies are its exact
-  copies by the document's component invariant, so the `step.*` keys ride there, and a
-  placed body that diverged is a validation error the import refuses, not a silent import).
-- **Verified (the pinned OCCT 7.9.3 build, the shared prefix cache):** the self-generated
-  corpus in `tests/fixtures/step/` (the R098.a box, the instanced assembly through the XDE
-  writer, the named/coloured/layered corpus through it) imports with the §4 facts — the
-  one shared mesh and three instance transforms, the 2,048-byte name clip with the
-  `nameTruncated` notice and the class-name fallbacks, the `DefaultMaterial` and colour
-  mapping with `colorAlphaDropped`, the `step.Layer` property and the hidden state (the
-  layer's visibility does not round-trip the 7.9.3 XDE writer/reader, so the hidden-state
-  evidence is the shape's `IsVisible`, and the writer's `PRESENTATION_LAYER_ASSIGNMENT`
-  writes `visible` regardless of the source layer's state — recorded, the shape visibility
-  is what the mapping uses), and the application-side check: the instanced assembly through
-  `importStepFile` (save and reopen bit-exact, one history entry labelled `Import STEP`,
-  one component definition and three instances, the `STEP Assembly` / `STEP Solid` tags and
-  no `IFC` tag, the `step.*` provenance, the report ≤ 64 KiB) and the unit refusals (no
-  declared unit and no option refuses with `units`, a nonsense option refuses with
-  `option`, a declared unit stands over a nonsense option). `tests/ifc_step_tests.cpp`
-  (C++, through the worker) and `tests/ifc_import_tests.cpp` (the application) cover it;
-  the local sets run green (the CI IFC set 6/6, the sanitize set 5/5 under ASan, where the
-  tests run without `ulimit -v` — ASan's shadow reservation needs more address space than
-  an 8 GiB virtual limit gives, and the docker memory cap bounds the run).
+  R098.a2 gains the assembly/instance tree. The XDE import's product structure (an
+  `XCAFDoc_ProductTool` read: the root assembly, the parts, the instance placements)
+  becomes the package's node tree: an `IfcStepAssembly` root, the named product per
+  part, one `IfcStepSolid` per placed instance, the placement as the instance node's
+  transform (the shared-mesh design: the part's one mesh is referenced by every
+  instance, the placement is the node's transform, never baked into the geometry).
+  The reader keeps `step.Entity` on the node and the `step` label on the instance,
+  and the basic reader's chained placements stay the package's (the package's own
+  placements are applied on conversion, not by the reader).
+- **Names, colours, layers, tags, provenance.** An unnamed product's name is its
+  class name (`IfcStepAssembly`, `IfcStepSolid`), over-long names are clipped to
+  2,048 bytes (`nameTruncated`), an unstyled product takes the package's
+  `DefaultMaterial` (grey 0.7, a `defaultMaterial` notice), a styled product carries
+  its colour, an alpha-only colour drops it (`colorAlphaDropped`), a layer rides as
+  the `step.Layer` property (`layerHidden` and `invisibleShapes` for the hidden;
+  OCCT's XDE layer visibility does not round-trip its own writer's
+  `PRESENTATION_LAYER_ASSIGNMENT`, so the hidden state rides the shape's
+  visibility). The provenance is the file's `step.Schema`, `step.Source` (the
+  64-byte digest prefix), `step.Entities` and each node's `step.Entity`.
+- **Units and caps.** The R098.a2 unit policy and the section 6 triangle caps are
+  unchanged; a file that declares no length unit refuses (`units`) unless the
+  option is given, and a nonsense option refuses (`option`).
+- **Application (the R098.a3 runner's two gaps).** The worker's `--import-step`
+  gains the IFC import's rlimit options (`--rlimit-as`, `--rlimit-cpu`,
+  `--rlimit-fsize`): the R098.a3 runner passes them by default (a 4 GiB
+  `addressSpaceBytes`), and the worker at the R098.a2 point refused them as
+  unknown options, which the stand-in tests could not see. The conversion gains
+  the STEP family (the R098.a3 known limitation, closed): the tag from the class
+  name (`STEP Assembly`, `STEP Solid`, `STEP Other` at the 128-family limit), the
+  edit label `Import STEP`, and the STEP notice wordings beside the IFC ones.
+- **Fixtures.** `sketchyup-step-instanced.step` (one part, three placed instances,
+  the XDE writer), `sketchyup-step-named.step`, `sketchyup-step-colored.step` and
+  `sketchyup-step-layered.step` (self-generated, the XDE writer's
+  `AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }`); [source notes](../tests/fixtures/step/STEP-SOURCE.txt).
+- **Verification.** `tests/ifc_step_tests.cpp` (C++, through the worker) and
+  `tests/ifc_import_tests.cpp` (the application, on the R098.a3 runner) cover it;
+  the local sets run green (the CI IFC set and the R098.a3 `step_import` suites,
+  the sanitize set 5/5 under ASan, where the tests run without `ulimit -v` —
+  ASan's shadow reservation needs more address space than an 8 GiB virtual
+  limit gives, and the docker memory cap bounds the run).
+
 
 1. **The adapter (options A/B/C):** **option A** — OCCT STEP translation in
    the shared helper, on the IFC helper's private OCCT set. *Rationale: it

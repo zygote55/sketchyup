@@ -26,6 +26,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QCursor>
 #include <QColorDialog>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -372,6 +373,25 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
+    // R097.e1: the IFC report chip (ADR 0171 §16, the design's mockup `after`): on this row,
+    // after the status text, hidden until an import has produced it. A hidden widget takes no
+    // space, so the row's height is the row's before any import; the chip never grows the bar.
+    ifcReportChip_ = new QPushButton;
+    ifcReportChip_->setObjectName("ifcImportChip");
+    ifcReportChip_->setCursor(QCursor(Qt::PointingHandCursor));
+    ifcReportChip_->setMaximumHeight(24); // the row already holds a text edit of that height; the
+                                        // chip, when shown, must never grow the row
+    ifcReportChip_->hide();
+    QObject::connect(ifcReportChip_, &QPushButton::clicked, this, &Window::showIfcImportReport);
+    bottomLayout->addWidget(ifcReportChip_);
+    // R098.a3: the STEP report chip, the IFC chip's own for STEP (the same lifetime rules).
+    stepReportChip_ = new QPushButton;
+    stepReportChip_->setObjectName("stepImportChip");
+    stepReportChip_->setCursor(QCursor(Qt::PointingHandCursor));
+    stepReportChip_->setMaximumHeight(24);
+    stepReportChip_->hide();
+    QObject::connect(stepReportChip_, &QPushButton::clicked, this, &Window::showStepImportReport);
+    bottomLayout->addWidget(stepReportChip_);
     auto *renderChip = new QPushButton;
     bottomLayout->addWidget(renderChip);
     render_ = new RenderPanel(doc_, *viewport_, *modelTabs, *renderChip, *this);
@@ -398,6 +418,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.new", "New", QKeySequence::New, [this] {
         if (canReplace()) {
             doc_ = Document(preferredUnits(), preferredPrecision());
+            clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
+            clearStepReportState(); // a new model: the STEP report chip's lifetime ends too
             resetRecoveryContext();
             path_.clear();
             viewport_->cancel();
@@ -442,6 +464,20 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (!path.isEmpty())
             importGltfPath(path);
     }));
+    // R097.e1: IFC exchange (ADR 0171 §16). Import IFC… after Import GLB/glTF…;
+    // Show IFC import report… directly below it (enabled only after an import).
+    file->addAction(action("file.importIfc", "Import IFC…", {}, [this] { importIfc(); }));
+    ifcReportAction_ = action("file.ifcImportReport", "Show IFC import report…", {},
+                               [this] { showIfcImportReport(); });
+    ifcReportAction_->setEnabled(false);
+    file->addAction(ifcReportAction_);
+    // R098.a3: STEP exchange (ADR 0172 section 8). Import STEP… after the IFC pair; Show
+    // STEP import report… directly below it (enabled only after a STEP import).
+    file->addAction(action("file.importStep", "Import STEP…", {}, [this] { importStep(); }));
+    stepReportAction_ = action("file.stepImportReport", "Show STEP import report…", {},
+                                 [this] { showStepImportReport(); });
+    stepReportAction_->setEnabled(false);
+    file->addAction(stepReportAction_);
     file->addAction(action("file.importFormline", "Import Formline…", {}, [this] {
         const auto path = QFileDialog::getOpenFileName(this, "Import Formline v1", {},
                                                        "Formline models (*.formline *.json)");
@@ -458,6 +494,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         action("file.exportRaster", "Export view as PNG…", {}, [this] { exportRasterDialog(); }));
     file->addAction(
         action("file.exportObj", "Export OBJ package…", {}, [this] { exportObjDialog(); }));
+    // R097.e1: Export IFC… after Export OBJ package… (the export screen is R097.e2).
+    file->addAction(action("file.exportIfc", "Export IFC…", {}, [this] { exportIfc(); }));
     file->addSeparator();
     file->addAction(action("file.recovery", "Recover work…", {}, [this] { showRecovery(); }));
     file->addAction(action("file.recoveryNow", "Save recovery now", {}, [this] {
@@ -1774,6 +1812,8 @@ void Window::openPath(const QString &path) {
     if (!canReplace())
         return;
     doc_ = std::move(loaded);
+    clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
+    clearStepReportState(); // a new model: the STEP report chip's lifetime ends too
     resetRecoveryContext();
     recoveryContext_ = {QFileInfo(path).absoluteFilePath(), doc_.revision(),
                         QFileInfo(path).lastModified().toUTC()};
@@ -1980,6 +2020,8 @@ void Window::demo() {
     box(-1, -.6, 2, 1.1, .8, "Table", {.67f, .48f, .30f});
     box(-1, -1.6, 2, .4, .45, "Bench", {.67f, .48f, .30f});
     doc_ = std::move(d);
+    clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
+    clearStepReportState(); // a new model: the STEP report chip's lifetime ends too
     resetRecoveryContext();
     path_.clear();
     viewport_->cancel();

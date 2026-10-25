@@ -2,6 +2,7 @@
 #include "app/assistant_panel.hpp"
 #include "app/organization_panel.hpp"
 #include "app/recovery_controller.hpp"
+#include "app/ifc_availability.hpp"
 #include "app/shortcut_bindings.hpp"
 #include "app/theme.hpp"
 #include "app/viewport.hpp"
@@ -9,11 +10,13 @@
 #include "io/obj_source.hpp"
 #include "io/stl_export.hpp"
 #include <QLabel>
+#include <QJsonObject>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPointer>
+#include <QPushButton>
 #include <array>
 #include <functional>
 #include <memory>
@@ -91,6 +94,32 @@ class Window : public QMainWindow {
     void exportStlDialog();
     void importObjDialog();
     void exportObjDialog();
+    // R097.e1: File › Import IFC… / Show IFC import report… / Export IFC… (window_ifc.cpp).
+    // The heavy work is the helper's (sketchyup-ifc-worker); the import runs on a worker
+    // thread, so the UI is never blocked. A missing helper is "not installed"; a missing
+    // kernel is "limited" (ADR 0171 §16.7). Export is R097.e2, so Export IFC… opens the
+    // availability sheet only.
+    void importIfc();
+    void exportIfc();
+    void showIfcImportReport();
+    // R098.a3: File › Import STEP… (window_step.cpp). The heavy work is the same helper's
+    // (sketchyup-ifc-worker, ADR 0172 section 8: one component, one helper, two directions);
+    // the import runs on a worker thread (StepImportRunner), the IFC import's own runner.
+    // A missing helper is the same availability sheet; the STEP import needs no kernel, so
+    // the helper's Limited state (no OpenCASCADE kernel) is not a limitation for STEP.
+    void importStep();
+    void showStepImportReport();
+    // The probe, on demand (the import is opened): a missing helper is the availability sheet, a
+    // broken one "cannot start" (ADR 0171 §16.7). It has its own deadline and is the user's
+    // action, so it runs on the UI thread; the conversion itself is on a worker thread (16.4).
+    void probeIfcNow();
+    // The report chip's lifetime (16.1): it belongs to the imported model; any other document
+    // clears it. Called by every document replacement and at the start of an import.
+    void clearIfcReportState();
+    void clearStepReportState(); // R098.a3: the STEP chip's lifetime is the IFC chip's own
+    void setIfcWorkerPath(const QString &path); // tests, and a future "where the helper is"
+    QString ifcWorkerPath();
+    IfcProbe ifcProbe();
     void exportRasterDialog();
     void exportMeasuredDialog();
     // R092.b: File › Export sheets… and Print… (window_sheet_export.cpp). Both open the
@@ -385,6 +414,26 @@ class Window : public QMainWindow {
     void rememberPath(const QString &path);
     QStringList recentFiles_;
     std::vector<QWidget *> focusRegions_;
+    // R097.e1: the IFC import's state (window_ifc.cpp).
+    QString ifcWorkerPath_;
+    IfcProbe ifcProbe_;
+    QJsonObject ifcImportReport_;
+    QString ifcImportFileName_;
+    qint64 ifcImportElapsedMs_ = 0;
+    int ifcImportRestarts_ = 0;
+    // R097.e1: the IFC import's state (window_ifc.cpp). The report chip is a button on the
+    // bottom status row (the design's mockup), hidden until an import has produced it; a
+    // hidden widget takes no space, so the window's layout is untouched until then.
+    QPushButton *ifcReportChip_{};
+    QAction *ifcReportAction_{};
+    // R098.a3: the STEP import's state (window_step.cpp), the IFC import's own screens for
+    // STEP: the report and its chip with the IFC import's own lifetime.
+    QJsonObject stepImportReport_;
+    QString stepImportFileName_;
+    qint64 stepImportElapsedMs_ = 0;
+    int stepImportRestarts_ = 0;
+    QPushButton *stepReportChip_{};
+    QAction *stepReportAction_{};
     void tool(Viewport::Tool tool, const QString &instruction);
     // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the
     // same shortcut may be used once per non-overlapping scope (ADR 0164 §4).

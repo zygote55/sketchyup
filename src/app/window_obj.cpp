@@ -97,6 +97,7 @@ void Window::importObjPath(const QString &path, ObjImportOptions options) {
     if (!canReplace())
         return;
     doc_ = std::move(imported.document);
+    clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
     resetRecoveryContext();
     path_.clear();
     viewport_->cancel();

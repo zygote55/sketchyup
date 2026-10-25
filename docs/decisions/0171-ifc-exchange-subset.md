@@ -2150,3 +2150,177 @@ pages and are marked as such.
   [the IFC2x3 georeferencing forum thread](https://forums.buildingsmart.org/t/geolocation-standards-in-ifc2x3-and-ifc4/2329)
   for the `ePset_MapConversion` convention (a proposal, not a standard).
 
+
+## Implementation notes (R097.e1)
+
+R097.e1 ships the desktop import screens (the UX design of decision 15 and §16): the **Import IFC…** options
+dialog (the file, the unit when the file doesn't declare one, the spaces choice, the georeference choice, the
+maximum deviation, the helper's state line, the Limited and the refusal banners, and the "what import does /
+what to do next" panels), the progress sheet (the seven steps, the bar, the elapsed time, Cancel), the report
+sheet (re-shown from the menu), the "not installed" and "cannot start" availability sheets, the import's
+runner and the window's flow (the on-demand probe, the picker, the two `canReplace()` gates of 16.3, the
+commit, the status lines and the report chip of the design's mockup `after`). It is pull request #428. There is no export screen yet (R097.e2) and no change to the helper:
+everything here is the application's capture of R097.b's conversion into the approved screens.
+
+### The flow, as built
+
+`Window::importIfc` runs the probe now when the user asks (it has its own deadline; a missing helper is the
+availability sheet, a broken one its "cannot start" with the helper's last log line), then the file picker,
+then the options dialog with the probe's state. A valid file runs `checkIfcSource` (the cheap refusals of
+16.7 as a red banner in the same dialog, Import disabled); the probe's **Limited** warning is the banner's
+own (the kernel is missing, only tessellated geometry will be converted) and outlives the file choice.
+Import asks about unsaved changes before the helper starts (16.3) and again at the commit (a cancel there
+discards the finished import). The conversion runs on `IfcImportRunner`, a `QThread` (the UI is never
+blocked; `phaseChanged` and `runFinished` are queued); the sheet maps phases to steps (`parse` to 2,
+`units`/`model` to 3, `geometry` to 4, `assemble`/`account`/`write` to 5, `tasks` and `done` to the bar),
+marks the working step and closes itself 150 ms after the result. The commit replaces the document with the
+converted one as one `Import IFC` history entry (undo takes it back), clears the path (a save must choose a
+new native file, never overwrite the source), fits the view and shows the report. Cancellation is
+cooperative through `IfcWorkerOptions::cancelled` (the helper exits `cancelled`); the window's status says
+what happened either way. The report chip is a hidden button on the bottom status row (the design's
+mockup `after`); the commit fills it ("⚠ IFC import · N need attention · Show report" when the
+helper did not convert N entities, "IFC import report" when it converted everything, the accessible
+name the design's 16.9 wording) and shows it, and a click reopens the report. Its lifetime is the
+imported model's: any other document (a new one, an opened one, another import, a template, a units
+change, a recovery) clears it, while a refused or a failed import, which leaves the model untouched,
+keeps it. A window shows no IFC widget until an import has committed: nothing is probed, and no widget
+is created, at startup.
+
+### What the suite found
+
+The suite's first version (S0 to S2) passed; S3 to S9 hung until the run showed the whole flow frozen at the
+progress sheet. Two app bugs, both fixed here:
+
+1. `IfcImportDialog::build` never created the unit `QComboBox`: the dialog's unit row had its label and no
+   control, and `options()`/`workerOptions()` read it null. The dialog builds it (m, mm, cm, in, ft, default
+   m) and the driver's checks run against it.
+2. `IfcImportRunner::begin` set the state and the clock and then did not `start()` the thread: the flow
+   opened the progress sheet and stopped there — the conversion never ran, the sheet never closed, and the
+   window's `runner->wait()` blocked the interface. `begin` starts the thread; the sheet's 150 ms close and
+   the window's `wasCancelled`/`hasResult`/`wait` sequence do the rest.
+
+Driving the dialog then exposed a third, the banner's ownership: `setFile` hid the banner when a valid file
+was chosen, so the **Limited** warning (the kernel isn't installed) vanished exactly when the user was
+about to convert. The banner is the probe's warning, not the file's: `setFile` now clears only a refusal
+(`applyProbeBanner` restores the probe's warning for a valid file, shows the refusal for an invalid one, and
+enables Import for the first).
+
+A fourth finding was the first implementation's own, caught by `narrow_layout_input_tests` before it
+reached CI: the window probed the helper at `showEvent` and put a permanent "IFC ready / IFC limited"
+chip in the window's `QStatusBar`. That went beyond the approved design (the chip is the post-import
+report chip on the status row, and the availability belongs to the dialog's helper line and the
+sheets), and it broke an existing test: materialising the `QStatusBar` shortens the central area, and
+the last tool on the rail drops into Qt's overflow menu, so "every tool shows on the wide rail"
+failed ("Pan" hidden at 900 px). The fix is the shape above: nothing at show; the probe on demand,
+when the import is opened; the chip a hidden button on the bottom status row that a hidden widget
+costs no layout.
+
+### The suite
+
+`ifc_import_dialog_tests` (registered as `ifc_import_dialog`, offscreen, in the four native display stages;
+`ci-path-map.json` and the line inventory follow) drives the real `Window` with stand-in helpers — `--probe`
+prints the probe's JSON (kernel available or not), `--import` copies the seed package
+`tests/fixtures/ifc/packages/rv-tessellated-item.skifc` to the output and prints `R {"status":"ok"}` (a
+refusal prints `R {"status":"refused",...}` and exits 3; a hung helper `exec`s `sleep 300`), a broken one
+prints a log line and exits 1 — and a `Window::setIfcWorkerPath` test hook points the window at it:
+
+- S0 the dialog on its own (the states, the unit row, the defaults, Enter accepts, Escape cancels, the
+  Choose… picker fills the facts); S1 a missing helper (the availability sheet, the export's pending sheet);
+  S2 a broken helper (cannot start, the helper's last log line).
+- S3 a limited helper, the full mouse flow: the Limited banner in the dialog, the progress sheet to 100 %
+  with the model step working while the geometry converts, the report, and Undo taking the import back
+  (the import replaced the document, so its identity and counters stay; the assertion is the terrain suite's
+  shape, the history's position). S4 an available helper, the keyboard flow (Enter on the dialog), the
+  available helper named, and the window's import equal to a direct `importIfcFile` conversion in every
+  respect but the document's unique identity (`documentId`, assigned at creation; the content is compared
+  with it normalized). S5 a non-IFC file (the cheap refusal in the dialog, Import disabled, nothing runs,
+  nothing is shown). S6 a refused import (the refusal sheet, the model unchanged). S7 a hung helper (the
+  check step is the working one and no step advanced; Cancel at the sheet leaves the model unchanged).
+  S8 a dirty model (Discard before the helper, Cancel at the commit phase: the finished import is
+  discarded, the model keeps its own). S9 a dirty model, both prompts answered: the import replaces the
+  model with the converted one as one `Import IFC` edit, the report's accounting intact.
+
+The driver records the dialog's and sheet's state on every tick, fires its one-shot actions only once the
+dialog has had a tick to settle (the first tick can land mid first layout), and reports an action failure at
+`stop()` instead of freezing; the assertions run after the flow returns, the same way the terrain import
+suite drives its `Settled` dialogs. The suite runs offscreen for CI parity; on a live Wayland session the
+`Settled` dialogs' focus activation delays `done()` until focus settles, which a scripted run does not
+control.
+
+## Implementation notes (R097.e2)
+
+R097.e2 ships the desktop export screens of §16: **File → Export IFC…** opens the plan dialog, then the
+system Save dialog, then the export runs on a worker thread with a four-step progress sheet, and the
+result is the report (or a refusal, or nothing for a cancel). It reuses the R097.e1 import screens rather
+than copying them: `IfcExportRunner` mirrors `IfcImportRunner` (a `QThread`, the `cancelled` flag captured
+under the mutex, `worker.progress` emitting queued `phaseChanged`, `exportIfcFile` off the UI thread),
+`IfcExportProgressSheet` mirrors the import progress sheet (the step row, the bar, the elapsed label,
+`reject()` as cooperative cancel, the sheet closing only once the runner has finished), and the report and
+refusal use the import suite's `ReportSheet` and the §16.6 refusal shape. What is new is the plan dialog
+itself (the numbers of `planIfcExport` before anything is written), the report's content (the balance line,
+Needs your attention, Not written, Notices) and `selectInModel` (a report row that selects the body in the
+viewport, wired through `Viewport::setSelection`). The export does not touch the open model, so it asks no
+unsaved-changes question.
+
+### The flow, as built
+
+`Window::exportIfc` opens the plan dialog (`IfcExportDialog`): the **Written** lines (structure, groups,
+bodies, components, colours, properties, hidden, identifiers), one **Not written** line per kind with its
+count (a zero count hides the line), the **Georeferencing** row (a green `Written` line when the site label
+is an authority code, an amber `Not written — no coordinate system` note otherwise, and the neutral no-site
+line) and the **What this is** panel; the footer says a new file is created and an existing one is never
+replaced. Enter is **Export to file…**, Esc cancels, the arrows scroll the form. The dialog refuses an empty
+model (a `Nothing to export` banner, Export disabled) and a missing helper (the availability sheet). On
+accept it opens the system Save picker — a `QFileDialog` object, as File › Export 2D DXF… does (`ifcExportFileDialog`, `AcceptSave`,
+`AnyFile`, `DontConfirmOverwrite`, an IFC name filter and a default `.ifc` suffix) — and a name that
+already exists (or is a symlink) is the `destinationExists` refusal; nothing is built. A new name starts
+`IfcExportRunner`, which keeps its own copy of the document (a value over shared immutable bodies, so
+nothing the UI does later can change what is written), sets `worker.cancelled`, and runs
+`exportIfcFile` on its thread; the progress sheet (Capture the model, Build the file, Check its size,
+Publish the file) maps the worker's `capture`/`build`/`check`/`publish` phases, works the current step, and
+its **Cancel** and Escape call `requestCancel` (the helper exits `cancelled` and the scratch package is
+removed; the sheet closes with `QDialog::Rejected` so it never flashes the all-done state). The window
+waits for the runner, then shows the report for a success, the refusal for a failure, and nothing but the
+status line for a cancel.
+
+### The report
+
+The report is the §16.5 component: the banner (**A new IFC file was written. The model is unchanged.**),
+the file/size/schema/geometry/elapsed summary, the accounting identity (**N + M + K = total ✓ balanced**,
+with a segment bar of the three dispositions), **Needs your attention** (the coordinate-system row with its
+fix, and each replaced `GlobalId` with a **Select in model** row), **Not written** (a count per kind) and
+**Notices** (including the plain-reals note). A refusal keeps the §16.6 shape — the red **Nothing was
+written.**, the code, the file, the reason, numbered next steps, the not-affected line, an optional
+read-only details block and **Copy details** to the clipboard.
+
+### What the suite found
+
+A `QFileDialog` object (the `save.exec()` shape, as the DXF export) uses the platform dialog unless told
+otherwise, and an offscreen run has none: it builds no widget tree and `exec()` never returns. The first
+version of this piece forced `DontUseNativeDialog` on the application's picker. The review moved that
+switch into the suite instead (`QApplication::setAttribute(Qt::AA_DontUseNativeDialogs)` before the
+application object, as `dxf_input_tests`, `file_operation_input_tests` and others do), so users keep the
+system dialog and the driver still reaches the widget picker's `fileNameEdit` and calls `accept`.
+
+### The suite
+
+`ifc_export_dialog_tests` (registered as `ifc_export_dialog`, offscreen, in the four native display stages;
+`ci-path-map.json` and the line inventory follow) drives the real `Window` with stand-in helpers — `--probe`
+prints the probe's JSON, `--export` writes a small IFC file and prints `R {"status":"ok",...}` (a refusal
+prints `R {"status":"refused",...}` and exits 1) and `--check` prints `R {"status":"ok"}` — pointed at them
+by `Window::setIfcWorkerPath`:
+
+- T1 the plan dialog on its own (the written lines, the not-written lines with and without a count,
+  the georeference's green and amber lines, the helper line, What this is, and the keyboard: Enter is
+  Export to file…, Esc cancels, the arrows scroll).
+- T2 an empty model (the `Nothing to export` banner, Export disabled); T3 a site origin whose label is not
+  an authority code (the amber `Not written — no coordinate system` line).
+- T4 the full flow (plan → Save → progress → report): the progress sheet's four steps, the IFC file
+  written, the report's banner, summary and balance line, and the window's status line.
+- T5 a destination that exists (the refusal, the existing file untouched); T6 a failed helper (the
+  refusal, nothing written).
+- T7 a cancelled export (nothing written, the scratch package gone, no report and no refusal); T8 a missing
+  helper (the not-installed sheet).
+
+The driver and the stand-in helper follow the R097.e1 suite; the suite runs offscreen for CI parity, the
+same way the import suite does.
