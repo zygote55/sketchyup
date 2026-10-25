@@ -160,7 +160,16 @@ gate. The raw-text scan, the helper's own schema check and the other checks of G
 The PyPI package `ifcopenshell==0.9.0.post1` (the same engine as the helper, so a consistency check, not an
 independent reader) is installed in a throwaway venv inside the pinned image. It runs
 `scripts/ifc-external-validators/validate_ifcos.py` with `python -I` on the six goldens in
-`tests/fixtures/ifc/export/`. Results: pending (filled in below when the run finishes).
+`tests/fixtures/ifc/export/`. Result: **0 statements on each of the six goldens** (`bsi-ifc4-arch.ifc`,
+`gltf-rig.ifc`, `ifc-structure.ifc`, `native-model.ifc`, `obj-concave-paint.ifc`, `rv-individual-colors.ifc`).
+
+A zero count is only meaningful if the rules run, so a positive control was run with the same venv: a copy of
+`gltf-rig.ifc` whose owner history sets `ChangeAction` to `.ADDED.` with no `LastModifiedDate` (a violation of the
+`CorrectChangeAction` rule, R097.d finding 3). The validator reports **one error statement** on it, so the rules
+run. The control is not committed; it is a copy with one changed line.
+
+This is the same engine as the helper, so it is a consistency check, not an independent reader. The second
+reader (web-ifc) and the local buildingSMART rule run are R097.d's results and were not repeated here.
 
 ### buildingSMART hosted validation service: owner
 
