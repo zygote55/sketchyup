@@ -131,6 +131,7 @@ void decodePackageCheck(const QString &path, bool &ok, std::string &problem,
         problem = "no meshes";
         return;
     }
+    const auto materials = manifest.value("materials").toArray();
     int64_t total = 0;
     int meshOffset = 0;
     for (const auto &value : meshes) {
@@ -164,8 +165,11 @@ void decodePackageCheck(const QString &path, bool &ok, std::string &problem,
         meshOffset += t * 12;
         for (int64_t i = 0; i < t; ++i) {
             const uint32_t material = qFromLittleEndian<uint32_t>(data + n * 24 + t * 12 + i * 4);
-            if (material != 0xFFFFFFFFu) {
-                problem = "a material index where the step import ships none (R098.b)";
+            // R098.b: the import ships a material index per triangle (0 for the DefaultMaterial of
+            // an unstyled product, 0xFFFFFFFF for a shape whose style is a colour, not a material).
+            // An index must reference a declared material of the manifest.
+            if (material != 0xFFFFFFFFu && static_cast<uint32_t>(materials.size()) <= material) {
+                problem = "a material index past the manifest's materials";
                 return;
             }
         }
@@ -917,10 +921,10 @@ int main(int argc, char **argv) {
                 const auto longName = nodes.at(3).toObject().value("name").toString();
                 check(longName.size() == 2048 && longName == QString(2048, 'A'),
                       "package named: the 3,000-character name is clipped to 2,048");
-                check(nodes.at(4).toObject().value("name").toString() == "IfcStepSolid",
-                      "package named: the unnamed product is named after its class");
-                // The provenance (the R098.b item 5 shape): step.Schema, step.Source (the file's
-                // SHA-256) and the entity label; the root carries the schema and the source.
+                check(nodes.at(4).toObject().value("name").toString() == "SOLID",
+                      "package named: the unnamed product carries the name the reader supplies (SOLID)");
+                // The provenance (the R098.b item 5 shape): step.Schema (the file's schema),
+                // step.Source (the file's SHA-256) and step.Entity (the source entity's label).
                 for (int i = 1; i < 5; ++i) {
                     const auto node = nodes.at(i).toObject();
                     const auto props = node.value("ifc").toArray();
@@ -929,9 +933,11 @@ int main(int argc, char **argv) {
                         const auto prop = value.toArray();
                         if (prop.size() != 3) continue;
                         const auto key = prop.at(0).toString();
-                        if (key == "step.Schema" && prop.at(2).toString() == "ap214") schema = true;
+                        if (key == "step.Schema" && prop.at(2).toString() == "AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }")
+                            schema = true;
                         if (key == "step.Source") { source = true; sourceIsHash = prop.at(2).toString().size() == 64; }
-                        if (key == "step.Entity" && prop.at(2).toString() == "s") entity = true;
+                        if (key == "step.Entity" && prop.at(2).toDouble() >= 1)
+                            entity = true;
                     }
                     check(schema && source && entity && sourceIsHash,
                           ("package named: the provenance (the schema, the file's SHA-256, the entity) on node " + QString::number(i)).toStdString());
@@ -942,7 +948,8 @@ int main(int argc, char **argv) {
                     const auto prop = value.toArray();
                     if (prop.size() != 3) continue;
                     const auto key = prop.at(0).toString();
-                    if (key == "step.Schema" && prop.at(2).toString() == "ap214") rootSchema = true;
+                    if (key == "step.Schema" && prop.at(2).toString() == "AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }")
+                        rootSchema = true;
                     if (key == "step.Source") { rootSource = true; rootSourceIsHash = prop.at(2).toString().size() == 64; }
                 }
                 check(rootSchema && rootSource && rootSourceIsHash, "package named: the root's provenance is the schema and the file's SHA-256");
@@ -966,8 +973,8 @@ int main(int argc, char **argv) {
         check(colored.code == 0 && colored.json.value("status").toString() == "ok",
               "package import (coloured): ok");
         check(colored.json.value("meshes").toInt() == 2 && colored.json.value("converted").toInt() == 2
-              && colored.json.value("nodes").toInt() == 4,
-              "package import (coloured): two products, two meshes, four nodes");
+              && colored.json.value("nodes").toInt() == 3,
+              "package import (coloured): two products, two meshes, three nodes");
         const QString coloredPackage = temp.filePath("sketchyup-step-colored.step.pkg");
         check(checkPackage(coloredPackage).isEmpty(), "package decode (coloured): " + checkPackage(coloredPackage).toStdString());
         {
@@ -990,13 +997,13 @@ int main(int argc, char **argv) {
             check(materials.size() == 1 && materials.at(0).toObject().value("name").toString() == "DefaultMaterial",
                   "package coloured: one material, the DefaultMaterial");
             const auto nodes = manifest.value("nodes").toArray();
-            check(nodes.size() == 4, "package coloured: four manifest nodes");
+            check(nodes.size() == 3, "package coloured: three manifest nodes");
             // Find the two product nodes and their meshes.
-            int redMesh = -1, plainMesh = -1, redNode = -1, plainNode = -1;
-            for (int i = 1; i < 4; ++i) {
+            int redMesh = -1, plainMesh = -1;
+            for (int i = 1; i < 3; ++i) {
                 const auto node = nodes.at(i).toObject();
-                if (node.value("name").toString() == "Red") { redMesh = node.value("mesh").toInt(); redNode = i; }
-                if (node.value("name").toString() == "Plain") { plainMesh = node.value("mesh").toInt(); plainNode = i; }
+                if (node.value("name").toString() == "Red") redMesh = node.value("mesh").toInt();
+                if (node.value("name").toString() == "Plain") plainMesh = node.value("mesh").toInt();
             }
             check(redMesh >= 0 && plainMesh >= 0 && redMesh != plainMesh, "package coloured: two distinct meshes");
             const auto meshes = manifest.value("meshes").toArray();
@@ -1052,8 +1059,8 @@ int main(int argc, char **argv) {
         check(layered.code == 0 && layered.json.value("status").toString() == "ok",
               "package import (layered): ok");
         check(layered.json.value("meshes").toInt() == 2 && layered.json.value("converted").toInt() == 2
-              && layered.json.value("nodes").toInt() == 4,
-              "package import (layered): two products, two meshes, four nodes");
+              && layered.json.value("nodes").toInt() == 3,
+              "package import (layered): two products, two meshes, three nodes");
         const QString layeredPackage = temp.filePath("sketchyup-step-layered.step.pkg");
         check(checkPackage(layeredPackage).isEmpty(), "package decode (layered): " + checkPackage(layeredPackage).toStdString());
         {
@@ -1063,10 +1070,10 @@ int main(int argc, char **argv) {
             const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
             const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
             const auto nodes = manifest.value("nodes").toArray();
-            check(nodes.size() == 4, "package layered: four manifest nodes");
-            if (nodes.size() == 4) {
+            check(nodes.size() == 3, "package layered: three manifest nodes");
+            if (nodes.size() == 3) {
                 int layeredNode = -1, hiddenNode = -1;
-                for (int i = 1; i < 4; ++i) {
+                for (int i = 1; i < 3; ++i) {
                     const auto node = nodes.at(i).toObject();
                     if (node.value("name").toString() == "Layered") layeredNode = i;
                     if (node.value("name").toString() == "Hidden") hiddenNode = i;
