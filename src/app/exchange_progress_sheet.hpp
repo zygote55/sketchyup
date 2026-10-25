@@ -58,8 +58,10 @@ class ExchangeProgressSheet : public Settled<QDialog> {
     qint64 tasksDone = 0;
 };
 // The faces (defined in the .cpp): the IFC import's seven steps (16.4), the STEP import's
-// (ADR 0172 section 8) and the IFC export's four steps (16.8).
+// (ADR 0172 section 8), the IFC export's four steps (16.8) and the STEP export's (the same four
+// steps and the same helper phases, titled "Exporting STEP").
 ExchangeProgressConfig ifcImportProgressConfig();
 ExchangeProgressConfig stepImportProgressConfig();
 ExchangeProgressConfig ifcExportProgressConfig();
+ExchangeProgressConfig stepExportProgressConfig();
 } // namespace sketchy

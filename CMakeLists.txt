@@ -1168,7 +1168,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # progress sheet (import on a worker thread), the report/refusal/unavailable sheets,
   # and the File menu flow; the helper is the IFC helper's, so the IFC availability
   # states are its own.
-  target_sources(sketchyup_desktop PRIVATE src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/step_export_dialog.cpp src/app/step_export_progress_sheet.cpp src/app/step_export_runner.cpp src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)

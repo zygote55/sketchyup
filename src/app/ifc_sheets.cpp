@@ -569,24 +569,80 @@ void showStepRefusal(QWidget *parent, const QString &fileName, const std::string
 }
 // R098.a3: the STEP import's availability — the IFC helper's own states. The STEP import
 // needs none of the IFC kernel, so the helper's Limited state is not shown; the window
-// calls this only for Missing and Broken.
-void showStepUnavailable(QWidget *parent, const IfcProbe &probe) {
+// calls this only for Missing and Broken. R098.c2: the STEP export's, with its own words (the
+// same helper, the same two states).
+void showStepUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirection) {
+    const QString direction = exportDirection ? QStringLiteral("export") : QStringLiteral("import");
     AvailabilitySheet face;
-    face.sheetName = probe.state == IfcState::Missing ? "stepUnavailable" : "stepBroken";
-    face.title = "STEP import";
-    face.prefix = "stepUnavailable";
+    face.sheetName = probe.state == IfcState::Missing ? (exportDirection ? "stepExportUnavailable" : "stepUnavailable")
+                                                      : (exportDirection ? "stepExportBroken" : "stepBroken");
+    face.title = exportDirection ? "STEP export" : "STEP import";
+    face.prefix = exportDirection ? "stepExportUnavailable" : "stepUnavailable";
     if (probe.state == IfcState::Missing) {
         face.text =
-            QString("STEP import is not installed.\n\n"
+            QString("STEP %1 is not installed.\n\n"
                     "The sketchyup-ifc package is not installed on this machine.\n"
                     "Everything else is unaffected: the open model, the sheets, the assistant, "
                     "your settings and recovery all work as before.\n\n"
-                    "To enable STEP import, install the sketchyup-ifc package.");
+                    "To enable STEP %1, install the sketchyup-ifc package.")
+                .arg(direction);
     } else {
         face.text =
-            QString("STEP import cannot start.\n\nThe helper could not be started.\n\n%1")
+            QString("STEP %1 cannot start.\n\nThe helper could not be started.\n\n%2")
+                .arg(direction)
                 .arg(probe.logTail);
     }
     showAvailabilitySheet(parent, face);
+}
+// R098.c2 (ADR 0172 section 8): the STEP export's refusal — the IFC export refusal's shape with the
+// STEP export's words: first, that nothing was written and the model is unchanged; then the reason;
+// then the numbered next step for the check that failed. Red and the word "Refused", never colour
+// alone. Cancel is not a refusal and has no sheet.
+void showStepExportRefusal(QWidget *parent, const QString &path, const std::string &code,
+                           const QString &message, const QJsonObject &report) {
+    RefusalSheet face;
+    face.sheetName = "stepExportRefusal";
+    face.title = "STEP export refused";
+    face.width = 680;
+    face.height = 480;
+    face.prefix = "stepExportRefusal";
+    face.leadingLine = "✗ Nothing was written.";
+    const QString codeText = QString::fromStdString(code);
+    face.refusedLine = "Refused: " + codeText;
+    QString whatToDo;
+    if (codeText == "destinationExists")
+        whatToDo = "1. Choose a new name — an existing file is never replaced.\n2. Export again.";
+    else if (codeText == "destination")
+        whatToDo = "1. Choose another location.\n2. Export again.";
+    else if (codeText == "schema")
+        whatToDo = "1. Choose AP214 (the default) or AP203; AP242 is not written.\n2. Export again.";
+    else if (codeText == "outputTooLarge")
+        whatToDo = "1. Export a smaller part of the model (one building, storey or group).\n2. Export again.";
+    else if (codeText == "meshTooLarge")
+        whatToDo = "1. Split the body that is too large into smaller bodies.\n2. Export again.";
+    else if (codeText == "tooManyTriangles")
+        whatToDo = "1. Export a smaller part of the model; the export takes at most 1,000,000 triangles.\n2. Export again.";
+    else if (codeText == "packageTooLarge")
+        whatToDo = "1. The model is larger than the export takes; export a smaller part of it.\n2. Export again.";
+    else if (codeText == "emptyModel")
+        whatToDo = "1. Add something to the model (a group or a body with faces).\n2. Export again.";
+    else if (codeText == "workerMissing")
+        whatToDo = "1. Install the sketchyup-ifc package.\n2. Export again; no restart is needed.";
+    else if (codeText == "workerFailed")
+        whatToDo = "1. Try again once.\n2. Then export a smaller part of the model.";
+    else
+        whatToDo = "1. Try again once.\n2. If it repeats, report it with the details.";
+    face.summary =
+        QString("%1\n\n%2\n\nWhat to do next:\n%3\n\nNot affected: the open model, the "
+                "sheets, the assistant, your settings and recovery.")
+            .arg(QFileInfo(path).fileName())
+            .arg(message)
+            .arg(whatToDo);
+    face.report = report;
+    face.copyDetails = true;
+    face.closeButton = "Close";
+    face.closeSuffix = "Close";
+    face.closeIsDefault = true;
+    showRefusalSheet(parent, face);
 }
 } // namespace sketchy
