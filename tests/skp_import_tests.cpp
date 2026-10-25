@@ -249,11 +249,13 @@ int main(int argc, char** argv) {
         check(r.exitCode == 3, QString("the pre-2013 refusal (exit %1)").arg(r.exitCode).toStdString());
         check(r.report["code"] == "pre2013", "the pre-2013 refusal says " + jstr(r.report["message"]));
     }
-    // The owner's own file (local only): the numbers the ADR notes record.
+    // The owner's own file (local only, never committed): the numbers the ADR notes record.
+    // SKETCHYUP_SKP_CORPUS names the directory that holds it; unset or missing, the case skips.
     if (real) {
-        const QString file = QStringLiteral("/home/keith/projects/sketchyup/.local/skp-corpus/BanyanHarbor.skp");
-        if (!QFile::exists(file)) {
-            std::cout << "the owner's file is not on this machine; skipped\n";
+        const QString corpus = qEnvironmentVariable("SKETCHYUP_SKP_CORPUS");
+        const QString file = corpus.isEmpty() ? QString() : corpus + QStringLiteral("/BanyanHarbor.skp");
+        if (file.isEmpty() || !QFile::exists(file)) {
+            std::cout << "SKETCHYUP_SKP_CORPUS does not hold the owner's file; skipped\n";
             return 77;
         }
         const auto probe = run({"--probe", file});
