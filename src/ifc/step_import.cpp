@@ -675,7 +675,7 @@ int runStepImportPackage(const StepImportOptions& options) {
   PackageData package;
   package.engineJson = engineReportJson();
   JsonOut source;
-  source.beginObject().field("file", baseName(options.file)).field("bytes", file.bytes).field("schema", file.schema).field("schemaRaw", file.schemaRaw).field("entities", model.entities).endObject();
+  source.beginObject().field("file", baseName(options.file)).field("bytes", file.bytes).field("schema", file.schema).field("schemaRaw", file.schemaRaw).field("sha256", file.sha256).field("entities", model.entities).endObject();
   package.sourceJson = source.str();
   JsonOut unitsJson;
   unitsJson.beginObject()
@@ -797,6 +797,12 @@ int runStepImportPackage(const StepImportOptions& options) {
 
   if (order.empty()) return refuse("nothingToImport", "The file transferred, but the document holds no shape.");
   if (treeTooDeep) report.notice("treeTooDeep", 1);
+  // ADR 0172 §4: an element with no parent (a free part; a free assembly is a top-level group)
+  // goes under the top-level group, counted as a notice (the IFC uncontainedElements pattern).
+  long long uncontained = 0;
+  for (const auto& flat : order)
+    if (!flat.isAssembly && flat.parent < 0) ++uncontained;
+  if (uncontained > 0) report.notice("uncontainedElements", uncontained);
 
   auto compose = [](const std::array<double, 16>& A, const std::array<double, 16>& B) {
     std::array<double, 16> C{};
@@ -954,11 +960,21 @@ int runStepImportPackage(const StepImportOptions& options) {
     }
     const ColorDecision color = colorOf(base);  // the file's colour (the reader's colour propagation)
     if (color.alphaDropped) report.notice("colorAlphaDropped", 1);
+    // A shape without a file colour takes the DefaultMaterial (0.7 grey) with the notice (the
+    // IFC pattern, ADR 0172 section 4): the package carries the material once, and the
+    // unstyled mesh's triangles reference it (a styled one keeps the no-material index - the
+    // colour is its own, per triangle).
+    std::uint32_t materialIndex = 0xFFFFFFFFu;
+    if (!color.rgb) {
+      if (package.materials.empty())
+        package.materials.push_back(PackageMaterial{"DefaultMaterial", {0.7f, 0.7f, 0.7f}, 1.0f});
+      materialIndex = 0u;
+      report.notice("defaultMaterial", 1);
+    }
     PackageMesh pm;
     pm.vertices = std::move(mesh.vertices);
     pm.triangles = std::move(mesh.indices);
-    // No material (0xFFFFFFFF, the decoder's noMaterial): the colour is the file's, if it has one.
-    pm.materials.assign(pm.triangles.size() / 3, 0xFFFFFFFFu);
+    pm.materials.assign(pm.triangles.size() / 3, materialIndex);
     if (color.rgb) {
       pm.colors.resize(pm.triangles.size() / 3);
       for (auto& c : pm.colors) c = color.color;
@@ -985,7 +1001,7 @@ int runStepImportPackage(const StepImportOptions& options) {
         PackageMesh mpm;
         mpm.vertices = std::move(mirror.vertices);
         mpm.triangles = std::move(mirror.indices);
-        mpm.materials.assign(mpm.triangles.size() / 3, 0xFFFFFFFFu);
+        mpm.materials.assign(mpm.triangles.size() / 3, materialIndex);
         if (color.rgb) {
           mpm.colors.resize(mpm.triangles.size() / 3);
           for (auto& c : mpm.colors) c = color.color;
@@ -1011,11 +1027,11 @@ int runStepImportPackage(const StepImportOptions& options) {
   PackageNode root;
   root.step = 0;
   root.className = "IfcStepAssembly";
-  root.name = clip(baseName(options.file), 4096);
+  root.name = clip(baseName(options.file), 2048);  // the 2,048-byte name cap (ADR 0172 §4)
   root.role = "assembly";
   root.parent = -1;
   root.provenance.push_back({"step.Schema", file.schemaRaw});
-  root.provenance.push_back({"step.Source", baseName(options.file)});
+  root.provenance.push_back({"step.Source", file.sha256});  // the file's SHA-256 (ADR 0172 §4)
   root.provenance.push_back({"step.Entities", static_cast<double>(model.entities)});
   package.nodes.push_back(root);
 
@@ -1029,12 +1045,15 @@ int runStepImportPackage(const StepImportOptions& options) {
     node.step = 0;  // the provenance carries the shape's tag; the step is the app's own order
     node.parent = parentPackage;
     node.provenance.push_back({"step.Entity", static_cast<double>(std::max(0, flat.tag))});
+    // ADR 0172 §4: the body resolves back to its origin - the entity, the schema, the file's digest.
+    node.provenance.push_back({"step.Schema", file.schemaRaw});
+    node.provenance.push_back({"step.Source", file.sha256});
     const LayerDecision layerDecision = flat.isAssembly ? LayerDecision{} : layersOf(flat.base, layers);
     if (flat.isAssembly) {
       ++assemblyCount;
       node.className = "IfcStepAssembly";
       node.name = labelName(flat.label);
-      if (node.name.empty()) node.name = "Assembly " + std::to_string(assemblyCount);
+      if (node.name.empty()) node.name = node.className;  // an unnamed assembly is named after its class
       node.role = "assembly";
       // The assembly's placement (its label's location; its children are placed relative to
       // it), from the pre-pass (the degenerate fallback applied).
@@ -1052,7 +1071,7 @@ int runStepImportPackage(const StepImportOptions& options) {
       ++bodyCount;
       node.className = "IfcStepSolid";
       node.name = labelName(flat.base);  // the part's name (its base's; the file's product name)
-      if (node.name.empty()) node.name = "Part " + std::to_string(bodyCount);
+      if (node.name.empty()) node.name = node.className;  // an unnamed part is named after its class
       node.role = "element";
       node.mesh = mesh;
       if (!layerDecision.name.empty()) node.properties.push_back(PackageNode::Property{"step", "Layer", 2, PackageValue(layerDecision.name)});
@@ -1074,13 +1093,17 @@ int runStepImportPackage(const StepImportOptions& options) {
         node.provenance.push_back({"step.Reference", 1.0});
       }
     }
+    // The 2,048-byte cap (ADR 0172 §4): over it the name is truncated with the notice.
+    if (node.name.size() > 2048) {
+      report.notice("nameTruncated", 1);
+      node.name = clip(node.name, 2048);
+    }
     node.hidden = !XCAFDoc_ColorTool::IsVisible(flat.label);
     if (node.hidden) report.notice("invisibleShapes", 1);
     if (layerDecision.hidden) {
       node.hidden = true;
       report.notice("layerHidden", 1);  // the file's layer visibility (an off layer hides its shapes)
     }
-    node.name = clip(node.name, 4096);
     pkgIndex[i] = static_cast<long long>(package.nodes.size());
     package.nodes.push_back(std::move(node));
   }

@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
         const auto result = run({worker, "--write-step", temp.path()});
         check(result.code == 0, "write-step exits 0");
         const auto files = result.json.value("files").toArray();
-        check(files.size() == 6, "write-step writes six files (the box, the cylinder, the assembly, the placed box, the mirrored box, the instanced assembly)");
+        check(files.size() == 9, "write-step writes nine files (the box, the cylinder, the assembly, the placed box, the mirrored box, the instanced assembly, the named corpus, the coloured corpus, the layer corpus)");
         for (const auto &value : files) {
             const auto file = value.toObject();
             check(file.value("written").toBool(), std::string("write-step: ") + file.value("file").toString().toStdString());
@@ -877,6 +877,226 @@ int main(int argc, char **argv) {
                   "package instanced: the three instance nodes carry the three placements (the group is the identity)");
         } else {
             check(false, "package instanced: the geometry could not be read");
+        }
+
+        // R098.b item 2 (ADR 0172 section 4): the named corpus. The product name becomes the
+        // node name; the 2,048-byte cap (the 3,000-character name is clipped with the notice);
+        // an unnamed product is named after its class. Every body carries the step.*
+        // provenance (the file's SHA-256 as step.Source, the schema, the entity label).
+        const auto named = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-named.step"), {});
+        check(named.code == 0 && named.json.value("status").toString() == "ok",
+              "package import (named): ok");
+        check(named.json.value("meshes").toInt() == 4 && named.json.value("converted").toInt() == 4
+              && named.json.value("nodes").toInt() == 5,
+              "package import (named): the four products, four meshes, five nodes");
+        const QString namedPackage = temp.filePath("sketchyup-step-named.step.pkg");
+        check(checkPackage(namedPackage).isEmpty(), "package decode (named): " + checkPackage(namedPackage).toStdString());
+        {
+            QFile in(namedPackage);
+            check(in.open(QIODevice::ReadOnly), "the named package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            // The over-cap name is a notice (the import clipped the 3,000-character name to 2,048).
+            const auto notices = manifest.value("report").toObject().value("notices").toArray();
+            bool truncated = false;
+            for (const auto &value : notices) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "nameTruncated" && notice.value("count").toInt() >= 1)
+                    truncated = true;
+            }
+            check(truncated, "package named: the over-cap name is a notice");
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 5, "package named: five manifest nodes");
+            if (nodes.size() == 5) {
+                // The write order: Bracket, Bolt, the 3,000-character name, the anonymous product.
+                check(nodes.at(1).toObject().value("name").toString() == "Bracket",
+                      "package named: the product name is the node name");
+                check(nodes.at(2).toObject().value("name").toString() == "Bolt",
+                      "package named: the second product name is the node name");
+                const auto longName = nodes.at(3).toObject().value("name").toString();
+                check(longName.size() == 2048 && longName == QString(2048, 'A'),
+                      "package named: the 3,000-character name is clipped to 2,048");
+                check(nodes.at(4).toObject().value("name").toString() == "IfcStepSolid",
+                      "package named: the unnamed product is named after its class");
+                // The provenance (the R098.b item 5 shape): step.Schema, step.Source (the file's
+                // SHA-256) and the entity label; the root carries the schema and the source.
+                for (int i = 1; i < 5; ++i) {
+                    const auto node = nodes.at(i).toObject();
+                    const auto props = node.value("ifc").toArray();
+                    bool schema = false, source = false, entity = false, sourceIsHash = false;
+                    for (const auto &value : props) {
+                        const auto prop = value.toArray();
+                        if (prop.size() != 3) continue;
+                        const auto key = prop.at(0).toString();
+                        if (key == "step.Schema" && prop.at(2).toString() == "ap214") schema = true;
+                        if (key == "step.Source") { source = true; sourceIsHash = prop.at(2).toString().size() == 64; }
+                        if (key == "step.Entity" && prop.at(2).toString() == "s") entity = true;
+                    }
+                    check(schema && source && entity && sourceIsHash,
+                          ("package named: the provenance (the schema, the file's SHA-256, the entity) on node " + QString::number(i)).toStdString());
+                }
+                const auto root = nodes.at(0).toObject();
+                bool rootSchema = false, rootSource = false, rootSourceIsHash = false;
+                for (const auto &value : root.value("ifc").toArray()) {
+                    const auto prop = value.toArray();
+                    if (prop.size() != 3) continue;
+                    const auto key = prop.at(0).toString();
+                    if (key == "step.Schema" && prop.at(2).toString() == "ap214") rootSchema = true;
+                    if (key == "step.Source") { rootSource = true; rootSourceIsHash = prop.at(2).toString().size() == 64; }
+                }
+                check(rootSchema && rootSource && rootSourceIsHash, "package named: the root's provenance is the schema and the file's SHA-256");
+            }
+            // The uncontained notice (the four free products are not in any assembly's reference;
+            // the report's notice carries the count, the counts object has no per-kind bound here).
+            const auto notices2 = manifest.value("report").toObject().value("notices").toArray();
+            int uncontained = 0;
+            for (const auto &value : notices2) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "uncontainedElements")
+                    uncontained += notice.value("count").toInt();
+            }
+            check(uncontained == 4, "package named: the four free products are uncontained");
+        }
+
+        // R098.b item 3 (ADR 0172 section 4): the colour corpus. The XDE's colour mode gives
+        // the per-face colour (the red box); an unstyled product gets the DefaultMaterial
+        // (0.7 grey) with the notice (the IFC pattern).
+        const auto colored = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-colored.step"), {});
+        check(colored.code == 0 && colored.json.value("status").toString() == "ok",
+              "package import (coloured): ok");
+        check(colored.json.value("meshes").toInt() == 2 && colored.json.value("converted").toInt() == 2
+              && colored.json.value("nodes").toInt() == 4,
+              "package import (coloured): two products, two meshes, four nodes");
+        const QString coloredPackage = temp.filePath("sketchyup-step-colored.step.pkg");
+        check(checkPackage(coloredPackage).isEmpty(), "package decode (coloured): " + checkPackage(coloredPackage).toStdString());
+        {
+            QFile in(coloredPackage);
+            check(in.open(QIODevice::ReadOnly), "the coloured package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            // The unstyled product is a DefaultMaterial notice (the IFC pattern).
+            const auto notices = manifest.value("report").toObject().value("notices").toArray();
+            int defaultMaterial = 0;
+            for (const auto &value : notices) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "defaultMaterial")
+                    defaultMaterial += notice.value("count").toInt();
+            }
+            check(defaultMaterial == 1, "package coloured: the unstyled product is a DefaultMaterial notice");
+            // The materials: one DefaultMaterial (0.7 grey, opaque) for the unstyled product.
+            const auto materials = manifest.value("materials").toArray();
+            check(materials.size() == 1 && materials.at(0).toObject().value("name").toString() == "DefaultMaterial",
+                  "package coloured: one material, the DefaultMaterial");
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 4, "package coloured: four manifest nodes");
+            // Find the two product nodes and their meshes.
+            int redMesh = -1, plainMesh = -1, redNode = -1, plainNode = -1;
+            for (int i = 1; i < 4; ++i) {
+                const auto node = nodes.at(i).toObject();
+                if (node.value("name").toString() == "Red") { redMesh = node.value("mesh").toInt(); redNode = i; }
+                if (node.value("name").toString() == "Plain") { plainMesh = node.value("mesh").toInt(); plainNode = i; }
+            }
+            check(redMesh >= 0 && plainMesh >= 0 && redMesh != plainMesh, "package coloured: two distinct meshes");
+            const auto meshes = manifest.value("meshes").toArray();
+            const auto meshData = reinterpret_cast<const uint8_t *>(bytes.constData()) + 24 + manifestBytes;
+            const auto readMesh = [&](int index) {
+                const auto d = meshes.at(index).toObject();
+                const int n = d.value("vertices").toInt(), t = d.value("triangles").toInt();
+                const uint8_t *data = meshData;
+                int64_t offset = 0;
+                for (int m = 0; m < index; ++m) {
+                    const auto other = meshes.at(m).toObject();
+                    offset += other.value("vertices").toInt() * 24 + other.value("triangles").toInt() * 12 + other.value("triangles").toInt() * 4 + other.value("edges").toInt() * 8 + (other.value("colors").toBool() ? other.value("triangles").toInt() * 12 : 0);
+                }
+                data += offset;
+                struct MeshInfo { int materialsCount = 0; bool anyMaterialZero = false; int colors = 0; float redR = -1, redG = -1, redB = -1; float plainColor = -1; };
+                MeshInfo info;
+                // Materials: after the triangle indices (n*24 + t*12), one u32 per triangle.
+                const uint8_t *mat = data + n * 24 + t * 12;
+                for (int i = 0; i < t; ++i) {
+                    const uint32_t m = qFromLittleEndian<uint32_t>(mat + i * 4);
+                    if (m == 0) info.anyMaterialZero = true;
+                }
+                if (d.value("colors").toBool()) {
+                    const uint8_t *col = data + n * 24 + t * 12 + t * 4 + d.value("edges").toInt() * 8;
+                    for (int i = 0; i < t; ++i) {
+                        float r = 0, g = 0, b = 0;
+                        std::memcpy(&r, col + i * 12, 4);
+                        std::memcpy(&g, col + i * 12 + 4, 4);
+                        std::memcpy(&b, col + i * 12 + 8, 4);
+                        if (std::isnan(r)) continue;
+                        if (index == redMesh) { info.colors = std::max(info.colors, 1); if (std::abs(r - 1.0f) <= 1e-3 && std::abs(g) <= 1e-3 && std::abs(b) <= 1e-3) { info.redR = r; info.redG = g; info.redB = b; } }
+                        else { info.colors = std::max(info.colors, 1); info.plainColor = r; }
+                    }
+                }
+                return info;
+            };
+            const auto redInfo = readMesh(redMesh);
+            check(redInfo.colors >= 1 && redInfo.redR >= 0.99f && std::abs(redInfo.redG) <= 1e-2f && std::abs(redInfo.redB) <= 1e-2f,
+                  "package coloured: the red box carries its red colour (per the XDE's colour mode)");
+            check(!redInfo.anyMaterialZero, "package coloured: the styled box has no material (the colour is the style)");
+            const auto plainInfo = readMesh(plainMesh);
+            check(plainInfo.anyMaterialZero, "package coloured: the unstyled box carries the DefaultMaterial index");
+            // The hidden state of the named corpus is not in this fixture; the layer corpus below
+            // carries the hidden evidence (the shape's own visibility, the 7.9.3 XDE's round trip).
+        }
+
+        // R098.b item 4 (ADR 0172 section 4): the layer corpus. The layer becomes the step.Layer
+        // property on the body; a layer that is off or frozen imports its bodies hidden with the
+        // notice. The 7.9.3 writer writes every layer 'visible' (the layer's off state does not
+        // survive the XDE round trip), so the hidden evidence is the shape's own visibility, which
+        // the reader carries back through the XDE's colour tool.
+        const auto layered = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-layered.step"), {});
+        check(layered.code == 0 && layered.json.value("status").toString() == "ok",
+              "package import (layered): ok");
+        check(layered.json.value("meshes").toInt() == 2 && layered.json.value("converted").toInt() == 2
+              && layered.json.value("nodes").toInt() == 4,
+              "package import (layered): two products, two meshes, four nodes");
+        const QString layeredPackage = temp.filePath("sketchyup-step-layered.step.pkg");
+        check(checkPackage(layeredPackage).isEmpty(), "package decode (layered): " + checkPackage(layeredPackage).toStdString());
+        {
+            QFile in(layeredPackage);
+            check(in.open(QIODevice::ReadOnly), "the layered package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 4, "package layered: four manifest nodes");
+            if (nodes.size() == 4) {
+                int layeredNode = -1, hiddenNode = -1;
+                for (int i = 1; i < 4; ++i) {
+                    const auto node = nodes.at(i).toObject();
+                    if (node.value("name").toString() == "Layered") layeredNode = i;
+                    if (node.value("name").toString() == "Hidden") hiddenNode = i;
+                }
+                check(layeredNode >= 0 && hiddenNode >= 0, "package layered: the two named products");
+                // The layer's name is the step.Layer property on the body.
+                const auto props = nodes.at(layeredNode).toObject().value("props").toArray();
+                bool layerProp = false;
+                for (const auto &value : props) {
+                    const auto prop = value.toArray();
+                    // [set, name, origin, type, value]
+                    if (prop.size() == 5 && prop.at(0).toString() == "step" && prop.at(1).toString() == "Layer"
+                          && prop.at(4).toString() == "LayerA")
+                        layerProp = true;
+                }
+                check(layerProp, "package layered: the layer is the step.Layer property on the body");
+                check(!nodes.at(layeredNode).toObject().value("hidden").toBool(),
+                      "package layered: the layer's shape is visible (the layer is visible)");
+                check(nodes.at(hiddenNode).toObject().value("hidden").toBool(),
+                      "package layered: the shape the file marks invisible is hidden");
+            }
+            // The invisible-shape notice (the import counts it, the ADR 0172 section 7 report).
+            const auto notices = manifest.value("report").toObject().value("notices").toArray();
+            int invisible = 0;
+            for (const auto &value : notices) {
+                const auto notice = value.toObject();
+                if (notice.value("code").toString() == "invisibleShapes")
+                    invisible += notice.value("count").toInt();
+            }
+            check(invisible == 1, "package layered: the invisible shape is a notice");
         }
 
         // The unit policy (decision 4) held by the package import: the declared unit is
