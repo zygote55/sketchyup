@@ -67,6 +67,7 @@ void IfcExportProgressSheet::build(const QString &fileName) {
     elapsed->setObjectName("ifcExportProgressElapsed");
     auto *cancel = new QPushButton("Cancel");
     cancel->setObjectName("ifcExportProgressCancel");
+    cancel->setFocus(); // focused, but not the default (16.9): Enter does nothing, Esc cancels
     QObject::connect(cancel, &QPushButton::clicked, this, [this] {
         if (runner)
             runner->requestCancel();

@@ -1,4 +1,6 @@
 #include "app/ifc_sheets.hpp"
+#include <QApplication>
+#include <QClipboard>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -313,6 +315,7 @@ void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject
     sheet.body->addWidget(list, 1);
     auto *ok = new QPushButton("OK");
     ok->setObjectName("ifcExportReportOK");
+    ok->setDefault(true); // the close is the default; Esc closes (16.9)
     QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
     auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
     footerLayout->addStretch();
@@ -320,38 +323,72 @@ void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject
     sheet.buttons->hide();
     sheet.exec();
 }
-// R097.e2 (provisional until the step-4 refusals): the export's refusal — the import's own
-// shape with the export's words: nothing was written, the model is unchanged.
+// R097.e2 (16.6, 16.8): the export's refusal — the import's own shape with the export's words.
+// First, that nothing was written and the model is unchanged; then the reason with its number
+// and limit; then numbered next steps. Red and the word "Refused", never colour alone. Cancel
+// is not a refusal and has no sheet.
 void showIfcExportRefusal(QWidget *parent, const QString &path, const std::string &code,
                           const QString &message, const QJsonObject &report) {
     ReportSheet sheet("ifcExportRefusal", "IFC export refused", parent);
-    sheet.resize(640, 420);
+    sheet.resize(680, 480);
+    auto *first = new QLabel("✗ Nothing was written.");
+    first->setObjectName("ifcExportRefusalFirst");
+    first->setStyleSheet("font-size: 18px; font-weight: 600; color: #c62828;");
+    sheet.body->addWidget(first);
+    const QString codeText = QString::fromStdString(code);
+    auto *refused = new QLabel("Refused: " + codeText);
+    refused->setObjectName("ifcExportRefused");
+    refused->setStyleSheet("font-weight: 600; color: #c62828;");
+    sheet.body->addWidget(refused);
     sheet.summary->setObjectName("ifcExportRefusalSummary");
     sheet.summary->setWordWrap(true);
     sheet.summary->setTextFormat(Qt::PlainText);
+    QString whatToDo;
+    if (codeText == "destinationExists")
+        whatToDo = "1. Choose a new name — an existing file is never replaced.\n2. Export again.";
+    else if (codeText == "destination")
+        whatToDo = "1. Choose another location.\n2. Export again.";
+    else if (codeText == "outputTooLarge")
+        whatToDo = "1. Export a smaller file (one building, storey or discipline).\n2. Export again.";
+    else if (codeText == "packageTooLarge" || codeText == "documentTooLarge")
+        whatToDo = "1. The model is larger than the export can carry; export a smaller one (one building, storey or discipline).";
+    else if (codeText == "workerFailed")
+        whatToDo = "1. Try again once.\n2. Then export a smaller or cleaned file.";
+    else if (codeText == "emptyModel")
+        whatToDo = "1. Add something to the model (a group or a body with faces).\n2. Export again.";
+    else if (codeText == "workerMismatch")
+        whatToDo = "1. Try again once.\n2. If it repeats, report it with the details.";
+    else
+        whatToDo = "1. Try again once.\n2. If it repeats, report it with the details.";
     sheet.summary->setText(
-        QString("✗ %1\n\nThe model is unchanged. Nothing was written.\n\n"
-                "The check that failed: %2\nThe words used: %3\n\n"
-                "Not affected: the open model, the sheets, the assistant, your settings and "
-                "recovery.")
+        QString("%1\n\n%2\n\nWhat to do next:\n%3\n\nNot affected: the open model, the "
+                "sheets, the assistant, your settings and recovery.")
             .arg(QFileInfo(path).fileName())
-            .arg(QString::fromStdString(code))
-            .arg(message));
+            .arg(message)
+            .arg(whatToDo));
     sheet.body->addWidget(sheet.summary);
     if (!report.isEmpty()) {
         auto *details = new QPlainTextEdit;
         details->setObjectName("ifcExportRefusalDetails");
         details->setAccessibleName("refusal details");
         details->setReadOnly(true);
-        details->setPlainText(QString::fromUtf8(QJsonDocument(report).toJson(QJsonDocument::Indented)));
+        const QString text = QString::fromUtf8(QJsonDocument(report).toJson(QJsonDocument::Indented));
+        details->setPlainText(text);
         sheet.body->addWidget(details, 1);
+        auto *copy = new QPushButton("Copy details");
+        copy->setObjectName("ifcExportRefusalCopy");
+        QObject::connect(copy, &QPushButton::clicked, &sheet, [details] {
+            QApplication::clipboard()->setText(details->toPlainText());
+        });
+        sheet.body->addWidget(copy, 0, Qt::AlignLeft);
     }
-    auto *ok = new QPushButton("OK");
-    ok->setObjectName("ifcExportRefusalOK");
-    QObject::connect(ok, &QPushButton::clicked, &sheet, &QDialog::accept);
+    auto *close = new QPushButton("Close");
+    close->setObjectName("ifcExportRefusalClose");
+    close->setDefault(true);
+    QObject::connect(close, &QPushButton::clicked, &sheet, &QDialog::accept);
     auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
     footerLayout->addStretch();
-    footerLayout->addWidget(ok);
+    footerLayout->addWidget(close);
     sheet.buttons->hide();
     sheet.exec();
 }
