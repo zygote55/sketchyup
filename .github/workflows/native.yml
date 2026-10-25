@@ -821,6 +821,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/skp_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_export_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
@@ -981,6 +982,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/skp_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_export_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
@@ -1134,6 +1136,7 @@ jobs:
           scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           scripts/test-wayland.sh build/dev/ifc_import_dialog_tests
           scripts/test-wayland.sh build/dev/step_import_dialog_tests
+          scripts/test-wayland.sh build/dev/skp_import_dialog_tests
           scripts/test-wayland.sh build/dev/ifc_export_dialog_tests
           scripts/test-wayland.sh build/dev/terrain_desktop_tests
           scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
@@ -1284,6 +1287,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/ifc_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/step_import_dialog_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/skp_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/ifc_export_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_desktop_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_site_desktop_tests

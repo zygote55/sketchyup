@@ -507,7 +507,14 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       if (face.uv_transform_back) out.uvBack = *face.uv_transform_back;
       if (out.hasUvFront) report.counts_.uvTransforms++;
       if (out.hasUvBack) report.counts_.uvTransforms++;
-      if (!out.hasUvFront && !out.hasUvBack) report.notice("missingUv");
+      // A missing mapping matters only on a side whose material has a texture: an untextured face has
+      // nothing to map, so it is not a notice (an untextured model would otherwise report every face).
+      const auto textured = [&](long long material) {
+        return material >= 0 && material < static_cast<long long>(package.materials.size()) &&
+               package.materials[static_cast<std::size_t>(material)].texture >= 0;
+      };
+      if ((textured(out.materialFront) && !out.hasUvFront) || (textured(out.materialBack) && !out.hasUvBack))
+        report.notice("missingUv");
       if (out.loops.empty()) {
         report.omitted("face");
         report.locate("notImported", definition.name, "A face has no readable loop and is left out.");

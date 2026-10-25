@@ -38,6 +38,11 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
                       const QString &message, const QJsonObject &report);
 void showStepRefusal(QWidget *parent, const QString &fileName, const std::string &code,
                       const QString &message, const QJsonObject &report);
+// R102.c (ADR 0176 sections 5 and 9): the SketchUp import's refusal (what was checked, the advice for a
+// file the reader cannot take, the helper's words) and its availability (the helper is not installed).
+void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string &code,
+                    const QString &message, const QJsonObject &report);
+void showSkpUnavailable(QWidget *parent);
 // The one shared availability sheet (the screens refactor): the helper's own states with the
 // application's own words; the broken state shows the helper's own last log line at the bottom
 // of the message, so a person can act on it (ADR 0171 §16.6).

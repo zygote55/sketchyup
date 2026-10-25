@@ -754,6 +754,11 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       target_include_directories(skp_import_tests PRIVATE src tests)
       target_compile_definitions(skp_import_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      # R102.c: the CLI's --import-skp cases (the real helper, as the import's own cases).
+      if(SKETCHYUP_BUILD_CLI)
+        target_compile_definitions(skp_import_tests PRIVATE CLI_PATH="$<TARGET_FILE:sketchyup-cli>")
+        add_dependencies(skp_import_tests sketchyup-cli)
+      endif()
       add_test(NAME skp_import COMMAND skp_import_tests)
       add_test(NAME skp_import_real COMMAND skp_import_tests --real)
       set_tests_properties(skp_import_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
@@ -1169,6 +1174,10 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # and the File menu flow; the helper is the IFC helper's, so the IFC availability
   # states are its own.
   target_sources(sketchyup_desktop PRIVATE src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
+  # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet (the import
+  # on a worker thread), the report, the refusal and the availability sheets, and the File menu flow;
+  # the helper is sketchyup-skp-worker, which the application finds beside it and never links.
+  target_sources(sketchyup_desktop PRIVATE src/app/skp_import_runner.cpp src/app/skp_progress_sheet.cpp src/app/window_skp.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1455,6 +1464,17 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME step_import_dialog COMMAND step_import_dialog_tests)
     set_tests_properties(step_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                      TIMEOUT 600)
+    # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet, the report
+    # and its chip, the refusals and the not-installed sheet, and the File menu flow — offscreen, driven
+    # by a stand-in helper that copies a package the helper's own writer makes (sketchyup_skp is the
+    # writer's side only; the application never links the parser).
+    add_executable(skp_import_dialog_tests tests/skp_import_dialog_tests.cpp)
+    target_link_libraries(skp_import_dialog_tests PRIVATE sketchyup_desktop sketchyup_skp Qt6::Test)
+    target_include_directories(skp_import_dialog_tests PRIVATE src tests)
+    target_compile_definitions(skp_import_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME skp_import_dialog COMMAND skp_import_dialog_tests)
+    set_tests_properties(skp_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
     # R095.e1: the Entity info Terrain section, settings, Regenerate, Explode, create from
     # selection and the tools' refusal over terrain (offscreen).
     add_executable(terrain_desktop_tests tests/terrain_desktop_tests.cpp)
