@@ -38,6 +38,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QJsonDocument>
 #include <QLabel>
 #include <iostream>
 #include <QLineEdit>

@@ -1567,6 +1567,28 @@ inline std::vector<Case> cases(Context &ctx) {
              press(button);
          },
          named("assistantConsent"), Enter::Closes, "Cancel", Return::Opener});
+    // ----------------------------------------------------------- exchange ----------
+    // R097.e1, R098.a3, R098.c2, R102.c: the IFC, STEP and SketchUp exchange commands. The
+    // offline fixture has no helper, so each command opens its "not installed" availability
+    // sheet directly, with no file chooser first. Each sheet's OK is its only visible button,
+    // and the audit finds it the default. The SketchUp helper is built under src/skp, not beside
+    // this binary, so findSkpWorker does not find it.
+    add({"ifc-import-unavailable", "exchange", "IFC import (helper not installed)",
+         "File > Import IFC… (palette)", fresh, viaPalette("Import IFC…"),
+         namedTitle("ifcUnavailable", "IFC import"), Enter::Closes, "OK"});
+    add({"ifc-export-unavailable", "exchange", "IFC export (helper not installed)",
+         "File > Export IFC… (palette)", fresh, viaPalette("Export IFC…"),
+         namedTitle("ifcUnavailable", "IFC export"), Enter::Closes, "OK"});
+    add({"step-import-unavailable", "exchange", "STEP import (helper not installed)",
+         "File > Import STEP… (palette)", fresh, viaPalette("Import STEP…"),
+         namedTitle("stepUnavailable", "STEP import"), Enter::Closes, "OK"});
+    add({"step-export-unavailable", "exchange", "STEP export (helper not installed)",
+         "File > Export STEP… (palette)", fresh, viaPalette("Export STEP…"),
+         namedTitle("stepExportUnavailable", "STEP export"), Enter::Closes, "OK"});
+    add({"skp-import-unavailable", "exchange", "SketchUp import (helper not installed)",
+         "File > Import SketchUp (.skp)… (palette)", fresh,
+         viaPalette("Import SketchUp (.skp)…"),
+         namedTitle("skpUnavailable", "SketchUp import"), Enter::Closes, "OK"});
     // -------------------------------------------------------------- sheets ---------
     // R091.f: opened from the page canvas through the palette; focus returns to the canvas.
     add({"sheet-choose-scene", "sheets", "Choose scene",
@@ -1645,6 +1667,32 @@ inline QJsonArray inPlaceEditors() {
         {"id", "sheet.page.rename"},
         {"reason", "Renames the page in place in the Sheets Tray's Pages tree (F2); no dialog "
                    "opens (ADR 0164 §4)."}}};
+}
+// Public "…" commands that are disabled until an import has run. An import needs its helper,
+// which the offline fixture does not have, so no case can make these reports appear. Each
+// reason says what the named suite covers. The suite re-shows the report from the command, but
+// closes it by clicking OK, so the report's own Enter and Escape are not audited anywhere.
+inline QJsonArray needsPriorImport() {
+    return QJsonArray{
+        QJsonObject{
+            {"id", "file.ifcImportReport"},
+            {"reason", "Disabled until an IFC import completes; the import needs the IFC helper, "
+                       "which this fixture lacks. ifc_import_dialog_tests re-shows the report and "
+                       "checks its contents, but closes it by clicking OK: the report's Enter and "
+                       "Escape are not audited."}},
+        QJsonObject{
+            {"id", "file.stepImportReport"},
+            {"reason", "Disabled until a STEP import completes; the import needs the IFC helper, "
+                       "which this fixture lacks. step_import_dialog_tests re-shows the report and "
+                       "checks its contents, but closes it by clicking OK: the report's Enter and "
+                       "Escape are not audited."}},
+        QJsonObject{
+            {"id", "file.skpImportReport"},
+            {"reason", "Disabled until a SketchUp import completes; the import needs the SketchUp "
+                       "helper, which this fixture lacks. skp_import_dialog_tests re-shows the "
+                       "report and checks its contents, but closes it by clicking OK: the report's "
+                       "Enter and Escape are not audited."}},
+    };
 }
 inline QJsonArray unexercised() {
     return QJsonArray{

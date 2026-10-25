@@ -20,6 +20,7 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
 #include <QTemporaryDir>
