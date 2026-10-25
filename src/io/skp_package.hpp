@@ -122,6 +122,12 @@ struct SkpPackage {
   std::string container{"mfc"};  // vff or mfc
   std::string units;  // the model's unit system, "" when unknown
   double unitScale{};  // metres per raw unit
+  bool hasBounding{};  // the bounding boxes (metres and the parser's raw inches) of the package,
+                       // when the model has a vertex
+  std::array<double, 3> boundingMin{};  // when hasBounding; metres
+  std::array<double, 3> boundingMax{};  // when hasBounding; metres
+  std::array<double, 3> boundingMinInches{};  // when hasBounding; the parser's raw inches
+  std::array<double, 3> boundingMaxInches{};  // when hasBounding; the parser's raw inches
   std::string sourceName;
   std::string sourceSha256;
   std::uint64_t sourceSize{};

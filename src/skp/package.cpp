@@ -84,7 +84,28 @@ std::string reportJson(const SkpPackage& package) {
   json.endObject().key("source");
   json.beginObject();
   for (const auto& [kind, total] : package.sourceTotals) json.field(kind, total);
-  json.endObject().endObject();
+  json.endObject();
+  // The bounding boxes: the report block's last members, present when the model has a
+  // vertex. bounding is metres; boundingInches is the parser's raw inches over the same
+  // kept vertices (bounding = boundingInches x the model's unit scale). doubles() writes the
+  // f64s with %.17g, exact.
+  if (package.hasBounding) {
+    json.key("bounding").beginObject()
+        .key("min")
+        .doubles({package.boundingMin[0], package.boundingMin[1], package.boundingMin[2]})
+        .key("max")
+        .doubles({package.boundingMax[0], package.boundingMax[1], package.boundingMax[2]})
+        .endObject();
+    json.key("boundingInches").beginObject()
+        .key("min")
+        .doubles({package.boundingMinInches[0], package.boundingMinInches[1],
+                 package.boundingMinInches[2]})
+        .key("max")
+        .doubles({package.boundingMaxInches[0], package.boundingMaxInches[1],
+                 package.boundingMaxInches[2]})
+        .endObject();
+  }
+  json.endObject();
   return json.str();
 }
 

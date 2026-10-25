@@ -353,13 +353,31 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       }
       return it->second;
     };
-    // The vertex id -> its position, once: the edge and face-loop reads are O(1) each.
+    // The vertex id -> its position, once: the edge and face-loop reads are O(1) each. The
+    // bounding boxes (metres and the parser's raw inches) over every vertex the package
+    // keeps; the metres one is the inches one x the unit scale, exactly.
     std::map<openskp::EntityId, std::uint32_t> vertexIndex;
     for (const auto& [id, vertex] : source.vertices) {
       (void)id;
       vertexIndex[vertex.id] = static_cast<std::uint32_t>(definition.vertices.size());
-      definition.vertices.push_back({vertex.x * kInchesToMetres, vertex.y * kInchesToMetres,
-                                    vertex.z * kInchesToMetres});
+      const std::array<double, 3> raw{vertex.x, vertex.y, vertex.z};
+      const std::array<double, 3> point{raw[0] * kInchesToMetres, raw[1] * kInchesToMetres,
+                                       raw[2] * kInchesToMetres};
+      definition.vertices.push_back(point);
+      if (!package.hasBounding) {
+        package.hasBounding = true;
+        package.boundingMin = point;
+        package.boundingMax = point;
+        package.boundingMinInches = raw;
+        package.boundingMaxInches = raw;
+      } else {
+        for (int axis = 0; axis < 3; ++axis) {
+          package.boundingMin[axis] = std::min(package.boundingMin[axis], point[axis]);
+          package.boundingMax[axis] = std::max(package.boundingMax[axis], point[axis]);
+          package.boundingMinInches[axis] = std::min(package.boundingMinInches[axis], raw[axis]);
+          package.boundingMaxInches[axis] = std::max(package.boundingMaxInches[axis], raw[axis]);
+        }
+      }
     }
     const auto indexOf = [&](openskp::EntityId id, const char* what) -> std::uint32_t {
       const auto it = vertexIndex.find(id);

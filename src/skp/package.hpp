@@ -38,6 +38,10 @@
 // (string or null), unitScale, report, definitions [{name, guid, vertices, edges, faces,
 // instances} (the counts the decoder checks against the chunk)], tags [{name, color, hidden}],
 // materials [{name, color, opacity, texture}], textures [{filename, width, height, bytes}], counts.
+// The report's keys: apiVersion 1, counts, notices, locations, locationTotals, omitted, source,
+// and, when the model has any vertex, bounding {min, max} (metres) and boundingInches
+// {min, max} (the parser's raw inches over the same kept vertices; bounding =
+// boundingInches x 0.0254).
 // Vertex coordinates are metres in the definition's own frame, the definition's raw coordinates
 // converted with the model's unit system (unitScale metres per raw unit). An instance's
 // transform takes that frame to the placement.
@@ -157,6 +161,11 @@ struct SkpPackage {
   std::string container{"mfc"};  // vff or mfc
   std::string units;  // the model's unit system, "" when unknown
   double unitScale{};  // metres per raw unit
+  bool hasBounding{};  // the bounding boxes (the definitions' own frames) of the package
+  std::array<double, 3> boundingMin{};  // when hasBounding; metres
+  std::array<double, 3> boundingMax{};  // when hasBounding; metres
+  std::array<double, 3> boundingMinInches{};  // when hasBounding; the parser's raw inches
+  std::array<double, 3> boundingMaxInches{};  // when hasBounding; the parser's raw inches
   std::string sourceName;
   std::string sourceSha256;
   std::uint64_t sourceSize{};

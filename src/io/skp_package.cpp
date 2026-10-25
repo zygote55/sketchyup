@@ -72,6 +72,21 @@ void onlyKeys(const QJsonObject &o, std::initializer_list<const char *> keys, co
         if (!o.contains(QString::fromLatin1(key)))
             fail(std::string(what) + " is missing a member");
 }
+// As onlyKeys, but `optional` members are allowed to be absent (the rest stay required).
+void onlyKeysOr(const QJsonObject &o, std::initializer_list<const char *> keys,
+                std::initializer_list<const char *> optional, const char *what) {
+    std::set<QString> allowed;
+    for (const auto *key : keys)
+        allowed.insert(QString::fromLatin1(key));
+    for (const auto *key : optional)
+        allowed.insert(QString::fromLatin1(key));
+    for (auto it = o.begin(); it != o.end(); ++it)
+        if (!allowed.contains(it.key()))
+            fail(std::string(what) + " has an unknown member");
+    for (const auto *key : keys)
+        if (!o.contains(QString::fromLatin1(key)))
+            fail(std::string(what) + " is missing a member");
+}
 std::uint32_t readU32(const std::uint8_t *&p, const std::uint8_t *end) {
     require(p + 4 <= end, "a chunk ends mid-field");
     const std::uint32_t v = std::uint32_t(p[0]) | (std::uint32_t(p[1]) << 8) |
@@ -170,11 +185,44 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
 
     // The report block (the IFC report shape): bounded, then copied through.
     const auto report = object(manifest["report"], "report");
-    onlyKeys(report, {"apiVersion", "counts", "notices", "locations", "locationTotals", "omitted",
-                     "source"},
-              "report");
+    onlyKeysOr(report, {"apiVersion", "counts", "notices", "locations", "locationTotals",
+                       "omitted", "source"},
+               {"bounding", "boundingInches"},
+               "report");
     require(integer(report["apiVersion"], 1, 1, "report apiVersion") == 1,
             "unsupported report apiVersion");
+    // The bounding boxes, when the model had a vertex: bounding (metres) and boundingInches
+    // (the parser's raw inches) as a pair, min <= max on every axis.
+    const bool hasMetres = report.contains("bounding");
+    const bool hasInches = report.contains("boundingInches");
+    require(hasMetres == hasInches, "bounding and boundingInches must come as a pair");
+    if (hasMetres) {
+        const auto bounding = object(report["bounding"], "bounding");
+        onlyKeys(bounding, {"min", "max"}, "bounding");
+        const auto min = array(bounding["min"], 3, "bounding min");
+        const auto max = array(bounding["max"], 3, "bounding max");
+        require(min.size() == 3 && max.size() == 3, "bounding box has too few axes");
+        for (int axis = 0; axis < 3; ++axis) {
+            const double lo = finite(min[axis], "bounding min");
+            const double hi = finite(max[axis], "bounding max");
+            require(lo <= hi, "bounding min exceeds max");
+            package.boundingMin[axis] = lo;
+            package.boundingMax[axis] = hi;
+        }
+        const auto inches = object(report["boundingInches"], "boundingInches");
+        onlyKeys(inches, {"min", "max"}, "boundingInches");
+        const auto iMin = array(inches["min"], 3, "boundingInches min");
+        const auto iMax = array(inches["max"], 3, "boundingInches max");
+        require(iMin.size() == 3 && iMax.size() == 3, "boundingInches has too few axes");
+        for (int axis = 0; axis < 3; ++axis) {
+            const double lo = finite(iMin[axis], "boundingInches min");
+            const double hi = finite(iMax[axis], "boundingInches max");
+            require(lo <= hi, "boundingInches min exceeds max");
+            package.boundingMinInches[axis] = lo;
+            package.boundingMaxInches[axis] = hi;
+        }
+        package.hasBounding = true;
+    }
     const auto counts = object(report["counts"], "report counts");
     onlyKeys(counts,
               {"definitions", "vertices", "edges", "faces", "holes", "instances", "materials",
