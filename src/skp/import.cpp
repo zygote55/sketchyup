@@ -124,11 +124,11 @@ int runProbe(const std::string& input, Progress& progress) {
     progress.line("R " + json.str());
     return 3;
   }
-  // ADR 0176 section 2: before 2013 (major < 15) is refused from the header version before the
+  // ADR 0176 section 2: before 2013 (major < 13) is refused from the header version before the
   // parser runs, because some pre-2013 files the parser cannot read at all.
   {
     const int headerMajor = headerVersionMajor(bytes);
-    if (headerMajor > 0 && headerMajor < 15) {
+    if (headerMajor > 0 && headerMajor < 13) {
       JsonOut json;
       json.beginObject()
           .field("status", "refused")
@@ -143,10 +143,10 @@ int runProbe(const std::string& input, Progress& progress) {
   progress.phase("parse");
   try {
     const openskp::SkpModel model = openskp::parse_skp(bytes);
-    // ADR 0176 section 2: before 2013 (major < 15) is refused with the advice; a version the
+    // ADR 0176 section 2: before 2013 (major < 13) is refused with the advice; a version the
     // reader could not read (-1) is reported, not refused.
     const int major = versionMajor(model.version);
-    if (major > 0 && major < 15) {
+    if (major > 0 && major < 13) {
       JsonOut json;
       json.beginObject()
           .field("status", "refused")
@@ -237,11 +237,11 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
     progress.line("R " + json.str());
     return 3;
   }
-  // ADR 0176 section 2: before 2013 (major < 15) is refused from the header version before the
+  // ADR 0176 section 2: before 2013 (major < 13) is refused from the header version before the
   // parser runs, because some pre-2013 files the parser cannot read at all.
   {
     const int headerMajor = headerVersionMajor(bytes);
-    if (headerMajor > 0 && headerMajor < 15) {
+    if (headerMajor > 0 && headerMajor < 13) {
       JsonOut json;
       json.beginObject()
           .field("status", "refused")
@@ -269,10 +269,10 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
     return 3;
   }
 
-  // ADR 0176 section 2: before 2013 (major < 15) is refused with the advice; a version the
+  // ADR 0176 section 2: before 2013 (major < 13) is refused with the advice; a version the
   // reader could not read (-1) is attempted as-is, and one newer than the corpus is labelled.
   const int major = versionMajor(model.version);
-  if (major > 0 && major < 15) {
+  if (major > 0 && major < 13) {
     JsonOut json;
     json.beginObject()
         .field("status", "refused")
