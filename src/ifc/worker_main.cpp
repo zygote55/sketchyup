@@ -15,6 +15,7 @@
 #include "ifc/export.hpp"
 #include "ifc/import.hpp"
 #include "ifc/probe.hpp"
+#include "ifc/step_export.hpp"
 #include "ifc/step_import.hpp"
 #include "ifc/step_probe.hpp"
 #include "sketchyup/version.hpp"
@@ -49,6 +50,9 @@ void usage(std::FILE* stream) {
       "           read a STEP file, apply the ADR 0172 unit policy; without --output print the metadata as\n"
       "           JSON, with --output tessellate the transferred solids (BRepMesh, the options' deflection\n"
       "           and angle) and write the conversion package\n"
+      "       sketchyup-ifc-worker --export-step PACKAGE --output FILE.step [--step-schema ap214|ap203]\n"
+      "           [--rlimit-as BYTES] [--rlimit-cpu SECONDS] [--rlimit-fsize BYTES]\n"
+      "           write a STEP file from the application's STEP export package (R098.c): AP214 by default, AP203, AP242 refused\n"
       "       sketchyup-ifc-worker --write-step DIR\n"
       "           write the self-generated STEP corpus of ADR 0172 (box, cylinder, assembly) into DIR\n",
       stream);
@@ -196,6 +200,24 @@ int main(int argc, char** argv) {
       if (options.file.empty()) return fail("--probe-step needs an input file");
       std::puts(probeStep(options).c_str());
       return runStepProbe(options);
+    }
+    if (argc >= 2 && std::strcmp(argv[1], "--export-step") == 0) {
+      StepExportOptions options;
+      for (int i = 2; i < argc; ++i) {
+        const std::string argument = argv[i];
+        const bool hasValue = i + 1 < argc;
+        if (argument == "--output" && hasValue) options.output = argv[++i];
+        else if (argument == "--step-schema" && hasValue) options.schema = argv[++i];
+        else if (argument == "--rlimit-as" && hasValue) { if (!setLimit(RLIMIT_AS, argv[++i])) return fail("cannot set RLIMIT_AS"); }
+        else if (argument == "--rlimit-cpu" && hasValue) { if (!setLimit(RLIMIT_CPU, argv[++i])) return fail("cannot set RLIMIT_CPU"); }
+        else if (argument == "--rlimit-fsize" && hasValue) { if (!setLimit(RLIMIT_FSIZE, argv[++i])) return fail("cannot set RLIMIT_FSIZE"); }
+        else if (argument.rfind("--", 0) == 0) return fail("unknown option " + argument);
+        else if (options.input.empty()) options.input = argument;
+        else return fail("one package only");
+      }
+      if (options.input.empty() || options.output.empty()) return fail("--export-step needs a package and --output");
+      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      return runExportStep(options);
     }
     if (argc == 3 && std::strcmp(argv[1], "--write-step") == 0) {
       std::puts(writeStep(argv[2]).c_str());
