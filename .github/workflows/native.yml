@@ -1869,7 +1869,7 @@ jobs:
       - name: The import through the application
         # The package decoder and the conversion (hand-built packages), then the whole import through the
         # helper against the raw-text scan, the restart path and the command line.
-        run: ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|step_import)$' --output-on-failure --no-tests=error --parallel 2
+        run: ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import)$' --output-on-failure --no-tests=error --parallel 2
       - name: Helper under the sanitizers
         # The helper's own code under ASan and UBSan against the uninstrumented library.
         if: needs.plan.outputs.full == 'true'

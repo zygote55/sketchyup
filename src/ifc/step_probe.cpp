@@ -165,6 +165,8 @@ bool siUnitArgs(const std::string& text, std::size_t from, std::string& prefix, 
 // ap203 / ap214 / ap242 / other, from the FILE_SCHEMA name's ISO 10303 part number (AP242's
 // identifiers use part 442, not 242).
 std::string classifySchema(const std::string& raw) {
+  // OCCT's AP203 writer names the schema alone (FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'))), without an object identifier (R098.c).
+  if (raw.find("CONFIG_CONTROL_DESIGN") != std::string::npos) return "ap203";
   const std::size_t at = raw.find("10303");
   if (at == std::string::npos) return "other";
   std::size_t pos = at + 5;

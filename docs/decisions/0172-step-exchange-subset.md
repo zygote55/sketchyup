@@ -729,6 +729,71 @@ The next format (R102.c, the `.skp` import) plugs in with its own job, step list
     carry no licence risk; real-world files are added on top, and none of
     E1–E8 depends on them.*
 
+## Implementation notes (R098.c, 2026-10-25)
+
+R098.c writes the STEP file in the same helper (`sketchyup-ifc-worker --export-step`, through the XDE writer), from
+an export package of its own (`SKSTPX01`). The IFC package is unchanged. The application side is `exportStepFile`
+(`src/io/step_export.cpp`), `sketchyup-cli --export-step` and the E5 round trip (`tests/ifc_step_export_tests.cpp`).
+
+- **Correction to section 2: the document is in metres.** Section 2 says the export writes "the document's unit",
+  millimetres. The native model's length unit is the metre (the IFC export writes `METRE`; the STEP import
+  converts to metres). The capture scales every length by 1000 once, so the package carries millimetres, the file
+  declares `MILLI`, and the helper never rescales. A 1 m cube is written as 1000 mm and re-imports as 1 m (E3).
+- **Faces.** The package carries a face index per triangle (the native face), so each native face is one planar
+  face, built on edges shared with its neighbours; a closed element is a solid, any other a shell. This is the
+  face-grouping branch of the rule in the R098.c brief: the coplanar-triangle merge was not needed and is not
+  used. A face whose boundary does not close is written one face per triangle, and counted as `fallbacks` in the
+  report (zero in the E5 model). T-junction vertices are not split, as the IFC export does; a face with one falls
+  back in the same way.
+- **Structure.** A group is an assembly; an element is a part. Elements that share a mesh, a name, a layer and a
+  visibility are one part with one occurrence per element, so the three instances of E5 are one product with three
+  occurrences. A top-level group's placement is folded into its children, so the top of the file is the world. A
+  top-level element is built already placed: a located free shape is written as a one-component assembly, which
+  re-imports as an extra group (measured before the fix).
+- **Colours.** A part whose faces share one colour takes it on the part (`ColorGen`); otherwise each face takes its
+  own on its sub-shape (`ColorSurf`). Material names and opacity are not carried; the colour is.
+- **Layers and hidden state.** The layer is the body's `step.Layer` when it has one (an imported body), else its
+  tag's name; tags named `STEP ...` are the importer's provenance family and are not layers. A hidden body, or a
+  body on a hidden tag, gets `INVISIBILITY` on its part label, and the importer reads it back as hidden (measured
+  in the E5 file). The previous worker's finding that hidden state is lost was wrong for parts. Hidden layers are
+  not written: the writer forces layers visible, so a layer's hidden state does not survive.
+- **Importer defects the round trip found (R098.b code, fixed here).** (1) The tree walk descended only into
+  assemblies, so a component that refers to a sub-assembly came back as an empty group, and the sub-assembly was
+  walked again as a root. The walk now descends into a referred assembly and takes only free labels as roots. (2)
+  The import read one colour per part; it now reads each face's own colour and carries it per triangle. (3) OCCT's
+  AP203 writer names the schema alone (`CONFIG_CONTROL_DESIGN`); both classifiers matched only the ISO 10303 part
+  number and refused it. The bare name is now AP203. AP203 files whose identifier carries another part number are
+  still refused, as before (not verified either way).
+- **Budget (section 6): missed, measured.** The 5 s target and the 256 MiB output cap are not met for this
+  geometry. Measured in the pinned image, on one core:
+  - The application's export (capture, helper, checks) of 20,000 triangles (two bodies of 100 planar 102-gons):
+    3.1 s, 18.1 MB (the capture 0.3 s, the helper 2.8 s: shaping 0.4 s, the XDE transfer 1.1 s, the write 0.8 s).
+    Of 40,000 triangles (one body of 400 faces): 8.1 s, 36.2 MB.
+  - The helper alone on a generated package of 1,000,000 triangles (ten meshes of a thousand 102-gons, the
+    package the budget model yields): 73.9 s and 974.9 MB with no address-space limit. With the application's
+    4 GiB address-space limit the helper segfaults after 26 s: OCCT exhausts the address space and does not check
+    its allocations. With the 256 MiB output limit the helper is stopped on the write (`SIGXFSZ`, 60.7 s, the file
+    cut at 268,435,456 bytes), which the application reports as `outputTooLarge`.
+  - The full 1,000,000-triangle model through the application was not run: building it in the document API takes
+    53 s for 40,000 triangles of one body and grows faster than the face count, so it is not a usable test
+    fixture. The `--budget` mode of `ifc_step_export_tests` runs the 20,000-triangle case by default and takes
+    `BODIES FACES` (20 500 is the 1,000,000-triangle model).
+  - Why it is missed: the output is about 900 bytes per triangle when no edge is shared, so 256 MiB holds about
+    280,000 such triangles. The writer's own cost is about 55 microseconds per edge. A closed mesh that shares its
+    edges is smaller per triangle; that case is not measured. The 4 GiB address space is too small for 1,000,000
+    triangles of this kind. The export refuses an output over 256 MiB as designed; the 1,000,000-triangle budget
+    is therefore not met by this writer for unshared faces, and the follow-up is a smaller writer output or the
+    budget's revision (the owner's decision).
+- **Verification.** `ifc_step_export` passes: the E5 round trip for AP214 and AP203 (volume and bounds of each
+  top-level body, names, colours, `step.Layer`, hidden state, one definition with three instances at three
+  placements; E3 as above); the refusals (AP242 in the application and in the helper, an empty model, an existing
+  destination); E8 (messages at most 256 bytes, the report at most 64 KiB). The R098.b and IFC suites pass in the
+  same image: `ifc_package`, `ifc_convert`, `ifc_import`, `ifc_worker_run`, `ifc_export`, `ifc_step`,
+  `step_import` (8 of 8), and the helper's own `^ifc_` suites (8 of 8, `-LE full`).
+- **Not done.** The File › Export STEP… screen (a follow-up after the exchange-screens refactor). AP242 writing
+  (refused). Material names and opacity. Hidden layers. Splitting T-junction vertices. Merging coplanar triangles
+  across native faces.
+
 ## Appendix: evidence and sources
 
 **Verified** (against `origin/main 34910469` or the named upstream source):

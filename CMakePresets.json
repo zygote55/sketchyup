@@ -118,6 +118,7 @@
         "ifc_worker_run_tests",
         "ifc_export_tests",
         "ifc_step_tests",
+        "ifc_step_export_tests",
         "step_import_tests"
       ]
     },
