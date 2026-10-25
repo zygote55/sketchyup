@@ -17,19 +17,28 @@ QString humanSize(qint64 bytes) {
     if (bytes >= 1024)
         return QString::asprintf("%d KB", int(bytes / 1024));
     return QString::number(bytes) + " B";
-}
+} // the STEP kind (R098.a3, ADR 0172 section 8): the same screen's STEP wording.
+const char *const stepDoesText =
+    "Reads the STEP file (AP203, AP214, AP242) and its units; a unit is never guessed.\n"
+    "Tessellates the transferred solids (BRepMesh, at the deviation and the crease angle) into meshes.\n"
+    "Groups the solids under one root named for the file.\nNever modifies the source file.";
+const char *const stepNextText =
+    "The imported model is a new unsaved model. The source file is never modified.\n"
+    "Solids arrive as tessellated meshes; the rest of the STEP content is reported, not converted.\n"
+    "Save it as a .sketchyup file to keep it.";
 } // namespace
 IfcImportDialog::IfcImportDialog(QWidget *parent) : Settled<QDialog>(parent) {
     setObjectName("ifcImportDialog");
     setWindowTitle("IFC import");
     build();
+    setKind(Kind::Ifc); // the default's own wording, through the one code path
 }
 void IfcImportDialog::build() {
     auto *root = new QVBoxLayout(this);
-    auto *title = new QLabel("IFC import");
+    title = new QLabel("IFC import");
     title->setObjectName("ifcImportTitle");
     title->setStyleSheet("font-size: 20px; font-weight: 600;");
-    auto *subline = new QLabel("IFC (STEP) → SketchyUp · unsaved new model · source is never modified");
+    subline = new QLabel("IFC (STEP) → SketchyUp · unsaved new model · source is never modified");
     subline->setObjectName("ifcImportSubline");
     subline->setStyleSheet("color: #888;");
     root->addWidget(title);
@@ -61,30 +70,39 @@ void IfcImportDialog::build() {
     unitRow->addStretch();
     left->addLayout(unitRow);
     left->addSpacing(8);
-    auto *spacesHeading = new QLabel("Spaces (IFC Space tag)");
+    // The IFC-only sections, in their own widgets so the STEP kind can hide them (R098.a3).
+    spacesSection = new QWidget;
+    spacesSection->setObjectName("ifcImportSpacesSection");
+    auto *spacesSectionLayout = new QVBoxLayout(spacesSection);
+    spacesSectionLayout->setContentsMargins(0, 0, 0, 0);
+    spacesHeading = new QLabel("Spaces (IFC Space tag)");
     spacesHeading->setStyleSheet("font-weight: 600;");
-    left->addWidget(spacesHeading);
     auto *spaceGroup = new QButtonGroup(this);
     spaceHidden = new QRadioButton("Hidden");
     spaceShown = new QRadioButton("Shown");
     spaceSkip = new QRadioButton("Skip");
     for (auto *radio : {spaceHidden, spaceShown, spaceSkip}) {
-        left->addWidget(radio);
+        spacesSectionLayout->addWidget(radio);
         spaceGroup->addButton(radio);
     }
     spaceHidden->setChecked(true);
+    left->addWidget(spacesSection);
     left->addSpacing(8);
-    auto *geoHeading = new QLabel("Georeference");
+    geoSection = new QWidget;
+    geoSection->setObjectName("ifcImportGeoSection");
+    auto *geoSectionLayout = new QVBoxLayout(geoSection);
+    geoSectionLayout->setContentsMargins(0, 0, 0, 0);
+    geoHeading = new QLabel("Georeference");
     geoHeading->setStyleSheet("font-weight: 600;");
-    left->addWidget(geoHeading);
     auto *geoGroup = new QButtonGroup(this);
     geoKeep = new QRadioButton("Keep the project axes");
     geoGrid = new QRadioButton("Align to the grid");
     for (auto *radio : {geoKeep, geoGrid}) {
-        left->addWidget(radio);
+        geoSectionLayout->addWidget(radio);
         geoGroup->addButton(radio);
     }
     geoKeep->setChecked(true);
+    left->addWidget(geoSection);
     left->addSpacing(8);
     auto *deviationRow = new QHBoxLayout;
     auto *deviationLabel = new QLabel("Maximum deviation:");
@@ -99,6 +117,20 @@ void IfcImportDialog::build() {
     deviationRow->addWidget(deviation);
     deviationRow->addStretch();
     left->addLayout(deviationRow);
+    // The STEP kind's tessellation angle (ADR 0172 section 3), hidden for IFC (its crease angle is fixed).
+    auto *angleRow = new QHBoxLayout;
+    angleLabel = new QLabel("Crease angle:");
+    angle = new QDoubleSpinBox;
+    angle->setObjectName("ifcImportAngle");
+    angle->setRange(1.0, 180.0);
+    angle->setSingleStep(1.0);
+    angle->setDecimals(1);
+    angle->setValue(30.0);
+    angle->setSuffix("°");
+    angleRow->addWidget(angleLabel);
+    angleRow->addWidget(angle);
+    angleRow->addStretch();
+    left->addLayout(angleRow);
     helperLine = new QLabel;
     helperLine->setObjectName("ifcImportHelperLine");
     left->addWidget(helperLine);
@@ -113,7 +145,7 @@ void IfcImportDialog::build() {
     auto *right = new QVBoxLayout;
     auto *doesHeading = new QLabel("What import does");
     doesHeading->setStyleSheet("font-weight: 600;");
-    auto *doesText = new QLabel(
+    doesText = new QLabel(
         "Reads the IFC structure (projects, sites, buildings, storeys) into the tree.\n"
         "Converts solid geometry (walls, slabs, objects with a solid representation) to "
         "meshes.\nKeeps property sets as properties and material assignments as materials.\n"
@@ -124,7 +156,7 @@ void IfcImportDialog::build() {
     right->addSpacing(12);
     auto *nextHeading = new QLabel("What to do next");
     nextHeading->setStyleSheet("font-weight: 600;");
-    auto *nextText = new QLabel(
+    nextText = new QLabel(
         "The imported model is a new unsaved model. The source file is never modified.\n"
         "Tessellated geometry arrives as-is; other geometry needs the OpenCASCADE kernel.\n"
         "Save it as a .sketchyup file to keep it.");
@@ -157,18 +189,26 @@ void IfcImportDialog::build() {
 }
 void IfcImportDialog::setProbe(const IfcProbe &probe) {
     probe_ = probe;
-    if (probe.state == IfcState::Available) {
-        helperLine->setText(QString("✓ IfcOpenShell %1 · OpenCASCADE kernel").arg(probe.ifcOpenShell));
+    // R098.a3: the helper line is the two directions' own. The STEP import runs in the IFC helper
+    // but needs none of the kernel, so its line says the worker's own fact (the step import's own
+    // reader and BRepMesh), not the kernel's.
+    if (isStep()) {
+        helperLine->setText(QStringLiteral("✓ sketchyup-ifc-worker %1 · the STEP import's own reader").arg(probe.workerVersion));
+        helperLine->setStyleSheet("color: #2e7d32;");
+    } else if (probe.state == IfcState::Available) {
+        helperLine->setText(QStringLiteral("✓ IfcOpenShell %1 · OpenCASCADE kernel").arg(probe.ifcOpenShell));
         helperLine->setStyleSheet("color: #2e7d32;");
     } else if (probe.state == IfcState::Limited) {
-        helperLine->setText(QString("⚠ IfcOpenShell %1 · kernel: none").arg(probe.ifcOpenShell));
+        helperLine->setText(QStringLiteral("⚠ IfcOpenShell %1 · kernel: none").arg(probe.ifcOpenShell));
         helperLine->setStyleSheet("color: #b26a00;");
     }
     applyProbeBanner();
 }
 void IfcImportDialog::applyProbeBanner() {
     // The Limited warning is the probe's own: it outlives the file choice, which owns only the refusal.
-    if (probe_.state == IfcState::Limited) {
+    // R098.a3: it is IFC's (the IFC kernel for B-spline and curve geometry); the STEP import needs
+    // none (the helper's own STEP reader and BRepMesh), so it is not shown for the STEP kind.
+    if (probe_.state == IfcState::Limited && !isStep()) {
         banner->setText("⚠ Limited: the OpenCASCADE kernel isn't installed. Only tessellated geometry will be converted.");
         banner->setStyleSheet("color: #b26a00");
         banner->show();
@@ -182,9 +222,22 @@ void IfcImportDialog::setFile(const QString &path) {
     bytes_ = info.size();
     schema_.clear();
     fileRow->setText(info.fileName().isEmpty() ? path : info.fileName());
+    // The cheap checks of the application's bounded code (ADR 0172 section 10: a file that does not pass
+    // them gets no conversion attempt, and its reason is said); for STEP (R098.a3) the application's
+    // own bounded copy of the helper's cheap scan: the ISO-10303-21 header, one accepted AP schema,
+    // and the declared unit (display; the helper's scan is the authority).
     try {
-        schema_ = checkIfcSource(path);
-        fileFacts->setText(QString("%1 · %2").arg(schema_).arg(humanSize(bytes_)));
+        if (isStep()) {
+            const StepScan step = checkStepSource(path);
+            schema_ = step.schema;
+            fileFacts->setText(QString("%1 · %2 · %3")
+                                  .arg(step.schema)
+                                  .arg(step.unitDeclared ? step.unit : QStringLiteral("no unit declared"))
+                                  .arg(humanSize(bytes_)));
+        } else {
+            schema_ = checkIfcSource(path);
+            fileFacts->setText(QString("%1 · %2").arg(schema_).arg(humanSize(bytes_)));
+        }
         applyProbeBanner(); // a valid file clears any refusal; the probe warning comes back
         if (importButton)
             importButton->setEnabled(true);
@@ -213,11 +266,47 @@ IfcWorkerOptions IfcImportDialog::workerOptions() const {
     worker.lengthUnit = unit->currentText();
     return worker;
 }
+void IfcImportDialog::setKind(Kind kind) {
+    kind_ = kind;
+    const bool step = kind == Kind::Step;
+    setWindowTitle(step ? "STEP import" : "IFC import");
+    title->setText(step ? "STEP import" : "IFC import");
+    subline->setText(step ? "STEP (AP203, AP214, AP242) → SketchyUp · unsaved new model · source is never modified"
+                          : "IFC (STEP) → SketchyUp · unsaved new model · source is never modified");
+    spacesSection->setVisible(!step); // the IFC-only choices (spaces, georeference) have no STEP meaning
+    geoSection->setVisible(!step);
+    angleLabel->setVisible(step); // the tessellation's crease angle (ADR 0172 section 3); the IFC crease angle is fixed
+    angle->setVisible(step);
+    deviation->setValue(step ? 1.0 : 0.5); // the two directions' own defaults (ADR 0172 section 3)
+    // The unit is the two directions' own default for a file that declares none: IFC in metres, STEP in
+    // millimetres (the STEP export writes millimetres, ADR 0172 section 2).
+    unit->setCurrentText(step ? "mm" : "m");
+    doesText->setText(step ? stepDoesText :
+                                       "Reads the IFC structure (projects, sites, buildings, storeys) into the tree.\n"
+                                       "Converts solid geometry (walls, slabs, objects with a solid representation) to "
+                                       "meshes.\nKeeps property sets as properties and material assignments as materials.\n"
+                                       "Never modifies the source file.");
+    nextText->setText(step ? stepNextText :
+                                       "The imported model is a new unsaved model. The source file is never modified.\n"
+                                       "Tessellated geometry arrives as-is; other geometry needs the OpenCASCADE kernel.\n"
+                                       "Save it as a .sketchyup file to keep it.");
+    applyProbeBanner(); // a kind change re-asks whether the kernel banner applies to this kind
+}
+StepWorkerOptions IfcImportDialog::stepWorkerOptions() const {
+    StepWorkerOptions worker;
+    worker.deflectionMm = deviation->value();
+    worker.angleDeg = angle->value();
+    worker.lengthUnitOverride = unit->currentText();
+    return worker;
+}
 bool IfcImportDialog::refused() const { return refused_; }
 QString IfcImportDialog::fileName() const { return fileRow->text(); }
 void IfcImportDialog::chooseFile() {
+    const QString filter = isStep()
+                               ? "STEP models (*.step *.STEP *.stp);;All files (*.*);;IFC models (*.ifc *.IFC)"
+                               : "IFC models (*.ifc *.IFC);;All files (*.*);;STEP models (*.step *.STEP *.stp)";
     const auto path =
-        QFileDialog::getOpenFileName(this, "Choose an IFC file", {}, "IFC models (*.ifc *.IFC);;All files (*.*)");
+        QFileDialog::getOpenFileName(this, isStep() ? "Choose a STEP file" : "Choose an IFC file", {}, filter);
     if (!path.isEmpty())
         setFile(path);
 }

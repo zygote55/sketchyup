@@ -820,6 +820,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests
@@ -978,6 +979,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/site_recipe_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests
@@ -1129,6 +1131,7 @@ jobs:
           scripts/test-wayland.sh build/dev/site_recipe_input_tests
           scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           scripts/test-wayland.sh build/dev/ifc_import_dialog_tests
+          scripts/test-wayland.sh build/dev/step_import_dialog_tests
           scripts/test-wayland.sh build/dev/terrain_desktop_tests
           scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
           SKETCHYUP_TEST_DEADLINE=120 scripts/test-wayland.sh build/dev/terrain_edit_input_tests
@@ -1277,6 +1280,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/site_recipe_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/ifc_import_dialog_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/step_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_desktop_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
           SKETCHYUP_TEST_DEADLINE=120 SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_edit_input_tests
@@ -1861,7 +1865,7 @@ jobs:
       - name: The import through the application
         # The package decoder and the conversion (hand-built packages), then the whole import through the
         # helper against the raw-text scan, the restart path and the command line.
-        run: ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step)$' --output-on-failure --no-tests=error --parallel 2
+        run: ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|step_import)$' --output-on-failure --no-tests=error --parallel 2
       - name: Helper under the sanitizers
         # The helper's own code under ASan and UBSan against the uninstrumented library.
         if: needs.plan.outputs.full == 'true'
