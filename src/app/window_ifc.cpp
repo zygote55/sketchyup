@@ -3,6 +3,7 @@
 // never blocked (16.4). A missing helper is "not installed"; a missing kernel is "limited"
 // (16.7). Export is R097.e2, so Export IFC… opens the availability sheet only.
 #include "app/window.hpp"
+#include "app/import_report.hpp"
 #include "app/ifc_export_dialog.hpp"
 #include "app/ifc_export_progress_sheet.hpp"
 #include "app/ifc_export_runner.hpp"
@@ -22,31 +23,6 @@
 #include <QStatusBar>
 #include <thread>
 namespace sketchy {
-namespace {
-// The report chip (the design's mockup `after`): while the imported model is open it says what
-// the import produced and reopens the report; the accessible name follows the design's 16.9
-// wording. A cancel or a failed import (the model was not replaced) clears it.
-void setIfcReportChip(QPushButton *chip, const QJsonObject &report, bool visible) {
-    if (!chip)
-        return;
-    if (!visible) {
-        chip->hide();
-        return;
-    }
-    // The import report has no `attention` member (only the export report does); what needs
-    // attention after an import is what the helper did not convert.
-    const int attention = report["accounting"].toObject()["omitted"].toInt(0);
-    if (attention > 0) {
-        chip->setText(QString("\u26a0 IFC import \u00b7 %1 need attention \u00b7 Show report").arg(attention));
-        chip->setAccessibleName(
-            QString("IFC import, %1 items need attention. Show report").arg(attention));
-    } else {
-        chip->setText("IFC import report");
-        chip->setAccessibleName("IFC import report");
-    }
-    chip->show();
-}
-} // namespace
 void Window::setIfcWorkerPath(const QString &path) { ifcWorkerPath_ = path; }
 QString Window::ifcWorkerPath() { return ifcWorkerPath_; }
 IfcProbe Window::ifcProbe() { return ifcProbe_; }
@@ -61,14 +37,16 @@ void Window::probeIfcNow() {
     // runs on the UI thread (a hung helper is "cannot start" when the deadline passes, 16.7).
     ifcProbe_ = runIfcProbe(worker);
 }
-void Window::clearIfcReportState() {
-    ifcImportReport_ = QJsonObject();
-    ifcImportFileName_.clear();
-    ifcImportElapsedMs_ = 0;
-    ifcImportRestarts_ = 0;
-    setIfcReportChip(ifcReportChip_, QJsonObject(), false);
-    if (ifcReportAction_)
-        ifcReportAction_->setEnabled(false);
+void Window::clearIfcReportState() { clearImportReportState(ifcImportReport_, ifcReportAction_, ifcReportChip_); }
+void Window::clearStepReportState() { clearImportReportState(stepImportReport_, stepReportAction_, stepReportChip_); }
+// The one shared clear (the screens refactor): a new model ends the import's report, so the
+// action and the chip go back to their hidden, disabled state (16.1's lifetime).
+void Window::clearImportReportState(ImportReportState &state, QAction *action, QPushButton *chip) {
+    state = {};
+    if (chip)
+        chip->hide(); // not done: the chip is hidden
+    if (action)
+        action->setEnabled(false);
 }
 void Window::importIfc() {
     // A committed import replaces the model and (re)sets the report chip below; a refused or
@@ -122,10 +100,10 @@ void Window::importIfc() {
             return;
         }
         const int restarts =
-            runner->result().report["engine"].toObject()["restarts"].toInt(0);
+            runner->report()["engine"].toObject()["restarts"].toInt(0);
         const qint64 elapsed = runner->clock.elapsed();
-        const QJsonObject report = runner->result().report;
-        doc_ = std::move(runner->result().document);
+        const QJsonObject report = runner->report();
+        doc_ = std::move(*runner->document()); // the import's document, moved out of the runner
         resetRecoveryContext();
         path_.clear(); // Save must choose a new native file, never overwrite the source.
         viewport_->cancel();
@@ -133,16 +111,13 @@ void Window::importIfc() {
         viewport_->fit();
         sync();
         status_->setText("Imported an unsaved IFC model · Source file unchanged");
-        ifcImportReport_ = report;
-        ifcImportFileName_ = path;
-        ifcImportElapsedMs_ = elapsed;
-        ifcImportRestarts_ = restarts;
+        ifcImportReport_ = ImportReportState{true, "", path, report, elapsed, restarts};
         if (ifcReportAction_)
             ifcReportAction_->setEnabled(true);
-        setIfcReportChip(ifcReportChip_, report, true); // the design's mockup `after`
+        setImportReportChip(ifcReportChip_, ifcImportReportFace(), ifcImportReport_); // the design's mockup `after`
         runner->wait();
         delete runner;
-        ::sketchy::showIfcImportReport(this, path, report, elapsed, restarts);
+        ::sketchy::showImportReport(this, ifcImportReportFace(), ifcImportReport_);
         return;
     }
     // A refusal or a failure after the restarts: the model was not replaced, so the current
@@ -220,9 +195,7 @@ void Window::exportIfc() {
     delete runner;
 }
 void Window::showIfcImportReport() {
-    if (ifcImportReport_.isEmpty())
-        return;
-    ::sketchy::showIfcImportReport(this, ifcImportFileName_, ifcImportReport_,
-                                     ifcImportElapsedMs_, ifcImportRestarts_);
+    if (ifcImportReport_.done)
+        ::sketchy::showImportReport(this, ifcImportReportFace(), ifcImportReport_);
 }
 } // namespace sketchy

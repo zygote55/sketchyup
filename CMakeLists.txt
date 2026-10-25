@@ -1129,7 +1129,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R097.e1 (ADR 0171): the IFC import screens — the availability probe, the options
   # dialog, the progress sheet (import on a worker thread), the report/refusal/
   # unavailable sheets, and the File menu flow.
-  target_sources(sketchyup_desktop PRIVATE src/app/ifc_availability.cpp src/app/ifc_export_dialog.cpp src/app/ifc_export_progress_sheet.cpp src/app/ifc_export_runner.cpp src/app/ifc_import_dialog.cpp src/app/ifc_import_runner.cpp src/app/ifc_progress_sheet.cpp src/app/ifc_sheets.cpp src/app/window_ifc.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/exchange_progress_sheet.cpp src/app/exchange_runner.cpp src/app/ifc_availability.cpp src/app/ifc_export_dialog.cpp src/app/ifc_export_progress_sheet.cpp src/app/ifc_export_runner.cpp src/app/ifc_import_dialog.cpp src/app/ifc_import_runner.cpp src/app/ifc_progress_sheet.cpp src/app/ifc_sheets.cpp src/app/import_report.cpp src/app/window_ifc.cpp)
   # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
   # progress sheet (import on a worker thread), the report/refusal/unavailable sheets,
   # and the File menu flow; the helper is the IFC helper's, so the IFC availability
