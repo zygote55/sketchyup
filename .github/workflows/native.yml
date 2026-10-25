@@ -2005,7 +2005,7 @@ jobs:
           cmake --build build/skp-fuzz --target sketchyup-skp-worker parser_fuzz_skp_package --parallel "$(nproc)"
           mkdir -p build/skp-fuzz/corpus
           for fixture in box face_with_hole two_materials textured_face nested_component; do
-            build/skp-fuzz/sketchyup-skp-worker --import "tests/fixtures/skp/$fixture.skp" --output "build/skp-fuzz/corpus/$fixture.skpkg"
+            build/skp-fuzz/src/skp/sketchyup-skp-worker --import "tests/fixtures/skp/$fixture.skp" --output "build/skp-fuzz/corpus/$fixture.skpkg"
           done
           build/skp-fuzz/parser_fuzz_skp_package -runs=200000 -max_len=65536 -seed=1 build/skp-fuzz/corpus
       - name: Compiler cache statistics

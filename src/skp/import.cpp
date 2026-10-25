@@ -100,7 +100,7 @@ std::vector<std::uint8_t> readWholeFile(const std::string& path, std::uint64_t l
 void applyLimits(const SkpImportOptions& options) {
   struct rlimit as{options.rlimitAs, options.rlimitAs};
   if (options.rlimitAs) setrlimit(RLIMIT_AS, &as);
-  struct rlimit cpu{options.rlimitCpu, static_cast<rlim_t>(options.rlimitCpu)};
+  struct rlimit cpu{static_cast<rlim_t>(options.rlimitCpu), static_cast<rlim_t>(options.rlimitCpu)};
   if (options.rlimitCpu > 0) setrlimit(RLIMIT_CPU, &cpu);
   struct rlimit fsize{options.rlimitFsize, options.rlimitFsize};
   if (options.rlimitFsize) setrlimit(RLIMIT_FSIZE, &fsize);
