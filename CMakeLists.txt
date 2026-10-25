@@ -1464,6 +1464,17 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME step_import_dialog COMMAND step_import_dialog_tests)
     set_tests_properties(step_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                      TIMEOUT 600)
+    # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet, the report
+    # and its chip, the refusals and the not-installed sheet, and the File menu flow — offscreen, driven
+    # by a stand-in helper that copies a package the helper's own writer makes (sketchyup_skp is the
+    # writer's side only; the application never links the parser).
+    add_executable(skp_import_dialog_tests tests/skp_import_dialog_tests.cpp)
+    target_link_libraries(skp_import_dialog_tests PRIVATE sketchyup_desktop sketchyup_skp Qt6::Test)
+    target_include_directories(skp_import_dialog_tests PRIVATE src tests)
+    target_compile_definitions(skp_import_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME skp_import_dialog COMMAND skp_import_dialog_tests)
+    set_tests_properties(skp_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
     # R095.e1: the Entity info Terrain section, settings, Regenerate, Explode, create from
     # selection and the tools' refusal over terrain (offscreen).
     add_executable(terrain_desktop_tests tests/terrain_desktop_tests.cpp)
