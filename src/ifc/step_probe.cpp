@@ -71,13 +71,22 @@
 #include "Interface_EntityIterator.hxx"
 #include "STEPControl_Reader.hxx"
 #include "STEPControl_Writer.hxx"
+#include "STEPCAFControl_Writer.hxx"
 #include "Standard_Failure.hxx"
 #include "StepData_StepModel.hxx"
 #include "TColStd_SequenceOfAsciiString.hxx"
+#include "TCollection_ExtendedString.hxx"
+#include "TDataStd_Name.hxx"
+#include "TDocStd_Document.hxx"
+#include "TDF_Label.hxx"
 #include "TopExp_Explorer.hxx"
 #include "TopoDS_Compound.hxx"
 #include "TopoDS_Shape.hxx"
+#include "TopLoc_Location.hxx"
 #include "UnitsMethods.hxx"
+#include "XSControl_WorkSession.hxx"
+#include "XCAFDoc_DocumentTool.hxx"
+#include "XCAFDoc_ShapeTool.hxx"
 
 #if defined(SKETCHYUP_STEP_OCCT_79)
 #include "DESTEP_Parameters.hxx"
@@ -616,6 +625,56 @@ std::string writeStep(const std::string& directory) {
     mirror.SetMirror(gp_Ax1(gp_Pnt(0.0, 0.0, 0.0), gp_Dir(1.0, 0.0, 0.0)));
     return BRepBuilderAPI_Transform(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), mirror).Shape();
   });
+  // The instance corpus (the ADR 0172 section 4 fixtures): a two-level assembly with one part
+  // (the box) instanced three times at different placements. The basic writer bakes a placement
+  // into the coordinates (the placed and mirror cases above), so the assembly goes through the
+  // XDE writer (STEPCAFControl_Writer): it writes the assembly structure (the
+  // NEXT_ASSEMBLY_USAGE_OCCURRENCEs and their placements, as the hand-crafted placed-assembly
+  // fixture has) - the instances share the part, and each placement is an item-defined
+  // transformation of the part.
+  {
+    const fs::path file = fs::path(directory) / "sketchyup-step-instanced.step";
+    json.beginObject().field("file", std::string(file.filename()));
+    try {
+      Handle(TDocStd_Document) doc(new TDocStd_Document("XCAF"));
+      const TDF_Label shapes = XCAFDoc_DocumentTool::ShapesLabel(doc->Main());
+      const Handle(XCAFDoc_ShapeTool) hTool = XCAFDoc_ShapeTool::Set(shapes);
+      XCAFDoc_ShapeTool tool = *hTool;
+      TopoDS_Shape box = BRepPrimAPI_MakeBox(10, 20, 30).Shape();
+      TDF_Label part = tool.AddShape(box, Standard_False, Standard_False);
+      TDataStd_Name::Set(part, TCollection_ExtendedString("Part"));
+      TopoDS_Compound comp;
+      BRep_Builder b;
+      b.MakeCompound(comp);
+      const double placements[3][3] = {{50.0, 0.0, 0.0}, {0.0, 50.0, 0.0}, {0.0, 0.0, 50.0}};
+      for (int i = 0; i < 3; ++i) {
+        gp_Trsf t;
+        t.SetTranslation(gp_Vec(placements[i][0], placements[i][1], placements[i][2]));
+        TopoDS_Shape s = box;
+        s.Move(t, Standard_False);
+        b.Add(comp, s);
+      }
+      TDF_Label assembly = tool.AddShape(comp, Standard_True, Standard_False);
+      TDataStd_Name::Set(assembly, TCollection_ExtendedString("Assembly"));
+      Handle(XSControl_WorkSession) wws(new XSControl_WorkSession());
+      STEPCAFControl_Writer writer(wws, Standard_False);
+      writer.SetNameMode(Standard_True);
+      writer.SetColorMode(Standard_True);
+      writer.SetLayerMode(Standard_True);
+      if (!wws->SelectNorm("STEP") || !writer.Transfer(doc, STEPControl_AsIs) ||
+          writer.Write(file.c_str()) != IFSelect_RetDone) {
+        json.field("written", false).field("reason", "the XDE writer refused the assembly");
+      } else {
+        json.field("written", true);
+        const StepFileFacts written = stepFileFacts(file);
+        json.field("bytes", written.bytes);
+        json.field("schema", written.schema);
+      }
+    } catch (const Standard_Failure& failure) {
+      json.field("written", false).field("reason", failure.GetMessageString());
+    }
+    json.endObject();
+  }
   json.endArray();
   json.endObject();
   return json.str();

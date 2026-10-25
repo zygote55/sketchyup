@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
         const auto result = run({worker, "--write-step", temp.path()});
         check(result.code == 0, "write-step exits 0");
         const auto files = result.json.value("files").toArray();
-        check(files.size() == 5, "write-step writes five files (the box, the cylinder, the assembly, the placed box, the mirrored box)");
+        check(files.size() == 6, "write-step writes six files (the box, the cylinder, the assembly, the placed box, the mirrored box, the instanced assembly)");
         for (const auto &value : files) {
             const auto file = value.toObject();
             check(file.value("written").toBool(), std::string("write-step: ") + file.value("file").toString().toStdString());
@@ -447,6 +447,35 @@ int main(int argc, char **argv) {
         const auto placedAsmImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-placed-assembly.step")});
         check(placedAsmImport.code == 0 && placedAsmImport.json.value("status").toString() == "ok",
               "fixture placed-assembly import: the offset component placement reads");
+        // R098.b fixture (a): the two-level assembly with one part instanced three times (the
+        // writer's NEXT_ASSEMBLY_USAGE_OCCURRENCE structure, the ADR 0172 section 4 corpus):
+        // the probe sees the assembly's three placed instances (the basic reader normalises the
+        // placements into the coordinates), and the import reads the XDE structure (the part
+        // shared by the three instances, each placement a transform, the shared-mesh design).
+        const auto instFixture = fixture("sketchyup-step-instanced.step");
+        const auto instShapes = instFixture.value("shapes").toArray();
+        check(instShapes.size() == 1 && instShapes[0].toObject().value("solids").toInt() == 3
+              && instShapes[0].toObject().value("faces").toInt() == 18,
+              "fixture instanced: one shape, three solids, eighteen faces");
+        if (instShapes.size() == 1) {
+            const auto box = instShapes[0].toObject().value("boundingBox").toArray();
+            check(box.size() == 6, "fixture instanced: a six-number bounding box");
+            if (box.size() == 6) {
+                // The three instances of the 10 x 20 x 30 box at (50, 0, 0), (0, 50, 0) and
+                // (0, 0, 50) mm. The writer keeps the placements in one shared shape
+                // representation, and the basic reader applies a context-dependent shape's
+                // placements as a chain, so the transferred shape's bounding box reaches
+                // (60, 70, 80) (the import's XDE read keeps the placements as node
+                // transforms, the package test below).
+                check(near(box[0].toDouble(), 0.0) && near(box[3].toDouble(), 60.0)
+                      && near(box[1].toDouble(), 0.0) && near(box[4].toDouble(), 70.0)
+                      && near(box[2].toDouble(), 0.0) && near(box[5].toDouble(), 80.0),
+                      "fixture instanced: the bounding box carries the placements, got [" + std::to_string(box[3].toDouble()) + ", " + std::to_string(box[4].toDouble()) + ", " + std::to_string(box[5].toDouble()) + "]");
+            }
+        }
+        const auto instImport = run({worker, "--import-step", QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-instanced.step")});
+        check(instImport.code == 0 && instImport.json.value("status").toString() == "ok",
+              "fixture instanced import: the three instances read");
         // The hand-written inch fixture (tests/fixtures/step/inch-units.step): the writer's box
         // with the context's unit a CONVERSION_BASED_UNIT ('INCH'). The raw text's first
         // declaration is the conversion's millimetre base (the unit entity the writer wrote
@@ -766,6 +795,88 @@ int main(int argc, char **argv) {
                   "package placed assembly: the combined volume is within the tessellation error (the meshes are in the bases' own frames)");
         } else {
             check(false, "package placed assembly: the geometry could not be read");
+        }
+
+        // R098.b fixture (a) (ADR 0172 section 4): the two-level assembly with one part
+        // instanced three times at different placements. The import shares the part's mesh
+        // (tessellated once, in the base's own frame) across the three instances; each node's
+        // transform carries the placement (the shared-mesh design).
+        const auto instanced = importPackage(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-instanced.step"), {});
+        check(instanced.code == 0 && instanced.json.value("status").toString() == "ok",
+              "package import (instanced): ok");
+        check(instanced.json.value("meshes").toInt() == 1 && instanced.json.value("converted").toInt() == 2
+              && instanced.json.value("triangles").toInt() == 12,
+              "package import (instanced): one shared mesh, the group and the part converted, twelve triangles");
+        check(instanced.json.value("nodes").toInt() == 5,
+              "package import (instanced): five nodes (the root, the assembly, three instances)");
+        const QString instancedPackage = temp.filePath("sketchyup-step-instanced.step.pkg");
+        check(checkPackage(instancedPackage).isEmpty(), "package decode (instanced): " + checkPackage(instancedPackage).toStdString());
+        {
+            QFile in(instancedPackage);
+            check(in.open(QIODevice::ReadOnly), "the instanced package opens");
+            const QByteArray bytes = in.readAll();
+            const uint32_t manifestBytes = qFromLittleEndian<uint32_t>(bytes.constData() + 8);
+            const auto manifest = QJsonDocument::fromJson(bytes.mid(24, manifestBytes)).object();
+            const auto nodes = manifest.value("nodes").toArray();
+            check(nodes.size() == 5, "package instanced: five manifest nodes");
+            if (nodes.size() == 5) {
+                const auto root = nodes.at(0).toObject();
+                const auto group = nodes.at(1).toObject();
+                check(root.value("class").toString() == "IfcStepAssembly" && root.value("parent").toInt() == -1,
+                      "package instanced: the root is an assembly");
+                check(group.value("class").toString() == "IfcStepAssembly" && group.value("parent").toInt() == 0
+                      && group.value("name").toString() == "Assembly",
+                      "package instanced: the assembly node is the file's product, under the root");
+                // The three instance nodes: one shared mesh index, three distinct placements (in
+                // metres, the file's millimetres), all under the assembly, in the write order.
+                bool sameMesh = true, distinct = true, parentsOk = true;
+                const std::array<double, 3> expected[3] = {{0.05, 0.0, 0.0}, {0.0, 0.05, 0.0}, {0.0, 0.0, 0.05}};
+                for (int i = 2; i < 5; ++i) {
+                    const auto node = nodes.at(i).toObject();
+                    if (node.value("class").toString() != "IfcStepSolid" || node.value("parent").toInt() != 1)
+                        parentsOk = false;
+                    if (i > 2 && node.value("mesh").toInt() != nodes.at(2).toObject().value("mesh").toInt())
+                        sameMesh = false;
+                    const auto transform = node.value("transform").toArray();
+                    if (transform.size() != 16) {
+                        distinct = false;
+                        continue;
+                    }
+                    const double tx = transform.at(3).toDouble(), ty = transform.at(7).toDouble(), tz = transform.at(11).toDouble();
+                    const auto &e = expected[static_cast<size_t>(i) - 2];
+                    if (!near(tx, e[0]) || !near(ty, e[1]) || !near(tz, e[2])) distinct = false;
+                    // The placement is a pure translation: the 3x3 is the identity.
+                    if (std::abs(transform.at(0).toDouble() - 1.0) > 1e-12 || std::abs(transform.at(1).toDouble()) > 1e-12
+                        || std::abs(transform.at(2).toDouble()) > 1e-12 || std::abs(transform.at(4).toDouble()) > 1e-12
+                        || std::abs(transform.at(5).toDouble() - 1.0) > 1e-12 || std::abs(transform.at(6).toDouble()) > 1e-12
+                        || std::abs(transform.at(8).toDouble()) > 1e-12 || std::abs(transform.at(9).toDouble()) > 1e-12
+                        || std::abs(transform.at(10).toDouble() - 1.0) > 1e-12 || std::abs(transform.at(12).toDouble()) > 1e-12
+                        || std::abs(transform.at(13).toDouble()) > 1e-12 || std::abs(transform.at(14).toDouble()) > 1e-12
+                        || std::abs(transform.at(15).toDouble() - 1.0) > 1e-12)
+                        distinct = false;
+                }
+                check(sameMesh, "package instanced: the three instances share one mesh index");
+                check(distinct, "package instanced: the three instances carry the three distinct placements (in metres)");
+                check(parentsOk, "package instanced: the three instances sit under the assembly, in the write order");
+            }
+            const auto counts = manifest.value("report").toObject().value("counts").toObject();
+            check(counts.value("references").toInt() == 3 && counts.value("placed").toInt() == 3
+                  && counts.value("assemblies").toInt() == 1 && counts.value("shapes").toInt() == 4
+                  && counts.value("slots").toInt() == 2 && counts.value("solids").toInt() == 1,
+                  "package instanced: the report counts the three references, the three placements and the two slots");
+        }
+        if (auto geometry = packageGeometry(instancedPackage)) {
+            // The shared mesh is the box in its own frame: [0, 0.01] x [0, 0.02] x [0, 0.03] m, one box's volume.
+            check(near(geometry->min[0], 0.0) && near(geometry->max[0], 0.01)
+                  && near(geometry->min[1], 0.0) && near(geometry->max[1], 0.02)
+                  && near(geometry->min[2], 0.0) && near(geometry->max[2], 0.03),
+                  "package instanced: the shared mesh is in the base's own frame");
+            check(near(geometry->volume, 0.01 * 0.02 * 0.03, 1e-9),
+                  "package instanced: the shared mesh's volume is one box's (the tessellation is exact for the box)");
+            check(geometry->nonIdentityTransforms == 3,
+                  "package instanced: the three instance nodes carry the three placements (the group is the identity)");
+        } else {
+            check(false, "package instanced: the geometry could not be read");
         }
 
         // The unit policy (decision 4) held by the package import: the declared unit is

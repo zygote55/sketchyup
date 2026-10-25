@@ -14,6 +14,7 @@ Self-generated corpus of ADR 0172 section 7, written by this repository's own
 | `sketchyup-step-placed.step` | the box translated by (5, 10, 15) mm, written with the location (the generator's `SetLocation`); the 7.9.3 writer bakes the location into the coordinates (the ADR 0172 section 7 measurement), so the file's geometry is the box at (5, 10, 15) mm and the reader's location is the identity |
 | `sketchyup-step-mirror.step` | the box mirrored about the OX line at the origin (the writer's `gp_Ax1` mirror is the point symmetry: y and z flip), written with `BRepBuilderAPI_Transform` (the det -1 placement is not expressible in the step subset — the mirror is the faces' orientation, ADR 0172 section 7); the tessellated winding is the box's own (the positive signed volume) |
 | `sketchyup-step-placed-assembly.step` | hand-written from the assembly fixture: the box component's `AXIS2_PLACEMENT_3D` offset to (50, 0, 0) mm — the ADR 0172 section 4 case (the file's local transformation applied as the instance placement); the 7.9.3 reader preserves it as the label's location, so the import's package node carries the (0.05, 0, 0) m transform and the report counts `placed` |
+| `sketchyup-step-instanced.step` | R098.b fixture (a): the two-level assembly with one part (the box) instanced three times at (50, 0, 0), (0, 50, 0) and (0, 0, 50) mm. Written by the XDE writer (`STEPCAFControl_Writer` over the XCAF document, the generator's `--write-step`), which writes the assembly structure — three `NEXT_ASSEMBLY_USAGE_OCCURRENCE`s, each a `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` of the part under the product's shared placement representation (the `ITEM_DEFINED_TRANSFORMATION`s of the part's `AXIS2_PLACEMENT_3D`s). The XDE read (the import) keeps the three placements as the instance transforms (the shared-mesh design); the basic reader's transfer applies the placements as a chain (its shape's bounding box reaches (60, 70, 80) mm) |
 
 - Generator: `sketchyup-ifc-worker --write-step tests/fixtures/step` (commit `f1ad42f8`,
   the build of 2026-10-23 in `sketchyup-ci-pinned:r097a-ifc`).
@@ -32,6 +33,7 @@ Self-generated corpus of ADR 0172 section 7, written by this repository's own
   - `sketchyup-step-placed.step`  a15232f7be4de22e5d6a40affbd1382aec9677d72afb3fb75271bd5e974e611b
   - `sketchyup-step-mirror.step`  56d8558fd4e9abeaf02fddccac049f90e6d53a7ba7a359220a553c3ec09229e6
   - `sketchyup-step-placed-assembly.step` — hand-written (2026-10-24, R098.b): 468943a1e9dd4cd4fd87fd77f032de4c64be0eee58fdcb5e025e054e9ea62bfa
+  - `sketchyup-step-instanced.step` — generated 2026-10-25 (R098.b, the generator's `--write-step`, the XDE writer)
 
 The `FILE_NAME` carries a wall-clock timestamp, so a fresh write is not byte-identical
 to the committed files; the fixtures are regression **inputs** (`tests/ifc_step_tests.cpp`
@@ -44,3 +46,6 @@ The placed fixture's bounding box is (5,10,15)-(15,30,45) mm (the writer bakes t
 location); the mirror's is (0,-20,-30)-(10,0,0) mm (the point symmetry about the OX
 line); the placed-assembly's is
 (-5,-5,0)-(60,20,30) mm (the box at (50,0,0) mm, the cylinder at the origin).
+The instanced fixture is one shape with three solids and eighteen faces at the
+import (the XDE read: the part shared by the three instances, each a node transform);
+its basic-reader bounding box is (0,0,0)-(60,70,80) mm (the placements' chain).
