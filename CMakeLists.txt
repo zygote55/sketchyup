@@ -1401,6 +1401,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME ifc_import_dialog COMMAND ifc_import_dialog_tests)
     set_tests_properties(ifc_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                    TIMEOUT 600)
+    # R097.e2 (ADR 0171): the IFC export screens — the plan dialog, the Save dialog, the
+    # progress sheet, the report, the refusals, and a cancelled export — offscreen,
+    # driven by a stand-in helper.
+    add_executable(ifc_export_dialog_tests tests/ifc_export_dialog_tests.cpp)
+    target_link_libraries(ifc_export_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(ifc_export_dialog_tests PRIVATE tests)
+    target_compile_definitions(ifc_export_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME ifc_export_dialog COMMAND ifc_export_dialog_tests)
+    set_tests_properties(ifc_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.

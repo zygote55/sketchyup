@@ -23,7 +23,13 @@ IfcExportProgressSheet::IfcExportProgressSheet(IfcExportRunner *runner, const QS
     setWindowTitle("Exporting IFC");
     build(fileName);
     QObject::connect(runner, &IfcExportRunner::phaseChanged, this, &IfcExportProgressSheet::phase);
-    QObject::connect(runner, &IfcExportRunner::runFinished, this, [this] {
+    QObject::connect(runner, &IfcExportRunner::runFinished, this, [this, runner] {
+        // A cancelled export just closes; it does not flash the finished state, and the window
+        // shows its status line instead of a sheet (ADR 0171 section 16.8).
+        if (runner && runner->wasCancelled()) {
+            done(QDialog::Rejected);
+            return;
+        }
         for (int i = 0; i < 4; ++i)
             markStep(i, false);
         for (auto *state : stepState)
