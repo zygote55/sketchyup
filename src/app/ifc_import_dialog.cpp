@@ -24,7 +24,10 @@ const char *const stepDoesText =
     "Groups the solids under one root named for the file.\nNever modifies the source file.";
 const char *const stepNextText =
     "The imported model is a new unsaved model. The source file is never modified.\n"
-    "Solids arrive as tessellated meshes; the rest of the STEP content is reported, not converted.\n"
+    // R098.d (ADR 0172 section 3): the editability loss, in the words the user guide and the report use.
+    "Solids arrive as meshes of flat faces. Curved surfaces (NURBS, B-spline and others) cannot be "
+    "edited as curves, and an export writes the mesh only.\n"
+    "The rest of the STEP content is reported, not converted.\n"
     "Save it as a .sketchyup file to keep it.";
 } // namespace
 IfcImportDialog::IfcImportDialog(QWidget *parent) : Settled<QDialog>(parent) {

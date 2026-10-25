@@ -1,0 +1,41 @@
+SketchyUp STEP support: where the source of the libraries is
+============================================================
+
+STEP import and export run in the helper program sketchyup-ifc-worker, which the package
+sketchyup-ifc installs in /usr/lib/sketchyup with the libraries it uses. The SketchyUp application
+itself does not contain or link any of them. Nothing in the STEP path uses IfcOpenShell: the helper
+reads and writes STEP with the STEP translator of Open CASCADE Technology (OCCT), so the STEP
+toolkits are the OCCT libraries described in IFC-SOURCE.txt, in the same package and directory.
+
+Open CASCADE Technology (LGPL-2.1-or-later with the Open CASCADE exception)
+  Files used by the STEP mode: libTKDESTEP.so (the STEP reader and writer), libTKXCAF.so (the
+  XDE document that carries names, colours, layers and product structure) and the libraries
+  they need, the libTK*.so set installed beside the IFC libraries. The package's
+  sketchyup-ifc-worker records these toolkits; the installed set is the closure of what the helper
+  and the IFC kernel record.
+  Version: as built by Arch Linux in its package opencascade; the version is in the file name of
+  libTKernel.so.X.Y.Z.
+  Corresponding source: the upstream tag V7_9_3 (https://github.com/Open-Cascade-SAS/OCCT) and the
+  source package of Arch Linux's opencascade package (https://gitlab.archlinux.org/archlinux/
+  packaging/packages/opencascade).
+  The licence texts are installed as /usr/share/licenses/sketchyup/OpenCASCADE-LICENSE and
+  OpenCASCADE-LGPL-EXCEPTION. The written source offer for these libraries is the one in
+  IFC-SOURCE.txt, which covers every OCCT library in the package.
+
+SketchyUp's own STEP code
+  The STEP modes of the helper (--probe-step, --write-step, --import-step and --export-step), the
+  application's STEP runner, its export and the mapping of a STEP file into the native model are
+  SketchyUp's own code under the MIT licence (the LICENSE file in /usr/share/licenses/sketchyup).
+  The corresponding source is the source archive of the release, sketchyup-VERSION.tar.gz, in
+  src/ifc/step_*.cpp, src/io/step_*.cpp and src/app/step_*.cpp and src/app/window_step.cpp.
+
+Test files
+  The STEP test corpus is not installed. Its origin, its licence and the SHA-256 of each file are
+  recorded in tests/fixtures/step/STEP-SOURCE.txt in the source archive.
+
+Replacing the libraries
+  The helper finds the OCCT libraries through a RUNPATH of $ORIGIN, which LD_LIBRARY_PATH
+  overrides. Build OCCT 7.9.3 (the same tag), copy its libTK*.so files over the files in
+  /usr/lib/sketchyup or put them in a directory of your own and run the helper with
+  LD_LIBRARY_PATH set to that directory. Then run /usr/lib/sketchyup/sketchyup-ifc-worker --probe
+  and check the library paths it prints.

@@ -1,59 +1,96 @@
-# STEP fixture provenance (ADR 0172, R098.a)
+# STEP fixture provenance (ADR 0172, R098.a; finalised in R098.d)
 
-Self-generated corpus of ADR 0172 section 7, written by this repository's own
-`sketchyup-ifc-worker --write-step DIR` (the basic OCCT `STEPControl_Writer` in
-`src/ifc/step_probe.cpp`), so no third-party licence question:
+Every file in this directory is a repository fixture for the STEP tests (`tests/ifc_step_tests.cpp`,
+`tests/ifc_step_worker_tests.py`, `tests/ifc_step_export_tests.cpp`, `tests/step_import_tests.cpp`,
+`tests/step_import_dialog_tests.cpp` and `tests/step_export_dialog_tests.cpp`). None is installed in
+the package.
 
-| file | shape |
-|---|---|
-| `sketchyup-step-box.step` | a box 10 x 20 x 30 at the origin |
-| `inch-units.step` | the box with a hand-written unit block: `GLOBAL_UNIT_ASSIGNED_CONTEXT` applies `CONVERSION_BASED_UNIT('INCH')` (the raw text's first declaration, the millimetre base, stands before it) - the conversion-unit case of the unit policy (ADR 0172, section 2) |
-| `sketchyup-step-cylinder.step` | a cylinder of radius 5 and height 20 at the origin |
-| `sketchyup-step-assembly.step` | an assembly of the box and the cylinder |
-| `spaced-units.step` | hand-written: the unit entities with spaces in the parts (`SI_UNIT ( .MILLI., .METRE. )`) and no shapes — the scan's whitespace-tolerance case |
-| `sketchyup-step-placed.step` | the box translated by (5, 10, 15) mm, written with the location (the generator's `SetLocation`); the 7.9.3 writer bakes the location into the coordinates (the ADR 0172 section 7 measurement), so the file's geometry is the box at (5, 10, 15) mm and the reader's location is the identity |
-| `sketchyup-step-mirror.step` | the box mirrored about the OX line at the origin (the writer's `gp_Ax1` mirror is the point symmetry: y and z flip), written with `BRepBuilderAPI_Transform` (the det -1 placement is not expressible in the step subset — the mirror is the faces' orientation, ADR 0172 section 7); the tessellated winding is the box's own (the positive signed volume) |
-| `sketchyup-step-placed-assembly.step` | hand-written from the assembly fixture: the box component's `AXIS2_PLACEMENT_3D` offset to (50, 0, 0) mm — the ADR 0172 section 4 case (the file's local transformation applied as the instance placement); the 7.9.3 reader preserves it as the label's location, so the import's package node carries the (0.05, 0, 0) m transform and the report counts `placed` |
-| `sketchyup-step-instanced.step` | R098.b fixture (a): the two-level assembly with one part (the box) instanced three times at (50, 0, 0), (0, 50, 0) and (0, 0, 50) mm. Written by the XDE writer (`STEPCAFControl_Writer` over the XCAF document, the generator's `--write-step`), which writes the assembly structure — three `NEXT_ASSEMBLY_USAGE_OCCURRENCE`s, each a `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` of the part under the product's shared placement representation (the `ITEM_DEFINED_TRANSFORMATION`s of the part's `AXIS2_PLACEMENT_3D`s). The XDE read (the import) keeps the three placements as the instance transforms (the shared-mesh design); the basic reader's transfer applies the placements as a chain (its shape's bounding box reaches (60, 70, 80) mm) |
-| `sketchyup-step-named.step` | R098.b fixture (b), the ADR 0172 section 4 names: four free products — a box named `Bracket`, a cylinder named `Bolt`, a box with a 3,000-character name (the 2,048-byte cap: the import clips it with the `nameTruncated` notice) and an unnamed cylinder (the 7.9.3 reader supplies the name `SOLID` for an anonymous product). Written by the XDE writer (`--write-step`) |
-| `sketchyup-step-colored.step` | R098.b fixture (c), the ADR 0172 section 4 colours: a box the XDE marks with the colour red (`XCAFDoc_ColorTool`, the generic type — the writer's `SetColorMode` writes the `STYLED_ITEM` chain, a `DRAUGHTING_PRE_DEFINED_COLOUR('red')`) and an unstyled cylinder (the import's `DefaultMaterial`, 0.7 grey, with the `defaultMaterial` notice, the IFC pattern). Written by the XDE writer (`--write-step`) |
-| `sketchyup-step-layered.step` | R098.b fixture (d), the ADR 0172 section 4 layers: a box on a named layer (`LayerA`, the import's `step.Layer` property) and a cylinder the XDE marks invisible (the import's `hidden` flag and the `invisibleShapes` notice). The 7.9.3 XDE writer writes every layer `visible` (the layer's off state does not survive the XDE round trip; the import's `layerHidden` mapping stands for a reader that carries it), so the hidden evidence is the shape's own visibility, which the writer writes and the reader carries back. Written by the XDE writer (`--write-step`) |
+**Licence.** No file here is third-party. Each was written by this repository's OCCT 7.9.3 writer or
+by hand from the files that were, so each file is under the repository's own licence (MIT, the
+`LICENSE` file). The fixtures carry no notice of another author. **No third-party file is in the
+corpus.** ADR 0172 section 7, item 3, asks for a small third-party set with named sources and
+licences; owner decision 10 says that the corpus stands on the self-generated files if none can
+be licensed cleanly. The candidates were checked as follows, in R098.d:
 
-- Generator: `sketchyup-ifc-worker --write-step tests/fixtures/step` (commit `f1ad42f8`,
-  the build of 2026-10-23 in `sketchyup-ci-pinned:r097a-ifc`).
-- Schema: AP214IS, `AUTOMOTIVE_DESIGN { 1 2 10303 214 0 1 1 1 }` (the basic writer); the XDE-writer
-  files (the instanced, named, coloured and layer corpora) declare
-  `AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }` (the XDE writer's protocol version). Units
-  declared in millimetres (the writer's `WriteUnit` default), angle RADIAN.
-- OCCT: 7.9.3.
-- SHA-256 at generation (2026-10-23):
-  - `sketchyup-step-assembly.step`  5d0d83307dfacb5716368df2ed8ee1d49bca2f5003cd41f9b22aa4bd0fe9bf8c
-  - `sketchyup-step-box.step`  d58d273bdf7c0d956f50a84ca793d6edf8ae7b5fc5ac9c1dd0d045eb54aea621
-  - `sketchyup-step-cylinder.step`  771866829f584a38d9c05a74b633abe1365ce91f6f5110be937ec979285e5118
-  - `inch-units.step` - hand-written (2026-10-24, the review round 2 of the R098.a skeleton):
-    the corpus box (the writer's geometry, the writer's header) with the writer's millimetre
-    unit entity replaced in the context by a `CONVERSION_BASED_UNIT('INCH')` unit - the shape is
-    10 x 20 x 30 inches, 254 x 508 x 762 mm. 00f34a6005943c5257bc1611aa4efd23d3abdf0fb7707c36548e0cbb6ef59e8c
-  - `spaced-units.step` — hand-written (no generation); its only content is the header and the three unit entities.
-  - `sketchyup-step-placed.step`  a15232f7be4de22e5d6a40affbd1382aec9677d72afb3fb75271bd5e974e611b
-  - `sketchyup-step-mirror.step`  56d8558fd4e9abeaf02fddccac049f90e6d53a7ba7a359220a553c3ec09229e6
-  - `sketchyup-step-placed-assembly.step` — hand-written (2026-10-24, R098.b): 468943a1e9dd4cd4fd87fd77f032de4c64be0eee58fdcb5e025e054e9ea62bfa
-  - `sketchyup-step-instanced.step` — generated 2026-10-25 (R098.b, the generator's `--write-step`, the XDE writer)
-  - `sketchyup-step-named.step` — generated 2026-10-25 (R098.b item 2, the XDE writer): a2c97106c07456e006c1d2ffbf992f24d03c36e30cc71236b2dc9ba4b70bd37e
-  - `sketchyup-step-colored.step` — generated 2026-10-25 (R098.b item 3, the XDE writer): cf20d9e44e9794bb5d0609426d6bad81a1df40f9d4d006cc99de8bcde6d14718
-  - `sketchyup-step-layered.step` — generated 2026-10-25 (R098.b item 4, the XDE writer): 2410d2401d2766f5d38b08ac31ace381ab55264a4655ba8915e6b8efe6eb293a
+- **NIST CAD interoperability test cases** (the PMI test cases, CAD models and STEP files on the NIST
+  MBE PMI validation pages): the NIST download page says the files "can be used without any
+  restrictions" and asks for acknowledgement if they are used, and the data.gov record points to
+  NIST's general open-licence page. **Not downloaded or verified in R098.d**: no file was taken, so
+  the hosting and the licence terms are not confirmed here.
+- **FreeCAD test data** and **OCCT's own test resources**: not checked in R098.d. ADR 0172 records
+  both as unverified at design time, and they remain so.
 
-The `FILE_NAME` carries a wall-clock timestamp, so a fresh write is not byte-identical
-to the committed files; the fixtures are regression **inputs** (`tests/ifc_step_tests.cpp`
-probes them), and the test's own determinism check compares a second write's sizes.
-Geometry ground truth: the box's bounding box is (0,0,0)-(10,20,30) and its six faces;
-the cylinder is one solid with three faces; the assembly is one shape with two solids.
-The inch fixture is the same box, the unit in inches: its bounding box is
-(0,0,0)-(254,508,762) mm at import (25.4 mm per unit).
-The placed fixture's bounding box is (5,10,15)-(15,30,45) mm (the writer bakes the
-location); the mirror's is (0,-20,-30)-(10,0,0) mm (the point symmetry about the OX
-line); the placed-assembly's is
-(-5,-5,0)-(60,20,30) mm (the box at (50,0,0) mm, the cylinder at the origin).
-The instanced fixture is one shape with three solids and eighteen faces at the
-import (the XDE read: the part shared by the three instances, each a node transform);
-its basic-reader bounding box is (0,0,0)-(60,70,80) mm (the placements' chain).
+**Origin classes.** *Generated* means written by `sketchyup-ifc-worker --write-step`, the
+repository's own generator (`src/ifc/step_probe.cpp`). *Hand-written* means the text was typed or
+edited by hand; no program wrote it. *Hand-edited* means the file was written by the OCCT writer and
+its coordinates or units were then changed by hand.
+
+| file | origin | what it is |
+|---|---|---|
+| `sketchyup-step-box.step` | generated | a box 10 x 20 x 30 mm at the origin (the basic writer, AP214) |
+| `sketchyup-step-cylinder.step` | generated | a cylinder of radius 5 and height 20 mm at the origin |
+| `sketchyup-step-assembly.step` | generated | an assembly of the box and the cylinder |
+| `sketchyup-step-placed.step` | generated | the box translated by (5, 10, 15) mm; the writer bakes the location into the coordinates |
+| `sketchyup-step-mirror.step` | generated | the box under a point symmetry about the OX line (y and z flip, a rotation of 180 degrees, determinant +1); the name is historical, this file is not a mirror image |
+| `sketchyup-step-instanced.step` | generated (XDE writer) | one part (the box) placed three times at (50, 0, 0), (0, 50, 0) and (0, 0, 50) mm: the assembly structure of R098.b |
+| `sketchyup-step-named.step` | generated (XDE writer) | four free products: `Bracket` (a box), `Bolt` (a cylinder), a box with a 3,000-character name (the 2,048-byte cap), and an unnamed cylinder (the reader names it `SOLID`) |
+| `sketchyup-step-colored.step` | generated (XDE writer) | a red box and an unstyled cylinder (the default grey, with its notice) |
+| `sketchyup-step-layered.step` | generated (XDE writer) | a box on the layer `LayerA` and a cylinder the XDE marks invisible |
+| `inch-units.step` | hand-written | the corpus box with the context's unit replaced by `CONVERSION_BASED_UNIT('INCH')`: 254 x 508 x 762 mm at import |
+| `spaced-units.step` | hand-written | the unit entities with spaces in the parts (`SI_UNIT ( .MILLI., .METRE. )`), no shapes |
+| `sketchyup-step-placed-assembly.step` | hand-written | the assembly fixture with the box's placement offset to (50, 0, 0) mm |
+| `mirror-box.step` | generated by a one-off program (`make_mirror_box.cpp` in this directory) | the box mirrored in the YZ plane (x -> -x), so a det -1 solid with its coordinates at negative x. Regenerated in R098.d; see below |
+| `box-negative.step` | hand-edited | written by the XDE writer (its product is `Open CASCADE STEP translator 7.9 1`, protocol `1 0`), then the box's x coordinates were moved to [-10, 0] by hand. The command that wrote the original is not in the repository |
+
+**`mirror-box.step` was regenerated in R098.d.** The file committed by R098.a2 (`cb2f4bf3...`, dated
+2026-10-24) was hand-edited from the basic writer's box, and it was malformed in two ways that a
+reader can tolerate without noticing: every `ADVANCED_FACE` line had lost its comma and its
+same-sense attribute (`#32.T.` where `#32,.T.` was meant, so each face carried three attributes),
+and the negated coordinates were written as integers (`-10,` where a real `-10.,` is required). It
+is replaced by the output of `make_mirror_box.cpp` (`ba3d4f6f...`): six faces with explicit sense
+flags, a closed shell, and the same geometry (x in [-10, 0], the signed volume positive and exact).
+The tests of R098.a2 and R098.b (the mirror checks in `tests/ifc_step_tests.cpp` and
+`tests/ifc_step_worker_tests.py`) pass on the new file. The old file is in the git history.
+
+**Schemas and writers.** The basic writer's files declare `AUTOMOTIVE_DESIGN { 1 2 10303 214 0 1 1 1 }`
+(AP214IS); the XDE writer's files declare `AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }`, and so does
+`mirror-box.step`, which the R098.d program wrote with the `STEPControl_Writer` default of this
+build. The hand-written files keep the schema of the file they came from. Units are declared in
+millimetres (the writer's default), except `inch-units.step`, which declares inches through the
+conversion unit. Angles are RADIAN. The OCCT version is 7.9.3 for every writer output.
+
+**Generator.** `sketchyup-ifc-worker --write-step tests/fixtures/step` writes the nine generated
+corpus files (the box, cylinder, assembly, placed, mirror, instanced, named, colored and layered;
+commit `f1ad42f8`, the build of 2026-10-23 in `sketchyup-ci-pinned:r097a-ifc`, and the XDE files of
+R098.b). The `FILE_NAME` carries a wall-clock timestamp, so a fresh write is not byte-identical to the
+committed files; the tests use the files as regression inputs and check the second write's sizes for
+determinism. `make_mirror_box.cpp` is not built by CMake; its header gives the one-line build in the
+pinned image.
+
+**SHA-256 at the date of this record (2026-10-25, final):**
+
+- `box-negative.step`  d2f34a686f6211944744f9e15673a44f75ff4e18a9516f0896f526b1acecbdb3
+- `inch-units.step`  00f34a6005943c5257bc1611aa4efd23d3abdf0fb7707c36548e0cbb6ef59e8c
+- `mirror-box.step`  ba3d4f6fa7c05390d55917db059e50e12c848e68afbf964f631d79cdbc502e07
+- `sketchyup-step-assembly.step`  5d0d83307dfacb5716368df2ed8ee1d49bca2f5003cd41f9b22aa4bd0fe9bf8c
+- `sketchyup-step-box.step`  d58d273bdf7c0d956f50a84ca793d6edf8ae7b5fc5ac9c1dd0d045eb54aea621
+- `sketchyup-step-colored.step`  cf20d9e44e9794bb5d0609426d6bad81a1df40f9d4d006cc99de8bcde6d14718
+- `sketchyup-step-cylinder.step`  771866829f584a38d9c05a74b633abe1365ce91f6f5110be937ec979285e5118
+- `sketchyup-step-instanced.step`  1c996ec5620ef37d5742564bd124932c9ddea014046a021c0ea5013bc4b66ab8
+- `sketchyup-step-layered.step`  2410d2401d2766f5d38b08ac31ace381ab55264a4655ba8915e6b8efe6eb293a
+- `sketchyup-step-mirror.step`  56d8558fd4e9abeaf02fddccac049f90e6d53a7ba7a359220a553c3ec09229e6
+- `sketchyup-step-named.step`  a2c97106c07456e006c1d2ffbf992f24d03c36e30cc71236b2dc9ba4b70bd37e
+- `sketchyup-step-placed-assembly.step`  468943a1e9dd4cd4fd87fd77f032de4c64be0eee58fdcb5e025e054e9ea62bfa
+- `sketchyup-step-placed.step`  a15232f7be4de22e5d6a40affbd1382aec9677d72afb3fb75271bd5e974e611b
+- `spaced-units.step`  c641b090c3736c94741e4088b20393fd5408f01fa4690b4171d70a0360b5487f
+
+The list is a record: the test suites read the files, not these hashes.
+
+**Geometry ground truth.** The box's bounding box is (0,0,0)-(10,20,30) mm and it has six faces; the
+cylinder is one solid with three faces; the assembly is one shape with two solids. The inch fixture
+is the same box in inches: (0,0,0)-(254,508,762) mm at import (25.4 mm per unit). The placed fixture's
+bounding box is (5,10,15)-(15,30,45) mm; the mirror's is (0,-20,-30)-(10,0,0) mm for
+`sketchyup-step-mirror.step` (the point symmetry), and `mirror-box.step` is (-10,0,0)-(0,20,30) mm.
+The placed-assembly's box is (-5,-5,0)-(60,20,30) mm with the cylinder at the origin. The instanced
+fixture is one shape with three solids and eighteen faces at the import (the XDE read); its
+basic-reader bounding box is (0,0,0)-(60,70,80) mm.

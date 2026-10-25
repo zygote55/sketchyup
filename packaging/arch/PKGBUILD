@@ -76,6 +76,6 @@ package_sketchyup-ifc() {
           'libx11' 'libxcb' 'libxau' 'libxdmcp' 'fontconfig' 'freetype2')
   # /usr/lib/sketchyup/sketchyup-ifc-worker, libifcopenshell*.so, the ifcopenshell_*.so plugins and
   # the libTK*.so libraries, all in one flat private directory (a RUNPATH of $ORIGIN); the notices
-  # and the written source offer (share/doc/sketchyup/IFC-SOURCE.txt).
+  # and the written source offers (share/doc/sketchyup/IFC-SOURCE.txt and STEP-SOURCE.txt, ADR 0172 section 8).
   DESTDIR="$pkgdir" cmake --install build --component ifc
 }

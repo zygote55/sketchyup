@@ -1547,6 +1547,8 @@ install(FILES third_party/ifcopenshell/COPYING DESTINATION share/licenses/sketch
 install(FILES third_party/ifcopenshell/occt/LICENSE_LGPL_21.txt DESTINATION share/licenses/sketchyup RENAME OpenCASCADE-LICENSE COMPONENT ifc)
 install(FILES third_party/ifcopenshell/occt/OCCT_LGPL_EXCEPTION.txt DESTINATION share/licenses/sketchyup RENAME OpenCASCADE-LGPL-EXCEPTION COMPONENT ifc)
 install(FILES third_party/ifcopenshell/IFC-SOURCE.txt DESTINATION share/doc/sketchyup COMPONENT ifc)
+# The STEP mode's written notice (ADR 0172 section 8, R098.d): the OCCT toolkits it uses and where their source is.
+install(FILES docs/STEP-SOURCE.txt DESTINATION share/doc/sketchyup COMPONENT ifc)
 endif()
 if(SKETCHYUP_BUILD_DESKTOP)
   install(FILES resources/io.sketchyup.SketchyUp.desktop DESTINATION share/applications)

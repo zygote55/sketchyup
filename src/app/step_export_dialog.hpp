@@ -2,7 +2,7 @@
 // R098.c2 (ADR 0172 sections 2, 3 and 6): the STEP export dialog, opened by File > Export STEP... It
 // shows the plan computed from the open model before anything is written (the capture's own plan, the
 // numbers the export will check): the schema choice (AP214 by default, AP203), what will be written,
-// one line per kind that will not, the size warning above about 250,000 triangles and What this is (a
+// one line per kind that will not, the size warning above 100,000 triangles and What this is (a
 // mesh, not parametric surfaces). The Tab order is the schema choice, then the form's scroll region,
 // then Cancel, then Export to file...; Enter exports, Esc cancels, an arrow key scrolls the form. A
 // cheap refusal (an empty model, a body or a package over its bound) is a red banner here with Export
@@ -34,7 +34,9 @@ class StepExportDialog : public QDialog {
   public:
     // The triangles above which a file may exceed the 256 MiB limit (ADR 0172 section 6): an amber
     // note, not a refusal. A test may set its own threshold.
-    static constexpr qint64 kTriangleWarningLimit = 250000;
+    // A file of triangle faces reaches the 256 MiB export limit at about 110,000 faces (2.4 KB a
+    // face, R098.d); the note comes before that, so it warns in time for the worst case.
+    static constexpr qint64 kTriangleWarningLimit = 100000;
     explicit StepExportDialog(QWidget *parent = nullptr);
     void setProbe(const IfcProbe &probe); // the helper line (the export needs the helper, not the kernel)
     void setDocument(const Document &document); // the capture's plan, or the cheap-refusal banner
