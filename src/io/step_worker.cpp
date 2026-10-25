@@ -448,8 +448,10 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     if (!directory.isValid())
         refuse("scratch", "A private working directory could not be created.");
     QFile::setPermissions(directory.path(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
-    // Copy the file in and hash the copy: what is checked is what is read.
-    const QString input = QDir(directory.path()).filePath("input.step");
+    // Copy the file in and hash the copy: what is checked is what is read. The copy keeps the
+    // original file's name: the package's root (and the document's root body) is named after the
+    // file, not after the private copy.
+    const QString input = QDir(directory.path()).filePath(QFileInfo(path).fileName());
     copyBounded(path, input);
     QFile::setPermissions(input, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     const StepScan scan = checkStepSource(input);

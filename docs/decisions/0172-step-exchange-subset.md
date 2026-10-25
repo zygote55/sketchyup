@@ -617,7 +617,60 @@ File › Import STEP….
   - A stand-in helper's result line must begin `R `. An unprefixed last line is a worker
     failure, which is what made S6 fail during development.
 
-## Owner decisions
+## Implementation notes (R098.b, 2026-10-25)
+
+The §4 mapping lands in the same helper, on the R098.a2 package, with the application's
+conversion extended for STEP packages (the R098.a3 runner converts through it unchanged):
+
+- **Worker (`--import-step` with `--output`).** The flat `IfcStepSolid`-per-solid layout of
+  R098.a2 gains the assembly/instance tree. The XDE import's product structure (an
+  `XCAFDoc_ProductTool` read: the root assembly, the parts, the instance placements)
+  becomes the package's node tree: an `IfcStepAssembly` root, the named product per
+  part, one `IfcStepSolid` per placed instance, the placement as the instance node's
+  transform (the shared-mesh design: the part's one mesh is referenced by every
+  instance, the placement is the node's transform, never baked into the geometry).
+  The reader keeps `step.Entity` on the node and the `step` label on the instance,
+  and the basic reader's chained placements stay the package's (the package's own
+  placements are applied on conversion, not by the reader).
+- **Names, colours, layers, tags, provenance.** An unnamed product's name is its
+  class name (`IfcStepAssembly`, `IfcStepSolid`), over-long names are clipped to
+  2,048 bytes (`nameTruncated`), an unstyled product takes the package's
+  `DefaultMaterial` (grey 0.7, a `defaultMaterial` notice), a styled product carries
+  its colour, an alpha-only colour drops it (`colorAlphaDropped`), a layer rides as
+  the `step.Layer` property (`layerHidden` and `invisibleShapes` for the hidden;
+  OCCT's XDE layer visibility does not round-trip its own writer's
+  `PRESENTATION_LAYER_ASSIGNMENT`, so the hidden state rides the shape's
+  visibility). The provenance is the file's `step.Schema`, `step.Source` (the
+  64-byte digest prefix), `step.Entities` and each node's `step.Entity`.
+- **Units and caps.** The R098.a2 unit policy and the section 6 triangle caps are
+  unchanged; a file that declares no length unit refuses (`units`) unless the
+  option is given, and a nonsense option refuses (`option`).
+- **Application (the R098.a3 runner's three gaps).** The worker's `--import-step`
+  gains the IFC import's rlimit options (`--rlimit-as`, `--rlimit-cpu`,
+  `--rlimit-fsize`): the R098.a3 runner passes them by default (a 4 GiB
+  `addressSpaceBytes`), and the worker at the R098.a2 point refused them as
+  unknown options, which the stand-in tests could not see. The conversion gains
+  the STEP family (the R098.a3 known limitation, closed): the tag from the class
+  name (`STEP Assembly`, `STEP Solid`, `STEP Other` at the 128-family limit), the
+  edit label `Import STEP`, and the STEP notice wordings beside the IFC ones. The
+  runner's private copy keeps the file's name (the stand-in tests could not see
+  that a fixed `input.step` copy names the document's root body after the copy,
+  not after the file the user chose).
+- **Fixtures.** `sketchyup-step-instanced.step` (one part, three placed instances,
+  the XDE writer), `sketchyup-step-named.step`, `sketchyup-step-colored.step` and
+  `sketchyup-step-layered.step` (self-generated, the XDE writer's
+  `AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }`); [source notes](../tests/fixtures/step/STEP-SOURCE.txt).
+- **Verification.** `tests/ifc_step_tests.cpp` (C++, through the worker),
+  `tests/ifc_step_worker_tests.py` (the worker's own Python test: the nine-file
+  `--write-step` corpus, and R098.b's counts — a group always converts, so the
+  assembly's converted count is its two parts plus the root, and a material
+  index is checked against the manifest's materials) and
+  `tests/ifc_import_tests.cpp` (the application, on the R098.a3 runner) cover it;
+  the local sets run green (the CI IFC set and the R098.a3 `step_import` suites,
+  the sanitize set 5/5 under ASan, where the tests run without `ulimit -v` —
+  ASan's shadow reservation needs more address space than an 8 GiB virtual
+  limit gives, and the docker memory cap bounds the run).
+
 
 1. **The adapter (options A/B/C):** **option A** — OCCT STEP translation in
    the shared helper, on the IFC helper's private OCCT set. *Rationale: it

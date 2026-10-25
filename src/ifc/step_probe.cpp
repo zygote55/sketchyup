@@ -31,6 +31,7 @@
 //    Standard_VersionInfo.hxx are the only source there and do not exist in 7.8. The build
 //    selects the spelling (SKETCHYUP_IFC_OCCT_79) and records the configured version.
 #include "ifc/step_probe.hpp"
+#include "ifc/sha256.hpp"
 
 #include <array>
 #include <cctype>
@@ -58,20 +59,38 @@
 #endif
 #include "Bnd_Box.hxx"
 #include "BRepBndLib.hxx"
+#include "BRepBuilderAPI_Transform.hxx"
 #include "BRep_Builder.hxx"
 #include "BRepPrimAPI_MakeBox.hxx"
 #include "BRepPrimAPI_MakeCylinder.hxx"
+#include "gp_Ax1.hxx"
+#include "gp_Dir.hxx"
+#include "gp_Pnt.hxx"
+#include "gp_Trsf.hxx"
+#include "gp_Vec.hxx"
 #include "HeaderSection_FileSchema.hxx"
 #include "Interface_EntityIterator.hxx"
+#include "Quantity_Color.hxx"
 #include "STEPControl_Reader.hxx"
 #include "STEPControl_Writer.hxx"
+#include "STEPCAFControl_Writer.hxx"
 #include "Standard_Failure.hxx"
 #include "StepData_StepModel.hxx"
 #include "TColStd_SequenceOfAsciiString.hxx"
+#include "TCollection_ExtendedString.hxx"
+#include "TDataStd_Name.hxx"
+#include "TDocStd_Document.hxx"
+#include "TDF_Label.hxx"
 #include "TopExp_Explorer.hxx"
 #include "TopoDS_Compound.hxx"
 #include "TopoDS_Shape.hxx"
+#include "TopLoc_Location.hxx"
 #include "UnitsMethods.hxx"
+#include "XSControl_WorkSession.hxx"
+#include "XCAFDoc_DocumentTool.hxx"
+#include "XCAFDoc_ShapeTool.hxx"
+#include "XCAFDoc_ColorTool.hxx"
+#include "XCAFDoc_LayerTool.hxx"
 
 #if defined(SKETCHYUP_STEP_OCCT_79)
 #include "DESTEP_Parameters.hxx"
@@ -410,6 +429,7 @@ StepFileFacts stepFileFacts(const std::string& path) {
   facts.angle = raw.angle;
   facts.solidAngle = raw.solidAngle;
   facts.lengthMetres = raw.lengthMetres;
+  facts.sha256 = sha256Hex(*text);  // the provenance's step.Source (the file's digest)
   return facts;
 }
 
@@ -596,6 +616,190 @@ std::string writeStep(const std::string& directory) {
     builder.Add(assembly, BRepPrimAPI_MakeCylinder(5, 20).Shape());
     return assembly;
   });
+  // The placement corpus (ADR 0172 §4): the same box, moved as its location (the placement the
+  // package's node transform carries, not a baked mesh), and mirrored about the origin (the
+  // negative-determinant placement, affine: the decoder admits it, the instance's winding is the
+  // mirror's).
+  writeOne("sketchyup-step-placed.step", [] {
+    gp_Trsf move;
+    move.SetTranslation(gp_Vec(5.0, 10.0, 15.0));
+    return BRepBuilderAPI_Transform(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), move).Shape();
+  });
+  writeOne("sketchyup-step-mirror.step", [] {
+    gp_Trsf mirror;
+    mirror.SetMirror(gp_Ax1(gp_Pnt(0.0, 0.0, 0.0), gp_Dir(1.0, 0.0, 0.0)));
+    return BRepBuilderAPI_Transform(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), mirror).Shape();
+  });
+  // The instance corpus (the ADR 0172 section 4 fixtures): a two-level assembly with one part
+  // (the box) instanced three times at different placements. The basic writer bakes a placement
+  // into the coordinates (the placed and mirror cases above), so the assembly goes through the
+  // XDE writer (STEPCAFControl_Writer): it writes the assembly structure (the
+  // NEXT_ASSEMBLY_USAGE_OCCURRENCEs and their placements, as the hand-crafted placed-assembly
+  // fixture has) - the instances share the part, and each placement is an item-defined
+  // transformation of the part.
+  {
+    const fs::path file = fs::path(directory) / "sketchyup-step-instanced.step";
+    json.beginObject().field("file", std::string(file.filename()));
+    try {
+      Handle(TDocStd_Document) doc(new TDocStd_Document("XCAF"));
+      const TDF_Label shapes = XCAFDoc_DocumentTool::ShapesLabel(doc->Main());
+      const Handle(XCAFDoc_ShapeTool) hTool = XCAFDoc_ShapeTool::Set(shapes);
+      XCAFDoc_ShapeTool tool = *hTool;
+      TopoDS_Shape box = BRepPrimAPI_MakeBox(10, 20, 30).Shape();
+      TDF_Label part = tool.AddShape(box, Standard_False, Standard_False);
+      TDataStd_Name::Set(part, TCollection_ExtendedString("Part"));
+      TopoDS_Compound comp;
+      BRep_Builder b;
+      b.MakeCompound(comp);
+      const double placements[3][3] = {{50.0, 0.0, 0.0}, {0.0, 50.0, 0.0}, {0.0, 0.0, 50.0}};
+      for (int i = 0; i < 3; ++i) {
+        gp_Trsf t;
+        t.SetTranslation(gp_Vec(placements[i][0], placements[i][1], placements[i][2]));
+        TopoDS_Shape s = box;
+        s.Move(t, Standard_False);
+        b.Add(comp, s);
+      }
+      TDF_Label assembly = tool.AddShape(comp, Standard_True, Standard_False);
+      TDataStd_Name::Set(assembly, TCollection_ExtendedString("Assembly"));
+      Handle(XSControl_WorkSession) wws(new XSControl_WorkSession());
+      STEPCAFControl_Writer writer(wws, Standard_False);
+      writer.SetNameMode(Standard_True);
+      writer.SetColorMode(Standard_True);
+      writer.SetLayerMode(Standard_True);
+      if (!wws->SelectNorm("STEP") || !writer.Transfer(doc, STEPControl_AsIs) ||
+          writer.Write(file.c_str()) != IFSelect_RetDone) {
+        json.field("written", false).field("reason", "the XDE writer refused the assembly");
+      } else {
+        json.field("written", true);
+        const StepFileFacts written = stepFileFacts(file);
+        json.field("bytes", written.bytes);
+        json.field("schema", written.schema);
+      }
+    } catch (const Standard_Failure& failure) {
+      json.field("written", false).field("reason", failure.GetMessageString());
+    }
+    json.endObject();
+  }
+  // The named corpus (the ADR 0172 section 4 fixture): a named product, a second named product,
+  // a product with a 3,000-character name (the 2,048-byte cap, over -> truncated with the
+  // notice) and an unnamed product (named after its class by the import).
+  {
+    const fs::path file = fs::path(directory) / "sketchyup-step-named.step";
+    json.beginObject().field("file", std::string(file.filename()));
+    try {
+      Handle(TDocStd_Document) doc(new TDocStd_Document("XCAF"));
+      const TDF_Label shapes = XCAFDoc_DocumentTool::ShapesLabel(doc->Main());
+      const Handle(XCAFDoc_ShapeTool) hTool = XCAFDoc_ShapeTool::Set(shapes);
+      XCAFDoc_ShapeTool tool = *hTool;
+      TDF_Label bracket = tool.AddShape(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), Standard_False, Standard_False);
+      TDataStd_Name::Set(bracket, TCollection_ExtendedString("Bracket"));
+      TDF_Label bolt = tool.AddShape(BRepPrimAPI_MakeCylinder(5, 20).Shape(), Standard_False, Standard_False);
+      TDataStd_Name::Set(bolt, TCollection_ExtendedString("Bolt"));
+      TDF_Label longName = tool.AddShape(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), Standard_False, Standard_False);
+      const std::string longNameText(3000, 'A');
+      TDataStd_Name::Set(longName, TCollection_ExtendedString(longNameText.c_str()));
+      TDF_Label anonymous = tool.AddShape(BRepPrimAPI_MakeCylinder(5, 20).Shape(), Standard_False, Standard_False);
+      Handle(XSControl_WorkSession) wws(new XSControl_WorkSession());
+      STEPCAFControl_Writer writer(wws, Standard_False);
+      writer.SetNameMode(Standard_True);
+      writer.SetColorMode(Standard_True);
+      writer.SetLayerMode(Standard_True);
+      if (!wws->SelectNorm("STEP") || !writer.Transfer(doc, STEPControl_AsIs) ||
+          writer.Write(file.c_str()) != IFSelect_RetDone) {
+        json.field("written", false).field("reason", "the XDE writer refused the named corpus");
+      } else {
+        json.field("written", true);
+        const StepFileFacts written = stepFileFacts(file);
+        json.field("bytes", written.bytes);
+        json.field("schema", written.schema);
+      }
+    } catch (const Standard_Failure& failure) {
+      json.field("written", false).field("reason", failure.GetMessageString());
+    }
+    json.endObject();
+  }
+  // The colour corpus (the ADR 0172 section 4 fixture): a red box (the XDE's colour mode writes
+  // the STYLED_ITEM chain) and an unstyled cylinder (the import's DefaultMaterial, the IFC
+  // pattern). The XDE writer writes the colour when SetColorMode is on and the label carries
+  // the colour (XCAFDoc_ColorTool, the generic type); the unstyled shape carries no style.
+  {
+    const fs::path file = fs::path(directory) / "sketchyup-step-colored.step";
+    json.beginObject().field("file", std::string(file.filename()));
+    try {
+      Handle(TDocStd_Document) doc(new TDocStd_Document("XCAF"));
+      const TDF_Label shapes = XCAFDoc_DocumentTool::ShapesLabel(doc->Main());
+      const Handle(XCAFDoc_ShapeTool) hTool = XCAFDoc_ShapeTool::Set(shapes);
+      XCAFDoc_ShapeTool tool = *hTool;
+      const Handle(XCAFDoc_ColorTool) hColor = XCAFDoc_ColorTool::Set(shapes);
+      XCAFDoc_ColorTool colorTool = *hColor;
+      TDF_Label red = tool.AddShape(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), Standard_False, Standard_False);
+      TDataStd_Name::Set(red, TCollection_ExtendedString("Red"));
+      colorTool.SetColor(red, Quantity_Color(1.0, 0.0, 0.0, Quantity_TOC_RGB), XCAFDoc_ColorGen);
+      TDF_Label plain = tool.AddShape(BRepPrimAPI_MakeCylinder(5, 20).Shape(), Standard_False, Standard_False);
+      TDataStd_Name::Set(plain, TCollection_ExtendedString("Plain"));
+      Handle(XSControl_WorkSession) wws(new XSControl_WorkSession());
+      STEPCAFControl_Writer writer(wws, Standard_False);
+      writer.SetNameMode(Standard_True);
+      writer.SetColorMode(Standard_True);
+      writer.SetLayerMode(Standard_True);
+      if (!wws->SelectNorm("STEP") || !writer.Transfer(doc, STEPControl_AsIs) ||
+          writer.Write(file.c_str()) != IFSelect_RetDone) {
+        json.field("written", false).field("reason", "the XDE writer refused the coloured corpus");
+      } else {
+        json.field("written", true);
+        const StepFileFacts written = stepFileFacts(file);
+        json.field("bytes", written.bytes);
+        json.field("schema", written.schema);
+      }
+    } catch (const Standard_Failure& failure) {
+      json.field("written", false).field("reason", failure.GetMessageString());
+    }
+    json.endObject();
+  }
+  // The layer corpus (the ADR 0172 section 4 fixture): a shape on a named layer (the import's
+  // step.Layer property) and a shape the file marks invisible (the import's hidden flag and
+  // notice). The 7.9.3 writer writes every layer 'visible' (the layer's off state does not
+  // survive the round trip), so the hidden evidence is the shape's own visibility, which the
+  // reader carries back through the XDE's colour tool.
+  {
+    const fs::path file = fs::path(directory) / "sketchyup-step-layered.step";
+    json.beginObject().field("file", std::string(file.filename()));
+    try {
+      Handle(TDocStd_Document) doc(new TDocStd_Document("XCAF"));
+      const TDF_Label shapes = XCAFDoc_DocumentTool::ShapesLabel(doc->Main());
+      const TDF_Label layers = XCAFDoc_DocumentTool::LayersLabel(doc->Main());
+      const Handle(XCAFDoc_ShapeTool) hTool = XCAFDoc_ShapeTool::Set(shapes);
+      XCAFDoc_ShapeTool tool = *hTool;
+      const Handle(XCAFDoc_LayerTool) hLayer = XCAFDoc_LayerTool::Set(layers);
+      XCAFDoc_LayerTool layerTool = *hLayer;
+      const Handle(XCAFDoc_ColorTool) hColor = XCAFDoc_ColorTool::Set(shapes);
+      XCAFDoc_ColorTool colorTool = *hColor;
+      TDF_Label boxed = tool.AddShape(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), Standard_False, Standard_False);
+      TDataStd_Name::Set(boxed, TCollection_ExtendedString("Layered"));
+      TDF_Label onLayer = layerTool.AddLayer(TCollection_ExtendedString("LayerA"), Standard_True);
+      layerTool.SetLayer(boxed, onLayer);
+      TDF_Label hidden = tool.AddShape(BRepPrimAPI_MakeCylinder(5, 20).Shape(), Standard_False, Standard_False);
+      TDataStd_Name::Set(hidden, TCollection_ExtendedString("Hidden"));
+      colorTool.SetVisibility(hidden, Standard_False);
+      Handle(XSControl_WorkSession) wws(new XSControl_WorkSession());
+      STEPCAFControl_Writer writer(wws, Standard_False);
+      writer.SetNameMode(Standard_True);
+      writer.SetColorMode(Standard_True);
+      writer.SetLayerMode(Standard_True);
+      if (!wws->SelectNorm("STEP") || !writer.Transfer(doc, STEPControl_AsIs) ||
+          writer.Write(file.c_str()) != IFSelect_RetDone) {
+        json.field("written", false).field("reason", "the XDE writer refused the layer corpus");
+      } else {
+        json.field("written", true);
+        const StepFileFacts written = stepFileFacts(file);
+        json.field("bytes", written.bytes);
+        json.field("schema", written.schema);
+      }
+    } catch (const Standard_Failure& failure) {
+      json.field("written", false).field("reason", failure.GetMessageString());
+    }
+    json.endObject();
+  }
   json.endArray();
   json.endObject();
   return json.str();

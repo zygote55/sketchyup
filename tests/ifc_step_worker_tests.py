@@ -3,18 +3,22 @@
 
     python3 -I tests/ifc_step_worker_tests.py WORKER
 
-The corpus is the three self-generated files of ADR 0172 section 7 (a box 10 x 20 x 30, a
-cylinder of radius 5 and height 20, an assembly of the two, all written in millimetres by
-the basic writer). The test writes the corpus with --write-step and checks it back through
+The corpus is the nine self-generated files: the three of ADR 0172 section 7 (a box 10 x
+20 x 30, a cylinder of radius 5 and height 20, an assembly of the two, all written in
+millimetres by the basic writer), the placed and mirror fixtures, and the four R098.b
+XDE-writer fixtures (the instanced assembly, the named, the coloured and the layered
+corpora). The test writes the corpus with --write-step and checks it back through
 --probe-step and --import-step: the schema (AP214 as written, AP242 for the option), the
 declared units from the raw text, the hand-computed geometry, the writer/reader round trip
 (sections 1 and 2) and the unit policy of decision 4 (the declared unit is authoritative,
 the option only when nothing is declared, refusal when neither is there). R098.a2 adds the
 tessellated import (--import-step --output PKG): the package against the hand-computed
 geometry (E1), the unit policy and the triangle caps of section 6, and the layout the
-application's decoder reads (SKIFCP01, the counts, the node tree). The OCCT the worker ran
-on is pinned with the IfcOpenShell prefix (ADR 0171), so a change in this output is a
-design review, not a silent change.
+application's decoder reads (SKIFCP01, the counts, the node tree). R098.b adds the
+assembly/instance node tree (a group always converts; a material index is a reference into
+the manifest's materials) and the section 4 mapping. The OCCT the worker ran on is pinned
+with the IfcOpenShell prefix (ADR 0171), so a change in this output is a design review, not
+a silent change.
 """
 import json
 import math
@@ -64,11 +68,13 @@ def box_box(report, where):
 def main():
     with tempfile.TemporaryDirectory(prefix="sketchyup-step-test-") as temp:
         temp_path = Path(temp)
-        # 1. The self-generated corpus: three files, all AP214, all deterministic.
+        # 1. The self-generated corpus: nine files (the three section 7 basic-writer files,
+        # the placed and mirror fixtures and the four R098.b XDE-writer fixtures), all
+        # AP214 as written, all deterministic.
         code, corpus = run("--write-step", str(temp_path))
         expect(code == 0, f"--write-step exited {code}")
         files = corpus.get("files", [])
-        expect(len(files) == 3, f"write-step writes three files, got {len(files)}")
+        expect(len(files) == 9, f"write-step writes nine files, got {len(files)}")
         for entry in files:
             expect(entry.get("written") is True, f"write-step: {entry.get('file')} written")
             expect(entry.get("bytes", 0) > 0, f"write-step: {entry.get('file')} has bytes")
@@ -261,8 +267,10 @@ def main():
                 offset += t * 12
                 for i in range(t):
                     (material,) = struct.unpack_from("<I", data, base + n * 24 + t * 12 + i * 4)
-                    if material != 0xFFFFFFFF:
-                        return "a material index where the step import ships none (R098.b)", count
+                    # R098.b: the step import ships the DefaultMaterial (and the styled
+                    # colour), so an index is a reference into the manifest's materials.
+                    if material != 0xFFFFFFFF and material >= len(manifest.get("materials", [])):
+                        return "a material index outside the package's materials", count
                 offset += t * 4 + e * 8 + (t * 12 if colors else 0)
             if total != mesh_bytes:
                 return "the mesh chunk length disagrees with its meshes", count
@@ -350,8 +358,10 @@ def main():
                    f"package cylinder: the area is within the tessellation error, got {area}")
         code, assembly_result = import_package("sketchyup-step-assembly.step")
         expect(code == 0 and assembly_result.get("status") == "ok", "package import (assembly): ok")
-        expect(assembly_result.get("meshes") == 2 and assembly_result.get("converted") == 2,
-               f"package import (assembly): two converted meshes, got {assembly_result.get('meshes')}/{assembly_result.get('converted')}")
+        # R098.b: a group (an assembly) is always converted, so the converted count is the
+        # two parts plus the root; the meshes are the two parts' own.
+        expect(assembly_result.get("meshes") == 2 and assembly_result.get("converted") == 3,
+               f"package import (assembly): the two parts and the root convert, got {assembly_result.get('meshes')}/{assembly_result.get('converted')}")
         expect(assembly_result.get("triangles") == 104, f"package import (assembly): 104 triangles, got {assembly_result.get('triangles')}")
         problem, _ = decode_package(temp_path / "sketchyup-step-assembly.step.pkg")
         expect(problem is None, f"package decode (assembly): {problem}")
@@ -408,8 +418,10 @@ def main():
         expect(capped.get("status") == "refused", f"package import (capped): refused, got {capped.get('status')}")
         code, budget = import_package("sketchyup-step-assembly.step", "--step-max-total-triangles", "50")
         expect(code == 0, f"package import (the 104-triangle assembly, total cap 50) exited {code}")
-        expect(budget.get("converted") == 1 and budget.get("omitted") == 1,
-               f"package import (total cap 50): the box converts, the cylinder is reported omitted, got {budget.get('converted')}/{budget.get('omitted')}")
+        # R098.b: the root group converts at no triangle cost, so the converted count is
+        # the box and the root; the cylinder is reported omitted.
+        expect(budget.get("converted") == 2 and budget.get("omitted") == 1,
+               f"package import (total cap 50): the box and the root convert, the cylinder is reported omitted, got {budget.get('converted')}/{budget.get('omitted')}")
         # The report the package carries (its manifest's report section) has the notice.
         budget_bytes = (temp_path / "sketchyup-step-assembly.step.pkg").read_bytes()
         (budget_manifest_bytes,) = struct.unpack_from("<I", budget_bytes, 8)

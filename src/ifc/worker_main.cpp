@@ -44,7 +44,8 @@ void usage(std::FILE* stream) {
       "       sketchyup-ifc-worker --probe-step FILE.step [--round-trip-directory DIR]\n"
       "           read a STEP file with the basic OCCT reader and print what it reports as JSON\n"
       "       sketchyup-ifc-worker --import-step FILE.step [--output PKG] [--step-length-unit mm|cm|m|in|ft]\n"
-      "           [--step-deflection-mm D] [--step-angle-deg A] [--step-max-triangles N] [--step-max-total-triangles N]\n"
+      "           [--step-deflection-mm N] [--step-angle-deg N] [--step-max-triangles N] [--step-max-total-triangles N]\n"
+      "           [--rlimit-as BYTES] [--rlimit-cpu SECONDS] [--rlimit-fsize BYTES]\n"
       "           read a STEP file, apply the ADR 0172 unit policy; without --output print the metadata as\n"
       "           JSON, with --output tessellate the transferred solids (BRepMesh, the options' deflection\n"
       "           and angle) and write the conversion package\n"
@@ -211,6 +212,9 @@ int main(int argc, char** argv) {
         else if (argument == "--step-angle-deg" && hasValue) options.angleDeg = std::stod(argv[++i]);
         else if (argument == "--step-max-triangles" && hasValue) options.maxTrianglesPerElement = std::stoull(argv[++i]);
         else if (argument == "--step-max-total-triangles" && hasValue) options.maxTotalTriangles = std::stoull(argv[++i]);
+        else if (argument == "--rlimit-as" && hasValue) { if (!setLimit(RLIMIT_AS, argv[++i])) return fail("cannot set RLIMIT_AS"); }
+        else if (argument == "--rlimit-cpu" && hasValue) { if (!setLimit(RLIMIT_CPU, argv[++i])) return fail("cannot set RLIMIT_CPU"); }
+        else if (argument == "--rlimit-fsize" && hasValue) { if (!setLimit(RLIMIT_FSIZE, argv[++i])) return fail("cannot set RLIMIT_FSIZE"); }
         else if (argument.rfind("--", 0) == 0) return fail("unknown option " + argument);
         else if (options.file.empty()) options.file = argument;
         else return fail("one input file only");
