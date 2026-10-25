@@ -30,6 +30,11 @@ if(SKETCHYUP_SANITIZE)
   set(SKETCHYUP_LIBRARY_TYPE SHARED)
   set(BUILD_SHARED_LIBS ON)
 endif()
+# The SKP helper and its supervisor have no 4 GiB address-space limit in the sanitizer and fuzzer
+# builds: ASan and the fuzzer reserve more address space than that (ADR 0176 section 1.6).
+if(SKETCHYUP_SANITIZE OR SKETCHYUP_BUILD_FUZZERS)
+  add_compile_definitions(SKP_WORKER_NO_ADDRESS_LIMIT=1)
+endif()
 # The CI fast tier (ADR 0170) links each test against shared project libraries too: about
 # 330 test executables then link in seconds instead of each embedding the static stack.
 if(SKETCHYUP_SHARED_LIBS)
@@ -754,6 +759,11 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       target_include_directories(skp_import_tests PRIVATE src tests)
       target_compile_definitions(skp_import_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      # R102.c: the CLI's --import-skp cases (the real helper, as the import's own cases).
+      if(SKETCHYUP_BUILD_CLI)
+        target_compile_definitions(skp_import_tests PRIVATE CLI_PATH="$<TARGET_FILE:sketchyup-cli>")
+        add_dependencies(skp_import_tests sketchyup-cli)
+      endif()
       add_test(NAME skp_import COMMAND skp_import_tests)
       add_test(NAME skp_import_real COMMAND skp_import_tests --real)
       set_tests_properties(skp_import_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
@@ -767,6 +777,17 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       add_test(NAME skp_mapping COMMAND skp_mapping_tests)
       add_test(NAME skp_mapping_real COMMAND skp_mapping_tests --real)
       set_tests_properties(skp_mapping_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+      # R102.d (ADR 0176 section 9): the helper's linkage and notices (scripts/verify-skp-library.py).
+      # The install check reads this build's installed main component; the source check reads the
+      # repository's pins and install lines, so it exists in a git checkout only.
+      add_test(NAME skp_library_install COMMAND "${Python3_EXECUTABLE}" -I
+        "${PROJECT_SOURCE_DIR}/scripts/verify-skp-library.py" install
+        --cmake "${CMAKE_COMMAND}" --build-dir "${CMAKE_BINARY_DIR}")
+      set_tests_properties(skp_library_install PROPERTIES TIMEOUT 600)
+      if(EXISTS "${PROJECT_SOURCE_DIR}/packaging/arch/PKGBUILD" AND EXISTS "${PROJECT_SOURCE_DIR}/dependencies.json")
+        add_test(NAME skp_library_source COMMAND "${Python3_EXECUTABLE}" -I
+          "${PROJECT_SOURCE_DIR}/scripts/verify-skp-library.py" source --source-dir "${PROJECT_SOURCE_DIR}")
+      endif()
     endif()
     add_executable(ifc_convert_tests tests/ifc_convert_tests.cpp)
     target_link_libraries(ifc_convert_tests PRIVATE sketchyup_io)
@@ -1168,7 +1189,11 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # progress sheet (import on a worker thread), the report/refusal/unavailable sheets,
   # and the File menu flow; the helper is the IFC helper's, so the IFC availability
   # states are its own.
-  target_sources(sketchyup_desktop PRIVATE src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/step_export_dialog.cpp src/app/step_export_progress_sheet.cpp src/app/step_export_runner.cpp src/app/step_import_runner.cpp src/app/step_progress_sheet.cpp src/app/window_step.cpp)
+  # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet (the import
+  # on a worker thread), the report, the refusal and the availability sheets, and the File menu flow;
+  # the helper is sketchyup-skp-worker, which the application finds beside it and never links.
+  target_sources(sketchyup_desktop PRIVATE src/app/skp_import_runner.cpp src/app/skp_progress_sheet.cpp src/app/window_skp.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1455,6 +1480,27 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME step_import_dialog COMMAND step_import_dialog_tests)
     set_tests_properties(step_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                      TIMEOUT 600)
+    # R098.c2 (ADR 0172 section 8): the STEP export screens — the plan dialog with its schema choice
+    # and size note, the Save dialog, the progress sheet with Cancel and Escape, the report, the
+    # refusals and the missing helper — offscreen, driven by a stand-in helper.
+    add_executable(step_export_dialog_tests tests/step_export_dialog_tests.cpp)
+    target_link_libraries(step_export_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(step_export_dialog_tests PRIVATE tests)
+    target_compile_definitions(step_export_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME step_export_dialog COMMAND step_export_dialog_tests)
+    set_tests_properties(step_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                     TIMEOUT 600)
+    # R102.c (ADR 0176 section 9): the SketchUp (.skp) import screens — the progress sheet, the report
+    # and its chip, the refusals and the not-installed sheet, and the File menu flow — offscreen, driven
+    # by a stand-in helper that copies a package the helper's own writer makes (sketchyup_skp is the
+    # writer's side only; the application never links the parser).
+    add_executable(skp_import_dialog_tests tests/skp_import_dialog_tests.cpp)
+    target_link_libraries(skp_import_dialog_tests PRIVATE sketchyup_desktop sketchyup_skp Qt6::Test)
+    target_include_directories(skp_import_dialog_tests PRIVATE src tests)
+    target_compile_definitions(skp_import_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME skp_import_dialog COMMAND skp_import_dialog_tests)
+    set_tests_properties(skp_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
     # R095.e1: the Entity info Terrain section, settings, Regenerate, Explode, create from
     # selection and the tools' refusal over terrain (offscreen).
     add_executable(terrain_desktop_tests tests/terrain_desktop_tests.cpp)
@@ -1487,6 +1533,11 @@ install(FILES third_party/manifold/LICENSE DESTINATION share/licenses/sketchyup 
 install(FILES third_party/manifold/AUTHORS DESTINATION share/licenses/sketchyup RENAME Manifold-AUTHORS)
 install(FILES third_party/cdt/LICENSE DESTINATION share/licenses/sketchyup RENAME CDT-LICENSE)
 install(FILES third_party/cdt/LICENSE-predicates.txt DESTINATION share/licenses/sketchyup RENAME CDT-predicates-LICENSE)
+# OpenSKP and miniz (MIT; ADR 0176 section 1): the SKP helper ships in the main package, so these
+# notices do too. The source record names the pinned commits and what is vendored.
+install(FILES third_party/openskp/LICENSE DESTINATION share/licenses/sketchyup RENAME OpenSKP-LICENSE)
+install(FILES third_party/openskp/miniz/LICENSE DESTINATION share/licenses/sketchyup RENAME miniz-LICENSE)
+install(FILES third_party/openskp/SKP-SOURCE.txt DESTINATION share/doc/sketchyup)
 # IfcOpenShell and OpenCASCADE (ADR 0171 section 1.3): installed with the ifc component, so only
 # the sketchyup-ifc package carries them. The lines stay unindented: scripts/release-artifacts.sh
 # collects the install(FILES ...) lines of this file into THIRD_PARTY_NOTICES by line.

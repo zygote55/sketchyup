@@ -821,7 +821,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/skp_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_export_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_export_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests
@@ -981,7 +983,9 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_import_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/skp_import_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/ifc_export_dialog_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/step_export_dialog_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/terrain_site_desktop_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/terrain_edit_input_tests
@@ -1134,7 +1138,9 @@ jobs:
           scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           scripts/test-wayland.sh build/dev/ifc_import_dialog_tests
           scripts/test-wayland.sh build/dev/step_import_dialog_tests
+          scripts/test-wayland.sh build/dev/skp_import_dialog_tests
           scripts/test-wayland.sh build/dev/ifc_export_dialog_tests
+          scripts/test-wayland.sh build/dev/step_export_dialog_tests
           scripts/test-wayland.sh build/dev/terrain_desktop_tests
           scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
           SKETCHYUP_TEST_DEADLINE=120 scripts/test-wayland.sh build/dev/terrain_edit_input_tests
@@ -1284,7 +1290,9 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/ifc_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/step_import_dialog_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/skp_import_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/ifc_export_dialog_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/step_export_dialog_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_desktop_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_site_desktop_tests
           SKETCHYUP_TEST_DEADLINE=120 SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/terrain_edit_input_tests
@@ -1886,7 +1894,8 @@ jobs:
   # script reads them in memory-safe fashion and executes nothing from them), builds the
   # helper and the application's import through the fast tier's flags and runs the SKP
   # tests. Only changes to its paths select the job (ci-path-map.json); the fast tier's
-  # compile also builds the helper, since src/skp is added unconditionally.
+  # compile also builds the helper, since src/skp is added unconditionally. The full tier adds the
+  # helper and the package tests under ASan and UBSan, and the package decoder's libFuzzer smoke (S7).
   skp:
     name: SKP parser, helper and import
     needs: plan
@@ -1894,7 +1903,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       # The same compiler cache the compile shards and the IFC job restore: the ci-fast flags.
       CCACHE_DIR: /ccache
@@ -1962,8 +1971,43 @@ jobs:
         # The package tests, the import through the helper against the synthetic fixtures
         # (the .skp files' provenance is tests/fixtures/skp/SKP-SOURCE.txt), the mapping of
         # the import into the native model (R102.b, S1 to S5 and the undo), and the owner-file
-        # checks (skipped on a machine without the corpus).
-        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real)$' --output-on-failure --no-tests=error
+        # checks (skipped on a machine without the corpus). The helper's linkage (only the helper
+        # links the parser, its runtime closure) and the notices and source record (R102.d).
+        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_library_install|skp_library_source)$' --output-on-failure --no-tests=error
+      - name: Helper and package tests under the sanitizers
+        # The helper's own code, the package decoder and the import under ASan and UBSan, against an
+        # instrumented library: the IFC helper's sanitizer line (ADR 0176 section 7, S7). Full tier only.
+        if: needs.plan.outputs.full == 'true'
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: |
+          cmake --preset skp-sanitize
+          cmake --build --preset skp-sanitize --parallel "$(nproc)"
+          ctest --test-dir build/skp-sanitize -R '^(skp_package|skp_import|skp_mapping)$' --output-on-failure --no-tests=error
+      - name: Package decoder fuzz smoke, Clang with libFuzzer, ASan and UBSan
+        # S7 (ADR 0176 section 7): the SKSKPP01 decoder under libFuzzer for a fixed number of runs, from
+        # the packages the helper writes for five synthetic fixtures. The Clang fuzz build instruments
+        # every target. Full tier only.
+        if: needs.plan.outputs.full == 'true'
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          for attempt in 1 2 3; do
+            pacman -S --noconfirm --needed clang compiler-rt && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+          cmake -S . -B build/skp-fuzz -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS_RELWITHDEBINFO='-O1 -g' \
+            -DBUILD_TESTING=OFF -DSKETCHYUP_BUILD_DESKTOP=OFF -DSKETCHYUP_BUILD_CLI=OFF \
+            -DSKETCHYUP_BUILD_FUZZERS=ON
+          cmake --build build/skp-fuzz --target sketchyup-skp-worker parser_fuzz_skp_package --parallel "$(nproc)"
+          mkdir -p build/skp-fuzz/corpus
+          for fixture in box face_with_hole two_materials textured_face nested_component; do
+            build/skp-fuzz/src/skp/sketchyup-skp-worker --import "tests/fixtures/skp/$fixture.skp" --output "build/skp-fuzz/corpus/$fixture.skpkg"
+          done
+          build/skp-fuzz/parser_fuzz_skp_package -runs=200000 -max_len=65536 -seed=1 build/skp-fuzz/corpus
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats

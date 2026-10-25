@@ -926,8 +926,16 @@ SkpImport Converter::run() {
     // What the SketchUp file holds that the package does not carry (ADR 0176 section 5): counted as none.
     QJsonArray notCarried{"scenes", "styles", "sectionPlanes", "texts", "dimensions", "camera", "constructionLines",
                           "constructionPoints"};
-    QJsonObject notes;
+    // The notices (ADR 0176 section 5): the helper's own (the package's, such as newerThanTested and
+    // scaledPlacement), the conversion's, and the invalidFaces notice for each face the native validator
+    // dropped (the same count the accounting omits).
+    std::map<std::string, long long> allNotices = pkg.notices;
     for (const auto &[code, count] : notices)
+        allNotices[code] += count;
+    if (invalidFaces > 0)
+        allNotices["invalidFaces"] += invalidFaces;
+    QJsonObject notes;
+    for (const auto &[code, count] : allNotices)
         notes[QString::fromStdString(code)] = qint64(count);
     QJsonObject where;
     for (const auto &[kind, messages] : locations) {

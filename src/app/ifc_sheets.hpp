@@ -38,6 +38,11 @@ void showIfcRefusal(QWidget *parent, const QString &fileName, const std::string 
                       const QString &message, const QJsonObject &report);
 void showStepRefusal(QWidget *parent, const QString &fileName, const std::string &code,
                       const QString &message, const QJsonObject &report);
+// R102.c (ADR 0176 sections 5 and 9): the SketchUp import's refusal (what was checked, the advice for a
+// file the reader cannot take, the helper's words) and its availability (the helper is not installed).
+void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string &code,
+                    const QString &message, const QJsonObject &report);
+void showSkpUnavailable(QWidget *parent);
 // The one shared availability sheet (the screens refactor): the helper's own states with the
 // application's own words; the broken state shows the helper's own last log line at the bottom
 // of the message, so a person can act on it (ADR 0171 §16.6).
@@ -51,7 +56,8 @@ struct AvailabilitySheet {
 };
 void showAvailabilitySheet(QWidget *parent, const AvailabilitySheet &face);
 void showIfcUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirection);
-void showStepUnavailable(QWidget *parent, const IfcProbe &probe);
+// The STEP import's and the STEP export's (R098.c2) availability: the same helper, the export's own words.
+void showStepUnavailable(QWidget *parent, const IfcProbe &probe, bool exportDirection = false);
 // The IFC export refusal, the same shape with the export's own words (what to do next, the
 // copy button): a thin wrapper over showRefusalSheet.
 void showIfcExportRefusal(QWidget *parent, const QString &path, const std::string &code,
@@ -60,4 +66,13 @@ void showIfcExportRefusal(QWidget *parent, const QString &path, const std::strin
 // import's own shapes with the export's words: nothing was written, the model is unchanged.
 void showIfcExportReport(QWidget *parent, const QString &path, const QJsonObject &report,
                           qint64 elapsedMs, const std::function<void(qint64)> &selectInModel = nullptr);
+// R098.c2 (ADR 0172 section 8): the STEP export's refusal, the IFC export refusal's shape with the
+// STEP export's words: nothing was written, the model is unchanged; the code names the check that
+// failed (AP242 is refused for the schema, the size limits, the helper stopping or a mismatch).
+void showStepExportRefusal(QWidget *parent, const QString &path, const std::string &code,
+                           const QString &message, const QJsonObject &report);
+// R098.c2: the STEP export's result (ADR 0172 section 8, UX 16.8): the banner (a new file was written,
+// the model is unchanged), the file, its size, the schema, the geometry and the elapsed time, the plan
+// check, Needs your attention, Written, Not written and Notices.
+void showStepExportReport(QWidget *parent, const QString &path, const QJsonObject &report, qint64 elapsedMs);
 } // namespace sketchy

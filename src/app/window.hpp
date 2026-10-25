@@ -110,6 +110,20 @@ class Window : public QMainWindow {
     // the helper's Limited state (no OpenCASCADE kernel) is not a limitation for STEP.
     void importStep();
     void showStepImportReport(); // the same path, the STEP face
+    // R098.c2: File › Export STEP… (window_step.cpp). The plan dialog (the schema, the written and
+    // not-written lines, the size warning), then the system Save dialog, then the export on a worker
+    // thread from a copy of the document (the same helper; ADR 0172 section 8). Export needs the helper,
+    // not the kernel: a missing or broken helper is the availability sheet, a Limited one is not.
+    void exportStep();
+    // R102.c: File › Import SketchUp (.skp)… (window_skp.cpp, ADR 0176 section 9). The parser runs only
+    // in sketchyup-skp-worker; the import runs on a worker thread (SkpImportRunner). A missing helper is
+    // the availability sheet. The import has no options, so the file picker leads to the progress sheet.
+    void importSkp();
+    void showSkpImportReport(); // the same path, the SketchUp face
+    void clearSkpReportState(); // a new model ends the SketchUp chip's lifetime, as the STEP chip's
+    void setSkpWorkerPath(const QString &path); // tests, and a future "where the helper is"
+    QString skpWorkerPath();
+    void setSkpDeadlineSeconds(int seconds); // tests; the CLI's --skp-deadline is the public option
     // The probe, on demand (the import is opened): a missing helper is the availability sheet, a
     // broken one "cannot start" (ADR 0171 §16.7). It has its own deadline and is the user's
     // action, so it runs on the UI thread; the conversion itself is on a worker thread (16.4).
@@ -431,6 +445,13 @@ class Window : public QMainWindow {
     QAction *ifcReportAction_{};
     QPushButton *stepReportChip_{};
     QAction *stepReportAction_{};
+    // R102.c: the SketchUp import's state (window_skp.cpp): the helper's path (empty: found beside the
+    // application), the helper's deadline, and the report, chip and action as the STEP's own.
+    QString skpWorkerPath_;
+    int skpDeadlineSeconds_{120};
+    ImportReportState skpImportReport_;
+    QPushButton *skpReportChip_{};
+    QAction *skpReportAction_{};
     void tool(Viewport::Tool tool, const QString &instruction);
     // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the
     // same shortcut may be used once per non-overlapping scope (ADR 0164 §4).

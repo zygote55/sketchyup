@@ -456,6 +456,167 @@ timestamp on each definition. `SKP-SOURCE.txt` records the committed bytes as th
 The `skp` job runs `skp_mapping` (and `skp_mapping_real`, skipped without the corpus), the `skp` preset builds
 its four targets, and the CI line inventory is regenerated (its one changed line is the job's test selection).
 
+## Implementation notes (R102.c)
+
+R102.c is implemented on the branch `feat/r102c-skp-import-ui`: File › Import SketchUp (.skp)…, its
+progress, report and refusal screens, and `sketchyup-cli --import-skp` (§9). Findings, 2026-10-25.
+
+**The choices.** §9 leaves the options screen open, and the brief asked for one of two shapes. The
+import has **no options dialog**: the file picker leads straight to the progress sheet. The file's
+facts (version, container, size) and the 2013–2020 best-effort line are in the report's "How it was
+read" block, not on a sheet before the import, so there is nothing to confirm. The unsaved-changes
+prompt comes before the helper starts and again at the commit, as the IFC and STEP imports do.
+
+**The progress steps.** Five steps: check the file, read the file, convert geometry, build the model,
+create the new model. The application checks the file first (the initial step). The helper's
+`read` and `parse` phases are "read the file"; its `package` phase is "convert geometry". The
+application's own phases are `build` (the package is decoded) and `create` (the document is made from
+it). The helper reports phases, not a running count, so the bar is busy until the run ends.
+
+**Cancel.** Cancel and Escape end the run. The helper's run checks the cancel as before, and the
+conversion now checks it too (R102.b passed no cancel hook, so a Cancel during the decode or the
+conversion committed the model). The sheet closes only after the runner has finished.
+
+**The report.** Its identity is per kind, not the IFC's entity identity: for faces, edges, instances
+and materials, `counted = imported + omitted` (§5). The attention count is the omitted total over those
+four kinds. The banner shows no restart count, since the helper has no restart protocol (§1). The
+trademark note (§8) is a footnote under the grouped list, with the wording of §8.
+
+**Refusals.** `notSkp` and `tooLarge` are checked by the application before the helper runs. `pre2013`
+and `parse` come from the helper, and each gives the advice to save the file again from SketchUp 2021 or
+later. A helper stop (crash, memory, error, start) and a deadline (the helper's own `deadline` refusal, or
+the application's timeout) are "helper stopped" refusals. `workerMissing` is the availability sheet.
+
+**The deadline.** The default is 120 s, as §6. The window has a test hook for it
+(`setSkpDeadlineSeconds`); the CLI's `--skp-deadline` is the public option.
+
+**R102.b corrections, found by the screens.**
+- The report carried none of the helper's own notices. `newerThanTested` and `scaledPlacement` were
+  decoded into the package and then dropped, so §5's notice list was not in the report. Fixed: the
+  package's notices are merged into the report.
+- A dropped face was counted and listed as a location, but not as the `invalidFaces` notice that §5
+  names. Fixed: each dropped face counts toward the `invalidFaces` notice.
+- The cancel did not reach the decode or the conversion (see above). Fixed.
+
+**The owner's file (local only; the numbers only, through the CLI on this machine).** SketchUp
+`{24.0.553}`, VFF. One component definition ("Teddy") and one placement. 158 of 159 faces kept (the
+dropped face is the "Teddy" face with a repeated outer-loop vertex, as the R102.b notes record), 4 of 5
+holes kept, 1,422 edges (153 of them wires), 18 materials, no tags. Notices: `invalidFaces` 1 and
+`missingUv` 159 (faces with no texture mapping, which the file has no textures for). The helper's
+package is about 59 KB. `skp_mapping_tests --real` and `skp_import_tests --real` pass against the file.
+
+**Tests.** `skp_import_dialog_tests` (offscreen, a stand-in helper that copies a package written by the
+helper's own writer) passes all of its flows: the File menu's order, a missing helper, each refusal, a
+full import with the report, the attention count, Cancel and Escape, the prompts, and the chip's
+lifetime. `skp_import_tests` passes, with the CLI cases through the real helper. The regression suites
+`step_import_dialog_tests`, `ifc_import_dialog_tests`, `ifc_export_dialog_tests`,
+`narrow_layout_input_tests` and `skp_mapping_tests` pass offscreen.
+
+**Where the ADR and the implementation disagree.**
+- §5 and §2 give the parse-failure line with the year ("This SketchUp 2017 file could not be read").
+  The helper refuses a file its parser cannot read before it has a version to report, so the refusal
+  says "could not read this file" and gives the 2021 advice, without the year.
+- The refusal sheet's words, the progress step names and the report's notice wording are the
+  application's own choices. The owner should review them with the other screens' wording.
+
+**Not run here.** The screens were not run in the desktop application against the owner's file (the
+local check used the CLI). The dialog suite was not run under the sanitizers, and the X11 and Wayland
+display lines run only in CI.
+
+## Implementation notes (R102.d)
+
+R102.d is implemented on the branch `feat/r102d-skp-publish`: the notices and the source record, the
+linkage check, the sanitizer and fuzz lines, the user-guide page, the support-matrix row and the
+exchange-boundaries entry, and the pin re-check. Findings, 2026-10-25.
+
+**Packaging.** The helper already installed into the main package, because its install rule has no
+component. R102.d adds the notices (`OpenSKP-LICENSE` and `miniz-LICENSE`, both MIT, through install
+lines beside the other third-party licences) and `share/doc/sketchyup/SKP-SOURCE.txt`, which records the
+pinned commits, the archive digests, the licences, the vendored file list, the two patches and the
+non-affiliation. The pin check had been failing since R102.a: `dependencies.json` had no OpenSKP entry,
+and `PATCHES.md` did not name the patch files. Both are recorded now. The pin itself did not move.
+
+**The linkage check** (`scripts/verify-skp-library.py`, ADR section 1 and 9). makepkg strips the
+installed binaries, which hides the parser's symbols, so the check has two halves. The install mode reads
+the unstripped install tree, with symbols: only `sketchyup-skp-worker` carries OpenSKP or miniz symbols
+(or names the parser library in a shared build), and its DT_NEEDED is the C and C++ runtime. The package
+mode reads the installed package by DT_NEEDED and `ldd`, and checks the notices and the source record.
+Package acceptance runs both, the install mode on the build tree the package was made from. The source
+mode checks the pins, the install lines and the helper's install rule.
+
+**A deviation from ADR section 2, corrected.** The gate refused a header major below 15, so SketchUp 2013
+and 2014 files were refused as "from before 2013" before the parser ran. Section 2 reads 2013 to 2020 as
+best effort and refuses only before 2013 (V3 to V8). The gate is now below 13 in the probe and the import
+paths. Test S6 writes major 12 (refused with the advice) and major 13 (not refused as pre-2013). The UI's
+own container line already said "SketchUp 2013-2020 ... best-effort".
+
+**The pin re-check (not moved).** On 2026-10-25 upstream `main` is still `23a15e8` (PR #443, 2026-10-22),
+so nothing has landed after the pin: the compare with the pin is "identical". Issue #442 is open (created
+2026-10-21, no comments, no linked PR). Its two causes, against the pinned C++ reader:
+
+- The 4, 5 and 2019 layout fixes are in the pin (PR #443 ports them to C++: the texture DIB, the camera
+  and thumbnail, the material record width and the component definition's base block). That is the
+  "partial port" that the Context describes.
+- The first cause in #442, the CText arrow type, is **not** fixed in C++. `legacy.cpp` still requires
+  arrow type 3 exactly, so a text label of another type stops the reader with "text delimiter not found"
+  (V4 to 2016 files, per the issue).
+- The second cause, "expected a string record" (2017 and later), is not understood upstream and is not
+  fixed in the pinned reader.
+
+Consequence for the import: a 2013 to 2020 file with such a label is refused by the helper's parse
+refusal, with the advice to save again from SketchUp 2021 or later. It is never imported in part. The
+user guide and the support-matrix row say so. Recommendation: no pin change now, because no newer upstream
+commit exists. Move the pin only after #442's CText and 2017+ items close upstream, and then re-run the
+owner's corpus, the fixtures and the L1 check.
+
+**Verification on this machine (2026-10-25; the numbers, not the owner's files).**
+
+- **Shared build** (the `skp` preset, shared libraries): `skp_package`, `skp_import`, `skp_import_real`,
+  `skp_mapping`, `skp_mapping_real`, `skp_library_install` and `skp_library_source` pass (7 of 7). The
+  install check takes the shared-parser branch: the worker names `libsketchyup_openskp.so`, and its
+  closure is left to the static package.
+- **Static release build** (Release, shared libraries off, the same targets): the same 7 pass. The helper's
+  DT_NEEDED is `libstdc++.so.6`, `libm.so.6`, `libgcc_s.so.1` and `libc.so.6` only, and it carries 317
+  OpenSKP and miniz symbols; `sketchyup-cli` carries none. A scratch install, stripped as makepkg strips,
+  passes package mode: L1 by dynamic linkage, L2 by `ldd`, and L3 (the notices and the source record).
+- **Sanitized build** (`skp-sanitize`, ASan and UBSan): `skp_package`, `skp_import` and `skp_mapping` pass
+  (3 of 3). The test binaries and the helper carry the sanitizer runtime, and no report appears in the logs.
+- **Package decoder fuzz smoke** (Clang 23, `RelWithDebInfo -O1`, ASan and UBSan, `parser_fuzz_skp_package
+  -runs=200000 -seed=1 -max_len=65536`): seeds are the five packages the helper writes for the box,
+  face-with-hole, two-materials, textured-face and nested-component fixtures (1,560 to 2,363 bytes). The
+  run finished 200,000 executions in 30 s with no crash and no sanitizer report: 1,719 covered edges,
+  4,881 features, 198 corpus entries (357 KB), 6,666 executions a second, 498 MB resident.
+- **The owner's file** (`skp_import_tests --real`, `skp_mapping_tests --real`, through
+  `SKETCHYUP_SKP_CORPUS`): the package is 59,342 bytes. The R102.a record gave 59,138 before the instance
+  names and attributes were added to the manifest; I did not trace the difference further. The probe
+  reports 2 definitions (the root and "Teddy"), 1,261 vertices, 1,422 edges, 159 faces, 5 holes, 1
+  instance, 18 materials and 1 tag (the default layer). The mapping keeps 158 faces and drops 1 (the
+  `invalidFaces` notice: "Teddy", a repeated outer-loop vertex), keeps 4 of 5 holes (`invalidHoles` 1),
+  and imports 1,422 edges (153 of them wires), 18 materials, no tags (the default layer maps to Untagged),
+  and one component definition plus the root geometry. The world bounding box is 13.4389 × 8.27065 ×
+  2.4384 m. Five timed imports on the idle machine took 24 to 29 ms (R102.b measured 194 to 239 ms under a
+  load of about 30).
+
+**Faults found by running the CI lines, fixed in this PR.**
+
+- The sanitized helper ran out of address space: the application's supervisor passes `--rlimit-as` of
+  4 GiB, which overrode the helper's own exemption, and ASan maps more than that. The exemption is now one
+  definition (`SKP_WORKER_NO_ADDRESS_LIMIT`) for every sanitizer and fuzzer build, and the supervisor's
+  default follows it. The fuzz build generates its seeds with the helper, so it needs the same exemption.
+- `skp_library_install` failed because `cmake --install` needs every installed target built. The `skp`
+  preset builds the two workers that ship in the main package and the assembly bundles.
+- The Clang fuzz build rejected a narrowing in the helper's CPU limit, which GCC accepts. The first field is
+  now cast.
+- The fuzz step ran the helper from the wrong path. It now runs `build/skp-fuzz/src/skp/sketchyup-skp-worker`.
+
+**Not run here.**
+
+- The CI jobs themselves, and the Arch package acceptance in the pinned container. The package-acceptance
+  lines (install mode on `/work/package/src/build`, package mode and source mode) are not executed.
+- The desktop application and `skp_import_dialog_tests`. The header change to `skp_worker.hpp` is compiled
+  by the CLI and the import library built here, but not by the desktop targets.
+- The full `dev` test tree.
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue

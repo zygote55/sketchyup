@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <vector>
 using namespace sketchy;
 namespace {
@@ -226,29 +227,102 @@ int main(int argc, char** argv) {
         check(nested.counts.definitions == 3, "the nested component keeps both definitions and the root");
         check(nested.counts.instances == 2, "the nested and the outer instance are both kept");
     }
-    // S6: a pre-2013 header. The version sits in the file's own header JSON (UTF-16LE): the
-    // major of the box's "17.0.1" is 0x31 0x37 at the fixed offset below; 0x34 (14) is before
-    // 2013 and the body is otherwise untouched, so the parser parses and the gate refuses.
+    // S6: the pre-2013 gate (ADR 0176 section 2). The version sits in the file's own header JSON
+    // (UTF-16LE): the major of the box's "17.0.1" has its units digit at the fixed offset below.
+    // 2013 to 2020 is read best-effort, so only a major below 13 is refused: "12.0.1" is refused
+    // with the advice, and "13.0.1" is not refused as pre-2013 (it parses or fails as any file).
     {
         bool read;
         const auto whole = readAll(fixture("box.skp"), read);
-        check(read, "read box.skp for the pre-2013 refusal");
-        auto patched = whole;
+        check(read, "read box.skp for the pre-2013 gate");
         // "SketchUp Model" (14 UTF-16 chars) after the 4-byte marker, then ff fe ff 08, then
         // the JSON { " 1 7 . 0 . 1 - the major's 7 is at byte 4 + 28 + 4 + 4.
         const size_t at = 4 + 28 + 4 + 4;
-        check(at + 1 < patched.size() && patched[at] == 0x37 && patched[at + 1] == 0x00,
+        check(at + 1 < whole.size() && whole[at] == 0x37 && whole[at + 1] == 0x00,
               "the version major is where the test expects it");
-        patched[at] = 0x34;  // 14
-        const auto pre2013 = temp.path() + "/pre2013.skp";
-        {
-            std::ofstream out(pre2013.toStdString(), std::ios::binary);
+        const auto withUnits = [&](std::uint8_t digit, const char* name) {
+            auto patched = whole;
+            patched[at] = digit;
+            const auto path = temp.path() + "/" + name;
+            std::ofstream out(path.toStdString(), std::ios::binary);
             out.write(reinterpret_cast<const char*>(patched.data()), static_cast<std::streamsize>(patched.size()));
-        }
-        const auto r = run({"--probe", pre2013});
-        check(r.exitCode == 3, QString("the pre-2013 refusal (exit %1)").arg(r.exitCode).toStdString());
-        check(r.report["code"] == "pre2013", "the pre-2013 refusal says " + jstr(r.report["message"]));
+            return path;
+        };
+        const auto before = run({"--probe", withUnits(0x32, "pre2013.skp")});  // 12
+        check(before.exitCode == 3, QString("the pre-2013 refusal (exit %1)").arg(before.exitCode).toStdString());
+        check(before.report["code"] == "pre2013", "the pre-2013 refusal says " + jstr(before.report["message"]));
+        const auto best = run({"--probe", withUnits(0x33, "best-effort-2013.skp")});  // 13
+        check(best.report["code"].toString() != "pre2013",
+              "a 2013 file is read best-effort, not refused as pre-2013: " + jstr(best.report["code"]));
     }
+#ifdef CLI_PATH
+    // R102.c (ADR 0176 section 9): the application's CLI, --import-skp, through the real helper, with
+    // the STEP import's own contract: the compact JSON on stdout, the native file when asked, and a
+    // refusal as an INPUT_ERROR on the error stream with the helper's code.
+    {
+        const auto cli = QString::fromUtf8(CLI_PATH);
+        const auto runCli = [&cli](const QStringList& args) {
+            QProcess process;
+            process.start(cli, args);
+            const bool finished = process.waitForStarted(10000) && process.waitForFinished(120000);
+            return std::make_tuple(finished && process.exitStatus() == QProcess::NormalExit, process.exitCode(),
+                                   process.readAllStandardOutput(), process.readAllStandardError());
+        };
+        const QString worker = QString::fromUtf8(SKP_WORKER_PATH);
+        // L1a: an import of a fixture through the real helper, with a native file.
+        {
+            const QString out = temp.path() + "/cli-box.sketchyup";
+            auto [ok, code, outText, errText] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", worker, "--output", out});
+            check(ok && code == 0, "the CLI's SketchUp import runs: " + errText.toStdString());
+            const QJsonObject result = QJsonDocument::fromJson(outText).object();
+            check(result["status"].toString() == "imported", "the CLI says imported: " + outText.toStdString());
+            const QJsonObject report = result["importReport"].toObject();
+            check(report["format"].toString() == "SketchUp", "the CLI's report says SketchUp");
+            check(report["counts"].toObject()["faces"].toInteger() > 0, "the CLI's report counts the faces");
+            check(QFile::exists(out), "the CLI wrote the native file");
+        }
+        // L1b: a file that is not a SketchUp file is refused before the helper starts, as an INPUT_ERROR
+        // with the code notSkp; nothing is written.
+        {
+            const QString notSkp = temp.path() + "/cli-not-skp.skp";
+            {
+                std::ofstream out(notSkp.toStdString(), std::ios::binary);
+                out << "this is not a SketchUp file";
+            }
+            auto [ok, code, outText, errText] = runCli({"--import-skp", notSkp, "--skp-worker", worker});
+            check(ok && code == 1, "the CLI's refusal ends 1");
+            const QJsonObject result = QJsonDocument::fromJson(errText).object();
+            check(result["status"].toString() == "failed" && result["code"].toString() == "INPUT_ERROR",
+                  "the CLI's refusal is an INPUT_ERROR: " + errText.toStdString());
+            check(result["details"].toObject()["skpCode"].toString() == "notSkp", "the CLI's refusal carries notSkp");
+        }
+        // L1c: a helper that is not there is the workerMissing refusal (the application's availability
+        // sheet, in the window), as an INPUT_ERROR.
+        {
+            auto [ok, code, outText, errText] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", temp.path() + "/no-such-worker"});
+            check(ok && code == 1, "the CLI's missing helper ends 1");
+            check(QJsonDocument::fromJson(errText).object()["details"].toObject()["skpCode"].toString() ==
+                      "workerMissing",
+                  "the CLI's missing helper is workerMissing: " + errText.toStdString());
+        }
+        // L1d: the options are validated, and the operation is standalone.
+        {
+            auto [ok, code, outText, errText] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", worker, "--skp-deadline", "0"});
+            check(ok && code == 1 && QJsonDocument::fromJson(errText).object()["code"].toString() == "INVALID_REQUEST",
+                  "the CLI rejects a deadline below its bound: " + errText.toStdString());
+            auto [ok2, code2, outText2, errText2] = runCli({"--skp-deadline", "30"});
+            check(ok2 && code2 == 1 && QJsonDocument::fromJson(errText2).object()["code"].toString() == "INVALID_REQUEST",
+                  "a SketchUp option without the operation is refused: " + errText2.toStdString());
+            auto [ok3, code3, outText3, errText3] =
+                runCli({"--import-skp", fixture("box.skp"), "--skp-worker", worker, "--step-length-unit", "mm"});
+            check(ok3 && code3 == 1 && QJsonDocument::fromJson(errText3).object()["code"].toString() == "INVALID_REQUEST",
+                  "the SketchUp import is standalone: " + errText3.toStdString());
+        }
+    }
+#endif
     // The owner's own file (local only, never committed): the numbers the ADR notes record.
     // SKETCHYUP_SKP_CORPUS names the directory that holds it; unset or missing, the case skips.
     if (real) {

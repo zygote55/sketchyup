@@ -1,0 +1,62 @@
+SketchyUp's vendored SketchUp (.skp) reader: source record (ADR 0176, R102.d)
+==========================================================================
+
+This file is installed as share/doc/sketchyup/SKP-SOURCE.txt. It says where the code in
+sketchyup-skp-worker came from, which licence it carries and how the vendored copy is checked.
+
+Reader: OpenSKP, the parser subset only
+  Upstream:   https://github.com/iamahsanmehmood/openskp
+  Commit:     23a15e8742e936694bf14aa029cb0e2862dce5b9 (2026-10-22)
+  Archive:    https://github.com/iamahsanmehmood/openskp/archive/23a15e8742e936694bf14aa029cb0e2862dce5b9.tar.gz
+  SHA-256:    5b304cc024b2d72504ac5a6676968166fdd300f180d3f1078efe8b959951e1a5
+  Licence:    MIT (LICENSE in this directory; installed as OpenSKP-LICENSE)
+  Copyright:  Copyright (c) 2024-2026 Ahsan Mehmood
+
+miniz: the ZIP container reader that OpenSKP's VFF container uses
+  Upstream:   https://github.com/richgel999/miniz
+  Commit:     77d0dce8627735138c51770d1799a1ef48f2117d (2026-07-01)
+  Archive:    https://github.com/richgel999/miniz/archive/77d0dce8627735138c51770d1799a1ef48f2117d.tar.gz
+  SHA-256:    baa14349e7c5efb4a493a03af7d2f29d0ef45d87d488567fe5360edb33f8b7ba
+  Licence:    MIT (miniz/LICENSE; installed as miniz-LICENSE)
+
+Both are MIT, the same licence as SketchyUp, and their notices ship with the package
+(THIRD_PARTY_NOTICES).
+
+What is vendored
+  The model, the VFF (2021 and later) and MFC CArchive (2013 to 2020, and older) containers,
+  the TLV and page/dimension decoding, the attribute and transform support, the public
+  headers and the miniz files the build uses. Excluded: the exporters, the writer, the scene
+  baker, tinygltf and flatbuffers. The exact file list is the SUBSET table in
+  scripts/vendor-openskp.py, and VENDOR.txt gives the SHA-256 of every vendored file.
+
+Changes to the upstream files (MIT permits them; both are recorded in PATCHES.md)
+  - src/parser.cpp: the four scene-builder wrappers that call the excluded scene baker are
+    removed.
+  - src/internal.hpp: the umbrella include is replaced by the public headers the sources use.
+
+Not affiliated with Trimble
+  OpenSKP is an independent, open-source implementation built by reverse engineering the
+  file format. It is not affiliated with or endorsed by Trimble Inc. SketchUp is a trademark
+  of Trimble Inc. SketchyUp is not affiliated with or endorsed by Trimble Inc.
+
+Where the code runs
+  Only sketchyup-skp-worker links the parser. The application and sketchyup-cli do not
+  (scripts/verify-skp-library.py checks this on every installed build).
+
+How the vendored copy is checked
+  scripts/vendor-openskp.py fetch DIR     downloads the two pinned archives and checks them
+  scripts/vendor-openskp.py check DIR     fails unless every vendored file equals the pinned
+                                          upstream file (with the two patches applied)
+  scripts/vendor-openskp.py pin           checks that VENDOR.txt, PATCHES.md and
+                                          dependencies.json record these pins
+  The CI "SKP parser, helper and import" job runs the first two on every run it selects.
+
+Fixtures
+  The .skp files under tests/fixtures/skp/ are written by OpenSKP's own writer at the pinned
+  commit, not made in SketchUp. Their provenance and SHA-256 values are in
+  tests/fixtures/skp/SKP-SOURCE.txt.
+
+Pin
+  The pin is not moved by this record. A move is a reviewed change: re-run
+  vendor-openskp.py update from the new archives, prove that the subset compiles and that
+  parse_skp links, and re-run the corpus (ADR 0176, implementation notes R102.d).

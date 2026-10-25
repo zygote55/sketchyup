@@ -13,17 +13,26 @@
 
 namespace sketchy {
 
+// The helper's RLIMIT_AS (ADR 0176 section 1.6). The sanitizer and fuzzer builds have none: ASan maps
+// more address space than the 4 GiB ceiling, so the helper and this default agree on zero there.
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+inline constexpr qint64 kSkpAddressSpaceBytes = 0;
+#else
+inline constexpr qint64 kSkpAddressSpaceBytes = qint64(4) << 30;
+#endif
+
 struct SkpWorkerOptions {
     // Empty: <application directory>/../lib/sketchyup/sketchyup-skp-worker, then next to the application.
     QString workerPath;
     int deadlineSeconds{120};
-    // RLIMIT_AS of the helper; 0 for none (sanitizer builds map huge shadow memory).
-    qint64 addressSpaceBytes{qint64(4) << 30};
+    // RLIMIT_AS of the helper; 0 for none.
+    qint64 addressSpaceBytes{kSkpAddressSpaceBytes};
     // Where the private directory is made (empty: the system temporary directory).
     QString scratchRoot;
     // Checked while the helper runs; true cancels (terminate, then kill after a second).
     std::function<bool()> cancelled;
-    // Phases from the helper: ("parse", 0), ("package", 0), ("tasks", n), ("done", n) ...
+    // Phases: the helper's ("read", 0), ("parse", 0), ("package", 0), then the application's own
+    // ("build", 0) before the package is decoded and ("create", 0) before the document is made.
     std::function<void(const QString &phase, qint64 value)> progress;
 };
 

@@ -100,7 +100,7 @@ std::vector<std::uint8_t> readWholeFile(const std::string& path, std::uint64_t l
 void applyLimits(const SkpImportOptions& options) {
   struct rlimit as{options.rlimitAs, options.rlimitAs};
   if (options.rlimitAs) setrlimit(RLIMIT_AS, &as);
-  struct rlimit cpu{options.rlimitCpu, static_cast<rlim_t>(options.rlimitCpu)};
+  struct rlimit cpu{static_cast<rlim_t>(options.rlimitCpu), static_cast<rlim_t>(options.rlimitCpu)};
   if (options.rlimitCpu > 0) setrlimit(RLIMIT_CPU, &cpu);
   struct rlimit fsize{options.rlimitFsize, options.rlimitFsize};
   if (options.rlimitFsize) setrlimit(RLIMIT_FSIZE, &fsize);
@@ -124,11 +124,11 @@ int runProbe(const std::string& input, Progress& progress) {
     progress.line("R " + json.str());
     return 3;
   }
-  // ADR 0176 section 2: before 2013 (major < 15) is refused from the header version before the
+  // ADR 0176 section 2: before 2013 (major < 13) is refused from the header version before the
   // parser runs, because some pre-2013 files the parser cannot read at all.
   {
     const int headerMajor = headerVersionMajor(bytes);
-    if (headerMajor > 0 && headerMajor < 15) {
+    if (headerMajor > 0 && headerMajor < 13) {
       JsonOut json;
       json.beginObject()
           .field("status", "refused")
@@ -143,10 +143,10 @@ int runProbe(const std::string& input, Progress& progress) {
   progress.phase("parse");
   try {
     const openskp::SkpModel model = openskp::parse_skp(bytes);
-    // ADR 0176 section 2: before 2013 (major < 15) is refused with the advice; a version the
+    // ADR 0176 section 2: before 2013 (major < 13) is refused with the advice; a version the
     // reader could not read (-1) is reported, not refused.
     const int major = versionMajor(model.version);
-    if (major > 0 && major < 15) {
+    if (major > 0 && major < 13) {
       JsonOut json;
       json.beginObject()
           .field("status", "refused")
@@ -237,11 +237,11 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
     progress.line("R " + json.str());
     return 3;
   }
-  // ADR 0176 section 2: before 2013 (major < 15) is refused from the header version before the
+  // ADR 0176 section 2: before 2013 (major < 13) is refused from the header version before the
   // parser runs, because some pre-2013 files the parser cannot read at all.
   {
     const int headerMajor = headerVersionMajor(bytes);
-    if (headerMajor > 0 && headerMajor < 15) {
+    if (headerMajor > 0 && headerMajor < 13) {
       JsonOut json;
       json.beginObject()
           .field("status", "refused")
@@ -269,10 +269,10 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
     return 3;
   }
 
-  // ADR 0176 section 2: before 2013 (major < 15) is refused with the advice; a version the
+  // ADR 0176 section 2: before 2013 (major < 13) is refused with the advice; a version the
   // reader could not read (-1) is attempted as-is, and one newer than the corpus is labelled.
   const int major = versionMajor(model.version);
-  if (major > 0 && major < 15) {
+  if (major > 0 && major < 13) {
     JsonOut json;
     json.beginObject()
         .field("status", "refused")
@@ -507,7 +507,14 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       if (face.uv_transform_back) out.uvBack = *face.uv_transform_back;
       if (out.hasUvFront) report.counts_.uvTransforms++;
       if (out.hasUvBack) report.counts_.uvTransforms++;
-      if (!out.hasUvFront && !out.hasUvBack) report.notice("missingUv");
+      // A missing mapping matters only on a side whose material has a texture: an untextured face has
+      // nothing to map, so it is not a notice (an untextured model would otherwise report every face).
+      const auto textured = [&](long long material) {
+        return material >= 0 && material < static_cast<long long>(package.materials.size()) &&
+               package.materials[static_cast<std::size_t>(material)].texture >= 0;
+      };
+      if ((textured(out.materialFront) && !out.hasUvFront) || (textured(out.materialBack) && !out.hasUvBack))
+        report.notice("missingUv");
       if (out.loops.empty()) {
         report.omitted("face");
         report.locate("notImported", definition.name, "A face has no readable loop and is left out.");

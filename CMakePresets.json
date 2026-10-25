@@ -80,6 +80,15 @@
         "SKETCHYUP_BUILD_DESKTOP": "OFF",
         "SKETCHYUP_BUILD_CLI": "ON"
       }
+    },
+    {
+      "name": "skp-sanitize",
+      "inherits": "skp",
+      "displayName": "SKP helper and package tests under ASan and UBSan (ADR 0176 section 7, S7)",
+      "binaryDir": "${sourceDir}/build/skp-sanitize",
+      "cacheVariables": {
+        "SKETCHYUP_SANITIZE": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -134,6 +143,21 @@
       "configurePreset": "skp",
       "targets": [
         "sketchyup-skp-worker",
+        "sketchyup-cli",
+        "sketchyup-extension-worker",
+        "sketchyup-text-worker",
+        "sketchyup_assemblies",
+        "skp_package_tests",
+        "skp_import_tests",
+        "skp_mapping_tests"
+      ]
+    },
+    {
+      "name": "skp-sanitize",
+      "configurePreset": "skp-sanitize",
+      "targets": [
+        "sketchyup-skp-worker",
+        "sketchyup-cli",
         "skp_package_tests",
         "skp_import_tests",
         "skp_mapping_tests"

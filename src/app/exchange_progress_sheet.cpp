@@ -54,6 +54,32 @@ ExchangeProgressConfig stepImportProgressConfig() {
     config.restartLine = true; // the STEP import has no restart protocol; the line stays off
     return config;
 }
+ExchangeProgressConfig skpImportProgressConfig() {
+    // The SketchUp import's own five steps (ADR 0176 section 9). The application checks the file
+    // first (the initial step). The helper reads it ("read", "parse") and converts its geometry into
+    // the package ("package"); the application then decodes the package ("build") and creates the
+    // new model from it ("create"). The helper reports phases, not a running count, so the bar is
+    // busy until the run ends.
+    ExchangeProgressConfig config;
+    config.sheetName = "skpProgressSheet";
+    config.windowTitle = "Importing SketchUp";
+    config.prefix = "skpProgress";
+    config.steps = {"Check the file", "Read the file", "Convert geometry", "Build the model",
+                    "Create the new model"};
+    config.stepForPhase = [](const QString &phase) {
+        if (phase == "read" || phase == "parse")
+            return 1;
+        if (phase == "package")
+            return 2;
+        if (phase == "build")
+            return 3;
+        if (phase == "create")
+            return 4;
+        return -1;
+    };
+    config.busyBar = true;
+    return config;
+}
 ExchangeProgressConfig ifcExportProgressConfig() {
     // The import sheet's own screen for the export (ADR 0171 section 16.8): the four steps,
     // a busy bar (the export has no running count) and a focused Cancel (16.9); a cancelled
@@ -78,6 +104,15 @@ ExchangeProgressConfig ifcExportProgressConfig() {
     config.busyBar = true;
     config.closeOnCancel = true;
     config.focusCancel = true;
+    return config;
+}
+ExchangeProgressConfig stepExportProgressConfig() {
+    // The STEP export runs the same four steps, on the same phases (capture, build, check,
+    // publish), as the IFC export (R098.c2, ADR 0172 section 8); only the title and the names differ.
+    ExchangeProgressConfig config = ifcExportProgressConfig();
+    config.sheetName = "stepExportProgressSheet";
+    config.windowTitle = "Exporting STEP";
+    config.prefix = "stepExportProgress";
     return config;
 }
 ExchangeProgressSheet::ExchangeProgressSheet(ExchangeRunner *runner, const ExchangeProgressConfig &cfg,
