@@ -421,7 +421,7 @@ or cloud fallback.
 ## Exchange and present a model
 
 Use File import/export commands for GLB/glTF, OBJ/MTL, STL or the documented 2D
-DXF subset. Review conversion notices before relying on geometry, units, axes,
+DXF subset. SketchUp (.skp) files import too, as described in [Importing SketchUp (.skp) files](#importing-sketchup-skp-files). Review conversion notices before relying on geometry, units, axes,
 materials or hierarchy. Imported content becomes an unsaved native model; Save
 chooses its native destination. Keep multi-file OBJ/MTL/image packages together.
 Use the [format matrix](SUPPORT_MATRIX.md#exchange-boundaries) for losses and limits.
@@ -437,6 +437,79 @@ PNG separately from model Save. Jobs supports cancellation, retained results and
 explicit retries. Open scene in Blender produces a one-way `.blend` handoff.
 Scene animation exports a bounded PNG sequence and timing manifest; it does not
 encode a movie or resume an interrupted sequence automatically.
+
+## Importing SketchUp (.skp) files
+
+**File → Import SketchUp (.skp)…** opens a SketchUp model as a new, unsaved SketchyUp model. Choose
+the file; there are no options to set. The file is read by a separate helper process,
+`sketchyup-skp-worker`, with a progress sheet and Cancel. A file that cannot be imported is refused
+and nothing is created. The report lists what came across, what did not and anything that needs
+your attention; **Show SketchUp import report…** shows it again. The .skp file itself is never
+changed, and Save chooses where the new model goes.
+
+On the command line, `sketchyup-cli --import-skp FILE.skp` validates the file and prints the report
+as JSON. Add `--output NEW.sketchyup` to write a native file, and `--skp-deadline SECONDS` (1 to 3600,
+default 120) to allow the helper more or less time.
+
+### Versions
+
+| SketchUp that saved the file | Import |
+|---|---|
+| 2021 and later | **Supported.** Tested with a SketchUp 2024 model. A version newer than the ones tested is read and labelled "newer than tested" in the report |
+| 2013 to 2020 | **Best effort**, labelled as such in the report. These files use an older container that the reader handles less completely. Some of them cannot be read yet, because the reader fails on certain text labels in them (OpenSKP issue 442). A file it cannot read is refused with the advice below; it is never imported in part |
+| Before 2013 | **Refused:** "This SketchUp file is from before 2013. Save it from SketchUp 2021 or later and try again." |
+
+If a file is refused, save it again from SketchUp 2021 or later and import that copy.
+
+### What comes across
+
+- Faces with their holes, with the same outline and orientation as in SketchUp, and their front and
+  back materials.
+- Edges with their hidden, soft and smooth flags. A loose edge comes across as a wire.
+- Components and their instances. Instances of one component share one definition, so editing the
+  component changes every instance.
+- Layers, as tags of the same name. Hidden layers stay hidden. The default layer (Layer0) becomes
+  the Untagged tag.
+- Materials with their colour and opacity, and their textures. A texture image in PNG or JPEG form is
+  kept; any other image format is converted to PNG.
+- The names of components, groups, instances and materials.
+- Attributes, as properties named `skp.<dictionary>.<key>`. Only text, number and yes/no values come
+  across.
+
+Geometry is converted from inches to metres. The file's unit setting is shown in the report, and it
+does not change the size of the model.
+
+### What does not come across
+
+- **Groups** come across as components that are used once. The file format does not mark a group in
+  the data the reader gets, so the result is a component, not a native group.
+- **Scenes, styles, section planes, text, dimensions, guides (construction lines and points) and the
+  camera** are not imported. The report counts what was left out.
+- **Dynamic-component behaviour** is not imported. The component's geometry is.
+- **A face the native model refuses** is left out and counted in the report under "Faces the native
+  model refuses". These are faces that are not flat, that cross themselves, that collapse, or whose
+  outline touches itself.
+- **Attributes** that are not text, number or yes/no values, or that are over the property limits.
+- **Export.** SketchyUp does not write .skp files.
+
+### Limits
+
+- The file: 256 MiB at most. A larger file is refused before the helper starts.
+- The helper: 4 GiB of address space, 480 seconds of CPU time, 512 MiB of output, and the time
+  allowance above. A helper that goes over one of these limits stops, and nothing is created.
+- The model: a component of up to 100,000 faces, 100,000 vertices and 300,000 edges. A component over
+  these limits is left out and reported, and the rest of the model comes across. The document also
+  takes at most 10,000 distinct geometry records, 600,000 faces after placement and 1,024 materials.
+  Anything beyond them is left out and reported.
+- Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
+- Nesting: components nested more than 64 levels deep are left out and reported.
+
+### Trademarks
+
+SketchUp is a trademark of Trimble Inc. SketchyUp is not affiliated with or endorsed by Trimble Inc.
+The reader is OpenSKP, an independent open-source implementation (MIT licence) that was built by
+studying the file format. It is not affiliated with or endorsed by Trimble either, so some files may
+not import exactly as they look in SketchUp.
 
 ## Terrain and site tools
 

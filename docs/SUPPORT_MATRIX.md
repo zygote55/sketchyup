@@ -23,7 +23,8 @@ evidence exists for this release; it is neither claimed to work nor known to fai
 - **Experimental:** the local Ollama assistant adapter ([ADR 0160](decisions/0160-provider-scope-for-1-0.md)).
 - **Not in this release:** the Extended rows F04–F07 and the Investigate rows of the
   [scope matrix](SCOPE.md), including native SKP/DWG, Ruby extensions, SketchUp
-  Dynamic Components and full SketchUp parity.
+  Dynamic Components and full SketchUp parity. SketchUp (.skp) import is not in 1.3.0 either;
+  its row in the [exchange boundaries](#exchange-boundaries) is marked unreleased.
 
 The 1.0 release-candidate evidence and the M0–M9 gate record are in
 [verification/M9.md](verification/M9.md). The F01 release gate is
@@ -68,6 +69,7 @@ revalidation must be reviewed without deleting that history.
 | GLB/glTF | Import both; export GLB package | Editable converted meshes, hierarchy/instances and supported appearance/cameras; native history/topology/analytical semantics do not round-trip. Import and export size bounds differ. [Contract](decisions/0111-native-gltf-import-workflow.md) |
 | OBJ/MTL | Import/export package | Polygons, wires, groups and supported diffuse appearance; explicit units/up axis and contained resources. Export includes hidden geometry without section clipping; losses are reported. [Contract](decisions/0115-native-obj-interchange-workflow.md) |
 | STL | Binary/ASCII import/export | Triangle geometry with explicit units/axis; optional import welding. No material or hierarchy fidelity. [Contract](decisions/0119-native-stl-interchange-workflow.md) |
+| SketchUp (.skp) (C01, unreleased) | **Import only:** File → Import SketchUp (.skp)… and `sketchyup-cli --import-skp`; no export | SketchUp 2021 and later supported (tested with a 2024 model); 2013 to 2020 best effort, labelled in the report and refused when unreadable; before 2013 refused with the advice to save again from SketchUp 2021 or later. Faces with holes, edges and their flags, components, tags, materials and textures, names and attributes come across. Groups import as components used once. Scenes, styles, section planes, text, dimensions, guides, the camera and dynamic-component behaviour do not. The file is limited to 256 MiB and the helper to 4 GiB of address space, 480 s of CPU and a 120 s deadline by default. Read by OpenSKP (MIT), an independent reader not affiliated with Trimble. [ADR 0176](decisions/0176-skp-import.md), [user guide](USER_GUIDE.md#importing-sketchup-skp-files) |
 | DXF | Documented 2D import/export subset | Lines, supported polylines, arcs, circles and layers; world-XY export and explicit units; optional site coordinates on export (X and Y only) for a model with a site origin. Terrain import reads DXF contours separately (row F03). This is not DWG compatibility. [Contract](decisions/0123-native-dxf-interchange-workflow.md) |
 | PDF/SVG | Measured orthographic export | Physical page/scale; technical vectors or identified raster appearance; print at actual size. [Contract](decisions/0127-measured-export-cli.md) |
 | PNG / Blender scene | Rendered image, frame sequence, one-way `.blend` handoff | Immutable model capture and transfer notices; Blender edits do not flow back into native records. [Procedure](M7_ACCEPTANCE.md) |

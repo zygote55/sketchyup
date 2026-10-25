@@ -136,7 +136,8 @@
         "src/io/skp_*",
         "tests/skp*",
         "tests/fixtures/skp/**",
-        "scripts/vendor-openskp.py"
+        "scripts/vendor-openskp.py",
+        "scripts/verify-skp-library.py"
       ],
       "areas": [
         "job:skp"

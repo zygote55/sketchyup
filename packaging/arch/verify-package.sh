@@ -327,6 +327,15 @@ runuser -u builder -- python -I "$source_dir/scripts/verify-ifc-library.py" pack
 # L3 (the pin) and L4 (dependencies.json, the PKGBUILD licences, the notice lines) on the source archive.
 runuser -u builder -- python -I "$source_dir/scripts/verify-ifc-library.py" source \
   --source-dir "$source_dir" --pkgbuild /work/package/PKGBUILD
+# R102.d (ADR 0176 section 9): the SketchUp helper, in the main package. L1 by symbols needs the
+# unstripped files, which makepkg strips from the installed package, so the install check reads the
+# build tree the package was made from. The installed package is checked by its dynamic linkage
+# (L1 and L2 by DT_NEEDED and ldd) and its notices and source record (L3).
+runuser -u builder -- python -I "$source_dir/scripts/verify-skp-library.py" install \
+  --cmake /usr/bin/cmake --build-dir /work/package/src/build
+runuser -u builder -- python -I "$source_dir/scripts/verify-skp-library.py" package --prefix /usr
+runuser -u builder -- python -I "$source_dir/scripts/verify-skp-library.py" source \
+  --source-dir "$source_dir" --pkgbuild /work/package/PKGBUILD
 # The API probe against the installed helper: units, voids, colours and failures as the library really behaves.
 runuser -u builder -- python -I "$source_dir/tests/ifc_worker_probe_tests.py" \
   /usr/lib/sketchyup/sketchyup-ifc-worker "$source_dir/tests/fixtures/ifc"
