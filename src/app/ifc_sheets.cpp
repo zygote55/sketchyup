@@ -658,6 +658,8 @@ QString skpNoticeMessage(const QString &code) {
         return QStringLiteral("Components nested more than 64 levels deep, or a cycle: not imported");
     if (code == "uvPerspective")
         return QStringLiteral("A perspective texture mapping: the default projection is used");
+    if (code == "missingUv")
+        return QStringLiteral("Faces with no texture mapping in the file: imported without one");
     if (code == "unitsUnknown")
         return QStringLiteral("The file's units are not known: inches are assumed");
     if (code == "scaledPlacement")
