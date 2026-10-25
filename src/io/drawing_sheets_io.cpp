@@ -205,11 +205,13 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
     return {std::move(sheets), std::move(views)};
 }
 int nativeDocumentVersionFor(const Document &document) {
-    if (document.site())
+    if (!document.cameraPaths().empty() || !document.renderPresets().empty())
         return nativeDocumentVersion;
+    if (document.site())
+        return nativeTerrainDocumentVersion;
     for (const auto &[id, body] : document.bodies())
         if (body->kind == BodyKind::Terrain)
-            return nativeDocumentVersion;
+            return nativeTerrainDocumentVersion;
     for (const auto &[id, definition] : document.definitions())
         if (definition->parameters)
             return nativeTerrainFreeDocumentVersion;
