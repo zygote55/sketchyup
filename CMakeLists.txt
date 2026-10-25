@@ -772,6 +772,17 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       add_test(NAME skp_mapping COMMAND skp_mapping_tests)
       add_test(NAME skp_mapping_real COMMAND skp_mapping_tests --real)
       set_tests_properties(skp_mapping_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+      # R102.d (ADR 0176 section 9): the helper's linkage and notices (scripts/verify-skp-library.py).
+      # The install check reads this build's installed main component; the source check reads the
+      # repository's pins and install lines, so it exists in a git checkout only.
+      add_test(NAME skp_library_install COMMAND "${Python3_EXECUTABLE}" -I
+        "${PROJECT_SOURCE_DIR}/scripts/verify-skp-library.py" install
+        --cmake "${CMAKE_COMMAND}" --build-dir "${CMAKE_BINARY_DIR}")
+      set_tests_properties(skp_library_install PROPERTIES TIMEOUT 600)
+      if(EXISTS "${PROJECT_SOURCE_DIR}/packaging/arch/PKGBUILD" AND EXISTS "${PROJECT_SOURCE_DIR}/dependencies.json")
+        add_test(NAME skp_library_source COMMAND "${Python3_EXECUTABLE}" -I
+          "${PROJECT_SOURCE_DIR}/scripts/verify-skp-library.py" source --source-dir "${PROJECT_SOURCE_DIR}")
+      endif()
     endif()
     add_executable(ifc_convert_tests tests/ifc_convert_tests.cpp)
     target_link_libraries(ifc_convert_tests PRIVATE sketchyup_io)
