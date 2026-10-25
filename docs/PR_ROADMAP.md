@@ -1469,7 +1469,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R102 — Deliver SKP support only after feasibility passes
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C01. **UX:** —.
+**Status:** Design proposed ([ADR 0176](decisions/0176-skp-import.md), 2026-10-25): import only, through the MIT-licensed OpenSKP C++ reader (owner-chosen 2026-10-25) in a sandboxed `sketchyup-skp-worker` helper, mapped to native faces with holes, components, tags and textured materials; owner decisions 2–9 pending. Export stays unsupported. **Track:** Interchange. **Scope:** C01. **UX:** —.
 
 **Requires:** [R089](#r089), [R005](#r005); milestone gate rule above.
 
