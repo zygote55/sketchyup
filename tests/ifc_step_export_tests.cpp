@@ -9,6 +9,7 @@
 #include "core/material_records.hpp"
 #include "core/tag_records.hpp"
 #include "geometry/surface.hpp"
+#include "io/document_io.hpp"
 #include "io/ifc_worker.hpp"
 #include "io/step_export.hpp"
 #include "io/step_worker.hpp"
@@ -217,6 +218,29 @@ void roundTrip(const Document &doc, const char *schema, const QString &directory
     const auto imported = importStepFile(path, importOptions());
     const Document &re = imported.document;
     const std::string label = std::string("round trip ") + schema;
+
+    // E7 (ADR 0172 section 7): the imported document validates as a whole (a save and reopen is bit-exact),
+    // one undo removes the whole import, and every geometry body carries the file's own provenance: the
+    // step.Source digest is the digest the report names for this file.
+    const QByteArray saved = encodeDocument(re);
+    check(encodeDocument(decodeDocument(saved)) == saved, label + ": E7, the import validates and reopens bit-exact");
+    Document undone = re;
+    undone.undo();
+    check(undone.bodies().empty(), label + ": E7, one undo removes the whole import");
+    const std::string digest = imported.report["source"].toObject()["sha256"].toString().toStdString();
+    int geometryBodies = 0, provenanceBodies = 0;
+    for (const auto &[id, body] : re.bodies()) {
+        if (body->surface.faces.empty())
+            continue;
+        ++geometryBodies;
+        const auto source = body->properties.find("step.Source");
+        if (source != body->properties.end() && std::get_if<std::string>(&source->second) &&
+            *std::get_if<std::string>(&source->second) == digest)
+            ++provenanceBodies;
+    }
+    check(geometryBodies > 0 && provenanceBodies == geometryBodies,
+          label + ": E7, every geometry body names the file's digest (" + std::to_string(provenanceBodies) + " of " +
+              std::to_string(geometryBodies) + ")");
 
     // Geometry and names of the top-level bodies: a 1000 mm cube keeps its volume and bounds (E3: it re-imports as 1 m).
     for (const char *name : {"Slab", "Painted", "Tagged", "Hidden slab"}) {

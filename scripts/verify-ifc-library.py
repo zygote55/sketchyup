@@ -18,15 +18,16 @@ L3 (the pin) and L4 need the repository files; they run in `source` mode.
 L1  Only sketchyup-ifc-worker links IfcOpenShell or OpenCASCADE.
 L2  The worker and the libraries have a RUNPATH of $ORIGIN (not an RPATH) and a copy of the
     libraries found through LD_LIBRARY_PATH is the one the worker loads.
-L3  The notices and the written source offer are installed (naming the OpenCASCADE tag of the
-    libraries the helper loads); the pinned commit agrees in the README, dependencies.json and CMake
-    (`source` mode).
+L3  The notices and the written source offers are installed (naming the OpenCASCADE tag of the
+    libraries the helper loads; IFC-SOURCE.txt and STEP-SOURCE.txt, ADR 0172 section 8); the pinned
+    commit agrees in the README, dependencies.json and CMake (`source` mode).
 L4  THIRD_PARTY_NOTICES lines, the PKGBUILD licences and dependencies.json are updated (`source` mode).
 L5  No GPL-3.0-or-later library is linked (ldd over the worker and the private libraries).
 L6  The OpenCASCADE libraries the kernel plugin and the worker record are exactly the set
     installed; with the kernel plugin or any one of them removed, the OpenCASCADE kernel is
     unavailable (the worker links the libraries itself, so a missing one stops the worker from
-    starting, ADR 0172 R098.a) and the pass-through kernel still works.
+    starting, ADR 0172 R098.a) and the pass-through kernel still works. The STEP toolkits
+    (libTKDESTEP, libTKXCAF) must be recorded by the worker and installed (ADR 0172 section 8).
 
 Everything installed is untrusted data to the checks: they only read it, and run the helper's own
 --probe in a scratch copy.
@@ -46,6 +47,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PRIVATE = Path("lib") / "sketchyup"
 WORKER = "sketchyup-ifc-worker"
 LIBRARY_PATTERNS = (r"libifcopenshell\.", r"ifcopenshell_", r"libTK")
+# The OpenCASCADE toolkits of the STEP mode (ADR 0172 section 1): the reader and writer, and the XDE
+# document. The worker links them directly, so a package without them has no STEP mode.
+STEP_TOOLKITS = ("libTKDESTEP.so", "libTKXCAF.so")
 
 
 def is_elf(path):
@@ -163,7 +167,8 @@ def check_l2(prefix, problems):
 def check_l3(prefix, problems, occt_version=None):
     expected = [prefix / "share/licenses/sketchyup" / n for n in (
         "IfcOpenShell-COPYING.LESSER", "IfcOpenShell-COPYING", "OpenCASCADE-LICENSE",
-        "OpenCASCADE-LGPL-EXCEPTION")] + [prefix / "share/doc/sketchyup/IFC-SOURCE.txt"]
+        "OpenCASCADE-LGPL-EXCEPTION")] + [prefix / "share/doc/sketchyup/IFC-SOURCE.txt",
+                                          prefix / "share/doc/sketchyup/STEP-SOURCE.txt"]
     for path in expected:
         if not path.is_file() or path.stat().st_size == 0:
             problems.append(f"L3: {path} is missing or empty")
@@ -177,6 +182,17 @@ def check_l3(prefix, problems, occt_version=None):
             tag = "V" + occt_version.replace(".", "_")
             if tag not in text:
                 problems.append(f"L3: IFC-SOURCE.txt names no source tag {tag} for the OpenCASCADE {occt_version} the helper loads")
+    # STEP-SOURCE.txt (ADR 0172 section 8) names the STEP toolkits and points at the written offer.
+    step_offer = prefix / "share/doc/sketchyup/STEP-SOURCE.txt"
+    if step_offer.is_file():
+        text = step_offer.read_text(encoding="utf-8")
+        for needle in ("libTKDESTEP", "libTKXCAF", "IFC-SOURCE.txt", "LD_LIBRARY_PATH"):
+            if needle not in text:
+                problems.append(f"L3: STEP-SOURCE.txt does not mention {needle!r}")
+        if occt_version:
+            tag = "V" + occt_version.replace(".", "_")
+            if tag not in text:
+                problems.append(f"L3: STEP-SOURCE.txt names no source tag {tag} for the OpenCASCADE {occt_version} the helper loads")
     lesser = prefix / "share/licenses/sketchyup/IfcOpenShell-COPYING.LESSER"
     if lesser.is_file() and "GNU LESSER GENERAL PUBLIC LICENSE" not in lesser.read_text(encoding="utf-8").upper():
         problems.append("L3: IfcOpenShell-COPYING.LESSER is not the LGPL text")
@@ -309,6 +325,16 @@ def check_l6(prefix, problems):
     present = installed | soname_links
     if recorded - present:
         problems.append(f"L6: libraries the kernel or the worker record are not installed: {sorted(recorded - present)}")
+    # The STEP closure (ADR 0172 sections 1 and 8, R098.d): the worker links the STEP toolkits itself,
+    # so it must record each of them, and each must be installed beside it (the closure above
+    # carries their own dependencies, the same flat directory and RUNPATH $ORIGIN, checked by L2).
+    for toolkit in STEP_TOOLKITS:
+        names = [n for n in dynamic(worker)[0] if n.startswith(toolkit)]
+        if not names:
+            problems.append(f"L6: the worker records no {toolkit}; the STEP mode needs it")
+        for name in names:
+            if name not in present:
+                problems.append(f"L6: the STEP toolkit {name} the worker records is not installed")
     surplus = {n for n in soname_links if n not in recorded}
     if surplus:
         problems.append(f"L6: libraries installed but not recorded by the kernel or the worker: {sorted(surplus)}")

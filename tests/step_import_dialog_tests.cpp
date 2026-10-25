@@ -286,6 +286,7 @@ struct Driver {
     std::map<QString, QString> hows;
     std::map<QString, QString> banner;
     std::map<QString, QString> identity;
+    std::map<QString, QString> notes;
     std::map<QString, QString> progressFile;
     int progressBar = -1;
     bool sawProgressSteps = false; // a later step was the working one (the helper ran)
@@ -418,6 +419,8 @@ struct Driver {
                     banner[name] = label->text();
                 if (auto *label = report->findChild<QLabel *>("stepReportIdentity"))
                     identity[name] = label->text();
+                if (auto *label = report->findChild<QLabel *>("stepReportNote"))
+                    notes[name] = label->text();
                 if (!report->property("closed").toBool()) {
                     report->setProperty("closed", true);
                     for (auto *button : report->findChildren<QAbstractButton *>())
@@ -509,6 +512,11 @@ int main(int argc, char **argv) {
                   "the STEP kind hides the IFC-only choices");
             check(deviation->value() == 1.0 && unit->currentText() == "mm",
                   "the STEP defaults are a 1.0 mm deviation and millimetres");
+            // R098.d (ADR 0172 section 3): the dialog says the editability loss in the plain words.
+            bool lossSaid = false;
+            for (auto *label : dialog.findChildren<QLabel *>())
+                lossSaid = lossSaid || label->text().contains("cannot be edited as curves");
+            check(lossSaid, "the STEP import dialog says the editability loss");
             deviation->setValue(0.25);
             angle->setValue(45.0);
             unit->setCurrentText("in");
@@ -657,6 +665,10 @@ int main(int argc, char **argv) {
                           "No georeference: the STEP import keeps the helper's axes",
                   "the how-it-was-read block is filled: " +
                       driver.hows["stepImportReport"].toStdString());
+            // R098.d (ADR 0172 section 3): the report says the editability loss in the plain words.
+            check(contains(driver.notes["stepImportReport"], "mesh of flat faces") &&
+                      contains(driver.notes["stepImportReport"], "cannot be edited as curves"),
+                  "the report's note says the editability loss: " + driver.notes["stepImportReport"].toStdString());
             // The report can be shown again from the menu.
             Driver again;
             again.start();

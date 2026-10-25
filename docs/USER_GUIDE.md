@@ -494,6 +494,59 @@ written, and the file is not a buildingSMART certified view: it declares no view
   No other program's reading is promised.
 - **The file is new.** Export never replaces an existing file; choose a new name.
 
+## STEP import and export
+
+**File → Import STEP…** reads a STEP file into a new, unsaved model, and **File → Export STEP…**
+writes the open model to a new STEP file. The source file is never modified, and an export never
+replaces an existing file: a name that already exists is refused before anything is written. The
+command line does the same work: `sketchyup-cli --import-step FILE.step --output MODEL.sketchyup`
+imports (without `--output` it only checks the file and prints the report), and
+`sketchyup-cli --input MODEL.sketchyup --export-step FILE.step --step-schema ap203` exports (AP214 is
+the default). Both run through the optional `sketchyup-ifc` package. Without it, the menu item says
+the helper is not installed, and nothing is read or written.
+
+**Schemas.** Import reads AP203 and AP214. AP242 is read on a best-effort basis: the geometry the
+translator reads comes across, and the product and GD&T content it does not read is counted in the
+report and not imported. Export writes AP214 (the default) and AP203. AP242 is never written; a
+request for it is refused.
+
+**Units.** A unit is never guessed. A file that declares its length unit is converted, and the
+report names the unit and the factor. A file that declares no unit is refused unless you choose one
+(the Unit field of the import dialog, or `--step-length-unit` with mm, cm, m, in or ft). An export
+writes millimetres and says so in its report.
+
+**What comes across.**
+
+- Both ways: the assembly structure as groups; names (a name longer than 2,048 bytes is cut, with a
+  notice on import); flat colours; layers as the layer name; and hidden parts, which stay hidden.
+- Import: a product that is repeated becomes one component with several placed instances. A layer
+  becomes the `step.Layer` property on each body, and a body the file hides comes in hidden. A
+  product with no colour takes the default grey, with a notice. Each body records the file's digest
+  and schema, so it can be traced back to its source.
+- Export: elements that share a mesh, a name, a layer and a visibility become one part with several
+  occurrences. A face whose boundary does not close is written one triangle at a time, and the
+  report counts it.
+- Not carried either way: a layer's own on/off switch (the bodies on it keep their own hidden
+  state), material names and opacity, textures, guides, text, dimensions, sections, scenes, sheets,
+  edges and curves that are not part of a face, and the site origin with its coordinate system. The
+  export report lists what was not written, with counts where the count is known.
+
+**Loss of editability.** Imported B-rep faces become planar faces. Each solid is tessellated into a
+mesh of flat faces, not B-splines or parametric surfaces. A curved (NURBS or B-spline) surface cannot
+be edited as a curve in SketchyUp: you edit the flat faces it becomes, as you edit any mesh. An
+export writes the mesh only, so the original NURBS or parametric definition is not kept in the round
+trip. The import dialog and the import report say the same.
+
+**Limits.** Import refuses a file over 128 MiB before the helper starts. The helper may run for 120
+seconds by default (`--step-deadline` changes that, up to an hour). Import converts at most 1,000,000
+triangles in total and 100,000 per element. A document holds at most 100,000 faces of unique
+geometry, and a curved surface becomes one face per triangle, so a curved model fills the document at
+about 100,000 triangles; the bodies that would go over it are left out and reported as not imported. An export
+writes into a 256 MiB file and is refused above it. Measured: about 2.4 KB per triangle face, so a
+model made of triangle faces reaches the limit at about 110,000 faces; large flat faces take about
+0.9 KB per triangle, so the limit is reached at about 280,000 triangles. The export dialog's size
+note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
+
 ## Importing SketchUp (.skp) files
 
 **File → Import SketchUp (.skp)…** opens a SketchUp model as a new, unsaved SketchyUp model. Choose

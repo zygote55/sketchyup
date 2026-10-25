@@ -248,6 +248,29 @@ copy, a running render, or a failed provider sign-in). The sanitized builds were
 [The machine-readable record](R084u-all-dialog-keyboard.json) has every dialog's
 controls, Tab and Shift+Tab orders, default button and focus result per platform.
 
+## Exchange commands (2026-10-25)
+
+The IFC, STEP and SketchUp exchange commands (R097.e1, R098.a3, R098.c2, R102.c) came after
+the audit above. Their eight "…" commands had no case, so the inventory failed on `main`.
+Five cases in the `exchange` group cover the commands that open a "not installed"
+availability sheet directly, with no file chooser first. The offline fixture has no helper,
+and the SketchUp helper is built under `src/skp`, not beside the audit binary, so it is not
+found either. Each sheet's OK is the default. Enter and Escape both close it, with no document
+or preference change.
+
+Three commands, Show IFC, STEP and SketchUp import report…, are disabled until an import
+completes. An import needs a helper, so they are exempt by action objectName in
+`needsPriorImport()`, and the inventory lists the exemption. The suites
+`ifc_import_dialog_tests`, `step_import_dialog_tests` and `skp_import_dialog_tests` re-show
+each report from its command and check its contents. They close it by clicking OK, though,
+so no suite audits the report's own Enter or Escape. That gap is open.
+
+Run on 2026-10-25, on top of `f47cbdeb`, with Qt 6.12.0 under `QT_QPA_PLATFORM=offscreen`.
+`xvfb-run` and Wayland are not available on this machine. The inventory exits 0 with no
+uncovered commands and 126 dialogs; the table below predates the five new cases.
+`--dialogs-keyboard=exchange` passes 5/5. The X11 2× and Wayland 1× runs of the new group are
+not measured here; CI runs them.
+
 ## Inventory and results
 
 | # | Dialog | Keyboard path | Group | X11 1× | X11 2× | Wayland 1× | Wayland 2× |
