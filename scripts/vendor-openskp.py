@@ -81,7 +81,9 @@ MINIZ_FILES = {
     "LICENSE": "miniz/LICENSE",
 }
 # SketchyUp's own files inside the vendored directory; they are not part of the upstream tree.
-OWN = ("VENDOR.txt", "PATCHES.md", "patches/")
+# The files the repository adds on top of the upstream subset (checked as a whole, not
+# against the upstream bytes).
+OWN = ("VENDOR.txt", "PATCHES.md", "patches/", "CMakeLists.txt")
 
 
 def read_archive(path, commit, sha256):
