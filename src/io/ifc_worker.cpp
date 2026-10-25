@@ -696,7 +696,8 @@ IfcImport importStepFile(const QString &path, const IfcImportOptions &options, c
     if (!directory.isValid())
         refuse("scratch", "A private working directory could not be created.");
     QFile::setPermissions(directory.path(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
-    const QString input = QDir(directory.path()).filePath("input.step");
+    // The copy keeps the file's own base name: the conversion names the root after it.
+    const QString input = QDir(directory.path()).filePath(QFileInfo(path).fileName());
     copyBounded(path, input);
     QFile::setPermissions(input, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     const QString schema = stepSourceSchema(input);
