@@ -392,6 +392,14 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     stepReportChip_->hide();
     QObject::connect(stepReportChip_, &QPushButton::clicked, this, &Window::showStepImportReport);
     bottomLayout->addWidget(stepReportChip_);
+    // R102.c: the SketchUp report chip, the STEP chip's own lifetime rules.
+    skpReportChip_ = new QPushButton;
+    skpReportChip_->setObjectName("skpImportChip");
+    skpReportChip_->setCursor(QCursor(Qt::PointingHandCursor));
+    skpReportChip_->setMaximumHeight(24);
+    skpReportChip_->hide();
+    QObject::connect(skpReportChip_, &QPushButton::clicked, this, &Window::showSkpImportReport);
+    bottomLayout->addWidget(skpReportChip_);
     auto *renderChip = new QPushButton;
     bottomLayout->addWidget(renderChip);
     render_ = new RenderPanel(doc_, *viewport_, *modelTabs, *renderChip, *this);
@@ -420,6 +428,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             doc_ = Document(preferredUnits(), preferredPrecision());
             clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
             clearStepReportState(); // a new model: the STEP report chip's lifetime ends too
+            clearSkpReportState(); // and the SketchUp chip's
             resetRecoveryContext();
             path_.clear();
             viewport_->cancel();
@@ -478,6 +487,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                                  [this] { showStepImportReport(); });
     stepReportAction_->setEnabled(false);
     file->addAction(stepReportAction_);
+    // R102.c (ADR 0176 section 9): SketchUp import. Import SketchUp (.skp)… after the STEP pair; Show
+    // SketchUp import report… directly below it (enabled only after a SketchUp import).
+    file->addAction(action("file.importSkp", "Import SketchUp (.skp)…", {}, [this] { importSkp(); }));
+    skpReportAction_ = action("file.skpImportReport", "Show SketchUp import report…", {},
+                              [this] { showSkpImportReport(); });
+    skpReportAction_->setEnabled(false);
+    file->addAction(skpReportAction_);
     file->addAction(action("file.importFormline", "Import Formline…", {}, [this] {
         const auto path = QFileDialog::getOpenFileName(this, "Import Formline v1", {},
                                                        "Formline models (*.formline *.json)");
@@ -1816,6 +1832,7 @@ void Window::openPath(const QString &path) {
     doc_ = std::move(loaded);
     clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
     clearStepReportState(); // a new model: the STEP report chip's lifetime ends too
+    clearSkpReportState(); // and the SketchUp chip's
     resetRecoveryContext();
     recoveryContext_ = {QFileInfo(path).absoluteFilePath(), doc_.revision(),
                         QFileInfo(path).lastModified().toUTC()};
@@ -2024,6 +2041,7 @@ void Window::demo() {
     doc_ = std::move(d);
     clearIfcReportState(); // a new model: the IFC report chip's lifetime ends (16.1)
     clearStepReportState(); // a new model: the STEP report chip's lifetime ends too
+    clearSkpReportState(); // and the SketchUp chip's
     resetRecoveryContext();
     path_.clear();
     viewport_->cancel();

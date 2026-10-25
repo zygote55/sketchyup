@@ -23,7 +23,8 @@ struct SkpWorkerOptions {
     QString scratchRoot;
     // Checked while the helper runs; true cancels (terminate, then kill after a second).
     std::function<bool()> cancelled;
-    // Phases from the helper: ("parse", 0), ("package", 0), ("tasks", n), ("done", n) ...
+    // Phases: the helper's ("read", 0), ("parse", 0), ("package", 0), then the application's own
+    // ("build", 0) before the package is decoded and ("create", 0) before the document is made.
     std::function<void(const QString &phase, qint64 value)> progress;
 };
 

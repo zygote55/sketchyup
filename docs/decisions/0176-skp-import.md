@@ -456,6 +456,73 @@ timestamp on each definition. `SKP-SOURCE.txt` records the committed bytes as th
 The `skp` job runs `skp_mapping` (and `skp_mapping_real`, skipped without the corpus), the `skp` preset builds
 its four targets, and the CI line inventory is regenerated (its one changed line is the job's test selection).
 
+## Implementation notes (R102.c)
+
+R102.c is implemented on the branch `feat/r102c-skp-import-ui`: File › Import SketchUp (.skp)…, its
+progress, report and refusal screens, and `sketchyup-cli --import-skp` (§9). Findings, 2026-10-25.
+
+**The choices.** §9 leaves the options screen open, and the brief asked for one of two shapes. The
+import has **no options dialog**: the file picker leads straight to the progress sheet. The file's
+facts (version, container, size) and the 2013–2020 best-effort line are in the report's "How it was
+read" block, not on a sheet before the import, so there is nothing to confirm. The unsaved-changes
+prompt comes before the helper starts and again at the commit, as the IFC and STEP imports do.
+
+**The progress steps.** Five steps: check the file, read the file, convert geometry, build the model,
+create the new model. The application checks the file first (the initial step). The helper's
+`read` and `parse` phases are "read the file"; its `package` phase is "convert geometry". The
+application's own phases are `build` (the package is decoded) and `create` (the document is made from
+it). The helper reports phases, not a running count, so the bar is busy until the run ends.
+
+**Cancel.** Cancel and Escape end the run. The helper's run checks the cancel as before, and the
+conversion now checks it too (R102.b passed no cancel hook, so a Cancel during the decode or the
+conversion committed the model). The sheet closes only after the runner has finished.
+
+**The report.** Its identity is per kind, not the IFC's entity identity: for faces, edges, instances
+and materials, `counted = imported + omitted` (§5). The attention count is the omitted total over those
+four kinds. The banner shows no restart count, since the helper has no restart protocol (§1). The
+trademark note (§8) is a footnote under the grouped list, with the wording of §8.
+
+**Refusals.** `notSkp` and `tooLarge` are checked by the application before the helper runs. `pre2013`
+and `parse` come from the helper, and each gives the advice to save the file again from SketchUp 2021 or
+later. A helper stop (crash, memory, error, start) and a deadline (the helper's own `deadline` refusal, or
+the application's timeout) are "helper stopped" refusals. `workerMissing` is the availability sheet.
+
+**The deadline.** The default is 120 s, as §6. The window has a test hook for it
+(`setSkpDeadlineSeconds`); the CLI's `--skp-deadline` is the public option.
+
+**R102.b corrections, found by the screens.**
+- The report carried none of the helper's own notices. `newerThanTested` and `scaledPlacement` were
+  decoded into the package and then dropped, so §5's notice list was not in the report. Fixed: the
+  package's notices are merged into the report.
+- A dropped face was counted and listed as a location, but not as the `invalidFaces` notice that §5
+  names. Fixed: each dropped face counts toward the `invalidFaces` notice.
+- The cancel did not reach the decode or the conversion (see above). Fixed.
+
+**The owner's file (local only; the numbers only, through the CLI on this machine).** SketchUp
+`{24.0.553}`, VFF. One component definition ("Teddy") and one placement. 158 of 159 faces kept (the
+dropped face is the "Teddy" face with a repeated outer-loop vertex, as the R102.b notes record), 4 of 5
+holes kept, 1,422 edges (153 of them wires), 18 materials, no tags. Notices: `invalidFaces` 1 and
+`missingUv` 159 (faces with no texture mapping, which the file has no textures for). The helper's
+package is about 59 KB. `skp_mapping_tests --real` and `skp_import_tests --real` pass against the file.
+
+**Tests.** `skp_import_dialog_tests` (offscreen, a stand-in helper that copies a package written by the
+helper's own writer) passes all of its flows: the File menu's order, a missing helper, each refusal, a
+full import with the report, the attention count, Cancel and Escape, the prompts, and the chip's
+lifetime. `skp_import_tests` passes, with the CLI cases through the real helper. The regression suites
+`step_import_dialog_tests`, `ifc_import_dialog_tests`, `ifc_export_dialog_tests`,
+`narrow_layout_input_tests` and `skp_mapping_tests` pass offscreen.
+
+**Where the ADR and the implementation disagree.**
+- §5 and §2 give the parse-failure line with the year ("This SketchUp 2017 file could not be read").
+  The helper refuses a file its parser cannot read before it has a version to report, so the refusal
+  says "could not read this file" and gives the 2021 advice, without the year.
+- The refusal sheet's words, the progress step names and the report's notice wording are the
+  application's own choices. The owner should review them with the other screens' wording.
+
+**Not run here.** The screens were not run in the desktop application against the owner's file (the
+local check used the CLI). The dialog suite was not run under the sanitizers, and the X11 and Wayland
+display lines run only in CI.
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue
