@@ -14,6 +14,7 @@
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
 #include "io/ifc_export.hpp"
+#include "io/step_export.hpp"
 #include "io/ifc_worker.hpp"
 #include "io/measured_request.hpp"
 #include "io/new_file.hpp"
@@ -191,8 +192,13 @@ int main(int argc, char **argv) {
     parser.addOption({"step-angle-deg", "STEP import: crease angle in degrees (default 30)", "deg"});
     parser.addOption({"step-length-unit",
                       "STEP import: length unit mm, cm, m, in or ft, used only when the file declares none", "unit"});
-    parser.addOption({"step-deadline", "STEP import: seconds the helper may run (default 120)", "seconds"});
-    parser.addOption({"step-worker", "STEP import: path of the helper (development and tests)", "path"});
+    parser.addOption({"export-step",
+                      "Export the --input model to a new STEP file (AP214 by default, AP203; AP242 is refused) through the "
+                      "isolated helper",
+                      "path"});
+    parser.addOption({"step-schema", "STEP export: ap214 (the default) or ap203", "schema"});
+    parser.addOption({"step-deadline", "STEP import and export: seconds the helper may run (default 120)", "seconds"});
+    parser.addOption({"step-worker", "STEP import and export: path of the helper (development and tests)", "path"});
     // R102.c (ADR 0176 section 9): the SketchUp (.skp) import, the STEP import's own operation with
     // the SketchUp helper (sketchyup-skp-worker). The import has no options of its own beyond the
     // helper's deadline and path (the file's facts are the report's).
@@ -681,6 +687,52 @@ int main(int argc, char **argv) {
                     ? sketchy::migrateNativeFile(parser.value(formatMode), parser.value("output"))
                     : sketchy::inspectNativeFile(parser.value(formatMode));
             std::cout << QJsonDocument(report).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        if (parser.isSet("export-step")) {
+            auto invalid = [](const std::string &message) {
+                throw sketchy::InspectionError("INVALID_REQUEST", message);
+            };
+            if (!parser.positionalArguments().isEmpty())
+                invalid("STEP export requires named paths");
+            const QStringList allowed{"export-step", "input", "step-schema", "step-deadline", "step-worker"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    invalid("STEP export is a standalone operation");
+            if (!parser.isSet("input"))
+                invalid("STEP export requires a native --input");
+            sketchy::StepExportOptions options;
+            if (parser.isSet("step-schema")) {
+                const QString schema = parser.value("step-schema").toLower();
+                if (schema == "ap242")
+                    invalid("AP242 writing is not supported; use ap214 (the default) or ap203");
+                if (schema != "ap214" && schema != "ap203")
+                    invalid("--step-schema is ap214 or ap203");
+                options.schema = schema;
+            }
+            sketchy::IfcWorkerOptions worker;
+            if (parser.isSet("step-deadline")) {
+                bool ok{};
+                worker.deadlineSeconds = parser.value("step-deadline").toInt(&ok);
+                if (!ok || worker.deadlineSeconds < 1 || worker.deadlineSeconds > 3600)
+                    invalid("--step-deadline is 1 to 3600 seconds");
+            }
+            if (parser.isSet("step-worker"))
+                worker.workerPath = parser.value("step-worker");
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            QJsonObject result;
+            try {
+                const auto exported = sketchy::exportStepFile(document, parser.value("export-step"), options, worker);
+                result = {{"status", "exported"}, {"exportReport", exported.report}};
+            } catch (const sketchy::StepExportError &error) {
+                const std::string code = error.code();
+                const bool limit = code == "packageTooLarge" || code == "meshTooLarge" || code == "tooManyTriangles" || code == "outputTooLarge";
+                const bool request = code == "destinationExists" || code == "destination" || code == "emptyModel" || code == "schema";
+                throw sketchy::InspectionError(limit ? "LIMIT_EXCEEDED" : request ? "INVALID_REQUEST" : "INPUT_ERROR", error.what(),
+                                               QJsonObject{{"stepCode", QString::fromStdString(code)},
+                                                           {"exportReport", error.report()}});
+            }
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
             return 0;
         }
         if (parser.isSet("export-ifc")) {

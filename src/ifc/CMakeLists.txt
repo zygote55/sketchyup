@@ -12,12 +12,14 @@ include("${CMAKE_CURRENT_LIST_DIR}/IfcOpenShellPrefix.cmake")
 add_executable(sketchyup-ifc-worker
   worker_main.cpp probe_environment.cpp probe_geometry.cpp probe_writer.cpp
   access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp georeference.cpp package.cpp report.cpp import.cpp export_package.cpp export.cpp check.cpp
-  step_probe.cpp step_import.cpp)
+  step_probe.cpp step_import.cpp step_export.cpp step_export_package.cpp)
 target_include_directories(sketchyup-ifc-worker PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(sketchyup-ifc-worker PRIVATE
   SKETCHYUP_IFC_PIN_COMMIT_STRING="${SKETCHYUP_IFC_PIN_COMMIT}"
   SKETCHYUP_IFC_OCCT_VERSION_STRING="${SKETCHYUP_IFC_OCCT_VERSION}")
-target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_libraries sketchyup_ifc_occt sketchyup_version)
+# TKG3d: the planes of the STEP export's faces (BRepBuilderAPI_MakeFace), which the 7.9 list in
+# IfcOpenShellPrefix.cmake does not name (that file is part of the prefix's cache key, so it stays as is).
+target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_libraries sketchyup_ifc_occt sketchyup_version TKG3d)
 target_compile_options(sketchyup-ifc-worker PRIVATE -Wall -Wextra -Wpedantic)
 add_dependencies(sketchyup-ifc-worker sketchyup_ifcopenshell_prefix)
 # The private directory is flat: the helper and every library sit in /usr/lib/sketchyup. A

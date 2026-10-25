@@ -217,6 +217,9 @@ StepScan checkStepSource(const QString &path) {
                 schema = "ap242";
         }
     }
+    // OCCT's AP203 writer names the schema alone (no object identifier), as the helper classifies it (R098.c).
+    if (schema.isEmpty() && raw.contains("CONFIG_CONTROL_DESIGN"))
+        schema = "ap203";
     if (schema.isEmpty())
         refuse("unsupportedSchema",
                 "The schema " + clipped(raw, 40).toStdString() + " is not AP203, AP214 or AP242; it is refused.");
