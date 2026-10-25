@@ -52,6 +52,24 @@ bool readFile(const std::string& path, std::vector<std::uint8_t>& out, std::uint
 // display metadata, and the file's internal unit is inches, VFF and legacy alike).
 constexpr double kInchesToMetres = 0.0254;
 
+int versionMajor(const std::string&);
+
+// The major version written in the file header (UTF-16LE, before any parsing), or -1.
+int headerVersionMajor(const std::vector<std::uint8_t>& d) {
+  std::size_t marker = std::string::npos;
+  for (std::size_t i = 4; i + 2 < d.size() && i < 512; ++i)
+    if (d[i] == 0xFF && d[i + 1] == 0xFE && d[i + 2] == 0xFF) {
+      marker = i;
+      break;
+    }
+  if (marker == std::string::npos) return -1;
+  std::string s;
+  for (std::size_t i = marker + 4; i + 1 < d.size() && i < 512; i += 2)
+    if (d[i]) s.push_back(static_cast<char>(d[i]));
+  const std::size_t a = s.find('{');
+  if (a == std::string::npos || a + 1 >= s.size() || s.find('}', a) < a) return -1;
+  return versionMajor(s);
+}
 // The version string ("{24.0.553}") to its major number, or -1.
 int versionMajor(const std::string& version) {
   std::size_t start = version.find_first_not_of('{');
@@ -105,6 +123,22 @@ int runProbe(const std::string& input, Progress& progress) {
         .endObject();
     progress.line("R " + json.str());
     return 3;
+  }
+  // ADR 0176 section 2: before 2013 (major < 15) is refused from the header version before the
+  // parser runs, because some pre-2013 files the parser cannot read at all.
+  {
+    const int headerMajor = headerVersionMajor(bytes);
+    if (headerMajor > 0 && headerMajor < 15) {
+      JsonOut json;
+      json.beginObject()
+          .field("status", "refused")
+          .field("code", "pre2013")
+          .field("message", "This SketchUp file is from before 2013. Save it from SketchUp 2021 "
+                            "or later and try again.")
+          .endObject();
+      progress.line("R " + json.str());
+      return 3;
+    }
   }
   progress.phase("parse");
   try {
@@ -202,6 +236,22 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
         .endObject();
     progress.line("R " + json.str());
     return 3;
+  }
+  // ADR 0176 section 2: before 2013 (major < 15) is refused from the header version before the
+  // parser runs, because some pre-2013 files the parser cannot read at all.
+  {
+    const int headerMajor = headerVersionMajor(bytes);
+    if (headerMajor > 0 && headerMajor < 15) {
+      JsonOut json;
+      json.beginObject()
+          .field("status", "refused")
+          .field("code", "pre2013")
+          .field("message", "This SketchUp file is from before 2013. Save it from SketchUp 2021 "
+                            "or later and try again.")
+          .endObject();
+      progress.line("R " + json.str());
+      return 3;
+    }
   }
   // The file's digest and size, recorded in the manifest (the bytes move into the parser).
   const std::uint64_t fileSize = bytes.size();

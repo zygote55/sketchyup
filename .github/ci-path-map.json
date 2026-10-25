@@ -22,7 +22,8 @@
     "job:audit": "Run the full tier's 'Native tests: audit and accessibility' job (with the development build).",
     "job:fractional": "Run the full tier's fractional-scaling, Blender worker and M5 job (with the development build).",
     "job:sanitize": "Run the full tier's 'Sanitized builds' job.",
-    "job:ifc": "Run the 'IFC library and helper' job (ADR 0171): IfcOpenShell prefix, sketchyup-ifc-worker, the API probe and the packaging checks. The fast tier restores the cached prefix; the full tier builds it from source."
+    "job:ifc": "Run the 'IFC library and helper' job (ADR 0171): IfcOpenShell prefix, sketchyup-ifc-worker, the API probe and the packaging checks. The fast tier restores the cached prefix; the full tier builds it from source.",
+    "job:skp": "Run the 'SKP parser, helper and import' job (ADR 0176): the vendored OpenSKP parser subset checked against its pinned archives, sketchyup-skp-worker, and the application's import and package tests."
   },
   "slow_tests": {
     "slow-terrain": [
@@ -122,6 +123,20 @@
       ],
       "areas": [
         "job:ifc"
+      ]
+    },
+    {
+      "why": "SKP (ADR 0176): the vendored OpenSKP parser subset, the helper that links it, the package decoder, the synthetic fixtures and the files that pin and describe it. The application does not link the parser, so the vendored tree alone selects only the SKP job (a plain C++17 build, a few minutes); src, scripts and tests paths also select build and native through the generic rules.",
+      "paths": [
+        "third_party/openskp/**",
+        "src/skp/**",
+        "src/io/skp_*",
+        "tests/skp*",
+        "tests/fixtures/skp/**",
+        "scripts/vendor-openskp.py"
+      ],
+      "areas": [
+        "job:skp"
       ]
     },
     {

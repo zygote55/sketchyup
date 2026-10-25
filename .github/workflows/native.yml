@@ -1871,6 +1871,93 @@ jobs:
           cmake --preset ifc-sanitize
           cmake --build --preset ifc-sanitize --parallel "$(nproc)"
           ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus)$' --output-on-failure --no-tests=error
+  # ---------------------------------------------------------------------------------------
+  # SKP (ADR 0176). The vendored OpenSKP parser subset is plain C++17 with the miniz files
+  # pinned inside the tree, so this job has no prefix and no packages beyond the shared
+  # compile set: it proves the vendored tree equals the pinned archives (one download; the
+  # script reads them in memory-safe fashion and executes nothing from them), builds the
+  # helper and the application's import through the fast tier's flags and runs the SKP
+  # tests. Only changes to its paths select the job (ci-path-map.json); the fast tier's
+  # compile also builds the helper, since src/skp is added unconditionally.
+  skp:
+    name: SKP parser, helper and import
+    needs: plan
+    if: needs.plan.outputs.full == 'true' || contains(needs.plan.outputs.jobs, ',skp,')
+    runs-on: ubuntu-latest
+    container:
+      image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
+    timeout-minutes: 60
+    env:
+      # The same compiler cache the compile shards and the IFC job restore: the ci-fast flags.
+      CCACHE_DIR: /ccache
+      CCACHE_MAXSIZE: 4G
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare the package cache
+        id: package-cache-key
+        # Its own entry, keyed on the image's packages, the dated mirror and the compile set:
+        # this job installs only the shared compile packages (Qt for the decoder tests).
+        run: |
+          sum=$({ pacman -Q; cat packaging/arch/mirrorlist; printf '%s\n' "$CI_COMPILE_PACKAGES"; } | sha256sum | cut -c1-32)
+          echo "key=pacman-skp-v1-51dd3d24-$sum" >> "$GITHUB_OUTPUT"
+      - name: Restore the package cache
+        id: package-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            /var/lib/pacman/sync
+          key: ${{ steps.package-cache-key.outputs.key }}
+      - name: Install compile dependencies
+        env:
+          PACKAGE_CACHE_HIT: ${{ steps.package-cache.outputs.cache-hit }}
+        run: |
+          cp packaging/arch/mirrorlist /etc/pacman.d/mirrorlist
+          # A cache hit restores this snapshot's databases and every package file: install
+          # without -y, so pacman needs no mirror and still verifies every signature.
+          if [ "$PACKAGE_CACHE_HIT" = true ] && pacman -Suu --noconfirm --needed $CI_COMPILE_PACKAGES; then
+            exit 0
+          fi
+          # The pinned archive mirror occasionally stalls; retry the whole sync.
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm --needed $CI_COMPILE_PACKAGES && break
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 30))
+          done
+      - name: Record toolchain
+        run: pacman -Q cmake ninja gcc qt6-base ccache mold
+      - name: Vendored tree equals the pinned upstream commits, patched
+        # The pin is the upstream commit and the bytes of every vendored file (ADR 0176):
+        # no network at build time, but this check downloads the archives once to prove
+        # the tree (the OpenSKP parser subset and the miniz files at their pinned commit).
+        run: |
+          python scripts/vendor-openskp.py fetch /tmp/openskp-upstream
+          python scripts/vendor-openskp.py check /tmp/openskp-upstream
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@v5
+        with:
+          path: /ccache
+          key: ccache-fast-v1-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: ccache-fast-v1-
+      - name: Prepare the compiler cache
+        run: |
+          mkdir -p /ccache
+          ccache --zero-stats
+      - name: Build the helper and the application's import
+        run: |
+          cmake --preset skp
+          cmake --build --preset skp --parallel "$(nproc)"
+      - name: The SKP tests
+        # The package tests, the import through the helper against the synthetic fixtures
+        # (the .skp files' provenance is tests/fixtures/skp/SKP-SOURCE.txt), and the
+        # owner-file check (skipped on a machine without the corpus).
+        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real)$' --output-on-failure --no-tests=error
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats
   package:
     name: Arch package acceptance
     needs: plan

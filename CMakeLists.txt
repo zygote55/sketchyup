@@ -746,8 +746,9 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(skp_package_tests PRIVATE sketchyup_io sketchyup_skp)
     target_include_directories(skp_package_tests PRIVATE src tests)
     add_test(NAME skp_package COMMAND skp_package_tests)
-    # R102.a: the import through the helper, against the raw-text scan of the source .skp.
-    if(SKETCHYUP_BUILD_SKP AND TARGET sketchyup-skp-worker)
+    # R102.a: the import through the helper, against the synthetic .skp fixtures (the .skp
+    # format is a binary MFC archive; the fixtures' provenance is tests/fixtures/skp/SKP-SOURCE.txt).
+    if(TARGET sketchyup-skp-worker)
       add_executable(skp_import_tests tests/skp_import_tests.cpp)
       target_link_libraries(skp_import_tests PRIVATE sketchyup_io sketchyup_skp)
       target_include_directories(skp_import_tests PRIVATE src tests)
