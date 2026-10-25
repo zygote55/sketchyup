@@ -101,7 +101,60 @@ tier builds it with the application) and passed: 8.48 s.
 **The damaged-file corpus at 512 mutations per file** (`ifc_worker_fault_corpus_full`, label `full`):
 passed, 278.18 s. The direct run's outcome counts are in the J2 notes below.
 
-**Sanitizers, helper** (`ifc-sanitize`): pending; see the J3 and sanitizer notes.
+**Sanitizers, helper** (`cmake --preset ifc-sanitize`, the full tier's sanitizer step, `ASAN_OPTIONS=detect_leaks=0`): 5 of 5 passed. `ifc_worker_probe` 28.99 s, `ifc_georeference` 93.88 s, `ifc_export_worker` 31.19 s, `ifc_import_worker` 162.96 s, `ifc_worker_fault_corpus` (64 per file) 167.95 s. The library itself is not instrumented in this build; the instrumented library is the J3 build below.
+
+## G1: external validators
+
+ADR 0171 §6.3 G1 asks for two validators on the golden exports, run by hand at acceptance; neither is a CI
+gate. The raw-text scan, the helper's own schema check and the other checks of G1 are in the test table above.
+
+### `ifcopenshell.validate` (run here)
+
+The PyPI package `ifcopenshell==0.9.0.post1` (the same engine as the helper, so a consistency check, not an
+independent reader) is installed in a throwaway venv inside the pinned image. It runs
+`scripts/ifc-external-validators/validate_ifcos.py` with `python -I` on the six goldens in
+`tests/fixtures/ifc/export/`. Results: pending (filled in below when the run finishes).
+
+### buildingSMART hosted validation service: owner
+
+The hosted service (<https://validate.buildingsmart.org>) needs a signed-in account and a person, so it was
+**not run**. The owner runs it on the six files below and fills in the table.
+
+Files to upload, byte for byte as the record's commit has them (`tests/fixtures/ifc/export/`, unchanged since
+`78058393`):
+
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `bsi-ifc4-arch.ifc` | 49,657 | `3bfc4ba100324da7fd6b2edbe715fbd24aa83d032962e14064fb37eed81da581` |
+| `gltf-rig.ifc` | 7,054 | `a16c5ca0d023f048b39abf70c70562ba4e4b7de8784a32a21e66b77ae411b233` |
+| `ifc-structure.ifc` | 7,367 | `4d7f7f1f53003ab3ebc2829e5884c4e92c6123e30b8a9b2c2f7eb6e2edbaa1c7` |
+| `native-model.ifc` | 16,522 | `3e8112d71ee4903a18f11ebd254bb960af1e614524a52b6f30951f0e384656ad` |
+| `obj-concave-paint.ifc` | 5,195 | `9300c4daf3dd7d6ec42c3a8d318bac39a83e6167c05946b3b433510747d8c6fa` |
+| `rv-individual-colors.ifc` | 2,506 | `2317e150d188cf0cbfea98af2a2dd1980e4a829c990e850a44e84e8290efb495` |
+
+**Where to find them:** the repository at `main` (`78058393`) or this branch, under `tests/fixtures/ifc/export/`.
+Check the SHA-256 with `sha256sum` before uploading.
+
+**What to check:** for each file, the service's schema (IFC4), its error and warning counts, and the rule
+identifiers of each finding. The export claim (ADR 0171 §2) is not final until this table has a result for
+every file. Notes for reading the result:
+
+- The files declare no `ViewDefinition` on purpose (no view claim, ADR 0171 §2). A finding that says the file
+  is not a view-conformant file is expected and is not a failure of the export claim.
+- The local buildingSMART rule run (R097.d) showed no error and no warning on the six goldens. The
+  certified Architecture file reports one warning, `GRF005`, under the same harness; that is the file's own
+  issue, not an export issue.
+- Record each error or warning with its rule identifier. An error that the local rules did not show is a
+  finding: report it, do not edit the goldens.
+
+| File | Errors | Warnings | Rule identifiers or service report link | Date | Result | Reviewer |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bsi-ifc4-arch.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
+| `gltf-rig.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
+| `ifc-structure.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
+| `native-model.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
+| `obj-concave-paint.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
+| `rv-individual-colors.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
 
 ## Commands
 
