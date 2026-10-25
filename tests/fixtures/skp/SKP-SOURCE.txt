@@ -1,0 +1,46 @@
+# R102.a synthetic .skp fixtures — provenance.
+
+Source: OpenSKP at commit 23a15e8742e936694bf14aa029cb0e2862dce5b9
+        (archive sha256 5b304cc024b2d72504ac5a6676968166fdd300f180d3f1078efe8b959951e1a5).
+Fixture writer: OpenSKP's own C++ writer, packages/cpp (create.hpp), built unmodified
+        from that commit; every file here is a legacy v17 container.
+Deps (the pins the upstream packages/cpp/CMakeLists.txt fetches, pre-placed at the
+        FETCHCONTENT_SOURCE_DIR_* paths below): miniz 77d0dce8627735138c51770d1799a1ef48f2117d,
+        tinygltf 488a70a3df62a4df1a736e9e56fb8836580c4888, flatbuffers v25.12.19.
+
+Exact command (run from a checkout of this repository; the openskp tree and deps are the
+pinned checkout above, e.g. $OPENSKP=/path/to/openskp@23a15e87...):
+
+  cmake -G Ninja -B $BUILD -S $OPENSKP/packages/cpp -DCMAKE_BUILD_TYPE=Release \
+    -DFETCHCONTENT_SOURCE_DIR_MINIZ=$DEPS/miniz \
+    -DFETCHCONTENT_SOURCE_DIR_TINYGLTF=$DEPS/tinygltf \
+    -DFETCHCONTENT_SOURCE_DIR_FLATBUFFERS=$DEPS/flatbuffers
+  cmake --build $BUILD -j4
+  g++ -std=c++17 -O2 \
+    -I $OPENSKP/packages/cpp/include -I $BUILD/include \
+    tests/fixtures/skp/generate.cpp $BUILD/libOpenSkp.a -o /tmp/gen_skp
+  /tmp/gen_skp tests/fixtures/skp/
+
+The generator is deterministic: rerunning it overwrites the fixtures byte-for-byte
+(verified: the SHAs below reproduce on a clean build). The writer takes no random input
+and the archive layout is order-stable, so the bytes do not depend on the machine.
+
+SHA-256 of the committed fixtures (tests/fixtures/skp/):
+  box.skp                  05eb8f096a3b95e1a36d11c8c2c481f0f53e527579be60e1f6edeade9966c78f
+  component_instances.skp  e503573d95d743604c5a1dfafab4299b2ce2dbe12af8d68c782092c56b70eb6e
+  face_with_hole.skp       383bb0cdae76b6833cf9f46fdb78a9bbbd257694e0a873a9897654598258ebaa
+  hidden_tag.skp           5e3c9cd202192f77929d82fc6558be4b814a034a6779fd6e2b3d03db78cc7b13
+  nested_component.skp     dea7a7afcc8894e91980f75b93e53530961659d54264ca129febc96162c7fdaa
+  soft_smooth_edges.skp    1a4d6c85a97431b5ad0502724328fe1e7aaf453c9beecc55e21508f9d60705fd
+  two_materials.skp        a0a9a885268ef5346baa62fe2a75436e7b4a0d88b8bea8ad1db08df99f1d93c5
+
+Contents (all coordinates in inches, as the .skp format stores them):
+  box.skp                  a 1x1x1 cube, 6 faces (8 vertices, 12 edges, 6 faces)
+  face_with_hole.skp       a 4x4 square with a 1x1 square hole (1 face, 1 hole)
+  soft_smooth_edges.skp    two adjacent 1x0.5 faces: the lower declared soft, the upper
+                           smooth (the shared edge keeps its first declaration's flags)
+  two_materials.skp        two adjacent faces painted Red and Blue
+  component_instances.skp  a "Widget" square, placed 3 times (the third instance hidden)
+  hidden_tag.skp           a face on a layer set to hidden
+  nested_component.skp     "Outer" (a 2x2 face + an instance of "Inner" at (0.5,0.5,0)),
+                           placed once at the root

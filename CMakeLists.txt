@@ -49,6 +49,9 @@ add_library(clipper2 ${SKETCHYUP_LIBRARY_TYPE}
   third_party/clipper2/src/clipper.rectclip.cpp
   third_party/clipper2/src/clipper.triangulation.cpp)
 target_include_directories(clipper2 PUBLIC third_party/clipper2/include)
+# R102.a (ADR 0176): the vendored OpenSKP parser subset. The application never links it; only
+# sketchyup-skp-worker does (decision 2), so it is always built, like the other workers.
+add_subdirectory(third_party/openskp)
 add_library(sketchyup_core src/geometry/measured_view.cpp src/core/camera_motion.cpp src/core/reference_images.cpp src/core/reference_image.cpp src/core/text_source.cpp src/core/terrain.cpp src/core/terrain_edit.cpp src/core/terrain_edit_mesh.cpp src/core/terrain_display.cpp src/core/terrain_sources.cpp src/core/terrain_source_edit.cpp src/core/terrain_sculpt.cpp src/core/terrain_plan_index.cpp src/core/terrain_stamp.cpp src/core/terrain_drape.cpp src/core/annotation_records.cpp src/core/annotations.cpp src/core/annotation_anchors.cpp src/core/section_records.cpp src/core/sections.cpp src/geometry/section.cpp src/core/scene_records.cpp src/core/scenes.cpp src/core/drawing_sheet_records.cpp src/core/drawing_item_records.cpp src/core/drawing_item_lineage.cpp src/core/drawing_sheets.cpp src/core/face_textures.cpp src/core/texture_mapping.cpp src/core/hosted_components.cpp src/core/host_regeneration.cpp src/core/component_glue.cpp src/geometry/hosted_opening.cpp src/core/component_placement.cpp src/geometry/diagnostics.cpp src/core/shading_normals.cpp src/core/edge_appearance.cpp src/core/face_orientation.cpp src/geometry/orientation.cpp src/geometry/solid_operations.cpp src/core/solid_boolean.cpp src/geometry/boolean.cpp src/core/intersection_edit.cpp src/core/profile_sweep.cpp src/core/prepared_edit.cpp src/core/history.cpp src/core/entity_measure.cpp src/geometry/solid.cpp src/geometry/intersection.cpp src/core/tags.cpp src/core/asset_records.cpp src/core/assets.cpp src/core/material_records.cpp src/core/materials.cpp src/core/tag_records.cpp src/core/components.cpp src/core/component_records.cpp src/core/component_parameter_records.cpp src/core/component_parameters.cpp src/core/component_regeneration.cpp src/core/consolidation.cpp src/core/appearance.cpp src/core/geometry_subset.cpp src/core/groups.cpp src/core/transform_selection.cpp src/core/copy_array.cpp src/core/selection.cpp src/core/model.cpp src/core/document_limits.cpp src/core/transform.cpp src/geometry/surface.cpp src/geometry/arrangement.cpp src/geometry/topology.cpp src/geometry/planar.cpp src/geometry/offset.cpp src/geometry/sweep.cpp src/geometry/cleanup.cpp src/geometry/push_pull.cpp src/geometry/drawing.cpp src/geometry/curves.cpp src/geometry/inference.cpp src/geometry/constraints.cpp src/geometry/guides.cpp)
 target_include_directories(sketchyup_core PUBLIC src)
 target_link_libraries(sketchyup_core PRIVATE clipper2 sketchyup_manifold)
@@ -113,6 +116,9 @@ if(SKETCHYUP_BUILD_IFC)
   # R097.a (ADR 0171): IfcOpenShell as private shared libraries and the helper that links them.
   add_subdirectory(src/ifc)
 endif()
+# R102.a (ADR 0176): the .skp helper. Built by default, with no Qt: the parser subset is plain
+# C++17, and the helper is the one executable that links it (decision 2).
+add_subdirectory(src/skp)
 if(BUILD_TESTING)
   # ADR 0170: the heap-held optional that keeps core/body.hpp from including terrain records.
   add_executable(indirect_optional_tests tests/indirect_optional_tests.cpp)
@@ -377,7 +383,7 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_test(NAME text_geometry COMMAND text_geometry_tests)
     set_tests_properties(text_geometry PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME=generic;QT_IM_MODULE=compose")
   endif()
-  add_library(sketchyup_io src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/step_worker.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/extension_worker.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
+  add_library(sketchyup_io src/io/skp_package.cpp src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/step_worker.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/extension_worker.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
   target_link_libraries(sketchyup_io PRIVATE sketchyup_cgltf)
   # R095.c terrain import uses the triangulation adapter.
   target_link_libraries(sketchyup_io PUBLIC sketchyup_terrain_triangulation)
@@ -388,7 +394,7 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(parser_fuzz_seeds PRIVATE sketchyup_io sketchyup_parameter_expression)
     target_compile_definitions(parser_fuzz_seeds PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_custom_target(parser_fuzzers DEPENDS parser_fuzz_seeds terrain_triangulation_fuzzers)
-    foreach(format native-json native-container glb stl-binary stl-ascii obj dxf template component extension parameter-expression terrain-mesh terrain-dxf terrain-points terrain-edits ifc-package)
+    foreach(format native-json native-container glb stl-binary stl-ascii obj dxf template component extension parameter-expression terrain-mesh terrain-dxf terrain-points terrain-edits ifc-package skp-package)
       string(REPLACE "-" "_" target "parser_fuzz_${format}")
       add_executable(${target} EXCLUDE_FROM_ALL tests/fuzz/parser_fuzzer.cpp tests/fuzz/fuzzer_allocation.cpp)
       target_link_libraries(${target} PRIVATE sketchyup_io sketchyup_parameter_expression)
@@ -734,6 +740,24 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_include_directories(ifc_package_tests PRIVATE tests)
     target_compile_definitions(ifc_package_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME ifc_package COMMAND ifc_package_tests)
+    # R102.a: the SKSKPP01 package writer and the checked decoder (ADR 0176); the test links both
+    # sides, which is the meeting point that the application itself never provides.
+    add_executable(skp_package_tests tests/skp_package_tests.cpp)
+    target_link_libraries(skp_package_tests PRIVATE sketchyup_io sketchyup_skp)
+    target_include_directories(skp_package_tests PRIVATE src tests)
+    add_test(NAME skp_package COMMAND skp_package_tests)
+    # R102.a: the import through the helper, against the synthetic .skp fixtures (the .skp
+    # format is a binary MFC archive; the fixtures' provenance is tests/fixtures/skp/SKP-SOURCE.txt).
+    if(TARGET sketchyup-skp-worker)
+      add_executable(skp_import_tests tests/skp_import_tests.cpp)
+      target_link_libraries(skp_import_tests PRIVATE sketchyup_io sketchyup_skp)
+      target_include_directories(skp_import_tests PRIVATE src tests)
+      target_compile_definitions(skp_import_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      add_test(NAME skp_import COMMAND skp_import_tests)
+      add_test(NAME skp_import_real COMMAND skp_import_tests --real)
+      set_tests_properties(skp_import_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+    endif()
     add_executable(ifc_convert_tests tests/ifc_convert_tests.cpp)
     target_link_libraries(ifc_convert_tests PRIVATE sketchyup_io)
     target_include_directories(ifc_convert_tests PRIVATE tests)
