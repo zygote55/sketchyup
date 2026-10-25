@@ -1960,9 +1960,10 @@ jobs:
           cmake --build --preset skp --parallel "$(nproc)"
       - name: The SKP tests
         # The package tests, the import through the helper against the synthetic fixtures
-        # (the .skp files' provenance is tests/fixtures/skp/SKP-SOURCE.txt), and the
-        # owner-file check (skipped on a machine without the corpus).
-        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real)$' --output-on-failure --no-tests=error
+        # (the .skp files' provenance is tests/fixtures/skp/SKP-SOURCE.txt), the mapping of
+        # the import into the native model (R102.b, S1 to S5 and the undo), and the owner-file
+        # checks (skipped on a machine without the corpus).
+        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real)$' --output-on-failure --no-tests=error
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
