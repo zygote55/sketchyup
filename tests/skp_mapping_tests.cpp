@@ -593,6 +593,8 @@ int main(int argc, char **argv) {
         check(imported.document.definitions().size() == 1, "the owner's file: one component definition (Teddy)");
         check(imported.document.instances().size() == 1, "the owner's file: one instance");
         std::cout << "owner's file: import " << elapsed << " ms, counts " << QJsonDocument(counts).toJson(QJsonDocument::Compact).toStdString() << "\n";
+        const auto [boxLo, boxHi] = worldBox(imported.document);
+        std::cout << "owner's file: world box " << (boxHi[0] - boxLo[0]) << " x " << (boxHi[1] - boxLo[1]) << " x " << (boxHi[2] - boxLo[2]) << " m\n";
         std::cout << "owner's file: notices " << QJsonDocument(imported.report["notices"].toObject()).toJson(QJsonDocument::Compact).toStdString() << "\n";
         std::cout << "owner's file: locations " << QJsonDocument(imported.report["locations"].toObject()).toJson(QJsonDocument::Compact).toStdString() << "\n";
         checkUndo("BanyanHarbor.skp", imported);

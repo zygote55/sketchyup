@@ -137,7 +137,10 @@ struct SkpPackageInstance {
   bool hidden{};
   long long tag{-1};
   long long material{-1};
-  std::array<double, 16> transform{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};  // row-major 4x4
+  // The 4x4 as the worker writes it: the 3x3 row-major in the top-left (index r * 4 + c), the translation in
+  // metres in the bottom row (indices 12 to 14), and 1 in index 15. The native Transform is column-major, so the
+  // importer transposes the 3x3 (R102.b, ADR 0176 implementation notes).
+  std::array<double, 16> transform{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
   std::string name;
   std::vector<SkpPackageAttribute> attributes;
 };

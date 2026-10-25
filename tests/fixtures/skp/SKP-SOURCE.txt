@@ -71,6 +71,10 @@ SHA-256 (the bytes committed; the two component fixtures are not reproducible, s
   mirrored_instance.skp    0f121df377a264b1f43ca57b2fbecce09d6adae075f068894f87fd4b944c6718
   textured_face.skp        7767a716a1fe924782d58fd3533b48c89d3de0ad4fb1ef0131374a65f3094e9f
   checker.png              75e1a0c3dbbcab080407eb46c89cb2b2a97180f8d9bba42c527bdc7df0e82643
+  named_attributes.skp     c74bf456ba1d6e030b8d12b18b468602103980e3aacd9ce3f4ac30bb29996d8b
+                           (two placements of one "Chair", named "Chair A" and "Chair B"; the
+                           first with a string, an integer, a float, a boolean and a Length
+                           attribute; the component, so not byte-reproducible)
 
 The w question (ADR 0176 section 4): the writer can make a scaled and a mirrored instance (the
 scale and the mirror are the placement's 3x3; no separate scale is written) and always writes

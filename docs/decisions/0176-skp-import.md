@@ -364,6 +364,98 @@ commit.
 ignores value 12, so the ADR's rule (divide the translation by *w* when *w* ≠ 1, with a
 `scaledPlacement` notice) has not fired on a real file yet; the R102.b fixtures settle it.
 
+## Implementation notes (R102.b)
+
+R102.b is implemented on the branch `feat/r102b-skp-mapping`: the mapping of a decoded package to one
+native document (§4), the application runner `importSkpFile` (§1.6 and §9), and the checks S1 to S5 (§7).
+Findings, 2026-10-25.
+
+**The import.** `importSkpPackage` (`src/io/skp_import.cpp`) builds one unsaved document in one edit
+labelled "Import SketchUp". The root's geometry sits in a top-level group named after the file (without
+its extension). Faces keep their loops (outer first). Each definition becomes a component definition, with
+one geometry body per tag and visibility, and each placement an instance; a nested placement has its own
+binding, as the native projection requires. `importSkpFile` (`src/io/skp_worker.cpp`) runs the helper on a
+private copy, with the cheap checks, the limits and the deadline, and decodes what it wrote.
+
+**UVs: direct, not per-vertex.** Every UV transform in the fixtures and in the owner's file has the affine
+form (third column (0, 0, 1)), so the stored 3×3 maps onto `TextureMapping` directly. The exporter's formula
+(openskp `face_groups.cpp`, `compute_face_uv` with `face_uv_basis`) gives
+u = (x·inv[0] + y·inv[3] + inv[6]) / tileW and v = (x·inv[1] + y·inv[4] + inv[7]) / tileH, where x and y are
+the point's coordinates on the face's basis in inches, and tileW and tileH are the texture's x_scale and
+y_scale (1 inch when unset). The importer writes these as the native gradients (repeats per metre) and
+offset. The basis comes from the face's normal, which is the Newell normal of the outer loop (below). A
+perspective matrix (third column not (0, 0, 1)) has no native form: the side takes the default projection,
+with the `uvPerspective` notice. No file seen has one. Texture v is not flipped, as OpenSKP's glTF export
+does not flip it. S5 checks the textured fixture's mapping against the exporter's formula at four points.
+
+**Loop orientation: no conversion.** For every face of the owner's file (159) and of every fixture, the
+parser's stored face normal agrees with the Newell normal of the outer loop, which is the native
+`Surface::normal` convention. The loops are kept as they are (§4).
+
+**w: the writer always writes 1, and its meaning is not settled.** OpenSKP's writer writes 1.0 in the
+thirteenth value for every instance, the owner's file has 1 for its only instance, and the parser's own
+point transform ignores the value. The writer can make a scaled and a mirrored instance, because the scale
+and the mirror live in the 3×3 (`matrix3x3`): `scaled_instance.skp` (a shear with non-uniform scale) and
+`mirrored_instance.skp` (a mirror in X). Both import with the 3×3 applied and w = 1, and the world bounding
+box matches the placement arithmetic to 1e-6 m. The R102.a rule (divide the translation by w when w ≠ 1, with
+the `scaledPlacement` notice) is kept unchanged, and no fixture exercises it. The other reading, where a
+homogeneous 4×4 divides the whole 3×3 and the translation by w, is a different rule and is not adopted without
+evidence. A file with w ≠ 1 from the owner's corpus would settle it.
+
+**A layout finding in R102.a.** The package's 4×4 keeps the 3×3 row-major in its top-left block, but the
+translation sits in its bottom row (values 12 to 14), not its last column. The native `Transform` is
+column-major (translation in 12 to 14, `m[c * 4 + r] = M[r][c]`), so the importer transposes the 3×3. The
+header comments now say so.
+
+**Groups are components (a gap against §4).** §4 maps a definition used once and flagged as a group to a
+native group. OpenSKP's model has no group flag: its legacy reader reads `CGroup` and `CComponentInstance`
+the same way (`legacy.cpp`), and `Definition` has no field for it. So every definition imports as a component
+definition, and a single-use group imports as a one-instance component. This is not a heuristic: a
+definition's use count does not say it is a group.
+
+**Edges and wires.** A package edge that no kept face uses is a wire (the worker never sets the wire flag).
+The native edge count equals the package's: 1,422 on the owner's file, and 4 to 12 on each fixture.
+
+**A face the native validator refuses.** The owner's file has one such face, a face of "Teddy" whose outer
+loop repeats vertices (a pinched outline, which the tessellator reports as "Repeated loop vertex"). It is
+dropped and counted (§4, `invalidFaces`), with its one small hole. Loops are read as the exporter reads them
+(its `loop_vertices`: a vertex repeated in a row is one vertex) before validation. Splitting pinched outlines
+into simple faces would change the face count, so it is not done here. Whether to split them is the owner's
+decision.
+
+**Not carried by the package.** Scenes, styles, section planes, texts, dimensions, the camera, and the
+construction lines and points are not in SKSKPP01. R102.a did not carry them, so the report lists them under
+`notCarried` instead of counting them. Guides (§4) are not imported.
+
+**Names and attributes.** R102.a's package carried neither instance names nor attributes, and §4 needs both.
+The manifest's definitions gain two optional arrays, aligned with the instances: `instanceNames` and
+`instanceAttributes`. A package without them decodes as before. An attribute becomes the property
+`skp.<dictionary>.<key>` when it is a string, a number or a boolean; a Length, a vector or a nested value is
+not imported. The native caps hold: 128 properties a body, keys of at most 128 bytes, strings of at most 2,048
+bytes.
+
+**Caps and refusals.** The native caps refuse elements with a notice and a count: `bodyLimit` (100,000 faces
+or vertices, or 300,000 edges, in one body), `documentLimit` (the unique geometry), `placementLimit` (the
+materialized geometry), `materialsOverLimit` (1,024 materials), and `nestingTooDeep` (a nesting beyond 64
+levels, or a cycle). A texture is kept as PNG or JPEG when the native decoder reads it; any other image is
+decoded and re-encoded as PNG; an image over 4096 by 4096 pixels is refused (`textureTooLarge`).
+
+**The owner's file (local only; the numbers only).** Two definitions (the root and "Teddy"), one placement, 158
+faces kept and one dropped (159 in the file), 4 holes kept and one dropped (5 in the file), 1,422 edges (153 of
+them wires), 18 materials, and one layer (the default layer, so no tag). The world bounding box is
+13.4389 × 8.27065 × 2.4384 m. The import through `importSkpFile` took 194 to 239 ms over five runs, on a machine
+under load (load average about 30), including the helper's parse. The file has no textures.
+
+**Fixtures and provenance.** Three fixtures (`scaled_instance.skp`, `mirrored_instance.skp`,
+`textured_face.skp`) and `named_attributes.skp` come from OpenSKP's writer at the pinned commit. The component
+fixtures, including the two R102.a ones, are not byte-reproducible: the writer stamps a random GUID and a
+timestamp on each definition. `SKP-SOURCE.txt` records the committed bytes as the reference.
+
+**Tests and CI.** `skp_mapping_tests` runs S1 to S5 on every fixture, the S3 edit, one undo with the label
+"Import SketchUp", and the report's accounting. With `SKETCHYUP_SKP_CORPUS` it also checks the owner's file.
+The `skp` job runs `skp_mapping` (and `skp_mapping_real`, skipped without the corpus), the `skp` preset builds
+its four targets, and the CI line inventory is regenerated (its one changed line is the job's test selection).
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue
