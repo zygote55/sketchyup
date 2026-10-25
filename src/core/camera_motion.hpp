@@ -16,6 +16,7 @@ struct CameraFrame {
 };
 struct CameraPathTiming {
     int framesPerSecond{24}, transitionSteps{24}, holdSteps{12};
+    bool operator==(const CameraPathTiming &) const = default;
 };
 // Includes the first pose, every transition endpoint and each requested hold step.
 std::vector<CameraFrame> planCameraFrames(const std::vector<SceneCamera> &scenes,

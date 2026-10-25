@@ -1,13 +1,9 @@
 #pragma once
+#include "core/render_settings.hpp"
 #include "core/selection.hpp"
 #include "integrations/render_environment.hpp"
 #include <QJsonObject>
 namespace sketchy {
-enum class RenderEngine { Cycles, Eevee };
-struct RenderSettings {
-    int width{1024}, height{768}, samples{32}, seed{};
-    RenderEngine engine{RenderEngine::Cycles};
-};
 struct RenderCamera {
     Vec3 position{8, -8, 6}, target{}, up{0, 0, 1};
     bool orthographic{};
@@ -18,7 +14,6 @@ struct RenderOptions {
     std::optional<RenderCamera> camera;
     std::optional<RenderEnvironment> environment;
 };
-void validateRenderSettings(const RenderSettings &settings);
 RenderCamera renderSceneCamera(const SceneCamera &camera);
 Transform renderCameraTransform(const RenderCamera &camera);
 QJsonObject describeRenderSettings(const RenderSettings &settings);

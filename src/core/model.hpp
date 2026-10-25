@@ -7,6 +7,7 @@
 #include "core/hosted_components.hpp"
 #include "core/material_records.hpp"
 #include "core/model_style.hpp"
+#include "core/presentation_records.hpp"
 #include "core/scene_records.hpp"
 #include "core/section_records.hpp"
 #include "core/site_origin.hpp"
@@ -66,6 +67,14 @@ struct DrawingItemChange {
 struct SectionChange {
     Id id{};
     SectionPtr before, after;
+};
+struct CameraPathChange {
+    Id id{};
+    CameraPathPtr before, after;
+};
+struct RenderPresetChange {
+    Id id{};
+    RenderPresetPtr before, after;
 };
 struct AnnotationChange {
     Id id{};
@@ -145,6 +154,11 @@ struct Edit {
     // Component parameter records ride on definitions and overrides on instances
     // (R093.b); driver IDs come from this document-global allocator.
     Id nextComponentDriverFloor{};
+    // Camera paths and render presets (ADR 0173 §2, §3): ordinary model edits in schema 30.
+    std::vector<CameraPathChange> cameraPaths{};
+    Id nextCameraPathFloor{};
+    std::vector<RenderPresetChange> renderPresets{};
+    Id nextRenderPresetFloor{};
 };
 using ChangeReport = std::map<Id, TopologyChanges>;
 // Running materialized-record totals compared with DocumentLimits::materialized.
@@ -221,6 +235,10 @@ class Document {
     Id nextAssetId() const { return nextAssetId_; }
     const SceneRecords &scenes() const { return scenes_; }
     Id nextSceneId() const { return nextSceneId_; }
+    const CameraPathRecords &cameraPaths() const { return cameraPaths_; }
+    Id nextCameraPathId() const { return nextCameraPathId_; }
+    const RenderPresetRecords &renderPresets() const { return renderPresets_; }
+    Id nextRenderPresetId() const { return nextRenderPresetId_; }
     const SectionRecords &sections() const { return sections_; }
     Id nextSectionId() const { return nextSectionId_; }
     const ActiveSections &activeSections() const { return activeSections_; }
@@ -349,7 +367,9 @@ class Document {
                  DrawingSheetRecords drawingSheets = {}, Id nextDrawingSheetId = 1,
                  DrawingViewRecords drawingViews = {}, Id nextDrawingViewId = 1,
                  DrawingItemRecords drawingItems = {}, Id nextDrawingItemId = 1,
-                 Id nextComponentDriverId = 1, std::optional<SiteOrigin> site = std::nullopt);
+                 Id nextComponentDriverId = 1, std::optional<SiteOrigin> site = std::nullopt,
+                 CameraPathRecords cameraPaths = {}, Id nextCameraPathId = 1,
+                 RenderPresetRecords renderPresets = {}, Id nextRenderPresetId = 1);
 
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
@@ -367,7 +387,9 @@ class Document {
                         Id nextDrawingSheetId = 1, DrawingViewRecords drawingViews = {},
                         Id nextDrawingViewId = 1, DrawingItemRecords drawingItems = {},
                         Id nextDrawingItemId = 1, Id nextComponentDriverId = 1,
-                        std::optional<SiteOrigin> site = std::nullopt);
+                        std::optional<SiteOrigin> site = std::nullopt,
+                        CameraPathRecords cameraPaths = {}, Id nextCameraPathId = 1,
+                        RenderPresetRecords renderPresets = {}, Id nextRenderPresetId = 1);
 
     std::string identity_;
     DisplayUnit displayUnits_{DisplayUnit::Meters};
@@ -405,6 +427,11 @@ class Document {
     Id nextDrawingItemId_{1};
     // Persisted from schema 28 (R093.c); parameter-free saves do not store it.
     Id nextComponentDriverId_{1};
+    // Persisted from schema 30 (ADR 0173); older schemas restore empty tables.
+    CameraPathRecords cameraPaths_;
+    Id nextCameraPathId_{1};
+    RenderPresetRecords renderPresets_;
+    Id nextRenderPresetId_{1};
     ComponentVariantsPtr variants_;
     struct DefinitionFloor {
         Id nextMemberId{1};

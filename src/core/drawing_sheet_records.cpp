@@ -145,6 +145,7 @@ bool isDrawingSheetOnlyEdit(const Edit &edit) {
            edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
            edit.tags.empty() && edit.materials.empty() && edit.assets.empty() &&
            edit.scenes.empty() && edit.sections.empty() && edit.annotations.empty() &&
+           edit.cameraPaths.empty() && edit.renderPresets.empty() &&
            !edit.displayUnits && !edit.displayPrecision && !edit.hosted && !edit.style &&
            !edit.activeSections && !edit.solar && !edit.site;
 }
