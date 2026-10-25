@@ -30,7 +30,7 @@
 namespace sketchy {
 namespace {
 
-constexpr std::size_t nameBytes = 2048;     // ADR 0176 section 4: body and definition names
+constexpr std::size_t nameBytes = 1024;     // the native cap on body, definition and tag names (model.cpp, component_records.cpp, tag_records.cpp); ADR 0176 section 4 said 2,048
 constexpr std::size_t materialNameBytes = 1024;  // the native material cap
 constexpr std::size_t materialLimit = 1024;      // validateMaterialRecords
 constexpr std::size_t maxNesting = 64;          // a placement's depth (a guard against cycles)
@@ -238,6 +238,13 @@ class Converter {
             throw IfcImportError("cancelled", "The import was cancelled.");
     }
     void note(const std::string &code, long long count = 1) { notices[code] += count; }
+    // A body or definition name capped at the native 1,024 bytes; a name that was cut is a truncatedNames
+    // notice (ADR 0176 section 4).
+    std::string capName(const std::string &text) {
+        if (text.size() > nameBytes)
+            note("truncatedNames");
+        return plainText(text, nameBytes);
+    }
     void locate(const std::string &kind, const std::string &definition, const std::string &message);
     void omit(const std::string &kind, long long count = 1) { omitted[kind] += count; }
 
@@ -524,7 +531,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
     auto root = std::make_shared<Body>();
     root->id = 1;
     root->kind = BodyKind::Group;
-    root->name = plainText(definition.name, nameBytes);
+    root->name = capName(definition.name);
     canon.members[1] = root;
 
     std::map<PairKey, const SkpPackageEdge *> edgeOf;
@@ -719,7 +726,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
             node->id = canon.nextMember++;
             node->kind = BodyKind::Group;
             node->parent = 1;
-            node->name = plainText(instance.name.empty() ? pkg.definitions[std::size_t(instance.definition)].name : instance.name, nameBytes);
+            node->name = capName(instance.name.empty() ? pkg.definitions[std::size_t(instance.definition)].name : instance.name);
             addAttributeProperties(node->properties, instance, notices);
             node->transform = placement;
             node->tag = tagOf(instance.tag);
@@ -799,7 +806,7 @@ void Converter::placeTopLevel(std::size_t k, Id parent) {
     group->id = nextBody++;
     group->kind = BodyKind::Group;
     group->parent = parent;
-    group->name = plainText(instance.name.empty() ? pkg.definitions[d].name : instance.name, nameBytes);
+    group->name = capName(instance.name.empty() ? pkg.definitions[d].name : instance.name);
     addAttributeProperties(group->properties, instance, notices);
     group->transform = placement;
     group->tag = tagOf(instance.tag);
@@ -835,7 +842,7 @@ SkpImport Converter::run() {
         base = base.substr(slash + 1);
     if (base.size() > 4 && base.substr(base.size() - 4) == ".skp")
         base = base.substr(0, base.size() - 4);
-    base = plainText(base, nameBytes);
+    base = capName(base);
     if (base.empty())
         base = "SketchUp model";
     auto rootGroup = std::make_shared<Body>();
@@ -867,7 +874,7 @@ SkpImport Converter::run() {
         auto definition = std::make_shared<ComponentDefinition>();
         definition->id = Id(d);
         definition->root = 1;
-        definition->name = plainText(pkg.definitions[d].name, nameBytes);
+        definition->name = capName(pkg.definitions[d].name);
         definition->members = canon.members;
         definition->references = canon.references;
         definition->nextMemberId = canon.nextMember;

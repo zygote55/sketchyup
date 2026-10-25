@@ -330,6 +330,21 @@ int main(int argc, char **argv) {
         }
     }
 
+    // A definition name over the native 1,024 bytes is capped (a longer one would fail the
+    // document validation and abort the import), and the cut is a truncatedNames notice.
+    {
+        auto package = packageOf(fixture("component_instances.skp"), temp);
+        check(package.definitions.size() > 1, "the component fixture has a component definition");
+        package.definitions[1].name = std::string(3000, 'n');
+        const auto imported = importSkpPackage(package);
+        check(imported.report["notices"].toObject()["truncatedNames"].toDouble(0) >= 1,
+              "a 3,000-byte definition name is a truncatedNames notice");
+        bool capped = !imported.document.definitions().empty();
+        for (const auto &[id, definition] : imported.document.definitions())
+            capped = capped && definition->name.size() <= 1024;
+        check(capped, "every definition name is at most 1,024 bytes");
+    }
+
     // S1 to S5 and the undo on each fixture.
     const char *fixtures[] = {"box.skp", "face_with_hole.skp", "soft_smooth_edges.skp", "two_materials.skp",
                               "component_instances.skp", "hidden_tag.skp", "nested_component.skp",

@@ -172,7 +172,7 @@ edges, back materials and UVs. The coplanar merge would then have to guess the f
 | Layer / tag | A native tag of the same name | Hidden tags import hidden. "Layer0" / "Untagged" maps to Untagged |
 | Instance and face hidden flags | `hidden` | Exact |
 | Model units | The document's display units | The geometry is always converted inches → metres; display units are a preference |
-| Instance and definition names | Body and definition names | Capped at 2,048 bytes, with a notice when truncated |
+| Instance and definition names | Body and definition names | Capped at 1,024 bytes (the native cap on body, definition, tag and material names), with a `truncatedNames` notice when cut. (First written as 2,048, which the native validator rejects; corrected in the R102.b review.) |
 | Attribute dictionaries | Properties `skp.<dictionary>.<key>` | Only string, number and boolean values, within the property caps. Dynamic-component behaviour is **not** imported |
 | Scenes, styles, section planes, texts, dimensions, the camera | Not imported (R102.a/b) | Counted in the report. Scenes and section planes are candidates for a later slice |
 
