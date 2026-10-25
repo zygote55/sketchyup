@@ -3,6 +3,7 @@
 // (ADR 0171 section 6.3: A1-A5, B1-B5, C1, C4-C6, D1, D3, E1-E7, H1). Needs sketchyup-ifc-worker
 // (IFC_WORKER_PATH) and python3; exits 77 (skipped) when the helper is not built.
 #include "io/ifc_worker.hpp"
+#include "io/step_worker.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QFile>
@@ -28,6 +29,15 @@ IfcWorkerOptions workerOptions(int threads = 1) {
     IfcWorkerOptions options;
     options.workerPath = QStringLiteral(IFC_WORKER_PATH);
     options.threads = threads;
+    options.deadlineSeconds = 120;
+#ifdef IFC_NO_ADDRESS_LIMIT
+    options.addressSpaceBytes = 0;
+#endif
+    return options;
+}
+StepWorkerOptions stepWorkerOptions() {
+    StepWorkerOptions options;
+    options.workerPath = QStringLiteral(IFC_WORKER_PATH);
     options.deadlineSeconds = 120;
 #ifdef IFC_NO_ADDRESS_LIMIT
     options.addressSpaceBytes = 0;
@@ -665,8 +675,8 @@ int main(int argc, char **argv) {
 #endif
         // ---- STEP import (R098.b, ADR 0172): the instanced assembly through the application --------------
         {
-            const IfcWorkerOptions worker = workerOptions();
-            const auto imported = importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-instanced.step"), {}, worker);
+            const StepWorkerOptions worker = stepWorkerOptions();
+            const auto imported = importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-instanced.step"), worker);
             const auto &doc = imported.document;
             // E1: validates as a whole; a save and reopen is bit-exact.
             const auto container = encodeContainer(doc);
@@ -731,7 +741,6 @@ int main(int argc, char **argv) {
         }
         // ---- STEP refusals through the application (F: a unit is never guessed) ----------------------------------
         {
-            const IfcWorkerOptions worker = workerOptions();
             QTemporaryDir stepTemp;
             check(stepTemp.isValid(), "a temporary directory for the STEP refusals");
             const auto writeStep = [&](const QString &name, const QByteArray &text) {
@@ -747,10 +756,10 @@ int main(int argc, char **argv) {
                                              "FILE_NAME('a','',(''),(''),'','','');\n"
                                              "FILE_SCHEMA(('AP214 { 1 0 10303 214 1 1 1 1 }'))\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n");
             auto refused = [&](const QString &path, const std::string &code, const QString &unit = {}) {
-                IfcWorkerOptions stepWorker = worker;
-                stepWorker.lengthUnit = unit;
+                StepWorkerOptions stepWorker = stepWorkerOptions();
+                stepWorker.lengthUnitOverride = unit;
                 try {
-                    (void)importStepFile(path, {}, stepWorker);
+                    (void)importStepFile(path, stepWorker);
                     check(false, path.toStdString() + ": it must be refused");
                 } catch (const IfcImportError &error) {
                     check(error.code() == code, path.toStdString() + ": refused with " + error.code() + ", expected " + code);
@@ -760,9 +769,9 @@ int main(int argc, char **argv) {
             refused(noUnits, "option", "furlong"); // the option names no unit
             // And a declared unit stands over a nonsense option (it is not a refusal, ADR 0172 decision 4).
             {
-                IfcWorkerOptions stepWorker = worker;
-                stepWorker.lengthUnit = "furlong";
-                (void)importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-box.step"), {}, stepWorker);
+                StepWorkerOptions stepWorker = stepWorkerOptions();
+                stepWorker.lengthUnitOverride = "furlong";
+                (void)importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/sketchyup-step-box.step"), stepWorker);
                 std::cerr << "step: the declared unit stands over the option\n";
             }
             std::cerr << "step refusals ok\n";

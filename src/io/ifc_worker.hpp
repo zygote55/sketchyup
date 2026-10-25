@@ -36,10 +36,6 @@ QString checkIfcSource(const QString &path);
 // Runs the whole import of one file into a new unsaved document. Throws IfcImportError (with the
 // report so far when there is one) for a refusal, a failure after the restarts, or a cancel.
 IfcImport importIfcFile(const QString &path, const IfcImportOptions &options, const IfcWorkerOptions &worker);
-// R098.b (ADR 0172): the same for a STEP file: the helper's --import-step (OCCT only), the same
-// conversion (the tag family STEP, the label Import STEP). The options' lengthUnit stands only when
-// the file declares no length unit (a unit is never guessed).
-IfcImport importStepFile(const QString &path, const IfcImportOptions &options, const IfcWorkerOptions &worker);
 // Where the helper is expected, or empty when it is missing (for the "unavailable" message).
 QString findIfcWorker(const QString &explicitPath = {});
 } // namespace sketchy
