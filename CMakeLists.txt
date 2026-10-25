@@ -1129,7 +1129,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R097.e1 (ADR 0171): the IFC import screens — the availability probe, the options
   # dialog, the progress sheet (import on a worker thread), the report/refusal/
   # unavailable sheets, and the File menu flow.
-  target_sources(sketchyup_desktop PRIVATE src/app/ifc_availability.cpp src/app/ifc_import_dialog.cpp src/app/ifc_import_runner.cpp src/app/ifc_progress_sheet.cpp src/app/ifc_sheets.cpp src/app/window_ifc.cpp)
+  target_sources(sketchyup_desktop PRIVATE src/app/ifc_availability.cpp src/app/ifc_export_dialog.cpp src/app/ifc_export_progress_sheet.cpp src/app/ifc_export_runner.cpp src/app/ifc_import_dialog.cpp src/app/ifc_import_runner.cpp src/app/ifc_progress_sheet.cpp src/app/ifc_sheets.cpp src/app/window_ifc.cpp)
   # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
   # progress sheet (import on a worker thread), the report/refusal/unavailable sheets,
   # and the File menu flow; the helper is the IFC helper's, so the IFC availability
@@ -1401,6 +1401,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME ifc_import_dialog COMMAND ifc_import_dialog_tests)
     set_tests_properties(ifc_import_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                    TIMEOUT 600)
+    # R097.e2 (ADR 0171): the IFC export screens — the plan dialog, the Save dialog, the
+    # progress sheet, the report, the refusals, and a cancelled export — offscreen,
+    # driven by a stand-in helper.
+    add_executable(ifc_export_dialog_tests tests/ifc_export_dialog_tests.cpp)
+    target_link_libraries(ifc_export_dialog_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(ifc_export_dialog_tests PRIVATE tests)
+    target_compile_definitions(ifc_export_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME ifc_export_dialog COMMAND ifc_export_dialog_tests)
+    set_tests_properties(ifc_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.
