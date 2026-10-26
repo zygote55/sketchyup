@@ -12066,6 +12066,45 @@
       "sideEffects": "none"
     },
     {
+      "name": "catalog.list",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "catalog": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.list"
+          }
+        },
+        "required": [
+          "catalog",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
       "name": "presentation.describe",
       "paged": false,
       "parameters": {
@@ -15198,6 +15237,54 @@
         "type": "object"
       },
       "name": "render_preset.describe"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "catalog.list: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "catalog": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.list"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "catalog",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "catalog.list"
     },
     {
       "annotations": {
@@ -28656,6 +28743,39 @@
                 },
                 "required": [
                   "preset",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "catalog": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.list"
+                  }
+                },
+                "required": [
+                  "catalog",
                   "apiVersion",
                   "documentId",
                   "expectedRevision",
@@ -42165,6 +42285,39 @@
                 },
                 "required": [
                   "preset",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "catalog": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.list"
+                  }
+                },
+                "required": [
+                  "catalog",
                   "apiVersion",
                   "documentId",
                   "expectedRevision",

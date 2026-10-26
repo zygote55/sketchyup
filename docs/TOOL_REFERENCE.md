@@ -197,6 +197,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scene.visibility` |  | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `camera_path.describe` |  | `path`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `render_preset.describe` |  | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.list` |  | `catalog`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `presentation.describe` |  | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheet.describe` |  | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -277,6 +278,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scene.visibility` | saved_scene.visibility: shared versioned SketchyUp operation | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `camera_path.describe` | camera_path.describe: shared versioned SketchyUp operation | `path`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `render_preset.describe` | render_preset.describe: shared versioned SketchyUp operation | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.list` | catalog.list: shared versioned SketchyUp operation | `catalog`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `presentation.describe` | presentation.describe: shared versioned SketchyUp operation | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` | drawing_sheets.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheet.describe` | drawing_sheet.describe: shared versioned SketchyUp operation | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |

@@ -1,4 +1,5 @@
 #include "automation/inspection.hpp"
+#include "catalog_fixtures.hpp"
 #include "automation/presentation_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "core/components.hpp"
@@ -545,6 +546,18 @@ int main(int argc, char **argv) {
             rejects("INVALID_REQUEST", [&] {
                 run(reported, "report.run", {{"request", QJsonObject{{"filters", QJsonObject{{"selection", true}}}}}});
             });
+        }
+        {
+            // R100.c (ADR 0174 section 4.1): catalog.list reads inline bytes and lists each entry.
+            Document catalogDocument;
+            const auto bytes = catalog_fixture::fixtures().value(QStringLiteral("tampered-asset"));
+            const auto listing = run(catalogDocument, "catalog.list",
+                                     {{"catalog", QString::fromLatin1(bytes.toBase64(
+                                                      QByteArray::Base64UrlEncoding |
+                                                      QByteArray::OmitTrailingEquals))}});
+            check(listing["entryCount"] == 5 && listing["importableCount"] == 3 &&
+                      listing["missingAssets"] == 1,
+                  "catalog.list lists each entry with its importable state");
         }
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
