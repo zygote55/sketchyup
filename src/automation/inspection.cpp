@@ -8,6 +8,7 @@
 #include "core/component_parameter_records.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
+#include "io/catalog_io.hpp"
 #include "io/display_precision_io.hpp"
 #include "io/sheet_export.hpp"
 #include "io/model_style_io.hpp"
@@ -88,6 +89,7 @@ enum class Operation {
     CameraPath,
     RenderPreset,
     Presentation,
+    CatalogList,
     DrawingSheets,
     DrawingSheet,
     DrawingViewsStatus,
@@ -166,6 +168,9 @@ const std::vector<Spec> &registry() {
             spec("camera_path.describe", Operation::CameraPath, {{"path", idSchema()}}, {"path"}),
             spec("render_preset.describe", Operation::RenderPreset, {{"preset", idSchema()}},
                  {"preset"}),
+            // R100.c (ADR 0174 section 4.1): the bytes travel inline, so the query reads no path.
+            spec("catalog.list", Operation::CatalogList,
+                 {{"catalog", textSchema(inspectionRequestBytes)}}, {"catalog"}),
             spec("presentation.describe", Operation::Presentation,
                  {{"path", idSchema()},
                   {"presets", list(idSchema(), 1, 4)},
@@ -779,6 +784,19 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
     case Operation::RenderPreset:
         data = renderPresetDescription(doc, decimal(request["preset"]));
         break;
+    case Operation::CatalogList: {
+        const auto bytes = request["catalog"].toString().toLatin1();
+        const auto decoded = QByteArray::fromBase64(bytes, QByteArray::Base64UrlEncoding);
+        if (decoded.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals) !=
+            bytes)
+            fail("INVALID_REQUEST", "catalog must be unpadded base64url");
+        try {
+            data = encodeCatalogListing(decodeCatalog(decoded));
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    }
     case Operation::Presentation: {
         std::vector<Id> presets;
         for (const auto &item : request["presets"].toArray())
