@@ -49,17 +49,14 @@ void publish(const QString &path, const QByteArray &bytes) {
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
         throw std::runtime_error("Could not save batch manifest");
 }
-QString frameName(size_t index) {
-    return QString("frame-%1").arg(index + 1, 4, 10, QChar('0'));
-}
+QString frameName(size_t index) { return QString("frame-%1").arg(index + 1, 4, 10, QChar('0')); }
 // The preset folder is numbered, so folder names stay unique whatever the preset is called.
 QString presetDirectory(size_t index, const QString &name) {
     QString safe;
     for (const auto character : name.left(48)) {
-        const bool keep = (character >= 'a' && character <= 'z') ||
-                          (character >= 'A' && character <= 'Z') ||
-                          (character >= '0' && character <= '9') || character == '-' ||
-                          character == '_';
+        const bool keep =
+            (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+            (character >= '0' && character <= '9') || character == '-' || character == '_';
         safe += keep ? character : QChar('-');
     }
     if (safe.isEmpty())
@@ -68,8 +65,7 @@ QString presetDirectory(size_t index, const QString &name) {
 }
 // The per-frame bound the animation export uses: the PNG cap plus the metadata cap.
 qint64 frameBudget(const RenderSettings &settings) {
-    return std::min<qint64>(frameImageLimit,
-                            qint64(settings.width) * settings.height * 5 + mib) +
+    return std::min<qint64>(frameImageLimit, qint64(settings.width) * settings.height * 5 + mib) +
            metadataLimit;
 }
 qint64 plannedBudget(const PresentationPlan &plan, size_t frames) {
@@ -88,7 +84,8 @@ std::vector<CameraFrame> planFrames(const Document &document, const Presentation
             ids.append(QString::number(scene));
         throw std::runtime_error("Camera path '" + plan.path.toStdString() +
                                  "' names saved scenes that no longer exist (" +
-                                 ids.join(", ").toStdString() + "); repair the path before exporting");
+                                 ids.join(", ").toStdString() +
+                                 "); repair the path before exporting");
     }
     if (!references.sceneHasNoCamera.empty())
         throw std::runtime_error("Camera path '" + plan.path.toStdString() +
@@ -110,8 +107,8 @@ void requireBackendMatchesPresets(const PresentationPlan &plan,
     }
 }
 void requireBlender(const BlenderJob::Options &options) {
-    const auto executable =
-        options.executable.isEmpty() ? QStandardPaths::findExecutable("blender") : options.executable;
+    const auto executable = options.executable.isEmpty() ? QStandardPaths::findExecutable("blender")
+                                                         : options.executable;
     const QFileInfo file(executable);
     if (executable.isEmpty() || !file.isAbsolute() || !file.isFile() || !file.isExecutable())
         throw std::runtime_error(
@@ -119,7 +116,8 @@ void requireBlender(const BlenderJob::Options &options) {
             "executable");
 }
 } // namespace
-PresentationCapture::PresentationCapture(Document document, QByteArray encoded, PresentationPlan plan)
+PresentationCapture::PresentationCapture(Document document, QByteArray encoded,
+                                         PresentationPlan plan)
     : document_(std::move(document)), encoded_(std::move(encoded)), sha256_(digest(encoded_)),
       documentId_(document_.identity()), revision_(document_.revision()), plan_(std::move(plan)),
       frames_(planFrames(document_, plan_)) {}
@@ -172,7 +170,9 @@ struct PresentationExport::Impl {
         timer.setInterval(10);
         QObject::connect(&timer, &QTimer::timeout, &owner, [this] { poll(); });
     }
-    QString frameDirectory(size_t p) const { return output + "/" + presetDirectories[p] + "/frames"; }
+    QString frameDirectory(size_t p) const {
+        return output + "/" + presetDirectories[p] + "/frames";
+    }
     int completed() const {
         int count = 0;
         for (const auto &preset : records)
@@ -183,6 +183,9 @@ struct PresentationExport::Impl {
     void setUp(const PresentationCapture &frozen) {
         presetDirectories.clear();
         records.clear();
+        preset = index = 0;
+        bytes = 0;
+        lastAttempt = {};
         for (size_t p = 0; p < frozen.plan().presets.size(); ++p) {
             presetDirectories.push_back(presetDirectory(p, frozen.plan().presets[p].name));
             records.emplace_back(frozen.frames().size());
@@ -216,11 +219,11 @@ struct PresentationExport::Impl {
                 state = "completed";
             else if (p == preset)
                 state = status;
-            QJsonObject entry{{"directory", presetDirectories[p]},
-                              {"state", state},
-                              {"settings", describeRenderSettings(
-                                               capture->plan().presets[p].settings)},
-                              {"frames", frames}};
+            QJsonObject entry{
+                {"directory", presetDirectories[p]},
+                {"state", state},
+                {"settings", describeRenderSettings(capture->plan().presets[p].settings)},
+                {"frames", frames}};
             if (!device.isEmpty())
                 entry["device"] = device;
             presets.append(entry);
@@ -229,23 +232,22 @@ struct PresentationExport::Impl {
         QJsonArray keyframes;
         for (const auto scene : plan.keyframes)
             keyframes.append(QString::number(scene));
-        const QJsonObject value{
-            {"apiVersion", 1},
-            {"adapter", "sketchyup-presentation-v1"},
-            {"jobId", id},
-            {"state", status},
-            {"message", message},
-            {"path", plan.path},
-            {"keyframes", keyframes},
-            {"documentId", QString::fromStdString(capture->documentId())},
-            {"revision", QString::number(capture->revision())},
-            {"captureSha256", capture->sha256()},
-            {"framesPerSecond", plan.timing.framesPerSecond},
-            {"framesPerPreset", int(capture->frames().size())},
-            {"totalFrames", int(capture->frames().size() * records.size())},
-            {"completedFrames", completed()},
-            {"totalBytes", bytes},
-            {"presets", presets}};
+        const QJsonObject value{{"apiVersion", 1},
+                                {"adapter", "sketchyup-presentation-v1"},
+                                {"jobId", id},
+                                {"state", status},
+                                {"message", message},
+                                {"path", plan.path},
+                                {"keyframes", keyframes},
+                                {"documentId", QString::fromStdString(capture->documentId())},
+                                {"revision", QString::number(capture->revision())},
+                                {"captureSha256", capture->sha256()},
+                                {"framesPerSecond", plan.timing.framesPerSecond},
+                                {"framesPerPreset", int(capture->frames().size())},
+                                {"totalFrames", int(capture->frames().size() * records.size())},
+                                {"completedFrames", completed()},
+                                {"totalBytes", bytes},
+                                {"presets", presets}};
         publish(output + "/manifest.json", QJsonDocument(value).toJson());
     }
     // Keeps a frame only when its image, its metadata and the manifest entry all agree.
@@ -257,10 +259,10 @@ struct PresentationExport::Impl {
             const auto png = readFile(frameDirectory(p) + "/" + name + ".png", frameImageLimit);
             if (digest(png) != entry.value("sha256"))
                 return false;
-            const auto metadata =
-                readFile(frameDirectory(p) + "/" + name + ".json", metadataLimit);
+            const auto metadata = readFile(frameDirectory(p) + "/" + name + ".json", metadataLimit);
             const auto record = QJsonDocument::fromJson(metadata).object();
-            if (record.value("file") != name + ".png" || record.value("sha256") != entry.value("sha256") ||
+            if (record.value("file") != name + ".png" ||
+                record.value("sha256") != entry.value("sha256") ||
                 record.value("bytes").toInteger(-1) != png.size() ||
                 record.value("index").toInteger(-1) != qint64(i))
                 return false;
@@ -272,10 +274,9 @@ struct PresentationExport::Impl {
         }
     }
     void resume() {
-        const auto saved = QJsonDocument::fromJson(readFile(output + "/manifest.json", manifestLimit))
-                               .object();
-        if (saved.value("adapter") != "sketchyup-presentation-v1" ||
-            saved.value("jobId") != id ||
+        const auto saved =
+            QJsonDocument::fromJson(readFile(output + "/manifest.json", manifestLimit)).object();
+        if (saved.value("adapter") != "sketchyup-presentation-v1" || saved.value("jobId") != id ||
             saved.value("captureSha256") != capture->sha256())
             throw std::runtime_error(
                 "The batch manifest does not belong to this job; the finished frames are kept");
@@ -378,7 +379,11 @@ struct PresentationExport::Impl {
             QObject::connect(worker, &BlenderJob::changed, &owner, [this] { workerChanged(); });
             worker->start(input, options);
         } catch (const std::exception &error) {
-            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+            if (canceling)
+                terminal(PresentationJobState::Canceled,
+                         "Batch canceled; finished frames are retained");
+            else
+                terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
         }
     }
     void workerChanged() {
@@ -403,11 +408,10 @@ struct PresentationExport::Impl {
             return;
         }
         if (!finished->result()) {
-            terminal(PresentationJobState::Failed,
-                     QString("Frame %1 of %2 failed: %3")
-                         .arg(index + 1)
-                         .arg(capture->frames().size())
-                         .arg(finished->progress()));
+            terminal(PresentationJobState::Failed, QString("Frame %1 of %2 failed: %3")
+                                                       .arg(index + 1)
+                                                       .arg(capture->frames().size())
+                                                       .arg(finished->progress()));
             return;
         }
         try {
@@ -510,7 +514,8 @@ QString PresentationExport::start(PresentationCapture capture, QString output,
     for (const auto &[jobId, job] : impl.store.jobs())
         if (job.state == PresentationJobState::Running ||
             job.state == PresentationJobState::Canceling)
-            throw std::runtime_error("Another presentation batch is running; wait for it to finish");
+            throw std::runtime_error(
+                "Another presentation batch is running; wait for it to finish");
     const auto plan = capture.plan();
     requireBackendMatchesPresets(plan, options);
     requireBlender(options);
@@ -537,10 +542,9 @@ QString PresentationExport::start(PresentationCapture capture, QString output,
                 .arg(needed / mib)
                 .arg(available / mib)
                 .toStdString());
-    const auto id = impl.store.enqueue(capture.encoded(),
-                                       QString::fromStdString(capture.documentId()),
-                                       QString::number(capture.revision()), plan,
-                                       target.absoluteFilePath());
+    const auto id =
+        impl.store.enqueue(capture.encoded(), QString::fromStdString(capture.documentId()),
+                           QString::number(capture.revision()), plan, target.absoluteFilePath());
     impl.id = id;
     impl.output = target.absoluteFilePath();
     impl.setUp(capture);
@@ -582,11 +586,9 @@ void PresentationExport::retry(const QString &id, BlenderJob::Options options) {
     impl.id = id;
     impl.output = job.output;
     impl.setUp(frozen);
-    impl.bytes = 0;
     impl.capture = std::move(frozen);
     impl.options = std::move(options);
     impl.resume();
-    impl.preset = impl.index = 0;
     impl.store.retry(id);
     impl.begin();
 }

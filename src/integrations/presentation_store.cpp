@@ -61,14 +61,13 @@ QJsonObject encodePlan(const PresentationPlan &plan) {
     for (const auto scene : plan.keyframes)
         keyframes.append(QString::number(scene));
     for (const auto &preset : plan.presets)
-        presets.append(QJsonObject{{"name", preset.name},
-                                   {"width", preset.settings.width},
-                                   {"height", preset.settings.height},
-                                   {"samples", preset.settings.samples},
-                                   {"seed", preset.settings.seed},
-                                   {"engine", preset.settings.engine == RenderEngine::Eevee
-                                                  ? "eevee"
-                                                  : "cycles"}});
+        presets.append(QJsonObject{
+            {"name", preset.name},
+            {"width", preset.settings.width},
+            {"height", preset.settings.height},
+            {"samples", preset.settings.samples},
+            {"seed", preset.settings.seed},
+            {"engine", preset.settings.engine == RenderEngine::Eevee ? "eevee" : "cycles"}});
     return {{"path", plan.path},
             {"keyframes", keyframes},
             {"timing", QJsonObject{{"framesPerSecond", plan.timing.framesPerSecond},
@@ -152,11 +151,10 @@ StoredPresentationJob decode(const QJsonObject &value, const QString &id) {
     require(QFileInfo(job.output).isAbsolute() && job.output.size() <= 4096,
             "Invalid presentation output");
     bool stateFound{};
-    for (auto state :
-         {PresentationJobState::Queued, PresentationJobState::Running,
-          PresentationJobState::Canceling, PresentationJobState::Completed,
-          PresentationJobState::Failed, PresentationJobState::Canceled,
-          PresentationJobState::Interrupted}) {
+    for (auto state : {PresentationJobState::Queued, PresentationJobState::Running,
+                       PresentationJobState::Canceling, PresentationJobState::Completed,
+                       PresentationJobState::Failed, PresentationJobState::Canceled,
+                       PresentationJobState::Interrupted}) {
         if (value.value("state") == presentationJobStateName(state)) {
             job.state = state;
             stateFound = true;
@@ -369,9 +367,7 @@ QByteArray PresentationJobStore::capture(const QString &id) const {
             "Stored presentation capture does not match its record");
     return bytes;
 }
-QString PresentationJobStore::scratchDirectory(const QString &id) const {
-    return jobDirectory(id);
-}
+QString PresentationJobStore::scratchDirectory(const QString &id) const { return jobDirectory(id); }
 void PresentationJobStore::transition(const QString &id, PresentationJobState state,
                                       QString message, QJsonObject report) {
     auto job = jobs_.at(id);
@@ -415,7 +411,8 @@ void PresentationJobStore::complete(const QString &id, QJsonObject report) {
 }
 void PresentationJobStore::retry(const QString &id) {
     auto job = jobs_.at(id);
-    require(job.state == PresentationJobState::Failed || job.state == PresentationJobState::Canceled ||
+    require(job.state == PresentationJobState::Failed ||
+                job.state == PresentationJobState::Canceled ||
                 job.state == PresentationJobState::Interrupted,
             "Only an unfinished terminal batch can be retried");
     require(job.attempts < 1000, "Presentation job retry limit reached");

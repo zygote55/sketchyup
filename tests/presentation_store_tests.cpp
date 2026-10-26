@@ -69,8 +69,7 @@ int main(int argc, char **argv) {
             check(store.jobs().at(first).state == PresentationJobState::Queued &&
                       store.jobs().at(first).captureSha256 == digest(capture("first")),
                   "Created job records its state and capture hash");
-            check(store.capture(first) == capture("first"),
-                  "Stored capture is returned unchanged");
+            check(store.capture(first) == capture("first"), "Stored capture is returned unchanged");
             second = store.enqueue(capture("second"), "doc-1", "8", plan("Orbit"), output + "/b");
             rejects([&] { store.enqueue(capture(), "doc-1", "7", plan(), output + "/c"); },
                     "A third unfinished batch exceeds the pending limit");
@@ -100,8 +99,9 @@ int main(int argc, char **argv) {
             check(recovered.state == PresentationJobState::Interrupted &&
                       recovered.plan == plan("Orbit") && recovered.plan.presets.size() == 2,
                   "Restart reopens a stopped batch as interrupted with its plan intact");
-            check(recovered.report.value("interruptedWorkerLogs").toObject().contains(
-                      "scratch-abcdef/1"),
+            check(recovered.report.value("interruptedWorkerLogs")
+                      .toObject()
+                      .contains("scratch-abcdef/1"),
                   "Interrupted batch retains its bounded worker log");
             check(!QDir(store.scratchDirectory(second) + "/scratch-abcdef").exists(),
                   "Interrupted batch removes its scratch");
@@ -127,7 +127,8 @@ int main(int argc, char **argv) {
         {
             // Retention: four records are kept, and a full history refuses the next batch.
             PresentationJobStore store(path, limits);
-            const auto fourth = store.enqueue(capture("fourth"), "doc-1", "9", plan(), output + "/e");
+            const auto fourth =
+                store.enqueue(capture("fourth"), "doc-1", "9", plan(), output + "/e");
             store.transition(fourth, PresentationJobState::Canceled);
             check(store.jobs().size() == 4, "Four batches are retained");
             rejects([&] { store.enqueue(capture(), "doc-1", "9", plan(), output + "/f"); },
@@ -139,8 +140,9 @@ int main(int argc, char **argv) {
         {
             // Storage budget: the capture and its record must fit the store's bytes.
             PresentationJobStore small(files.filePath("small"), {8, 16, 1024LL * 1024});
-            rejects([&] { small.enqueue(QByteArray(900 * 1024, 'y'), "doc-1", "9", plan(), output); },
-                    "A capture over the store budget is refused");
+            rejects(
+                [&] { small.enqueue(QByteArray(900 * 1024, 'y'), "doc-1", "9", plan(), output); },
+                "A capture over the store budget is refused");
             check(small.jobs().empty(), "Refused capture leaves no job");
         }
         {

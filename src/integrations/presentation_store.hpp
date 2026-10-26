@@ -8,7 +8,15 @@
 namespace sketchy {
 // The batch states follow the R070 render job machine (ADR 0173 §4). Only one batch may be
 // Running or Canceling at a time.
-enum class PresentationJobState { Queued, Running, Canceling, Completed, Failed, Canceled, Interrupted };
+enum class PresentationJobState {
+    Queued,
+    Running,
+    Canceling,
+    Completed,
+    Failed,
+    Canceled,
+    Interrupted
+};
 QString presentationJobStateName(PresentationJobState state);
 // One output of a batch: a name and the render settings. The preset record's ID is not part
 // of the job, so a stored job does not depend on the document's allocator.

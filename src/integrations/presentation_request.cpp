@@ -6,7 +6,8 @@
 #include <QJsonDocument>
 #include <QTimer>
 namespace sketchy {
-PresentationPlan resolvePresentationRequest(const Document &doc, const PresentationRequest &request) {
+PresentationPlan resolvePresentationRequest(const Document &doc,
+                                            const PresentationRequest &request) {
     PresentationPlan plan;
     if (request.explicitKeyframes) {
         plan.path = request.name;

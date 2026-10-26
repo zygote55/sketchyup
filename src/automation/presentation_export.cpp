@@ -16,8 +16,8 @@ int integerField(const QJsonObject &object, const char *key, int fallback) {
 void requireFields(const QJsonObject &object, const QStringList &allowed, const char *where) {
     for (const auto &key : object.keys())
         if (!allowed.contains(key))
-            throw InspectionError("INVALID_REQUEST", std::string("Unknown ") + where + " field: " +
-                                                         key.toStdString());
+            throw InspectionError("INVALID_REQUEST",
+                                  std::string("Unknown ") + where + " field: " + key.toStdString());
 }
 QJsonObject timingSchema() {
     return {{"framesPerSecond", "integer 1 to 60, default 24"},
@@ -33,9 +33,9 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
     if (error.error != QJsonParseError::NoError || !json.isObject())
         throw InspectionError("INVALID_REQUEST", "Expected one JSON presentation request object");
     const auto value = json.object();
-    requireFields(value, {"apiVersion", "path", "name", "keyframes", "timing", "presets", "output",
-                          "video"},
-                  "presentation request");
+    requireFields(
+        value, {"apiVersion", "path", "name", "keyframes", "timing", "presets", "output", "video"},
+        "presentation request");
     if (value.value("apiVersion") != 1)
         throw InspectionError("INVALID_REQUEST", "Presentation requests require apiVersion 1");
     if (value.contains("video")) {
@@ -71,7 +71,8 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
         request.explicitKeyframes = true;
         request.name = value.value("name").toString("Keyframes");
         if (value.contains("name") && (!value.value("name").isString() || request.name.isEmpty()))
-            throw InspectionError("INVALID_REQUEST", "A presentation name must be a non-empty string");
+            throw InspectionError("INVALID_REQUEST",
+                                  "A presentation name must be a non-empty string");
         if (value.contains("timing")) {
             if (!value.value("timing").isObject())
                 throw InspectionError("INVALID_REQUEST", "Presentation timing must be an object");
@@ -93,9 +94,9 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
         if (!item.isString() || item.toString().isEmpty())
             throw InspectionError("INVALID_REQUEST", "Presets are render preset names");
         if (seen.contains(item.toString()))
-            throw InspectionError("INVALID_REQUEST",
-                                  "Render preset " + item.toString().toStdString() +
-                                      " is listed more than once");
+            throw InspectionError("INVALID_REQUEST", "Render preset " +
+                                                         item.toString().toStdString() +
+                                                         " is listed more than once");
         seen.insert(item.toString());
         request.presets.push_back(item.toString());
     }
@@ -117,8 +118,8 @@ QJsonObject presentationExportCapabilities() {
             {"frameDeadlineMs", 180000},
             {"store", "AppLocalDataLocation/presentation-jobs"},
             {"cancel", "SIGINT stops at the next frame boundary"},
-            {"exitCodes", QJsonObject{{"0", "completed"}, {"1", "failed or interrupted"},
-                                      {"130", "canceled"}}},
+            {"exitCodes",
+             QJsonObject{{"0", "completed"}, {"1", "failed or interrupted"}, {"130", "canceled"}}},
             {"video", "unavailable until R099.c"}};
 }
 QJsonObject presentationExportDescription() {
@@ -127,15 +128,14 @@ QJsonObject presentationExportDescription() {
             {"summary", "Render a camera path through one or more render presets to a new folder "
                         "with a batch manifest. Finished frames survive cancellation."},
             {"request",
-             QJsonObject{
-                 {"apiVersion", 1},
-                 {"path", "camera path name (or use keyframes with timing)"},
-                 {"keyframes", "saved scene names, two to thirty-two, in playback order"},
-                 {"name", "name for an explicit keyframe list, default Keyframes"},
-                 {"timing", timingSchema()},
-                 {"presets", "one to four render preset names"},
-                 {"output", "new folder; its parent must exist"},
-                 {"video", "must be absent or false in this release"}}},
+             QJsonObject{{"apiVersion", 1},
+                         {"path", "camera path name (or use keyframes with timing)"},
+                         {"keyframes", "saved scene names, two to thirty-two, in playback order"},
+                         {"name", "name for an explicit keyframe list, default Keyframes"},
+                         {"timing", timingSchema()},
+                         {"presets", "one to four render preset names"},
+                         {"output", "new folder; its parent must exist"},
+                         {"video", "must be absent or false in this release"}}},
             {"limits", presentationExportCapabilities()}};
 }
 } // namespace sketchy

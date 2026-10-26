@@ -29,7 +29,8 @@ QByteArray read(const QString &path) {
 }
 void write(const QString &path, const QByteArray &bytes) {
     QFile file(path);
-    check(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size(), "Write CLI fixture");
+    check(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size(),
+          "Write CLI fixture");
 }
 QString quote(QString text) { return "'" + text.replace("'", "'\\''") + "'"; }
 int launches(const QString &counter) {
@@ -107,13 +108,16 @@ int main(int argc, char **argv) {
         };
 
         // Success by camera path name, into an absolute new folder.
-        const auto byPath = request("path.json", R"({"apiVersion":1,"path":"Orbit","presets":["Draft","Check"],"output":")" +
-                                                     files.filePath("export/orbit").toUtf8() + R"("})");
+        const auto byPath =
+            request("path.json",
+                    R"({"apiVersion":1,"path":"Orbit","presets":["Draft","Check"],"output":")" +
+                        files.filePath("export/orbit").toUtf8() + R"("})");
         auto done = runCli({"--input", native, "--export-presentation", byPath}, env, files.path());
         check(done.code == 0, "A batch from a camera path completes with exit 0");
         const auto manifest = QJsonDocument::fromJson(done.out).object();
         check(manifest.value("state") == "completed" && manifest.value("path") == "Orbit" &&
-                  manifest.value("totalFrames") == 12 && manifest.value("jobId").toString().size() == 36,
+                  manifest.value("totalFrames") == 12 &&
+                  manifest.value("jobId").toString().size() == 36,
               "The CLI prints the completed manifest on stdout");
         check(QFileInfo(files.filePath("export/orbit/manifest.json")).isFile() &&
                   QFileInfo(files.filePath("export/orbit/02-Check/frames/frame-0006.png")).isFile(),
@@ -123,13 +127,14 @@ int main(int argc, char **argv) {
         check(read(native) == nativeBytes, "The CLI leaves the native model unchanged");
 
         // Success with an explicit keyframe list and timing, relative to the working folder.
-        const auto explicitList =
-            request("explicit.json", R"({"apiVersion":1,"keyframes":["A","B"],"name":"Pair",)"
-                                     R"("timing":{"framesPerSecond":12,"transitionSteps":1,"holdSteps":0},)"
-                                     R"("presets":["Draft"],"output":"pair"})");
+        const auto explicitList = request(
+            "explicit.json", R"({"apiVersion":1,"keyframes":["A","B"],"name":"Pair",)"
+                             R"("timing":{"framesPerSecond":12,"transitionSteps":1,"holdSteps":0},)"
+                             R"("presets":["Draft"],"output":"pair"})");
         done = runCli({"--input", native, "--export-presentation", explicitList}, env,
                       files.filePath("export"));
-        check(done.code == 0 && QJsonDocument::fromJson(done.out).object().value("framesPerSecond") == 12 &&
+        check(done.code == 0 &&
+                  QJsonDocument::fromJson(done.out).object().value("framesPerSecond") == 12 &&
                   QJsonDocument::fromJson(done.out).object().value("path") == "Pair",
               "An explicit keyframe list uses its own name and timing, and a relative folder");
         check(QFileInfo::exists(files.filePath("export/pair/manifest.json")),
@@ -139,12 +144,13 @@ int main(int argc, char **argv) {
         const auto interruptCounter = files.filePath("count-interrupt");
         blenderLauncher(bin + "/blender", binary, interruptCounter, 2);
         const auto interruptedOutput = files.filePath("export/interrupted");
-        const auto interruptRequest =
-            request("interrupt.json", R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
-                                          interruptedOutput.toUtf8() + R"("})");
+        const auto interruptRequest = request(
+            "interrupt.json", R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
+                                  interruptedOutput.toUtf8() + R"("})");
         QProcess running;
         running.setProcessEnvironment(env);
-        running.start(QStringLiteral(CLI_PATH), {"--input", native, "--export-presentation", interruptRequest});
+        running.start(QStringLiteral(CLI_PATH),
+                      {"--input", native, "--export-presentation", interruptRequest});
         check(running.waitForStarted(10000), "Interrupted CLI starts");
         QElapsedTimer timer;
         timer.start();
@@ -170,8 +176,8 @@ int main(int argc, char **argv) {
         const auto refused = [&](const QString &name, const QByteArray &body,
                                  const QProcessEnvironment &refusedEnv, const char *message) {
             const auto path = request(name, body);
-            const auto result = runCli({"--input", native, "--export-presentation", path}, refusedEnv,
-                                       files.path());
+            const auto result = runCli({"--input", native, "--export-presentation", path},
+                                       refusedEnv, files.path());
             check(result.code == 1 && result.err.contains("\"status\":\"failed\"") &&
                       result.out.isEmpty(),
                   message);
@@ -181,7 +187,8 @@ int main(int argc, char **argv) {
                 R"({"apiVersion":1,"path":"Orbit","presets":["Missing"],"output":")" +
                     files.filePath("export/refused-1").toUtf8() + R"("})",
                 env, "An unknown render preset is refused");
-        check(!QFileInfo::exists(files.filePath("export/refused-1")), "A refused request makes no folder");
+        check(!QFileInfo::exists(files.filePath("export/refused-1")),
+              "A refused request makes no folder");
         refused("video.json",
                 R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"video":true,"output":")" +
                     files.filePath("export/refused-2").toUtf8() + R"("})",
@@ -194,38 +201,47 @@ int main(int argc, char **argv) {
         check(QDir().mkpath(existing), "Existing folder fixture");
         write(existing + "/keep.txt", "keep");
         refused("existing.json",
-                R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" + existing.toUtf8() +
-                    R"("})",
+                R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
+                    existing.toUtf8() + R"("})",
                 env, "An existing destination is refused");
-        check(read(existing + "/keep.txt") == "keep", "A refused existing folder is left as it was");
+        check(read(existing + "/keep.txt") == "keep",
+              "A refused existing folder is left as it was");
         auto noBlender = env;
         noBlender.insert("PATH", files.filePath("empty"));
-        const auto blenderMissing = refused("blender.json",
-                R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
-                    files.filePath("export/refused-4").toUtf8() + R"("})",
-                noBlender, "A missing Blender is refused");
+        const auto blenderMissing =
+            refused("blender.json",
+                    R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
+                        files.filePath("export/refused-4").toUtf8() + R"("})",
+                    noBlender, "A missing Blender is refused");
         check(blenderMissing.err.contains("Blender"), "A missing Blender names the requirement");
-        check(!QFileInfo::exists(files.filePath("export/refused-4")), "A missing Blender makes no folder");
-        refused("oversized.json", QByteArray(17 * 1024, ' '), env, "A request over 16 KiB is refused");
+        check(!QFileInfo::exists(files.filePath("export/refused-4")),
+              "A missing Blender makes no folder");
+        refused("oversized.json", QByteArray(17 * 1024, ' '), env,
+                "A request over 16 KiB is refused");
         {
             const auto result = runCli({"--export-presentation", byPath}, env, files.path());
             check(result.code == 1, "A batch needs an explicit input model");
         }
         {
-            const auto result = runCli({"--input", native, "--export-presentation", byPath, "--capabilities"},
-                                       env, files.path());
+            const auto result =
+                runCli({"--input", native, "--export-presentation", byPath, "--capabilities"}, env,
+                       files.path());
             check(result.code == 1, "The batch is a standalone operation");
         }
 
         // Discovery: the request schema and the capability entry are printed without a model.
         {
-            const auto result = runCli({"--describe-command", "export-presentation"}, env, files.path());
+            const auto result =
+                runCli({"--describe-command", "export-presentation"}, env, files.path());
             const auto description = QJsonDocument::fromJson(result.out).object();
             check(result.code == 0 && description.value("name") == "export-presentation" &&
                       description.value("request").toObject().contains("presets"),
                   "The request schema is printed for --describe-command");
             const auto capabilities = runCli({"--capabilities"}, env, files.path());
-            check(QJsonDocument::fromJson(capabilities.out).object().value("presentation").toObject()
+            check(QJsonDocument::fromJson(capabilities.out)
+                          .object()
+                          .value("presentation")
+                          .toObject()
                           .value("operation") == "export-presentation",
                   "The capabilities list the presentation operation");
         }

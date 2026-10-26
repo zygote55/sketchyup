@@ -142,8 +142,8 @@ int main(int argc, char **argv) {
         options.timeoutMs = 60000;
         auto blender = [&](const QString &counter, int hang = 0) {
             BlenderJob::Options launched = options;
-            launched.executable = launcher(files, "blender-" + QFileInfo(counter).fileName(),
-                                           binary, counter, hang);
+            launched.executable =
+                launcher(files, "blender-" + QFileInfo(counter).fileName(), binary, counter, hang);
             return launched;
         };
 
@@ -165,8 +165,8 @@ int main(int argc, char **argv) {
             doc.addFace({{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}});
             const auto edited = encodeDocument(doc);
             wait(batch);
-            check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12 &&
-                      batch.totalFrames() == 12,
+            check(batch.state() == PresentationJobState::Completed &&
+                      batch.completedFrames() == 12 && batch.totalFrames() == 12,
                   "Both presets complete every planned frame");
             check(jobs.jobs().at(id).state == PresentationJobState::Completed,
                   "The store records the completed batch");
@@ -194,13 +194,32 @@ int main(int argc, char **argv) {
                                           .arg(number, 4, 10, QChar('0'));
                     const auto live = QJsonDocument::fromJson(read(output + name)).object();
                     const auto frozen = QJsonDocument::fromJson(read(twinOutput + name)).object();
-                    check(live.value("sourceManifestSha256") == frozen.value("sourceManifestSha256") &&
+                    check(live.value("sourceManifestSha256") ==
+                                  frozen.value("sourceManifestSha256") &&
                               live.value("camera") == frozen.value("camera") &&
                               live.value("scene") == frozen.value("scene") &&
                               live.value("keyframe") == frozen.value("keyframe"),
                           "A live edit during a batch leaves its frames unchanged");
                 }
             check(encodeDocument(doc) == edited, "The engine leaves the live document unchanged");
+        }
+
+        // One engine runs two batches in turn: the second starts from its own cursor and totals.
+        {
+            PresentationJobStore jobs(store, limits);
+            PresentationExport batch(jobs);
+            batch.start(PresentationCapture::capture(doc, plan(keyframes)),
+                        files.filePath("reuse-one"), blender(files.filePath("count-reuse-one")));
+            wait(batch);
+            check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
+                  "The first batch on a reused engine completes");
+            batch.start(PresentationCapture::capture(doc, plan({first, second})),
+                        files.filePath("reuse-two"), blender(files.filePath("count-reuse-two")));
+            wait(batch);
+            check(batch.state() == PresentationJobState::Completed &&
+                      batch.completedFrames() == 8 && batch.totalFrames() == 8,
+                  "The second batch on a reused engine renders its own frames");
+            verifyManifest(files.filePath("reuse-two"), 8);
         }
 
         // Cancel at a frame boundary: finished frames stay, nothing past the boundary is written.
@@ -225,7 +244,8 @@ int main(int argc, char **argv) {
                       !QFileInfo::exists(canceled + "/01-Draft/frames/frame-0003.json") &&
                       QFileInfo::exists(canceled + "/01-Draft/frames/frame-0002.png"),
                   "A canceled batch writes no frame past the boundary");
-            const auto manifest = QJsonDocument::fromJson(read(canceled + "/manifest.json")).object();
+            const auto manifest =
+                QJsonDocument::fromJson(read(canceled + "/manifest.json")).object();
             check(manifest.value("state") == "canceled" && manifest.value("completedFrames") == 2,
                   "The canceled manifest records the frames kept");
             verifyManifest(canceled, 2);
@@ -354,8 +374,9 @@ int main(int argc, char **argv) {
             SceneSnapshot noCamera;
             noCamera.visibility = SceneVisibility{};
             const auto withoutCamera = createScene(plain, "Plain", noCamera);
-            rejects([&] { PresentationCapture::capture(plain, plan({withoutCamera, withoutCamera})); },
-                    "A keyframe without a camera is refused");
+            rejects(
+                [&] { PresentationCapture::capture(plain, plan({withoutCamera, withoutCamera})); },
+                "A keyframe without a camera is refused");
             rejects([&] { PresentationCapture::capture(doc, plan({first, 999999})); },
                     "A keyframe scene that is gone is refused");
             rejects([&] { PresentationCapture::capture(doc, plan({first})); },
@@ -364,28 +385,34 @@ int main(int argc, char **argv) {
             five.presets.push_back({"Extra", {}});
             five.presets.push_back({"Again", {}});
             five.presets.push_back({"Third", {}});
-            rejects([&] { PresentationCapture::capture(doc, five); }, "Over four presets is refused");
+            rejects([&] { PresentationCapture::capture(doc, five); },
+                    "Over four presets is refused");
             rejects([&] { PresentationCapture::capture(doc, plan(keyframes, {24, 24, 80})); },
                     "A plan over 240 frames is refused");
 
-            const auto overBudget = plan({first, second}, {24, 25, 107}); // 1 + 2 x 107 + 25 frames.
+            const auto overBudget =
+                plan({first, second}, {24, 25, 107}); // 1 + 2 x 107 + 25 frames.
             auto large = overBudget;
             for (auto &preset : large.presets)
                 preset.settings = {4096, 4096, 32, 0, RenderEngine::Cycles};
             check(PresentationCapture::capture(doc, overBudget).frames().size() == 240,
                   "A two-keyframe path plans 240 frames");
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, large), refused,
-                            blender(files.filePath("count-budget")));
-            }, "A batch over the output budget is refused");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, large), refused,
+                                blender(files.filePath("count-budget")));
+                },
+                "A batch over the output budget is refused");
             check(!QFileInfo::exists(refused) && jobs.jobs().size() == count,
                   "An output budget refusal leaves no folder and no job");
 
             batch.setFreeSpaceProbe([](const QString &) { return qint64(0); });
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, plan(keyframes)), refused,
-                            blender(files.filePath("count-disk")));
-            }, "A batch without free disk space is refused");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, plan(keyframes)), refused,
+                                blender(files.filePath("count-disk")));
+                },
+                "A batch without free disk space is refused");
             check(!QFileInfo::exists(refused) && jobs.jobs().size() == count,
                   "A disk refusal leaves no folder and no job");
             batch.setFreeSpaceProbe([](const QString &) { return qint64(1) << 50; });
@@ -393,42 +420,56 @@ int main(int argc, char **argv) {
             const auto existing = files.filePath("existing");
             check(QDir().mkpath(existing), "Existing folder fixture");
             write(existing + "/keep.txt", "keep");
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, plan(keyframes)), existing,
-                            blender(files.filePath("count-existing")));
-            }, "An existing destination is refused");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, plan(keyframes)), existing,
+                                blender(files.filePath("count-existing")));
+                },
+                "An existing destination is refused");
             check(read(existing + "/keep.txt") == "keep" && jobs.jobs().size() == count,
                   "An existing destination is left as it was");
 
             const auto target = files.filePath("link-target");
             check(QDir().mkpath(target) && QFile::link(target, files.filePath("linked-output")),
                   "Symbolic link fixture");
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, plan(keyframes)),
-                            files.filePath("linked-output"), blender(files.filePath("count-link")));
-            }, "A symbolic link destination is refused");
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, plan(keyframes)),
-                            files.filePath("missing/parent/out"),
-                            blender(files.filePath("count-parent")));
-            }, "A destination needs an existing parent");
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, plan(keyframes)), "relative/out",
-                            blender(files.filePath("count-relative")));
-            }, "A destination must be absolute");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, plan(keyframes)),
+                                files.filePath("linked-output"),
+                                blender(files.filePath("count-link")));
+                },
+                "A symbolic link destination is refused");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, plan(keyframes)),
+                                files.filePath("missing/parent/out"),
+                                blender(files.filePath("count-parent")));
+                },
+                "A destination needs an existing parent");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, plan(keyframes)), "relative/out",
+                                blender(files.filePath("count-relative")));
+                },
+                "A destination must be absolute");
 
             BlenderJob::Options missing = options;
             missing.executable = files.filePath("no-such-blender");
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, plan(keyframes)), refused, missing);
-            }, "A missing Blender executable is refused");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, plan(keyframes)), refused,
+                                missing);
+                },
+                "A missing Blender executable is refused");
 
             auto eevee = plan(keyframes);
             eevee.presets[0].settings.engine = RenderEngine::Eevee;
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, eevee), refused,
-                            blender(files.filePath("count-backend")));
-            }, "Eevee presets need an OpenGL device");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, eevee), refused,
+                                blender(files.filePath("count-backend")));
+                },
+                "Eevee presets need an OpenGL device");
             check(!QFileInfo::exists(refused) && jobs.jobs().size() == count,
                   "Each refusal leaves no folder and no job");
         }
@@ -440,11 +481,13 @@ int main(int argc, char **argv) {
             const auto id = batch.start(PresentationCapture::capture(doc, plan(keyframes)),
                                         files.filePath("single-running"),
                                         blender(files.filePath("count-single"), 1));
-            rejects([&] {
-                batch.start(PresentationCapture::capture(doc, plan(keyframes)),
-                            files.filePath("single-second"),
-                            blender(files.filePath("count-single-2")));
-            }, "A second batch cannot start while one runs");
+            rejects(
+                [&] {
+                    batch.start(PresentationCapture::capture(doc, plan(keyframes)),
+                                files.filePath("single-second"),
+                                blender(files.filePath("count-single-2")));
+                },
+                "A second batch cannot start while one runs");
             check(!QFileInfo::exists(files.filePath("single-second")),
                   "A refused second batch creates no folder");
             batch.cancel();

@@ -10,10 +10,10 @@ namespace sketchy {
 // render presets by name, and the new output folder.
 inline constexpr int presentationRequestBytes = 16 * 1024;
 struct PresentationRequest {
-    QString path;                    // A camera path by name; empty with an explicit list.
-    QString name;                    // Names an explicit list; the default is "Keyframes".
-    std::vector<QString> keyframes;  // Saved scene names in playback order, for an explicit list.
-    CameraPathTiming timing;         // Only an explicit list carries timing in the request.
+    QString path;                   // A camera path by name; empty with an explicit list.
+    QString name;                   // Names an explicit list; the default is "Keyframes".
+    std::vector<QString> keyframes; // Saved scene names in playback order, for an explicit list.
+    CameraPathTiming timing;        // Only an explicit list carries timing in the request.
     bool explicitKeyframes{};
     std::vector<QString> presets;
     QString output;

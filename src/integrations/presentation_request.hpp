@@ -6,7 +6,8 @@
 namespace sketchy {
 // Resolves a request's names against the document: a camera path (or an explicit scene list),
 // and render presets by name. The batch engine checks the plan's limits when it captures.
-PresentationPlan resolvePresentationRequest(const Document &doc, const PresentationRequest &request);
+PresentationPlan resolvePresentationRequest(const Document &doc,
+                                            const PresentationRequest &request);
 struct PresentationRun {
     PresentationJobState state{};
     QJsonObject manifest; // The batch manifest as it was published in the output folder.
