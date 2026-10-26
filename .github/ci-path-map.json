@@ -643,6 +643,8 @@
     "presentation_io": 3,
     "report": 11,
     "report_output": 21,
-    "report_cli": 15
+    "report_cli": 15,
+    "report_schedule": 15,
+    "report_schedule_cli": 23
   }
 }
