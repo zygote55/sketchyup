@@ -607,8 +607,18 @@ jobs:
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
       - name: Pack the development build tree
         # Executables, CTest files and generated data, with debug sections stripped:
-        # the unstripped tree is about 37 GB (see the script).
-        run: scripts/ci-pack-build.sh build/dev dev-build.tar.zst
+        # the unstripped tree is about 37 GB (see the script). The objects and the static
+        # archives no test reads go first: they are never packed, no later step of this job
+        # builds, and with them on disk the stripped copy and the archive no longer fit the
+        # runner. An archive a CTest file names (parameter_expression_symbols runs nm on one)
+        # stays.
+        run: |
+          find build/dev -name '*.o' -type f -delete
+          find build/dev -name 'CTestTestfile.cmake' -exec cat {} + > /tmp/ctest-files.txt
+          find build/dev -name '*.a' -type f | while IFS= read -r archive; do
+            grep -qF "$(basename "$archive")" /tmp/ctest-files.txt || rm -f -- "$archive"
+          done
+          scripts/ci-pack-build.sh build/dev dev-build.tar.zst
       - uses: actions/upload-artifact@v6
         with:
           name: dev-build
