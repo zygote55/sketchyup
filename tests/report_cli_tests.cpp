@@ -172,12 +172,8 @@ void refusesBadFlags() {
     const QString txt = dir.filePath("bad.txt");
     const QString missing = dir.filePath("missing-folder/x.csv");
     const Case cases[]{
-        {{"--input", input, "--report", out, "--schedule", "nightly"},
-         "INVALID_REQUEST",
-         "the schedule flags are not in R101.b"},
-        {{"--input", input, "--report", out, "--save-schedule", "nightly"},
-         "INVALID_REQUEST",
-         "--save-schedule is not in R101.b"},
+        // The schedule flags (R101.c) are tested in report_schedule_cli_tests, which keeps the
+        // user data folder in a temporary folder. This test names no schedule and reads no store.
         {{"--input", input, "--report", out, "--metrics", "volumes,bogus"},
          "INVALID_REQUEST",
          "an unknown metric"},

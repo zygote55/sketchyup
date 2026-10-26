@@ -77,6 +77,10 @@ QJsonArray mcpToolCatalog() {
         for (const auto &value : entries) {
             const auto entry = value.toObject();
             const auto name = entry["name"].toString();
+            // R101.c: the schedule operation is a session operation for now; its MCP name is
+            // reports.schedules, which R101.d adds (ADR 0175 §9).
+            if (name == "report.schedule")
+                continue;
             const bool readOnly = queries || name.startsWith("session.");
             const bool retry = name == "transaction.apply" || name == "transaction.preview" ||
                                name == "transaction.commit" || name == "transaction.cancel" ||

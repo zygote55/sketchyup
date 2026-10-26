@@ -65,7 +65,12 @@ QByteArray reportCsv(const QJsonObject &data) {
     line(QStringLiteral("#format=1.0"));
     line(QStringLiteral("#documentId=") + metadata["documentId"].toString());
     line(QStringLiteral("#revision=") + metadata["revision"].toString());
-    line(QStringLiteral("#ad-hoc=1"));
+    // A saved schedule's run names it; an ad-hoc run (the flags, or the session) says so (ADR 0175
+    // §6.1).
+    if (metadata.contains("schedule"))
+        line(QStringLiteral("#schedule=") + metadata["schedule"].toString());
+    else
+        line(QStringLiteral("#ad-hoc=1"));
     line(QStringLiteral("#units.length=") + units["length"].toString());
     line(QStringLiteral("#units.area=") + units["area"].toString());
     line(QStringLiteral("#units.volume=") + units["volume"].toString());

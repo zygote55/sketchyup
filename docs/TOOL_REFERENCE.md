@@ -251,6 +251,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `session.describe` |  | `apiVersion`, `operation` |
 | `session.capabilities` |  | `apiVersion`, `operation` |
 | `document.save` |  | `apiVersion`, `operation`, `documentId`, `expectedRevision` |
+| `report.schedule` |  | `apiVersion`, `operation`, `documentId`, `action` |
 
 ## MCP tools
 

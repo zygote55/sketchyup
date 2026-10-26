@@ -1,5 +1,6 @@
 #include "automation/report_commands.hpp"
 #include "automation/inspection.hpp"
+#include "automation/report_schedules.hpp"
 #include "core/units.hpp"
 #include "io/new_file.hpp"
 #include "io/report_csv.hpp"
@@ -281,9 +282,11 @@ namespace {
 // ADR 0175 §8: a report file is refused above 256 MiB, before anything is published.
 constexpr qsizetype reportFileBytes = 256LL * 1024 * 1024;
 
+} // namespace
+
 // The request object report.run takes, built from the CLI's flags. The engine validates every
 // value.
-QJsonObject requestFor(const ReportFileOptions &options) {
+QJsonObject reportRequestFor(const ReportFileOptions &options) {
     QJsonObject request;
     if (options.metrics == "all") {
         request["metrics"] = "all";
@@ -316,8 +319,6 @@ QJsonObject requestFor(const ReportFileOptions &options) {
     return request;
 }
 
-} // namespace
-
 QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &options) {
     const auto extension = QFileInfo(options.path).suffix().toLower();
     if (extension != "csv" && extension != "json")
@@ -329,14 +330,41 @@ QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &option
         throw InspectionError("FILE_EXISTS",
                               "The report file already exists; an existing file is never replaced");
 
-    const auto data =
-        reportDescription(doc, reportRequestFrom(doc, requestFor(options), false), nullptr);
+    // A scheduled run takes its request from the user-level store, after the identity guard and the
+    // stale-ID refusal (ADR 0175 §7). It runs the same report pass as the flags.
+    const auto scheduled = !options.schedule.isEmpty();
+    QString storePath;
+    QJsonObject request;
+    if (scheduled) {
+        storePath = reportScheduleStorePath();
+        const ReportScheduleStore store(storePath);
+        const auto &saved = store.lookup(doc.identity(), options.schedule);
+        requireResolvedScheduleIds(doc, saved.request);
+        request = saved.request;
+    } else
+        request = reportRequestFor(options);
+    auto data = [&] {
+        try {
+            return reportDescription(doc, reportRequestFrom(doc, request, false), nullptr);
+        } catch (const InspectionError &error) {
+            if (!scheduled)
+                throw;
+            throw InspectionError(
+                error.code(), "Report schedule '" + options.schedule.toStdString() + "' in " +
+                                  storePath.toStdString() + " is no longer valid: " + error.what());
+        }
+    }();
+    if (scheduled) {
+        auto metadata = data["metadata"].toObject();
+        metadata["schedule"] = options.schedule;
+        data["metadata"] = metadata;
+    }
     const auto bytes =
         extension == "csv" ? reportCsv(data) : QJsonDocument(data).toJson(QJsonDocument::Compact);
     if (bytes.size() > reportFileBytes)
         throw InspectionError("LIMIT_EXCEEDED", "A report over 256 MiB is refused");
     publishNewFile(options.path, bytes);
-    return QJsonObject{
+    QJsonObject result{
         {"status", "exported"},
         {"exportReport",
          QJsonObject{{"format", extension},
@@ -345,6 +373,9 @@ QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &option
                      {"sha256",
                       QString::fromLatin1(
                           QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex())}}}};
+    if (scheduled)
+        result["schedule"] = options.schedule;
+    return result;
 }
 
 QJsonObject reportExportCapabilities() {
@@ -355,7 +386,12 @@ QJsonObject reportExportCapabilities() {
             {"metrics", QJsonArray{"counts", "areas", "volumes", "all"}},
             {"groupBy", QJsonArray{"none", "kind", "tag", "material", "definition"}},
             {"precision", "full, or an integer from 0 to the document's displayed maximum"},
-            {"schedules", "unavailable until R101.c"}};
+            {"schedules",
+             QJsonObject{{"flags", QJsonArray{"--schedule NAME", "--list-schedules",
+                                              "--save-schedule NAME", "--delete-schedule NAME"}},
+                         {"store", "AppLocalDataLocation/report-schedules.json"},
+                         {"identity", "the document's identity; a schedule runs only on its own "
+                                      "document"}}}};
 }
 
 QJsonObject reportExportDescription() {
@@ -364,9 +400,15 @@ QJsonObject reportExportDescription() {
                       "counts,areas,volumes|all] [--group-by none|kind|tag|material|definition] "
                       "[--visible] [--tag ID]... [--material ID]... [--definition ID]... "
                       "[--precision full|N] [--format csv|json]"},
+            {"schedules",
+             "sketchyup-cli --input MODEL --report FILE.csv|FILE.json --schedule NAME (instead of "
+             "the report flags); sketchyup-cli --input MODEL --list-schedules; sketchyup-cli "
+             "--input MODEL --save-schedule NAME [report flags]; sketchyup-cli --input MODEL "
+             "--delete-schedule NAME"},
             {"summary",
              "Write a quantities report of the model to a new .csv or .json file. The model "
-             "is not changed, and an existing file is refused."},
+             "is not changed, and an existing file is refused. A saved schedule re-runs its "
+             "request on the document it was saved for."},
             {"limits", reportExportCapabilities()}};
 }
 

@@ -1,5 +1,6 @@
 #include "automation/session.hpp"
 #include "automation/inspection_validation.hpp"
+#include "automation/report_schedules.hpp"
 #include "geometry/boolean.hpp"
 #include "geometry/intersection.hpp"
 #include "geometry/offset.hpp"
@@ -124,6 +125,11 @@ QJsonObject sessionCapabilities() {
             {"sideEffects", QString(name) == "document.save"
                                 ? "Explicitly bound model destination and its native backup"
                                 : "none"}});
+    operations.append(QJsonObject{
+        {"name", "report.schedule"},
+        {"parameters", reportScheduleSchema()},
+        {"sideEffects", "Writes only the user-level report schedule store; the model is never "
+                        "changed"}});
     return {{"apiVersion", 1},
             {"transport", "Bounded JSON lines over stdin/stdout"},
             {"operations", operations},
@@ -278,6 +284,12 @@ QJsonObject AutomationSession::execute(const QJsonObject &request) {
     if (operation == "document.save") {
         inspection_detail::validateParameters(request, schema(operation, true));
         return save(request);
+    }
+    // ADR 0175 §8 (R101.c): saved report schedules. A session operation, not an inspection query,
+    // because it writes the user-level store; the native assistant takes only transaction.* names.
+    if (operation == "report.schedule") {
+        inspection_detail::validateParameters(request, reportScheduleSchema());
+        return reportScheduleOperation(actor_->document(), request, reportScheduleStorePath());
     }
     return transactions_->execute(request);
 }

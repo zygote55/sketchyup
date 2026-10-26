@@ -3169,6 +3169,146 @@
                 "type": "object"
             },
             "sideEffects": "Explicitly bound model destination and its native backup"
+        },
+        {
+            "name": "report.schedule",
+            "parameters": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "action": {
+                        "enum": [
+                            "save",
+                            "describe",
+                            "delete"
+                        ],
+                        "type": "string"
+                    },
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "name": {
+                        "maxLength": 64,
+                        "type": "string"
+                    },
+                    "operation": {
+                        "const": "report.schedule"
+                    },
+                    "request": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "filters": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "definitions": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "materials": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "selection": {
+                                        "type": "boolean"
+                                    },
+                                    "tags": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "visibility": {
+                                        "enum": [
+                                            "all",
+                                            "visible"
+                                        ],
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                ],
+                                "type": "object"
+                            },
+                            "groupBy": {
+                                "enum": [
+                                    "none",
+                                    "kind",
+                                    "tag",
+                                    "material",
+                                    "definition"
+                                ],
+                                "type": "string"
+                            },
+                            "metrics": {
+                                "oneOf": [
+                                    {
+                                        "const": "all",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "items": {
+                                            "enum": [
+                                                "counts",
+                                                "areas",
+                                                "volumes"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "maxItems": 3,
+                                        "minItems": 1,
+                                        "type": "array"
+                                    }
+                                ]
+                            },
+                            "precision": {
+                                "oneOf": [
+                                    {
+                                        "const": "full",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "maximum": 6,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                        ],
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "operation",
+                    "documentId",
+                    "action"
+                ],
+                "type": "object"
+            },
+            "sideEffects": "Writes only the user-level report schedule store; the model is never changed"
         }
     ],
     "save": "Only the destination explicitly bound at process startup; external effects are separate from geometry commit",
