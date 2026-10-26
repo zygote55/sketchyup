@@ -1433,7 +1433,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R099 — Add camera paths and batch presentation output
 
-**Status:** In progress: R099.a (camera path and render preset records, schema 30 with `presentation-v1`) is merged in [PR #446](https://github.com/zygote55/sketchyup/pull/446); R099.b (presentation job store, one-capture batch engine with manifest, cancel and resume, and `sketchyup-cli --export-presentation`) is in review on `feat/r099b-batch-engine`, with measured budgets, the H.264 answer and the owner decisions listed in [ADR 0173](decisions/0173-camera-paths-batch-output.md) (Implementation notes, R099.b); R099.c to R099.e planned. Design accepted ([ADR 0173](decisions/0173-camera-paths-batch-output.md), owner decisions approved 2026-10-23). **Track:** Rendering. **Scope:** F05. **UX:** —.
+**Status:** In progress: R099.a (camera path and render preset records, schema 30 with `presentation-v1`) is merged in [PR #446](https://github.com/zygote55/sketchyup/pull/446); R099.b (presentation job store, one-capture batch engine with manifest, cancel and resume, and `sketchyup-cli --export-presentation`) is in [PR #448](https://github.com/zygote55/sketchyup/pull/448), with measured budgets, the H.264 answer and the owner decisions listed in [ADR 0173](decisions/0173-camera-paths-batch-output.md) (Implementation notes, R099.b); R099.c to R099.e planned. Design accepted ([ADR 0173](decisions/0173-camera-paths-batch-output.md), owner decisions approved 2026-10-23). **Track:** Rendering. **Scope:** F05. **UX:** —.
 
 **Requires:** [R089](#r089), [R072](#r072), [R070](#r070); milestone gate rule above.
 
