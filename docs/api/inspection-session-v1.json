@@ -818,6 +818,63 @@
       "sideEffects": "none"
     },
     {
+      "name": "style.export",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "description": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "query": {
+            "const": "style.export"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
       "name": "drawing_sheets.query",
       "paged": true,
       "parameters": {

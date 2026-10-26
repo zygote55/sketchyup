@@ -7874,6 +7874,32 @@
       "validation": "Schema plus authoritative geometry, document and resource validation"
     },
     {
+      "category": "Styles",
+      "label": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+      "name": "style.apply",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+        "properties": {
+          "command": {
+            "const": "style.apply"
+          },
+          "data": {
+            "maxLength": 22413344,
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
       "category": "Assets",
       "label": "Import managed asset bytes",
       "name": "asset.import",
@@ -12120,6 +12146,58 @@
       "sideEffects": "none"
     },
     {
+      "name": "style.export",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "description": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "query": {
+            "const": "style.export"
+          }
+        },
+        "required": [
+          "name",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
       "name": "drawing_sheets.query",
       "paged": true,
       "parameters": {
@@ -15117,6 +15195,67 @@
         "type": "object"
       },
       "name": "presentation.describe"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "style.export: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "description": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "query": {
+            "const": "style.export"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "style.export"
     },
     {
       "annotations": {
@@ -24751,6 +24890,25 @@
                 {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
+                  "description": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+                  "properties": {
+                    "command": {
+                      "const": "style.apply"
+                    },
+                    "data": {
+                      "maxLength": 22413344,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
                   "description": "Import managed asset bytes",
                   "properties": {
                     "command": {
@@ -28560,6 +28718,52 @@
                 "required": [
                   "path",
                   "presets",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "labels": {
+                    "items": {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "style.export"
+                  }
+                },
+                "required": [
+                  "name",
                   "apiVersion",
                   "documentId",
                   "expectedRevision",
@@ -38270,6 +38474,25 @@
                 {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
+                  "description": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+                  "properties": {
+                    "command": {
+                      "const": "style.apply"
+                    },
+                    "data": {
+                      "maxLength": 22413344,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
                   "description": "Import managed asset bytes",
                   "properties": {
                     "command": {
@@ -42069,6 +42292,52 @@
                 "required": [
                   "path",
                   "presets",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "labels": {
+                    "items": {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "style.export"
+                  }
+                },
+                "required": [
+                  "name",
                   "apiVersion",
                   "documentId",
                   "expectedRevision",

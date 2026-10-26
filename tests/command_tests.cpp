@@ -3,6 +3,7 @@
 #include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
+#include "io/style_bundle.hpp"
 #include "io/solar_io.hpp"
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
@@ -1215,6 +1216,16 @@ int main(int argc, char **argv) {
                                               {"contours", true},
                                               {"contourInterval", 0.5},
                                               {"shading", "elevationBands"}});
+        // R100.a: a packaged style (no texture) applied as one edit to the fixture document.
+        {
+            Document packaged;
+            auto style = packaged.style();
+            style.profiles = true;
+            packaged.setStyle(style);
+            const auto bytes = exportStyleBundle(packaged, StyleMetadata{"Packaged", {}, {}});
+            cases.append(QJsonObject{{"command", "style.apply"},
+                                     {"data", QString::fromLatin1(bytes.toBase64())}});
+        }
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
