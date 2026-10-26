@@ -374,13 +374,13 @@ int main(int argc, char **argv) {
                 },
                 "catalog.list refuses bytes that are not a catalog");
         }
-        // MCP lists catalog.list, and the surface stays within its 128-tool limit (McpServer).
+        // MCP lists catalog.list, and the surface stays within its bound (mcpToolLimit).
         {
             QStringList names;
             for (const auto &tool : mcpToolCatalog())
                 names.append(tool.toObject()["name"].toString());
             check(names.contains("catalog.list"), "MCP lists catalog.list");
-            check(names.size() <= 128, "the MCP tool list stays within 128 tools");
+            check(names.size() <= mcpToolLimit, "the MCP tool list stays within its bound");
         }
         std::cout << "catalog tests passed\n";
         return 0;

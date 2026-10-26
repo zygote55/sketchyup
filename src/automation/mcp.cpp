@@ -120,10 +120,8 @@ McpServer::McpServer(AutomationSession &session)
           [&] { return session.execute({{"apiVersion", 1}, {"operation", "session.describe"}}); },
           [&] { session.close(); }, mcpToolCatalog()}) {}
 McpServer::McpServer(McpBackend backend) : backend_(std::move(backend)) {
-    // A sanity bound on the catalogue, not a client limit: 128 leaves room for the R100
-    // style and catalog commands (ADR 0174 §7, "MCP exposes every new command").
     require(bool(backend_.call) && bool(backend_.state) && bool(backend_.close) &&
-                !backend_.tools.empty() && backend_.tools.size() <= 128,
+                !backend_.tools.empty() && backend_.tools.size() <= mcpToolLimit,
             "Invalid MCP backend");
     state_ = backend_.state();
     require(state_["documentId"].isString() && !state_["documentId"].toString().isEmpty(),

@@ -141,7 +141,7 @@ void catalogue() {
           "report.schedule is a write");
     check(schedule["inputSchema"].toObject()["properties"].toObject().contains("action"),
           "report.schedule advertises its action");
-    check(mcpToolCatalog().size() <= 64, "The MCP tool list stays within its 64-tool bound");
+    check(mcpToolCatalog().size() <= mcpToolLimit, "The MCP tool list stays within its bound");
 }
 
 // report.run over MCP is the session's query. Its data is the committed golden, byte for byte, for
