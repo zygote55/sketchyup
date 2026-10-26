@@ -263,8 +263,11 @@ void ReportScheduleStore::commit(Documents replacement) {
     if (!QDir().mkpath(folder.absolutePath()))
         fail("OUTPUT_ERROR", "Cannot create the report schedule folder");
     QLockFile lock(folder.filePath(lockFile));
-    if (!lock.tryLock(0))
-        fail("OUTPUT_ERROR", "Another report schedule update is in progress");
+    if (!lock.tryLock(0)) {
+        if (lock.error() == QLockFile::LockFailedError)
+            fail("OUTPUT_ERROR", "Another report schedule update is in progress");
+        fail("OUTPUT_ERROR", "Cannot write the report schedule folder " + folder.absolutePath());
+    }
     // The file must still be the one this store read. A change by another process is refused,
     // never merged, and so is a file that appeared or vanished.
     if (info.exists()) {
