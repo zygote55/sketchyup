@@ -3,6 +3,7 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QStringList>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 namespace sketchy {
@@ -134,5 +135,23 @@ PresentationTables decodePresentation(const QJsonValue &value) {
     }
     validateRenderPresetRecords(result.renderPresets, result.nextRenderPresetId);
     return result;
+}
+qint64 presentationFrameBudget(const RenderSettings &settings) {
+    return std::min<qint64>(presentationFrameImageLimit,
+                            qint64(settings.width) * settings.height * 5 + 1024 * 1024) +
+           presentationMetadataLimit;
+}
+
+QString presentationPresetDirectory(size_t index, const QString &name) {
+    QString safe;
+    for (const auto character : name.left(48)) {
+        const bool keep =
+            (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+            (character >= '0' && character <= '9') || character == '-' || character == '_';
+        safe += keep ? character : QChar('-');
+    }
+    if (safe.isEmpty())
+        safe = "preset";
+    return QString("%1-%2").arg(index + 1, 2, 10, QChar('0')).arg(safe);
 }
 } // namespace sketchy

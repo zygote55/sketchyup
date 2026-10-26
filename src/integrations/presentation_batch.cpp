@@ -2,6 +2,7 @@
 #include "core/presentation_records.hpp"
 #include "integrations/render_snapshot.hpp"
 #include "io/document_io.hpp"
+#include "io/presentation_io.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -21,8 +22,9 @@
 #include <stdexcept>
 namespace sketchy {
 namespace {
-constexpr qint64 mib = 1024 * 1024, outputLimit = 2048 * mib, diskReserve = 256 * mib;
-constexpr qint64 frameImageLimit = 64 * mib, metadataLimit = mib, manifestLimit = mib;
+constexpr qint64 mib = 1024 * 1024, outputLimit = presentationOutputLimit, diskReserve = 256 * mib;
+constexpr qint64 frameImageLimit = presentationFrameImageLimit,
+                 metadataLimit = presentationMetadataLimit, manifestLimit = mib;
 constexpr qint64 videoFileLimit = 512 * mib;
 // Encoding is one Blender run per preset; this bound stops a hung encoder, not a normal encode.
 constexpr int videoTimeoutMs = 900000;
@@ -53,29 +55,11 @@ void publish(const QString &path, const QByteArray &bytes) {
         throw std::runtime_error("Could not save batch manifest");
 }
 QString frameName(size_t index) { return QString("frame-%1").arg(index + 1, 4, 10, QChar('0')); }
-// The preset folder is numbered, so folder names stay unique whatever the preset is called.
-QString presetDirectory(size_t index, const QString &name) {
-    QString safe;
-    for (const auto character : name.left(48)) {
-        const bool keep =
-            (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
-            (character >= '0' && character <= '9') || character == '-' || character == '_';
-        safe += keep ? character : QChar('-');
-    }
-    if (safe.isEmpty())
-        safe = "preset";
-    return QString("%1-%2").arg(index + 1, 2, 10, QChar('0')).arg(safe);
-}
-// The per-frame bound the animation export uses: the PNG cap plus the metadata cap.
-qint64 frameBudget(const RenderSettings &settings) {
-    return std::min<qint64>(frameImageLimit, qint64(settings.width) * settings.height * 5 + mib) +
-           metadataLimit;
-}
 // A video is bounded like the frame images it encodes, so the disk check counts it that way.
 qint64 plannedBudget(const PresentationPlan &plan, size_t frames) {
     qint64 total = 0;
     for (const auto &preset : plan.presets)
-        total += qint64(frames) * frameBudget(preset.settings) * (plan.video ? 2 : 1);
+        total += qint64(frames) * presentationFrameBudget(preset.settings) * (plan.video ? 2 : 1);
     return total;
 }
 qint64 defaultFreeSpace(const QString &path) { return QStorageInfo(path).bytesAvailable(); }
@@ -198,7 +182,8 @@ struct PresentationExport::Impl {
         lastAttempt = {};
         videos.assign(frozen.plan().presets.size(), QJsonObject{});
         for (size_t p = 0; p < frozen.plan().presets.size(); ++p) {
-            presetDirectories.push_back(presetDirectory(p, frozen.plan().presets[p].name));
+            presetDirectories.push_back(
+                presentationPresetDirectory(p, frozen.plan().presets[p].name));
             records.emplace_back(frozen.frames().size());
         }
     }
