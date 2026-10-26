@@ -493,9 +493,9 @@ int main(int argc, char **argv) {
             auto large = plan({first, second}, {24, 25, 107});
             for (auto &preset : large.presets)
                 preset.settings = {4096, 4096, 32, 0, RenderEngine::Cycles};
-            const auto accepted =
-                batch.start(PresentationCapture::capture(doc, large), files.filePath("budget-large"),
-                            blender(files.filePath("count-budget-large"), 1));
+            const auto accepted = batch.start(PresentationCapture::capture(doc, large),
+                                              files.filePath("budget-large"),
+                                              blender(files.filePath("count-budget-large"), 1));
             check(batch.totalFrames() == 480,
                   "A batch whose worst-case PNG bound passes 2 GiB still starts");
             batch.cancel();
