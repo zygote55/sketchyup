@@ -204,9 +204,23 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
     validateDrawingSheetRecords(sheets, nextSheet, views, nextView);
     return {std::move(sheets), std::move(views)};
 }
+namespace {
+// Schema 31 (ADR 0174 §2): the document style or a saved scene's style carries an edge stroke.
+bool usesEdgeStrokes(const Document &document) {
+    if (document.style().edgeStroke)
+        return true;
+    for (const auto &[id, scene] : document.scenes())
+        if (scene->snapshot.style && scene->snapshot.style->edgeStroke)
+            return true;
+    return false;
+}
+} // namespace
+
 int nativeDocumentVersionFor(const Document &document) {
-    if (!document.cameraPaths().empty() || !document.renderPresets().empty())
+    if (usesEdgeStrokes(document))
         return nativeDocumentVersion;
+    if (!document.cameraPaths().empty() || !document.renderPresets().empty())
+        return nativePresentationDocumentVersion;
     if (document.site())
         return nativeTerrainDocumentVersion;
     for (const auto &[id, body] : document.bodies())

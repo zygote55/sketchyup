@@ -42,6 +42,14 @@ must be within every bound, with allocators above its identities, and must re-en
 canonical object that decodes to equal tables and encodes to the same bytes. Its seeds are a
 tour with a broken path and two presets, an empty table, and three rejected inputs (a path of
 one keyframe, a keyframe of zero and a preset 63 pixels wide).
+One more covers the R100.a edge stroke (`edge-style`; [ADR 0174 section 2](decisions/0174-custom-styles-asset-authoring.md#2-the-extended-style-record-and-schema-decision-2)):
+the `edgeStroke` object of a schema-31 style, with its width (1 to 8 logical pixels), opacity
+(0.01 to 1), named dash and canonical texture asset id (zero for none). The harness decodes
+each input twice and requires equal results; an accepted stroke must be within its bounds and
+re-encode to a canonical object. Its seeds are four accepted strokes (the defaults, both bounds
+with a texture, a dashed and a dotted stroke with the largest id) and eight rejected inputs (a
+width of 0.5 and of 8.5, an opacity of zero and of 1.5, an unknown dash, a non-canonical id, a
+negative id and an unknown field).
 One more covers the R097.b IFC conversion package decoder (`ifc-package`;
 [ADR 0171 section 1.6](decisions/0171-ifc-exchange-subset.md#16-process-isolation-decision-19)): the bounded,
 versioned container the isolated IFC helper writes and the application decodes (a manifest of at most 32 MiB,

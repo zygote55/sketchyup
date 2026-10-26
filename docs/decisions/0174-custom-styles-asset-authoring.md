@@ -558,3 +558,116 @@ Each carries a recommended default and a one-line reason.
   list and, with counsel if you wish, that every bundled texture's licence is
   distributable, with attribution where the licence
   requires it.
+
+## Implementation notes (R100.a)
+
+Recorded 2026-10-26 for branch `feat/r100a-edge-styles`, on `de83e219`.
+
+- **Schema numbering (the reading the brief sets).** Schema 30 is R099.a's `presentation-v1`, so
+  this slice is schema 31 with `edge-styles-v1`. Read the ADR's "schema-30" sentences as schema
+  31: the round trip is at 31, a document without an edge stroke writes what it wrote before
+  (26 to 30 by content), and a document with one writes 31. Cumulative features follow R099.a: a
+  schema-31 container also carries `presentation-v1` and `terrain-v1`, and its payload is
+  `json-v31`. `nativeDocumentVersionFor` returns 31 for an edge stroke on the document style or on
+  a saved scene's style, 30 for presentation records, and the earlier ladder otherwise.
+  `nativePresentationDocumentVersion` names the 30 that the presentation branch returns.
+- **The `edge` sub-record is stored as `edgeStroke`.** §2 calls it `edge`, but the style already
+  has an `edge` key, the RGB edge colour. The two cannot share one object. The sub-record is the
+  optional `edgeStroke` field of the style, with `width` (1 to 8, `profileWidth` semantics),
+  `opacity` (0.01 to 1), `dash` and `texture` (a canonical decimal asset id, `"0"` for none).
+  `ModelStyle::edgeStroke` is an `std::optional`, so an absent stroke leaves the 14-field record
+  and its bytes unchanged. **Owner: confirm the key name** (`edgeStroke`) or choose another.
+- **Dash patterns.** §2 offers named patterns or a bounded on/off run list. This slice takes the
+  named set: `solid`, `dashed`, `dotted` and `dashDot`. The run list is not built.
+- **Missing or mismatched textures.** A texture asset must exist in the document (an unknown id
+  refuses the edit, as for materials). The same rule covers a saved scene's style, so the asset
+  cannot be deleted under a scene that names it. A missing asset is a valid state and is not
+  replaced.
+  `style.apply` refuses a style whose texture is missing or hash-mismatched and names it by id and
+  name in the error; the document, its revision and its history are unchanged. No fallback colour
+  or texture is produced.
+- **The `.sketchystyle` envelope (§1.2, a contradiction with the ADR text).** §1.2 says a style file
+  is the existing v1 manifest with `kind` `style`, and also that a style file cannot contain a
+  model. The `.sketchylib` envelope requires a model and a thumbnail, so both cannot hold. This
+  slice keeps the 24-byte header and the manifest, and drops `model` and `thumbnail` for styles.
+  The header's payload length is the texture's byte count (zero when there is none), and its
+  thumbnail length must be zero. The manifest carries `name`, `description`, `labels`, the `style`
+  record and a `texture` descriptor (`id`, `name`, `mediaType`, `missing`, `bytes`, `sha256`), or
+  `null`. The texture must be a PNG or JPEG that decodes as a complete supported image.
+  **Owner: confirm this layout.**
+- **Export publishes nothing in this slice (§1.3 and §7).** The style export returns the file as
+  base64 in `data`. `writeStyleBundle` publishes a file with the atomic new-file publisher, and
+  the CLI that calls it is R100.e.
+- **Commands (§7).** `style.apply` is a command. `style.export` is a query (`inspection`
+  registry), because the batch engine refuses a batch with no committed change, and an export
+  changes nothing. Neither reads or writes a path; the bytes travel as canonical base64 (the
+  `asset.import` rule). `style.apply` replaces the document style and adds its texture (or reuses
+  an asset with the same media type and byte-equal payload, ADR 0131) in one labelled edit. A
+  second apply of the same style changes nothing, so the batch is refused as every no-op batch is.
+- **Assistant (decision 9).** Every `style.` name is hidden from the in-app assistant, and the
+  `assistant_tool_surface_tests` authorization set excludes it. The assistant's baseline is
+  unchanged. The `document.style` and saved-scene schemas are also unchanged, so the edge stroke
+  cannot be set through a command. Only `style.apply` sets it in R100.a. **Owner: decide whether
+  the edge stroke joins the `document.style` schema now, which changes the assistant's pinned
+  tool bytes and so needs a re-pin under decision 9, or waits for R100.f.**
+- **Rendering is not in this slice.** The viewport still draws edges at the flat colour and
+  `profileWidth`. Edge opacity, dash and texture are stored and validated, but nothing draws them.
+  ADR 0174 §2 expects the texture to be drawn by the existing image path; that belongs to the
+  desktop slice.
+- **Released-reader refusal (measured, not assumed).** Both released CLIs refuse
+  `tests/fixtures/edge-styles-v31.sketchyup` with exit 1 and the same message as their refusal of
+  schema 30 in R099.a: `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`.
+  The file is byte-identical afterwards (`cmp`).
+  - `sketchyup-cli 1.3.0`, from `sketchyup-1.3.0-1-x86_64.pkg.tar.zst` (sha256
+    `5f5c0cf8…a833b`, from the release `SHA256SUMS`), downloaded into a scratch folder and
+    extracted there. It was not installed.
+  - `sketchyup-cli 1.2.0`, from `sketchyup-1.2.0-1-x86_64.pkg.tar.zst` (sha256 `b95fc189…31295d`).
+  - The in-repo test `style_bundle_tests` runs the 1.3.0 CLI when `SKETCHYUP_PRIOR_CLI` is set.
+  - A simulation of the package prior-release loop over `tests/fixtures`: 1.2.0 (reads 28) and
+    1.3.0 (reads 29) each refuse both newer fixtures, `presentation-v30` and `edge-styles-v31`,
+    with their bytes unchanged. The full package acceptance (`verify-package.sh` in its container)
+    was not run here.
+- **The refusal wording differs from §2 and §6 (contradiction).** §2 says 1.3.x and 1.2.x refuse
+  schema 31 "with the newer-format error (the terrain-v1 precedent, ADR 0168 §2)". Measured, they
+  refuse with `Unsupported container field`, which is the container's field check. That is the same
+  finding R099.a recorded for schema 30. The check still refuses and leaves the file unchanged.
+  `verify-package.sh` already checks by exit status and `status == failed`, so it needs no change.
+  Its prior stays `1.2.0-1` in CI. Adding `1.3.0-1` to `released_packages` is safe at the next
+  format release, as R099.a's note said.
+- **Contradictions for the owner.**
+  1. §2 and §6 say that a schema-30 document "migrates to the current record with the `edge`
+     fields dropped and a notice". A schema-30 document has no edge fields, because they arrive
+     in schema 31, so there is nothing to drop. No migration notice and no migration fixture were
+     built. A schema-29 reader refuses schema 30 at the container (measured above for 1.3.0).
+  2. §6 says the read range grows to "1–30". It is 1–31 under the numbering this slice takes.
+  3. §2 says a style that uses only the 14 fields "stays schema ≤ 29". It is ≤ 30 now that
+     presentation-v1 is schema 30; the R099.a numbering covers this.
+  4. §5 says the report reuses `assetStatus` and `missingAssets`, extended to name the entry.
+     Neither changed. `style.apply` names the missing texture in its refusal, and
+     `document.describe` does not report the edge texture's status yet.
+- **Not measured.** The §9 budgets (apply cost, decode of a 16 MiB texture, the import budget) are
+  not measured in this slice. A 4 x 4 texture is the only fixture, so the decode limits were not
+  stressed. No frame or screenshot evidence exists, because nothing draws the stroke yet.
+- **Fuzzing.** `parser_fuzz_edge_style` (format `edge-style`) decodes each input twice and requires
+  equal results. An accepted stroke is within its bounds and re-encodes canonically. Its seeds are
+  four accepted strokes (defaults, both bounds with a texture, dashed, dotted with the largest id)
+  and eight rejected inputs (a width of 0.5 and 8.5, an opacity of 0 and 1.5, an unknown dash, a
+  non-canonical id, a negative id and an unknown field). `parser_fuzz_seeds` was built and run
+  locally: all twelve seeds validate as the harness expects, and the harness compiles with
+  `-fsyntax-only`. The libFuzzer target was not built, because it needs clang and the fuzz
+  configuration.
+- **Tests.** `style_bundle_tests` (new): schema selection and the lowest-schema writer; the
+  schema-31 round trip, bit for bit, and the checked-in fixture; the decoder bounds; the style file
+  round trip, the header layout and the refusals (kind, thumbnail, trailing data, GIF, undecodable
+  bytes, a texture the file does not carry); missing and hash-mismatched textures (apply and
+  export); apply as one undoable edit with reuse by bytes; the export query; relocation to a new
+  folder with no external dependency; the style folder scan; the command path; and the 1.3.0
+  refusal. The existing sweeps (`native_format_tests`, `presentation_io_tests`,
+  `drawing_sheet_io_tests`, `component_parameter_io_tests`) name schema 31 and exempt its fixture.
+  `command_tests` and `inspection_tests` gained a case each, because each published command and
+  query must have one.
+- **Schema validation.** `docs/api/native-format-v1.json` names 31 and reads 1–31. The discovery
+  schemas were regenerated with `scripts/generate-api-schemas.py` and `generate-tool-reference.py`;
+  both `--check` runs pass against the built binaries.
+- **Not run here.** The Qt 6.8 reference compile, the sanitizer job, the native matrix and the
+  package acceptance run only in CI.

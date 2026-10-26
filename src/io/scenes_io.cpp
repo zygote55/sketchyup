@@ -124,7 +124,8 @@ QJsonObject encodeSceneSnapshot(const SceneSnapshot &snapshot) {
     }
     return result;
 }
-SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections, bool solar) {
+SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections, bool solar,
+                                  bool edgeStrokes) {
     if (!value.isObject())
         throw std::runtime_error("Scene snapshot requires an object");
     const auto fields = value.toObject();
@@ -168,7 +169,7 @@ SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections, b
     }
     if (fields.contains("solar")) result.solar = decodeSolarSettings(fields["solar"]);
     if (fields.contains("style"))
-        result.style = decodeModelStyle(fields["style"]);
+        result.style = decodeModelStyle(fields["style"], edgeStrokes);
     if (fields.contains("section")) {
         const bool active = namedSections && fields["section"].toObject().contains("active");
         const auto section = object(fields["section"], active ? QStringList{"plane", "active"}
@@ -196,7 +197,8 @@ QJsonArray encodeScenes(const SceneRecords &scenes) {
                                   {"snapshot", encodeSceneSnapshot(scene->snapshot)}});
     return result;
 }
-SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSections, bool solar) {
+SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSections, bool solar,
+                          bool edgeStrokes) {
     SceneRecords result;
     size_t bytes = 0;
     for (const auto &entry : array(value, sceneCountLimit)) {
@@ -208,7 +210,8 @@ SceneRecords decodeScenes(const QJsonValue &value, Id nextSceneId, bool namedSec
             throw std::runtime_error("Invalid scene order position");
         auto scene = std::make_shared<SceneRecord>(SceneRecord{
             id(record["id"]), record["name"].toString().toStdString(),
-            static_cast<std::uint32_t>(position), decodeSceneSnapshot(record["snapshot"], namedSections, solar)});
+            static_cast<std::uint32_t>(position),
+            decodeSceneSnapshot(record["snapshot"], namedSections, solar, edgeStrokes)});
         bytes += sceneBytes(scene);
         if (bytes > sceneBytesLimit)
             throw std::runtime_error("Scenes exceed eight MiB record budget");

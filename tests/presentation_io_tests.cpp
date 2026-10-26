@@ -152,7 +152,7 @@ void schemas() {
           "A document without presentation records writes schema 29 without presentation-v1");
 
     const auto fixture = presentationFixture();
-    check(nativeDocumentVersionFor(fixture) == 30 && nativeDocumentVersion == 30 &&
+    check(nativeDocumentVersionFor(fixture) == 30 && nativePresentationDocumentVersion == 30 &&
               nativeTerrainDocumentVersion == 29,
           "Camera paths and render presets are schema 30");
     const auto container = encodeContainer(fixture);
@@ -232,11 +232,11 @@ void refusals() {
           "Schema 29 cannot carry presentation records");
     // A newer schema refuses with the newer-format error.
     auto newer = QJsonDocument::fromJson(json).object();
-    newer["version"] = 31;
+    newer["version"] = nativeDocumentVersion + 1;
     check(rejection([&] {
               decodeDocument(QJsonDocument(newer).toJson(QJsonDocument::Compact));
           }).find("Unsupported document format, version") != std::string::npos,
-          "A schema-31 document refuses with the newer-format error");
+          "A schema newer than this build refuses with the newer-format error");
     // Schema 30 requires the object.
     auto missing = QJsonDocument::fromJson(json).object();
     missing.remove("presentation");

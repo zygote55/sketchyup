@@ -2,6 +2,7 @@
 #include "automation/annotation_commands.hpp"
 #include "automation/component_parameter_commands.hpp"
 #include "automation/presentation_commands.hpp"
+#include "automation/style_commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/drawing_sheet_commands.hpp"
 #include "automation/entity_info.hpp"
@@ -653,7 +654,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     const auto baseRevision = doc.revision();
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
-        solidOperations, assertionCommands, terrainOperations;
+        solidOperations, assertionCommands, terrainOperations, styleOperations;
     std::vector<std::pair<Id, Id>> createdFaceIds;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
@@ -752,6 +753,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             executeSavedSceneCommand(staged, command);
         } else if (isPresentationCommand(name)) {
             executePresentationCommand(staged, command);
+        } else if (isStyleCommand(name)) {
+            styleOperations.append(executeStyleCommand(staged, command));
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (isComponentParameterCommand(name)) {
@@ -789,7 +792,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else if (name == "document.solar") {
             staged.setSolar(decodeSolarSettings(command["solar"]));
         } else if (name == "document.style") {
-            staged.setStyle(decodeModelStyle(command["style"]));
+            staged.setStyle(decodeModelStyle(command["style"], true));
         } else if (name == "document.units") {
             if (!command["units"].isString())
                 throw std::runtime_error("Document units must be a string");
@@ -1901,6 +1904,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"parameterWarnings", parameterWarnings},
                 {"recipeOperations", recipeOperations},
                 {"terrainOperations", terrainOperations},
+                {"styleOperations", styleOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
                 {"booleans", survivingBooleans},
@@ -1972,6 +1976,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"terrainOperations", terrainOperations},
+                       {"styleOperations", styleOperations},
                        {"assertions", assertions},
                        {"sweeps", survivingSweeps},
                        {"booleans", survivingBooleans},
