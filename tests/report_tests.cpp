@@ -23,7 +23,9 @@
 #include "core/terrain.hpp"
 #include "core/terrain_records.hpp"
 #include "core/transform.hpp"
+#include "presentation/unit_display.hpp"
 #include <QJsonDocument>
+#include <QLocale>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -490,6 +492,13 @@ void unitsAndPrecision() {
         imperial.value("areas").toArray()[0].toObject()["area"].toString().toDouble();
     check(nearFeet(cubicFeet, 141.2587) && nearFeet(squareFeet, 172.2226),
           "V8: the ADR's ft-in example, 4 m³ = 141.2587 ft³ and 16 m² = 172.2226 ft²");
+    // The factors are those of the entity info panel's displayMeasure: the same value at the same
+    // precision. The locale is fixed so that its decimal point is the one this check expects.
+    QLocale::setDefault(QLocale::c());
+    check(displayMeasure(4, 3, DisplayUnit::FeetInches, 3).startsWith("141.259 ft") &&
+              displayMeasure(16, 2, DisplayUnit::FeetInches, 3).startsWith("172.223 ft") &&
+              near(cubicFeet, 141.259, 1e-4) && near(squareFeet, 172.223, 1e-4),
+          "V8: the feet factors agree with displayMeasure's");
 }
 
 // Request refusals: each refusal names its reason (ADR 0175 §1).
