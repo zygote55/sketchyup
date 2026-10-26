@@ -580,7 +580,9 @@ Recorded 2026-10-26 for branch `feat/r100a-edge-styles`, on `de83e219`.
 - **Dash patterns.** §2 offers named patterns or a bounded on/off run list. This slice takes the
   named set: `solid`, `dashed`, `dotted` and `dashDot`. The run list is not built.
 - **Missing or mismatched textures.** A texture asset must exist in the document (an unknown id
-  refuses the edit, as for materials). A missing asset is a valid state and is not replaced.
+  refuses the edit, as for materials). The same rule covers a saved scene's style, so the asset
+  cannot be deleted under a scene that names it. A missing asset is a valid state and is not
+  replaced.
   `style.apply` refuses a style whose texture is missing or hash-mismatched and names it by id and
   name in the error; the document, its revision and its history are unchanged. No fallback colour
   or texture is produced.

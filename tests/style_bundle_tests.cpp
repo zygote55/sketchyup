@@ -285,6 +285,17 @@ void refusals() {
     dangling.edgeStroke->texture = 99;
     check(!rejection([&] { unknown.setStyle(dangling); }).empty(),
           "An edge texture naming an unknown asset is refused");
+    // A saved scene's stroke keeps its texture: the asset cannot be deleted under it.
+    Document scened;
+    const auto sceneTexture =
+        createAsset(scened, "Scene edge", "image/png", assetPayload(texturePng()));
+    SceneSnapshot sceneView;
+    sceneView.style = scened.style();
+    sceneView.style->edgeStroke = EdgeStroke{2, 1, EdgeDash::Dotted, sceneTexture};
+    createScene(scened, "Edge view", sceneView);
+    check(!rejection([&] { eraseAsset(scened, sceneTexture); }).empty() &&
+              scened.assets().contains(sceneTexture),
+          "A texture a saved scene's stroke names cannot be deleted");
     auto tree = QJsonDocument::fromJson(encodeDocument(fixture)).object();
     auto style = tree["style"].toObject();
     auto edge = style["edgeStroke"].toObject();

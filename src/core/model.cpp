@@ -1423,6 +1423,9 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     validateMaterialRecords(materials, nextMaterial);
     validateMaterialAssets(materials, assets);
     validateEdgeStrokeAssets(edit.style ? edit.style->second : style_, assets);
+    for (const auto &[id, scene] : scenes)
+        if (scene->snapshot.style)
+            validateEdgeStrokeAssets(*scene->snapshot.style, assets);
     Id nextTag = std::max(nextTagId_, edit.nextTagFloor);
     std::set<Id> tagIds;
     for (auto &change : edit.tags) {
@@ -2729,6 +2732,9 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     validateMaterialRecords(materials, nextMaterialId);
     validateMaterialAssets(materials, assets);
     validateEdgeStrokeAssets(style, assets);
+    for (const auto &[id, scene] : scenes)
+        if (scene->snapshot.style)
+            validateEdgeStrokeAssets(*scene->snapshot.style, assets);
     validateMaterialAssignments(materials, bodies);
     validateReferenceImageAssets(bodies, assets);
     validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
