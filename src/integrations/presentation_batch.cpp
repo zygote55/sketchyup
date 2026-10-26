@@ -324,8 +324,8 @@ struct PresentationExport::Impl {
             if (entry.isEmpty() || !presetComplete(p))
                 continue;
             try {
-                const auto mp4 = readFile(output + "/" + presetDirectories[p] + "/video.mp4",
-                                          videoFileLimit);
+                const auto mp4 =
+                    readFile(output + "/" + presetDirectories[p] + "/video.mp4", videoFileLimit);
                 if (entry.value("file") != "video.mp4" || digest(mp4) != entry.value("sha256") ||
                     entry.value("bytes").toInteger(-1) != mp4.size())
                     continue;
@@ -437,7 +437,8 @@ struct PresentationExport::Impl {
             for (size_t i = 0; i < records[p].size(); ++i)
                 if (!check(p, i, records[p][i]))
                     throw std::runtime_error(
-                        QString("Frame %1 of %2 changed after it was verified; no video was written")
+                        QString(
+                            "Frame %1 of %2 changed after it was verified; no video was written")
                             .arg(i + 1)
                             .arg(presetDirectories[p])
                             .toStdString());
@@ -479,10 +480,11 @@ struct PresentationExport::Impl {
         const auto video = finished->videoResult();
         if (!video) {
             const auto report = finished->report();
-            terminal(PresentationJobState::Failed,
-                     QString("Video not written (%1): %2. The finished frames are kept.")
-                         .arg(report.value("code").toString("ENCODE_FAILED"))
-                         .arg(report.value("message").toString("Blender did not encode the video")));
+            terminal(
+                PresentationJobState::Failed,
+                QString("Video not written (%1): %2. The finished frames are kept.")
+                    .arg(report.value("code").toString("ENCODE_FAILED"))
+                    .arg(report.value("message").toString("Blender did not encode the video")));
             return;
         }
         try {

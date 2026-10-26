@@ -118,21 +118,22 @@ QJsonObject presentationExportCapabilities() {
             {"video", "optional H.264 MP4 per preset, encoded by the isolated Blender worker"}};
 }
 QJsonObject presentationExportDescription() {
-    return {{"name", "export-presentation"},
-            {"usage", "sketchyup-cli --input MODEL --export-presentation REQUEST.json"},
-            {"summary", "Render a camera path through one or more render presets to a new folder "
-                        "with a batch manifest. Finished frames survive cancellation."},
-            {"request",
-             QJsonObject{{"apiVersion", 1},
-                         {"path", "camera path name (or use keyframes with timing)"},
-                         {"keyframes", "saved scene names, two to thirty-two, in playback order"},
-                         {"name", "name for an explicit keyframe list, default Keyframes"},
-                         {"timing", timingSchema()},
-                         {"presets", "one to four render preset names"},
-                         {"output", "new folder; its parent must exist"},
-                         {"video", "optional, default false: H.264 MP4 per preset after every frame "
-                                   "is verified; a Blender without H.264 refuses the video and keeps "
-                                   "the frames"}}},
-            {"limits", presentationExportCapabilities()}};
+    return {
+        {"name", "export-presentation"},
+        {"usage", "sketchyup-cli --input MODEL --export-presentation REQUEST.json"},
+        {"summary", "Render a camera path through one or more render presets to a new folder "
+                    "with a batch manifest. Finished frames survive cancellation."},
+        {"request",
+         QJsonObject{{"apiVersion", 1},
+                     {"path", "camera path name (or use keyframes with timing)"},
+                     {"keyframes", "saved scene names, two to thirty-two, in playback order"},
+                     {"name", "name for an explicit keyframe list, default Keyframes"},
+                     {"timing", timingSchema()},
+                     {"presets", "one to four render preset names"},
+                     {"output", "new folder; its parent must exist"},
+                     {"video", "optional, default false: H.264 MP4 per preset after every frame "
+                               "is verified; a Blender without H.264 refuses the video and keeps "
+                               "the frames"}}},
+        {"limits", presentationExportCapabilities()}};
 }
 } // namespace sketchy

@@ -99,7 +99,8 @@ void verifyVideos(const QString &output, int expectedFrames) {
         const auto directory = output + "/" + preset.value("directory").toString();
         const auto video = preset.value("video").toObject();
         const auto mp4 = read(directory + "/video.mp4");
-        check(video.value("file") == "video.mp4" && video.value("bytes").toInteger() == mp4.size() &&
+        check(video.value("file") == "video.mp4" &&
+                  video.value("bytes").toInteger() == mp4.size() &&
                   video.value("sha256").toString() == digest(mp4) &&
                   video.value("codec") == "h264" && video.value("container") == "mp4" &&
                   video.value("frames").toInteger() == expectedFrames &&
@@ -126,9 +127,9 @@ qint64 videoBytes(const QString &output, const QStringList &presets) {
 // The codec and frame count that ffprobe reads back from a video, as "codec,frames".
 QString probeVideo(const QString &path) {
     QProcess probe;
-    probe.start("ffprobe", {"-v", "error", "-select_streams", "v:0", "-count_frames",
-                            "-show_entries", "stream=codec_name,nb_read_frames", "-of",
-                            "csv=p=0", path});
+    probe.start("ffprobe",
+                {"-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+                 "stream=codec_name,nb_read_frames", "-of", "csv=p=0", path});
     check(probe.waitForFinished(60000) && probe.exitCode() == 0,
           "ffprobe reads the video; install ffmpeg to run the real video test");
     return QString::fromUtf8(probe.readAllStandardOutput()).trimmed();
@@ -642,7 +643,8 @@ int main(int argc, char **argv) {
 
             // A frame that changes before its own encode is refused by the worker's hash check.
             const auto damaged = files.filePath("video-damaged");
-            qputenv("SKETCHYUP_FAKE_DAMAGE", (damaged + "/01-Draft/frames/frame-0001.png").toUtf8());
+            qputenv("SKETCHYUP_FAKE_DAMAGE",
+                    (damaged + "/01-Draft/frames/frame-0001.png").toUtf8());
             PresentationExport changedFrame(jobs);
             changedFrame.start(capture, damaged, blender(files.filePath("count-video-damaged")));
             wait(changedFrame);
@@ -678,8 +680,8 @@ int main(int argc, char **argv) {
             PresentationExport tight(jobs);
             tight.setOutputLimit(frameBytes);
             const auto tightOutput = files.filePath("video-budget");
-            // The frame metadata records the launcher's path, so this run uses the reference's launcher
-            // name and its frames are the same size as the reference frames.
+            // The frame metadata records the launcher's path, so this run uses the reference's
+            // launcher name and its frames are the same size as the reference frames.
             tight.start(capture, tightOutput, blender(counter));
             wait(tight);
             check(tight.state() == PresentationJobState::Failed &&
