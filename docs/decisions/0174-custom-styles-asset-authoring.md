@@ -617,6 +617,13 @@ tool-surface baseline pins. Its output lists each entry's kind, name, importable
 count. The inspection layer caps a request at 16 KiB and a response at 256 KiB, so the query
 lists catalogs of about 12 KiB or less. Larger catalogs need the file-based CLI surface of R100.e.
 
+**MCP bound (review).** `catalog.list` is the 64th MCP tool. The `McpServer` bound was a sanity
+check from the first MCP slice, not a client limit, and §7 exposes every new command on MCP, so the
+review raised it from 64 to 128. **Open for R100.d:** an inline catalog is capped near 12 KiB by
+the inspection request size, so `catalog.import` (and a useful `catalog.list`) over MCP need a
+catalog reference that is not inline bytes and not an arbitrary path, for example a name in the
+style/catalog library folder of §1. R100.d decides it.
+
 **Measured.** The generated `basic` fixture (one shared texture, a style, two materials that
 share the texture, a template and a component) is 10,246 bytes. The fuzz determinism test ran
 626 inputs twice each with the same result: 8 seeds, 106 truncations and 512 byte flips (102 accepted,
