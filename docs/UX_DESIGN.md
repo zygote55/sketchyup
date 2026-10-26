@@ -1556,3 +1556,429 @@ asks no dirty-document question.
 | ![limited](mockups/ifc/limited.png) | The helper is present, the geometry kernel is not | 16.7 |
 | ![export](mockups/ifc/export.png) | The export dialog: written, not written, georeferencing | 16.8 |
 | ![exported](mockups/ifc/exported.png) | The export report | 16.8 |
+
+## 17. Presentation batches
+
+Status: **proposed, awaiting owner approval.** Not implemented. R099.d builds this after R099.c
+(video and the command surface, on `feat/r099c-video-commands`); the records and the batch engine
+(R099.a and R099.b) are on main.
+
+This section designs the desktop side of camera paths and batch presentation output: where the path
+editor and the presets live, the batch dialog and its live budget, the Jobs row for a batch, results
+and video, refusals, coexistence with the one-shot animation sheet, and accessibility. It answers the
+eight questions in [ADR 0173](decisions/0173-camera-paths-batch-output.md) §7 (marked Q1 to Q8 below),
+as decision 14 asks before R099.d. §17.11 lists where the engine or the commands do not yet give the
+design what it needs; §17.12 lists the choices for the owner. The mockups are `mockups/presentation.html`
+(all screens, with notes) or `mockups/presentation.html?screen=<name>` (`menu`, `render`, `paths`,
+`pick`, `limit`, `presets`, `batch`, `device`, `video`, `unavailable`, `running`, `resume`, `results`,
+`broken`), drawn in the light theme of `src/app/theme.hpp`. Add `&text=200` to a screen to double its
+text size. The example is invented: a house, a path named Tour with five scenes, and two presets. Its
+numbers come from the engine's formulas, not from measurement. Engine wording is quoted from the code
+on main or on the R099.c branch.
+
+### 17.1 Where the tools live
+
+- **Camera menu.** One entry, *Presentations…*, after *Render…*. It opens the Presentations dialog (17.2
+  and 17.3). Command search (Ctrl+K) lists it, and also *Export presentation batch…*, which opens the
+  batch dialog directly. Neither has a default shortcut; the shortcut editor can assign one.
+- **Render sheet.** The Render with Blender sheet (§9) gains one button, *Export presentation batch…*,
+  beside *Export scene animation…*. The one-shot button and its sheet are unchanged (Q7).
+- **Presentations dialog.** A non-modal window with two tabs, *Camera paths* and *Render presets*, and
+  an *Export batch…* button in its footer. It is non-modal, like the Jobs list, so every edit is one
+  undoable step and the model stays usable behind it.
+- **Batch dialog.** Modal, like the one-shot sheet. *Start batch* closes it and opens the Jobs list with
+  the new batch selected.
+- **Jobs.** The existing Jobs list (§9) gains batch rows. Its title changes from "Render jobs" to
+  "Jobs", because it now lists two kinds of job.
+- **Not designed here.** No rail slot, tool or tray panel. The Saved scenes panel keeps capturing scenes;
+  a path only references them. No viewport preview of the path (ADR decision 17).
+
+A separate dialog, rather than a section of the render sheet, because the sheet is a single-render form
+that already scrolls, and a path needs an ordered list with a live count. A tray panel would compete with
+Saved scenes and would turn batch inputs into model organization.
+
+### 17.2 Q1: The path editor and its create flow
+
+**Recommendation:** the path editor is the *Camera paths* tab of the Presentations dialog. Its list
+holds the paths, and its editor holds the keyframes and the timing. The create flow uses a draft and a
+scene picker.
+
+- **List.** Each path shows its name, scene count and planned frames ("Tour · 5 scenes · 157 frames").
+  A broken path stays in the list with its reason ("✕ broken: keyframe 2 names a missing scene"). Under
+  the list: **New path** and **Delete path**. At 64 paths, **New path** is disabled with the reason.
+- **Name.** Unique, up to 1024 bytes, no leading or trailing space, no control characters (the saved-scene
+  rule). Engine text: "Camera path names must be unique".
+- **Keyframes.** An ordered list. A row shows its position, scene name and a warning if the scene has no
+  camera or is missing. A scene may repeat (R099.a allows it). **Add scene…** opens the picker,
+  **Move earlier** (Alt+↑) and **Move later** (Alt+↓) reorder, as in Saved scenes, and **Remove**
+  (Delete) takes a keyframe out. **Remove** is disabled when only two keyframes are left, with the reason
+  "A path needs two to thirty-two scenes".
+- **Timing, in seconds.** Frames per second (1 to 60, default 24); *Transition between scenes* (0.05 to
+  10 s, default 1.00 s); *Hold each scene* (0 to 5 s, default 0.50 s). These are the one-shot sheet's
+  units and its mapping: transition steps are `max(1, round(seconds × fps))` and hold steps are
+  `round(seconds × fps)`. Each field shows its steps ("1.00 s = 24 steps"). The seconds are the typed
+  value: when fps changes, steps are recomputed from the same seconds, so a one-second transition stays
+  one second. The Saved scenes panel's *Camera transition* is in milliseconds and drives viewport playback
+  only, so the label here says "between scenes".
+- **Live count.** Under the timing, on every change: "157 of 240 frames · 5 scenes · 6.5 s at 24 fps",
+  computed with the engine's formula `1 + N × hold + (N − 1) × transition`. It also says how many scenes
+  fit at this timing. With the defaults that is **7**, not 32: `1 + 7×12 + 6×24 = 229`, and 8 scenes is
+  265. The cap is shown, not hidden (owner question 2).
+- **Help, always visible.** "A pan takes the shorter turn. For a longer turn, add a scene between the
+  two." And: "A switch between perspective and orthographic is a cut at its keyframe." (ADR §9 asks for
+  the yaw note in the path editor's help.)
+
+**Create flow.**
+
+1. **New path** opens a draft named "Path 1", with the name selected so that typing replaces it. Nothing
+   is written to the model.
+2. The keyframe list is empty, with the line "Add at least two saved scenes. The path plays them in this
+   order."
+3. **Add scene…** opens the picker. It lists the camera scenes in their saved order. Enter or a double
+   click adds one; the picker stays open for more; **Done** (or Esc) returns. A saved scene without a
+   camera is listed dimmed, with "no camera: give it a camera in Saved scenes first".
+4. **Create path** is enabled when the draft has a unique name, two to thirty-two scenes and no more than
+   240 planned frames. Creating it is one undoable edit, "Create camera path". The engine stores only valid
+   paths (it refuses fewer than two keyframes), so the draft lives in the dialog until it is valid.
+   **Cancel** discards it, and the model does not change.
+5. The new path is selected. Each later edit is one undo step.
+
+**Broken paths.** A path whose scene was deleted, or whose scene lost its camera, still loads. Its
+editor shows the keyframe as "missing (was keyframe 2)" or "no camera". It can be renamed and retimed.
+Its keyframes can be changed only so that every keyframe left is valid (R099.a). A deleted scene cannot
+be restored under its old ID, so the repair is to remove the keyframe or to choose another scene.
+
+### 17.3 Q2: Preset management
+
+**Recommendation:** a named list in the *Render presets* tab. Each preset has the setup sheet's own
+controls, plus a name and a seed, and the sheet's current values can seed a new preset.
+
+- **List.** Name and summary ("Final · Cycles · 1280 × 720 · 128 samples"). **New preset**, **Duplicate**
+  and **Delete**. At 16 presets, **New preset** is disabled with the reason.
+- **Fields.** *Name* (unique, the same rule as paths). *Engine* (Cycles or Eevee preview, as radios).
+  *Width* and *Height* (64 to 4096 pixels). *Samples* (1 to 1024). *Seed* (default 0; "Cycles only; Eevee
+  ignores the seed"). The engine's own text is "Render resolution, samples or seed exceed bounds"; the
+  field-level help replaces it.
+- **No device, no environment.** A preset carries settings only (ADR decision 3). The batch picks the
+  device once, and an HDR panorama is not part of a preset. The caption says "even for video" beside the
+  sizes, because a batch that writes video needs even sizes (R099.c refuses odd sizes at validation).
+- **New from current settings.** Fills a new preset from the render sheet's width, height, samples and
+  engine. This is the only link between the sheet and the presets.
+- **How a preset differs from the current settings.** The sheet's values are this computer's preferences
+  and have no name. A preset is a named item in the model: it is saved with the file, shared with it, and
+  undoable. The footer says so: "Presets are saved with this model. The render sheet's values stay on this
+  computer."
+- **Later edits.** A batch keeps the settings it started with. Editing or deleting a preset afterwards
+  changes no batch that has run, and the Jobs details show the settings the batch used.
+
+### 17.4 Q3: The batch dialog and its live budget
+
+**Recommendation:** one modal dialog. On the left, what to render. On the right, what it will cost and
+whether Start is possible. Start is disabled, and its reason is shown beside it.
+
+**Left column.**
+
+- **Camera path.** Valid paths only. A broken path is listed, disabled, with its reason. Under the choice:
+  "6.5 s at 24 fps".
+- **Presets.** Check up to four. A preset that cannot use the
+  chosen device is shown disabled, with the reason on its row (17.8).
+- **Device.** *Device backend* and *Device* are the render sheet's own controls, with the same values
+  (CPU, CUDA, OPTIX, HIP, ONEAPI, METAL for Cycles; OPENGL for Eevee preview). *Retry once on CPU if a GPU
+  fails* applies to each frame. The batch has one device family, because the engine requires it.
+- **Output.** *New folder*, a new folder inside an existing parent. It is pre-filled as "parent/Tour" after
+  **Choose parent folder…**. The rule is the R072 sheet's and the GLB export's: an existing folder, or a
+  link, is refused.
+- **Video.** *Write H.264 video for each preset*, off by default (ADR decision 7). Its state is 17.5.
+
+**Right column: the live budget.** Each figure updates as a choice changes.
+
+- **Frames.** "314 frames: 157 frames × 2 presets."
+- **Output, at most.** "1.46 GiB. The batch stops when its output reaches 2.0 GiB." With video on, "2.0
+  GiB with video: the budget caps it." This is the engine's worst-case bound, the same figure its disk check
+  uses: per frame, `min(64 MiB, w × h × 5 bytes + 1 MiB) + 1 MiB` of metadata. The label says "Largest
+  possible; real frames are usually smaller", and the budget counts real bytes, so this is a ceiling, not a
+  forecast.
+- **Free space on this disk.** From `QStorageInfo`. "Enough: the batch needs about 1.7 GiB, with a 256 MiB
+  reserve." The need is the ceiling, plus the capture, plus the reserve. With video on, the ceiling is
+  doubled before the cap, as R099.c does for the disk check.
+- **Time.** "Not estimated. Each frame is a separate Blender render. In R099.b's measurement a 1024 × 768
+  frame at 32 samples took about 26 s on CPU." The engine offers no estimate, and this line says so.
+- **Blender.** "Blender 5.2.2 · CPU device ready", or the setup card (17.8).
+
+**Start rules.** The first failing rule decides the reason shown beside Start:
+
+| Condition | Start line |
+| --- | --- |
+| No valid path | "Choose a camera path." |
+| No preset | "Check at least one preset." |
+| Preset does not match the device | "Preview uses Eevee, which needs the OpenGL device. The batch uses CPU. Uncheck Preview, or choose OPENGL." |
+| Odd size with video | "A video needs even width and height in every preset: Draft is 641 × 360." |
+| Blender not found or not checked | the setup card (17.8) |
+| Video chosen, H.264 unavailable | the probe line (17.5) |
+| Another batch running | "Another presentation batch is running; wait for it to finish." |
+| Modeling gesture in progress | "Finish the current modeling gesture before starting the batch." |
+| Not enough free space | "Not enough free disk space for this batch: about 1,747 MiB needed, 812 MiB free." |
+
+**Start.** Start checks Blender and video again (17.5), freezes the model (the footer shows "Capturing the
+model…" for the short capture), and opens the Jobs list. There is no save prompt. The batch works from a
+copy of the model as it is now, and the Jobs row records the revision, so later edits show as "model has
+changed since". This is the one place where unsaved edits are not a reason to ask.
+
+### 17.5 Video availability before a batch
+
+The engine checks for H.264 only at encode time, after every frame has rendered (R099.c, `codec_unavailable`).
+A Blender without the codec would therefore render a whole batch before refusing. R099.d adds a probe.
+
+- **Where it runs.** The batch dialog runs it when it opens, as the render sheet already checks Blender
+  when it opens. The probe is the existing one, with one extra report field: the codec list of the chosen
+  Blender, read with the worker's `video_codecs()` (on the R099.c branch).
+- **Four states.** Each state has a word and an icon, and its checkbox says why it is off.
+  1. **Checking:** "Checking the video encoder…". *Write video* is disabled, and Start waits.
+  2. **Available:** "✓ H.264 available in Blender 5.2.2. Each video encode stops after 15:00." *Write video*
+     is enabled. The 15:00 is R099.c's per-encode limit.
+  3. **Unavailable:** "⚠ H.264 is not in this Blender's FFmpeg build. Frames still render; video is off."
+     *Write video* is disabled with that reason. A fallback codec is owner question 1.
+  4. **Not checked:** "No Blender found, so video cannot be checked", or "The check did not finish", with
+     **Check again**.
+- **Start checks again.** A Blender that changed after the dialog opened is caught before frame one. If
+  *Write video* is on and the fresh check says unavailable, Start refuses before anything is captured:
+  "Video is not available in this Blender: its FFmpeg build has no H.264 encoder. No frames were rendered.
+  Clear Write video to render the frames only."
+- **Fallback.** If an encode still fails at run time, the batch ends Failed with the R099.c message (17.8),
+  and the finished frames are kept.
+- **Odd sizes** are refused at validation (R099.c: "A video needs even width and height in every preset").
+  The dialog shows that on the preset's row, before Start, so it never reaches Start.
+
+### 17.6 Q4: The Jobs row
+
+**Recommendation:** a batch is one parent row in the Jobs list, with one child row per preset. Each child
+names its state in words and draws a bar only where there is a count. The parent's state word reads like
+the engine's job states.
+
+- **Parent row.** The state and a short progress: "Running · 58 of 157 frames", "Canceling · discarding
+  the frame in progress", "Completed · 2 presets · 314 frames", "Canceled · 58 of 157 kept, no video",
+  "Failed · frame 12 of 157 failed", "Interrupted · app stopped". The captured-model column carries the
+  batch's path name and the render provenance line: "Revision 42 · model has changed since". The other
+  two columns are attempts and elapsed time, as for renders.
+- **Child rows.** One per preset, in plan order. Presets render one after another, so a child reads
+  "Final · frame 58 of 157 · Running" with a determinate bar, "Draft · waiting for Final", and, after the
+  frames, "Final · encoding video (15:00 limit)" with no bar. A finished child reads "Final · video written,
+  6.5 s".
+- **Cancel batch.** Tooltip: "Stops the frame in progress and discards it. Finished frames stay." The
+  engine kills the in-flight worker (R099.b), so cancel returns in seconds. ADR §4 says "at frame
+  boundaries"; the design describes what the code does. While canceling, the row reads "Canceling ·
+  discarding frame 58 of 157". It then ends "Canceled", with "Batch canceled; finished frames are retained"
+  and no video.
+- **Resume.** Enabled for Failed, Canceled and Interrupted batches, the engine's retry set. Not enabled for
+  Completed or running batches. The label is "Resume", not "Retry", because the batch continues at its
+  first unfinished frame. Tooltip: "Continues at frame 59 of Final. Frames already kept are not rendered
+  again. The same captured model is used." For a failed video: "Resume encodes the missing video. No frame
+  is rendered again." For an output-budget stop, Resume stays enabled, and the line states the room left:
+  the next frame may or may not fit (the engine checks the real size of that frame).
+- **Remove.** Enabled unless the batch is Queued, Running or Canceling. Tooltip: "Removes this job's record
+  and log. Your frames and videos stay in the output folder." The store never touches the output folder
+  (R099.b).
+- **Show folder.** Opens the output folder in the file manager. Enabled once the folder exists.
+- **Remove all finished jobs.** The footer button stays, and its tooltip splits the two kinds: "Renders:
+  deletes captures, logs and images. Batches: deletes records and logs; output folders stay." The
+  current tooltip ("Deletes retained captures, logs and images for finished jobs") is wrong for batches.
+- **Details pane.** Provenance, the captured time, the output folder, each preset's settings, the device and
+  CPU fallback use, "Frames kept: Final 57, Draft 0", the capture's SHA-256 (as the render's source manifest
+  hash), and the bounded log.
+- **Provenance.** The same words as the render list: "restored capture", "another model session", "model
+  has changed since". A batch restored after a restart says "restored capture".
+- **Status-bar chip.** While a batch runs: "Batch Tour · Final 58 of 157 · Show jobs", beside the render
+  chip. After it ends, "Presentation ready · Show results" (or "Batch Tour: Draft video not written · Show
+  results"), until the model closes, as the IFC report chip does.
+
+### 17.7 Q5: Results and video
+
+**Recommendation:** a results sheet, opened from the chip or from **Show results…** in the Jobs row. A
+finished batch does not open its sheet by itself, so the sheet never takes focus from work in progress.
+That is a deliberate difference from the render result tab.
+
+- **Banner.** Completed: "✓ Completed. 2 presets, 314 frames, 2 videos. The model is unchanged." Not
+  finished: "⚠ Not finished. Final is complete. Draft's video was not written: …. Its frames are kept, and
+  Resume encodes that video only."
+- **Provenance.** "From revision 42 · model has changed since", then "Blender 5.2.2 · Cycles · CPU · CPU
+  fallback on 3 frames". This is the render result's own line.
+- **Preset cards.** Name, settings and frame count. Then either the video ("Video: 6.5 s · H.264 MP4 ·
+  4.2 MB", with **Play video** and **Show in folder**) or the reason it is missing, with **Resume: encode
+  video**.
+- **Video surfacing.** A video appears only once it is verified and written. The app has no player, so
+  **Play video** opens the system player. The file is `NN-<preset>/video.mp4`, and the card shows its
+  duration (frames ÷ fps) and size.
+- **Stills grid.** Rows are the keyframes in path order; columns are the presets. Each cell is the frame
+  flagged as a keyframe in that preset's sequence (ADR §4), so no still is rendered twice. Each cell is
+  labelled in text ("frame 0037"), not by its thumbnail alone. Enter opens the still in the system viewer.
+- **Folder layout.** A collapsed tree: `manifest.json`, then `NN-<preset>/frames/frame-NNNN.png` and
+  `.json`, and `NN-<preset>/video.mp4` where a video exists.
+- **Buttons.** **Copy report**, **Show output folder**, **Close** (the default).
+
+### 17.8 Q6: Errors and refusals
+
+Every refusal follows §16.6. It first says what did not happen (nothing was rendered, no folder was
+created, the model is unchanged), then the reason with the number and the limit, then numbered next steps.
+A refusal before Start is red with "✕ Refused"; a failure during a run is red with "✕ Failed". The word and
+the icon carry the state, never the colour alone. Codes such as `codec_unavailable` go to the log, never to
+the main text.
+
+**Before Start (in the dialog or the editor).**
+
+| Moment | Engine text (current) | What the person sees |
+| --- | --- | --- |
+| Broken path | "Camera path 'X' names saved scenes that no longer exist (17); repair the path before exporting" | Sheet "Batch not started: Courtyard needs repair". "✕ Nothing was rendered." Lists "Keyframe 2 · a saved scene that no longer exists" and "Keyframe 4 · Roof · has no camera". Next: remove or replace the keyframe in Presentations; give the scene a camera in Saved scenes; start again. |
+| Broken path, no camera | "Camera path 'X' has a keyframe scene without a camera; give it a camera before exporting" | As above, with "has no camera". |
+| Over 240 frames | "Camera path would plan 265 frames (1 + 8 x 12 + 7 x 24); the limit is 240" | "Path 1 would render 265 frames; the limit is 240. At this timing, 7 scenes is the most. Remove a scene, or shorten the transition or the hold." The formula stays in small type. The planner's own text, "Camera path exceeds 240 captured frames", is never shown. |
+| Device and preset | "Presets must match the selected device: Eevee needs an OpenGL device, and Cycles needs the CPU or a compute device" | "Preview uses Eevee, which needs the OpenGL device. The batch uses CPU. Uncheck Preview, or choose OPENGL." |
+| Odd size with video | "A video needs even width and height in every preset" | "Video needs even sizes: Draft is 641 × 360. Change the size in Presets, or clear Write video." |
+| Folder exists | "Choose a new batch folder that does not exist yet" | The same words, with the field focused. |
+| Folder not in a parent | "Choose a new batch folder within an existing directory" | The same words. |
+| Free space | "Not enough free disk space for this batch: about 1,747 MiB needed, 812 MiB free" | The same words, with "Choose another disk, or fewer frames." |
+| Another batch | "Another presentation batch is running; wait for it to finish" | The same words, and Start disabled. |
+| Blender missing | "Presentation batches need an installed Blender 5.2 LTS; install it or choose its executable" | The setup card (below). |
+| Video missing | "H.264 is not in this Blender build's FFmpeg codec list, so no video was written" (R099.c) | The probe's unavailable state (17.5), and at Start: "Video is not available in this Blender: its FFmpeg build has no H.264 encoder. No frames were rendered. Clear Write video to render the frames only." |
+| Modeling gesture | "Finish the current modeling gesture before capturing animation" (R072) | "Finish the current modeling gesture before starting the batch." |
+
+**Setup card (Blender missing).** The §9 card, reused: "Presentation batches render each frame with Blender
+5.2 LTS and encode video with its FFmpeg. Renders and the one-shot export use the same Blender." Then
+"Detected: Not found on PATH", **Choose executable…**, **Check again**, and "On Arch, install the blender
+package, then check again." The path and preset controls stay visible, greyed.
+
+**During a run (in the Jobs row and the results sheet).**
+
+| Moment | Engine text (current) | What the person sees |
+| --- | --- | --- |
+| Frame failed | "Frame 12 of 157 failed: <message>" | "✕ Failed · frame 12 of 157 failed: <message>. 11 frames kept. Resume retries frame 12." |
+| Output budget | "Batch output would exceed its 2048 MiB budget; 12 MiB remain" | "✕ Failed · Frame 59 of 121 would pass the 2 GiB output budget (12 MiB remain). Finished frames are kept. Resume adds frames only while they fit." Then the other way out: a new folder, with fewer frames or a smaller size. |
+| Video not written | "Video not written (codec_unavailable): …. The finished frames are kept." (R099.c) | "✕ Failed · Video not written for Draft: <reason>. Frames are kept. Resume encodes the video." The raw code is dropped from the sentence. |
+| Frame changed after verification | "Frame N changed after it was verified; no video was written" (R099.c) | "✕ Failed · Frame 40 changed on disk after it was verified, so no video was written. Resume renders that frame again." |
+| Interrupted | "Application stopped before this batch finished. Retry to resume from the first unverified frame." (R099.b store) | "⚠ Interrupted · SketchyUp stopped before this batch finished. Resume continues at frame 81 of 157." The engine says "Retry"; the UI says "Resume". |
+| Canceled | "Batch canceled; finished frames are retained" | "■ Canceled · finished frames are kept. No video was written." |
+| Output folder gone | "The batch folder is missing; the batch cannot resume" | "The output folder was moved or deleted, so this batch cannot resume. Remove the job, or start a new batch." |
+| Foreign manifest | "The batch manifest does not belong to this job; the finished frames are kept" | "The folder's manifest is not this batch's, so nothing was changed. Choose a new folder for a new batch." |
+| Storage full | "Presentation storage is full; remove finished batches before queuing more" | "Batch storage is full. Remove a finished job, then start again." |
+
+### 17.9 Q7: Coexistence with the one-shot sheet
+
+**Recommendation:** leave the R072 sheet alone and add the batch beside it. The two outputs do not merge.
+
+- **Unchanged.** *Export scene animation…* keeps its scene checklist, the render sheet's settings, one
+  preset, PNG frames, no video and no resume (ADR 0107). It keeps its name.
+- **New.** *Export presentation batch…* sits beside it. The one-shot export is for one set of frames from
+  the current settings. The batch is for several named presets, an optional video and resume. The batch
+  dialog's subline says so: "For one set of frames from the current settings, use Export scene animation…".
+- **Concurrency.** Both can run. The render queue already coexists with the one-shot export, and the batch
+  adds at most one worker (ADR §9). Each writes its own new folder, and neither touches the other's output.
+  The Jobs list shows both.
+- **Known gap, unchanged here.** The one-shot sheet has no live frame count. At its default timing, eight
+  or more scenes fail only after **Export frames** is pressed, with "Camera path exceeds 240 captured frames"
+  (§17.11). This design does not change the sheet (ADR decision 14); the owner may want the count there too.
+
+### 17.10 Q8: Accessibility and keyboard
+
+- **Keyboard path.** Alt+C (Camera), then the *Presentations…* entry; or Ctrl+K and "present". In the
+  Presentations dialog the tab order is: the two tabs; the path list; New path; Delete path; Name; the
+  keyframe list (Up and Down move the current row, Alt+Up and Alt+Down move the scene, Delete removes it);
+  Add scene…; the three timing fields; Export batch…; Close. Esc closes.
+- **Batch dialog.** Tab order: the path choice; the presets (Space toggles, arrows move); Device backend;
+  Device; Retry on CPU; the folder field; Choose parent folder…; Write video; Cancel; Start batch (the
+  default when enabled). Esc cancels. Enter starts only when Start is enabled.
+- **Picker.** Type-ahead on names; Enter adds; Esc is Done.
+- **Jobs list.** One Tab stop for the tree. Up and Down move between rows; Right and Left expand and collapse
+  a batch; the row's actions (Cancel batch, Resume, Show folder, Remove) follow the list. Cancel batch is not
+  the default button, so Enter cannot cancel by accident. Esc closes.
+- **Results.** Arrow keys move in the stills grid; Enter opens a still; Tab reaches Play video and Show in
+  folder for each preset.
+- **Accessible names.** A keyframe row reads "Keyframe 3 of 5, Side, has a camera", or "Keyframe 2 of 5,
+  scene missing; remove or replace it". A path row reads "Tour, 5 scenes, 157 frames". The budget reads
+  "Frames 314. Largest output 1.46 GiB. Free space 812 GiB, enough." A child progress bar reads "Final, frame
+  58 of 157". The video step reads "Encoding video, Final". The probe reads "Video encoder: unavailable, H.264
+  not in this Blender".
+- **Announcements.** One at Start ("Batch started: Tour, 2 presets, 314 frames"), one when each preset's frames
+  finish, one when each video is written, and one for each final state (Completed, Canceled, Failed,
+  Interrupted). Never one per frame. The status chip is named "Batch Tour, Final 58 of 157. Show jobs".
+- **Not colour alone.** States are a word and a glyph: ● Running, ✓ Completed, ■ Canceled, ⚠ Interrupted,
+  ✕ Failed or Refused. Bars carry their numbers. The stills grid labels every cell in text.
+- **Text size.** At 200% the batch dialog's columns stack, the budget cards come below the form, the
+  Presentations list stacks above the editor, the stills grid wraps to two columns, and the footers stay
+  in view. The mockup shows this with `&text=200`.
+- **Focus and motion.** A filled primary button shows focus as a 2 px inset ring in the surface colour (§10).
+  The only motion is the determinate bar.
+- **Checks.** A `presentation_input_tests` suite (proposed) drives the keyboard path, the names, the Start
+  reasons, the device conflict and the four probe states, on X11 and Wayland at 1× and 2× and at 200% text,
+  as R096.f and §16.9 do.
+
+### 17.11 Gaps in the engine and the commands
+
+These are the points where the design needs something the engine or the commands do not give today. Each
+is a note for R099.d or the owner, not a change made here.
+
+1. **No codec probe before a run.** H.264 is checked only at encode time (R099.c). The probe in 17.5 needs a
+   worker report field.
+2. **Default timing allows seven scenes.** Under `1 + N × hold + (N − 1) × transition ≤ 240`, the defaults
+   (24 fps, 24 transition steps, 12 hold steps) give at most 7 keyframes. The record's own documented range
+   (2 to 32) is not reachable at the defaults. The one-shot sheet has the same defaults and no live count.
+3. **Two refusals for one rule.** The record says "Camera path would plan 265 frames (1 + 8 x 12 + 7 x 24);
+   the limit is 240". The planner says "Camera path exceeds 240 captured frames". The UI shows the first,
+   reworded; the planner's text should not reach a person.
+4. **A deleted scene has no name.** The engine reports the scene's ID only, so the UI shows the keyframe's
+   position and the old ID. Keeping the last name on delete, or warning when a used scene is deleted, would
+   help the Saved scenes panel (its Delete has no confirmation).
+5. **No environment in a batch.** ADR §4 says the batch request names an environment when one is given. The
+   R099.b request has no such field, and the design shows none (owner question 3).
+6. **The budget is a ceiling.** The engine's worst-case bound is 5.75 MiB per 1024 × 768 frame (R099.b). The
+   measured frames were about 0.47 MB PNG and 0.21 MB metadata at that size. The ceiling is honest and matches
+   the disk check, but it is roughly ten times the typical output.
+7. **Metadata is most of the real output.** Each per-frame JSON is about 207 KB, because its diagnostics repeat
+   the worker's log three times (R099.b). Trimming it would shrink real output more than any budget change.
+8. **Codes in user text.** R099.c's message carries "(codec_unavailable)", and the store writes "Retry to
+   resume". The UI wording above replaces both; the engine text should follow.
+9. **"Cancel at frame boundaries" versus the code.** ADR §4 says cancel stops at the next frame boundary; R099.b
+   kills the in-flight worker and discards its frame. The UI describes the code. The ADR text needs a
+   correction, which this design does not make, because R099.c has appended its own notes to ADR 0173.
+10. **The Jobs list reads one source.** `RenderJobsDialog` reads `RenderQueue` only. R099.d needs a second source
+    (`PresentationJobStore`) and a two-level row, and the title and the tooltip change.
+11. **No time estimate.** The engine gives none. The design says "Not estimated" and shows elapsed time.
+12. **Resume after a budget stop is not pre-checked.** The per-frame check uses the real size of the next frame,
+    so Resume can fail at once. The UI warns; no engine change is needed.
+13. **Quitting during a batch.** R099.b's SIGTERM leaves a job Running until the store reopens (its contradiction
+    4). A rule for quitting is needed (owner question 5).
+
+### 17.12 Choices for the owner
+
+Each choice has a recommended default. R099.d builds the recommended default unless the owner says otherwise.
+
+1. **A fallback codec when H.264 is missing.** Options: none; MPEG-4 Part 2 in MP4 (lossy, plays everywhere);
+   FFV1 in MKV (lossless). *Recommended: MPEG-4 Part 2 in MP4, offered only as an explicit choice when H.264 is
+   missing.* It is the R099.b recommendation, and it gives people on such builds a video without changing the
+   default.
+2. **Default timing.** Keep 24 fps, a 1.00 s transition and a 0.50 s hold (seven scenes at most), or lower
+   defaults (a 0.50 s transition and a 0.25 s hold allow 13). *Recommended: keep the defaults, and show the
+   cap live.* They match the one-shot sheet and ADR 0173, and the cap is visible, not hidden.
+3. **HDR panoramas in batches.** Keep them out of v1, or add a per-batch picker later. *Recommended: out of v1.*
+   ADR decision 3 and the R099.b request both leave them out, and the batch dialog says so.
+4. **The live budget.** Show the worst-case ceiling, or wait for a measured estimate. *Recommended: the ceiling,
+   labelled "largest possible; real frames are usually smaller".* A measured estimate needs a sample render per
+   preset, and a wrong estimate is worse than an honest large ceiling. R099.e can revisit it with measured
+   batches.
+5. **Quitting with a batch running.** Ask first, or stop quietly and leave the batch Interrupted. *Recommended: ask*
+   ("Closing stops the batch. Finished frames are kept, and you can resume it later."), because a batch can run for
+   hours and the person should decide.
+
+| Screen | Shows | Sections |
+| --- | --- | --- |
+| ![menu](mockups/presentation/menu.png) | The Camera menu with Presentations…, and command search | 17.1 |
+| ![render](mockups/presentation/render.png) | The render sheet: the unchanged one-shot button beside the new batch button | 17.1, 17.9 |
+| ![paths](mockups/presentation/paths.png) | The path editor: paths, keyframes in order, seconds and steps, the live count | 17.2 |
+| ![pick](mockups/presentation/pick.png) | The create flow: a draft, and the scene picker | 17.2 |
+| ![limit](mockups/presentation/limit.png) | Over the frame limit: the refusal in words, and the formula | 17.2, 17.8 |
+| ![presets](mockups/presentation/presets.png) | The render presets: name, settings, seed, and what is saved with the model | 17.3 |
+| ![batch](mockups/presentation/batch.png) | The batch dialog: the choices, and the live budget | 17.4 |
+| ![device](mockups/presentation/device.png) | A preset that cannot use the device: refused before Start | 17.4, 17.8 |
+| ![video](mockups/presentation/video.png) | The video probe: H.264 unavailable, and the frames still render | 17.5 |
+| ![unavailable](mockups/presentation/unavailable.png) | Blender absent: the setup card, Start unavailable | 17.4, 17.8 |
+| ![running](mockups/presentation/running.png) | The Jobs list: a running batch with per-preset progress and the chip | 17.6 |
+| ![resume](mockups/presentation/resume.png) | Failed, interrupted and canceled batches: the Resume wording | 17.6, 17.8 |
+| ![results](mockups/presentation/results.png) | Results: the presets, a video not written, and the stills grid | 17.7 |
+| ![broken](mockups/presentation/broken.png) | Refused: a path with a missing scene and a scene without a camera | 17.8 |
