@@ -2981,6 +2981,150 @@
                 "openWorldHint": false,
                 "readOnlyHint": true
             },
+            "description": "report.run: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "report.run"
+                    },
+                    "request": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "filters": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "definitions": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "materials": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "selection": {
+                                        "type": "boolean"
+                                    },
+                                    "tags": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "visibility": {
+                                        "enum": [
+                                            "all",
+                                            "visible"
+                                        ],
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                ],
+                                "type": "object"
+                            },
+                            "groupBy": {
+                                "enum": [
+                                    "none",
+                                    "kind",
+                                    "tag",
+                                    "material",
+                                    "definition"
+                                ],
+                                "type": "string"
+                            },
+                            "metrics": {
+                                "oneOf": [
+                                    {
+                                        "const": "all",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "items": {
+                                            "enum": [
+                                                "counts",
+                                                "areas",
+                                                "volumes"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "maxItems": 3,
+                                        "minItems": 1,
+                                        "type": "array"
+                                    }
+                                ]
+                            },
+                            "precision": {
+                                "oneOf": [
+                                    {
+                                        "const": "full",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "maximum": 6,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                        ],
+                        "type": "object"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "request",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "report.run"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
             "description": "snapshot.begin: shared versioned SketchyUp operation",
             "inputSchema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -15480,6 +15624,135 @@
                                 "required": [
                                     "body",
                                     "points",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "report.run"
+                                    },
+                                    "request": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "filters": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "definitions": {
+                                                        "items": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "maxItems": 128,
+                                                        "minItems": 0,
+                                                        "type": "array"
+                                                    },
+                                                    "materials": {
+                                                        "items": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "maxItems": 128,
+                                                        "minItems": 0,
+                                                        "type": "array"
+                                                    },
+                                                    "selection": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "tags": {
+                                                        "items": {
+                                                            "maxLength": 20,
+                                                            "pattern": "^[1-9][0-9]*$",
+                                                            "type": "string"
+                                                        },
+                                                        "maxItems": 128,
+                                                        "minItems": 0,
+                                                        "type": "array"
+                                                    },
+                                                    "visibility": {
+                                                        "enum": [
+                                                            "all",
+                                                            "visible"
+                                                        ],
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "groupBy": {
+                                                "enum": [
+                                                    "none",
+                                                    "kind",
+                                                    "tag",
+                                                    "material",
+                                                    "definition"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "metrics": {
+                                                "oneOf": [
+                                                    {
+                                                        "const": "all",
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "items": {
+                                                            "enum": [
+                                                                "counts",
+                                                                "areas",
+                                                                "volumes"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "maxItems": 3,
+                                                        "minItems": 1,
+                                                        "type": "array"
+                                                    }
+                                                ]
+                                            },
+                                            "precision": {
+                                                "oneOf": [
+                                                    {
+                                                        "const": "full",
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "maximum": 6,
+                                                        "minimum": 0,
+                                                        "type": "integer"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                        ],
+                                        "type": "object"
+                                    }
+                                },
+                                "required": [
+                                    "request",
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

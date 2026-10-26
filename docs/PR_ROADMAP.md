@@ -1457,7 +1457,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R101 — Add quantities, reports and schedules
 
-**Status:** Planned. Design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). **Track:** Automation. **Scope:** F07. **UX:** —.
+**Status:** Planned; design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). Slices R101.a–f; R101.a (this PR, awaiting merge): the report engine, the request model with its refusals, the counting pass (§2), units, precision and the revision stamp, the session `report.run` query kept off the assistant, and the Q1–Q4 fixtures with checks V1–V4, V6, V8 and V9 (ADR 0175 §1–§4, §11; implementation notes R101.a). R101.b–f (outputs and CLI, schedules, MCP, desktop, acceptance record) are planned. **Track:** Automation. **Scope:** F07. **UX:** —.
 
 **Requires:** [R089](#r089), [R060](#r060); milestone gate rule above.
 

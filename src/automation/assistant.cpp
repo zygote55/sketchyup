@@ -59,10 +59,12 @@ bool assistantVisible(const QString &name) {
     if (name == QStringLiteral("site.describe") || name == QStringLiteral("terrain.describe") ||
         name == QStringLiteral("terrain.elevation_at"))
         return true;
+    // report.run (ADR 0175 decision 12): the assistant stays off by default until a new corpus.
     return !name.startsWith(QStringLiteral("drawing_")) &&
            !name.startsWith(QStringLiteral("component_parameter")) &&
            !name.startsWith(QStringLiteral("site.")) &&
-           !name.startsWith(QStringLiteral("terrain."));
+           !name.startsWith(QStringLiteral("terrain.")) &&
+           !name.startsWith(QStringLiteral("report."));
 }
 // R096.c: what the assistant reads of a query result. terrain.describe keeps the shape R095.g
 // measured: its `currentSources` (R096.c; up to 200 entries naming source ids no assistant tool

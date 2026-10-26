@@ -518,18 +518,22 @@ default `visibility: all`):
 | Box P 2×2×1 m; definition `BoxP`; three placements on tag `Boxes` | 3 instances; 6 contexts (root + member each); 12 m³; 48 m² |
 | Scaled copy of P (plain geometry), scale (2,2,2) | 1 context; 32 m³; 64 m² |
 | Mirrored copy of P (plain geometry), scale (−1,1,1) | 1 context; 4 m³; 16 m² (identical to unscaled) |
-| Three-level transform chain: root group scale 1.5, child group scale 2, holding a 1×1×1 box | 3 contexts (2 groups + 1 box); 27 m³ (3.0 cubed); area ×(3.0)² = 9 m² |
+| Three-level transform chain: root group scale 1.5, child group scale 2, holding a 1×1×1 box | 3 contexts (2 groups + 1 box); 27 m³ (3.0 cubed); area 6 m² × (3.0)² = 54 m² (corrected in R101.a review; was 9 m²) |
 | Hidden group `Stash` holding a 1×1×1 box (1 m³; 6 m²) | included by default; excluded under `visible` |
 | Box on hidden tag `Off`, 2×2×0.5 (2 m³; 12 m²) | included by default; excluded under `visible` |
 | Open plate 1×2 m, single face | area 2 m² counted; volume absent; status `open_boundary` |
-| Two 1 m³ cubes sharing a face | area 12 m² counted; volume absent; status `non_manifold` |
-| Zero-thickness extrusion of a 1×2 face | area 0 m²; volume absent; status `degenerate` |
+| Two 1 m³ cubes sharing a face, as one body | 1 context; area 12 m² counted; volume absent; status `non_manifold` |
+| Zero-thickness extrusion of a 1×2 face | area 0 m²; volume absent; status `degenerate` (cannot be built: `Surface::extrude` refuses a zero distance; see the R101.a notes) |
 | Terrain T: 200 m × 200 m flat plane, 1 m grid | 80,000 triangles; area 40,000 m² (flat, tolerance ≤ 1e-6 relative); 1 container + tile contexts |
 | Definitions: `Post` (0.5×0.5×2 box: 0.5 m³; 4.5 m²), `Top` (2×1×0.1 box: 0.2 m³; 4.6 m²), `Table` (4 `Post` refs + 1 `Top` ref, no members of its own); two `Table` placements | 3 unique definitions; 12 materialized placements (2 `Table` + 8 `Post` + 2 `Top`); 22 contexts (root + placements + members); 4.4 m³; 45.2 m² |
-| Materials: `Post` painted `Steel`, `Top` painted `Wood` | Steel 36 m²; Wood 9.2 m²; unassigned 169 m² (of the 214.2 m² non-terrain) |
+| Materials: `Post` painted `Steel`, `Top` painted `Wood` | Steel 36 m²; Wood 9.2 m²; unassigned 214 m² (of the 259.2 m² non-terrain) |
 | One sheet, two views, three items | metadata only |
 
-Hand totals for the whole document: **contexts 80,041** (3 `BoxP`
+*Corrected in the R101.a review (2026-10-26): the chain area, the area totals, the shared-face and
+degenerate contexts and the terrain tile contexts below; the earlier figures did not follow from the
+rows above. The R101.a notes give the arithmetic.*
+
+Hand totals for the whole document as first written: **contexts 80,041** (3 `BoxP`
 placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 `Off` + 1 plate + 2 shared-face cubes + 1 degenerate + 80,001 terrain +
 22 component contexts = 80,041); **instances 15** (5 top-level: 3 `BoxP`
@@ -539,7 +543,10 @@ placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 **unvalidated 3** (one per status: `open_boundary`, `non_manifold`,
 `degenerate`); **area 40,174.2 m²** (169 m² non-terrain non-component +
 45.2 m² component + 40,000 m² terrain); under `visible`: volume 79.4 m³,
-area 40,156.2 m². The same fixture in `ft-in`:
+area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain non-component + 45.2 m²
+component + 40,000 m² terrain), under `visible` **40,241.2 m²**; volumes unchanged (82.4 m³ and
+79.4 m³); the shared-face cubes are one context and the degenerate body cannot be built, so
+**unvalidated 2**; the terrain is 1 container + 81 tile contexts, so **contexts 120**. The same fixture in `ft-in`:
 4 m³ = 141.2587 ft³ (tolerance ≤ 1e-4 relative), 16 m² = 172.2226 ft².
 
 Checks (each maps to the Verify line):
@@ -548,9 +555,9 @@ Checks (each maps to the Verify line):
 | --- | --- |
 | Shared components follow the explicit counting rules | V1: definitions = 4 counted once each; `Table` filter returns 2 placements + their 10 owned records; the `Boxes` group row equals 3 / 12 m³ / 48 m² |
 | Nested instances | V2: `Table` placements yield the 8 nested `Post` placements; a `definition=Post` filter counts exactly 8, no double count, members under the outer definition's group |
-| Hidden content and hidden tags are explicitly stated | V3: default totals include Stash and Off (82.4 m³ / 40,174.2 m²); `visible` excludes them (79.4 m³ / 40,156.2 m²); the metadata states the applied mode |
-| Nested and mirrored transforms | V4: the mirrored copy equals the unscaled box; the 2× scale is ×8 volume / ×4 area; the three-level chain is 27 m³ / 9 m² |
-| Geometry edits update totals | V5: scale `Stash` by 2 → its contribution ×8; the totals change by hand; the revision stamp increments; undo restores the previous totals and a lower revision |
+| Hidden content and hidden tags are explicitly stated | V3: default totals include Stash and Off (82.4 m³ / 40,259.2 m²); `visible` excludes them (79.4 m³ / 40,241.2 m²); the metadata states the applied mode |
+| Nested and mirrored transforms | V4: the mirrored copy equals the unscaled box; the 2× scale is ×8 volume / ×4 area; the three-level chain is 27 m³ / 54 m² |
+| Geometry edits update totals | V5: scale `Stash` by 2 → its contribution ×8; the totals change by hand; the revision stamp increments; undo restores the previous totals with a new, higher revision (§4: revisions only increase) |
 | Invalid solids are not counted as known volumes | V6: the three invalid contexts appear under their exact statuses; volume totals exclude them; an `analysis_limit` case (an over-budget shell) is also excluded from the total and listed |
 | Live update | V7: on a large model the panel shows "computing …" without freezing the UI; Cancel returns in ≤ 100 ms |
 | Units and precision are stated | V8: the header carries the unit codes and precision for each document unit setting (m, mm, ft-in) and each precision (`full`, 3) |
@@ -700,3 +707,119 @@ all" takes every recommendation.
 13. **Budgets.** Adopt the §12 table, confirmed by measurement in
     R101.b before being frozen. *Reason: the established 0168/0169/0171
     pattern; no full-document sweep has been benchmarked before R101.*
+
+## Implementation notes (R101.a)
+
+R101.a is the report engine, ADR §1–§4 and §11. The counting pass is `src/core/report.{hpp,cpp}`
+(one pure function over the materialized document). The request model, units, precision and the
+stamp are `src/automation/report_commands.{hpp,cpp}`. The `report.run` query is registered in
+`src/automation/inspection.cpp`. Tests: `tests/report_tests.cpp` (fixtures Q1–Q4; checks V1–V4, V6,
+V8, V9; refusals; determinism; the query). `tests/report_benchmark.cpp` is an `EXCLUDE_FROM_ALL`
+harness for the §12 timings. ADR 0175 does not name Q1–Q4; they are read as four documents, Q1
+the components, Q2 the transform copies and hidden content, Q3 the invalid solids and the
+analysis limit, Q4 the whole quantities-a document with the terrain.
+
+### Where the ADR's hand totals do not follow from its own rows
+
+The tests assert the corrected arithmetic and name the ADR value beside the check. The ADR text is
+unchanged here; these need the owner's decision before R101.b freezes the fixtures.
+
+1. **Three-level chain, area (§11, V4): 9 m² should be 54 m².** A 1 m cube has 6 m² of faces (the
+   Stash row of the same table counts it as 6 m²). Scaled by 3 in every direction, each face grows
+   by 3² = 9, so 6 × 9 = 54 m². The ADR's "area ×(3.0)² = 9 m²" applies the factor to 1 m² instead.
+2. **Area total (§11, V3): 40,174.2 m² should be 40,259.2 m².** The ADR's own rows give 169 m² of
+   non-terrain, non-component area (the chain at 9 m²), 45.2 m² of components and 40,000 m² of
+   terrain: 169 + 45.2 + 40,000 = 40,214.2 m², not 40,174.2 m² (off by 40). With the chain at 54 m²
+   and the zero-thickness row at the ADR's 0 m² (see 6): 48 + 64 + 16 + 54 + 6 + 12 + 2 + 12 + 0 =
+   214 m²; 214 + 45.2 + 40,000 = 40,259.2 m². Visible (minus Stash 6 m² and Off 12 m²) is
+   40,241.2 m², not 40,156.2 m². The materials line becomes "unassigned 214 m² (of 259.2 m²
+   non-terrain)", not 169 m² (of 214.2 m²).
+3. **Shared-face cubes (§11 context total): one context, not two.** The row describes one
+   non-manifold solid with no volume, and "unvalidated 3 (one per status)" needs one such context.
+   Two separate cubes would each be a valid solid with a known volume. The fixture is one body.
+4. **Terrain contexts (§11 "80,001 terrain"): one tile per triangle is assumed.** Tiles hold at most
+   2,048 triangles (`TerrainLimits::tileTriangles`), so the 80,000 triangles of the 200 m flat grid
+   are 81 tiles (measured). The whole-document total is 38 non-terrain + 1 container + 81 tiles = 120
+   contexts, not 80,041.
+5. **Undo and the revision (§11 V5, checked here through V9): "undo … a lower revision" contradicts
+   §4.** `Document::undo` and `redo` each increment the revision, as §4 says, so a state is never
+   stamped twice. The test checks that the totals come back and that the revision moves forward.
+6. **Zero-thickness extrusion (§11, the `degenerate` row): not buildable, so not verified.**
+   `Surface::extrude` refuses a distance of zero and one below tolerance. A closed prism with a
+   collinear base vertex is accepted and is a valid 1 m³ solid, not `degenerate`. Neither
+   construction gives `degenerate`. No body the public API can build gets `degenerate`, so the fixtures have two
+   invalid statuses (`open_boundary`, `non_manifold`) and the whole-document unvalidated count is 2,
+   not 3. The `analysis_limit` case (65 disjoint cubes, over the 64-shell limit) is tested on its own.
+   **Open:** either a construction the solid analysis reports as `degenerate`, or a different row.
+7. **Status count (§2.4).** The text says "the eleven above"; §0 and §6.1 list ten. `multiple_records`
+   and `not_a_context` are context-level cases. A context is one materialized body record (§2.1), so
+   `multiple_records` cannot arise and the invalid table has the ten statuses of §6.1.
+
+### Decisions where the ADR was silent
+
+- **Containers are not solid candidates.** Groups, placement roots, reference images and terrain
+  containers have no solid of their own. Only `Geometry` records are analysed and listed; otherwise
+  every placement root would be `empty` and the "unvalidated 3" of §11 could not hold. §2.4's
+  "contexts without geometry: empty" is read as a Geometry record with no faces.
+- **Tags are inherited.** A record carries its own tag and every ancestor's (`inheritedTags`), so the
+  members of a tagged placement count under its tag (V1's Boxes row needs this). A folder aggregates
+  the tags below it.
+- **Definitions.** A nested placement and its members fall under the outermost placement's
+  definition (§1). The `definitions` count of a group is the definitions with an in-scope placement in
+  that group.
+- **Material grouping** keys a record by the front material of its lowest-ID face. Areas are split
+  per face, so each area is counted once.
+- **A `precision` request field** (`"full"` or an integer) is added to §1. §3 says precision defaults
+  to `displayPrecision` and §8 has `--precision`, so the request needs it. Full precision is at most
+  eight decimals, trimmed, in the C locale. It is not `displayDecimal` or `displayMeasure`: those use
+  the default locale, and `displayMeasure`'s full form is eight significant digits. The engine uses
+  the factors of `unit_display.hpp` (mm ×1000, ft ÷0.3048); the ft-in example of §11 is checked
+  against `displayMeasure`'s own value.
+- **Selection** (editor sessions only) is the selected bodies and their descendants. A hidden body
+  cannot be selected, so a selection never brings in hidden content.
+- **Empty tables.** The All row is always in `counts` and `volumes`, zero when nothing is in scope.
+  The terrain table is always present. `volumes` also emits the invalid table (§1).
+- **No document format change.** The document stays at schema 29 (§7).
+
+### Surfaces
+
+- `report.run` is an inspection query, so it reaches the session, `transaction.inspect` and MCP
+  through the registry, like every query. **MCP:** `docs/api/mcp-2026-07-28.json` and
+  `docs/api/mcp-native-2026-07-28.json` now list `report.run`. §9 names the MCP tool `reports.run`
+  (R101.d). R101.a does not add that name, so R101.d must decide whether to rename or alias it.
+- **Assistant:** excluded by prefix in `assistantVisible` (decision 12). `assistant_tool_surface_tests`
+  passes against the unchanged baseline.
+- **Native assistant execution:** `NativeAssistantSession` runs any registry query it is given and
+  does not check the assistant's advertised list. It already does this for `drawing_*`,
+  `component_parameter*` and `site.*`. Advertising is what keeps the assistant from `report.run`; an
+  execution-time filter would apply to all of those queries and is a separate change.
+
+### Measured timings (§12)
+
+Build type: Release (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3`) for the Release column, and
+Debug (`-O0`, no debug info) for the second column. These are
+not the R101.b confirmation. Measured with `tests/report_benchmark.cpp` on the developer machine
+(Linux, 30 GB RAM): a 249,218-triangle terrain (256 tiles), 10,000 placements of a 12-face part (two
+6-face boxes in one component, the quantities-b shape), 30,257 records, 120,000 faces.
+
+| Work | Budget (§12) | Release | Debug |
+| --- | --- | --- | --- |
+| Counts (groupBy none) | ≤ 2 s | 0.36 s | 2.35 s |
+| + areas (areas run alone) | ≤ 5 s | 0.47 s | 2.89 s |
+| + solid volumes (volumes run alone) | ≤ 30 s | 1.31 s | 8.70 s |
+| All four tables | (the sum) | 1.32 s | 9.06 s |
+| Peak resident memory | ≤ 512 MiB | 233 MiB | 254 MiB |
+
+Each run computes the face areas as well, because the terrain table is always emitted, so the
+single-table rows are not cheaper than the whole pass. Building the fixture (the terrain, then the
+10,000 placements) took 0.96 s and 0.83 s in Release, and is not part of any budget. The §12 budgets
+are the ADR's proposals; on this machine every measured stage is well inside them.
+
+### Not covered by R101.a
+
+- The `degenerate` status (point 6 above).
+- V5 beyond V9's single edit and undo, V7 (live update and cancel), V10–V12 (outputs, schedules, CLI).
+- Sheets. The metadata reads the sheet, view and item tables, but no fixture has sheets, so the
+  "one sheet, two views, three items" row is not built.
+- The desktop selection path (`DesktopInspection`) is not run by a desktop test.
+- The §12 budgets on the full application, and on the other platforms of the acceptance record.

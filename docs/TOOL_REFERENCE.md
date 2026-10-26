@@ -217,6 +217,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `site.convert` |  | `to`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.describe` |  | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.elevation_at` |  | `body`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `report.run` |  | `request`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 
 ## Transactions
 
@@ -291,6 +292,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `site.convert` | site.convert: shared versioned SketchyUp operation | `to`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.describe` | terrain.describe: shared versioned SketchyUp operation | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.elevation_at` | terrain.elevation_at: shared versioned SketchyUp operation | `body`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `report.run` | report.run: shared versioned SketchyUp operation | `request`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `snapshot.begin` | snapshot.begin: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `snapshot.release` | snapshot.release: shared versioned SketchyUp operation | `snapshotId`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `transaction.begin` | Create an empty private draft at the current revision | `expectedRevision`, `apiVersion`, `documentId`, `operation` |
