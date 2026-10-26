@@ -53,6 +53,10 @@ Document Document::readSnapshot() const {
     result.drawingItems_ = drawingItems_;
     result.nextDrawingItemId_ = nextDrawingItemId_;
     result.nextComponentDriverId_ = nextComponentDriverId_;
+    result.cameraPaths_ = cameraPaths_;
+    result.nextCameraPathId_ = nextCameraPathId_;
+    result.renderPresets_ = renderPresets_;
+    result.nextRenderPresetId_ = nextRenderPresetId_;
     result.variants_ = variants_;
     result.definitionFloors_ = definitionFloors_;
     result.surfaceFloors_ = surfaceFloors_;
@@ -592,6 +596,10 @@ size_t Document::readSnapshotBytes() const {
         result += drawingViewBytes(view) + 64;
     for (const auto &[id, item] : drawingItems_)
         result += drawingItemBytes(item) + 64;
+    for (const auto &[id, path] : cameraPaths_)
+        result += cameraPathBytes(path) + 64;
+    for (const auto &[id, preset] : renderPresets_)
+        result += renderPresetBytes(preset) + 64;
     if (variants_)
         result += componentVariantBytes(*variants_);
     result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
@@ -944,6 +952,22 @@ void Document::update(Edit edit, bool forward) {
     auto tags = tags_;
     auto drawingSheets = drawingSheets_;
     auto drawingViews = drawingViews_;
+    auto cameraPaths = cameraPaths_;
+    for (const auto &change : edit.cameraPaths) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            cameraPaths[change.id] = target;
+        else
+            cameraPaths.erase(change.id);
+    }
+    auto renderPresets = renderPresets_;
+    for (const auto &change : edit.renderPresets) {
+        const auto target = forward ? change.after : change.before;
+        if (target)
+            renderPresets[change.id] = target;
+        else
+            renderPresets.erase(change.id);
+    }
     for (const auto &change : edit.drawingSheets) {
         const auto target = forward ? change.after : change.before;
         if (target)
@@ -1087,6 +1111,8 @@ void Document::update(Edit edit, bool forward) {
     drawingSheets_.swap(drawingSheets);
     drawingViews_.swap(drawingViews);
     drawingItems_.swap(drawingItems);
+    cameraPaths_.swap(cameraPaths);
+    renderPresets_.swap(renderPresets);
     if (edit.hosted)
         hosted_ = forward ? edit.hosted->after : edit.hosted->before;
     if (edit.displayUnits)
@@ -1118,7 +1144,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site &&
         edit.scenes.empty() && edit.sections.empty() && !edit.activeSections &&
         edit.annotations.empty() && edit.drawingSheets.empty() && edit.drawingViews.empty() &&
-        edit.drawingItems.empty())
+        edit.drawingItems.empty() && edit.cameraPaths.empty() && edit.renderPresets.empty())
         throw std::runtime_error("Empty edit");
     // Page editing never modifies the source model, and model edits never write
     // drawing sheets (ADR 0163). Floors may restate, but not raise, model allocators.
@@ -1140,7 +1166,9 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
          edit.nextMaterialFloor > nextMaterialId_ || edit.nextAssetFloor > nextAssetId_ ||
          edit.nextSceneFloor > nextSceneId_ || edit.nextSectionFloor > nextSectionId_ ||
          edit.nextAnnotationFloor > nextAnnotationId_ ||
-         edit.nextComponentDriverFloor > nextComponentDriverId_))
+         edit.nextComponentDriverFloor > nextComponentDriverId_ ||
+         edit.nextCameraPathFloor > nextCameraPathId_ ||
+         edit.nextRenderPresetFloor > nextRenderPresetId_))
         throw std::runtime_error("Drawing sheet edits cannot change model records");
     if (edit.solar) {
         edit.solar->first.validate();
@@ -1316,6 +1344,49 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         if (change.after && (!change.before || change.before->source != change.after->source) &&
             !drawingViewSourceExists(scenes, change.after->source))
             throw std::runtime_error("New drawing view sources require an existing scene");
+    Id nextCameraPath = std::max(nextCameraPathId_, edit.nextCameraPathFloor);
+    std::set<Id> cameraPathIds;
+    auto cameraPaths = cameraPaths_;
+    for (auto &change : edit.cameraPaths) {
+        if (!change.id || change.id == UINT64_MAX || !cameraPathIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (cameraPaths_.contains(change.id) ? cameraPaths_.at(change.id) : nullptr) != change.before ||
+            (change.before && change.after && *change.before == *change.after))
+            throw std::runtime_error("Invalid or stale camera path change");
+        if (!change.before && change.id < nextCameraPathId_)
+            throw std::runtime_error("Retired camera path ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<CameraPathRecord>(*change.after);
+            cameraPaths[change.id] = change.after;
+            nextCameraPath = std::max(nextCameraPath, change.id + 1);
+        } else
+            cameraPaths.erase(change.id);
+    }
+    validateCameraPathRecords(cameraPaths, nextCameraPath);
+    // Creating a path, or changing its keyframes, requires live scenes with cameras after
+    // this edit. A broken path keeps its diagnosed references when it is only renamed.
+    for (const auto &change : edit.cameraPaths)
+        if (change.after && (!change.before || change.before->keyframes != change.after->keyframes))
+            validateCameraPathCapture(scenes, *change.after);
+    Id nextRenderPreset = std::max(nextRenderPresetId_, edit.nextRenderPresetFloor);
+    std::set<Id> renderPresetIds;
+    auto renderPresets = renderPresets_;
+    for (auto &change : edit.renderPresets) {
+        if (!change.id || change.id == UINT64_MAX || !renderPresetIds.insert(change.id).second ||
+            (!change.before && !change.after) ||
+            (renderPresets_.contains(change.id) ? renderPresets_.at(change.id) : nullptr) != change.before ||
+            (change.before && change.after && *change.before == *change.after))
+            throw std::runtime_error("Invalid or stale render preset change");
+        if (!change.before && change.id < nextRenderPresetId_)
+            throw std::runtime_error("Retired render preset ID cannot be reused");
+        if (change.after) {
+            change.after = std::make_shared<RenderPresetRecord>(*change.after);
+            renderPresets[change.id] = change.after;
+            nextRenderPreset = std::max(nextRenderPreset, change.id + 1);
+        } else
+            renderPresets.erase(change.id);
+    }
+    validateRenderPresetRecords(renderPresets, nextRenderPreset);
     Id nextAsset = std::max(nextAssetId_, edit.nextAssetFloor);
     std::set<Id> assetIds;
     for (auto &change : edit.assets) {
@@ -1382,6 +1453,7 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         if (fullValidation || !edit.definitions.empty() || !edit.tags.empty() ||
             !edit.materials.empty() || !edit.assets.empty() || !edit.scenes.empty() ||
             !edit.sections.empty() || !activeSections.empty() || !annotations.empty() ||
+            !edit.cameraPaths.empty() || !edit.renderPresets.empty() ||
             !hosted->hosts.empty() || !hosted->attachments.empty())
             return false;
         std::set<Id> inserted;
@@ -1799,6 +1871,10 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         edit.bytes += sizeof(AssetChange) + assetBytes(change.before) + assetBytes(change.after);
     for (const auto &change : edit.scenes)
         edit.bytes += sizeof(SceneChange) + sceneBytes(change.before) + sceneBytes(change.after);
+    for (const auto &change : edit.cameraPaths)
+        edit.bytes += sizeof(CameraPathChange) + cameraPathBytes(change.before) + cameraPathBytes(change.after);
+    for (const auto &change : edit.renderPresets)
+        edit.bytes += sizeof(RenderPresetChange) + renderPresetBytes(change.before) + renderPresetBytes(change.after);
     for (const auto &change : edit.sections)
         edit.bytes += sizeof(SectionChange) + sectionBytes(change.before) + sectionBytes(change.after);
     for (const auto &change : edit.drawingSheets)
@@ -2062,6 +2138,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     drawingSheets_.swap(drawingSheets);
     drawingViews_.swap(drawingViews);
     drawingItems_.swap(drawingItems);
+    cameraPaths_.swap(cameraPaths);
+    renderPresets_.swap(renderPresets);
     hosted_ = std::move(hosted);
     nextTagId_ = nextTag;
     nextMaterialId_ = nextMaterial;
@@ -2072,6 +2150,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     nextDrawingSheetId_ = nextDrawingSheet;
     nextDrawingViewId_ = nextDrawingView;
     nextDrawingItemId_ = nextDrawingItem;
+    nextCameraPathId_ = nextCameraPath;
+    nextRenderPresetId_ = nextRenderPreset;
     nextId_ = next;
     commitSparse(surfaceFloors_, floorUpdates);
     commitSparse(edgeFloors_, edgeFloorUpdates);
@@ -2233,6 +2313,18 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         if (!change.before && change.after)
             ++createdDrawingItems;
     }
+    std::set<Id> cameraPathContexts, renderPresetContexts;
+    size_t createdCameraPaths = 0, createdRenderPresets = 0;
+    for (const auto &change : undo_.back().edit.cameraPaths) {
+        cameraPathContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdCameraPaths;
+    }
+    for (const auto &change : undo_.back().edit.renderPresets) {
+        renderPresetContexts.insert(change.id);
+        if (!change.before && change.after)
+            ++createdRenderPresets;
+    }
     Document staged = *this;
     staged.undo();
     const auto baseline = staged.bodies_;
@@ -2247,6 +2339,8 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
     const auto baselineDrawingSheets = staged.drawingSheets_;
     const auto baselineDrawingViews = staged.drawingViews_;
     const auto baselineDrawingItems = staged.drawingItems_;
+    const auto baselineCameraPaths = staged.cameraPaths_;
+    const auto baselineRenderPresets = staged.renderPresets_;
     const auto baselineActiveSections = staged.activeSections_;
     const auto baselineUnits = staged.displayUnits_;
     const auto baselinePrecision = staged.displayPrecision_;
@@ -2388,6 +2482,24 @@ ChangeReport Document::amendLast(const AmendStamp &stamp,
         newDrawingItems += !baselineDrawingItems.contains(id);
     if (newDrawingItems != createdDrawingItems)
         throw std::runtime_error("Replacement must preserve drawing item creation count");
+    for (const auto &[id, path] : baselineCameraPaths)
+        if (!cameraPathContexts.contains(id) &&
+            (!staged.cameraPaths_.contains(id) || staged.cameraPaths_.at(id) != path))
+            throw std::runtime_error("Replacement cannot change another camera path");
+    size_t newCameraPaths = 0;
+    for (const auto &[id, path] : staged.cameraPaths_)
+        newCameraPaths += !baselineCameraPaths.contains(id);
+    if (newCameraPaths != createdCameraPaths)
+        throw std::runtime_error("Replacement must preserve camera path creation count");
+    for (const auto &[id, preset] : baselineRenderPresets)
+        if (!renderPresetContexts.contains(id) &&
+            (!staged.renderPresets_.contains(id) || staged.renderPresets_.at(id) != preset))
+            throw std::runtime_error("Replacement cannot change another render preset");
+    size_t newRenderPresets = 0;
+    for (const auto &[id, preset] : staged.renderPresets_)
+        newRenderPresets += !baselineRenderPresets.contains(id);
+    if (newRenderPresets != createdRenderPresets)
+        throw std::runtime_error("Replacement must preserve render preset creation count");
     for (const auto &[id, asset] : baselineAssets)
         if (!assetContexts.contains(id) &&
             (!staged.assets_.contains(id) || staged.assets_.at(id) != asset))
@@ -2533,7 +2645,9 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        Id nextDrawingSheetId, DrawingViewRecords drawingViews,
                        Id nextDrawingViewId, DrawingItemRecords drawingItems,
                        Id nextDrawingItemId, Id nextComponentDriverId,
-                       std::optional<SiteOrigin> site) {
+                       std::optional<SiteOrigin> site, CameraPathRecords cameraPaths,
+                       Id nextCameraPathId, RenderPresetRecords renderPresets,
+                       Id nextRenderPresetId) {
     restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
@@ -2542,7 +2656,8 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                    std::move(annotations), nextAnnotationId, solar, displayPrecision,
                    std::move(drawingSheets), nextDrawingSheetId, std::move(drawingViews),
                    nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
-                   nextComponentDriverId, std::move(site));
+                   nextComponentDriverId, std::move(site), std::move(cameraPaths),
+                   nextCameraPathId, std::move(renderPresets), nextRenderPresetId);
 }
 void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
                               std::map<Id, BodyPtr> bodies, std::uint64_t revision,
@@ -2557,7 +2672,9 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
                               DrawingSheetRecords drawingSheets, Id nextDrawingSheetId,
                               DrawingViewRecords drawingViews, Id nextDrawingViewId,
                               DrawingItemRecords drawingItems, Id nextDrawingItemId,
-                              Id nextComponentDriverId, std::optional<SiteOrigin> site) {
+                              Id nextComponentDriverId, std::optional<SiteOrigin> site,
+                              CameraPathRecords cameraPaths, Id nextCameraPathId,
+                              RenderPresetRecords renderPresets, Id nextRenderPresetId) {
     requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
@@ -2597,6 +2714,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     validateSceneRecords(scenes, nextSceneId);
     validateSectionRecords(sections, nextSectionId, activeSections);
     validateAnnotationRecords(annotations, nextAnnotationId);
+    validateCameraPathRecords(cameraPaths, nextCameraPathId);
+    validateRenderPresetRecords(renderPresets, nextRenderPresetId);
     // Views whose scene is missing stay valid: they are diagnosed broken links.
     validateDrawingSheetRecords(drawingSheets, nextDrawingSheetId, drawingViews,
                                 nextDrawingViewId, drawingItems, nextDrawingItemId);
@@ -2670,6 +2789,10 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         view = std::make_shared<DrawingViewRecord>(*view);
     for (auto &[id, item] : drawingItems)
         item = std::make_shared<DrawingItemRecord>(*item);
+    for (auto &[id, path] : cameraPaths)
+        path = std::make_shared<CameraPathRecord>(*path);
+    for (auto &[id, preset] : renderPresets)
+        preset = std::make_shared<RenderPresetRecord>(*preset);
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
@@ -2705,6 +2828,10 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     nextDrawingViewId_ = nextDrawingViewId;
     drawingItems_ = std::move(drawingItems);
     nextDrawingItemId_ = nextDrawingItemId;
+    cameraPaths_ = std::move(cameraPaths);
+    nextCameraPathId_ = nextCameraPathId;
+    renderPresets_ = std::move(renderPresets);
+    nextRenderPresetId_ = nextRenderPresetId;
     nextComponentDriverId_ = nextComponentDriverId;
     surfaceFloors_ = std::move(floors);
     edgeFloors_ = std::move(edgeFloors);
@@ -2862,6 +2989,15 @@ std::string Document::stateMismatch(const Document &other) const {
               nextDrawingItemId_ == other.nextDrawingItemId_ &&
               nextComponentDriverId_ == other.nextComponentDriverId_,
           "allocators");
+    check(nextCameraPathId_ == other.nextCameraPathId_ &&
+              nextRenderPresetId_ == other.nextRenderPresetId_,
+          "presentation allocators");
+    check(sameRecords(cameraPaths_, other.cameraPaths_,
+                      [](const auto &a, const auto &b) { return a == b || (a && b && *a == *b); }),
+          "camera paths");
+    check(sameRecords(renderPresets_, other.renderPresets_,
+                      [](const auto &a, const auto &b) { return a == b || (a && b && *a == *b); }),
+          "render presets");
     check(sameComponentVariants(componentVariants(), other.componentVariants()),
           "component variants");
     check(revision_ == other.revision_ && undo_.size() == other.undo_.size() &&

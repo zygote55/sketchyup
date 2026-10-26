@@ -49,13 +49,6 @@ Vec3 vector(const QJsonValue &value) {
     return result;
 }
 } // namespace
-void validateRenderSettings(const RenderSettings &s) {
-    require(s.engine == RenderEngine::Cycles || s.engine == RenderEngine::Eevee,
-            "Unsupported render engine");
-    require(s.width >= 64 && s.width <= 4096 && s.height >= 64 && s.height <= 4096 &&
-                s.samples >= 1 && s.samples <= 1024 && s.seed >= 0 && s.seed <= 1000000,
-            "Render resolution, samples or seed exceed bounds");
-}
 Transform renderCameraTransform(const RenderCamera &c) {
     cameraPoint(c.position);
     cameraPoint(c.target);

@@ -570,3 +570,24 @@ unchanged: `sketchyup-cli --validate-native` exits 1 and writes exactly
 
 to stderr. Package acceptance also passes its prior CLI (the pinned 1.1.1 package) to
 `terrain_io`, which checks the same refusal.
+
+**Schema 30 addendum: camera paths and render presets (R099.a).** 2026-10-25. The public
+schema advances to **sketchyup-document-v30** under container version 2; see
+[camera paths and batch output](0173-camera-paths-batch-output.md) §2 and §3. The schema-30
+document chunk uses `json-v30`, and `requiredFeatures` appends `presentation-v1` after
+`terrain-v1`. The root adds one required object, `presentation`:
+
+- `cameraPaths`: an array of at most 64 records `{id, name, position, keyframes, timing}`.
+  `id` is a canonical nonzero decimal string, `name` follows the saved-scene rule (1 to
+  1,024 bytes, no edge spaces, no control characters, unique), `position` is unique and
+  below the count, `keyframes` is 2 to 32 scene identities, and `timing` is
+  `{framesPerSecond 1–60, transitionSteps 1–600, holdSteps 0–600}`. The planned frame count
+  `1 + N·hold + (N−1)·transition` is at most 240.
+- `renderPresets`: an array of at most 16 records `{id, name, settings}`, where `settings` is
+  `{width, height, samples, seed, engine}` with the `RenderSettings` bounds and `engine`
+  `cycles` or `eevee`.
+- `nextCameraPathId` and `nextRenderPresetId`: canonical nonzero decimal strings.
+
+A keyframe that names no scene is not a decode error: the path loads broken. A schema-29
+root refuses the object, and a schema-31 root refuses with the newer-format error. A document
+without camera paths or presets still writes its lower schema.

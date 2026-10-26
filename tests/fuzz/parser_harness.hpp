@@ -5,6 +5,7 @@
 #include "io/ifc_package.hpp"
 #include "io/library_bundle.hpp"
 #include "io/obj_source.hpp"
+#include "io/presentation_io.hpp"
 #include "io/skp_package.hpp"
 #include "io/stl_source.hpp"
 #include "io/terrain_import.hpp"
@@ -29,7 +30,7 @@ inline constexpr const char *formats[] = {
     "native-json", "native-container", "glb",       "stl-binary", "stl-ascii",           "obj",
     "dxf",         "template",         "component", "extension",  "parameter-expression",
     "terrain-mesh", "terrain-dxf",     "terrain-points", "terrain-edits", "ifc-package",
-    "skp-package"};
+    "skp-package",   "presentation"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -140,6 +141,45 @@ inline void terrainEditsInvariants(const std::vector<TerrainEditPtr> &edits) {
     require(again.size() == edits.size(), "terrain edits re-decode");
     for (std::size_t i = 0; i < edits.size(); ++i)
         require(*again[i] == *edits[i], "terrain edits round-trip");
+}
+// R099.a (ADR 0173 section 3): an accepted presentation object is within every record and
+// budget bound, its allocators are above its identities, and its canonical encoding decodes
+// to equal tables that encode to the same bytes.
+inline bool samePresentationTables(const PresentationTables &a, const PresentationTables &b) {
+    if (a.cameraPaths.size() != b.cameraPaths.size() ||
+        a.renderPresets.size() != b.renderPresets.size() ||
+        a.nextCameraPathId != b.nextCameraPathId || a.nextRenderPresetId != b.nextRenderPresetId)
+        return false;
+    for (const auto &[id, path] : a.cameraPaths)
+        if (!b.cameraPaths.contains(id) || !(*b.cameraPaths.at(id) == *path))
+            return false;
+    for (const auto &[id, preset] : a.renderPresets)
+        if (!b.renderPresets.contains(id) || !(*b.renderPresets.at(id) == *preset))
+            return false;
+    return true;
+}
+inline void presentationInvariants(const PresentationTables &tables) {
+    require(tables.cameraPaths.size() <= cameraPathCountLimit &&
+                tables.renderPresets.size() <= renderPresetCountLimit,
+            "presentation counts within limits");
+    for (const auto &[id, path] : tables.cameraPaths) {
+        require(id && id < tables.nextCameraPathId && path->id == id,
+                "camera path identity below its allocator");
+        require(path->keyframes.size() >= 2 && path->keyframes.size() <= cameraPathKeyframeLimit,
+                "camera path keyframes within limits");
+        require(cameraPathFrameCount(path->keyframes.size(), path->timing) <= cameraPathFrameLimit,
+                "camera path plans within 240 frames");
+        for (const auto scene : path->keyframes)
+            require(scene != 0, "camera path keyframes name scenes");
+    }
+    for (const auto &[id, preset] : tables.renderPresets) {
+        const auto &s = preset->settings;
+        require(id && id < tables.nextRenderPresetId && preset->id == id,
+                "render preset identity below its allocator");
+        require(s.width >= 64 && s.width <= 4096 && s.height >= 64 && s.height <= 4096 &&
+                    s.samples >= 1 && s.samples <= 1024 && s.seed >= 0 && s.seed <= 1000000,
+                "render preset settings within bounds");
+    }
 }
 // R097.b: an accepted IFC conversion package is within every bound, its references resolve, and it
 // re-encodes to a package that decodes to an equal one (the manifest form is canonical).
@@ -339,6 +379,21 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             const auto tiles = decodeTerrainMesh(bytes);
             accepted = true;
             terrainMeshInvariants(tiles, bytes);
+        } else if (format == "presentation") {
+            // Decoding the same bytes twice must agree; an accepted object is within its bounds
+            // and re-encodes canonically.
+            const auto json = QJsonDocument::fromJson(bytes);
+            if (!json.isObject())
+                return false;
+            const auto first = decodePresentation(json.object());
+            require(samePresentationTables(first, decodePresentation(json.object())),
+                    "presentation decode is deterministic");
+            accepted = true;
+            presentationInvariants(first);
+            const auto encoded = encodePresentation(first);
+            const auto again = decodePresentation(encoded);
+            require(samePresentationTables(again, first) && encodePresentation(again) == encoded,
+                    "accepted presentation re-encodes canonically");
         } else if (format == "parameter-expression") {
             // R093.a: one expression, checked and evaluated against the fixed table.
             bool expression = false;

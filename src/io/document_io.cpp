@@ -13,6 +13,7 @@
 #include "io/native_format.hpp"
 #include "io/native_limits.hpp"
 #include "io/reference_image_io.hpp"
+#include "io/presentation_io.hpp"
 #include "io/scenes_io.hpp"
 #include "io/sections_io.hpp"
 #include "io/solar_io.hpp"
@@ -493,6 +494,9 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
                                   ? QJsonValue::Null
                                   : QJsonValue(QString::fromLatin1(mesh.toBase64()));
     }
+    // Schema 30 (ADR 0173 §3): the camera path and render preset tables.
+    if (version >= 30)
+        root["presentation"] = encodePresentation(presentationTablesOf(doc));
     if (version >= 27) {
         root["drawingSheets"] = encodeDrawingSheets(doc.drawingSheets());
         root["nextDrawingSheetId"] = sid(doc.nextDrawingSheetId());
@@ -975,6 +979,10 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     const bool terrain = root["version"].toInt() >= 29;
     if (terrain)
         rootFields += {"site", "terrainMesh"};
+    // Camera paths and render presets (ADR 0173 §3); every schema-30 field is required.
+    const bool presentation = root["version"].toInt() >= 30;
+    if (presentation)
+        rootFields.append("presentation");
     supportedFields(root, rootFields);
     // Every schema-28 field is required.
     for (const auto &field : rootFields)
@@ -1231,6 +1239,9 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         for (const auto &[id, body] : bodies)
             if (body->terrainTile || body->terrain)
                 throw std::runtime_error("Terrain requires schema 29");
+    PresentationTables presentationTables;
+    if (presentation)
+        presentationTables = decodePresentation(root["presentation"]);
     Document doc;
     DocumentDecodeAccess::restore(
         doc, root["documentId"].toString().toStdString(), readId(root["nextId"]), std::move(bodies),
@@ -1263,7 +1274,9 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                                       : fullDisplayPrecision,
         std::move(drawingSheets.first), nextDrawingSheetId, std::move(drawingSheets.second),
         nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
-        parameters ? readId(root["nextComponentDriverId"]) : 1, std::move(site));
+        parameters ? readId(root["nextComponentDriverId"]) : 1, std::move(site),
+        std::move(presentationTables.cameraPaths), presentationTables.nextCameraPathId,
+        std::move(presentationTables.renderPresets), presentationTables.nextRenderPresetId);
     return doc;
 }
 } // namespace sketchy

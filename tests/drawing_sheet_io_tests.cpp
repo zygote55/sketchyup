@@ -1213,10 +1213,12 @@ int main(int argc, char **argv) {
             int historical{};
             for (const auto &name : names) {
                 // Newer schemas keep their own tests: release-1.1.0-v27 and the schema-28
-                // fixture (R093.c, component_parameter_io).
+                // fixture (R093.c, component_parameter_io), and the schema-30 fixture
+                // (R099.a, presentation_io).
                 if (name == "drawing-sheets-v27.sketchyup" ||
                     name == "release-1.1.0-v27.sketchyup" ||
-                    name == "component-parameters-v28.sketchyup")
+                    name == "component-parameters-v28.sketchyup" ||
+                    name == "presentation-v30.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);

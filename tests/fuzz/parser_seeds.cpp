@@ -4,6 +4,7 @@
 #include "core/annotation_anchors.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
+#include "core/presentation.hpp"
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
@@ -13,6 +14,7 @@
 #include "core/terrain_source_edit.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
+#include "io/presentation_io.hpp"
 #include "io/stl_export.hpp"
 #include "io/texture_image.hpp"
 #include "parser_harness.hpp"
@@ -503,6 +505,69 @@ int main(int argc, char **argv) {
             auto parent = ifc_fixture::samplePackage();
             parent.nodes[1].parent = 2;
             publishRejected("ifc-package", encodeIfcPackage(parent), "parent-after-child");
+        }
+        // R099.a: schema 30 camera paths and render presets. A path over a scene that was
+        // deleted loads broken, not refused. Rejected: a path of one keyframe, a keyframe of
+        // zero, and a preset narrower than 64 pixels.
+        {
+            Document presentation;
+            SceneSnapshot plan;
+            plan.camera = SceneCamera{};
+            plan.camera->orthographic = true;
+            SceneSnapshot side;
+            side.camera = SceneCamera{};
+            side.camera->yaw = 90;
+            const auto planScene = createScene(presentation, "Plan", plan);
+            const auto sideScene = createScene(presentation, "Side", side);
+            const auto gone = createScene(presentation, "Gone", side);
+            createCameraPath(presentation, "Tour", {planScene, sideScene, planScene},
+                             CameraPathTiming{30, 12, 6});
+            createCameraPath(presentation, "Stale", {planScene, gone});
+            eraseScene(presentation, gone);
+            createRenderPreset(presentation, "Final",
+                               RenderSettings{1920, 1080, 256, 7, RenderEngine::Cycles});
+            createRenderPreset(presentation, "Preview",
+                               RenderSettings{640, 360, 16, 0, RenderEngine::Eevee});
+            const auto encoded = encodePresentation(presentationTablesOf(presentation));
+            publish("presentation", QJsonDocument(encoded).toJson(QJsonDocument::Compact),
+                    "tour-and-presets");
+            publish("presentation",
+                    QJsonDocument(QJsonObject{{"cameraPaths", QJsonArray{}},
+                                              {"nextCameraPathId", "1"},
+                                              {"renderPresets", QJsonArray{}},
+                                              {"nextRenderPresetId", "1"}})
+                        .toJson(QJsonDocument::Compact),
+                    "empty");
+            auto oneKeyframe = encoded;
+            auto paths = oneKeyframe["cameraPaths"].toArray();
+            auto first = paths[0].toObject();
+            first["keyframes"] = QJsonArray{first["keyframes"].toArray()[0]};
+            paths[0] = first;
+            oneKeyframe["cameraPaths"] = paths;
+            publishRejected("presentation",
+                            QJsonDocument(oneKeyframe).toJson(QJsonDocument::Compact),
+                            "one-keyframe");
+            auto zeroKeyframe = encoded;
+            paths = zeroKeyframe["cameraPaths"].toArray();
+            first = paths[0].toObject();
+            auto keyframes = first["keyframes"].toArray();
+            keyframes[0] = "0";
+            first["keyframes"] = keyframes;
+            paths[0] = first;
+            zeroKeyframe["cameraPaths"] = paths;
+            publishRejected("presentation",
+                            QJsonDocument(zeroKeyframe).toJson(QJsonDocument::Compact),
+                            "zero-keyframe");
+            auto narrow = encoded;
+            auto presets = narrow["renderPresets"].toArray();
+            auto preset = presets[0].toObject();
+            auto settings = preset["settings"].toObject();
+            settings["width"] = 63;
+            preset["settings"] = settings;
+            presets[0] = preset;
+            narrow["renderPresets"] = presets;
+            publishRejected("presentation",
+                            QJsonDocument(narrow).toJson(QJsonDocument::Compact), "narrow-preset");
         }
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {

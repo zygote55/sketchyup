@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Camera paths and render presets (R099.a, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md)):
+  named camera paths that keyframe saved scenes (2 to 32 keyframes, at most 240 planned frames,
+  up to 64 per document) and named render presets (up to 16 per document). Both are saved with
+  the document as schema 30 (`presentation-v1`); a document without them keeps its lower schema.
+  SketchyUp 1.3.0 refuses schema-30 files unchanged. No command, UI or rendering yet (R099.b to
+  R099.d).
+
 ## 1.3.0 — 2026-10-22
 
 A minor release that adds terrain and site tools (scope row F03). Additive: existing

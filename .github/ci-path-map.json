@@ -158,6 +158,28 @@
       ]
     },
     {
+      "why": "Native document schema (R099.a, ADR 0173): schema 30 with presentation-v1 and the record decoders. A format change runs the full tier, including the package acceptance's prior-release check and the Qt 6.8 compile.",
+      "paths": [
+        "src/io/container.cpp",
+        "src/io/document_io.cpp",
+        "src/io/drawing_sheets_io.cpp",
+        "src/io/native_format.cpp",
+        "src/io/native_format.hpp",
+        "src/io/presentation_io*",
+        "src/core/presentation*",
+        "src/core/render_settings*",
+        "tests/presentation*",
+        "tests/fixtures/presentation-v30.sketchyup",
+        "docs/api/native-format-v1.json"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core",
+        "full"
+      ]
+    },
+    {
       "why": "Terrain code and suites select the slow terrain suites.",
       "paths": [
         "src/**/terrain*",
@@ -616,6 +638,8 @@
     "shipped_recipes": 3,
     "recovery_controller": 10,
     "terrain_desktop": 3,
-    "terrain_edit_input": 14
+    "terrain_edit_input": 14,
+    "presentation_records": 2,
+    "presentation_io": 3
   }
 }

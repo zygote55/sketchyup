@@ -645,3 +645,62 @@ decides; nothing here is decided yet.
     changes to the ADR 0107 one-shot export contract.** *Recommended —* each
     would be a second contract on the same surface; F05's remaining items take
     them in later rows.
+
+## Implementation notes (R099.a)
+
+Recorded 2026-10-25 for the records slice, branch `feat/r099a-presentation-records`.
+
+- **Records.** `CameraPathRecords` and `RenderPresetRecords` sit on `Document`
+  (`src/core/presentation_records.*`) with the §2 and §3 shapes. Create, update and delete
+  are ordinary undoable edits (`src/core/presentation.*`), each one history entry and
+  charged its record bytes. Creating a path, or changing its keyframes, requires each
+  keyframe to name a saved scene with a camera. A path whose scene is later deleted, or
+  loses its camera, still loads; `brokenCameraPaths` reports it with `sceneMissing` and
+  `sceneHasNoCamera`. Renaming or retiming a broken path is allowed.
+- **Order and names.** A path has a unique position, as scenes do. A preset has none, since
+  §3's shape has none. Names follow the saved-scene rule within each table.
+- **Keyframe repeats.** The ADR does not say whether a scene may repeat in a path. This slice
+  allows it (a loop back to a view); the motion core accepts it.
+- **`RenderSettings` moved to core.** §3 says a preset carries "exactly `RenderSettings`".
+  That type lived in `integrations/render_snapshot.hpp`, which core cannot include, so it now
+  lives in `core/render_settings.hpp` unchanged, with the same bounds check.
+- **Schema 30 and the lowest-schema rule (contradiction with §3, kept by design).** §3 says
+  "a document without presentation records still writes schema 29". Read literally, that
+  breaks the lowest-schema rule (ADR 0163 decision 2) for documents without terrain, which
+  write 26 to 28 today. This slice keeps the rule: a document without presentation records
+  writes what it wrote before (26 to 29 by content), and a terrain document still writes 29.
+  Tests pin both cases.
+- **Cumulative features.** Schema 30 keeps the earlier features, so a document with paths
+  or presets also carries `terrain-v1` even with no terrain, as parameter documents carry
+  `drawing-sheets-v1`. The reader's terrain flag is implied by `presentation-v1`.
+- **Allocator floors** `nextCameraPathId` and `nextRenderPresetId` appear in the container
+  manifest at schema 30 only, and never raise the schema.
+- **Byte budgets cannot bind (measured).** The longest path record is 1,432 bytes and the
+  longest preset 1,152 bytes. Sixty-four paths total at most 91,648 bytes against the
+  512 KiB budget; sixteen presets total at most 18,432 bytes against 256 KiB. The count caps
+  bind first. The byte checks stay as guards. Owner: drop the byte budgets or lower them;
+  nothing else changes.
+- **Released-reader refusal (measured).** The released 1.2.0 CLI (reads schema 28) refuses
+  the schema-30 fixture `tests/fixtures/presentation-v30.sketchyup` with exit 1,
+  `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`,
+  and the file is byte-identical afterwards. That is not the newer-format wording §6 names:
+  the container's field check fires first. The released **1.3.0** CLI (`sketchyup-cli 1.3.0`, the
+  published `sketchyup-1.3.0-1-x86_64.pkg.tar.zst`, sha256 `5f5c0cf8…a833b`) was run in review on
+  `presentation-v30.sketchyup` with `--validate-native`: exit 1 with the same
+  `Unsupported container field` refusal, and the file byte-identical afterwards. Both released
+  readers refuse schema 30 safely; neither uses the newer-format wording §6 names.
+- **Package acceptance.** `packaging/arch/verify-package.sh` refuses every fixture newer than
+  the prior CLI reads, so the new fixture is checked whenever `SKETCHYUP_PRIOR_RELEASE_PACKAGE`
+  is set. The script's prior is still 1.2.0-1 (reads 28). The next format release needs
+  1.3.0-1 added to `released_packages` and `known_release_sha256` before it runs; the version
+  in `CMakeLists.txt` is still 1.3.0 and was not changed here.
+- **Tests.** `presentation_record_tests` covers the bounds, references, allocators, undo and
+  redo, the history charge and the count limits. `presentation_io_tests` covers schema
+  selection, the round trip, refusals, malformed records, the fixture and the prior-release
+  hook. `native_format_tests`, `component_parameter_io_tests`, `drawing_sheet_io_tests` and
+  `terrain_io_tests` named schema 29 as the newest; they now name 30 and skip the new fixture
+  where a loop assumes older schemas. Their other assertions are unchanged.
+- **Fuzzing.** `parser_fuzz_presentation` (format `presentation`) decodes each input twice and
+  requires equal results, checks the bounds of an accepted object, and requires a canonical
+  re-encode. Its seeds: a tour with a broken path and two presets, an empty table, and three
+  rejected inputs (one keyframe, a zero keyframe, a 63-pixel preset).
