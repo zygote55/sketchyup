@@ -32,10 +32,18 @@ struct ReportFileOptions {
     bool visible{};                           // --visible: the `visible` filter.
     QStringList tags, materials, definitions; // Repeated --tag, --material, --definition IDs.
     QString precision;                        // full or an integer; empty means the document's.
+    // R101.c: --schedule NAME runs a saved schedule instead of the flags above, which must then be
+    // unset. Empty means the flags are the request.
+    QString schedule;
 };
 
+// The §1 request object the flags make (`report.run` shape). Shared with --save-schedule.
+QJsonObject reportRequestFor(const ReportFileOptions &options);
+
 // Writes the report to a new file: CSV (the file of record) or the JSON `data` object, compact and
-// without a final newline, so it is byte-identical to the session's report.run data. Returns the
+// without a final newline, so it is byte-identical to the session's report.run data. A scheduled
+// run writes `#schedule=NAME` in the CSV metadata instead of `#ad-hoc=1` (ADR 0175 §6.1) and
+// `"schedule": NAME` in the JSON metadata; the rest of the bytes are the ad-hoc run's. Returns the
 // export report. The model is read, never changed.
 QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &options);
 
