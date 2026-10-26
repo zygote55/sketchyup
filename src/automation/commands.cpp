@@ -1,25 +1,26 @@
 #include "automation/commands.hpp"
 #include "automation/annotation_commands.hpp"
+#include "automation/component_parameter_commands.hpp"
 #include "automation/component_scope.hpp"
+#include "automation/drawing_sheet_commands.hpp"
 #include "automation/entity_info.hpp"
 #include "automation/extension.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection.hpp"
-#include "automation/presentation_export.hpp"
 #include "automation/inspection_session.hpp"
 #include "automation/measurement_assertions.hpp"
 #include "automation/model_recipes.hpp"
+#include "automation/presentation_export.hpp"
 #include "automation/reference_image_commands.hpp"
+#include "automation/report_commands.hpp"
 #include "automation/scene_commands.hpp"
-#include "automation/drawing_sheet_commands.hpp"
-#include "automation/component_parameter_commands.hpp"
-#include "core/component_parameters.hpp"
-#include "core/component_publish.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/texture_commands.hpp"
 #include "automation/transactions.hpp"
+#include "core/component_parameters.hpp"
+#include "core/component_publish.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -194,6 +195,7 @@ QJsonObject capabilities() {
         {"transactions", transactionCapabilities()},
         {"measurementAssertions", measurementAssertionCapabilities()},
         {"presentation", presentationExportCapabilities()},
+        {"reportExport", reportExportCapabilities()},
         {"units", "m"},
         {"up", "Z"},
         {"commands",
@@ -240,8 +242,7 @@ QJsonObject capabilities() {
                                {"bodies", int(DocumentLimits::unique.bodies)},
                                {"placements", int(DocumentLimits::materialized.placements)},
                                {"materializedBodies", int(DocumentLimits::materialized.bodies)},
-                               {"materializedVertices",
-                                int(DocumentLimits::materialized.vertices)},
+                               {"materializedVertices", int(DocumentLimits::materialized.vertices)},
                                {"materializedGuides", int(DocumentLimits::materialized.guides)},
                                {"componentDefinitions", 1024},
                                {"materials", 1024},

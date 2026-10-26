@@ -27,14 +27,17 @@ struct ReportRequest {
     std::optional<int> precision;
 };
 
+// Every group row has a `key` (the decimal ID for a tag, material or definition group, or a fixed
+// label such as All, a kind or untagged) and a `name` (the display name, which is the key for a
+// label group). ADR 0175 §6.1 puts the name in the CSV group column.
 struct ReportCountRow {
-    std::string key;
+    std::string key, name;
     std::size_t contexts{}, instances{}, definitions{};
 };
 
 // Areas in square metres (the internal unit; §3 converts at output). Material 0 is "no material".
 struct ReportAreaRow {
-    std::string key;
+    std::string key, name;
     Id material{};
     double area{};
 };
@@ -42,7 +45,7 @@ struct ReportAreaRow {
 // Volumes in cubic metres: known volume only (§2.4). `unvalidated` counts the contexts of the group
 // that are not known volumes.
 struct ReportVolumeRow {
-    std::string key;
+    std::string key, name;
     double volume{};
     std::size_t unvalidated{};
 };
@@ -54,6 +57,7 @@ struct ReportInvalidRow {
 
 struct ReportTerrainRow {
     Id terrain{};
+    std::string name;
     std::size_t contexts{}, triangles{};
     double area{};
 };
