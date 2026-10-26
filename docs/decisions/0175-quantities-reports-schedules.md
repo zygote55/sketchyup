@@ -1005,3 +1005,99 @@ budget, and this is a measurement, not a proposal. The §12 budgets are unchange
 - **Hand-edited requests.** A store entry edited by hand is checked when it runs, not when the store
   opens, so an invalid request loads and refuses at run time, naming the schedule and the store.
 - **Desktop.** The desktop application does not yet call `reportScheduleStorePath` (R101.e).
+
+## Implementation notes (R101.d)
+
+R101.d is the MCP surface (§9). The CLI's MCP server lists `report.run` and `report.schedule`, the
+native MCP list is checked against its rule, and the assistant stays off. The catalogue is
+`mcpToolCatalog()` in `src/automation/mcp.cpp`, where the one `continue` that skipped
+`report.schedule` (R101.c) is removed. Tests: `tests/report_mcp_tests.cpp` (new, registered beside the
+other report tests under `SKETCHYUP_BUILD_CLI`), `tests/native_mcp_tests.cpp` and
+`tests/assistant_tool_surface_tests.cpp`. Generated: `docs/api/mcp-2026-07-28.json`,
+`docs/api/tool-reference-v1.json` and `docs/TOOL_REFERENCE.md`.
+
+### Naming: §9 as realised
+
+§9 names the MCP tools `reports.run` and `reports.schedules`. The names built are the registry
+names: `report.run` (an inspection query, listed on MCP since R101.a) and `report.schedule` (the
+session operation of R101.c, now listed). No `reports.*` alias exists, so each operation has one
+tool, in the `noun.verb` form of every other tool. The `reports.schedules` name in §9 is retired
+with that alias; the `schedules` noun is kept by the store and by the `--schedule` flags. The
+catalogue lists 63 tools against the 64-tool bound (`McpServer`), so one slot remains.
+
+### Decisions where the ADR was silent
+
+- **`report.schedule` is exposed on MCP.** ADR 0173 decision 12 keeps presentation execution off
+  MCP, because running a batch is an external effect. `report.schedule` only saves, describes and
+  deletes entries in the user-level store and never changes the model, so decision 12's "every
+  new command" applies. The precedent is `document.save`, a session write that is listed with
+  `destructiveHint`. It is listed the same way, and it is not a stop condition.
+- **The native list does not carry `report.schedule`.** The native endpoint is inspection-only
+  (`mutationAvailable` is false), and `nativeTools()` takes only `session.describe` from the session
+  operations. `report.run` reaches the native list through the query registry, as it did from R101.a.
+  `mcp-native-2026-07-28.json` is unchanged, and `--check` confirms it.
+- **The assistant stays off (decision 10).** `assistantVisible` hides every `report.` name, so both
+  are hidden. `assistant_tool_surface_tests` now also checks, on every surface, that neither name is
+  a top-level tool, and the baseline is unchanged. The native assistant takes only `transaction.*`
+  operations, so it cannot run `report.schedule` at all.
+- **Store isolation.** Each schedule test sets `HOME` and `XDG_DATA_HOME` to a temporary folder, with
+  the application names, before any store location is read. `report_mcp_tests` isolates the whole
+  process at the start, so no check reads the real user's store. The CLI child gets the same folder
+  through its environment.
+- **MCP errors.** A refusal is a tool result with `isError` and the session's code. A tool name that
+  is not registered, or that does not match the operation or query in its arguments, is a protocol
+  error (-32602), as before.
+
+### Verification
+
+Local build: Debug, `-g0`, shared libraries, Linux, GCC 16.2.1, Qt 6.12. Each test binary ran under
+`ulimit -v 8000000` with `timeout 600`, and each passed:
+
+- `report_mcp_tests` (new): the catalogue; `report.run` through MCP is the session's result byte
+  for byte, and its data is the committed golden for both quantities-a requests; a schedule saved by
+  MCP is described identically by the session and the reverse; the list order and delete; the
+  refusals (`WRONG_DOCUMENT`, `NOT_FOUND`, `INVALID_REQUEST`, `LIMIT_EXCEEDED` at 32, the stale
+  tag ID `NOT_FOUND`, the selection refusal); the protocol errors; and the built `sketchyup-cli`
+  over stdio, which saves a schedule and reports the golden, and whose store a later process reads.
+- `mcp_tests` (against the regenerated JSON), `assistant_tool_surface_tests` (baseline unchanged),
+  `report_tests`, `report_output_tests`, `report_cli_tests`, `report_schedule_tests`,
+  `report_schedule_cli_tests`, `automation_session_tests`, `terrain_io_tests`,
+  `terrain_import_tests`, `component_parameter_command_tests`.
+- `native_mcp_tests` (the native list): passed with `QT_QPA_PLATFORM=offscreen`, run from the
+  repository root.
+- `generate-api-schemas.py --check` (all 10 artifacts, against the built CLI and desktop binary) and
+  `generate-tool-reference.py --check`: both match the live registries.
+- `ci-plan.py check` and `ci-line-inventory.py check` pass after the registration.
+
+The first run of `report_mcp_tests` crashed in the test, not the product. `QJsonObject::operator[]` on a
+temporary returned a `QJsonValueRef` into it, and `const auto` kept that reference. Naming the type
+as `QJsonValue` fixed it. Two expectations were also corrected to the product's behaviour, and are
+recorded where they are tested: the wire schema refuses a 65-character name before the store does,
+and the fixture has no tag with ID 5.
+
+### Gaps and risks
+
+- **Long name over MCP.** The wire schema's `maxLength` refuses a 65-character schedule name as
+  `LIMIT_EXCEEDED` before the store's own `INVALID_REQUEST` runs. The session behaves the same way,
+  because it uses the same validator. The store's `INVALID_REQUEST` is still tested directly in
+  `report_schedule_tests`.
+- **Native assistant execution.** `NativeAssistantSession` runs any registry query it is sent (its
+  `query` path does not check the advertised list), so an assistant that sent `report.run` would get
+  an answer, although the assistant is not told the name. `report.run` is read-only. This is the
+  pre-existing gap from R101.a, not changed here. An execution-time filter would apply to every
+  query and is a separate change.
+- **Tool budget.** 63 of 64 slots are used. The next MCP tool needs the bound raised or a tool
+  removed.
+- **Generic description.** Session operations have no description, so MCP shows
+  "report.schedule: shared versioned SketchyUp operation", as it does for `document.save`. The
+  `sideEffects` text is in the session schema only.
+- **Platforms.** The schedule and CLI checks, and the isolation, are Linux only. On macOS and Windows
+  the test prints a skip line and runs the catalogue and `report.run` checks only. Closing the gap
+  needs the store-path seam that ADR 0175 does not define.
+- **Not run here.** The sanitizer lines (`report_mcp_tests` is in the `sanitize` target list and the
+  `ctest -R` pattern) were not built or run under a sanitizer. The native tests ran offscreen, not
+  under xvfb or Wayland as CI runs them. Windows and macOS were not built.
+- **§11 wording.** The corrected-totals paragraph in §11 now says "non-terrain area outside the
+  `Table` definitions", as the total requires (BoxP is a component). The first-written total in the
+  same section still says "non-terrain non-component", as it did in the original; it is left as
+  first written.
