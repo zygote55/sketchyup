@@ -543,7 +543,7 @@ placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 **unvalidated 3** (one per status: `open_boundary`, `non_manifold`,
 `degenerate`); **area 40,174.2 m²** (169 m² non-terrain non-component +
 45.2 m² component + 40,000 m² terrain); under `visible`: volume 79.4 m³,
-area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain non-component + 45.2 m²
+area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain area outside the `Table` definitions + 45.2 m²
 component + 40,000 m² terrain), under `visible` **40,241.2 m²**; volumes unchanged (82.4 m³ and
 79.4 m³); the shared-face cubes are one context and the degenerate body cannot be built, so
 **unvalidated 2**; the terrain is 1 container + 81 tile contexts, so **contexts 120**. The same fixture in `ft-in`:
