@@ -491,6 +491,23 @@ int main(int argc, char **argv) {
                   "Elevation at a vertex");
             rejects("NOT_FOUND", [&] { run(site, "terrain.describe", {{"body", "999"}}); });
         }
+        {
+            // report.run (R101.a, ADR 0175 §1): the counting pass through the bounded query. The
+            // report's own cases are in report_tests.
+            Document reported;
+            const auto slab = reported.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+            reported.extrude(slab, reported.bodies().at(slab)->surface.faces.begin()->first, 1);
+            const auto report =
+                run(reported, "report.run", {{"request", QJsonObject{{"groupBy", "kind"}}}});
+            check(report["counts"].toArray().size() == 2 &&
+                      report["metadata"].toObject()["revision"] ==
+                          QString::number(reported.revision()) &&
+                      report["volumes"].toArray()[0].toObject()["volume"] == "4",
+                  "report.run counts each kind and states its revision");
+            rejects("INVALID_REQUEST", [&] {
+                run(reported, "report.run", {{"request", QJsonObject{{"filters", QJsonObject{{"selection", true}}}}}});
+            });
+        }
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&
                   QJsonDocument::fromJson(published.readAll()).object() == inspectionCapabilities(),

@@ -14,6 +14,7 @@
 #include "io/solar_io.hpp"
 #include "automation/solar_commands.hpp"
 #include "automation/terrain_commands.hpp"
+#include "automation/report_commands.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
@@ -43,6 +44,19 @@ QJsonObject idSchema(bool zero = false) {
     return {{"type", "string"},
             {"maxLength", 20},
             {"pattern", zero ? "^(0|[1-9][0-9]*)$" : "^[1-9][0-9]*$"}};
+}
+QJsonObject reportMetricsSchema() {
+    const auto all = QJsonObject{{"type", "string"}, {"const", "all"}};
+    const auto list = QJsonObject{{"type", "array"},
+                                  {"items", choices({"counts", "areas", "volumes"})},
+                                  {"minItems", 1},
+                                  {"maxItems", 3}};
+    return {{"oneOf", QJsonArray{all, list}}};
+}
+QJsonObject reportPrecisionSchema() {
+    const auto full = QJsonObject{{"type", "string"}, {"const", "full"}};
+    const auto digits = QJsonObject{{"type", "integer"}, {"minimum", 0}, {"maximum", 6}};
+    return {{"oneOf", QJsonArray{full, digits}}};
 }
 QJsonObject list(QJsonObject items, int minimum, int maximum) {
     return {{"type", "array"}, {"items", items}, {"minItems", minimum}, {"maxItems", maximum}};
@@ -97,7 +111,8 @@ enum class Operation {
     SiteDescribe,
     SiteConvert,
     TerrainDescribe,
-    TerrainElevation
+    TerrainElevation,
+    Report
 };
 struct Spec {
     QString name;
@@ -231,7 +246,24 @@ const std::vector<Spec> &registry() {
                                         {"maximum", coordinateLimit}},
                                        2, 2),
                                   1, int(terrainPointBatch))}},
-                 {"body", "points"})};
+                 {"body", "points"}),
+            // ADR 0175 §1, §8 (R101.a): the counting pass over the materialized document. The
+            // request's semantic checks (distinct metrics, existing IDs, precision, selection)
+            // are in reportRequestFrom; the schema covers the vocabulary and the bounds.
+            spec("report.run", Operation::Report,
+                 {{"request",
+                   object({{"metrics", reportMetricsSchema()},
+                           {"groupBy", choices({"none", "kind", "tag", "material", "definition"})},
+                           {"filters",
+                            object({{"visibility", choices({"all", "visible"})},
+                                    {"tags", list(idSchema(), 0, 128)},
+                                    {"materials", list(idSchema(), 0, 128)},
+                                    {"definitions", list(idSchema(), 0, 128)},
+                                    {"selection", QJsonObject{{"type", "boolean"}}}},
+                                   {})},
+                           {"precision", reportPrecisionSchema()}},
+                          {})}},
+                 {"request"})};
     }();
     return specs;
 }
@@ -1201,6 +1233,18 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
             data["bounds"] = QJsonObject{{"minimum", point(frame.bounds->low)},
                                          {"maximum", point(frame.bounds->high)},
                                          {"dimensions", point(frame.bounds->dimensions())}};
+        break;
+    }
+    case Operation::Report: {
+        // The session's selection expands to its bodies; a file-only query has none (refused
+        // in reportRequestFrom when the request asks for it).
+        std::set<Id> selectedBodies;
+        if (editor)
+            for (const auto &entity : editor->entities())
+                selectedBodies.insert(entity.body);
+        const auto reportRequest =
+            reportRequestFrom(doc, request["request"].toObject(), editor != nullptr);
+        data = reportDescription(doc, reportRequest, editor ? &selectedBodies : nullptr);
         break;
     }
     case Operation::Distance:
