@@ -5,6 +5,7 @@
 // short loop and the oversize count. The writer and the decoder live in different targets
 // on purpose: the application links the decoder and never the OpenSKP parser (ADR 0176
 // decision 2); this test is the meeting point.
+#include <algorithm>
 #include "io/skp_package.hpp"
 #include "skp/package.hpp"
 #include "skp/sha256.hpp"
@@ -322,6 +323,16 @@ int main() {
     std::uint32_t big = 32 * 1024 * 1024 + 1;
     std::memcpy(bigManifest.data() + 8, &big, 4);
     checkDecode(bigManifest, "manifest exceeds");
+    // A material whose texture index is one past the end of the texture table (the table has
+    // one texture, so 1 is out of range): found by the decoder fuzz smoke on its first full run.
+    {
+        auto pastEnd = good;
+        const std::string from = "\"texture\":0}", to = "\"texture\":1}";
+        const auto at = std::search(pastEnd.begin(), pastEnd.end(), from.begin(), from.end());
+        check(at != pastEnd.end(), "the hand-built manifest names the material's texture");
+        std::copy(to.begin(), to.end(), at);
+        checkDecode(pastEnd, "material texture index is out of range");
+    }
     // A bad index: the edge points at a vertex the definition does not have (in the
     // geometry chunk, after the manifest).
     auto badIndex = good;

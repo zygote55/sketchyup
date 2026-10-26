@@ -2364,3 +2364,72 @@ and pass.
 
 All seven suites pass (`ifc_import_dialog`, `step_import_dialog`, `ifc_export_dialog`,
 `narrow_layout_input`, `step_import`, `ifc_package`, `ifc_convert`); `ctest -j2` is green.
+
+## Implementation notes (R097.f)
+
+R097.f is the acceptance record, [verification/R097f-ifc-exchange.md](../verification/R097f-ifc-exchange.md), with its
+JSON summary. It ran every check of section 6.3 that it could in the pinned image on 2026-10-25, against `78058393`. No
+product code changed. The record adds one tool, `scripts/ifc-fuzz/worker_fuzzer.cpp` (the J3 `worker` target).
+
+### What was run, and what was not
+
+- **Passed:** every IFC suite of the CI fast tier and of the application selection; the damaged-file corpus at 512
+  mutations per file (label `full`, 278 s); the helper's suites under ASan and UBSan (five of five); the upstream
+  `ifcparse_fuzzer`, the `worker` target and `parser_fuzz_ifc_package`, five minutes each, with no finding; the vendored
+  tree against the pinned archive (326 files); `ifcopenshell.validate` on the six goldens (no statement, with a positive
+  control that gives one).
+- **Pending, by a person or by CI:** the buildingSMART hosted validation service (the owner; its table is in the
+  record); the native matrix, which runs on the pull request with the `full-ci` label (X11 and Wayland, 1× and 2×, the
+  desktop suites S9 and T7 included).
+- **Not run here:** the desktop suites (`ifc_import_dialog`, `ifc_export_dialog`), because they run in the native matrix.
+
+### Budgets (6.4), measured
+
+| Budget | Measured | Verdict |
+| --- | --- | --- |
+| Parse 64 MiB, 1,000,000 instances ≤ 3 s | 0.74 to 0.76 s | met, frozen at 0.76 s |
+| Parse 128 MiB, 2,000,000 instances ≤ 6 s | 1.46 to 1.47 s | met, frozen at 1.47 s |
+| Refuse over 128 MiB ≤ 1 s; over the instance limit ≤ 3 s | 0.008 s; 1.48 s | met |
+| 100,000 faces, 10,000 bodies ≤ 10 s | 100,000 faces at 5,000 bodies: 9.0 to 9.7 s; 9,996 bodies (partial): 11.1 to 11.8 s | **missed** for the 10,000-body case |
+| Cancel ≤ 100 ms | 1 ms | met (the helper's exit time is not measured) |
+| Export of the 100,000-face model ≤ 5 s | 1.77 to 1.79 s, 5.2 MB | met, frozen at 1.79 s |
+| Application memory ≤ 1 GiB | 325 to 404 MiB | met, frozen at 326 MiB |
+
+Two contradictions with the section.
+
+1. **The 10,000-body row cannot be met as written.** The document limits (100,000 unique vertices, 10,000 bodies) do
+   not hold a 100,000-face, 10,000-body model at once; a box-like model reaches about 6,000 elements before the vertex
+   limit. The row describes a model the limits do not allow. The owner decides whether to change the row (to the
+   100,000-face model, which is met) or the limits. This record does not change the ADR's numbers.
+2. **The file sizes of 6.4.** The row names a 64 MiB and a 128 MiB file. The generator in `tests/ifc_budgets.py` writes
+   43 MB and 86 MB files, which measure 0.69 s and 1.31 s. The rows were measured on files padded to the named sizes.
+
+### Fuzzing
+
+Three campaigns of five minutes, no finding (32,923, 27,463 and 1,246,993 runs). The upstream build instruments only its
+harness, so libFuzzer's coverage feedback does not reach the library: the two library campaigns are mutation-driven
+against the library, and a library-wide coverage build is a follow-up. Section 6.3 J4's "runs every input twice" is met
+by the package harness as written (two decodes, with the digest check off and on), which is not two runs in one
+configuration; the worker's determinism is H1.
+
+### Damaged files (J2)
+
+Under the direct run, 5,120 mutations gave 2,514 `ok`, 2,605 `refused`, 1 `crash` and no timeout. The crash is on
+`rv-wall-with-opening-and-window.ifc` (index 453, seed 208281516466520), a child that died on a signal or limit inside the
+helper. The R097.b record counted 2,548 `ok` and 2,571 `refused` for the same mutations. The split moved in later
+slices (the georeference refusals of R097.c are the likely cause, not verified); the crash count did not. It is not
+known whether the crash is the defect of R097.b's finding 9.
+
+### External validators
+
+`ifcopenshell.validate` (0.9.0.post1, EXPRESS rules) reports no statement on any of the six goldens. Its positive control,
+a golden with `ChangeAction` set and no `LastModifiedDate`, reports one error, so the rules run. This is the same engine as
+the helper, so it is a consistency check. The buildingSMART hosted service is for the owner. **Until its table is filled in,
+the export claim of section 2 is conditional**, and the support-matrix row says so.
+
+### Open questions and risks (R097.f)
+
+- The F04 row is not delivered until R098 also completes and the M10 gate accepts the release.
+- The `parser_fault_corpus_tests` target is not built by the `ifc-app` preset; the CI fast tier builds it with the
+  application, so the preset's selection reports it "Not Run" when run alone.
+- The export's progress display and the desktop cancel are in the native matrix, not here.

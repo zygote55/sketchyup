@@ -1,0 +1,173 @@
+{
+ "layer": "R097.f",
+ "date": "2026-10-25",
+ "branch": "docs/r097f-ifc-acceptance",
+ "base": {
+  "main": "78058393"
+ },
+ "commits": {
+  "productCodeRunAt": "78058393"
+ },
+ "pullRequests": {
+  "record": 442,
+  "nativeMatrixLabel": "full-ci"
+ },
+ "status": "evidence complete except the owner's buildingSMART hosted validation and the native matrix (CI pending); not yet accepted",
+ "verifyLine": "partial: every 6.3 check that is proven by a run passes; G1 hosted validation is pending the owner; the native matrix is pending CI",
+ "checks": {
+  "A1": "pass",
+  "A2": "pass",
+  "A3": "pass",
+  "A4": "pass",
+  "A5": "pass",
+  "B1": "pass",
+  "B2": "pass",
+  "B3": "pass",
+  "B4": "pass",
+  "B5": "pass",
+  "B6": "pass",
+  "B7": "pass",
+  "C1": "pass",
+  "C2": "pass",
+  "C3": "pass",
+  "C4": "pass",
+  "C5": "pass",
+  "C6": "pass",
+  "D1": "pass",
+  "D2": "pass",
+  "D3": "pass",
+  "D4": "pass",
+  "E1": "pass",
+  "E2": "pass",
+  "E3": "pass",
+  "E4": "pass",
+  "E5": "pass for the import's one undo; desktop S9 pending native matrix",
+  "E6": "pass",
+  "E7": "pass",
+  "F1": "pass",
+  "F2": "pass",
+  "F3": "pass",
+  "F4": "pass",
+  "G1": "partial: ifcopenshell.validate passed; buildingSMART hosted service pending owner",
+  "G2": "pass",
+  "G3": "pass",
+  "G4": "pass",
+  "G5": "pass",
+  "G6": "pass",
+  "G7": "pass",
+  "H1": "pass",
+  "H2": "pass",
+  "I1": "pass",
+  "I2": "pass",
+  "I3": "pass",
+  "J1": "pass (ifc_package and parser_fault_corpus; 300-second fuzz run, 1,246,993 runs, no finding)",
+  "J2": "pass (512 mutations per file; direct run 2,514 ok, 2,605 refused, 1 crash)",
+  "J3": "pass (five minutes per campaign, no finding; library not coverage-instrumented)",
+  "J4": "pass as written (package decode twice and compared; configurations differ)",
+  "K1": "pass as written (claims match the code and the D2 and G4 tests)",
+  "K2": "pass",
+  "L1": "pass",
+  "L2": "pass",
+  "L3": "pass (vendored tree equals the pinned archive)",
+  "L4": "pass",
+  "L5": "pass",
+  "L6": "pass"
+ },
+ "budgets": {
+  "parse64MiB1M": {
+   "budget": "<= 3 s",
+   "measured": "0.737-0.758 s",
+   "verdict": "met",
+   "frozen": "0.76 s"
+  },
+  "parse128MiB2M": {
+   "budget": "<= 6 s",
+   "measured": "1.461-1.469 s",
+   "verdict": "met",
+   "frozen": "1.47 s"
+  },
+  "refuseOver128MiB": {
+   "budget": "<= 1 s",
+   "measured": "0.008 s",
+   "verdict": "met"
+  },
+  "refuseOverInstanceLimit": {
+   "budget": "<= 3 s",
+   "measured": "1.476 s",
+   "verdict": "met"
+  },
+  "faces100k_bodies5k": {
+   "budget": "<= 10 s",
+   "measured": "9.01-9.66 s",
+   "verdict": "met (100k faces)",
+   "frozen": null
+  },
+  "bodies10k": {
+   "budget": "<= 10 s, same model",
+   "measured": "11.14-11.76 s (9,996 bodies, partial)",
+   "verdict": "missed",
+   "frozen": null
+  },
+  "cancel": {
+   "budget": "<= 100 ms",
+   "measured": "1 ms",
+   "verdict": "met (helper exit not measured)"
+  },
+  "exportFaces100k": {
+   "budget": "<= 5 s, <= 256 MiB",
+   "measured": "1.770-1.792 s, 5,166,408 bytes",
+   "verdict": "met",
+   "frozen": "1.79 s"
+  },
+  "applicationMemory": {
+   "budget": "<= 1 GiB",
+   "measured": "325-404 MiB",
+   "verdict": "met",
+   "frozen": "326 MiB"
+  }
+ },
+ "fuzz": {
+  "ifcparse_fuzzer": {
+   "seconds": 300,
+   "runs": 32923,
+   "findings": 0,
+   "coverage": "library not instrumented"
+  },
+  "worker": {
+   "seconds": 300,
+   "runs": 27463,
+   "findings": 0,
+   "coverage": "library not instrumented"
+  },
+  "parser_fuzz_ifc_package": {
+   "seconds": 300,
+   "runs": 1246993,
+   "findings": 0
+  }
+ },
+ "corpus512": {
+  "mutations": 5120,
+  "ok": 2514,
+  "refused": 2605,
+  "crash": 1,
+  "timeout": 0,
+  "error": 0,
+  "crashFile": "rv-wall-with-opening-and-window.ifc",
+  "crashIndex": 453,
+  "crashSeed": 208281516466520
+ },
+ "validators": {
+  "ifcopenshell.validate": {
+   "version": "0.9.0.post1",
+   "goldens": 6,
+   "statements": 0,
+   "positiveControlStatements": 1
+  },
+  "buildingSMARTHosted": "pending: owner"
+ },
+ "vendoredTree": {
+  "files": 326,
+  "bytes": 18606345,
+  "pin": "7ba70197"
+ }
+}
