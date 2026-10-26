@@ -518,18 +518,22 @@ default `visibility: all`):
 | Box P 2×2×1 m; definition `BoxP`; three placements on tag `Boxes` | 3 instances; 6 contexts (root + member each); 12 m³; 48 m² |
 | Scaled copy of P (plain geometry), scale (2,2,2) | 1 context; 32 m³; 64 m² |
 | Mirrored copy of P (plain geometry), scale (−1,1,1) | 1 context; 4 m³; 16 m² (identical to unscaled) |
-| Three-level transform chain: root group scale 1.5, child group scale 2, holding a 1×1×1 box | 3 contexts (2 groups + 1 box); 27 m³ (3.0 cubed); area ×(3.0)² = 9 m² |
+| Three-level transform chain: root group scale 1.5, child group scale 2, holding a 1×1×1 box | 3 contexts (2 groups + 1 box); 27 m³ (3.0 cubed); area 6 m² × (3.0)² = 54 m² (corrected in R101.a review; was 9 m²) |
 | Hidden group `Stash` holding a 1×1×1 box (1 m³; 6 m²) | included by default; excluded under `visible` |
 | Box on hidden tag `Off`, 2×2×0.5 (2 m³; 12 m²) | included by default; excluded under `visible` |
 | Open plate 1×2 m, single face | area 2 m² counted; volume absent; status `open_boundary` |
-| Two 1 m³ cubes sharing a face | area 12 m² counted; volume absent; status `non_manifold` |
-| Zero-thickness extrusion of a 1×2 face | area 0 m²; volume absent; status `degenerate` |
+| Two 1 m³ cubes sharing a face, as one body | 1 context; area 12 m² counted; volume absent; status `non_manifold` |
+| Zero-thickness extrusion of a 1×2 face | area 0 m²; volume absent; status `degenerate` (cannot be built: `Surface::extrude` refuses a zero distance; see the R101.a notes) |
 | Terrain T: 200 m × 200 m flat plane, 1 m grid | 80,000 triangles; area 40,000 m² (flat, tolerance ≤ 1e-6 relative); 1 container + tile contexts |
 | Definitions: `Post` (0.5×0.5×2 box: 0.5 m³; 4.5 m²), `Top` (2×1×0.1 box: 0.2 m³; 4.6 m²), `Table` (4 `Post` refs + 1 `Top` ref, no members of its own); two `Table` placements | 3 unique definitions; 12 materialized placements (2 `Table` + 8 `Post` + 2 `Top`); 22 contexts (root + placements + members); 4.4 m³; 45.2 m² |
-| Materials: `Post` painted `Steel`, `Top` painted `Wood` | Steel 36 m²; Wood 9.2 m²; unassigned 169 m² (of the 214.2 m² non-terrain) |
+| Materials: `Post` painted `Steel`, `Top` painted `Wood` | Steel 36 m²; Wood 9.2 m²; unassigned 214 m² (of the 259.2 m² non-terrain) |
 | One sheet, two views, three items | metadata only |
 
-Hand totals for the whole document: **contexts 80,041** (3 `BoxP`
+*Corrected in the R101.a review (2026-10-26): the chain area, the area totals, the shared-face and
+degenerate contexts and the terrain tile contexts below; the earlier figures did not follow from the
+rows above. The R101.a notes give the arithmetic.*
+
+Hand totals for the whole document as first written: **contexts 80,041** (3 `BoxP`
 placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 `Off` + 1 plate + 2 shared-face cubes + 1 degenerate + 80,001 terrain +
 22 component contexts = 80,041); **instances 15** (5 top-level: 3 `BoxP`
@@ -539,7 +543,10 @@ placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 **unvalidated 3** (one per status: `open_boundary`, `non_manifold`,
 `degenerate`); **area 40,174.2 m²** (169 m² non-terrain non-component +
 45.2 m² component + 40,000 m² terrain); under `visible`: volume 79.4 m³,
-area 40,156.2 m². The same fixture in `ft-in`:
+area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain non-component + 45.2 m²
+component + 40,000 m² terrain), under `visible` **40,241.2 m²**; volumes unchanged (82.4 m³ and
+79.4 m³); the shared-face cubes are one context and the degenerate body cannot be built, so
+**unvalidated 2**; the terrain is 1 container + 81 tile contexts, so **contexts 120**. The same fixture in `ft-in`:
 4 m³ = 141.2587 ft³ (tolerance ≤ 1e-4 relative), 16 m² = 172.2226 ft².
 
 Checks (each maps to the Verify line):
@@ -548,9 +555,9 @@ Checks (each maps to the Verify line):
 | --- | --- |
 | Shared components follow the explicit counting rules | V1: definitions = 4 counted once each; `Table` filter returns 2 placements + their 10 owned records; the `Boxes` group row equals 3 / 12 m³ / 48 m² |
 | Nested instances | V2: `Table` placements yield the 8 nested `Post` placements; a `definition=Post` filter counts exactly 8, no double count, members under the outer definition's group |
-| Hidden content and hidden tags are explicitly stated | V3: default totals include Stash and Off (82.4 m³ / 40,174.2 m²); `visible` excludes them (79.4 m³ / 40,156.2 m²); the metadata states the applied mode |
-| Nested and mirrored transforms | V4: the mirrored copy equals the unscaled box; the 2× scale is ×8 volume / ×4 area; the three-level chain is 27 m³ / 9 m² |
-| Geometry edits update totals | V5: scale `Stash` by 2 → its contribution ×8; the totals change by hand; the revision stamp increments; undo restores the previous totals and a lower revision |
+| Hidden content and hidden tags are explicitly stated | V3: default totals include Stash and Off (82.4 m³ / 40,259.2 m²); `visible` excludes them (79.4 m³ / 40,241.2 m²); the metadata states the applied mode |
+| Nested and mirrored transforms | V4: the mirrored copy equals the unscaled box; the 2× scale is ×8 volume / ×4 area; the three-level chain is 27 m³ / 54 m² |
+| Geometry edits update totals | V5: scale `Stash` by 2 → its contribution ×8; the totals change by hand; the revision stamp increments; undo restores the previous totals with a new, higher revision (§4: revisions only increase) |
 | Invalid solids are not counted as known volumes | V6: the three invalid contexts appear under their exact statuses; volume totals exclude them; an `analysis_limit` case (an over-budget shell) is also excluded from the total and listed |
 | Live update | V7: on a large model the panel shows "computing …" without freezing the UI; Cancel returns in ≤ 100 ms |
 | Units and precision are stated | V8: the header carries the unit codes and precision for each document unit setting (m, mm, ft-in) and each precision (`full`, 3) |
