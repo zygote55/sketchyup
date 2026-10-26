@@ -1445,7 +1445,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R100 — Add custom styles and richer asset authoring
 
-**Status:** Planned; Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23; Q1 open). **Track:** Desktop. **Scope:** F06. **UX:** —.
+**Status:** In progress: R100.a (the optional edge stroke, schema 31 with `edge-styles-v1`, the `.sketchystyle` envelope, `style.apply` and the `style.export` query) is on branch `feat/r100a-edge-styles`, with its measured refusal by the released 1.3.0 and 1.2.0 CLIs and the owner questions listed in [ADR 0174](decisions/0174-custom-styles-asset-authoring.md) (Implementation notes, R100.a); R100.b to R100.g planned. Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23; Q1 open). **Track:** Desktop. **Scope:** F06. **UX:** —.
 
 **Requires:** [R089](#r089), [R062](#r062), [R079](#r079); milestone gate rule above.
 
