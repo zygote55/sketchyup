@@ -1556,3 +1556,195 @@ asks no dirty-document question.
 | ![limited](mockups/ifc/limited.png) | The helper is present, the geometry kernel is not | 16.7 |
 | ![export](mockups/ifc/export.png) | The export dialog: written, not written, georeferencing | 16.8 |
 | ![exported](mockups/ifc/exported.png) | The export report | 16.8 |
+
+§17 (presentation batches, PR #451) and §18 (styles) are separate proposals and are not part of this section.
+
+## 19. Quantities and schedules
+
+**Status: proposed, awaiting owner approval.** Not implemented. R101.e builds this after the engine (R101.a and R101.b, on main) and the saved schedules (R101.c, PR #453).
+
+This section designs the desktop side of the report engine ([ADR 0175](decisions/0175-quantities-reports-schedules.md)): where the Quantities section lives, grouping and filters, the live totals, the invalid list, saved schedules, the export files, units and precision, refusals, and keyboard and accessibility. ADR 0175 §10 asks for it before R101.e, and each of its bullets is answered here:
+
+| ADR 0175 §10 bullet | Decided in |
+| --- | --- |
+| Entry point and default view | 19.1 |
+| Grouping and filters, the selection toggle, the file-only hint | 19.2 |
+| Live state: "Computed at revision N", computing and Cancel, the invalid list | 19.3, 19.4 |
+| Schedules: create, rename, delete, Run, Export CSV…, Export JSON… | 19.6, 19.7, 19.8 |
+| Units and precision in labels | 19.5 |
+| Keyboard and accessibility | 19.10 |
+
+The figures are the ADR 0175 §11 fixture `quantities-a` with its corrected totals: 40,259.20 m² at precision 2, where the earlier text said 40,174.20. Section 19.11 lists where the engine, the CLI or the schedule store does not yet give the design what it needs, and 19.12 lists the choices for the owner. The mockups are `mockups/quantities.html` (all screens, with notes) or `mockups/quantities.html?screen=<name>` (`menu`, `totals`, `groups`, `filters`, `computing`, `save`, `schedules`, `run`, `stale`, `delete`, `store`, `exported`, `exists`), drawn in the light theme of `src/app/theme.hpp`. Add `&text=200` to any of them to double the text size. The drawing is illustrative. The terrain's name, the folder and the tags other than Boxes and Off are invented, and each screen says which figures it derives.
+
+### 19.1 Where it lives and the default view
+
+- **The section.** Quantities is a section of the Tray, between Tags and History, like Entity info, Outliner, Materials and Tags (sections 3.1 and 5). It is not on the Info tab, which describes the selected entity. A quantity describes the whole model and must show with nothing selected. It is not a rail slot, a window or a floating palette (sections 2 and 3.1).
+- **Ways in.** View → Quantities shows the Tray, opens the section and puts focus on Group by. It has no default shortcut; the shortcut editor can assign one. Ctrl+K lists "Quantities" while it is enabled. In a narrow window the Tray is the overlay sheet of section 3.3, and the same entries open it. Version 1 adds no File menu entry; export lives in the section.
+- **Default view.** Group by None, the **All** row, hidden content included (ADR 0175 owner decision 1), the document's display units and precision. The All row shows area, volume, contexts, instances, definitions and "Not counted in volume". Below it come "Computed at revision N", the Not solids list when there is one, the terrain line and the export buttons (screen `totals`).
+- **Metrics are not a choice.** Every run computes all four tables. Each run computes the face areas anyway, because the terrain table is always emitted (R101.a notes), so a metrics switch would save no time. Version 1 has none.
+- **When it computes.** The section computes only while it is open. Collapsed, it does nothing. Open, it runs when opened and again whenever the revision changes (ADR 0175 §5), so the totals follow edits and undo.
+- **Empty model.** The All row shows zeros, as the engine always emits it, with the line "No bodies in this model. Draw something, or import a model."
+
+### 19.2 Grouping and filters
+
+- **Group by.** A combo box: None (the default), Kind, Tag, Material or Definition (ADR 0175 §1). The panel names each group: "Untagged", "No material", "No definition", and for kinds "Geometry", "Group", "Component", "Terrain" and "Reference image". An em dash marks a group with no ID only in the CSV. The panel uses the words.
+- **Hidden content.** Two radio buttons: **Include hidden** (the default) and **Visible only**. Visible only drops hidden groups, hidden bodies and content on hidden tags, as ADR 0175 §2.2 defines. It does not drop geometry hidden for this session only, because the file alone must reproduce the report. The caption under Visible only says so: "Hidden tags, groups and bodies are left out. Geometry hidden for this session only is still counted."
+- **Pickers.** Tags, Materials and Definitions are rows that show their value ("none", "Boxes", "2 selected") and open a popover of check rows. This is the pattern of the Tags and Materials sections: each row carries its name and a muted count, and the choice is by ID. A folder includes every tag under it, and its row says so ("includes its tags"). The Definitions picker lists all four definitions with their placement counts, nested ones included, so Post can be filtered on its own (ADR 0175 V2).
+- **Missing IDs in a filter.** A filter that names a tag, material or definition that no longer exists shows "Missing tag 7" in amber, with **Remove**. Save and Run are disabled until it is removed, so nothing runs with fewer filters (ADR 0175 §7).
+- **Materials apply to areas only.** The Materials row says "areas only", and its popover says "Counts and volumes ignore this filter." The CSV cannot say so (19.11, item 6), so the panel does.
+- **Selection only.** A check row. It is enabled when the editor has a selection, and it names the count ("3 bodies selected"). With nothing selected it is greyed, with the words "select bodies in the model to use this". A selection is the selected bodies and their descendants. A hidden body cannot be selected, so a selection never brings hidden content in (ADR 0175 §1 and the R101.a notes).
+- **The file-only hint.** A saved schedule and the command line have no editor, so they cannot use a selection. The save dialog therefore never offers the selection row, and says why: "Not stored: the selection. A schedule runs without it, from the file and the command line alike." A saved schedule never keeps a selection (ADR 0175 §7 and §8).
+- **Per model.** The filter state belongs to the open model. Opening another model resets it to the defaults, because the IDs belong to one document.
+
+### 19.3 Live state: revision, computing and Cancel
+
+- **Revision line.** "Computed at revision 214" sits under the totals. It is the revision the numbers came from (ADR 0175 §4 and §5), so any total can be traced to a model state. The document identity is in the export report, not in the panel.
+- **Quick runs.** A run that finishes within about a second shows no progress. The previous totals stay readable until the new ones replace them, so the panel never goes blank while it updates.
+- **Computing.** After about a second, the totals dim and a line reads "● Computing revision 215 · elapsed 0:03", with a bar and a **Cancel** button, which is not the default. The status bar shows a job chip, "Quantities 0:03 · Cancel", as it does for other background work (section 3.1).
+- **Progress.** The engine reports no progress yet (19.11, item 1), so the bar is indeterminate and the elapsed time is what the person reads. The design shows no percentage. When the engine reports the contexts it has done, the bar becomes determinate.
+- **Cancel.** Returns control in 100 ms or less (ADR 0175 §12). The panel then shows the last complete result with its own revision, and the line "Not updated: cancelled. Showing revision 214." A total is never shown with a revision other than the one it was computed at.
+- **A newer revision.** If the model changes while a run is in progress, the run is superseded. Its result is dropped and a run starts for the newest revision.
+- **A failed run.** The section says "The totals could not be computed: <the engine's message>." and keeps the last result, labelled with its revision.
+- **Announcements.** One per run the person waited for (a group change, Run or Cancel), not one per edit (19.10).
+
+### 19.4 The invalid list
+
+- **Where.** Under the totals, as "Not solids", with one row for each status that has bodies, in the order of the CSV's invalid table (ADR 0175 §6.1). A status with no bodies has no row. The header reads "area counted, volume not".
+- **Words.** A row uses the wording of the Entity info panel, from `unavailable()` in `src/app/entity_info_panel.cpp`: "Not a solid: open boundary", "Not a solid: non-manifold boundary", "Not a solid: inconsistent face winding", "Not a solid: loose geometry", "Not a solid: intersecting faces", "Not a solid: degenerate shell". The statuses the panel already names as unavailable keep its words ("Unavailable: multiple shells", "Unavailable: ambiguous shell containment", "Unavailable: analysis limit"), and an empty record reads "No closed surface". One table serves both (19.11, item 8).
+- **Row shape.** A ⚠ glyph in the warning colour, the words, the count ("1"), and a second line: "1 body · area counted, no volume". The glyph, the word and the count carry the state, so no row depends on colour. The glyph is amber because it is a warning about the model, not a refusal.
+- **Terrain is not in this list.** Terrain has its own line, as a terrain, with no volume and the words "not a solid" (ADR 0175 §2.5).
+- **The volume line.** The All row shows "Not counted in volume" beside the volume, so a reader can see that the volume leaves out N bodies.
+- **Selecting them.** The engine returns counts, not bodies (19.11, item 4), so version 1 rows cannot select their bodies. Owner question 3 proposes adding up to 64 body IDs per status to the query. Each row would then offer **Select in model**.
+
+### 19.5 Units and precision in labels
+
+- **Units.** Every measure carries its unit, in the document's display units (ADR 0175 §3): m² and m³ for metres, mm² and mm³ for millimetres, ft² and ft³ for feet. A feet-and-inches document reports in feet; the compound form never appears in a total. Counts have no unit. Accessible names say the unit in words ("square metres").
+- **Precision.** The document's display precision by default, set in File → Document units…. The panel header shows it ("precision 2"). Version 1 has no precision control in the panel. A saved schedule pins the precision it was saved with (owner question 4).
+- **The corrected totals.** Quantities-a at precision 2, the All row: **40,259.20 m²** and **82.40 m³**. Under Visible only: **40,241.20 m²** and **79.40 m³** (ADR 0175 §11, corrected in the R101.a review). The earlier 40,174.20 m² is withdrawn.
+- **Separators.** The panel groups digits as the locale does, as the Entity info panel does ("40,259.20"). The CSV and JSON never group (ADR 0175 §6.1), so a file and the screen agree once the separators are removed.
+- **Feet.** A feet document reports in ft², ft³, and at most three decimals, the largest precision `maxDisplayPrecision` allows for feet (`src/core/units.hpp`). ADR 0175 §11 gives ft-in values to four decimals ("141.2587 ft³", "172.2226 ft²"), which no allowed precision produces. The design shows "141.259 ft³" at precision 3 and asks for the ADR example to be corrected (19.11, item 14).
+- **Millimetres.** In mm, the same totals are a million times the m² figures: 40,259,200,000.00 mm² at precision 2. ADR 0175 §3 requires the document's units, so the design keeps them (19.11, item 13).
+
+### 19.6 Schedules: create, rename, delete and Run
+
+- **The list.** A **Saved schedules** block sits below the export buttons and holds this model's schedules in name order. Each row shows the name, a summary ("Definition · Included · all metrics · precision 2"), the date saved, a **Run** button and a **⋯ Actions** menu (screen `schedules`). The list is per model (ADR 0175 §7), so other models' schedules are not in it (19.7).
+- **Create.** **Save as schedule…** sits under the list and in the export row. It opens a small modal dialog (screen `save`) with a **Name** field, a "Stored with the name" list (grouping, hidden content, metrics, precision pinned) and the "Not stored" line for the selection. Save is the default. Enter saves and Esc cancels. The name rules are the store's: 1 to 64 characters, letters, digits, spaces and . _ ( ) -, starting and ending with a letter or a digit. The field counts characters as you type and says the rule in words when it is broken.
+- **Name in use.** "A schedule named "Boxes only" already exists for this model. Choose another name." The engine's own text says "delete it first", which the panel does not show (19.11, item 3).
+- **Disabled, with the reason on screen.** Save is disabled when the model has no file yet ("Save the model first. A schedule belongs to a saved model.") or when the model has 32 schedules ("This model has 32 schedules. Delete one to save another."). The first matters because a schedule keyed to a model that is never saved could not be found again (19.11, item 10).
+- **Run.** Runs the schedule's own request and makes it the active view. The section header reads "Schedule · Boxes only", with **Back to the live view** (screen `run`). The active schedule re-runs when the revision changes (ADR 0175 §5). A schedule never uses the selection.
+- **Rename.** **Rename…** opens the same name field, filled in, with the same rules and the same duplicate message. The request and the creation time are kept. The store has no rename yet, so the design assumes one (19.11, item 2).
+- **Delete.** **Delete…** asks first (screen `delete`): "Delete the schedule? Its saved filters are removed from this computer. The model is not changed. Reports you exported earlier are not changed." Cancel is the default, and Esc cancels, as Reset edits does (section 15.6). Delete is never the default.
+- **Export from a schedule.** Export CSV… and Export JSON… from a row, or from an active schedule, write that schedule's own request. The CSV carries `#schedule=` with the name in place of `#ad-hoc=1`, and the JSON carries `metadata.schedule` (ADR 0175 §6.1 and the R101.c notes).
+- **Limits.** The panel builds every request from its controls, so the 16 KiB request limit is never reached. The 1 MiB store file and the 64-model limit can be reached, and 19.9 covers them.
+
+### 19.7 Stale schedules and another model's schedules
+
+- **Stale.** A schedule that names a tag, material or definition that no longer exists is marked when the list opens and whenever the revision changes. The check only looks IDs up and runs nothing. The row shows an amber ⚠ and plain words: "Stale: tag 7 no longer exists", or "Stale: material 3 and tag 7 no longer exist".
+- **Run is refused.** Run on a stale schedule is refused in the row, not in a dialog. The row shows a red ✕ "Not run." and the sentence "It refers to tag 7, which no longer exists in this model. Nothing was run, and the totals above are unchanged." The row offers **Delete…** and **Save current filters as…**, which opens the save dialog with the current filters. The engine names the IDs in its refusal details, and the panel names them in words. Nothing runs with fewer filters (ADR 0175 §7).
+- **Stale is never silent or automatic.** The panel does not delete or edit a stale schedule, and no stale schedule changes the live totals.
+- **Another model's schedules.** A model's list shows only its own schedules, keyed by identity (ADR 0175 §7), so schedules saved for other models do not appear. When there are some, one muted line says: "Other models on this computer have 3 schedules. They are kept with those models and are not listed here." It gives a count and no names, and it offers no action. Those schedules are reached by opening their models.
+- **The command line.** A schedule run against the wrong file is refused WRONG_DOCUMENT and names both identities (R101.c). The panel never shows that refusal, because it lists only its own model's schedules.
+- **A store that cannot be read.** A damaged or oversized store file puts a red ✕ "Schedules cannot be read" in the schedules block, with the file's location and the place of the fault. The text then says: "Totals, groups and exports still work. SketchyUp never resets this file: move it aside yourself, then reopen this model." The rest of the section keeps working (screen `store`). An optional store must not stop the model's own numbers (principle 5).
+- **A busy or changed store.** Two cases, each with its own line: "Another SketchyUp window is changing schedules. Try again." when the store is locked, and "The schedule file changed in another process. Nothing was saved. Try again." when it changed after it was read.
+
+### 19.8 Export CSV… and Export JSON…
+
+- **The dialog.** Export CSV… and Export JSON… open the system Save dialog for a new file, suggesting "<model name>-takeoff.csv" or ".json" with the matching filter. The dialog has no overwrite prompt, as the IFC and DXF exports have (section 16.8). A name that exists is refused after the dialog, on the sheet of screen `exists`. Nothing is replaced.
+- **What is written.** The current view: its grouping, filters, precision and all four tables. In a schedule's view, the schedule's own request, with its marker. An export from the live view writes `#ad-hoc=1`.
+- **Selection.** If Selection only is on, the file holds the selection's figures and `#filters.selection=1` (ADR 0175 §6.1). The file writer does not take a selection yet (19.11, item 5).
+- **Progress.** A write that takes more than a second shows the progress line of 19.3, labelled "Writing the file…", with Cancel. Cancel writes nothing. The budget is 10 s for 100,000 rows (ADR 0175 §12).
+- **The export report.** The report sheet of section 6.4, laid out like the IFC export report (section 16.8; screen `exported`). Its banner reads "✓ Written. The model is unchanged." The left column records what was written: grouping, metrics, hidden content, precision, units, revision, and the schedule or "none (ad hoc)". The right column lists **Needs your attention** (each not-solid, with its words and, once 19.11 item 4 is done, **Select in model**) and **Notices** (terrain is not a solid). The buttons are **Copy path** and **Close**, which is the default.
+- **JSON.** The same figures as the CSV, in the shape of ADR 0175 §6.2. Both come from one result, so they agree.
+
+### 19.9 Refusals
+
+Every refusal follows section 16.6: it first says that nothing was saved or written and that the model is unchanged, then gives the reason and the number, then the next step. The name rules are the one exception. They show in the field as the person types, before anything is attempted.
+
+| Where | Engine refusal | What the person is told | Next step |
+| --- | --- | --- | --- |
+| Save or Rename, name | `INVALID_REQUEST` | In the field: "Use 1 to 64 letters, digits, spaces or . _ ( ) -, starting and ending with a letter or a digit." | Edit the name |
+| Save or Rename, name in use | `INVALID_REQUEST` | "A schedule named "X" already exists for this model. Choose another name." | Choose another name |
+| Save, 32 schedules | `LIMIT_EXCEEDED` | Save is disabled, with "This model has 32 schedules. Delete one to save another." | Delete a schedule |
+| Save, 64 models in the store | `LIMIT_EXCEEDED` | "Nothing was saved. This computer's schedule file holds 64 models, its limit. Open each model whose schedules you no longer need and delete them there." | Open those models |
+| Save or Run, missing IDs | `NOT_FOUND`, with the IDs | The stale row (19.7) | Delete…, or Save current filters as… |
+| Run, a schedule of another model | `WRONG_DOCUMENT` | Not shown: the panel lists only this model's schedules | Use the command line on the right file |
+| Any read of the store | `INPUT_ERROR` | The store block (19.7) | Move the file aside |
+| Store changed by another process | `FILE_CHANGED` | "The schedule file changed in another process. Nothing was saved. Try again." | Try again |
+| Store locked | `OUTPUT_ERROR` | "Another SketchyUp window is changing schedules. Try again." | Try again |
+| Export, file exists | `FILE_EXISTS` | "Nothing was written. quantities-a-takeoff.csv already exists in this folder. An existing file is never replaced." (screen `exists`) | Choose a new name |
+| Export, over 256 MiB | `LIMIT_EXCEEDED` | "Nothing was written. This report is over the 256 MiB limit. Group less, pick a tag, or choose Visible only." | Narrow the report |
+| Run, the engine fails | any | "The totals could not be computed: <message>." | Try again |
+
+### 19.10 Keyboard and accessibility
+
+| Control | Keys | Accessible name (example) |
+| --- | --- | --- |
+| The section | Ctrl+K "Quantities", or View → Quantities; focus lands on Group by | "Quantities, revision 214" |
+| Group by | Enter or Space opens the list; Up and Down choose; Enter confirms | "Group by: Definition" |
+| Hidden content | One Tab stop; the arrows choose | "Hidden content: Visible only" |
+| Tags, Materials, Definitions | Enter opens the popover; Up and Down move; Space checks; Esc closes | "Tags filter: Boxes selected, 1 of 3" |
+| Selection only | Space toggles; disabled while nothing is selected | "Selection only: nothing selected, unavailable" |
+| Totals and groups | One Tab stop; Up and Down move between rows; Ctrl+C copies the row | "Area, 40,259.20 square metres" |
+| Not solids | One Tab stop; Up and Down move; **Select in model**, when offered, is the next Tab stop | "Warning: Not a solid: open boundary, 1 body, area counted, no volume" |
+| Computing | Cancel is a Tab stop and not the default; Esc cancels while focus is in the section | "Computing revision 215, elapsed 0:03. Cancel" |
+| Saved schedules | One Tab stop; Up and Down choose; Enter runs; Shift+F10 or the menu key opens Actions; F2 renames; Delete asks first | "Takeoff by definition, saved 24 October 2026, Definition, Included. Run" |
+| Stale row | As above; the refusal is read with the row | "Walls, old. Warning: stale, tag 7 no longer exists" |
+| Save and Rename dialogs | The name is focused; Enter saves (the default); Esc cancels | "Schedule name, 21 of 64 characters" |
+| Delete dialog | Cancel is the default; Esc cancels | "Delete the schedule Walls, old?" |
+| Export buttons | Tab stops in the section's footer | "Export CSV…" |
+| Export report | Close is the default; Esc closes | "Export report: items that need attention and notices" |
+
+- **Keyboard-only path.** Ctrl+K, then "Quantities", then Group by, the hidden-content radios, the pickers, Selection only, the totals, Not solids, the schedules and the export buttons, in that order. The Tab order follows the section, and no step needs a pointer. Enter runs a schedule, and Esc cancels a run or closes a popover.
+- **Not colour alone.** Every state has a glyph and a word: ⚠ Not a solid, ⚠ Stale, ✕ Not run, ✕ Nothing was written, ● Computing, ✓ Written. Amber marks a warning about the model, and red marks a refusal or a failure (section 7). A hidden tag is named "hidden" in the Tags popover as well as shown in its colour.
+- **Announcements.** One per run the person waited for ("Computed at revision 214: area 40,259.20 square metres, volume 82.40 cubic metres. 2 not solids."), one per export ("Written: quantities-a-takeoff.csv. The model is unchanged."), and one per refusal, announced as an alert. There is no announcement per edit, per row, or per background change of revision.
+- **Text size.** At 200 % the value of each group row moves under its name, the schedule actions go under the summary, dialogs scroll with their footer in view (section 16.9), and the report's two columns stack. The section scrolls, and nothing is cut off without a scroll.
+- **Motion.** The bar is the only animation. With reduced motion on, it is static, and the elapsed time still counts up (section 7).
+- **Checks.** R101.e's input tests run on X11 and Wayland at 1×, 2× and 200 % text, with the keyboard-reachability and accessible-name checks of the IFC and terrain tests (sections 15.7 and 16.9). They cover the stale row, the unreadable store, the existing-file refusal, Cancel and a newer revision during a run.
+
+### 19.11 Gaps in the engine, the CLI and the schedules
+
+These are the points where the design needs something that the engine, the CLI or the schedule store does not yet give. Each is a note for R101.e or a later row. None is changed here.
+
+1. **No progress and no cancel in the engine.** `runReport` (`src/core/report.hpp`) is one synchronous pass, with no progress callback and no cancel flag. The panel needs a worker that runs it off the UI thread, checks a cancel flag between records, and reports the contexts it has done. The 100 ms cancel budget depends on how often that check runs. The re-run budget for the panel (p95 ≤ 250 ms on a model of up to 100,000 faces, ADR 0175 §12) has not been measured: R101.b timed the engine on its own, and the panel has no run yet.
+2. **No rename and no update of a schedule.** The store has add, lookup and remove, and the session action has save, describe and delete (`src/automation/report_schedules.hpp`; R101.c). A rename is a delete and a save, so a failure between them can lose the name or the request. The design assumes one atomic `rename` in the store and the session action that keeps the request and `createdAt`. Fixing a stale schedule's filters needs the same action.
+3. **The duplicate-name refusal says "delete it first".** That text suits the command line. The panel says "Choose another name", and a rename would make the engine's text unnecessary.
+4. **Invalid rows carry a count, not bodies.** `ReportInvalidRow` holds a status and a count. Selecting the bodies needs bounded body IDs per status (owner question 3).
+5. **A file cannot take a selection.** `ReportFileOptions` has no selection field, and `writeReportFile` runs without the session's bodies. A selection file needs either that field and the bodies as an argument, or the panel calling `reportDescription` with the bodies and writing the file through `publishNewFile`, as `writeReportFile` does. The CSV metadata already has `#filters.selection=1` (ADR 0175 §6.1), so the file form is settled.
+6. **The CSV cannot say that materials apply to areas only.** The JSON does. The CSV's metadata list is fixed by ADR 0175 §6.1, which allows no other `#` line, so the panel says it instead (owner question 5).
+7. **Terrain names are not unique in the CSV.** The terrain rows carry the name only (R101.b notes). The panel tells two same-named terrains apart by their ID, which the CSV does not carry. This is a gap in the file of record.
+8. **The "Not a solid" words are private to the Entity info panel.** `unavailable()` sits in an anonymous namespace of `src/app/entity_info_panel.cpp`. The report should use the same words, so the function moves to a shared header.
+9. **A schedule does not pin its units.** A request has a precision but no display units, so a schedule run after the owner changes the units reports in the new ones. Precision is pinned (owner question 4). Pinning units would need a request field; the design accepts the gap until then.
+10. **A schedule for a model that is never saved is lost.** The store is keyed by identity, and an unsaved model's identity cannot be opened again. The design disables Save until the model has a file (19.6). The engine accepts such a save, and its message "save the document before scheduling reports" applies only to an unusable identity.
+11. **A copied file shares schedules.** The identity lives in the file, so a copy made outside SketchyUp lists the same schedules. Save as… keeps the identity (ADR 0175 §4). This is accepted for version 1 and flagged, not solved.
+12. **The 64-model refusal cannot be acted on from the panel.** The engine's text says to delete schedules "of another document", and the panel lists only this model's. The design sends the person to open those models instead.
+13. **Millimetre totals are very large.** In mm the same totals are a million times the m² figures. ADR 0175 §3 requires the document's units, so the design keeps them. A report unit choice would be a later row.
+14. **ADR 0175 text that does not match the code or itself.** (a) §11 gives ft-in values to four decimals, which no allowed precision produces (19.5). (b) §11 and the R101.a notes call the 214 m² "non-terrain non-component" area, but it includes BoxP's 48 m², and BoxP is a component. The total of 40,259.20 m² is right, and only the label is wrong. (c) The R101 roadmap row says R101.b is "awaiting merge" and R101.c to R101.f are planned. R101.b is merged (#452) and R101.c is open (#453). This change sets the row's UX field and nothing else.
+15. **The terrain's material is not stated.** §11 gives the unassigned area as 214 m² of the 259.2 m² non-terrain, and does not say which material the terrain's 40,000 m² reports under. The Material view in this design shows it under "No material". R101.e's tests should check that.
+
+### 19.12 Choices for the owner
+
+Each choice has a recommended default. The design builds the recommended default unless the owner says otherwise.
+
+1. **Where the section lives.** A Tray section with View → Quantities (recommended), a section on the Info tab beside Terrain edits, or a Reports menu that opens sheets. *Recommended: the Tray section. The totals describe the whole model, and the Info tab describes the selected entity.*
+2. **Exporting a selection.** Allow a file of the selection (recommended; needs 19.11 item 5), or whole-model files only in version 1. *Recommended: allow it. The totals on screen should be exportable as they are shown.*
+3. **Bodies behind "Not solids".** Add up to 64 body IDs per status to the query, so that each row can select its bodies (recommended; the change is additive), or counts only in version 1. *Recommended: add the IDs. A count without the bodies leaves the person to hunt for them.*
+4. **Precision in a schedule.** Pin the precision at save (recommended), or follow the model's setting at each run. *Recommended: pin. A saved takeoff should not change because someone changed a display setting, the same reason the stamp carries the revision.*
+5. **The materials caveat.** Say it in the panel only (recommended; the CSV dialect stays as ADR 0175 §6.1 has it), or add a metadata line to the CSV, which amends §6.1. *Recommended: the panel only. The file's metadata list is fixed, and the JSON already states it.*
+
+| Screen | Shows | Sections |
+| --- | --- | --- |
+| ![menu](mockups/quantities/menu.png) | View → Quantities and the Ctrl+K path; the section not yet open | 19.1 |
+| ![totals](mockups/quantities/totals.png) | The default view: the All row, the revision, Not solids, terrain, the exports | 19.1, 19.3, 19.4, 19.5 |
+| ![groups](mockups/quantities/groups.png) | Group by Definition with Visible only: the three rows and the caption | 19.2, 19.5 |
+| ![filters](mockups/quantities/filters.png) | The Tags popover with a folder and a hidden tag; the materials caveat; the disabled selection | 19.2 |
+| ![computing](mockups/quantities/computing.png) | A run past a second: the previous totals kept, the progress line, Cancel | 19.3 |
+| ![save](mockups/quantities/save.png) | Save as schedule: the name rules, what is stored and what is not | 19.6 |
+| ![schedules](mockups/quantities/schedules.png) | The model's saved schedules and the ⋯ Actions menu | 19.6, 19.7 |
+| ![run](mockups/quantities/run.png) | A schedule as the active view, with its revision and Back to the live view | 19.6 |
+| ![stale](mockups/quantities/stale.png) | A stale schedule: the amber state, the red refusal and the two ways out | 19.7, 19.9 |
+| ![delete](mockups/quantities/delete.png) | Delete a schedule: Cancel is the default | 19.6 |
+| ![store](mockups/quantities/store.png) | The schedule file cannot be read; the rest still works | 19.7 |
+| ![exported](mockups/quantities/exported.png) | The export report: what was written, Not solids, notices | 19.8 |
+| ![exists](mockups/quantities/exists.png) | Refused: the file already exists, and nothing was written | 19.8, 19.9 |
+
+Each screen also renders at 200 % text as `mockups/quantities/<name>-200.png`, which is the check for wrapping and overlap.
