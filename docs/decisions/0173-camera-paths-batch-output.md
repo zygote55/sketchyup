@@ -704,3 +704,124 @@ Recorded 2026-10-25 for the records slice, branch `feat/r099a-presentation-recor
   requires equal results, checks the bounds of an accepted object, and requires a canonical
   re-encode. Its seeds: a tour with a broken path and two presets, an empty table, and three
   rejected inputs (one keyframe, a zero keyframe, a 63-pixel preset).
+
+## Implementation notes (R099.b)
+
+Recorded 2026-10-25 for the batch engine, branch `feat/r099b-batch-engine`.
+
+- **Store.** `PresentationJobStore` (`src/integrations/presentation_store.*`) is R070's machinery
+  in `AppLocalDataLocation/presentation-jobs`, with the R070 limits (8 pending, 16 retained,
+  2 GiB). Each job owns `<id>/job.json` and `<id>/capture.sketchyup`. A changed capture is
+  refused on every use, and a damaged job record reopens as failed. Reopening a store with a
+  Running or Canceling batch marks it `Interrupted`, keeps its bounded worker log and removes its
+  scratch. One batch at a time may be Running or Canceling. The store never creates or removes
+  the output folder, so removing a job leaves the user's files in place.
+- **Capture SHA-256.** §4 names the capture hash without defining it. This slice defines it as
+  the SHA-256 of `encodeDocument` of the frozen snapshot. The same bytes are stored in the job and
+  checked on resume.
+- **One capture.** `PresentationCapture` freezes the document once, on the owner thread. Every
+  frame of every preset renders through `RenderSnapshot::captureSavedScene` from that snapshot,
+  with the preset's settings and the frame's camera. A live edit made while a batch runs changes
+  no frame: the per-frame source manifest hashes match an unedited twin (test
+  `presentation_export`).
+- **Output layout.** `<output>/manifest.json` and `<output>/NN-<preset>/frames/frame-NNNN.png`
+  with `frame-NNNN.json`. `<output>` is the new folder the user names, which is the `<path name>`
+  level of §4's tree; no second folder is created. `NN` numbers the presets, and the name keeps
+  ASCII letters, digits, `-` and `_` (48 characters at most). Frame files are 1-based, as §4 says;
+  the JSON `index` is 0-based, as in the animation export. Each frame's JSON records the index,
+  file, bytes, SHA-256, preset, keyframe flag, scene ID, camera, source manifest SHA-256, result
+  manifest and diagnostics.
+- **Manifest.** API 1, adapter `sketchyup-presentation-v1`, published after every frame. Its
+  `state` uses the job state names, so it also carries `queued` and `interrupted`; §4 lists only
+  running, completed, canceled and failed. Each preset lists its verified frames (index, file,
+  SHA-256, keyframe flag), its settings, its state, and the device of its last frame. No video
+  record is written; that is R099.c.
+- **Resume.** A frame counts as done only when its PNG and its JSON agree with the manifest entry
+  (file name, SHA-256, byte count and index). Retry renders the other frames, removing their stale
+  files first. A verified frame is never opened for writing. A damaged or foreign manifest refuses
+  the retry and leaves the finished frames as they are. Tested with exact worker launch counts:
+  retry after a two-frame cancel launches ten workers; a corrupted frame with four frames kept
+  launches nine.
+- **Cancellation.** `cancel()`, and SIGINT in the CLI, stop at the next frame boundary. An in-flight
+  worker is killed and its frame is discarded (tested with a worker stopped mid-frame). The store
+  keeps the batch `Canceled`, and the manifest says `canceled`.
+- **Refusals (each before any folder or job exists).**
+  - A broken path names the missing scenes or the scene without a camera.
+  - The R099.a plan limits apply: one to four presets, two to thirty-two keyframes and 240 planned
+    frames.
+  - Output budget: checked per frame, as §4 says. A frame that would pass 2 GiB fails the batch
+    with the remaining budget in the message, writes nothing, and keeps the finished frames. There
+    is no up-front refusal on the worst-case bound (changed in review; see contradiction 3).
+  - Disk: free space must cover the worst-case bound `min(64 MiB, w·h·5 + 1 MiB) + 1 MiB` per
+    frame, capped at the 2 GiB budget, plus the capture and a 256 MiB reserve (`QStorageInfo`).
+  - Blender: a named executable must be absolute and exist; with none named, `blender` must be on
+    `PATH`.
+  - Destination: it must not exist, must not be a link, must be absolute, and its parent must
+    exist.
+  - Device: an Eevee preset needs an OpenGL device, and a Cycles preset needs any other device. One
+    batch therefore uses one device family.
+  - A second running batch is refused.
+- **Not in this slice.** No video. The request has no environment field, because §7's request
+  does not name one. The CLI cannot resume a batch; retry is an engine operation, and the Jobs row
+  that exposes it is R099.d. The CLI error codes are coarse: refusals are `INVALID_REQUEST`, a
+  request over 16 KiB is `LIMIT_EXCEEDED`, and an unreadable request is `INPUT_ERROR`.
+- **H.264 (§9 risk, decision 7): available.** Measured with the local Blender 5.2.2 LTS (Arch
+  `17:5.2.2-3`, FFmpeg 9.0.2). CI installs `17:5.2.2-2` (`docs/RELEASE_NOTES.md`), which has not
+  been run here. Blender's FFMPEG codec list includes `H264`. Six 320×240 frames written through
+  `media_type = VIDEO`, `file_format = FFMPEG`, the MPEG-4 container and the `H264` codec gave a
+  2,825-byte MP4. `ffprobe` reports `codec_name=h264`, High profile, `yuv420p`, six frames, and an
+  x264 encoder string (core 165). The H.264 decision in §4 therefore stands, subject to the CI
+  Blender package confirming it in R099.c.
+- **MJPG/AVI fallback (contradicts §4): unavailable.** Blender 5.2.2's codec list has no MJPEG.
+  Selecting it fails with `enum "MJPEG" not found`. The measured alternatives are MPEG-4 Part 2 in
+  MP4 (`mpeg4`, six frames, 320×240) and FFV1 in MKV (`ffv1`, lossless). For R099.c this note
+  recommends MPEG-4 Part 2 in MP4, which is lossy and plays everywhere; FFV1 is the lossless
+  option. The owner chooses the fallback. No code in R099.b depends on it.
+- **Budgets measured against §5.** Measured 2026-10-25 on this machine (Arch, Blender 5.2.2-3, 22
+  cores, 30 GB), not the pinned image. The libraries came from the `dev` preset, which is a **Debug**
+  build, so library timings are upper bounds. Release timings are not measured. The Blender frame
+  times are real. Measurement harness: a throwaway program linked against the dev static libraries,
+  not committed.
+  - *`planCameraFrames`, 32 keyframes at the largest timing the frame cap admits.* The planner itself
+    refuses more than 240 frames, so the §5 row's "maximum timing" is read as the largest timing
+    that stays at or under 240. Transition 7 with hold 0 gives 218 frames, p50 0.13 ms and p95 0.14
+    ms. Transition 6 with hold 1 gives 219 frames, p95 0.13 ms. Budget p95 ≤ 10 ms: **met**.
+  - *Batch capture (one freeze, plan and hash) on a large document.* The §5 row names a 250,000-triangle
+    document, which the model cannot hold: the document's limit is 100,000 unique vertices, and
+    separate convex faces give about one triangle per vertex. The largest document measured is 3,700
+    bodies of 27-gon faces: 92,500 triangles, 99,900 vertices, 141 planned frames. Capture p50 888 ms
+    and p95 1,185 ms, with `encodeDocument` (the capture hash and stored bytes) taking p50 810 ms of
+    that. Budget p95 ≤ 500 ms: **not met at this size, in a Debug build**. Scaling would be worse at
+    250,000 triangles. The cost is in the native encoding; see the contradictions below.
+  - *Per-frame preparation (`PreparedRender::prepare`) on the same 92,500-triangle document, 1024×768.*
+    The scene package is 8.65 MB. p50 2.07 s and maximum 3.31 s over three runs (Debug). The §5 row
+    defers to the existing GLB preparation row, which is not re-measured here.
+  - *Per-frame render, real Blender, Cycles CPU, 1024×768, 32 samples, 92,500 triangles.* A CLI batch
+    of four frames (explicit keyframes, transition 3, hold 0) completed in 108 s wall, including
+    load, capture and preparation. That is about 26 s per frame. Each PNG is 462–471 KB, far below the
+    64 MiB cap, and each frame's hash verified. Budget ≤ 180 s: **met**.
+  - *Whole batch, 240 frames × 4 presets at 1024×768 / 32 samples.* **Not run.** Extrapolated from
+    the per-frame time: 960 frames at about 26 s is roughly seven hours on this machine. The actual
+    output would be about 0.65 GB (per frame, 0.47 MB PNG and 0.21 MB JSON). The worst-case bound
+    is 5.75 MiB per frame (5.4 GiB for the batch); as first written the engine refused the batch up
+    front on that bound. In review the up-front refusal was removed, so the batch now starts and the
+    2 GiB budget is checked per frame.
+  - *Store.* 8 pending, 16 retained and 2 GiB, as §5 requires. Enforced and tested.
+  - *Manifests.* The per-frame JSON is about 207 KB. Its diagnostics and result repeat the worker's
+    attempt log (about 67 KB each, three copies), which the animation export shares. The 1 MiB bound
+    holds with about 5× headroom. The batch manifest is 2,034 bytes for four frames, about 134 bytes
+    per frame entry, so 960 entries stay well under 1 MiB.
+  - *Records on load.* Unchanged from R099.a.
+- **Contradictions with the ADR, for the owner.**
+  1. The 250,000-triangle capture row cannot be built under the 100,000 unique-vertex limit. The
+     row should name a vertex-based size, or the limit should be reconsidered.
+  2. Capture is over its 500 ms row at 92,500 triangles, in a Debug build, and the cost is the
+     native encoding that doubles as the capture hash. Options: measure a release build and keep
+     the row; or derive the provenance hash from a cheaper digest. Not changed here.
+  3. *Resolved in review.* An up-front refusal on the animation export's worst-case bound (about
+     5 bytes per pixel, about eight times a real PNG) refused the §5 whole-batch case (240 × 4 at
+     1024×768), although the real output is about 0.65 GB. §4 asks for a per-frame check, so the
+     up-front refusal was removed; the per-frame check, with the remaining budget in its message,
+     is tested with a lowered limit (`setOutputLimit`).
+  4. A SIGTERM during a batch leaves the job `Running` until the store is next opened, which then
+     marks it `Interrupted`. Ctrl-C (SIGINT) cancels cleanly; a hard kill does not.

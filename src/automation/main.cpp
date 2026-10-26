@@ -8,6 +8,8 @@
 #include "automation/session.hpp"
 #include "automation/terrain_commands.hpp"
 #include "integrations/glb_export.hpp"
+#include "integrations/presentation_request.hpp"
+#include "integrations/presentation_store.hpp"
 #include "io/assembly_source.hpp"
 #include "io/document_io.hpp"
 #include "io/dxf_export.hpp"
@@ -35,10 +37,19 @@
 #include <QTimeZone>
 #include <QGuiApplication>
 #include <QJsonDocument>
+#include <QStandardPaths>
+#include <csignal>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
 #include <unistd.h>
+
+namespace {
+// Set by SIGINT while --export-presentation runs; the batch cancels at its next frame boundary.
+volatile std::sig_atomic_t presentationInterrupted = 0;
+void interruptPresentation(int) { presentationInterrupted = 1; }
+} // namespace
+
 int main(int argc, char **argv) {
     bool measuredExport = false;
     for (int i = 1; i < argc; ++i) {
@@ -101,6 +112,9 @@ int main(int argc, char **argv) {
     parser.addOption({"session-capabilities", "Print the bounded session and transaction schemas"});
     parser.addOption(
         {"export-glb", "Export an immutable scene and manifest to a new directory", "directory"});
+    parser.addOption({"export-presentation",
+                      "Render a camera path through render presets to a new folder with a batch manifest",
+                      "request"});
     parser.addOption({"render-settings", "Read versioned camera and render settings", "path"});
     parser.addOption({"capabilities", "Print supported local commands"});
     parser.addOption({"describe-command", "Print a command parameter schema", "name"});
@@ -1013,6 +1027,43 @@ int main(int argc, char **argv) {
                 << '\n';
             return 0;
         }
+        if (parser.isSet("export-presentation")) {
+            if (!parser.isSet("input") || !parser.positionalArguments().isEmpty())
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Presentation export requires an explicit input model");
+            for (const auto &option : parser.optionNames())
+                if (option != "input" && option != "export-presentation")
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Presentation export is a standalone operation");
+            QFile file(parser.value("export-presentation"));
+            if (!QFileInfo(file.fileName()).isFile() || !file.open(QIODevice::ReadOnly) ||
+                file.size() > sketchy::presentationRequestBytes)
+                throw sketchy::InspectionError(
+                    "INPUT_ERROR", "Cannot read presentation request or it exceeds 16 KiB");
+            const auto request = sketchy::parsePresentationRequest(
+                file.read(sketchy::presentationRequestBytes + 1));
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            // The application's own job directory, so the CLI and the app see the same batches.
+            QCoreApplication::setOrganizationName("SketchyUp");
+            QCoreApplication::setApplicationName("SketchyUp");
+            sketchy::PresentationJobStore store(
+                QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
+                "/presentation-jobs");
+            std::signal(SIGINT, interruptPresentation);
+            const auto run = sketchy::runPresentationRequest(
+                document, request, store, [] { return presentationInterrupted != 0; });
+            std::signal(SIGINT, SIG_DFL);
+            std::cout << QJsonDocument(run.manifest).toJson(QJsonDocument::Compact).toStdString()
+                      << '\n';
+            switch (run.state) {
+            case sketchy::PresentationJobState::Completed:
+                return 0;
+            case sketchy::PresentationJobState::Canceled:
+                return 130;
+            default:
+                return 1;
+            }
+        }
         if (parser.isSet("render-settings"))
             throw sketchy::InspectionError("INVALID_REQUEST",
                                            "Render settings require --export-glb");
@@ -1126,6 +1177,13 @@ int main(int argc, char **argv) {
                 "Preview requires --script and cannot be combined with --output");
         if (parser.isSet("capabilities")) {
             std::cout << QJsonDocument(sketchy::capabilities()).toJson().toStdString();
+            return 0;
+        }
+        if (parser.isSet("describe-command") &&
+            parser.value("describe-command") == "export-presentation") {
+            std::cout << QJsonDocument(sketchy::presentationExportDescription())
+                             .toJson()
+                             .toStdString();
             return 0;
         }
         if (parser.isSet("describe-command")) {

@@ -5,6 +5,7 @@
 #include "automation/extension.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/inspection.hpp"
+#include "automation/presentation_export.hpp"
 #include "automation/inspection_session.hpp"
 #include "automation/measurement_assertions.hpp"
 #include "automation/model_recipes.hpp"
@@ -192,6 +193,7 @@ QJsonObject capabilities() {
         {"inspectionSession", inspectionSessionCapabilities()},
         {"transactions", transactionCapabilities()},
         {"measurementAssertions", measurementAssertionCapabilities()},
+        {"presentation", presentationExportCapabilities()},
         {"units", "m"},
         {"up", "Z"},
         {"commands",
