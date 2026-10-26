@@ -1445,7 +1445,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R100 — Add custom styles and richer asset authoring
 
-**Status:** Planned; Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23; Q1 open). **Track:** Desktop. **Scope:** F06. **UX:** —.
+**Status:** Planned; Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23; Q1 open). Slice R100.c open: the `.sketchycat` catalog format (the version 1 manifest on the shared envelope, shared-asset deduplication, per-entry and per-asset hashes, relocation, the bounded decoder and its fuzz target, and `catalog.list`); see the ADR 0174 implementation notes (R100.c). **Track:** Desktop. **Scope:** F06. **UX:** —.
 
 **Requires:** [R089](#r089), [R062](#r062), [R079](#r079); milestone gate rule above.
 
