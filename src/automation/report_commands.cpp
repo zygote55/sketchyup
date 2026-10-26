@@ -1,7 +1,12 @@
 #include "automation/report_commands.hpp"
 #include "automation/inspection.hpp"
 #include "core/units.hpp"
+#include "io/new_file.hpp"
+#include "io/report_csv.hpp"
+#include <QCryptographicHash>
+#include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QString>
 #include <cmath>
 #include <stdexcept>
@@ -234,16 +239,19 @@ QJsonObject reportDescription(const Document &doc, const ReportRequest &request,
     QJsonArray counts, areas, volumes, invalid, terrain;
     for (const auto &row : result.counts)
         counts.append(QJsonObject{{"key", QString::fromStdString(row.key)},
+                                  {"name", QString::fromStdString(row.name)},
                                   {"contexts", int(row.contexts)},
                                   {"instances", int(row.instances)},
                                   {"definitions", int(row.definitions)}});
     for (const auto &row : result.areas)
         areas.append(QJsonObject{
             {"key", QString::fromStdString(row.key)},
+            {"name", QString::fromStdString(row.name)},
             {"material", row.material ? QString::number(row.material) : QString::fromUtf8("—")},
             {"area", measureText(row.area, 2, unit, precision)}});
     for (const auto &row : result.volumes)
         volumes.append(QJsonObject{{"key", QString::fromStdString(row.key)},
+                                   {"name", QString::fromStdString(row.name)},
                                    {"volume", measureText(row.volume, 3, unit, precision)},
                                    {"unvalidated", int(row.unvalidated)}});
     for (const auto &row : result.invalid)
@@ -251,6 +259,7 @@ QJsonObject reportDescription(const Document &doc, const ReportRequest &request,
                                    {"contexts", int(row.contexts)}});
     for (const auto &row : result.terrain)
         terrain.append(QJsonObject{{"terrain", QString::number(row.terrain)},
+                                   {"name", QString::fromStdString(row.name)},
                                    {"contexts", int(row.contexts)},
                                    {"triangles", int(row.triangles)},
                                    {"area", measureText(row.area, 2, unit, precision)}});
@@ -265,6 +274,100 @@ QJsonObject reportDescription(const Document &doc, const ReportRequest &request,
         data["invalid"] = invalid;
     }
     return data;
+}
+
+namespace {
+
+// ADR 0175 §8: a report file is refused above 256 MiB, before anything is published.
+constexpr qsizetype reportFileBytes = 256LL * 1024 * 1024;
+
+// The request object report.run takes, built from the CLI's flags. The engine validates every
+// value.
+QJsonObject requestFor(const ReportFileOptions &options) {
+    QJsonObject request;
+    if (options.metrics == "all") {
+        request["metrics"] = "all";
+    } else {
+        QJsonArray metrics;
+        for (const auto &name : options.metrics.split(','))
+            metrics.append(name);
+        request["metrics"] = metrics;
+    }
+    request["groupBy"] = options.groupBy;
+    const auto ids = [](const QStringList &values) {
+        QJsonArray result;
+        for (const auto &value : values)
+            result.append(value);
+        return result;
+    };
+    request["filters"] = QJsonObject{{"visibility", options.visible ? "visible" : "all"},
+                                     {"tags", ids(options.tags)},
+                                     {"materials", ids(options.materials)},
+                                     {"definitions", ids(options.definitions)}};
+    if (options.precision == "full") {
+        request["precision"] = "full";
+    } else if (!options.precision.isEmpty()) {
+        bool ok{};
+        const auto precision = options.precision.toInt(&ok);
+        if (!ok)
+            throw InspectionError("INVALID_REQUEST", "Report precision must be full or an integer");
+        request["precision"] = precision;
+    }
+    return request;
+}
+
+} // namespace
+
+QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &options) {
+    const auto extension = QFileInfo(options.path).suffix().toLower();
+    if (extension != "csv" && extension != "json")
+        throw InspectionError("INVALID_REQUEST", "A report file ends in .csv or .json");
+    if (!options.format.isEmpty() && options.format != extension)
+        throw InspectionError("INVALID_REQUEST", "--format must match the report file's extension");
+    const QFileInfo target(options.path);
+    if (target.exists() || target.isSymLink())
+        throw InspectionError("FILE_EXISTS",
+                              "The report file already exists; an existing file is never replaced");
+
+    const auto data =
+        reportDescription(doc, reportRequestFrom(doc, requestFor(options), false), nullptr);
+    const auto bytes =
+        extension == "csv" ? reportCsv(data) : QJsonDocument(data).toJson(QJsonDocument::Compact);
+    if (bytes.size() > reportFileBytes)
+        throw InspectionError("LIMIT_EXCEEDED", "A report over 256 MiB is refused");
+    publishNewFile(options.path, bytes);
+    return QJsonObject{
+        {"status", "exported"},
+        {"exportReport",
+         QJsonObject{{"format", extension},
+                     {"output", options.path},
+                     {"bytes", double(bytes.size())},
+                     {"sha256",
+                      QString::fromLatin1(
+                          QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex())}}}};
+}
+
+QJsonObject reportExportCapabilities() {
+    return {{"operation", "report"},
+            {"formats", QJsonArray{"csv", "json"}},
+            {"fileBytes", double(reportFileBytes)},
+            {"newFileOnly", true},
+            {"metrics", QJsonArray{"counts", "areas", "volumes", "all"}},
+            {"groupBy", QJsonArray{"none", "kind", "tag", "material", "definition"}},
+            {"precision", "full, or an integer from 0 to the document's displayed maximum"},
+            {"schedules", "unavailable until R101.c"}};
+}
+
+QJsonObject reportExportDescription() {
+    return {{"name", "report"},
+            {"usage", "sketchyup-cli --input MODEL --report FILE.csv|FILE.json [--metrics "
+                      "counts,areas,volumes|all] [--group-by none|kind|tag|material|definition] "
+                      "[--visible] [--tag ID]... [--material ID]... [--definition ID]... "
+                      "[--precision full|N] [--format csv|json]"},
+            {"summary",
+             "Write a quantities report of the model to a new .csv or .json file. The model "
+             "is not changed, and an existing file is refused."},
+            {"limits", reportExportCapabilities()}};
 }
 
 } // namespace sketchy

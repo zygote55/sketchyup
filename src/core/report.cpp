@@ -15,18 +15,31 @@
 namespace sketchy {
 namespace {
 
-// Groups sort "All" first, then by ID for tags, materials and definitions and by name for
-// kinds (ADR 0175 §6.1). Keys without an ID ("untagged", "—", kind names) carry ID zero.
+// Groups sort "All" first, then by ID for tags, materials and definitions and by label for kinds
+// (ADR 0175 §6.1). A label group ("untagged", "—", a kind, "All") carries ID zero; `key` is its
+// label, or the decimal ID of an ID group, and `name` is what the CSV group column shows.
 struct GroupKey {
     Id id{};
-    std::string label;
+    std::string key, name;
     bool operator<(const GroupKey &other) const {
-        return std::tie(id, label) < std::tie(other.id, other.label);
+        return std::tie(id, key) < std::tie(other.id, other.key);
     }
 };
 
-const GroupKey allGroup{0, "All"};
 const char *const noneLabel = "—";
+const GroupKey allGroup{0, "All", "All"};
+const GroupKey noneGroup{0, noneLabel, noneLabel};
+
+GroupKey labelGroup(const std::string &label) { return {0, label, label}; }
+
+GroupKey idGroup(Id id, const std::string &name) { return {id, std::to_string(id), name}; }
+
+// The display name of a record, or an empty name when the record is absent (never expected: every
+// ID here comes from the document).
+template <typename Records> std::string nameOf(const Records &records, Id id) {
+    const auto found = records.find(id);
+    return found == records.end() ? std::string{} : found->second->name;
+}
 
 struct CountAccumulator {
     std::size_t contexts{}, instances{};
@@ -66,8 +79,6 @@ std::vector<Id> ancestorsOrSelf(const Document &doc, Id body) {
     }
     return chain;
 }
-
-std::string decimal(Id id) { return std::to_string(id); }
 
 // The triangle rule of measureEntity and Document::worldArea (ADR 0175 §2.3): each world triangle
 // contributes half the length of the cross product of its transformed edge vectors, so a mirror
@@ -175,18 +186,18 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
         case ReportGroup::None:
             break;
         case ReportGroup::Kind:
-            groups.push_back({0, familyOf(body, placed)});
+            groups.push_back(labelGroup(familyOf(body, placed)));
             break;
         case ReportGroup::Tag: {
             // Each carried tag and each folder above it (a folder aggregates its descendants).
             if (carried.empty())
-                groups.push_back({0, "untagged"});
+                groups.push_back(labelGroup("untagged"));
             std::set<Id> keys;
             for (const auto tag : carried)
                 for (const auto key : tagChain(doc, tag))
                     keys.insert(key);
             for (const auto key : keys)
-                groups.push_back({key, decimal(key)});
+                groups.push_back(idGroup(key, nameOf(doc.tags(), key)));
             break;
         }
         case ReportGroup::Material: {
@@ -195,13 +206,14 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
             const auto first = body.surface.faces.begin();
             const auto material =
                 first == body.surface.faces.end() ? Id{} : faceMaterial(first->first);
-            groups.push_back(material ? GroupKey{material, decimal(material)}
-                                      : GroupKey{0, noneLabel});
+            groups.push_back(material ? idGroup(material, nameOf(doc.materials(), material))
+                                      : noneGroup);
             break;
         }
         case ReportGroup::Definition:
-            groups.push_back(placed ? GroupKey{outerDefinition, decimal(outerDefinition)}
-                                    : GroupKey{0, noneLabel});
+            groups.push_back(
+                placed ? idGroup(outerDefinition, nameOf(doc.definitions(), outerDefinition))
+                       : noneGroup);
             break;
         }
 
@@ -216,6 +228,7 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
         if (body.kind == BodyKind::Terrain) {
             auto &row = terrain[id];
             row.terrain = id;
+            row.name = body.name;
             ++row.contexts;
         }
 
@@ -239,8 +252,9 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
                 const auto areaGroups =
                     request.groupBy == ReportGroup::Material
                         ? std::vector<GroupKey>{allGroup,
-                                                material ? GroupKey{material, decimal(material)}
-                                                         : GroupKey{0, noneLabel}}
+                                                material ? idGroup(material, nameOf(doc.materials(),
+                                                                                    material))
+                                                         : noneGroup}
                         : groups;
                 for (const auto &group : areaGroups)
                     areas[{group, material}] += faceArea;
@@ -248,6 +262,7 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
             if (body.terrainTile) {
                 auto &row = terrain[body.parent];
                 row.terrain = body.parent;
+                row.name = nameOf(doc.bodies(), body.parent);
                 ++row.contexts;
                 row.triangles += recordTriangles;
                 row.area += recordArea;
@@ -280,15 +295,15 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
     if (request.counts)
         for (const auto &[group, count] : counts)
             result.counts.push_back(
-                {group.label, count.contexts, count.instances, count.definitions.size()});
+                {group.key, group.name, count.contexts, count.instances, count.definitions.size()});
     if (request.areas)
         for (const auto &[key, area] : areas)
-            result.areas.push_back({key.first.label, key.second, area});
+            result.areas.push_back({key.first.key, key.first.name, key.second, area});
     if (request.volumes) {
         for (const auto &[group, count] : counts)
             volumes.try_emplace(group);
         for (const auto &[group, volume] : volumes)
-            result.volumes.push_back({group.label, volume.volume, volume.unvalidated});
+            result.volumes.push_back({group.key, group.name, volume.volume, volume.unvalidated});
         for (const auto status : invalidOrder)
             if (const auto found = invalid.find(std::string(status)); found != invalid.end())
                 result.invalid.push_back({found->first, found->second});

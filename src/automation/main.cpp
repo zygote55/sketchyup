@@ -5,6 +5,7 @@
 #include "automation/mcp.hpp"
 #include "automation/optional_capabilities.hpp"
 #include "automation/recipe.hpp"
+#include "automation/report_commands.hpp"
 #include "automation/session.hpp"
 #include "automation/terrain_commands.hpp"
 #include "integrations/glb_export.hpp"
@@ -16,15 +17,15 @@
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
 #include "io/ifc_export.hpp"
-#include "io/step_export.hpp"
 #include "io/ifc_worker.hpp"
 #include "io/measured_request.hpp"
-#include "io/new_file.hpp"
 #include "io/native_format.hpp"
+#include "io/new_file.hpp"
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
 #include "io/sheet_export.hpp"
 #include "io/skp_worker.hpp"
+#include "io/step_export.hpp"
 #include "io/step_worker.hpp"
 #include "io/stl_export.hpp"
 #include "sketchyup/version.hpp"
@@ -34,12 +35,12 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QTimeZone>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QStandardPaths>
-#include <csignal>
+#include <QTimeZone>
 #include <cmath>
+#include <csignal>
 #include <cstdio>
 #include <iostream>
 #include <unistd.h>
@@ -112,6 +113,23 @@ int main(int argc, char **argv) {
     parser.addOption({"session-capabilities", "Print the bounded session and transaction schemas"});
     parser.addOption(
         {"export-glb", "Export an immutable scene and manifest to a new directory", "directory"});
+    parser.addOption({"report",
+                      "Write a read-only quantities report of --input to a new .csv or .json file",
+                      "path"});
+    parser.addOption(
+        {"metrics", "Report metrics: counts,areas,volumes or all (default all)", "list"});
+    parser.addOption({"group-by",
+                      "Report grouping: none (default), kind, tag, material or definition",
+                      "grouping"});
+    parser.addOption({"visible", "Report only visible content (default includes hidden content)"});
+    parser.addOption({"tag", "Report filter: a tag or folder ID; repeat for several", "id"});
+    parser.addOption(
+        {"material", "Report filter: a material ID (areas rows only); repeat for several", "id"});
+    parser.addOption(
+        {"definition", "Report filter: a component definition ID; repeat for several", "id"});
+    parser.addOption({"precision", "Report precision: full (default) or an integer", "full|N"});
+    parser.addOption(
+        {"format", "Report format: csv or json (default from the file extension)", "format"});
     parser.addOption({"export-presentation",
                       "Render a camera path through render presets to a new folder with a batch manifest",
                       "request"});
@@ -1027,6 +1045,34 @@ int main(int argc, char **argv) {
                 << '\n';
             return 0;
         }
+        if (parser.isSet("report")) {
+            // ADR 0175 §8 (R101.b): a standalone read-only report, written to a new file.
+            const QStringList allowed{"report", "input",    "metrics",    "group-by",  "visible",
+                                      "tag",    "material", "definition", "precision", "format"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Report is a standalone operation");
+            if (!parser.positionalArguments().isEmpty() || !parser.isSet("input"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Report requires --input and a --report file");
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            sketchy::ReportFileOptions options;
+            options.path = parser.value("report");
+            options.format = parser.value("format");
+            options.metrics = parser.isSet("metrics") ? parser.value("metrics") : "all";
+            options.groupBy = parser.isSet("group-by") ? parser.value("group-by") : "none";
+            options.visible = parser.isSet("visible");
+            options.tags = parser.values("tag");
+            options.materials = parser.values("material");
+            options.definitions = parser.values("definition");
+            options.precision = parser.value("precision");
+            std::cout << QJsonDocument(sketchy::writeReportFile(document, options))
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
         if (parser.isSet("export-presentation")) {
             if (!parser.isSet("input") || !parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",
@@ -1177,6 +1223,10 @@ int main(int argc, char **argv) {
                 "Preview requires --script and cannot be combined with --output");
         if (parser.isSet("capabilities")) {
             std::cout << QJsonDocument(sketchy::capabilities()).toJson().toStdString();
+            return 0;
+        }
+        if (parser.isSet("describe-command") && parser.value("describe-command") == "report") {
+            std::cout << QJsonDocument(sketchy::reportExportDescription()).toJson().toStdString();
             return 0;
         }
         if (parser.isSet("describe-command") &&

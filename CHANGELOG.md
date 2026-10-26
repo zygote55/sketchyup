@@ -10,6 +10,15 @@
   The assistant does not see it. No CSV, CLI, saved schedules, MCP names or panel yet (R101.b to
   R101.e).
 
+- Quantities report files (R101.b, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
+  `sketchyup-cli --input MODEL --report FILE.csv|FILE.json` writes a report of counts, areas,
+  volumes, the invalid table and terrain to a new file, with the metrics, grouping, visibility and
+  filters of the session query. The CSV is the file of record (UTF-8 without a BOM, LF line endings,
+  a `#key=value` metadata block and one tidy row per group and metric). The JSON is the session's
+  `report.run` data, byte for byte. An existing file is refused, and the model is never changed.
+  The saved-schedule flags, the MCP names and the desktop panel are not in this release (R101.c to
+  R101.e).
+
 - Camera paths and render presets (R099.a, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md)):
   named camera paths that keyframe saved scenes (2 to 32 keyframes, at most 240 planned frames,
   up to 64 per document) and named render presets (up to 16 per document). Both are saved with

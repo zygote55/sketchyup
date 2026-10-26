@@ -823,3 +823,79 @@ are the ADR's proposals; on this machine every measured stage is well inside the
   "one sheet, two views, three items" row is not built.
 - The desktop selection path (`DesktopInspection`) is not run by a desktop test.
 - The §12 budgets on the full application, and on the other platforms of the acceptance record.
+
+## Implementation notes (R101.b)
+
+R101.b is the outputs and the CLI: the CSV file of record and the JSON form (§6), `sketchyup-cli
+--report` (§8, without the schedule flags), the quantities-a fixture with hash-pinned golden outputs
+(V10), the CLI and session parity (V12), and the §12 budgets confirmed in a Release build on
+quantities-b. The CSV is `src/io/report_csv.{hpp,cpp}`, a rendering of the `report.run` data object,
+so the CSV and the JSON cannot disagree. The file writer is `writeReportFile` in
+`src/automation/report_commands.cpp`, and it publishes through `publishNewFile` (`src/io/new_file.cpp`),
+the native "never replace" convention. Tests: `tests/report_output_tests.cpp` (the dialect, quoting,
+the metadata matrix, goldens, session parity and the fixture generator), `tests/report_cli_tests.cpp`
+(success, refusals, read-only input, the CSV and JSON agreeing, parity with the session), and
+`tests/report_fixtures.hpp` (the R101.a builders, now shared with `report_tests`, plus quantities-b).
+The goldens are `tests/fixtures/reports/quantities-a-{default,material}.{csv,json}`, generated from
+`tests/fixtures/reports/quantities-a.sketchyup` by `report_output_tests --write-goldens`.
+
+### Decisions where the ADR was silent
+
+- **The group column carries the group's name.** V10 asks for fixture names with commas and quotes
+  in the golden bytes, and the ADR's `group` column is where a name belongs. The fixture's Steel
+  material is named `Steel, "galvanised"` for that reason. The ID goes in the `tag`, `material` or
+  `definition` column when the report groups by that axis; a group with no ID (untagged, no
+  material, unplaced) has `—` there; every other row leaves the cell empty, and the All row never
+  has one. Areas rows always carry the material cell (its ID or `—`), in the order of §6.1.
+- **Invalid rows** use the status as the group and `contexts` as the metric. **Terrain rows** use
+  the terrain's name as the group, because the table has no axis column. Two terrains with the same
+  name are told apart only by their JSON `terrain` ID, which the CSV does not carry. This is a gap.
+- **Metadata lists are semicolon-joined** (`#metrics=counts;areas;volumes`, `#filters.tags=5;7`), so
+  that no metadata line holds a comma. The ADR named only the filter lists this way.
+- **The JSON file** is the compact `data` object with no final newline. It is byte-identical to the
+  session's `report.run` data, which is the V12 test. Qt writes the keys sorted, so `metadata` is not
+  first, as §6.2 lists it. The data is the same.
+- **The metadata has no `materialsApply` line.** The session's JSON states that counts and volumes
+  ignore the materials filter (§1). The CSV cannot state it without a `#` line the ADR does not list
+  ("no other `#` lines"). The JSON says it; the CSV does not. This needs the owner's decision.
+- **Session shape.** The count, area, volume and terrain rows gained a `name` field. `key` is
+  unchanged. The shape is additive, and no existing field moved. The generated tool reference
+  documents no response shape, so it is not changed for this.
+- **Format and paths.** The format comes from the `.csv` or `.json` extension. A `--format` that
+  disagrees with the extension is refused. `--tag`, `--material` and `--definition` repeat; they
+  do not take comma lists. An existing path is refused as `FILE_EXISTS` before any work, and
+  `publishNewFile` checks it again. The 256 MiB refusal comes before anything is published.
+- **Capabilities.** `--capabilities` lists `reportExport`, and `--describe-command report` describes
+  the command. Neither lists the schedule flags.
+
+### Confirmed budgets (§12)
+
+Release build (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3 -DNDEBUG`), on the developer machine
+(Linux, 22 threads, 30 GB RAM). `tests/report_benchmark.cpp` builds quantities-b in memory: a
+249,218-triangle terrain plus 10,000 placements of a 12-face part, 30,257 records. The file
+`tests/fixtures/reports/quantities-a.sketchyup` is committed; quantities-b (12.5 MB as a `.sketchyup`) is
+not, and is written to a scratch path when the CLI run is needed. The measured figures are the
+ones below; the budgets stand as the ADR proposed them.
+
+| Work (quantities-b) | Budget (§12) | Measured | Notes |
+| --- | --- | --- | --- |
+| Counts (groupBy none) | ≤ 2 s | 0.25 s | 30,257 contexts |
+| Areas (all world triangle areas) | ≤ 5 s | 0.27 s | with counts, the all-tables run is 0.71 s |
+| Solid volume analysis (`inspectSolid` per context) | ≤ 30 s | 0.69 s | synchronous; the async run and its cancel are R101.e |
+| All four tables | (the sum) | 0.71 s | R101.a measured 1.32 s on this machine class |
+| CSV write, 100,002 rows | ≤ 10 s | 0.070 s | a synthetic report: 33,334 count groups, 3,989,304 bytes |
+| CSV write, real report by tag | (part of the 10 s) | 0.005 s | 6,016 rows; about a thousand tag groups |
+| Output size | ≤ 256 MiB | 3.99 MB | the 100,002-row file; the refusal above 256 MiB is not exercised |
+| Engine memory, peak | ≤ 512 MiB | 284 MB | `VmHWM` of the whole process; the document alone is 225 MB before the runs |
+| CLI, end to end (load, report, write) | (no budget) | 1.99 s wall, 292 MB peak RSS | `--report` with all metrics, CSV and JSON; the load is most of the time |
+
+The 100,000-row case is synthetic because one document cannot hold 100,000 groups: a document
+holds at most 1024 tags, and quantities-b placements share 1000 of them. The real tag report
+(6,016 rows) is the largest real output measured here, and the synthetic case measures the writer.
+
+**Not measured in R101.b:**
+- the desktop re-run after one edit (p95 ≤ 250 ms), the cancel (≤ 100 ms) and the stop (≤ 5 s):
+  R101.e, with the desktop panel;
+- the schedule re-run (the matching report budget): R101.c;
+- the refusal of a file over 256 MiB: the check runs before anything is published, but no report
+  that large was built.
