@@ -1,0 +1,54 @@
+#sketchyup-report=1
+#format=1.0
+#documentId=6afe7174137d67ffdf04a70703d76b13
+#revision=53
+#ad-hoc=1
+#units.length=m
+#units.area=m2
+#units.volume=m3
+#precision=3
+#metrics=counts;areas;volumes
+#group_by=material
+#filters.visibility=visible
+#sheets=0
+#views=0
+#items=0
+section,group,tag,material,definition,metric,value
+counts,All,,,,contexts,117
+counts,All,,,,instances,15
+counts,All,,,,definitions,4
+counts,—,,—,,contexts,26
+counts,—,,—,,instances,15
+counts,—,,—,,definitions,4
+counts,"Steel, ""galvanised""",,1,,contexts,8
+counts,"Steel, ""galvanised""",,1,,instances,0
+counts,"Steel, ""galvanised""",,1,,definitions,0
+counts,Wood,,2,,contexts,2
+counts,Wood,,2,,instances,0
+counts,Wood,,2,,definitions,0
+counts,Terrain,,3,,contexts,81
+counts,Terrain,,3,,instances,0
+counts,Terrain,,3,,definitions,0
+areas,All,,—,,area,196.000
+areas,All,,1,,area,36.000
+areas,All,,2,,area,9.200
+areas,All,,3,,area,40000.001
+areas,—,,—,,area,196.000
+areas,"Steel, ""galvanised""",,1,,area,36.000
+areas,Wood,,2,,area,9.200
+areas,Terrain,,3,,area,40000.001
+volumes,All,,,,volume,79.400
+volumes,All,,,,unvalidated,2
+volumes,—,,—,,volume,75.000
+volumes,—,,—,,unvalidated,2
+volumes,"Steel, ""galvanised""",,1,,volume,4.000
+volumes,"Steel, ""galvanised""",,1,,unvalidated,0
+volumes,Wood,,2,,volume,0.400
+volumes,Wood,,2,,unvalidated,0
+volumes,Terrain,,3,,volume,0.000
+volumes,Terrain,,3,,unvalidated,0
+invalid,open_boundary,,,,contexts,1
+invalid,non_manifold,,,,contexts,1
+terrain,Terrain,,,,contexts,82
+terrain,Terrain,,,,triangles,80000
+terrain,Terrain,,,,area,40000.001
