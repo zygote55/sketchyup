@@ -74,6 +74,8 @@ bool assistantVisible(const QString &name) {
            !name.startsWith(QStringLiteral("camera_path.")) &&
            !name.startsWith(QStringLiteral("render_preset.")) &&
            !name.startsWith(QStringLiteral("presentation.")) &&
+           // R100.c (ADR 0174 section 7): the assistant gets no catalog tools.
+           !name.startsWith(QStringLiteral("catalog.")) &&
            !name.startsWith(QStringLiteral("report."));
 }
 // R096.c: what the assistant reads of a query result. terrain.describe keeps the shape R095.g

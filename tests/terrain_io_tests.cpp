@@ -527,7 +527,7 @@ void automation() {
         check(tools.contains(name), std::string("MCP exposes ") + name);
     for (const auto *name : {"site.set", "site.reanchor", "terrain.explode"})
         check(commands.contains(name), std::string("The command catalogue has ") + name);
-    check(mcpToolCatalog().size() <= 64, "The MCP tool list stays within its 64-tool bound");
+    check(mcpToolCatalog().size() <= mcpToolLimit, "The MCP tool list stays within its bound");
 }
 // Re-anchoring moves every stored world position by the same delta and leaves the
 // origin-independent records alone; Undo restores the exact encoding.

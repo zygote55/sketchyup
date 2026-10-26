@@ -1,3 +1,4 @@
+#include "../catalog_fixtures.hpp"
 #include "../component_parameter_fixture.hpp"
 #include "../ifc_package_fixtures.hpp"
 #include "../terrain_import_fixtures.hpp"
@@ -613,6 +614,16 @@ int main(int argc, char **argv) {
         };
         for (const auto &[name, text] : expressions)
             publish("parameter-expression", QByteArray(text), QString::fromLatin1(name));
+        // R100.c: each catalog fixture decodes, and a tampered one lists its bad entry as not
+        // importable rather than failing the decode. A truncated or misfiled catalog is rejected.
+        const auto catalogs = catalog_fixture::fixtures();
+        for (auto it = catalogs.constBegin(); it != catalogs.constEnd(); ++it)
+            publish("catalog", it.value(), it.key() + QStringLiteral(".sketchycat"));
+        const auto basic = catalogs.value(QStringLiteral("basic"));
+        publishRejected("catalog", basic.left(40), QStringLiteral("truncated.sketchycat"));
+        auto misfiled = basic;
+        misfiled[0] = char(0x7f);
+        publishRejected("catalog", misfiled, QStringLiteral("bad-magic.sketchycat"));
         std::cout << QJsonDocument(QJsonObject{{"validSeeds", rows},
                                                {"rejectedSeeds", rejectedRows},
                                                {"formats", 14},

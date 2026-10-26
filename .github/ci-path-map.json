@@ -217,6 +217,11 @@
       ]
     },
     {
+      "why": "R100.c (ADR 0174 sections 4, 5 and 10): the .sketchycat catalog format on the shared envelope, its decoder, its fuzz determinism test and its generated fixtures. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/io/catalog_io*", "src/io/library_envelope.hpp", "tests/catalog*", "tests/fixtures/catalog/**"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
       "paths": [
         "tests/**"

@@ -671,3 +671,87 @@ Recorded 2026-10-26 for branch `feat/r100a-edge-styles`, on `de83e219`.
   both `--check` runs pass against the built binaries.
 - **Not run here.** The Qt 6.8 reference compile, the sanitizer job, the native matrix and the
   package acceptance run only in CI.
+
+## Implementation notes (R100.c)
+
+Recorded when the `.sketchycat` manifest, writer, verifying reader, `catalog.list`, fuzz
+target and fixtures were implemented (branch `feat/r100c-catalog-format`).
+
+**Format.** A catalog is the `.sketchylib` envelope with `kind = "catalog"`, the same 24-byte
+header and the same magic. The manifest is JSON of at most 32 KiB. The payload region holds
+every shared asset, then every entry payload, in id order and contiguous, and each record
+addresses its bytes by an offset from the region start. The envelope's thumbnail length must be
+zero, because a catalog has no thumbnail. Nothing is stored by absolute path, so a moved file
+resolves. The shared envelope helpers (header, hash, field and text checks) moved into
+`src/io/library_envelope.hpp`; the template and component readers use them unchanged.
+
+**Entries.** The four kinds are `component` (a native container with a captured definition),
+`template` (a native container), `style` (the record that `encodeModelStyle` writes, and
+`decodeModelStyle` reads, so R100.a's `edge` sub-record is carried once it merges) and `material`
+(a JSON record: name, colour, opacity and an asset id, with zero for none). Each entry carries a
+SHA-256 of its payload and a `dependencies` list whose kinds are `asset` and `entry`.
+
+**Bounds chosen** (`CatalogLimits` in `src/io/catalog_io.hpp`): manifest 32 KiB; payload region
+128 MiB; file 130 MiB; a style or material record 16 KiB; 128 entries; 256 assets; 64 assets total
+16 MiB each and 64 MiB together; 64 dependencies per entry; 32 labels of 64 bytes; names 256 bytes;
+descriptions 4 KiB; the author 256 bytes; the licence text 4 KiB and its identifier 64 bytes; the
+version 64 bytes; asset names 1 KiB; media types 128 bytes in lowercase `type/subtype` form; the
+catalog id 1 to 64 letters, digits, dots, underscores or hyphens. Every count and length is checked
+before its allocation, and the reader checks each record against the envelope before it keeps the
+record.
+
+**Decisions made here that the ADR did not settle:**
+
+- *Canonical layout.* Ids run from 1 in order, and offsets are contiguous. A layout fault refuses
+  the whole file.
+- *Unreferenced assets are refused* (a whole-file fault), so no padding can ride along.
+- *Dependencies name earlier entries only.* An entry dependency on itself or a later entry is not
+  importable, which rules out cycles without a recursion limit.
+- *A material declares exactly its asset.* Its payload asset id must match its one asset
+  dependency, or the entry is not importable.
+- *A material's asset is a dependency*, so the writer adds it and the reader requires it.
+- *The writer refuses output its own reader would not list as importable.*
+- *Deduplication* compares media type and bytes; the SHA-256 is only the index (ADR 0131). The
+  first name is kept.
+
+**Verification on read.** The reader checks each asset hash, then each entry hash, then each
+declared dependency (an asset that is absent or mismatched; an entry that is absent, not earlier,
+or not importable), then each payload decode. The first failure gives the entry's reason, and the
+entry keeps its name and the dependency it names. Component and template payloads are fully
+decoded, and the decoded document is then discarded. R100.d decodes again on import, so the
+reader keeps no document in memory. Nothing is substituted: a hash match never replaces a
+resource.
+
+**`catalog.list`.** A read-only inspection query. It takes the catalog as unpadded base64url
+in `catalog`, so the query reads no path (the MCP scope is "no arbitrary paths"). It is listed
+beside the other queries and is hidden from the in-app assistant, which the assistant
+tool-surface baseline pins. Its output lists each entry's kind, name, importable state, reason
+(when not importable) and dependency status, with `assetStatus` per asset and a `missingAssets`
+count. The inspection layer caps a request at 16 KiB and a response at 256 KiB, so the query
+lists catalogs of about 12 KiB or less. Larger catalogs need the file-based CLI surface of R100.e.
+
+**MCP bound (review).** `catalog.list` is the 64th MCP tool. The `McpServer` bound was a sanity
+check from the first MCP slice, not a client limit, and §7 exposes every new command on MCP, so the
+review raised it from 64 to 128. **Open for R100.d:** an inline catalog is capped near 12 KiB by
+the inspection request size, so `catalog.import` (and a useful `catalog.list`) over MCP need a
+catalog reference that is not inline bytes and not an arbitrary path, for example a name in the
+style/catalog library folder of §1. R100.d decides it.
+
+**Measured.** The generated `basic` fixture (one shared texture, a style, two materials that
+share the texture, a template and a component) is 10,246 bytes. The fuzz determinism test ran
+626 inputs twice each with the same result: 8 seeds, 106 truncations and 512 byte flips (102 accepted,
+524 rejected).
+
+**Gaps against the ADR:**
+
+- *Component definitions are not deduplicated at catalog level.* A component's container embeds
+  its own assets and definitions, so a texture used by two components is stored twice. The ADR's
+  "a nested component definition is stored once" is not met yet. Textures are shared only through
+  asset dependencies.
+- *No libFuzzer smoke step in CI.* `parser_fuzz_catalog` builds under
+  `SKETCHYUP_BUILD_FUZZERS` with Clang, as the other parser targets do. The sanitize job is GCC, and
+  the only libFuzzer job is the SKP job, which has no Qt. The determinism test runs in ctest and
+  under the sanitizers in CI.
+- *`catalog.list` is size-limited* as described above.
+- *Style edge fields* (R100.a) are not in the style record yet, so catalog style entries carry the
+  current 14 fields.
