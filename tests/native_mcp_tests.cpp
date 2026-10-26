@@ -166,12 +166,17 @@ int main(int argc, char **argv) {
         const auto catalog = client.read()["result"].toObject()["tools"].toArray();
         check(catalog == nativeMcpCapabilities()["tools"].toArray(),
               "Native discovery matches actual catalog");
+        // ADR 0175 §9 (R101.d): the native list carries the report query, and never the schedule
+        // operation, which writes the user-level store rather than inspecting the window.
+        bool reportRun = false;
         for (const auto &tool : catalog) {
             const auto name = tool.toObject()["name"].toString();
             check(!name.startsWith("transaction.") && name != "document.save" &&
-                      name != "view.capture",
+                      name != "view.capture" && name != "report.schedule",
                   "No unscoped write or large capture tools");
+            reportRun = reportRun || name == "report.run";
         }
+        check(reportRun, "Native MCP lists the report query");
         const auto state = content(client.invoke(
             "session.describe", {{"apiVersion", 1}, {"operation", "session.describe"}}));
         check(state["selectionAvailable"] == true && state["mutationAvailable"] == false,
