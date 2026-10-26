@@ -968,6 +968,26 @@ bit-identical save, the run path and the session) and `tests/report_schedule_cli
   that changed after this process read it is refused with `FILE_CHANGED`, and never merged.
 - **Timestamp.** `createdAt` is UTC, ISO 8601 (`Qt::ISODate`), written by save and checked on open.
 
+### Measured budget (§12, schedule re-run)
+
+A schedule re-run is the report's own pass: the store read, the identity lookup, the ID check and the
+same `reportDescription` the flags use. There is no extra pass over the document. Measured with the
+Release `sketchyup-cli` (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3`, `-DNDEBUG`) on the developer
+machine (Linux, 30 GB RAM), on quantities-b written by `report_benchmark --write-fixture` (12.5 MB).
+Each figure is the wall clock of one CLI process, from start to exit, with `--metrics all --group-by
+tag` and CSV output. The runs alternate, five of each:
+
+| Run | Wall time, five runs (s) | Median (s) |
+| --- | --- | --- |
+| Ad-hoc flags (`--report … --metrics all --group-by tag`) | 2.06, 2.08, 2.07, 2.07, 2.10 | 2.07 |
+| Saved schedule (`--report … --schedule Bench`) | 2.05, 2.08, 2.10, 2.08, 2.09 | 2.08 |
+
+Most of each run is loading the document (R101.b measured the CLI load at 1.99 s end to end on this
+machine class). The scheduled CSV equals the ad-hoc CSV byte for byte apart from the marker line. The
+schedule's own work (opening the store, the lookup, the ID check) was not timed alone; it sits inside
+the run-to-run spread of about 0.03 s. The schedule re-run therefore meets the matching report
+budget, and this is a measurement, not a proposal. The §12 budgets are unchanged.
+
 ### Gaps and what was not run
 
 - **Windows and macOS.** `XDG_DATA_HOME` and `HOME` redirect the store on Linux only. There, the CLI
