@@ -611,13 +611,19 @@ jobs:
         # archives no test reads go first: they are never packed, no later step of this job
         # builds, and with them on disk the stripped copy and the archive no longer fit the
         # runner. An archive a CTest file names (parameter_expression_symbols runs nm on one)
-        # stays.
+        # stays. The ELF files then lose their debug sections in place, as the packed copies
+        # do, so the unstripped tree and its stripped copy never share the disk; this job's
+        # later test steps run the same stripped executables the native test jobs unpack.
         run: |
           find build/dev -name '*.o' -type f -delete
           find build/dev -name 'CTestTestfile.cmake' -exec cat {} + > /tmp/ctest-files.txt
           find build/dev -name '*.a' -type f | while IFS= read -r archive; do
             grep -qF "$(basename "$archive")" /tmp/ctest-files.txt || rm -f -- "$archive"
           done
+          find build/dev -name '*_autogen' -prune -o -type f \( -perm -u+x -o -name '*.so*' \) -print0 |
+            xargs -0 -r -n 32 -P "$(nproc)" sh -c 'for f; do
+              [ "$(head -c4 "$f" | od -An -tx1 | tr -d " \n")" = 7f454c46 ] && strip --strip-debug -p "$f"
+            done; true' strip-in-place
           scripts/ci-pack-build.sh build/dev dev-build.tar.zst
       - uses: actions/upload-artifact@v6
         with:
