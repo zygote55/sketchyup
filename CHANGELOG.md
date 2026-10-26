@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Quantities report engine (R101.a, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
+  a pure counting pass over the materialized document, with the counting rules for shared
+  components, nested placements, hidden content, mirrored transforms, invalid solids and terrain.
+  It is served by the bounded `report.run` session query (counts, areas, volumes, the invalid
+  table and terrain, in the document's units, stamped with the document identity and revision).
+  The assistant does not see it. No CSV, CLI, saved schedules, MCP names or panel yet (R101.b to
+  R101.e).
+
 - Camera paths and render presets (R099.a, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md)):
   named camera paths that keyframe saved scenes (2 to 32 keyframes, at most 240 planned frames,
   up to 64 per document) and named render presets (up to 16 per document). Both are saved with
