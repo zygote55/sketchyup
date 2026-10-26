@@ -56,23 +56,6 @@ void write(const QString &path, const QByteArray &bytes) {
     require(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size() && file.commit(),
             "Cannot publish complete presentation job file");
 }
-void validatePlan(const PresentationPlan &plan) {
-    // The camera path rules (names, two to thirty-two keyframes, timing, the 240-frame plan)
-    // and the render settings rules are the R099.a record rules; a transient record applies them.
-    const auto path = std::make_shared<const CameraPathRecord>(
-        CameraPathRecord{1, plan.path.toStdString(), 0, plan.keyframes, plan.timing});
-    validateCameraPathRecords(CameraPathRecords{{1, path}}, 2);
-    require(!plan.presets.empty() && int(plan.presets.size()) <= presetLimit,
-            "A batch renders one to four presets");
-    RenderPresetRecords presets;
-    Id next = 1;
-    for (const auto &preset : plan.presets) {
-        presets.emplace(next, std::make_shared<const RenderPresetRecord>(RenderPresetRecord{
-                                  next, preset.name.toStdString(), preset.settings}));
-        ++next;
-    }
-    validateRenderPresetRecords(presets, next);
-}
 QJsonObject encodePlan(const PresentationPlan &plan) {
     QJsonArray keyframes, presets;
     for (const auto scene : plan.keyframes)
@@ -120,7 +103,7 @@ PresentationPlan decodePlan(const QJsonObject &value) {
             preset.value("engine") == "eevee" ? RenderEngine::Eevee : RenderEngine::Cycles;
         plan.presets.push_back(std::move(decoded));
     }
-    validatePlan(plan);
+    validatePresentationPlan(plan);
     return plan;
 }
 QJsonObject boundedReport(const QJsonObject &report) {
@@ -198,6 +181,23 @@ StoredPresentationJob decode(const QJsonObject &value, const QString &id) {
     return job;
 }
 } // namespace
+void validatePresentationPlan(const PresentationPlan &plan) {
+    // The camera path rules (names, two to thirty-two keyframes, timing, the 240-frame plan)
+    // and the render settings rules are the R099.a record rules; a transient record applies them.
+    const auto path = std::make_shared<const CameraPathRecord>(
+        CameraPathRecord{1, plan.path.toStdString(), 0, plan.keyframes, plan.timing});
+    validateCameraPathRecords(CameraPathRecords{{1, path}}, 2);
+    require(!plan.presets.empty() && int(plan.presets.size()) <= presetLimit,
+            "A batch renders one to four presets");
+    RenderPresetRecords presets;
+    Id next = 1;
+    for (const auto &preset : plan.presets) {
+        presets.emplace(next, std::make_shared<const RenderPresetRecord>(RenderPresetRecord{
+                                  next, preset.name.toStdString(), preset.settings}));
+        ++next;
+    }
+    validateRenderPresetRecords(presets, next);
+}
 QString presentationJobStateName(PresentationJobState state) {
     switch (state) {
     case PresentationJobState::Queued:
@@ -328,7 +328,7 @@ void PresentationJobStore::reconcile() {
 }
 QString PresentationJobStore::enqueue(const QByteArray &capture, QString documentId,
                                       QString revision, PresentationPlan plan, QString output) {
-    validatePlan(plan);
+    validatePresentationPlan(plan);
     require(!capture.isEmpty() && capture.size() <= captureLimit,
             "Batch capture exceeds the presentation store budget");
     require(!documentId.isEmpty() && documentId.size() <= 128 &&

@@ -1,0 +1,630 @@
+#include "integrations/presentation_batch.hpp"
+#include "core/presentation_records.hpp"
+#include "integrations/render_snapshot.hpp"
+#include "io/document_io.hpp"
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QPointer>
+#include <QSaveFile>
+#include <QStandardPaths>
+#include <QStorageInfo>
+#include <QThread>
+#include <QTimer>
+#include <algorithm>
+#include <chrono>
+#include <future>
+#include <optional>
+#include <stdexcept>
+namespace sketchy {
+namespace {
+constexpr qint64 mib = 1024 * 1024, outputLimit = 2048 * mib, diskReserve = 256 * mib;
+constexpr qint64 frameImageLimit = 64 * mib, metadataLimit = mib, manifestLimit = mib;
+QString digest(const QByteArray &bytes) {
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+QByteArray readFile(const QString &path, qint64 limit) {
+    const QFileInfo info(path);
+    if (!info.isFile() || info.isSymLink() || info.size() > limit)
+        throw std::runtime_error("Batch output file is missing, linked or too large");
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        throw std::runtime_error("Cannot read batch output file");
+    return file.readAll();
+}
+void writeNew(const QString &path, const QByteArray &bytes) {
+    if (QFileInfo::exists(path) || QFileInfo(path).isSymLink())
+        throw std::runtime_error("Batch output already exists");
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
+        throw std::runtime_error("Could not save batch output");
+}
+void publish(const QString &path, const QByteArray &bytes) {
+    if (QFileInfo(path).isSymLink())
+        throw std::runtime_error("Batch manifest is a link");
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
+        throw std::runtime_error("Could not save batch manifest");
+}
+QString frameName(size_t index) {
+    return QString("frame-%1").arg(index + 1, 4, 10, QChar('0'));
+}
+// The preset folder is numbered, so folder names stay unique whatever the preset is called.
+QString presetDirectory(size_t index, const QString &name) {
+    QString safe;
+    for (const auto character : name.left(48)) {
+        const bool keep = (character >= 'a' && character <= 'z') ||
+                          (character >= 'A' && character <= 'Z') ||
+                          (character >= '0' && character <= '9') || character == '-' ||
+                          character == '_';
+        safe += keep ? character : QChar('-');
+    }
+    if (safe.isEmpty())
+        safe = "preset";
+    return QString("%1-%2").arg(index + 1, 2, 10, QChar('0')).arg(safe);
+}
+// The per-frame bound the animation export uses: the PNG cap plus the metadata cap.
+qint64 frameBudget(const RenderSettings &settings) {
+    return std::min<qint64>(frameImageLimit,
+                            qint64(settings.width) * settings.height * 5 + mib) +
+           metadataLimit;
+}
+qint64 plannedBudget(const PresentationPlan &plan, size_t frames) {
+    qint64 total = 0;
+    for (const auto &preset : plan.presets)
+        total += qint64(frames) * frameBudget(preset.settings);
+    return total;
+}
+qint64 defaultFreeSpace(const QString &path) { return QStorageInfo(path).bytesAvailable(); }
+std::vector<CameraFrame> planFrames(const Document &document, const PresentationPlan &plan) {
+    const CameraPathRecord path{1, plan.path.toStdString(), 0, plan.keyframes, plan.timing};
+    const auto references = cameraPathReferences(document.scenes(), path);
+    if (!references.sceneMissing.empty()) {
+        QStringList ids;
+        for (const auto scene : references.sceneMissing)
+            ids.append(QString::number(scene));
+        throw std::runtime_error("Camera path '" + plan.path.toStdString() +
+                                 "' names saved scenes that no longer exist (" +
+                                 ids.join(", ").toStdString() + "); repair the path before exporting");
+    }
+    if (!references.sceneHasNoCamera.empty())
+        throw std::runtime_error("Camera path '" + plan.path.toStdString() +
+                                 "' has a keyframe scene without a camera; give it a camera before "
+                                 "exporting");
+    std::vector<SceneCamera> cameras;
+    for (const auto scene : plan.keyframes)
+        cameras.push_back(*document.scenes().at(scene)->snapshot.camera);
+    return planCameraFrames(cameras, plan.timing);
+}
+void requireBackendMatchesPresets(const PresentationPlan &plan,
+                                  const BlenderJob::Options &options) {
+    for (const auto &preset : plan.presets) {
+        const bool eevee = preset.settings.engine == RenderEngine::Eevee;
+        if (eevee != (options.backend == "OPENGL"))
+            throw std::runtime_error(
+                "Presets must match the selected device: Eevee needs an OpenGL device, and Cycles "
+                "needs the CPU or a compute device");
+    }
+}
+void requireBlender(const BlenderJob::Options &options) {
+    const auto executable =
+        options.executable.isEmpty() ? QStandardPaths::findExecutable("blender") : options.executable;
+    const QFileInfo file(executable);
+    if (executable.isEmpty() || !file.isAbsolute() || !file.isFile() || !file.isExecutable())
+        throw std::runtime_error(
+            "Presentation batches need an installed Blender 5.2 LTS; install it or choose its "
+            "executable");
+}
+} // namespace
+PresentationCapture::PresentationCapture(Document document, QByteArray encoded, PresentationPlan plan)
+    : document_(std::move(document)), encoded_(std::move(encoded)), sha256_(digest(encoded_)),
+      documentId_(document_.identity()), revision_(document_.revision()), plan_(std::move(plan)),
+      frames_(planFrames(document_, plan_)) {}
+PresentationCapture PresentationCapture::capture(const Document &document, PresentationPlan plan) {
+    validatePresentationPlan(plan);
+    // Refuse a broken path on the live document, before the freeze costs anything.
+    planFrames(document, plan);
+    RenderOptions options;
+    options.settings = plan.presets.front().settings;
+    for (const auto scene : plan.keyframes)
+        RenderSnapshot::captureSavedScene(document, scene, options);
+    auto frozen = document.readSnapshot();
+    auto encoded = encodeDocument(frozen);
+    return {std::move(frozen), std::move(encoded), std::move(plan)};
+}
+PresentationCapture PresentationCapture::restore(const QByteArray &encoded, PresentationPlan plan) {
+    validatePresentationPlan(plan);
+    return {decodeDocument(encoded), encoded, std::move(plan)};
+}
+RenderSnapshot PresentationCapture::frame(size_t preset, size_t index) const {
+    if (preset >= plan_.presets.size() || index >= frames_.size())
+        throw std::runtime_error("Batch frame index is out of bounds");
+    const auto &pose = frames_[index];
+    RenderOptions options;
+    options.settings = plan_.presets[preset].settings;
+    options.camera = renderSceneCamera(pose.camera);
+    return RenderSnapshot::captureSavedScene(document_, plan_.keyframes.at(pose.sceneIndex),
+                                             std::move(options));
+}
+struct PresentationExport::Impl {
+    PresentationExport &owner;
+    PresentationJobStore &store;
+    QString id, output, message;
+    std::optional<PresentationCapture> capture;
+    BlenderJob::Options options;
+    std::vector<QString> presetDirectories;
+    // One record per planned frame of each preset. An empty record is a frame not yet verified.
+    std::vector<std::vector<QJsonObject>> records;
+    size_t preset{}, index{};
+    qint64 bytes{};
+    bool active{}, canceling{};
+    QJsonObject lastAttempt;
+    QPointer<BlenderJob> worker;
+    std::future<std::shared_ptr<const PreparedRender>> preparing;
+    std::shared_ptr<const PreparedRender> input;
+    QTimer timer;
+    std::function<qint64(const QString &)> freeSpace{defaultFreeSpace};
+
+    Impl(PresentationExport &owner, PresentationJobStore &store) : owner(owner), store(store) {
+        timer.setInterval(10);
+        QObject::connect(&timer, &QTimer::timeout, &owner, [this] { poll(); });
+    }
+    QString frameDirectory(size_t p) const { return output + "/" + presetDirectories[p] + "/frames"; }
+    int completed() const {
+        int count = 0;
+        for (const auto &preset : records)
+            for (const auto &record : preset)
+                count += !record.isEmpty();
+        return count;
+    }
+    void setUp(const PresentationCapture &frozen) {
+        presetDirectories.clear();
+        records.clear();
+        for (size_t p = 0; p < frozen.plan().presets.size(); ++p) {
+            presetDirectories.push_back(presetDirectory(p, frozen.plan().presets[p].name));
+            records.emplace_back(frozen.frames().size());
+        }
+    }
+    void ensureDirectories() {
+        for (size_t p = 0; p < presetDirectories.size(); ++p)
+            if (!QDir(frameDirectory(p)).exists() && !QDir().mkpath(frameDirectory(p)))
+                throw std::runtime_error("Cannot create batch frame folder");
+    }
+    void manifest(const QString &status) {
+        QJsonArray presets;
+        for (size_t p = 0; p < records.size(); ++p) {
+            QJsonArray frames;
+            QJsonObject device;
+            bool complete = true;
+            for (size_t i = 0; i < records[p].size(); ++i) {
+                const auto &record = records[p][i];
+                if (record.isEmpty()) {
+                    complete = false;
+                    continue;
+                }
+                frames.append(QJsonObject{{"index", int(i)},
+                                          {"file", record.value("file")},
+                                          {"sha256", record.value("sha256")},
+                                          {"keyframe", record.value("keyframe")}});
+                device = record.value("result").toObject().value("device").toObject();
+            }
+            QString state = "queued";
+            if (complete)
+                state = "completed";
+            else if (p == preset)
+                state = status;
+            QJsonObject entry{{"directory", presetDirectories[p]},
+                              {"state", state},
+                              {"settings", describeRenderSettings(
+                                               capture->plan().presets[p].settings)},
+                              {"frames", frames}};
+            if (!device.isEmpty())
+                entry["device"] = device;
+            presets.append(entry);
+        }
+        const auto &plan = capture->plan();
+        QJsonArray keyframes;
+        for (const auto scene : plan.keyframes)
+            keyframes.append(QString::number(scene));
+        const QJsonObject value{
+            {"apiVersion", 1},
+            {"adapter", "sketchyup-presentation-v1"},
+            {"jobId", id},
+            {"state", status},
+            {"message", message},
+            {"path", plan.path},
+            {"keyframes", keyframes},
+            {"documentId", QString::fromStdString(capture->documentId())},
+            {"revision", QString::number(capture->revision())},
+            {"captureSha256", capture->sha256()},
+            {"framesPerSecond", plan.timing.framesPerSecond},
+            {"framesPerPreset", int(capture->frames().size())},
+            {"totalFrames", int(capture->frames().size() * records.size())},
+            {"completedFrames", completed()},
+            {"totalBytes", bytes},
+            {"presets", presets}};
+        publish(output + "/manifest.json", QJsonDocument(value).toJson());
+    }
+    // Keeps a frame only when its image, its metadata and the manifest entry all agree.
+    bool verify(size_t p, size_t i, const QJsonObject &entry) {
+        try {
+            const auto name = frameName(i);
+            if (entry.value("file") != name + ".png" || !entry.value("sha256").isString())
+                return false;
+            const auto png = readFile(frameDirectory(p) + "/" + name + ".png", frameImageLimit);
+            if (digest(png) != entry.value("sha256"))
+                return false;
+            const auto metadata =
+                readFile(frameDirectory(p) + "/" + name + ".json", metadataLimit);
+            const auto record = QJsonDocument::fromJson(metadata).object();
+            if (record.value("file") != name + ".png" || record.value("sha256") != entry.value("sha256") ||
+                record.value("bytes").toInteger(-1) != png.size() ||
+                record.value("index").toInteger(-1) != qint64(i))
+                return false;
+            records[p][i] = record;
+            bytes += png.size() + metadata.size();
+            return true;
+        } catch (const std::exception &) {
+            return false;
+        }
+    }
+    void resume() {
+        const auto saved = QJsonDocument::fromJson(readFile(output + "/manifest.json", manifestLimit))
+                               .object();
+        if (saved.value("adapter") != "sketchyup-presentation-v1" ||
+            saved.value("jobId") != id ||
+            saved.value("captureSha256") != capture->sha256())
+            throw std::runtime_error(
+                "The batch manifest does not belong to this job; the finished frames are kept");
+        const auto presets = saved.value("presets").toArray();
+        if (presets.size() != qsizetype(records.size()))
+            throw std::runtime_error("The batch manifest does not match the batch plan");
+        for (size_t p = 0; p < records.size(); ++p) {
+            const auto entry = presets[qsizetype(p)].toObject();
+            if (entry.value("directory") != presetDirectories[p])
+                throw std::runtime_error("The batch manifest does not match the batch plan");
+            for (const auto &item : entry.value("frames").toArray()) {
+                const auto frame = item.toObject();
+                const auto i = frame.value("index").toInteger(-1);
+                if (i < 0 || i >= qint64(capture->frames().size()))
+                    continue;
+                verify(p, size_t(i), frame);
+            }
+        }
+    }
+    // Removes only the files of a frame that is not verified; a verified frame is never touched.
+    void removeUnverified(size_t p, size_t i) {
+        const auto name = frameName(i);
+        for (const auto *extension : {".png", ".json"}) {
+            const auto path = frameDirectory(p) + "/" + name + extension;
+            if (QFileInfo(path).isSymLink())
+                throw std::runtime_error("A batch frame file is a link; remove it to resume");
+            if (QFileInfo::exists(path) && !QFile::remove(path))
+                throw std::runtime_error("Cannot remove an unverified batch frame file");
+        }
+    }
+    void skipVerified() {
+        while (preset < records.size()) {
+            if (index >= records[preset].size()) {
+                ++preset;
+                index = 0;
+            } else if (records[preset][index].isEmpty()) {
+                return;
+            } else {
+                ++index;
+            }
+        }
+    }
+    void begin() {
+        options.scratchParent = store.scratchDirectory(id);
+        try {
+            store.transition(id, PresentationJobState::Running, "Rendering the batch");
+            ensureDirectories();
+            active = true;
+            canceling = false;
+            message = "Starting the batch";
+            emit owner.changed();
+            QTimer::singleShot(0, &owner, [this] { next(); });
+        } catch (const std::exception &error) {
+            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+        }
+    }
+    void next() {
+        if (!active)
+            return;
+        if (canceling) {
+            terminal(PresentationJobState::Canceled,
+                     "Batch canceled; finished frames are retained");
+            return;
+        }
+        skipVerified();
+        if (preset == records.size()) {
+            complete();
+            return;
+        }
+        try {
+            removeUnverified(preset, index);
+        } catch (const std::exception &error) {
+            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+            return;
+        }
+        const auto p = preset, i = index;
+        message = QString("Preparing %1 frame %2 of %3")
+                      .arg(presetDirectories[p])
+                      .arg(i + 1)
+                      .arg(capture->frames().size());
+        preparing = std::async(std::launch::async, [this, p, i] {
+            return PreparedRender::prepare(capture->frame(p, i));
+        });
+        timer.start();
+        emit owner.changed();
+    }
+    void poll() {
+        if (!preparing.valid() ||
+            preparing.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+            return;
+        timer.stop();
+        try {
+            input = preparing.get();
+            if (canceling) {
+                terminal(PresentationJobState::Canceled,
+                         "Batch canceled; finished frames are retained");
+                return;
+            }
+            worker = new BlenderJob(&owner);
+            QObject::connect(worker, &BlenderJob::changed, &owner, [this] { workerChanged(); });
+            worker->start(input, options);
+        } catch (const std::exception &error) {
+            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+        }
+    }
+    void workerChanged() {
+        if (!worker)
+            return;
+        if (!worker->done()) {
+            message = QString("%1 frame %2 of %3 · %4")
+                          .arg(presetDirectories[preset])
+                          .arg(index + 1)
+                          .arg(capture->frames().size())
+                          .arg(worker->progress());
+            emit owner.changed();
+            return;
+        }
+        const auto finished = worker;
+        worker.clear();
+        finished->deleteLater();
+        lastAttempt = finished->report();
+        if (canceling) {
+            terminal(PresentationJobState::Canceled,
+                     "Batch canceled; finished frames are retained");
+            return;
+        }
+        if (!finished->result()) {
+            terminal(PresentationJobState::Failed,
+                     QString("Frame %1 of %2 failed: %3")
+                         .arg(index + 1)
+                         .arg(capture->frames().size())
+                         .arg(finished->progress()));
+            return;
+        }
+        try {
+            const auto result = finished->result();
+            const auto name = frameName(index);
+            const auto &pose = capture->frames().at(index);
+            const QJsonObject record{
+                {"index", int(index)},
+                {"file", name + ".png"},
+                {"bytes", result->png.size()},
+                {"sha256", digest(result->png)},
+                {"preset", capture->plan().presets[preset].name},
+                {"keyframe", pose.keyframe},
+                {"scene", QString::number(capture->plan().keyframes.at(pose.sceneIndex))},
+                {"camera", input->manifest().value("camera")},
+                {"sourceManifestSha256", input->manifestHash()},
+                {"result", result->manifest},
+                {"diagnostics", finished->report()}};
+            const auto metadata = QJsonDocument(record).toJson();
+            const auto cost = qint64(result->png.size()) + metadata.size();
+            if (metadata.size() > metadataLimit || cost > outputLimit - bytes)
+                throw std::runtime_error(
+                    QString("Batch output would exceed its 2 GiB budget; %1 MiB remain")
+                        .arg((outputLimit - bytes) / mib)
+                        .toStdString());
+            writeNew(frameDirectory(preset) + "/" + name + ".png", result->png);
+            writeNew(frameDirectory(preset) + "/" + name + ".json", metadata);
+            bytes += cost;
+            records[preset][index] = record;
+            manifest("running");
+            input.reset();
+            ++index;
+            QTimer::singleShot(0, &owner, [this] { next(); });
+            emit owner.changed();
+        } catch (const std::exception &error) {
+            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+        }
+    }
+    void complete() {
+        timer.stop();
+        active = false;
+        message = "Batch completed";
+        try {
+            manifest("completed");
+            store.complete(id, QJsonObject{{"completedFrames", completed()}});
+        } catch (const std::exception &error) {
+            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+            return;
+        }
+        input.reset();
+        emit owner.changed();
+    }
+    void terminal(PresentationJobState next, QString detail) {
+        timer.stop();
+        active = false;
+        message = std::move(detail);
+        input.reset();
+        const auto status = presentationJobStateName(next);
+        try {
+            manifest(status);
+        } catch (const std::exception &error) {
+            next = PresentationJobState::Failed;
+            message = QString::fromUtf8(error.what());
+        }
+        try {
+            store.transition(id, next, message, lastAttempt);
+        } catch (const std::exception &error) {
+            message = QString::fromUtf8(error.what());
+        }
+        emit owner.changed();
+    }
+};
+PresentationExport::PresentationExport(PresentationJobStore &store, QObject *parent)
+    : QObject(parent), impl_(std::make_unique<Impl>(*this, store)) {}
+PresentationExport::~PresentationExport() {
+    impl_->timer.stop();
+    if (impl_->worker) {
+        QObject::disconnect(impl_->worker, nullptr, this, nullptr);
+        delete impl_->worker.data();
+    }
+    // The preparation only owns immutable data; keep that data alive until it ends.
+    if (impl_->preparing.valid())
+        impl_->preparing.wait();
+    if (impl_->active) {
+        try {
+            impl_->store.transition(impl_->id, PresentationJobState::Interrupted,
+                                    "Application closed before this batch finished. Retry to "
+                                    "resume from the first unverified frame.");
+        } catch (...) { /* Startup reconciliation keeps the stopped batch visible. */
+        }
+    }
+}
+QString PresentationExport::start(PresentationCapture capture, QString output,
+                                  BlenderJob::Options options) {
+    if (QThread::currentThread() != thread())
+        throw std::runtime_error("Batch export starts on its owner thread");
+    auto &impl = *impl_;
+    if (impl.active)
+        throw std::runtime_error("A presentation batch is already running");
+    for (const auto &[jobId, job] : impl.store.jobs())
+        if (job.state == PresentationJobState::Running ||
+            job.state == PresentationJobState::Canceling)
+            throw std::runtime_error("Another presentation batch is running; wait for it to finish");
+    const auto plan = capture.plan();
+    requireBackendMatchesPresets(plan, options);
+    requireBlender(options);
+    const QFileInfo target(output);
+    if (output.isEmpty() || !target.isAbsolute() || target.exists() || target.isSymLink())
+        throw std::runtime_error("Choose a new batch folder that does not exist yet");
+    const QFileInfo parent(target.absolutePath());
+    if (!parent.isDir() || parent.isSymLink())
+        throw std::runtime_error("Choose a new batch folder within an existing directory");
+    const auto frames = capture.frames().size();
+    const auto total = plannedBudget(plan, frames);
+    if (total > outputLimit)
+        throw std::runtime_error(
+            QString("This batch could write up to %1 MiB, over the 2048 MiB output budget (%2 MiB "
+                    "remain); reduce presets, frames or size")
+                .arg(total / mib)
+                .arg(outputLimit / mib)
+                .toStdString());
+    const auto available = impl.freeSpace(parent.absoluteFilePath());
+    const auto needed = total + qint64(capture.encoded().size()) + diskReserve;
+    if (available < needed)
+        throw std::runtime_error(
+            QString("Not enough free disk space for this batch: about %1 MiB needed, %2 MiB free")
+                .arg(needed / mib)
+                .arg(available / mib)
+                .toStdString());
+    const auto id = impl.store.enqueue(capture.encoded(),
+                                       QString::fromStdString(capture.documentId()),
+                                       QString::number(capture.revision()), plan,
+                                       target.absoluteFilePath());
+    impl.id = id;
+    impl.output = target.absoluteFilePath();
+    impl.setUp(capture);
+    bool created = false;
+    try {
+        created = QDir().mkdir(impl.output);
+        if (!created)
+            throw std::runtime_error("Choose a new batch folder that does not exist yet");
+        impl.ensureDirectories();
+        impl.capture = std::move(capture);
+        impl.options = std::move(options);
+        impl.manifest("queued");
+    } catch (const std::exception &error) {
+        if (created)
+            QDir(impl.output).removeRecursively();
+        impl.capture.reset();
+        impl.store.transition(id, PresentationJobState::Failed, QString::fromUtf8(error.what()));
+        impl.store.remove(id);
+        throw;
+    }
+    impl.begin();
+    return id;
+}
+void PresentationExport::retry(const QString &id, BlenderJob::Options options) {
+    if (QThread::currentThread() != thread())
+        throw std::runtime_error("Batch retry starts on its owner thread");
+    auto &impl = *impl_;
+    if (impl.active)
+        throw std::runtime_error("A presentation batch is already running");
+    const auto &job = impl.store.jobs().at(id);
+    if (job.state != PresentationJobState::Failed && job.state != PresentationJobState::Canceled &&
+        job.state != PresentationJobState::Interrupted)
+        throw std::runtime_error("Only an unfinished terminal batch can be retried");
+    requireBackendMatchesPresets(job.plan, options);
+    requireBlender(options);
+    if (!QFileInfo(job.output).isDir() || QFileInfo(job.output).isSymLink())
+        throw std::runtime_error("The batch folder is missing; the batch cannot resume");
+    auto frozen = PresentationCapture::restore(impl.store.capture(id), job.plan);
+    impl.id = id;
+    impl.output = job.output;
+    impl.setUp(frozen);
+    impl.bytes = 0;
+    impl.capture = std::move(frozen);
+    impl.options = std::move(options);
+    impl.resume();
+    impl.preset = impl.index = 0;
+    impl.store.retry(id);
+    impl.begin();
+}
+void PresentationExport::cancel() {
+    if (QThread::currentThread() != thread())
+        throw std::runtime_error("Batch cancellation requires its owner thread");
+    auto &impl = *impl_;
+    if (!impl.active || impl.canceling)
+        return;
+    impl.canceling = true;
+    impl.message = "Canceling batch; finished frames are retained";
+    impl.store.transition(impl.id, PresentationJobState::Canceling, impl.message);
+    if (impl.worker)
+        impl.worker->cancel();
+    else if (!impl.preparing.valid())
+        impl.terminal(PresentationJobState::Canceled, impl.message);
+    emit changed();
+}
+QString PresentationExport::jobId() const { return impl_->id; }
+PresentationJobState PresentationExport::state() const {
+    if (impl_->id.isEmpty())
+        return PresentationJobState::Queued;
+    return impl_->store.jobs().at(impl_->id).state;
+}
+int PresentationExport::completedFrames() const { return impl_->completed(); }
+int PresentationExport::totalFrames() const {
+    return impl_->capture ? int(impl_->capture->frames().size() * impl_->records.size()) : 0;
+}
+QString PresentationExport::message() const { return impl_->message; }
+QString PresentationExport::directory() const { return impl_->output; }
+bool PresentationExport::done() const {
+    if (impl_->id.isEmpty())
+        return false;
+    const auto state = this->state();
+    return state == PresentationJobState::Completed || state == PresentationJobState::Failed ||
+           state == PresentationJobState::Canceled || state == PresentationJobState::Interrupted;
+}
+void PresentationExport::setFreeSpaceProbe(std::function<qint64(const QString &)> probe) {
+    impl_->freeSpace = std::move(probe);
+}
+} // namespace sketchy

@@ -25,6 +25,9 @@ struct PresentationPlan {
     std::vector<PresentationPreset> presets;
     bool operator==(const PresentationPlan &) const = default;
 };
+// The plan rules a batch can be created with: a valid path name, two to thirty-two keyframes,
+// timing and planned frames within the R099.a limits, and one to four unique presets.
+void validatePresentationPlan(const PresentationPlan &plan);
 struct StoredPresentationJob {
     QString id, documentId, revision, captureSha256, output, message;
     qint64 createdMs{}, updatedMs{}, captureBytes{};
