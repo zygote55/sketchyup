@@ -73,7 +73,8 @@ QJsonObject encodePlan(const PresentationPlan &plan) {
             {"timing", QJsonObject{{"framesPerSecond", plan.timing.framesPerSecond},
                                    {"transitionSteps", plan.timing.transitionSteps},
                                    {"holdSteps", plan.timing.holdSteps}}},
-            {"presets", presets}};
+            {"presets", presets},
+            {"video", plan.video}};
 }
 PresentationPlan decodePlan(const QJsonObject &value) {
     PresentationPlan plan;
@@ -102,6 +103,8 @@ PresentationPlan decodePlan(const QJsonObject &value) {
             preset.value("engine") == "eevee" ? RenderEngine::Eevee : RenderEngine::Cycles;
         plan.presets.push_back(std::move(decoded));
     }
+    // A job stored before video existed has no flag, which means no video.
+    plan.video = value.value("video").toBool(false);
     validatePresentationPlan(plan);
     return plan;
 }
@@ -193,6 +196,9 @@ void validatePresentationPlan(const PresentationPlan &plan) {
         presets.emplace(next, std::make_shared<const RenderPresetRecord>(RenderPresetRecord{
                                   next, preset.name.toStdString(), preset.settings}));
         ++next;
+        // H.264 in yuv420p needs even dimensions; an odd preset would fail after every frame.
+        require(!plan.video || (preset.settings.width % 2 == 0 && preset.settings.height % 2 == 0),
+                "A video needs even width and height in every preset");
     }
     validateRenderPresetRecords(presets, next);
 }

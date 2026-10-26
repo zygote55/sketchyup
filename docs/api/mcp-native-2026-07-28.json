@@ -777,6 +777,167 @@
                 "openWorldHint": false,
                 "readOnlyHint": true
             },
+            "description": "camera_path.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "path": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "camera_path.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "path",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "camera_path.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "render_preset.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "preset": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "render_preset.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "preset",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "render_preset.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "presentation.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "path": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "presets": {
+                        "items": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "maxItems": 4,
+                        "minItems": 1,
+                        "type": "array"
+                    },
+                    "query": {
+                        "const": "presentation.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "video": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "path",
+                    "presets",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "presentation.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
             "description": "drawing_sheets.query: inspect the explicitly bound native window",
             "inputSchema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -9,6 +9,7 @@ namespace sketchy {
 PresentationPlan resolvePresentationRequest(const Document &doc,
                                             const PresentationRequest &request) {
     PresentationPlan plan;
+    plan.video = request.video;
     if (request.explicitKeyframes) {
         plan.path = request.name;
         plan.timing = request.timing;

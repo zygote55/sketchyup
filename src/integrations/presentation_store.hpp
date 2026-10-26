@@ -31,6 +31,8 @@ struct PresentationPlan {
     std::vector<Id> keyframes;
     CameraPathTiming timing;
     std::vector<PresentationPreset> presets;
+    // Encode each preset's verified frames to video.mp4 once every frame is verified (decision 7).
+    bool video{};
     bool operator==(const PresentationPlan &) const = default;
 };
 // The plan rules a batch can be created with: a valid path name, two to thirty-two keyframes,

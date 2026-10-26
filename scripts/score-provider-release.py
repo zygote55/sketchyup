@@ -15,6 +15,8 @@ authorization and tool-list hash, and the profile's instruction hash, which ever
 recorded provider request must carry.
 Version 5 keeps the version 4 rules and freezes the R095.g tool surface, which adds
 site.describe, terrain.describe and terrain.elevation_at to every task's tools.
+Version 6 keeps the version 5 rules and freezes the R099.c tool surface, which adds
+camera_path.describe, render_preset.describe and presentation.describe.
 """
 import argparse
 import hashlib
@@ -119,7 +121,7 @@ def postcondition_failures(data):
 
 def score(manifest, bundle, root):
     version = manifest['corpusVersion']
-    require(type(version) is int and version in (1, 2, 3, 4, 5), 'Unsupported corpus')
+    require(type(version) is int and version in (1, 2, 3, 4, 5, 6), 'Unsupported corpus')
     if version >= 2:
         require(manifest['requiredPostconditions'] == list(POSTCONDITIONS) and
                 all(name in manifest['hardZero'] for name in POSTCONDITION_BLOCKERS),

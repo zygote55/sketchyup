@@ -7,16 +7,61 @@
     "toolsBytes": "compact JSON of the task request's tools array",
     "chatGptPlanToolsBytes": "compact JSON of the ChatGPT-plan OpenAI request's tools; for advanced this is 55,230 bytes with Python json.dumps separators, the R086.ca first-request figure (64,972 at the 1.1.0 RC, R086.cb)",
     "repinned": {
-      "slice": "R095.g",
-      "date": "2026-10-19",
-      "change": "adds site.describe, terrain.describe and terrain.elevation_at (top-level tools and transaction.inspect requests) with their assistant tool descriptions; every other name and schema is unchanged",
-      "method": "assistant_tool_surface_tests --dump at the R095.g head",
-      "measurement": "ADR 0168, Implementation notes (R095.g): +3,825 ChatGPT-plan tool bytes on each edit surface, +2,373 on inspection-only"
-    }
+      "slice": "R099.c",
+      "date": "2026-10-26",
+      "change": "adds camera_path.describe, render_preset.describe and presentation.describe as top-level tools (and their transaction.inspect request choices) with assistant tool descriptions; camera_path.* and render_preset.* commands and presentation.* names stay hidden from the provider (ADR 0173 decision 13); every other name and schema is unchanged",
+      "method": "assistant_tool_surface_tests --dump at the R099.c head; the before surface is rebuilt from the after wire request (assistant_tool_surface_tests --requests) by removing the three query entries and their transaction.inspect choices, and it reproduces the R095.g pin's chatGptPlanToolsBytes exactly on all six surfaces; tokens counted with tiktoken o200k_base (the R095.g proxy) on the compact wire tools",
+      "measurement": {
+        "toolTokensBefore": {
+          "advanced": 15116,
+          "every-command-with-clarification": 36581,
+          "inspection-only": 6830,
+          "resize": 14191,
+          "room": 14282,
+          "site": 14484
+        },
+        "toolTokensAfter": {
+          "advanced": 16196,
+          "every-command-with-clarification": 37661,
+          "inspection-only": 7476,
+          "resize": 15271,
+          "room": 15362,
+          "site": 15564
+        },
+        "chatGptPlanToolsBytesBefore": {
+          "advanced": 54392,
+          "every-command-with-clarification": 135375,
+          "inspection-only": 25000,
+          "resize": 51137,
+          "room": 51424,
+          "site": 52244
+        },
+        "chatGptPlanToolsBytesAfter": {
+          "advanced": 58420,
+          "every-command-with-clarification": 139403,
+          "inspection-only": 27505,
+          "resize": 55165,
+          "room": 55452,
+          "site": 56272
+        }
+      }
+    },
+    "previousRepins": [
+      {
+        "slice": "R095.g",
+        "date": "2026-10-19",
+        "change": "adds site.describe, terrain.describe and terrain.elevation_at (top-level tools and transaction.inspect requests) with their assistant tool descriptions; every other name and schema is unchanged",
+        "method": "assistant_tool_surface_tests --dump at the R095.g head",
+        "measurement": "ADR 0168, Implementation notes (R095.g): +3,825 ChatGPT-plan tool bytes on each edit surface, +2,373 on inspection-only"
+      }
+    ]
   },
   "surfaces": {
     "advanced": {
-      "chatGptPlanToolsBytes": 54392,
+      "toolCount": 40,
+      "toolsBytes": 56829,
+      "toolsSha256": "fda5918a962773a9e1d53685dab17718dd66eeadaca4d8830553475cd33d97a4",
+      "chatGptPlanToolsBytes": 58420,
       "names": [
         "document.describe",
         "solar.describe",
@@ -32,6 +77,9 @@
         "saved_scenes.query",
         "saved_scene.describe",
         "saved_scene.visibility",
+        "camera_path.describe",
+        "render_preset.describe",
+        "presentation.describe",
         "selection.get",
         "entities.query",
         "entity.describe",
@@ -55,13 +103,13 @@
         "transaction.diff",
         "transaction.preview",
         "transaction.abort"
-      ],
-      "toolCount": 37,
-      "toolsBytes": 52912,
-      "toolsSha256": "ec18f5d5a138fab20aaa1d4d4cc027b532517e674a10bf991fd783e923abdb40"
+      ]
     },
     "every-command-with-clarification": {
-      "chatGptPlanToolsBytes": 135375,
+      "toolCount": 41,
+      "toolsBytes": 137775,
+      "toolsSha256": "a8d71ce4ed1d66f0a176ee80b7de478dc2c782d49f4acdcd4f35990f43a11133",
+      "chatGptPlanToolsBytes": 139403,
       "names": [
         "document.describe",
         "solar.describe",
@@ -77,6 +125,9 @@
         "saved_scenes.query",
         "saved_scene.describe",
         "saved_scene.visibility",
+        "camera_path.describe",
+        "render_preset.describe",
+        "presentation.describe",
         "selection.get",
         "entities.query",
         "entity.describe",
@@ -101,13 +152,13 @@
         "transaction.preview",
         "transaction.abort",
         "assistant.ask_user"
-      ],
-      "toolCount": 38,
-      "toolsBytes": 133858,
-      "toolsSha256": "6a0ee784a8206f1781cbb478920ecf7623176529645cbbdf34150c383dc55973"
+      ]
     },
     "inspection-only": {
-      "chatGptPlanToolsBytes": 25000,
+      "toolCount": 33,
+      "toolsBytes": 26173,
+      "toolsSha256": "a57d3354be1055764621ae426cab8b1b8bc0a16f06d2a4a59423b4f825720d2d",
+      "chatGptPlanToolsBytes": 27505,
       "names": [
         "document.describe",
         "solar.describe",
@@ -123,6 +174,9 @@
         "saved_scenes.query",
         "saved_scene.describe",
         "saved_scene.visibility",
+        "camera_path.describe",
+        "render_preset.describe",
+        "presentation.describe",
         "selection.get",
         "entities.query",
         "entity.describe",
@@ -139,13 +193,13 @@
         "site.describe",
         "terrain.describe",
         "terrain.elevation_at"
-      ],
-      "toolCount": 30,
-      "toolsBytes": 23779,
-      "toolsSha256": "38a216a2f35ca3076cce21644a71b010d67046ce939e511f394ad7db28019fe1"
+      ]
     },
     "resize": {
-      "chatGptPlanToolsBytes": 51137,
+      "toolCount": 40,
+      "toolsBytes": 53574,
+      "toolsSha256": "29a9cd6586513d69754d9222a3388c1c8c6477ea861f750c56f5943ff9f596db",
+      "chatGptPlanToolsBytes": 55165,
       "names": [
         "document.describe",
         "solar.describe",
@@ -161,6 +215,9 @@
         "saved_scenes.query",
         "saved_scene.describe",
         "saved_scene.visibility",
+        "camera_path.describe",
+        "render_preset.describe",
+        "presentation.describe",
         "selection.get",
         "entities.query",
         "entity.describe",
@@ -184,13 +241,13 @@
         "transaction.diff",
         "transaction.preview",
         "transaction.abort"
-      ],
-      "toolCount": 37,
-      "toolsBytes": 49657,
-      "toolsSha256": "16afd08368f8d96972319826fd2a2d3c04018345494f5a6be6a68407e42077ea"
+      ]
     },
     "room": {
-      "chatGptPlanToolsBytes": 51424,
+      "toolCount": 40,
+      "toolsBytes": 53861,
+      "toolsSha256": "eb55643cfcd16d8ef69b8f3576180a79b558bb261ad92c90442dc7b2d89f68f7",
+      "chatGptPlanToolsBytes": 55452,
       "names": [
         "document.describe",
         "solar.describe",
@@ -206,6 +263,9 @@
         "saved_scenes.query",
         "saved_scene.describe",
         "saved_scene.visibility",
+        "camera_path.describe",
+        "render_preset.describe",
+        "presentation.describe",
         "selection.get",
         "entities.query",
         "entity.describe",
@@ -229,13 +289,13 @@
         "transaction.diff",
         "transaction.preview",
         "transaction.abort"
-      ],
-      "toolCount": 37,
-      "toolsBytes": 49944,
-      "toolsSha256": "319eb05ad0aabc015ec01a372cbf78eb621279651ab9b5829fa109ab73faa6bf"
+      ]
     },
     "site": {
-      "chatGptPlanToolsBytes": 52244,
+      "toolCount": 40,
+      "toolsBytes": 54681,
+      "toolsSha256": "831745458a44d8713c153625ca9727e8ed22822e1b1212faaeaa7a6616ff2d14",
+      "chatGptPlanToolsBytes": 56272,
       "names": [
         "document.describe",
         "solar.describe",
@@ -251,6 +311,9 @@
         "saved_scenes.query",
         "saved_scene.describe",
         "saved_scene.visibility",
+        "camera_path.describe",
+        "render_preset.describe",
+        "presentation.describe",
         "selection.get",
         "entities.query",
         "entity.describe",
@@ -274,10 +337,7 @@
         "transaction.diff",
         "transaction.preview",
         "transaction.abort"
-      ],
-      "toolCount": 37,
-      "toolsBytes": 50764,
-      "toolsSha256": "5907c3ed75dca933b5294d7d787f929fb012d663b2e4d0f639879c866142e49c"
+      ]
     }
   }
 }

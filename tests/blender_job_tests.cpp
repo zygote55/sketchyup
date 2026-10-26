@@ -47,6 +47,75 @@ QJsonObject fakeRasterDevice() {
             {"graphics", graphics},
             {"id", "opengl:" + hash(QJsonDocument(graphics).toJson(QJsonDocument::Compact))}};
 }
+QByteArray bigEndian32(quint32 value) {
+    QByteArray out(4, '\0');
+    for (int i = 0; i < 4; ++i)
+        out[i] = char((value >> (24 - 8 * i)) & 0xff);
+    return out;
+}
+QByteArray mp4Box(const char *type, const QByteArray &payload) {
+    return bigEndian32(quint32(8 + payload.size())) + QByteArray(type, 4) + payload;
+}
+// A synthetic H.264 MP4 with the layout the verifier reads: ftyp, moov with an avc1/avcC sample
+// entry and an stsz table of `frames` samples, then mdat. It is not playable; ffprobe checks the
+// real encoder's output in the real Blender test.
+QByteArray syntheticMp4(int frames) {
+    const auto avc1 = mp4Box("avc1", QByteArray(78, '\0') + mp4Box("avcC", QByteArray(7, '\0')));
+    const auto stsd = QByteArray(4, '\0') + bigEndian32(1) + avc1;
+    const auto stsz = QByteArray(4, '\0') + bigEndian32(0) + bigEndian32(quint32(frames));
+    const auto stbl = mp4Box("stbl", mp4Box("stsd", stsd) + mp4Box("stsz", stsz));
+    const auto moov = mp4Box("moov", mp4Box("trak", mp4Box("mdia", mp4Box("minf", stbl))));
+    return mp4Box("ftyp", QByteArray("isom") + QByteArray(4, '\0') + QByteArray("isom")) + moov +
+           mp4Box("mdat", QByteArray(16, 'x'));
+}
+// The encode fake re-hashes each frame as the worker does. SKETCHYUP_FAKE_CODEC=missing refuses
+// the video as a Blender without H.264 would. SKETCHYUP_FAKE_DAMAGE names a file that one byte is
+// appended to before the frames are read, so a test can damage a frame while the batch runs.
+int fakeEncode(const QString &root, const QJsonObject &request) {
+    const auto damage = qEnvironmentVariable("SKETCHYUP_FAKE_DAMAGE");
+    if (!damage.isEmpty()) {
+        QFile file(damage);
+        check(file.open(QIODevice::Append) && file.write("x") == 1, "Damage fixture");
+    }
+    const auto video = request.value("video").toObject();
+    const auto frames = video.value("frames").toArray();
+    QJsonObject encoded{{"apiVersion", 1},
+                        {"adapter", "sketchyup-blender-v1"},
+                        {"blenderVersion", QJsonArray{5, 2, 2}}};
+    if (qEnvironmentVariable("SKETCHYUP_FAKE_CODEC") == "missing") {
+        encoded["status"] = "failed";
+        encoded["code"] = "codec_unavailable";
+        encoded["message"] =
+            "H.264 is not in this Blender build's FFmpeg codec list, so no video was written";
+    } else {
+        bool intact = true;
+        for (const auto &value : frames) {
+            const auto frame = value.toObject();
+            const auto bytes = read(frame.value("path").toString());
+            intact = intact && hash(bytes) == frame.value("sha256").toString() &&
+                     bytes.size() == frame.value("bytes").toInteger(-1);
+        }
+        if (!intact) {
+            encoded["status"] = "failed";
+            encoded["code"] = "invalid_frame";
+            encoded["message"] = "A frame changed before encoding";
+        } else {
+            const auto mp4 = syntheticMp4(int(frames.size()));
+            write(root + "/video.mp4", mp4);
+            encoded["status"] = "succeeded";
+            encoded["video"] = QJsonObject{{"file", "video.mp4"},
+                                           {"bytes", mp4.size()},
+                                           {"sha256", hash(mp4)},
+                                           {"codec", "H264"},
+                                           {"container", "MP4"},
+                                           {"frames", int(frames.size())},
+                                           {"framesPerSecond", video.value("framesPerSecond")}};
+        }
+    }
+    write(root + "/result.json", QJsonDocument(encoded).toJson());
+    return 0;
+}
+
 int fake(QCoreApplication &app, const QStringList &args) {
     const auto mode = args[2];
     const auto requestPath = args.last();
@@ -76,6 +145,8 @@ int fake(QCoreApplication &app, const QStringList &args) {
     }
     if (mode == "crash")
         return 7;
+    if (request.value("operation") == "encode")
+        return fakeEncode(root, request);
     QJsonObject result{{"apiVersion", 1},
                        {"adapter", "sketchyup-blender-v1"},
                        {"blenderVersion", QJsonArray{5, 2, 1}}};
