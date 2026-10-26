@@ -174,6 +174,10 @@ int main(int argc, char **argv) {
                 check(top.contains(query), name + ": assistant lacks " + query.toStdString());
             for (const auto &query : presentationVisible)
                 check(top.contains(query), name + ": assistant lacks " + query.toStdString());
+            // ADR 0175 decision 12 (R101.d): the report query and the report schedule operation
+            // stay off the provider surface on every surface, so the baseline is unchanged.
+            for (const auto *report : {"report.run", "report.schedule"})
+                check(!top.contains(report), name + ": assistant sees " + report);
             // 2. The surface equals the baseline byte for byte.
             const auto actual = describe(request);
             const auto want = expected[surface.name].toObject();
