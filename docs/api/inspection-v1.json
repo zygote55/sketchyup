@@ -599,6 +599,140 @@
       "sideEffects": "none"
     },
     {
+      "name": "camera_path.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "query": {
+            "const": "camera_path.describe"
+          }
+        },
+        "required": [
+          "path",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "render_preset.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "preset": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "query": {
+            "const": "render_preset.describe"
+          }
+        },
+        "required": [
+          "preset",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "presentation.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "presets": {
+            "items": {
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "type": "array"
+          },
+          "query": {
+            "const": "presentation.describe"
+          },
+          "video": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "presets",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
       "name": "drawing_sheets.query",
       "paged": true,
       "parameters": {

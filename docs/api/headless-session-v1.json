@@ -672,6 +672,155 @@
                 "sideEffects": "none"
             },
             {
+                "name": "camera_path.describe",
+                "paged": false,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "path": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "query": {
+                            "const": "camera_path.describe"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "path",
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
+                "name": "render_preset.describe",
+                "paged": false,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "preset": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "query": {
+                            "const": "render_preset.describe"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "preset",
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
+                "name": "presentation.describe",
+                "paged": false,
+                "parameters": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiVersion": {
+                            "const": 1
+                        },
+                        "documentId": {
+                            "maxLength": 128,
+                            "type": "string"
+                        },
+                        "expectedRevision": {
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$",
+                            "type": "string"
+                        },
+                        "path": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "presets": {
+                            "items": {
+                                "maxLength": 20,
+                                "pattern": "^[1-9][0-9]*$",
+                                "type": "string"
+                            },
+                            "maxItems": 4,
+                            "minItems": 1,
+                            "type": "array"
+                        },
+                        "query": {
+                            "const": "presentation.describe"
+                        },
+                        "snapshotId": {
+                            "description": "Opaque snapshot identifier returned by snapshot.begin",
+                            "maxLength": 36,
+                            "type": "string"
+                        },
+                        "video": {
+                            "type": "boolean"
+                        }
+                    },
+                    "required": [
+                        "path",
+                        "presets",
+                        "apiVersion",
+                        "documentId",
+                        "expectedRevision",
+                        "query"
+                    ],
+                    "type": "object"
+                },
+                "requiresRevision": true,
+                "sideEffects": "none"
+            },
+            {
                 "name": "drawing_sheets.query",
                 "paged": true,
                 "parameters": {
@@ -5097,6 +5246,275 @@
                                         },
                                         "required": [
                                             "scene",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Create a named camera path through two to thirty-two saved scenes",
+                                        "properties": {
+                                            "command": {
+                                                "const": "camera_path.create"
+                                            },
+                                            "keyframes": {
+                                                "items": {
+                                                    "description": "Canonical uint64 decimal string",
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "maxItems": 32,
+                                                "minItems": 2,
+                                                "type": "array"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "timing": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "framesPerSecond": {
+                                                        "maximum": 60,
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                    },
+                                                    "holdSteps": {
+                                                        "maximum": 600,
+                                                        "minimum": 0,
+                                                        "type": "integer"
+                                                    },
+                                                    "transitionSteps": {
+                                                        "maximum": 600,
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "framesPerSecond",
+                                                    "transitionSteps",
+                                                    "holdSteps"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        },
+                                        "required": [
+                                            "name",
+                                            "keyframes",
+                                            "timing",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Rename a camera path or change its keyframes or timing",
+                                        "properties": {
+                                            "command": {
+                                                "const": "camera_path.update"
+                                            },
+                                            "keyframes": {
+                                                "items": {
+                                                    "description": "Canonical uint64 decimal string",
+                                                    "maxLength": 20,
+                                                    "pattern": "^[1-9][0-9]*$",
+                                                    "type": "string"
+                                                },
+                                                "maxItems": 32,
+                                                "minItems": 2,
+                                                "type": "array"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "path": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "timing": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "framesPerSecond": {
+                                                        "maximum": 60,
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                    },
+                                                    "holdSteps": {
+                                                        "maximum": 600,
+                                                        "minimum": 0,
+                                                        "type": "integer"
+                                                    },
+                                                    "transitionSteps": {
+                                                        "maximum": 600,
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "framesPerSecond",
+                                                    "transitionSteps",
+                                                    "holdSteps"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        },
+                                        "required": [
+                                            "path",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Delete a camera path",
+                                        "properties": {
+                                            "command": {
+                                                "const": "camera_path.delete"
+                                            },
+                                            "path": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "path",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Create a named render preset (settings only)",
+                                        "properties": {
+                                            "command": {
+                                                "const": "render_preset.create"
+                                            },
+                                            "engine": {
+                                                "enum": [
+                                                    "cycles",
+                                                    "eevee"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "height": {
+                                                "maximum": 4096,
+                                                "minimum": 64,
+                                                "type": "integer"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "samples": {
+                                                "maximum": 1024,
+                                                "minimum": 1,
+                                                "type": "integer"
+                                            },
+                                            "seed": {
+                                                "maximum": 1000000,
+                                                "minimum": 0,
+                                                "type": "integer"
+                                            },
+                                            "width": {
+                                                "maximum": 4096,
+                                                "minimum": 64,
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "required": [
+                                            "name",
+                                            "width",
+                                            "height",
+                                            "samples",
+                                            "seed",
+                                            "engine",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Rename a render preset or change its settings",
+                                        "properties": {
+                                            "command": {
+                                                "const": "render_preset.update"
+                                            },
+                                            "engine": {
+                                                "enum": [
+                                                    "cycles",
+                                                    "eevee"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "height": {
+                                                "maximum": 4096,
+                                                "minimum": 64,
+                                                "type": "integer"
+                                            },
+                                            "name": {
+                                                "maxLength": 1024,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "preset": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "samples": {
+                                                "maximum": 1024,
+                                                "minimum": 1,
+                                                "type": "integer"
+                                            },
+                                            "seed": {
+                                                "maximum": 1000000,
+                                                "minimum": 0,
+                                                "type": "integer"
+                                            },
+                                            "width": {
+                                                "maximum": 4096,
+                                                "minimum": 64,
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "required": [
+                                            "preset",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Delete a render preset",
+                                        "properties": {
+                                            "command": {
+                                                "const": "render_preset.delete"
+                                            },
+                                            "preset": {
+                                                "description": "Canonical uint64 decimal string",
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "preset",
                                             "command"
                                         ],
                                         "type": "object"
@@ -13581,6 +13999,122 @@
                                     },
                                     "required": [
                                         "scene",
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "path": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "query": {
+                                            "const": "camera_path.describe"
+                                        }
+                                    },
+                                    "required": [
+                                        "path",
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "preset": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "query": {
+                                            "const": "render_preset.describe"
+                                        }
+                                    },
+                                    "required": [
+                                        "preset",
+                                        "apiVersion",
+                                        "documentId",
+                                        "expectedRevision",
+                                        "query"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "apiVersion": {
+                                            "const": 1
+                                        },
+                                        "documentId": {
+                                            "maxLength": 128,
+                                            "type": "string"
+                                        },
+                                        "expectedRevision": {
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        },
+                                        "path": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "presets": {
+                                            "items": {
+                                                "maxLength": 20,
+                                                "pattern": "^[1-9][0-9]*$",
+                                                "type": "string"
+                                            },
+                                            "maxItems": 4,
+                                            "minItems": 1,
+                                            "type": "array"
+                                        },
+                                        "query": {
+                                            "const": "presentation.describe"
+                                        },
+                                        "video": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "path",
+                                        "presets",
                                         "apiVersion",
                                         "documentId",
                                         "expectedRevision",

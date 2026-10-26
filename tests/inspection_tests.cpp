@@ -1,4 +1,5 @@
 #include "automation/inspection.hpp"
+#include "automation/presentation_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "core/components.hpp"
 #include "core/component_parameters.hpp"
@@ -357,6 +358,43 @@ int main(int argc, char **argv) {
                   ["snapshot"].toObject().contains("camera"), "Saved scene property inspection");
         check(all(sceneDocument, "saved_scene.visibility", {{"scene", QString::number(savedScene)}}).empty(),
               "Empty scene visibility query is a valid bounded page");
+        // Camera paths, render presets and the presentation plan check (ADR 0173 §7, decision 13).
+        auto pathView = savedView;
+        pathView.camera->yaw = 45;
+        const auto secondScene = createScene(sceneDocument, "View 2", pathView);
+        executePresentationCommand(
+            sceneDocument, QJsonObject{{"command", "camera_path.create"},
+                                       {"name", "Orbit"},
+                                       {"keyframes", QJsonArray{QString::number(savedScene),
+                                                                QString::number(secondScene)}},
+                                       {"timing", QJsonObject{{"framesPerSecond", 24},
+                                                              {"transitionSteps", 2},
+                                                              {"holdSteps", 1}}}});
+        const auto path = sceneDocument.cameraPaths().begin()->first;
+        check(run(sceneDocument, "camera_path.describe",
+                  {{"path", QString::number(path)}})["frames"] == 5,
+              "Camera path describe plans one plus hold and transition frames");
+        executePresentationCommand(sceneDocument, QJsonObject{{"command", "render_preset.create"},
+                                                              {"name", "Draft"},
+                                                              {"width", 64},
+                                                              {"height", 64},
+                                                              {"samples", 1},
+                                                              {"seed", 0},
+                                                              {"engine", "cycles"}});
+        const auto preset = sceneDocument.renderPresets().begin()->first;
+        check(run(sceneDocument, "render_preset.describe",
+                  {{"preset", QString::number(preset)}})["settings"]
+                      .toObject()["width"] == 64,
+              "Render preset describe reports its settings");
+        const auto plan = run(sceneDocument, "presentation.describe",
+                              {{"path", QString::number(path)},
+                               {"presets", QJsonArray{QString::number(preset)}},
+                               {"video", false}});
+        check(plan["framesPerPreset"] == 5 && plan["totalFrames"] == 5 &&
+                  plan["ready"].toBool() == plan["refusals"].toArray().isEmpty(),
+              "Presentation describe reports frames and ready only without refusals");
+        rejects("NOT_FOUND",
+                [&] { run(sceneDocument, "camera_path.describe", {{"path", "999"}}); });
         const auto drawingSheet = createDrawingSheet(sceneDocument, "Sheet", {420, 297});
         DrawingViewRecord drawingView;
         drawingView.name = "View";
