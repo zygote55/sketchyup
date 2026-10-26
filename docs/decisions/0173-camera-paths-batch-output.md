@@ -825,3 +825,108 @@ Recorded 2026-10-25 for the batch engine, branch `feat/r099b-batch-engine`.
      is tested with a lowered limit (`setOutputLimit`).
   4. A SIGTERM during a batch leaves the job `Running` until the store is next opened, which then
      marks it `Interrupted`. Ctrl-C (SIGINT) cancels cleanly; a hard kill does not.
+
+## Implementation notes (R099.c)
+
+Recorded 2026-10-26 for branch `feat/r099c-video-commands`, on top of R099.b.
+
+- **Video (decision 7).** The isolated worker gains an `encode` operation. It reads each
+  frame of a preset, hashes it against the request, and copies the verified bytes into its
+  private attempt directory, so Blender encodes only those copies. The encode is a video
+  sequence editor image strip written as FFMPEG in an MPEG-4 container with the H.264 codec
+  (constant rate factor MEDIUM, GOOD preset, no audio). `BlenderJob::encode` verifies the
+  result before anything is published: the file hash and size, the codec, the MP4 container,
+  the frame count read from the `stsz` sample table in the `moov` box, and an `avc1` sample
+  entry with an `avcC` configuration. Only then is `video.mp4` written, with `writeNew`. The
+  engine hashes each frame again on disk before its preset encodes, so a frame that changed
+  after it was verified is named and not encoded.
+- **H.264 at run time.** The worker checks the codec list of the running Blender. Without
+  `H264` it refuses with `codec_unavailable`, and the batch ends `failed` with the message
+  "Video not written (codec_unavailable): ... The finished frames are kept." No second encode
+  starts. A frame that fails its hash refuses with `invalid_frame`. There is no fallback
+  codec.
+- **Manifest.** The top level gains `videoRequested`. Each preset with a verified video gains
+  `video`: `file`, `bytes`, `sha256`, `encoder` (`blender-5.2.2`), `container` (`mp4`),
+  `codec` (`h264`), `frames`, `framesPerSecond` and `inputSha256` (the frame hashes in
+  order). The batch total counts the videos.
+- **Partial batches.** A cancel during an encode, a refusal and a failure write no video. A
+  retry checks the videos that exist and encodes the rest without rendering a verified
+  frame. The plan stores the request's `video` flag, and a job stored before R099.c reads as
+  no video. A video needs even preset dimensions; an odd size is refused when the plan is
+  validated.
+- **Budget.** A video counts against the 2 GiB output budget, checked when it is written.
+  The disk check reserves one frame bound per frame for each video.
+- **CLI.** `--export-presentation` accepts `"video": true`. `--describe-command` documents
+  the field, and `--capabilities` lists it.
+- **Measured H.264 answer.** On this machine, Blender 5.2.2 LTS (Arch `17:5.2.2-3`, FFmpeg
+  9.0.2), the worker wrote `codec_name=h264`, High profile, `yuv420p`, the planned frame
+  count and 24/1 fps. The real test, `presentation_export_tests --real` with
+  `SKETCHYUP_BLENDER_TEST=/usr/bin/blender`, passed here. **Not run:** CI installs
+  `17:5.2.2-2`, which this machine does not have. The CI Blender job runs
+  `presentation_export_real` with ffmpeg installed, so that job is the first check of the
+  CI package.
+- **Commands (decision 12).** `camera_path.create`, `camera_path.update`,
+  `camera_path.delete`, `render_preset.create`, `render_preset.update` and
+  `render_preset.delete` are catalogue commands. Each is one undoable edit through the staged
+  batch. Keyframes must be saved scenes with cameras. A broken path can still be renamed, and
+  an update with no change is a refusal. The three `*.describe` names are inspection queries,
+  shaped on `saved_scene.describe`. `presentation.describe` reports the planned frames per
+  preset, the worst-case output against the 2 GiB limit, each preset's folder, whether a
+  `blender` executable is on the path, and every refusal reason. It renders nothing. No
+  presentation execution exists as a command or a query.
+- **Gap fixed in the shared change set.** The snapshot diff and the staging diff did not
+  carry camera paths or render presets. A camera-path-only batch failed with "Batch has no
+  committed changes", and a mixed batch dropped the path without a message. Both diffs now
+  carry them.
+- **Assistant (decision 13).** The assistant sees the three queries as top-level tools, and
+  no camera path, render preset or presentation command. The descriptions give units and
+  the refusals.
+- **Token measurement (R095.g method).** The first provider request of each
+  `assistant_tool_surface_tests` surface was written with
+  `assistant_tool_surface_tests --requests <dir>`, in the ChatGPT-plan wire form. Tokens were
+  counted with `tiktoken` `o200k_base`, the R095.g proxy. The before surface was rebuilt from
+  the after request by removing the three queries and their `transaction.inspect` choices.
+  That rebuild reproduces every pinned `chatGptPlanToolsBytes` exactly, which checks the
+  method.
+
+  | Surface | Tools | Wire tool bytes | Tool tokens | Request tokens |
+  | --- | --- | --- | --- | --- |
+  | inspection-only | 30 → 33 | 25,000 → 27,505 (+2,505) | 6,830 → 7,476 (+646) | 8,154 → 8,800 (+646) |
+  | room | 37 → 40 | 51,424 → 55,452 (+4,028) | 14,282 → 15,362 (+1,080) | 15,606 → 16,686 (+1,080) |
+  | resize | 37 → 40 | 51,137 → 55,165 (+4,028) | 14,191 → 15,271 (+1,080) | 15,515 → 16,595 (+1,080) |
+  | advanced | 37 → 40 | 54,392 → 58,420 (+4,028) | 15,116 → 16,196 (+1,080) | 16,440 → 17,520 (+1,080) |
+  | site | 37 → 40 | 52,244 → 56,272 (+4,028) | 14,484 → 15,564 (+1,080) | 15,808 → 16,888 (+1,080) |
+  | every command + clarification | 38 → 41 | 135,375 → 139,403 (+4,028) | 36,581 → 37,661 (+1,080) | 37,905 → 38,985 (+1,080) |
+
+  Over a 16-turn task the edit surfaces add 16 × 1,080 = 17,280 tokens, 3.3% of the 524,288
+  token per-task budget. R095.g recorded +1,029 for the same surfaces. This slice adds more
+  because its three descriptions are longer. The per-task budget is the one that applies:
+  the surface test has no token constant. The cost is inside that budget, so the budget was
+  not raised.
+- **Pinning.** `tests/assistant-tool-surface-baseline.json` is re-pinned, with these figures
+  in `source.repinned`. The R095.g record is kept under `previousRepins`. Every visible tool
+  list changed, so the frozen corpus gains version 6 (`tests/provider-release-corpus-v6.json`).
+  Its tasks, prompts, profiles, limits and instructions are the v5 values, and only each
+  surface's `toolsSha256` moved. The trial harness, the corpus test chain and the scorer
+  accept version 6. A live version 6 run is required before the next release and has not
+  been made.
+- **Contradictions with the ADR, for the owner.**
+  1. §7 lists the `*.describe` names in the `noun.verb` catalogue. Decision 13 calls them
+     read-only queries, and `saved_scene.describe` is a query. They are implemented as
+     queries, and they reach MCP and the assistant through the inspection registry.
+  2. §4 says the codec default is H.264 "if the pinned Blender's FFMPEG build exposes it".
+     R099.b measured that it does on the local 5.2.2 build. The CI package still has to
+     confirm it (above).
+- **Open owner questions.**
+  1. **Fallback codec.** R099.b found no MJPEG in Blender 5.2.2, so no fallback is
+     implemented. A Blender without H.264 refuses the video. The owner chooses among MPEG-4
+     Part 2 in MP4 (`mpeg4`, lossy, plays everywhere), FFV1 in MKV (`ffv1`, lossless), and no
+     video fallback.
+  2. **Early refusal.** A Blender without H.264 is found only after every frame has rendered.
+     A probe at batch start would refuse before any frame. The brief placed the refusal at
+     run time, so no probe was built, and a long batch can finish before the refusal.
+- **Not in this slice.** The desktop UI (R099.d). No codec probe before a run. The
+  `presentation.describe` Blender check reports whether a `blender` executable is on the
+  path, not its version or codec. The codec is checked when a video encodes. The worst-case
+  output in `presentation.describe` is an estimate, not a measurement. The whole-batch video
+  time is not measured, and the real test uses 64 by 64 frames at one sample.

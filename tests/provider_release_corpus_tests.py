@@ -38,9 +38,9 @@ TESTS = Path(__file__).resolve().parent
 MANIFESTS = [json.loads((TESTS / name).read_text()) for name in
              ('provider-release-corpus.json', 'provider-release-corpus-v2.json',
               'provider-release-corpus-v3.json', 'provider-release-corpus-v4.json',
-              'provider-release-corpus-v5.json')]
-CURRENT = TESTS / 'provider-release-corpus-v5.json'
-VERSION = 5
+              'provider-release-corpus-v5.json', 'provider-release-corpus-v6.json')]
+CURRENT = TESTS / 'provider-release-corpus-v6.json'
+VERSION = 6
 NATIVE_SECONDS = 900
 SPEC = importlib.util.spec_from_file_location('score', TESTS.parent / 'scripts/score-provider-release.py')
 SCORE = importlib.util.module_from_spec(SPEC)

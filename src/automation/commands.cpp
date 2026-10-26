@@ -1,6 +1,7 @@
 #include "automation/commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/component_parameter_commands.hpp"
+#include "automation/presentation_commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/drawing_sheet_commands.hpp"
 #include "automation/entity_info.hpp"
@@ -749,6 +750,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             executeSectionCommand(staged, command);
         } else if (isSavedSceneCommand(name)) {
             executeSavedSceneCommand(staged, command);
+        } else if (isPresentationCommand(name)) {
+            executePresentationCommand(staged, command);
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (isComponentParameterCommand(name)) {
@@ -1542,6 +1545,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     if (isHostedCommand(nested.toString()) ||
                         nested.toString().startsWith("assembly.") ||
                         nested.toString().startsWith("saved_scene.") ||
+                        nested.toString().startsWith("camera_path.") ||
+                        nested.toString().startsWith("render_preset.") ||
                         nested.toString().startsWith("drawing_sheet.") ||
                         nested.toString().startsWith("drawing_view.") ||
                         nested.toString().startsWith("drawing_item.") ||
@@ -1756,7 +1761,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site && edit.scenes.empty() && edit.cameraPaths.empty() && edit.renderPresets.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
         edit.drawingSheets.empty() && edit.drawingViews.empty() && edit.drawingItems.empty())
         throw std::runtime_error("Batch has no committed changes");
     if (sheetBatch) {

@@ -16,6 +16,7 @@
 #include "automation/terrain_commands.hpp"
 #include "automation/report_commands.hpp"
 #include "automation/hosted_commands.hpp"
+#include "automation/presentation_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
@@ -84,6 +85,9 @@ enum class Operation {
     SavedScenes,
     SavedScene,
     SavedSceneVisibility,
+    CameraPath,
+    RenderPreset,
+    Presentation,
     DrawingSheets,
     DrawingSheet,
     DrawingViewsStatus,
@@ -159,6 +163,14 @@ const std::vector<Spec> &registry() {
             spec("saved_scenes.query", Operation::SavedScenes, {}, {}, true),
             spec("saved_scene.describe", Operation::SavedScene, {{"scene", idSchema()}}, {"scene"}),
             spec("saved_scene.visibility", Operation::SavedSceneVisibility, {{"scene", idSchema()}}, {"scene"}, true),
+            spec("camera_path.describe", Operation::CameraPath, {{"path", idSchema()}}, {"path"}),
+            spec("render_preset.describe", Operation::RenderPreset, {{"preset", idSchema()}},
+                 {"preset"}),
+            spec("presentation.describe", Operation::Presentation,
+                 {{"path", idSchema()},
+                  {"presets", list(idSchema(), 1, 4)},
+                  {"video", QJsonObject{{"type", "boolean"}}}},
+                 {"path", "presets"}),
             spec("drawing_sheets.query", Operation::DrawingSheets, {}, {}, true),
             spec("drawing_sheet.describe", Operation::DrawingSheet, {{"sheet", idSchema()}}, {"sheet"}),
             spec("drawing_views.status", Operation::DrawingViewsStatus, {{"sheet", idSchema()}}, {}, true),
@@ -761,6 +773,20 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
             page.append([&] { return savedSceneSummary(doc, id); });
         data = page.finish();
         break;
+    case Operation::CameraPath:
+        data = cameraPathDescription(doc, decimal(request["path"]));
+        break;
+    case Operation::RenderPreset:
+        data = renderPresetDescription(doc, decimal(request["preset"]));
+        break;
+    case Operation::Presentation: {
+        std::vector<Id> presets;
+        for (const auto &item : request["presets"].toArray())
+            presets.push_back(decimal(item));
+        data = presentationDescription(doc, decimal(request["path"]), presets,
+                                       request["video"].toBool());
+        break;
+    }
     case Operation::SavedScene: {
         const auto id = decimal(request["scene"]);
         if (!doc.scenes().contains(id))
