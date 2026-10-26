@@ -837,7 +837,7 @@ the metadata matrix, goldens, session parity and the fixture generator), `tests/
 (success, refusals, read-only input, the CSV and JSON agreeing, parity with the session), and
 `tests/report_fixtures.hpp` (the R101.a builders, now shared with `report_tests`, plus quantities-b).
 The goldens are `tests/fixtures/reports/quantities-a-{default,material}.{csv,json}`, generated from
-`tests/fixtures/quantities-a.sketchyup` by `report_output_tests --write-goldens`.
+`tests/fixtures/reports/quantities-a.sketchyup` by `report_output_tests --write-goldens`.
 
 ### Decisions where the ADR was silent
 
@@ -873,7 +873,7 @@ The goldens are `tests/fixtures/reports/quantities-a-{default,material}.{csv,jso
 Release build (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3 -DNDEBUG`), on the developer machine
 (Linux, 22 threads, 30 GB RAM). `tests/report_benchmark.cpp` builds quantities-b in memory: a
 249,218-triangle terrain plus 10,000 placements of a 12-face part, 30,257 records. The file
-`tests/fixtures/quantities-a.sketchyup` is committed; quantities-b (12.5 MB as a `.sketchyup`) is
+`tests/fixtures/reports/quantities-a.sketchyup` is committed; quantities-b (12.5 MB as a `.sketchyup`) is
 not, and is written to a scratch path when the CLI run is needed. The measured figures are the
 ones below; the budgets stand as the ADR proposed them.
 

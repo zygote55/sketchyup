@@ -64,7 +64,7 @@ CliRun cli(const QStringList &args) {
     return {process.exitCode(), process.readAllStandardOutput(), process.readAllStandardError()};
 }
 
-const QString fixture = QStringLiteral("tests/fixtures/quantities-a.sketchyup");
+const QString fixture = QStringLiteral("tests/fixtures/reports/quantities-a.sketchyup");
 
 // The report.run data for the same request the CLI flags make, from the same file.
 QJsonObject sessionData(const QJsonObject &request) {

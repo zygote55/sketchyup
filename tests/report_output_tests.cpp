@@ -130,7 +130,7 @@ void writeFixture(const QString &path) {
 
 // The CSV dialect (ADR 0175 §6.1), checked on the default report of quantities-a.
 void csvDialect() {
-    const auto doc = loadDocument(sourcePath("tests/fixtures/quantities-a.sketchyup"));
+    const auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
     const auto csv = reportCsv(sessionReport(doc, defaultCase().request));
 
     check(!csv.startsWith("\xEF\xBB\xBF"), "The CSV has no byte-order mark");
@@ -239,7 +239,7 @@ void metadataMatrix() {
                            {DisplayUnit::FeetInches, "ft", "ft2", "ft3"}};
     for (const auto &unit : units) {
         for (const bool full : {true, false}) {
-            auto doc = loadDocument(sourcePath("tests/fixtures/quantities-a.sketchyup"));
+            auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
             doc.setDisplayUnits(unit.unit, std::nullopt);
             QJsonObject request{{"metrics", "all"}};
             if (full)
@@ -257,7 +257,7 @@ void metadataMatrix() {
         }
     }
     // The same report at mm, full precision: 82.4 m3 is 82,400,000,000 mm3 (V8).
-    auto doc = loadDocument(sourcePath("tests/fixtures/quantities-a.sketchyup"));
+    auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
     doc.setDisplayUnits(DisplayUnit::Millimeters, std::nullopt);
     const auto csv =
         QString::fromUtf8(reportCsv(sessionReport(doc, QJsonObject{{"precision", "full"}})));
@@ -268,7 +268,7 @@ void metadataMatrix() {
 // The goldens are byte-identical across runs, and the file writer publishes exactly the golden
 // bytes.
 void goldens() {
-    const auto doc = loadDocument(sourcePath("tests/fixtures/quantities-a.sketchyup"));
+    const auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
     QTemporaryDir dir;
     check(dir.isValid(), "A temporary directory");
     for (const auto &golden : {defaultCase(), materialCase()}) {
@@ -299,7 +299,7 @@ void pins() {
 // V12 (JSON): the file is byte-identical to the session's report.run data, and the CSV is the CSV
 // of the same data. The CLI writes the same bytes because it calls the same functions.
 void sessionParity() {
-    const auto doc = loadDocument(sourcePath("tests/fixtures/quantities-a.sketchyup"));
+    const auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
     QTemporaryDir dir;
     check(dir.isValid(), "A temporary directory");
     for (const auto &golden : {defaultCase(), materialCase()}) {
@@ -328,7 +328,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (argc == 3 && QString::fromLocal8Bit(argv[1]) == "--write-goldens") {
-        const auto doc = loadDocument(sourcePath("tests/fixtures/quantities-a.sketchyup"));
+        const auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
         const auto directory = QString::fromLocal8Bit(argv[2]);
         for (const auto &golden : {defaultCase(), materialCase()}) {
             const auto data = sessionReport(doc, golden.request);
@@ -341,7 +341,7 @@ int main(int argc, char **argv) {
         // The fixture is the builder's document, payload for payload (the identity aside).
         Document fresh;
         buildQuantitiesA(fresh);
-        const auto loaded = loadDocument(sourcePath("tests/fixtures/quantities-a.sketchyup"));
+        const auto loaded = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
         check(payloadWithoutIdentity(loaded) == payloadWithoutIdentity(fresh),
               "The quantities-a fixture is the builder's document");
         csvDialect();
