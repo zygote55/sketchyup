@@ -38,14 +38,8 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
         "presentation request");
     if (value.value("apiVersion") != 1)
         throw InspectionError("INVALID_REQUEST", "Presentation requests require apiVersion 1");
-    if (value.contains("video")) {
-        if (!value.value("video").isBool())
-            throw InspectionError("INVALID_REQUEST", "Presentation video must be true or false");
-        if (value.value("video").toBool())
-            throw InspectionError("INVALID_REQUEST",
-                                  "Presentation video encoding is not available in this build; "
-                                  "remove video or set it to false");
-    }
+    if (value.contains("video") && !value.value("video").isBool())
+        throw InspectionError("INVALID_REQUEST", "Presentation video must be true or false");
     PresentationRequest request;
     const bool byPath = value.contains("path"), byKeyframes = value.contains("keyframes");
     if (byPath == byKeyframes)
@@ -104,6 +98,7 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
         value.value("output").toString().size() > 4096)
         throw InspectionError("INVALID_REQUEST", "A presentation names a new output folder");
     request.output = value.value("output").toString();
+    request.video = value.value("video").toBool();
     return request;
 }
 QJsonObject presentationExportCapabilities() {
@@ -120,7 +115,7 @@ QJsonObject presentationExportCapabilities() {
             {"cancel", "SIGINT stops at the next frame boundary"},
             {"exitCodes",
              QJsonObject{{"0", "completed"}, {"1", "failed or interrupted"}, {"130", "canceled"}}},
-            {"video", "unavailable until R099.c"}};
+            {"video", "optional H.264 MP4 per preset, encoded by the isolated Blender worker"}};
 }
 QJsonObject presentationExportDescription() {
     return {{"name", "export-presentation"},
@@ -135,7 +130,9 @@ QJsonObject presentationExportDescription() {
                          {"timing", timingSchema()},
                          {"presets", "one to four render preset names"},
                          {"output", "new folder; its parent must exist"},
-                         {"video", "must be absent or false in this release"}}},
+                         {"video", "optional, default false: H.264 MP4 per preset after every frame "
+                                   "is verified; a Blender without H.264 refuses the video and keeps "
+                                   "the frames"}}},
             {"limits", presentationExportCapabilities()}};
 }
 } // namespace sketchy

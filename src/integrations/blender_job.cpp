@@ -14,6 +14,7 @@
 #include <QTimer>
 #include <atomic>
 #include <future>
+#include <optional>
 #ifdef Q_OS_LINUX
 #include <csignal>
 #include <sys/prctl.h>
@@ -252,13 +253,101 @@ std::shared_ptr<const BlenderResult> loadBlenderResult(const PreparedRender &inp
             "Retained CPU fallback provenance mismatch");
     return verify(input, directory, manifest, actualBackend, actualDevice);
 }
+namespace {
+constexpr qsizetype videoLimit = 512 * 1024 * 1024;
+
+quint64 bigEndian(const QByteArray &bytes, qsizetype at, int width) {
+    quint64 value = 0;
+    for (int i = 0; i < width; ++i)
+        value = (value << 8) | quint8(bytes[at + i]);
+    return value;
+}
+
+// What the verifier reads from an MP4: whether the video track is H.264 (an avc1 sample entry
+// with an avcC configuration) and its sample count from the stsz table. Only top-level boxes and
+// the movie box are walked, so media bytes never match.
+struct Mp4Summary {
+    bool h264{};
+    qint64 frames{-1};
+};
+
+Mp4Summary summarizeMp4(const QByteArray &bytes) {
+    bool ftyp = false;
+    QByteArray movie;
+    qsizetype offset = 0;
+    while (offset + 8 <= bytes.size()) {
+        auto size = bigEndian(bytes, offset, 4);
+        const auto type = bytes.mid(offset + 4, 4);
+        qsizetype header = 8;
+        if (size == 1) {
+            require(offset + 16 <= bytes.size(), "Malformed MP4 box");
+            size = bigEndian(bytes, offset + 8, 8);
+            header = 16;
+        } else if (size == 0) {
+            size = quint64(bytes.size() - offset);
+        }
+        require(size >= quint64(header) && size <= quint64(bytes.size() - offset),
+                "Malformed MP4 box");
+        if (type == "ftyp")
+            ftyp = true;
+        if (type == "moov")
+            movie = bytes.mid(offset + header, qsizetype(size) - header);
+        offset += qsizetype(size);
+    }
+    require(ftyp && !movie.isEmpty(), "Video is not an MP4 file");
+    const auto table = movie.indexOf("stsz");
+    require(table >= 4 && table + 16 <= movie.size(), "Video has no sample table");
+    return {movie.contains("avc1") && movie.contains("avcC"),
+            qint64(bigEndian(movie, table + 12, 4))};
+}
+
+// Verifies the worker's video against the frames it was asked to encode: the file hash and size,
+// the codec, the container and the frame count. Only a verified video is published.
+std::shared_ptr<const BlenderVideoResult> verifyVideo(const QString &directory,
+                                                      const QJsonObject &report,
+                                                      const BlenderVideoRequest &request) {
+    require(report.value("status") == "succeeded", "Worker did not report a video");
+    const auto video = report.value("video").toObject();
+    const auto mp4 = read(directory + "/video.mp4", videoLimit);
+    const auto digest = hash(mp4);
+    require(video.value("file") == "video.mp4" &&
+                video.value("bytes").toInteger(-1) == mp4.size() &&
+                video.value("sha256") == digest && video.value("codec") == "H264" &&
+                video.value("container") == "MP4" &&
+                video.value("frames").toInteger(-1) == qint64(request.frames.size()) &&
+                video.value("framesPerSecond").toInteger(-1) == request.framesPerSecond,
+            "Video does not match the worker report");
+    const auto summary = summarizeMp4(mp4);
+    require(summary.h264 && summary.frames == qint64(request.frames.size()),
+            "Video is not an H.264 MP4 with every verified frame");
+    QJsonArray inputs;
+    for (const auto &frame : request.frames)
+        inputs.append(frame.sha256);
+    QStringList version;
+    for (const auto part : report.value("blenderVersion").toArray())
+        version.append(QString::number(part.toInt()));
+    auto result = std::make_shared<BlenderVideoResult>();
+    result->mp4 = mp4;
+    result->manifest = QJsonObject{{"file", "video.mp4"},
+                                   {"bytes", qint64(mp4.size())},
+                                   {"sha256", digest},
+                                   {"encoder", "blender-" + version.join('.')},
+                                   {"container", "mp4"},
+                                   {"codec", "h264"},
+                                   {"frames", int(request.frames.size())},
+                                   {"framesPerSecond", request.framesPerSecond},
+                                   {"inputSha256", inputs}};
+    return result;
+}
+} // namespace
+
 struct BlenderJob::Impl {
     BlenderJob &owner;
     QProcess process;
     QTimer deadline, killTimer, poll;
     Phase phase{Phase::Idle}, stopPhase{Phase::Failed};
     Options options;
-    bool probing{}, sceneOnly{}, slot{}, stopping{};
+    bool probing{}, sceneOnly{}, encoding{}, slot{}, stopping{};
     int attempt{}, outputBytes{};
     QString executable, currentBackend, currentDevice, progressText, attemptDirectory, errorCode,
         errorMessage;
@@ -271,6 +360,9 @@ struct BlenderJob::Impl {
     std::future<std::shared_ptr<const BlenderResult>> verification;
     std::future<std::shared_ptr<const BlenderSceneResult>> sceneVerification;
     std::shared_ptr<const BlenderSceneResult> sceneResult;
+    std::optional<BlenderVideoRequest> video;
+    std::future<std::shared_ptr<const BlenderVideoResult>> videoVerification;
+    std::shared_ptr<const BlenderVideoResult> videoResult;
     explicit Impl(BlenderJob &owner)
         : owner(owner), process(&owner), deadline(&owner), killTimer(&owner), poll(&owner) {
         deadline.setSingleShot(true);
@@ -293,7 +385,11 @@ struct BlenderJob::Impl {
                          &owner,
                          [this](int code, QProcess::ExitStatus status) { finished(code, status); });
         QObject::connect(&poll, &QTimer::timeout, &owner, [this] {
-            if (sceneOnly) {
+            if (encoding) {
+                if (!videoVerification.valid() || videoVerification.wait_for(std::chrono::seconds(
+                                                      0)) != std::future_status::ready)
+                    return;
+            } else if (sceneOnly) {
                 if (!sceneVerification.valid() || sceneVerification.wait_for(std::chrono::seconds(
                                                       0)) != std::future_status::ready)
                     return;
@@ -302,6 +398,18 @@ struct BlenderJob::Impl {
                 return;
             poll.stop();
             try {
+                if (encoding) {
+                    auto candidate = videoVerification.get();
+                    if (stopping) {
+                        finish(stopPhase, errorCode, errorMessage);
+                        return;
+                    }
+                    auto published = std::make_shared<BlenderVideoResult>(*candidate);
+                    published->manifest["attempts"] = attempts;
+                    videoResult = std::move(published);
+                    finish(Phase::Succeeded);
+                    return;
+                }
                 if (sceneOnly) {
                     auto candidate = sceneVerification.get();
                     if (stopping) {
@@ -377,9 +485,9 @@ struct BlenderJob::Impl {
         sceneOnly = scene;
         input = std::move(prepared);
         options = std::move(requested);
-        if (!probing)
+        if (!probing && !encoding)
             require(bool(input), "Render requires a prepared immutable snapshot");
-        if (!probing)
+        if (!probing && !encoding)
             require((input->manifest().value("settings").toObject().value("engine") == "eevee") ==
                         (options.backend == "OPENGL"),
                     "Render engine and selected device backend do not match");
@@ -434,14 +542,26 @@ struct BlenderJob::Impl {
             QFile script(":/sketchyup/blender_worker.py");
             require(script.open(QIODevice::ReadOnly), "Embedded Blender adapter is unavailable");
             write(attemptDirectory + "/worker.py", script.readAll());
-            QJsonObject request{
-                {"apiVersion", 1},
-                {"operation", probing ? "probe" : (sceneOnly ? "handoff" : "render")},
-                {"backend", currentBackend},
-                {"deviceId", currentDevice}};
+            QJsonObject request{{"apiVersion", 1},
+                                {"operation", probing     ? "probe"
+                                              : encoding  ? "encode"
+                                              : sceneOnly ? "handoff"
+                                                          : "render"},
+                                {"backend", currentBackend},
+                                {"deviceId", currentDevice}};
             if (input) {
                 request["sourceDirectory"] = input->sourceDirectory();
                 request["manifestSha256"] = input->manifestHash();
+            }
+            if (encoding) {
+                QJsonArray frames;
+                for (const auto &frame : video->frames)
+                    frames.append(QJsonObject{
+                        {"path", frame.path}, {"sha256", frame.sha256}, {"bytes", frame.bytes}});
+                request["video"] = QJsonObject{{"frames", frames},
+                                               {"width", video->width},
+                                               {"height", video->height},
+                                               {"framesPerSecond", video->framesPerSecond}};
             }
             write(attemptDirectory + "/request.json",
                   QJsonDocument(request).toJson(QJsonDocument::Compact));
@@ -464,7 +584,9 @@ struct BlenderJob::Impl {
                                   "--threads", "4", "--python-exit-code", "1", "--python",
                                   attemptDirectory + "/worker.py", "--",
                                   attemptDirectory + "/request.json"});
-            progressText = probing ? "Checking Blender" : "Starting Blender";
+            progressText = probing    ? "Checking Blender"
+                           : encoding ? "Starting video encoding"
+                                      : "Starting Blender";
             changed(probing ? Phase::Probing : Phase::Rendering);
             if (stopping) {
                 finish(stopPhase, errorCode, errorMessage);
@@ -495,7 +617,8 @@ struct BlenderJob::Impl {
         if (process.state() != QProcess::NotRunning) {
             process.terminate();
             killTimer.start(1000);
-        } else if (!verification.valid() && !sceneVerification.valid())
+        } else if (!verification.valid() && !sceneVerification.valid() &&
+                   !videoVerification.valid())
             finish(stopPhase, errorCode, errorMessage);
     }
     void drain() {
@@ -524,7 +647,8 @@ struct BlenderJob::Impl {
             if (row.startsWith("SKETCHYUP_PROGRESS ") && row.size() < 1024 && !stopping) {
                 const auto phase =
                     QJsonDocument::fromJson(row.mid(19)).object().value("phase").toString();
-                if (QStringList{"loading", "rendering", "verifying-output", "saving-scene"}
+                if (QStringList{"loading", "rendering", "verifying-output", "saving-scene",
+                                "encoding-video"}
                         .contains(phase)) {
                     progressText = phase;
                     emit owner.changed();
@@ -607,6 +731,17 @@ struct BlenderJob::Impl {
                 return;
             }
             progressText = sceneOnly ? "Verifying scene" : "Verifying image";
+            if (encoding) {
+                progressText = "Verifying video";
+                videoVerification =
+                    std::async(std::launch::async, [request = *video, directory = attemptDirectory,
+                                                    report = workerReport] {
+                        return verifyVideo(directory, report, request);
+                    });
+                poll.start();
+                changed(Phase::Verifying);
+                return;
+            }
             if (sceneOnly)
                 sceneVerification =
                     std::async(std::launch::async, [captured = input, directory = attemptDirectory,
@@ -652,6 +787,16 @@ void BlenderJob::start(std::shared_ptr<const PreparedRender> input, Options opti
 }
 void BlenderJob::handoff(std::shared_ptr<const PreparedRender> input, Options options) {
     impl_->begin(false, std::move(input), std::move(options), true);
+}
+void BlenderJob::encode(BlenderVideoRequest request, Options options) {
+    impl_->checkOwner();
+    impl_->video = std::move(request);
+    impl_->encoding = true;
+    impl_->begin(false, nullptr, std::move(options));
+}
+std::shared_ptr<const BlenderVideoResult> BlenderJob::videoResult() const {
+    impl_->checkOwner();
+    return impl_->videoResult;
 }
 std::shared_ptr<const BlenderSceneResult> BlenderJob::sceneResult() const {
     impl_->checkOwner();
