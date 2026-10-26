@@ -396,6 +396,13 @@ int main(int argc, char **argv) {
               "Presentation describe reports frames and ready only without refusals");
         rejects("NOT_FOUND",
                 [&] { run(sceneDocument, "camera_path.describe", {{"path", "999"}}); });
+        // R100.a: the style export query names the file and changes nothing.
+        const auto styleRevision = sceneDocument.revision();
+        const auto styleFile = run(sceneDocument, "style.export", {{"name", "Scene style"}});
+        check(styleFile["name"] == "Scene style" && styleFile["bytes"].toDouble() > 0 &&
+                  sceneDocument.revision() == styleRevision,
+              "style.export returns the packaged style bytes and changes no revision");
+        rejects("INVALID_REQUEST", [&] { run(sceneDocument, "style.export", {}); });
         const auto drawingSheet = createDrawingSheet(sceneDocument, "Sheet", {420, 297});
         DrawingViewRecord drawingView;
         drawingView.name = "View";

@@ -1194,6 +1194,67 @@
                 "openWorldHint": false,
                 "readOnlyHint": true
             },
+            "description": "style.export: shared versioned SketchyUp operation",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "description": {
+                        "maxLength": 4096,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "labels": {
+                        "items": {
+                            "maxLength": 64,
+                            "type": "string"
+                        },
+                        "maxItems": 32,
+                        "minItems": 0,
+                        "type": "array"
+                    },
+                    "name": {
+                        "maxLength": 256,
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "style.export"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "style.export"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
             "description": "drawing_sheets.query: shared versioned SketchyUp operation",
             "inputSchema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -10833,6 +10894,25 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+                                    "properties": {
+                                        "command": {
+                                            "const": "style.apply"
+                                        },
+                                        "data": {
+                                            "maxLength": 22413344,
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Import managed asset bytes",
                                     "properties": {
                                         "command": {
@@ -14675,6 +14755,52 @@
                                 "required": [
                                     "path",
                                     "presets",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "description": {
+                                        "maxLength": 4096,
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "labels": {
+                                        "items": {
+                                            "maxLength": 64,
+                                            "type": "string"
+                                        },
+                                        "maxItems": 32,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "name": {
+                                        "maxLength": 256,
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "style.export"
+                                    }
+                                },
+                                "required": [
+                                    "name",
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

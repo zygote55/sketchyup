@@ -1445,7 +1445,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R100 — Add custom styles and richer asset authoring
 
-**Status:** In progress; Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23; Q1 open). Slice R100.c open (PR #456): the `.sketchycat` catalog format (the version 1 manifest on the shared envelope, shared-asset deduplication, per-entry and per-asset hashes, relocation, the bounded decoder and its fuzz target, and `catalog.list`); see the ADR 0174 implementation notes (R100.c). **Track:** Desktop. **Scope:** F06. **UX:** —.
+**Status:** In progress: R100.a (the optional edge stroke, schema 31 with `edge-styles-v1`, the `.sketchystyle` envelope, `style.apply` and the `style.export` query) is merged in [PR #457](https://github.com/zygote55/sketchyup/pull/457), with its measured refusal by the released 1.3.0 and 1.2.0 CLIs and the owner questions listed in [ADR 0174](decisions/0174-custom-styles-asset-authoring.md) (Implementation notes, R100.a); R100.c (the `.sketchycat` catalog format: the version 1 manifest on the shared envelope, shared-asset deduplication, per-entry and per-asset hashes, relocation, the bounded decoder and its fuzz target, and `catalog.list`) is in [PR #456](https://github.com/zygote55/sketchyup/pull/456) (Implementation notes, R100.c); R100.b, R100.d to R100.g planned. Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23; Q1 open). **Track:** Desktop. **Scope:** F06. **UX:** —.
 
 **Requires:** [R089](#r089), [R062](#r062), [R079](#r079); milestone gate rule above.
 

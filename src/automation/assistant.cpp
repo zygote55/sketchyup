@@ -64,8 +64,10 @@ bool assistantVisible(const QString &name) {
         name == QStringLiteral("render_preset.describe") ||
         name == QStringLiteral("presentation.describe"))
         return true;
+    // Style packaging (ADR 0174 decision 9): style.apply and style.export stay hidden; MCP exposes them.
     // report.run (ADR 0175 decision 12): the assistant stays off by default until a new corpus.
     return !name.startsWith(QStringLiteral("drawing_")) &&
+           !name.startsWith(QStringLiteral("style.")) &&
            !name.startsWith(QStringLiteral("component_parameter")) &&
            !name.startsWith(QStringLiteral("site.")) &&
            !name.startsWith(QStringLiteral("terrain.")) &&

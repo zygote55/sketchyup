@@ -117,6 +117,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `group.selection` | Make group from selected entities | `entities`, `command` |
 | `component.selection` | Make component from selected entities | `entities`, `command` |
 | `geometry.delete` | Delete context | `body`, `command` |
+| `style.apply` | Apply a packaged style (base64 .sketchystyle bytes) in one edit | `data`, `command` |
 | `asset.import` | Import managed asset bytes | `name`, `mediaType`, `data`, `command` |
 | `asset.missing` | Record missing asset | `name`, `mediaType`, `command` |
 | `asset.replace` | Replace or resolve asset bytes | `asset`, `data`, `command` |
@@ -199,6 +200,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `render_preset.describe` |  | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `catalog.list` |  | `catalog`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `presentation.describe` |  | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `style.export` |  | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheet.describe` |  | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_views.status` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -280,6 +282,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `render_preset.describe` | render_preset.describe: shared versioned SketchyUp operation | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `catalog.list` | catalog.list: shared versioned SketchyUp operation | `catalog`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `presentation.describe` | presentation.describe: shared versioned SketchyUp operation | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `style.export` | style.export: shared versioned SketchyUp operation | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` | drawing_sheets.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheet.describe` | drawing_sheet.describe: shared versioned SketchyUp operation | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_views.status` | drawing_views.status: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |

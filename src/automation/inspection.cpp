@@ -18,6 +18,7 @@
 #include "automation/report_commands.hpp"
 #include "automation/hosted_commands.hpp"
 #include "automation/presentation_commands.hpp"
+#include "automation/style_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
@@ -89,6 +90,7 @@ enum class Operation {
     CameraPath,
     RenderPreset,
     Presentation,
+    StyleExport,
     CatalogList,
     DrawingSheets,
     DrawingSheet,
@@ -176,6 +178,11 @@ const std::vector<Spec> &registry() {
                   {"presets", list(idSchema(), 1, 4)},
                   {"video", QJsonObject{{"type", "boolean"}}}},
                  {"path", "presets"}),
+            spec("style.export", Operation::StyleExport,
+                 {{"name", textSchema(256)},
+                  {"description", textSchema(4096)},
+                  {"labels", list(textSchema(64), 0, 32)}},
+                 {"name"}),
             spec("drawing_sheets.query", Operation::DrawingSheets, {}, {}, true),
             spec("drawing_sheet.describe", Operation::DrawingSheet, {{"sheet", idSchema()}}, {"sheet"}),
             spec("drawing_views.status", Operation::DrawingViewsStatus, {{"sheet", idSchema()}}, {}, true),
@@ -805,6 +812,9 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
                                        request["video"].toBool());
         break;
     }
+    case Operation::StyleExport:
+        data = styleExport(doc, request);
+        break;
     case Operation::SavedScene: {
         const auto id = decimal(request["scene"]);
         if (!doc.scenes().contains(id))

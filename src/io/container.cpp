@@ -92,7 +92,7 @@ QByteArray encodeContainer(const Document &doc) {
     // applies the same policy to the payload.
     const auto version = nativeDocumentVersionFor(doc);
     const bool drawingSheets = version >= 27, componentParameters = version >= 28,
-               terrain = version >= 29, presentation = version >= 30;
+               terrain = version >= 29, presentation = version >= 30, edgeStyles = version >= 31;
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
@@ -142,6 +142,8 @@ QByteArray encodeContainer(const Document &doc) {
         features.append("terrain-v1");
     if (presentation)
         features.append("presentation-v1");
+    if (edgeStyles)
+        features.append("edge-styles-v1");
     const auto manifest =
         QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
                                   {"epoch", "1"},
@@ -186,13 +188,65 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool presentation = features == std::set<QString>{
-        "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
-        "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
-        "edge-appearance-v1", "component-glue-v1", "hosted-components-v1", "texture-mapping-v1",
-        "model-style-v1", "saved-scenes-v1", "section-planes-v1", "section-scenes-v1", "annotations-v1", "editable-text-v1", "solar-study-v1", "reference-images-v1",
-        "display-precision-v1", "instanced-placements-v1", "drawing-sheets-v1", "component-parameters-v1",
-        "terrain-v1", "presentation-v1"};
+    const bool edgeStyles = features == std::set<QString>{"scene-v2",
+                                                          "topology-v1",
+                                                          "curves-v1",
+                                                          "guides-v1",
+                                                          "groups-v1",
+                                                          "face-colors-v1",
+                                                          "components-v1",
+                                                          "tags-v1",
+                                                          "materials-v1",
+                                                          "assets-v1",
+                                                          "display-units-v1",
+                                                          "edge-appearance-v1",
+                                                          "component-glue-v1",
+                                                          "hosted-components-v1",
+                                                          "texture-mapping-v1",
+                                                          "model-style-v1",
+                                                          "saved-scenes-v1",
+                                                          "section-planes-v1",
+                                                          "section-scenes-v1",
+                                                          "annotations-v1",
+                                                          "editable-text-v1",
+                                                          "solar-study-v1",
+                                                          "reference-images-v1",
+                                                          "display-precision-v1",
+                                                          "instanced-placements-v1",
+                                                          "drawing-sheets-v1",
+                                                          "component-parameters-v1",
+                                                          "terrain-v1",
+                                                          "presentation-v1",
+                                                          "edge-styles-v1"};
+    const bool presentation = edgeStyles || features == std::set<QString>{"scene-v2",
+                                                                          "topology-v1",
+                                                                          "curves-v1",
+                                                                          "guides-v1",
+                                                                          "groups-v1",
+                                                                          "face-colors-v1",
+                                                                          "components-v1",
+                                                                          "tags-v1",
+                                                                          "materials-v1",
+                                                                          "assets-v1",
+                                                                          "display-units-v1",
+                                                                          "edge-appearance-v1",
+                                                                          "component-glue-v1",
+                                                                          "hosted-components-v1",
+                                                                          "texture-mapping-v1",
+                                                                          "model-style-v1",
+                                                                          "saved-scenes-v1",
+                                                                          "section-planes-v1",
+                                                                          "section-scenes-v1",
+                                                                          "annotations-v1",
+                                                                          "editable-text-v1",
+                                                                          "solar-study-v1",
+                                                                          "reference-images-v1",
+                                                                          "display-precision-v1",
+                                                                          "instanced-placements-v1",
+                                                                          "drawing-sheets-v1",
+                                                                          "component-parameters-v1",
+                                                                          "terrain-v1",
+                                                                          "presentation-v1"};
     const bool terrain = presentation || features == std::set<QString>{
         "scene-v2", "topology-v1", "curves-v1", "guides-v1", "groups-v1", "face-colors-v1",
         "components-v1", "tags-v1", "materials-v1", "assets-v1", "display-units-v1",
@@ -347,27 +401,36 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (presentation ? "json-v30" : terrain ? "json-v29" : componentParameters ? "json-v28" : drawingSheets ? "json-v27" : instancedPlacements ? "json-v26" : displayPrecision ? "json-v25" : referenceImages ? "json-v24" : solarStudy ? "json-v23" : editableText ? "json-v22"
-                                   : annotations ? "json-v21"
-                              : sectionScenes ? "json-v20"
-                              : sections ? "json-v19"
-                              : savedScenes ? "json-v18"
-                              : modelStyle ? "json-v17"
-                              : textureMapping ? "json-v16"
-                              : hostedComponents ? "json-v15"
-                              : componentGlue  ? "json-v14"
-                              : edgeAppearance ? "json-v13"
-                              : displayUnits   ? "json-v12"
-                              : assets         ? "json-v11"
-                              : materials      ? "json-v10"
-                              : tags           ? "json-v9"
-                              : components     ? "json-v8"
-                              : faceColors     ? "json-v7"
-                              : groups         ? "json-v6"
-                              : guides         ? "json-v5"
-                              : curves         ? "json-v4"
-                              : topology       ? "json-v3"
-                                               : "json-v2") ||
+        chunk["encoding"] != (edgeStyles            ? "json-v31"
+                              : presentation        ? "json-v30"
+                              : terrain             ? "json-v29"
+                              : componentParameters ? "json-v28"
+                              : drawingSheets       ? "json-v27"
+                              : instancedPlacements ? "json-v26"
+                              : displayPrecision    ? "json-v25"
+                              : referenceImages     ? "json-v24"
+                              : solarStudy          ? "json-v23"
+                              : editableText        ? "json-v22"
+                              : annotations         ? "json-v21"
+                              : sectionScenes       ? "json-v20"
+                              : sections            ? "json-v19"
+                              : savedScenes         ? "json-v18"
+                              : modelStyle          ? "json-v17"
+                              : textureMapping      ? "json-v16"
+                              : hostedComponents    ? "json-v15"
+                              : componentGlue       ? "json-v14"
+                              : edgeAppearance      ? "json-v13"
+                              : displayUnits        ? "json-v12"
+                              : assets              ? "json-v11"
+                              : materials           ? "json-v10"
+                              : tags                ? "json-v9"
+                              : components          ? "json-v8"
+                              : faceColors          ? "json-v7"
+                              : groups              ? "json-v6"
+                              : guides              ? "json-v5"
+                              : curves              ? "json-v4"
+                              : topology            ? "json-v3"
+                                                    : "json-v2") ||
         integer(chunk["offset"]) != 0 || documentSize > documentLimit || documentSize > total)
         throw std::runtime_error("Invalid document chunk range or encoding");
     const auto payload = bytes.mid(16 + length, documentSize);
@@ -414,27 +477,36 @@ Document decodeContainer(const QByteArray &bytes) {
     QJsonParseError payloadError;
     const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
     const auto payloadTree = parsedPayload.object();
-    if (payloadTree["version"] != (presentation ? 30 : terrain ? 29 : componentParameters ? 28 : drawingSheets ? 27 : instancedPlacements ? 26 : displayPrecision ? 25 : referenceImages ? 24 : solarStudy ? 23 : editableText ? 22
-                                   : annotations ? 21
-                                   : sectionScenes ? 20
-                                   : sections ? 19
-                                   : savedScenes ? 18
-                                   : modelStyle ? 17
-                                   : textureMapping ? 16
-                                   : hostedComponents ? 15
-                                   : componentGlue  ? 14
-                                   : edgeAppearance ? 13
-                                   : displayUnits   ? 12
-                                   : assets         ? 11
-                                   : materials      ? 10
-                                   : tags           ? 9
-                                   : components     ? 8
-                                   : faceColors     ? 7
-                                   : groups         ? 6
-                                   : guides         ? 5
-                                   : curves         ? 4
-                                   : topology       ? 3
-                                                    : 2))
+    if (payloadTree["version"] != (edgeStyles            ? 31
+                                   : presentation        ? 30
+                                   : terrain             ? 29
+                                   : componentParameters ? 28
+                                   : drawingSheets       ? 27
+                                   : instancedPlacements ? 26
+                                   : displayPrecision    ? 25
+                                   : referenceImages     ? 24
+                                   : solarStudy          ? 23
+                                   : editableText        ? 22
+                                   : annotations         ? 21
+                                   : sectionScenes       ? 20
+                                   : sections            ? 19
+                                   : savedScenes         ? 18
+                                   : modelStyle          ? 17
+                                   : textureMapping      ? 16
+                                   : hostedComponents    ? 15
+                                   : componentGlue       ? 14
+                                   : edgeAppearance      ? 13
+                                   : displayUnits        ? 12
+                                   : assets              ? 11
+                                   : materials           ? 10
+                                   : tags                ? 9
+                                   : components          ? 8
+                                   : faceColors          ? 7
+                                   : groups              ? 6
+                                   : guides              ? 5
+                                   : curves              ? 4
+                                   : topology            ? 3
+                                                         : 2))
         throw std::runtime_error("Document chunk encoding mismatch");
     if (assets && payloadTree["assetStorage"] != "external")
         throw std::runtime_error("Packaged document requires external asset chunks");
