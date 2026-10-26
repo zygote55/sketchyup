@@ -749,10 +749,11 @@ Recorded 2026-10-25 for the batch engine, branch `feat/r099b-batch-engine`.
   - A broken path names the missing scenes or the scene without a camera.
   - The R099.a plan limits apply: one to four presets, two to thirty-two keyframes and 240 planned
     frames.
-  - Output budget: the per-frame bound is the animation export's, `min(64 MiB, w·h·5 + 1 MiB) +
-    1 MiB`. It is summed over every preset's frames and refused up front with the remaining budget,
-    and each written frame is checked again.
-  - Disk: free space must cover the estimate, the capture and a 256 MiB reserve (`QStorageInfo`).
+  - Output budget: checked per frame, as §4 says. A frame that would pass 2 GiB fails the batch
+    with the remaining budget in the message, writes nothing, and keeps the finished frames. There
+    is no up-front refusal on the worst-case bound (changed in review; see contradiction 3).
+  - Disk: free space must cover the worst-case bound `min(64 MiB, w·h·5 + 1 MiB) + 1 MiB` per
+    frame, capped at the 2 GiB budget, plus the capture and a 256 MiB reserve (`QStorageInfo`).
   - Blender: a named executable must be absolute and exist; with none named, `blender` must be on
     `PATH`.
   - Destination: it must not exist, must not be a link, must be absolute, and its parent must
@@ -801,9 +802,10 @@ Recorded 2026-10-25 for the batch engine, branch `feat/r099b-batch-engine`.
     64 MiB cap, and each frame's hash verified. Budget ≤ 180 s: **met**.
   - *Whole batch, 240 frames × 4 presets at 1024×768 / 32 samples.* **Not run.** Extrapolated from
     the per-frame time: 960 frames at about 26 s is roughly seven hours on this machine. The actual
-    output would be about 0.65 GB (per frame, 0.47 MB PNG and 0.21 MB JSON). The engine's own estimate
-    is 5.75 MiB per frame, so the batch estimates at 5.4 GiB and is **refused up front** by the 2 GiB
-    budget. A single preset at 240 frames estimates at 1.35 GiB and is accepted, as the probe showed.
+    output would be about 0.65 GB (per frame, 0.47 MB PNG and 0.21 MB JSON). The worst-case bound
+    is 5.75 MiB per frame (5.4 GiB for the batch); as first written the engine refused the batch up
+    front on that bound. In review the up-front refusal was removed, so the batch now starts and the
+    2 GiB budget is checked per frame.
   - *Store.* 8 pending, 16 retained and 2 GiB, as §5 requires. Enforced and tested.
   - *Manifests.* The per-frame JSON is about 207 KB. Its diagnostics and result repeat the worker's
     attempt log (about 67 KB each, three copies), which the animation export shares. The 1 MiB bound
@@ -816,9 +818,10 @@ Recorded 2026-10-25 for the batch engine, branch `feat/r099b-batch-engine`.
   2. Capture is over its 500 ms row at 92,500 triangles, in a Debug build, and the cost is the
      native encoding that doubles as the capture hash. Options: measure a release build and keep
      the row; or derive the provenance hash from a cheaper digest. Not changed here.
-  3. The 2 GiB output budget refuses the §5 whole-batch case (240 × 4 at 1024×768), although the
-     real output is about 0.65 GB. The per-frame estimate of about 5 bytes per pixel is the animation
-     export's, and it overestimates the PNG about eight-fold. Options: estimate from measured
-     per-frame sizes, or keep the conservative bound. Not changed here.
+  3. *Resolved in review.* An up-front refusal on the animation export's worst-case bound (about
+     5 bytes per pixel, about eight times a real PNG) refused the §5 whole-batch case (240 × 4 at
+     1024×768), although the real output is about 0.65 GB. §4 asks for a per-frame check, so the
+     up-front refusal was removed; the per-frame check, with the remaining budget in its message,
+     is tested with a lowered limit (`setOutputLimit`).
   4. A SIGTERM during a batch leaves the job `Running` until the store is next opened, which then
      marks it `Interrupted`. Ctrl-C (SIGINT) cancels cleanly; a hard kill does not.

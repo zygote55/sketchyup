@@ -392,19 +392,8 @@ int main(int argc, char **argv) {
 
             const auto overBudget =
                 plan({first, second}, {24, 25, 107}); // 1 + 2 x 107 + 25 frames.
-            auto large = overBudget;
-            for (auto &preset : large.presets)
-                preset.settings = {4096, 4096, 32, 0, RenderEngine::Cycles};
             check(PresentationCapture::capture(doc, overBudget).frames().size() == 240,
                   "A two-keyframe path plans 240 frames");
-            rejects(
-                [&] {
-                    batch.start(PresentationCapture::capture(doc, large), refused,
-                                blender(files.filePath("count-budget")));
-                },
-                "A batch over the output budget is refused");
-            check(!QFileInfo::exists(refused) && jobs.jobs().size() == count,
-                  "An output budget refusal leaves no folder and no job");
 
             batch.setFreeSpaceProbe([](const QString &) { return qint64(0); });
             rejects(
@@ -494,6 +483,39 @@ int main(int argc, char **argv) {
             wait(batch);
             check(jobs.jobs().at(id).state == PresentationJobState::Canceled,
                   "A canceled running batch ends canceled");
+        }
+
+        // The output budget is checked per frame, not refused on the worst-case PNG bound.
+        {
+            PresentationJobStore jobs(files.filePath("budget"), limits);
+            PresentationExport batch(jobs);
+            batch.setFreeSpaceProbe([](const QString &) { return qint64(1) << 50; });
+            auto large = plan({first, second}, {24, 25, 107});
+            for (auto &preset : large.presets)
+                preset.settings = {4096, 4096, 32, 0, RenderEngine::Cycles};
+            const auto accepted =
+                batch.start(PresentationCapture::capture(doc, large), files.filePath("budget-large"),
+                            blender(files.filePath("count-budget-large"), 1));
+            check(batch.totalFrames() == 480,
+                  "A batch whose worst-case PNG bound passes 2 GiB still starts");
+            batch.cancel();
+            wait(batch);
+            check(jobs.jobs().at(accepted).state == PresentationJobState::Canceled,
+                  "The accepted large batch cancels cleanly");
+
+            const auto over = files.filePath("budget-over");
+            batch.setOutputLimit(1);
+            batch.start(PresentationCapture::capture(doc, plan(keyframes)), over,
+                        blender(files.filePath("count-budget-over")));
+            wait(batch);
+            check(batch.state() == PresentationJobState::Failed && batch.completedFrames() == 0 &&
+                      batch.message().contains("remain"),
+                  "A frame over the output budget fails the batch with the remaining budget");
+            check(!QFileInfo::exists(over + "/01-Draft/frames/frame-0001.png"),
+                  "The frame over the budget is not written");
+            check(QJsonDocument::fromJson(read(over + "/manifest.json")).object().value("state") ==
+                      "failed",
+                  "The manifest records the budget failure");
         }
 
         // Real Blender, when the explicit opt-in is set: one batch from one capture.

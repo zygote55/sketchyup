@@ -165,6 +165,7 @@ struct PresentationExport::Impl {
     std::shared_ptr<const PreparedRender> input;
     QTimer timer;
     std::function<qint64(const QString &)> freeSpace{defaultFreeSpace};
+    qint64 limit{outputLimit};
 
     Impl(PresentationExport &owner, PresentationJobStore &store) : owner(owner), store(store) {
         timer.setInterval(10);
@@ -432,10 +433,11 @@ struct PresentationExport::Impl {
                 {"diagnostics", finished->report()}};
             const auto metadata = QJsonDocument(record).toJson();
             const auto cost = qint64(result->png.size()) + metadata.size();
-            if (metadata.size() > metadataLimit || cost > outputLimit - bytes)
+            if (metadata.size() > metadataLimit || cost > limit - bytes)
                 throw std::runtime_error(
-                    QString("Batch output would exceed its 2 GiB budget; %1 MiB remain")
-                        .arg((outputLimit - bytes) / mib)
+                    QString("Batch output would exceed its %1 MiB budget; %2 MiB remain")
+                        .arg(limit / mib)
+                        .arg((limit - bytes) / mib)
                         .toStdString());
             writeNew(frameDirectory(preset) + "/" + name + ".png", result->png);
             writeNew(frameDirectory(preset) + "/" + name + ".json", metadata);
@@ -525,15 +527,11 @@ QString PresentationExport::start(PresentationCapture capture, QString output,
     const QFileInfo parent(target.absolutePath());
     if (!parent.isDir() || parent.isSymLink())
         throw std::runtime_error("Choose a new batch folder within an existing directory");
-    const auto frames = capture.frames().size();
-    const auto total = plannedBudget(plan, frames);
-    if (total > outputLimit)
-        throw std::runtime_error(
-            QString("This batch could write up to %1 MiB, over the 2048 MiB output budget (%2 MiB "
-                    "remain); reduce presets, frames or size")
-                .arg(total / mib)
-                .arg(outputLimit / mib)
-                .toStdString());
+    // The output budget is enforced per frame, with the remaining budget in the message (§4). The
+    // worst-case PNG bound is several times a real frame, so refusing a whole batch on it would
+    // refuse 240 frames x 4 presets at 1024x768, the §5 batch. The disk check still uses that
+    // bound, capped at the budget the batch can never pass.
+    const auto total = std::min(plannedBudget(plan, capture.frames().size()), impl.limit);
     const auto available = impl.freeSpace(parent.absoluteFilePath());
     const auto needed = total + qint64(capture.encoded().size()) + diskReserve;
     if (available < needed)
@@ -626,6 +624,7 @@ bool PresentationExport::done() const {
     return state == PresentationJobState::Completed || state == PresentationJobState::Failed ||
            state == PresentationJobState::Canceled || state == PresentationJobState::Interrupted;
 }
+void PresentationExport::setOutputLimit(qint64 bytes) { impl_->limit = bytes; }
 void PresentationExport::setFreeSpaceProbe(std::function<qint64(const QString &)> probe) {
     impl_->freeSpace = std::move(probe);
 }

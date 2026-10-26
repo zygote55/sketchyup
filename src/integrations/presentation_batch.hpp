@@ -46,8 +46,9 @@ class PresentationExport : public QObject {
     explicit PresentationExport(PresentationJobStore &store, QObject *parent = nullptr);
     ~PresentationExport() override;
     // Enqueues and starts a batch in a new output folder. Refusals (a broken destination, the
-    // output or disk budget, a missing Blender, another running batch) throw before anything is
-    // created. Returns the job ID.
+    // disk budget, a missing Blender, another running batch) throw before anything is created.
+    // The 2 GiB output budget is checked per frame: a frame that would pass it fails the batch
+    // and keeps the finished frames. Returns the job ID.
     QString start(PresentationCapture capture, QString output, BlenderJob::Options options);
     // Resumes a stopped, failed or canceled batch from its stored capture. A frame counts as
     // done only when its files and the batch manifest agree; every other frame re-renders.
@@ -63,6 +64,8 @@ class PresentationExport : public QObject {
     bool done() const;
     // Free bytes under a directory. Defaults to the file system; tests replace it.
     void setFreeSpaceProbe(std::function<qint64(const QString &)> probe);
+    // The output budget in bytes. Defaults to 2 GiB; tests lower it.
+    void setOutputLimit(qint64 bytes);
   signals:
     void changed();
 
