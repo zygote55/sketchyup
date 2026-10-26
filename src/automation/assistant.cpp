@@ -56,13 +56,21 @@ QString phaseName(AssistantTask::Phase phase) {
 // measured offline before the baseline was re-pinned (ADR 0168, "Implementation notes
 // (R095.g)").
 bool assistantVisible(const QString &name) {
+    // ADR 0173 decision 13: the three presentation queries are visible; every camera path and
+    // render preset command, and every other presentation name, stays hidden from the provider.
     if (name == QStringLiteral("site.describe") || name == QStringLiteral("terrain.describe") ||
-        name == QStringLiteral("terrain.elevation_at"))
+        name == QStringLiteral("terrain.elevation_at") ||
+        name == QStringLiteral("camera_path.describe") ||
+        name == QStringLiteral("render_preset.describe") ||
+        name == QStringLiteral("presentation.describe"))
         return true;
     return !name.startsWith(QStringLiteral("drawing_")) &&
            !name.startsWith(QStringLiteral("component_parameter")) &&
            !name.startsWith(QStringLiteral("site.")) &&
-           !name.startsWith(QStringLiteral("terrain."));
+           !name.startsWith(QStringLiteral("terrain.")) &&
+           !name.startsWith(QStringLiteral("camera_path.")) &&
+           !name.startsWith(QStringLiteral("render_preset.")) &&
+           !name.startsWith(QStringLiteral("presentation."));
 }
 // R096.c: what the assistant reads of a query result. terrain.describe keeps the shape R095.g
 // measured: its `currentSources` (R096.c; up to 200 entries naming source ids no assistant tool
@@ -109,6 +117,21 @@ QString assistantDescription(const QString &name) {
             "Terrain surface height under 1-200 [x, y] points in model coordinates (world X and Y "
             "in metres, not site easting/northing). Each result has found and elevation (world Z, "
             "metres) with tile and face; off the terrain found is false and elevation is null.");
+    if (name == QStringLiteral("camera_path.describe"))
+        return QStringLiteral(
+            "One camera path by id: its keyframes (saved scene ids, with names and whether each is "
+            "missing or has no camera), timing (frames per second, transition and hold steps, not "
+            "seconds), the planned frame count and whether it is broken.");
+    if (name == QStringLiteral("render_preset.describe"))
+        return QStringLiteral(
+            "One render preset by id: its name and settings only (width and height in pixels, "
+            "samples, seed, engine cycles or eevee). A preset carries no environment.");
+    if (name == QStringLiteral("presentation.describe"))
+        return QStringLiteral(
+            "Read-only plan check for a batch: a camera path id, one to four render preset ids and "
+            "an optional video flag. Returns planned frames per preset, the worst-case output in "
+            "bytes against the 2 GiB limit, each preset's output folder, Blender availability and "
+            "every refusal reason. It renders nothing.");
     return {};
 }
 QJsonArray visibleInspectionCatalog() {

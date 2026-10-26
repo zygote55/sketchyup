@@ -29,7 +29,9 @@
 using namespace sketchy;
 // R086.e: the frozen corpus version this harness writes, and its native task lifetime.
 // R095.g: version 5, the v4 rules on the re-pinned assistant tool surface.
-constexpr int corpusVersion = 5;
+// R099.c: version 6, the v5 rules on the re-pinned assistant tool surface (three presentation
+// queries).
+constexpr int corpusVersion = 6;
 constexpr int corpusTaskSeconds = maximumTrustedStagingTtlSeconds;
 // The per-turn host budget and binding follow this marker; everything before it is the
 // static assistant instruction text that corpus v4 and v5 freeze as instructionsSha256.
