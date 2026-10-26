@@ -37,6 +37,13 @@ void validateMaterialAssets(const MaterialRecords &materials, const AssetRecords
             throw std::runtime_error(
                 "Material references an unknown asset; retain an explicit missing record");
 }
+void validateEdgeStrokeAssets(const ModelStyle &style, const AssetRecords &assets) {
+    if (style.edgeStroke && style.edgeStroke->texture &&
+        !assets.contains(style.edgeStroke->texture))
+        throw std::runtime_error(
+            "Edge texture references an unknown asset; retain an explicit missing record");
+}
+
 size_t assetBytes(const AssetPtr &asset) {
     return asset ? sizeof(AssetRecord) + asset->name.size() + asset->mediaType.size() + 64 +
                        (asset->payload ? asset->payload->bytes().size() : 0)

@@ -7,13 +7,14 @@
 #include "core/presentation.hpp"
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_sculpt.hpp"
-#include "core/terrain_stamp.hpp"
-#include "core/terrain_drape.hpp"
 #include "core/terrain_source_edit.hpp"
+#include "core/terrain_stamp.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
+#include "io/model_style_io.hpp"
 #include "io/presentation_io.hpp"
 #include "io/stl_export.hpp"
 #include "io/texture_image.hpp"
@@ -568,6 +569,32 @@ int main(int argc, char **argv) {
             narrow["renderPresets"] = presets;
             publishRejected("presentation",
                             QJsonDocument(narrow).toJson(QJsonDocument::Compact), "narrow-preset");
+        }
+        // R100.a: edge strokes at the bounds, with each named dash, and the rejected bounds.
+        {
+            const auto stroke = [](double width, double opacity, const char *dash,
+                                   const char *texture) {
+                return QJsonObject{
+                    {"width", width}, {"opacity", opacity}, {"dash", dash}, {"texture", texture}};
+            };
+            const auto bytes = [](const QJsonObject &object) {
+                return QJsonDocument(object).toJson(QJsonDocument::Compact);
+            };
+            publish("edge-style", bytes(stroke(2, 1, "solid", "0")), "solid-default");
+            publish("edge-style", bytes(stroke(8, .01, "dashDot", "42")), "bounds-and-texture");
+            publish("edge-style", bytes(stroke(1, .5, "dashed", "1")), "dashed");
+            publish("edge-style", bytes(stroke(3, .25, "dotted", "18446744073709551615")),
+                    "dotted-max-id");
+            publishRejected("edge-style", bytes(stroke(.5, 1, "solid", "0")), "width-below");
+            publishRejected("edge-style", bytes(stroke(8.5, 1, "solid", "0")), "width-above");
+            publishRejected("edge-style", bytes(stroke(2, 0, "solid", "0")), "opacity-zero");
+            publishRejected("edge-style", bytes(stroke(2, 1.5, "solid", "0")), "opacity-above");
+            publishRejected("edge-style", bytes(stroke(2, 1, "wavy", "0")), "unknown-dash");
+            publishRejected("edge-style", bytes(stroke(2, 1, "solid", "007")), "noncanonical-id");
+            publishRejected("edge-style", bytes(stroke(2, 1, "solid", "-1")), "negative-id");
+            publishRejected("edge-style",
+                            bytes(stroke(2, 1, "solid", "0")).replace("\"width\"", "\"wide\""),
+                            "unknown-field");
         }
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {
