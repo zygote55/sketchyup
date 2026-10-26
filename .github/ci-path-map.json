@@ -653,6 +653,7 @@
     "report_output": 21,
     "report_cli": 15,
     "report_schedule": 15,
-    "report_schedule_cli": 23
+    "report_schedule_cli": 23,
+    "report_mcp": 4
   }
 }

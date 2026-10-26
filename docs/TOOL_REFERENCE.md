@@ -262,6 +262,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `session.describe` | session.describe: shared versioned SketchyUp operation | `apiVersion`, `operation` |
 | `session.capabilities` | session.capabilities: shared versioned SketchyUp operation | `apiVersion`, `operation` |
 | `document.save` | document.save: shared versioned SketchyUp operation | `apiVersion`, `operation`, `documentId`, `expectedRevision` |
+| `report.schedule` | report.schedule: shared versioned SketchyUp operation | `apiVersion`, `operation`, `documentId`, `action` |
 | `document.describe` | document.describe: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `solar.describe` | solar.describe: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `reference_images.query` | reference_images.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
