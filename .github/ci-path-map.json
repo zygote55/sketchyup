@@ -168,6 +168,7 @@
         "src/io/presentation_io*",
         "src/core/presentation*",
         "src/core/render_settings*",
+      "src/automation/presentation*",
         "tests/presentation*",
         "tests/fixtures/presentation-v30.sketchyup",
         "docs/api/native-format-v1.json"
