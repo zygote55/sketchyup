@@ -1482,7 +1482,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1.5 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/sheet_export_input_tests
       - name: Actual Blender worker lifecycle
         run: |
-          SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^(blender_real|blender_handoff_real|animation_export_real|m7_presentation_real|gltf_import_real|stl_export_real|stl_import_real|obj_import_real|obj_export_real)$' --output-on-failure
+          SKETCHYUP_BLENDER_TEST=/usr/bin/blender ctest --test-dir build/dev -R '^(blender_real|blender_handoff_real|animation_export_real|presentation_export_real|m7_presentation_real|gltf_import_real|stl_export_real|stl_import_real|obj_import_real|obj_export_real)$' --output-on-failure
       - name: Reproducible M5 offline acceptance and recordings
         run: scripts/verify-m5-offline.sh build/dev "$PWD/build/m5-evidence" /usr/bin/blender
       - uses: actions/upload-artifact@v6
