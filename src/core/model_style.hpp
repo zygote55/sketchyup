@@ -1,10 +1,13 @@
 #pragma once
 #include "geometry/surface.hpp"
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace sketchy {
 enum class ModelStyleMode { Textured, Shaded, Monochrome, Wireframe, XRay };
@@ -50,6 +53,41 @@ inline EdgeDash parseEdgeDash(std::string_view code) {
         if (edgeDashCode(dash) == code)
             return dash;
     throw std::runtime_error("Choose solid, dashed, dotted or dashDot for the edge dash");
+}
+// The dash lengths in logical pixels, alternating on and off from the start of an edge (UX_DESIGN
+// §18.3): dashed 8 on and 4 off, dotted 2 and 3, dash-dot 8, 3, 2 and 3. Solid has no gaps.
+inline std::vector<double> edgeDashLengths(EdgeDash dash) {
+    switch (dash) {
+    case EdgeDash::Solid:
+        return {};
+    case EdgeDash::Dashed:
+        return {8, 4};
+    case EdgeDash::Dotted:
+        return {2, 3};
+    case EdgeDash::DashDot:
+        return {8, 3, 2, 3};
+    }
+    throw std::runtime_error("Unknown edge dash pattern");
+}
+// The on runs of a dash pattern along an edge of `length` logical pixels, as [start, end) pairs in
+// order. The first run starts at the edge's start, and a solid edge is one run.
+inline std::vector<std::pair<double, double>> edgeDashRuns(double length, EdgeDash dash) {
+    std::vector<std::pair<double, double>> runs;
+    if (!(length > 0))
+        return runs;
+    const auto lengths = edgeDashLengths(dash);
+    if (lengths.empty()) {
+        runs.emplace_back(0., length);
+        return runs;
+    }
+    double position = 0;
+    for (size_t i = 0; position < length; ++i) {
+        const double next = position + lengths[i % lengths.size()];
+        if (i % 2 == 0)
+            runs.emplace_back(position, std::min(next, length));
+        position = next;
+    }
+    return runs;
 }
 // The extended edge stroke (ADR 0174 §2), stored as the optional `edgeStroke` field of the style.
 // Its width uses profileWidth semantics. `texture` is a managed asset id, zero when none; a missing

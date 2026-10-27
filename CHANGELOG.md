@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Edge stroke drawing (R100.f1, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)):
+  `document.style` takes the optional edge stroke (width, opacity, dash and texture), one labelled
+  edit per control. While it is on, the profiles draw with its width, opacity and dash, and with its
+  texture tiled along each edge. A missing texture draws hatched in the warning colour, with a status
+  chip that opens the Styles tab. The Styles tab controls follow (R100.f2). A model saved with an edge
+  stroke is schema 31 and cannot be opened by SketchyUp 1.3.0.
+
 - Dynamic Components in SketchUp (.skp) files (R104.a, R104.c, R104.d, [ADR 0178](docs/decisions/0178-dynamic-live-component-feasibility.md)):
   a Dynamic Component's `dynamic_attributes` values are read as read-only properties
   `skp.dynamic_attributes.<key>`, at instance and definition level (a definition's values reach each of its

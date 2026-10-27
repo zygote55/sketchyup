@@ -459,6 +459,9 @@ class Window : public QMainWindow {
     int skpDeadlineSeconds_{120};
     ImportReportState skpImportReport_;
     QPushButton *skpReportChip_{};
+    // R100.f1 (UX_DESIGN §18.3): the edge texture chip, shown while the model's edge stroke names a
+    // texture that is missing. It opens the Styles tab.
+    QPushButton *edgeTextureChip_{};
     QAction *skpReportAction_{};
     void tool(Viewport::Tool tool, const QString &instruction);
     // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the

@@ -126,6 +126,8 @@ if(SKETCHYUP_BUILD_IFC)
   # R097.a (ADR 0171): IfcOpenShell as private shared libraries and the helper that links them.
   add_subdirectory(src/ifc)
 endif()
+# R109.a (ADR 0183): the helper process sandbox, shared by the file-parsing helpers. No dependency.
+add_subdirectory(src/sandbox)
 # R102.a (ADR 0176): the .skp helper. Built by default, with no Qt: the parser subset is plain
 # C++17, and the helper is the one executable that links it (decision 2).
 add_subdirectory(src/skp)
@@ -814,6 +816,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(skp_package_tests PRIVATE sketchyup_io sketchyup_skp)
     target_include_directories(skp_package_tests PRIVATE src tests)
     add_test(NAME skp_package COMMAND skp_package_tests)
+    # R109.a (ADR 0183): the sandbox library on its own (the kill default, the explicit errno entries, the
+    # Landlock grants and the injected failures), each check in a forked child.
+    add_executable(sandbox_tests tests/sandbox_tests.cpp)
+    target_link_libraries(sandbox_tests PRIVATE sketchyup_sandbox)
+    target_include_directories(sandbox_tests PRIVATE src tests)
+    add_test(NAME sandbox COMMAND sandbox_tests)
     # R102.a: the import through the helper, against the synthetic .skp fixtures (the .skp
     # format is a binary MFC archive; the fixtures' provenance is tests/fixtures/skp/SKP-SOURCE.txt).
     if(TARGET sketchyup-skp-worker)
@@ -830,6 +838,15 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       add_test(NAME skp_import COMMAND skp_import_tests)
       add_test(NAME skp_import_real COMMAND skp_import_tests --real)
       set_tests_properties(skp_import_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+      # R109.a/S1 (ADR 0183): the helper under its sandbox, against the same fixtures and against the
+      # unsandboxed run of the same code; the attack probes; the fail-closed refusals; the host's classes.
+      add_executable(skp_sandbox_tests tests/skp_sandbox_tests.cpp)
+      target_link_libraries(skp_sandbox_tests PRIVATE sketchyup_io sketchyup_skp sketchyup_sandbox)
+      target_include_directories(skp_sandbox_tests PRIVATE src tests)
+      target_compile_definitions(skp_sandbox_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      add_test(NAME skp_sandbox COMMAND skp_sandbox_tests)
+      set_tests_properties(skp_sandbox PROPERTIES TIMEOUT 600)
       # R102.b (ADR 0176 section 4): the import's mapping through the helper, against the fixtures and,
       # with SKETCHYUP_SKP_CORPUS, the owner's file (skipped, exit 77, when it is not on this machine).
       add_executable(skp_mapping_tests tests/skp_mapping_tests.cpp)
@@ -1309,7 +1326,7 @@ if(SKETCHYUP_BUILD_DESKTOP)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(WaylandClient REQUIRED IMPORTED_TARGET wayland-client)
   set(CMAKE_AUTOMOC ON)
-  add_library(sketchyup_desktop src/app/window_shortcuts.cpp src/app/window_extensions.cpp src/app/window_library.cpp src/app/viewport_measured.cpp src/app/window_measured.cpp src/app/window_dxf.cpp src/app/window_stl.cpp src/app/window_obj.cpp src/app/viewport_walk.cpp src/app/viewport_raster.cpp src/app/window_raster.cpp src/app/reference_images_panel.cpp src/app/viewport_reference_images.cpp src/app/solar_panel.cpp src/app/viewport_solar.cpp src/app/text_panel.cpp src/app/annotations_panel.cpp src/app/viewport_annotations.cpp src/app/scenes_panel.cpp src/app/sections_panel.cpp src/app/viewport_sections.cpp src/app/viewport_scenes.cpp src/app/styles_panel.cpp src/app/viewport_styles.cpp src/app/texture_editor.cpp src/app/texture_cache.cpp src/app/viewport_textures.cpp src/app/viewport_hosted.cpp src/app/window_hosted.cpp src/app/window_diagnostics.cpp src/app/viewport_orientation.cpp src/app/window_assistant.cpp src/app/window_sidebar.cpp src/app/keyboard_navigation.cpp src/app/focus_ring.cpp src/app/assistant_panel.cpp src/app/assistant_panel.hpp src/app/viewport_assistant.cpp src/app/render_jobs.cpp src/app/render_panel.cpp src/app/native_mcp.cpp src/app/inspection_service.cpp src/app/history_panel.cpp src/app/recovery_controller.cpp src/app/window_recovery.cpp src/app/window_import.cpp src/app/materials_panel.cpp src/app/viewport_materials.cpp src/app/entity_info_panel.cpp src/app/component_parameters_section.cpp src/app/parameter_value_field.cpp src/app/component_definition_section.cpp src/app/component_drivers_section.cpp src/app/formula_field.cpp src/app/viewport_parameters.cpp src/app/components_tab.cpp src/app/viewport_assembly.cpp src/app/organization_panel.cpp src/app/viewport_components.cpp src/app/viewport_groups.cpp src/app/viewport.cpp src/app/viewport_inference.cpp src/app/viewport_guides.cpp src/app/viewport_selection.cpp src/app/viewport_navigation.cpp src/app/viewport_push_pull.cpp src/app/viewport_booleans.cpp src/app/viewport_intersections.cpp src/app/viewport_sweep.cpp src/app/viewport_offset.cpp src/app/viewport_transform.cpp src/app/window.cpp src/app/window_units.cpp src/app/window_components.cpp src/app/tool_session.cpp src/app/inference_worker.cpp src/app/sheet_evaluation.cpp src/app/sheet_canvas.cpp src/app/sheet_tools.cpp src/app/sheet_items.cpp src/app/sheet_items.hpp src/app/sheet_item_info.cpp src/app/sheet_item_info.hpp src/app/sheets_tray.cpp src/app/sheet_workspace.cpp src/app/window_sheets.cpp src/app/line_icons.cpp src/app/window_narrow.cpp src/app/window_sheet_export.cpp src/app/sheet_export_dialog.cpp src/app/terrain_import_dialog.cpp src/app/terrain_preview.cpp src/app/window_terrain.cpp src/app/viewport_drawing_view.cpp src/app/collapsible_section.hpp src/app/sheet_text.hpp)
+  add_library(sketchyup_desktop src/app/window_shortcuts.cpp src/app/window_extensions.cpp src/app/window_library.cpp src/app/viewport_measured.cpp src/app/window_measured.cpp src/app/window_dxf.cpp src/app/window_stl.cpp src/app/window_obj.cpp src/app/viewport_walk.cpp src/app/viewport_raster.cpp src/app/window_raster.cpp src/app/reference_images_panel.cpp src/app/viewport_reference_images.cpp src/app/solar_panel.cpp src/app/viewport_solar.cpp src/app/text_panel.cpp src/app/annotations_panel.cpp src/app/viewport_annotations.cpp src/app/scenes_panel.cpp src/app/sections_panel.cpp src/app/viewport_sections.cpp src/app/viewport_scenes.cpp src/app/styles_panel.cpp src/app/viewport_styles.cpp src/app/texture_editor.cpp src/app/texture_cache.cpp src/app/viewport_textures.cpp src/app/viewport_hosted.cpp src/app/window_hosted.cpp src/app/window_diagnostics.cpp src/app/viewport_orientation.cpp src/app/window_assistant.cpp src/app/window_sidebar.cpp src/app/keyboard_navigation.cpp src/app/focus_ring.cpp src/app/assistant_panel.cpp src/app/assistant_panel.hpp src/app/viewport_assistant.cpp src/app/render_jobs.cpp src/app/render_panel.cpp src/app/native_mcp.cpp src/app/inspection_service.cpp src/app/history_panel.cpp src/app/recovery_controller.cpp src/app/window_recovery.cpp src/app/window_import.cpp src/app/materials_panel.cpp src/app/viewport_materials.cpp src/app/entity_info_panel.cpp src/app/component_parameters_section.cpp src/app/parameter_value_field.cpp src/app/component_definition_section.cpp src/app/component_drivers_section.cpp src/app/formula_field.cpp src/app/viewport_parameters.cpp src/app/components_tab.cpp src/app/viewport_assembly.cpp src/app/organization_panel.cpp src/app/quantities_job.cpp src/app/quantities_panel.cpp src/app/quantities_dialogs.cpp src/app/viewport_components.cpp src/app/viewport_groups.cpp src/app/viewport.cpp src/app/viewport_inference.cpp src/app/viewport_guides.cpp src/app/viewport_selection.cpp src/app/viewport_navigation.cpp src/app/viewport_push_pull.cpp src/app/viewport_booleans.cpp src/app/viewport_intersections.cpp src/app/viewport_sweep.cpp src/app/viewport_offset.cpp src/app/viewport_transform.cpp src/app/window.cpp src/app/window_units.cpp src/app/window_components.cpp src/app/tool_session.cpp src/app/inference_worker.cpp src/app/sheet_evaluation.cpp src/app/sheet_canvas.cpp src/app/sheet_tools.cpp src/app/sheet_items.cpp src/app/sheet_items.hpp src/app/sheet_item_info.cpp src/app/sheet_item_info.hpp src/app/sheets_tray.cpp src/app/sheet_workspace.cpp src/app/window_sheets.cpp src/app/line_icons.cpp src/app/window_narrow.cpp src/app/window_sheet_export.cpp src/app/sheet_export_dialog.cpp src/app/terrain_import_dialog.cpp src/app/terrain_preview.cpp src/app/window_terrain.cpp src/app/viewport_drawing_view.cpp src/app/collapsible_section.hpp src/app/sheet_text.hpp)
   qt_add_resources(sketchyup_desktop control_arrows PREFIX "/sketchyup" BASE resources/controls FILES resources/controls/control-arrow-up-light.png resources/controls/control-arrow-up-light@2x.png resources/controls/control-arrow-up-dark.png resources/controls/control-arrow-up-dark@2x.png resources/controls/control-arrow-down-light.png resources/controls/control-arrow-down-light@2x.png resources/controls/control-arrow-down-dark.png resources/controls/control-arrow-down-dark@2x.png)
   target_link_libraries(sketchyup_desktop PUBLIC sketchyup_shortcuts sketchyup_providers sketchyup_render sketchyup_io Qt6::Widgets Qt6::OpenGLWidgets Qt6::PrintSupport Qt6::Network)
   target_link_libraries(sketchyup_desktop PRIVATE PkgConfig::WaylandClient)
@@ -1386,6 +1403,10 @@ if(SKETCHYUP_BUILD_DESKTOP)
     endif()
     sketchyup_native_fixture(organization_input_tests tests/organization_input_tests.cpp)
     target_link_libraries(organization_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    # R101.e2 (UX_DESIGN §19): the Quantities section, offscreen through the main window.
+    sketchyup_native_fixture(quantities_input_tests tests/quantities_input_tests.cpp)
+    target_link_libraries(quantities_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(quantities_input_tests PRIVATE tests)
     sketchyup_native_fixture(group_input_tests tests/group_input_tests.cpp)
     target_link_libraries(group_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(component_input_tests tests/component_input_tests.cpp)
@@ -1560,6 +1581,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   target_link_libraries(style_input_tests PRIVATE sketchyup_desktop Qt6::Test)
   sketchyup_native_fixture(style_viewport_tests tests/style_viewport_tests.cpp)
   target_link_libraries(style_viewport_tests PRIVATE sketchyup_desktop Qt6::Test)
+  # R100.f1 (UX_DESIGN §18.3): the edge stroke's dash, opacity, texture tiling and missing-texture hatch.
+  sketchyup_native_fixture(edge_stroke_viewport_tests tests/edge_stroke_viewport_tests.cpp)
+  target_link_libraries(edge_stroke_viewport_tests PRIVATE sketchyup_desktop Qt6::Test)
   sketchyup_native_fixture(texture_input_tests tests/texture_input_tests.cpp)
     target_link_libraries(texture_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     target_compile_definitions(texture_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
