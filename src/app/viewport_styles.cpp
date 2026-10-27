@@ -60,20 +60,81 @@ void Viewport::drawStyleGround(const QMatrix4x4 &transform) {
     shader_->setUniformValue("groundPass", 0);
     gl_->glDepthMask(GL_TRUE);
 }
+namespace {
+
+// The stroke the profiles draw with (UX_DESIGN §18.3). While the edge stroke is on it replaces
+// Profile width, so the two never disagree. With it off, the profiles are drawn as they were
+// before.
+struct ProfileStroke {
+    double width;
+    double opacity;
+    EdgeDash dash;
+    Id texture;   // the edge texture asset, zero for none
+    bool missing; // the texture is named, and its asset has no bytes (ADR 0174 section 5)
+};
+
+ProfileStroke profileStroke(const ModelStyle &style, const AssetRecords &assets) {
+    if (!style.edgeStroke)
+        return {style.profileWidth, 1, EdgeDash::Solid, 0, false};
+    const auto &stroke = *style.edgeStroke;
+    const auto found = assets.find(stroke.texture);
+    const bool missing =
+        stroke.texture && (found == assets.end() || !found->second || !found->second->payload);
+    return {stroke.width, stroke.opacity, stroke.dash, stroke.texture, missing};
+}
+
+// How a stroke fragment is shaded: the colour and opacity of the edge, the edge texture tiled
+// along the edge, or a hatch in the warning colour where the texture cannot be drawn.
+enum class EdgeMode { Plain, Texture, Hatch };
+
+} // namespace
+
 void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
     const auto &style = doc_.style();
     if (!style.profiles) {
-        stats_.profileEdges = 0;
+        stats_.profileEdges = stats_.profileSegments = 0;
         return;
     }
+    const auto stroke = profileStroke(style, doc_.assets());
     if (profilesDirty_ || profileMatrix_ != transform || profilesGpu_.origin != renderOrigin_ ||
         !profilesGpu_.buffer.isCreated()) {
         std::vector<Vertex> vertices;
-        stats_.profileEdges = 0;
+        stats_.profileEdges = stats_.profileSegments = 0;
         const auto camera = renderCamera();
         auto clipPoint = [&](Vec3 p) {
             p = p - renderOrigin_;
             return transform * QVector4D(float(p.x), float(p.y), float(p.z), 1);
+        };
+        // One stroke quad over a visible span p to q, in front of the camera. `from` and `to` are
+        // the span's distances along the edge in logical pixels; the texture and the hatch read
+        // them.
+        auto quad = [&](Vec3 p, Vec3 q, double from, double to, std::array<float, 3> color) {
+            const auto cp = clipPoint(p), cq = clipPoint(q);
+            if (cp.w() <= 0 || cq.w() <= 0)
+                return;
+            const double dx = (cq.x() / cq.w() - cp.x() / cp.w()) * renderWidth() / 2;
+            const double dy = (cq.y() / cq.w() - cp.y() / cp.w()) * renderHeight() / 2;
+            const double length = std::hypot(dx, dy);
+            if (length < 1e-6)
+                return;
+            const float x = float(-dy / length * stroke.width / renderWidth());
+            const float y = float(dx / length * stroke.width / renderHeight());
+            auto vertex = [&](Vec3 point, double along, float sign) {
+                Vertex v{point.x, point.y, point.z, color[0], color[1], color[2]};
+                v.a = v.ba = float(stroke.opacity);
+                // The edge texture is bound as the back image: the shader samples it on both sides.
+                v.backImage = stroke.texture;
+                v.u = sign * x;
+                v.v = sign * y;
+                // Logical pixels along the edge and across the stroke, read without perspective.
+                v.bu = float(along);
+                v.bv = float((sign + 1) / 2 * stroke.width);
+                return v;
+            };
+            for (const auto &v : {vertex(p, from, -1), vertex(p, from, 1), vertex(q, to, 1),
+                                  vertex(p, from, -1), vertex(q, to, 1), vertex(q, to, -1)})
+                vertices.push_back(v);
+            ++stats_.profileSegments;
         };
         auto append = [&](Vec3 a, Vec3 b, std::array<float, 3> color,
                           const std::vector<SectionCut> &cuts) {
@@ -113,18 +174,21 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
             const double length = std::hypot(dx, dy);
             if (length < 1e-6)
                 return;
-            const float x = float(-dy / length * style.profileWidth / renderWidth());
-            const float y = float(dx / length * style.profileWidth / renderHeight());
-            auto vertex = [&](Vec3 p, float sign) {
-                Vertex v{p.x, p.y, p.z, color[0], color[1], color[2]};
-                v.u = sign * x;
-                v.v = sign * y;
-                return v;
-            };
-            for (const auto &v : {vertex(a, -1), vertex(a, 1), vertex(b, 1), vertex(a, -1),
-                                  vertex(b, 1), vertex(b, -1)})
-                vertices.push_back(v);
             ++stats_.profileEdges;
+            if (stroke.dash == EdgeDash::Solid) {
+                quad(a, b, 0, length, color);
+                return;
+            }
+            // A dash run is a span of the visible edge. Its world ends follow from its screen
+            // distance: screen position is linear in the screen fraction sigma, and sigma relates
+            // to the world parameter t by t = sigma w0 / (w1 - sigma (w1 - w0)) (w0, w1: clip w).
+            const double w0 = ca.w(), w1 = cb.w();
+            auto pointAt = [&](double distance) {
+                const double sigma = distance / length;
+                return a + (b - a) * (sigma * w0 / (w1 - sigma * (w1 - w0)));
+            };
+            for (const auto &[from, to] : edgeDashRuns(length, stroke.dash))
+                quad(pointAt(from), pointAt(to), from, to, color);
         };
         for (const auto &[id, cache] : bodyCaches_) {
             if (cache->alpha == 0 || !cache->record || !cache->sectionError.isEmpty())
@@ -181,8 +245,53 @@ void Viewport::drawStyleProfiles(const QMatrix4x4 &transform) {
     }
     // Expand each edge into a screen-space quad; width does not depend on the
     // driver's supported GL line widths or device pixel ratio.
+    // The texture mode follows the frame: the texture may still be loading.
+    EdgeMode mode = EdgeMode::Plain;
+    if (stroke.texture) {
+        if (stroke.missing) {
+            mode = EdgeMode::Hatch;
+        } else if (textureImages_.contains(stroke.texture)) {
+            mode = EdgeMode::Texture;
+        } else {
+            // Nothing is drawn in place of a texture that is still decoding or uploading. Only
+            // bytes the decoder refused are hatched.
+            const auto snapshot = textureCache_.snapshot();
+            const auto found = doc_.assets().find(stroke.texture);
+            const TextureCache::Entry *entry = snapshot && found != doc_.assets().end()
+                                                   ? TextureCache::find(*snapshot, found->second)
+                                                   : nullptr;
+            if (!entry || entry->image)
+                return;
+            mode = EdgeMode::Hatch;
+        }
+    }
+    // Opacity blends the stroke over the faces; the framebuffer keeps its own alpha.
+    const bool translucent = mode == EdgeMode::Texture || stroke.opacity < 1;
+    if (translucent) {
+        gl_->glEnable(GL_BLEND);
+        gl_->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
+                                 GL_ONE_MINUS_SRC_ALPHA);
+        gl_->glDepthMask(GL_FALSE);
+    }
+    const auto warning = colors_.warning;
     shader_->setUniformValue("screenStroke", 1);
+    shader_->setUniformValue("edgeMode", int(mode));
+    shader_->setUniformValue(
+        "edgeHatchColor",
+        QVector3D(float(warning.redF()), float(warning.greenF()), float(warning.blueF())));
     draw(profilesGpu_, GL_TRIANGLES);
+    shader_->setUniformValue("edgeMode", 0);
     shader_->setUniformValue("screenStroke", 0);
+    if (translucent) {
+        gl_->glDisable(GL_BLEND);
+        gl_->glDepthMask(GL_TRUE);
+    }
 }
+
+bool Viewport::edgeTextureMissing() const {
+    const auto &style = doc_.style();
+    return style.edgeStroke && style.edgeStroke->texture &&
+           profileStroke(style, doc_.assets()).missing;
+}
+
 } // namespace sketchy

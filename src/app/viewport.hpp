@@ -409,6 +409,8 @@ class Viewport : public QOpenGLWidget {
         size_t cachedBodies{}, placementMeshes{}, sharedPlacements{};
         unsigned contextGeneration{}, glError{};
         size_t meshTriangles{}, profileEdges{};
+        // R100.f1: the stroke quads of the profiles, one per dash run (an undashed edge is one).
+        size_t profileSegments{};
         // R095.e2: contour segments uploaded in the last rebuild, and terrain surfaces built.
         size_t contourSegments{}, terrainSurfaces{};
         // R096.f1 (benchmark instrumentation): the last rebuild of the scene's caches and the last
@@ -435,6 +437,9 @@ class Viewport : public QOpenGLWidget {
     void setSynchronousFrameTiming(bool enabled) { synchronousFrameTiming_ = enabled; }
     bool texturesPending() const { return textureCache_.pending(); }
     QString textureSummary() const;
+    // R100.f1 (UX_DESIGN §18.3): the model's edge stroke names a texture whose asset has no bytes.
+    // The status chip shows while this holds, and the stroke draws hatched.
+    bool edgeTextureMissing() const;
     // The projection/units label never overlaps the editing-context chips. The
     // owner registers them; geometry is read from them whenever the label is placed.
     void setContextOverlay(QWidget *breadcrumb, QWidget *banner);

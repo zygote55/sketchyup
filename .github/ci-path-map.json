@@ -239,6 +239,11 @@
       "areas": ["build", "native"]
     },
     {
+      "why": "R100.f1 (ADR 0174 section 10, UX_DESIGN §18.3): the edge stroke's viewport drawing (dash runs, opacity, texture tiling and the missing-texture hatch), its status chip and the document.style edits. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/app/viewport_styles*", "src/app/viewport_textures*", "tests/edge_stroke_viewport*", "tests/model_style*", "src/core/model_style*", "src/io/model_style_io*"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
       "paths": [
         "tests/**"

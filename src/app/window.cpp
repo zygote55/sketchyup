@@ -403,6 +403,16 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     skpReportChip_->hide();
     QObject::connect(skpReportChip_, &QPushButton::clicked, this, &Window::showSkpImportReport);
     bottomLayout->addWidget(skpReportChip_);
+    // R100.f1 (UX_DESIGN §18.3): the edge texture chip, the SketchUp chip's own lifetime rules. It
+    // opens the Styles tab through its View action, as the menu does.
+    edgeTextureChip_ = new QPushButton("⚠ Edge texture missing · Show in Styles");
+    edgeTextureChip_->setObjectName("edgeTextureChip");
+    edgeTextureChip_->setCursor(QCursor(Qt::PointingHandCursor));
+    edgeTextureChip_->setMaximumHeight(24);
+    edgeTextureChip_->hide();
+    QObject::connect(edgeTextureChip_, &QPushButton::clicked, this,
+                     [this] { findChild<QAction *>("view.styles")->trigger(); });
+    bottomLayout->addWidget(edgeTextureChip_);
     auto *renderChip = new QPushButton;
     bottomLayout->addWidget(renderChip);
     render_ = new RenderPanel(doc_, *viewport_, *modelTabs, *renderChip, *this);
@@ -1625,6 +1635,8 @@ void Window::sync() {
                                          unitName(doc_.displayUnits()).toLower());
     }
     viewport_->refresh();
+    // R100.f1: the edge texture chip shows while the model's stroke names a missing texture.
+    edgeTextureChip_->setVisible(viewport_->edgeTextureMissing());
     // An open export or print dialog checks the changed document again (R092.b).
     if (sheetExport_)
         sheetExport_->documentChanged();
