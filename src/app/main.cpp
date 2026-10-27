@@ -155,6 +155,7 @@ int main(int argc, char **argv) {
                     {"benchmarkTriangles", parser.value("benchmark").toInt()},
                     {"modelStyle", sketchy::encodeModelStyle(window.document().style())},
                     {"profileEdges", double(stats.profileEdges)},
+                    {"profileSegments", double(stats.profileSegments)},
                     {"geometryUploads", double(stats.geometryUploads)},
                     {"uploadedBytes", double(stats.uploadedBytes)},
                     {"frames", double(stats.frames)},

@@ -41,6 +41,14 @@ void Viewport::syncTextures() {
             }
         }
     }
+    // The edge texture (R100.f1) is decoded while profiles draw it. A missing one has no bytes to
+    // decode and is drawn hatched instead.
+    if (doc_.style().profiles && doc_.style().edgeStroke && doc_.style().edgeStroke->texture) {
+        const auto texture = doc_.style().edgeStroke->texture;
+        if (const auto found = doc_.assets().find(texture);
+            found != doc_.assets().end() && found->second && found->second->payload)
+            assets.emplace(texture, found->second);
+    }
     textureCache_.request(assets);
     const auto published = textureCache_.snapshot();
     if (published != textureSnapshot_)
