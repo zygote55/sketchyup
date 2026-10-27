@@ -1493,7 +1493,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R104 — Investigate Dynamic and Live Component interoperability
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C03. **UX:** —.
+**Status:** Design accepted ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md), owner decisions 1–5, 7 and 9 approved 2026-10-27): Dynamic Component attributes imported as read-only metadata (R104.a, with self-authored fixtures), Live Components labelled service-dependent with a no-network test (R104.c), and the public wording (R104.d) next; formula mapping (R104.b) deferred indefinitely. **Track:** Interchange. **Scope:** C03. **UX:** —.
 
 **Requires:** [R094](#r094), [R102](#r102); milestone gate rule above.
 
