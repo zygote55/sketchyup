@@ -112,6 +112,18 @@ int main(int argc, char** argv) {
             check(r.report["code"] == "tooLarge", "the oversize refusal for " + std::string(name) + " says " +
                                                       jstr(r.report["message"]));
         }
+        // A file the helper cannot open is unreadable, never reported as oversize.
+        {
+            const auto missing = temp.path() + QString("/%1.missing").arg(name);
+            for (const std::vector<QString> &arguments :
+                 {std::vector<QString>{"--import", missing, "--dry-run"},
+                  std::vector<QString>{"--probe", missing}}) {
+                const auto r = run(arguments);
+                check(r.exitCode == 3 && r.report["code"] == "unreadable",
+                      "a missing input is refused as unreadable (" + arguments.front().toStdString() +
+                          "), not " + jstr(r.report["code"]));
+            }
+        }
         // S6: a truncated file.
         {
             bool read;
