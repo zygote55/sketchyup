@@ -23,8 +23,11 @@
 namespace sketchyup::skp {
 namespace {
 
+// On failure `code` is "tooLarge" for a file over the limit and "unreadable" for one that cannot
+// be opened or read, so a denied open is never reported as an oversize file.
 bool readFile(const std::string& path, std::vector<std::uint8_t>& out, std::uint64_t sizeLimit,
-              std::string& problem) {
+              std::string& problem, std::string& code) {
+  code = "unreadable";
   std::ifstream in(path, std::ios::binary);
   if (!in) {
     problem = "The file could not be opened: " + path;
@@ -34,6 +37,7 @@ bool readFile(const std::string& path, std::vector<std::uint8_t>& out, std::uint
   const std::uint64_t size = static_cast<std::uint64_t>(in.tellg());
   in.seekg(0, std::ios::beg);
   if (size > sizeLimit) {
+    code = "tooLarge";
     problem = "The file is " + std::to_string(size) + " bytes; the limit is " +
               std::to_string(sizeLimit) + " bytes.";
     return false;
@@ -85,11 +89,11 @@ int versionMajor(const std::string& version) {
 
 std::vector<std::uint8_t> readWholeFile(const std::string& path, std::uint64_t limit) {
   std::vector<std::uint8_t> out;
-  std::string problem;
-  if (!readFile(path, out, limit, problem)) {
+  std::string problem, code;
+  if (!readFile(path, out, limit, problem, code)) {
     // A missing file is a refusal the same way a bad header is.
     JsonOut json;
-    json.beginObject().field("status", "refused").field("code", "readFailed").field("message", clip(problem, 256)).endObject();
+    json.beginObject().field("status", "refused").field("code", code).field("message", clip(problem, 256)).endObject();
     std::fputs(("R " + json.str() + "\n").c_str(), stdout);
     std::fflush(stdout);
     std::exit(3);
@@ -222,10 +226,10 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
 
   progress.phase("read");
   std::vector<std::uint8_t> bytes;
-  std::string problem;
-  if (!readFile(options.input, bytes, options.sizeLimitBytes, problem)) {
+  std::string problem, code;
+  if (!readFile(options.input, bytes, options.sizeLimitBytes, problem, code)) {
     JsonOut json;
-    json.beginObject().field("status", "refused").field("code", "tooLarge").field("message", clip(problem, 256)).endObject();
+    json.beginObject().field("status", "refused").field("code", code).field("message", clip(problem, 256)).endObject();
     progress.line("R " + json.str());
     return 3;
   }

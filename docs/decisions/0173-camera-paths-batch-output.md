@@ -922,6 +922,8 @@ Recorded 2026-10-26 for branch `feat/r099c-video-commands`, on top of R099.b.
      implemented. A Blender without H.264 refuses the video. The owner chooses among MPEG-4
      Part 2 in MP4 (`mpeg4`, lossy, plays everywhere), FFV1 in MKV (`ffv1`, lossless), and no
      video fallback.
+     **Decided by the owner on 2026-10-27:** MPEG-4 Part 2 in MP4, offered only as an explicit
+     choice when H.264 is missing (UX_DESIGN §17.12, choice 1). R099.d builds it.
   2. **Early refusal.** A Blender without H.264 is found only after every frame has rendered.
      A probe at batch start would refuse before any frame. The brief placed the refusal at
      run time, so no probe was built, and a long batch can finish before the refusal.
