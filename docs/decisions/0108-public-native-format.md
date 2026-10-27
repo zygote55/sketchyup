@@ -604,3 +604,13 @@ document. A schema-30 or older root refuses `edgeStroke`, and a saved scene's st
 same rule. A document without an edge stroke still writes its lower schema. The read range is
 1 to 31. SketchyUp 1.3.0 and 1.2.0 refuse a schema-31 file unchanged with an
 `Unsupported container field` error, as they refuse schema 30.
+
+**Schema 32 addendum: material texture size (R100.b2).** 2026-10-27. The public schema advances to
+**sketchyup-document-v32** under container version 2; see
+[custom styles](0174-custom-styles-asset-authoring.md) section 3. A document with a material that has a
+texture size writes schema 32, with `requiredFeatures` appending `material-texture-size-v1` after
+`edge-styles-v1`, and its document chunk uses `json-v32`. A material record's optional field
+`textureSize` is an object of exactly two fields, `width` and `height`, each a finite number in metres
+from 0.01 to 100. A schema-31 or older root refuses `textureSize`. A document without a sized material
+still writes its lower schema, byte for byte. The read range is 1 to 32. SketchyUp 1.3.0 and 1.2.0 refuse a
+schema-32 file unchanged with the `Unsupported container field` error, as they refuse schema 31.

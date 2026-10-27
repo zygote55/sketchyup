@@ -95,7 +95,12 @@ void requireMaterialRecord(const QByteArray &payload, const std::vector<CatalogD
     require(error.error == QJsonParseError::NoError && parsed.isObject(),
             "material record is not a JSON object");
     const auto record = parsed.object();
-    fields(record, {"name", "color", "opacity", "asset", "textureSize"});
+    // Every field is required except the texture size, written only when present (R100.b2).
+    const QStringList required{"name", "color", "opacity", "asset"};
+    require(record.size() == qsizetype(required.size()) + (record.contains("textureSize") ? 1 : 0),
+            "material record has missing or extra fields");
+    for (const auto &name : required)
+        require(record.contains(name), "material record has missing or extra fields");
     nonemptyText(text(record["name"], qsizetype(CatalogLimits::materialNameBytes)),
                  CatalogLimits::materialNameBytes);
     require(record["color"].isArray() && record["color"].toArray().size() == 3,

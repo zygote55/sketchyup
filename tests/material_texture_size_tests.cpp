@@ -372,11 +372,12 @@ void catalogCarriesSize() {
     const auto apart = importCatalogEntries(other, package, {"Brick"});
     check(apart.reusedMaterials == 0 && other.materials().size() == 2,
           "A material with a different size is not reused");
-    // The same name, colour, opacity, asset and size is reused.
+    // The same name, colour, opacity, asset and size is reused. A batch with only a reused entry
+    // is an empty edit, so the import also takes the new "Plain" entry.
     Document same;
     createMaterial(same, "Brick", {.6f, .3f, .2f}, 1, 0, TextureSize{.9, .9});
-    const auto reused = importCatalogEntries(same, package, {"Brick"});
-    check(reused.reusedMaterials == 1 && same.materials().size() == 1,
+    const auto reused = importCatalogEntries(same, package, {"Brick", "Plain"});
+    check(reused.reusedMaterials == 1 && same.materials().size() == 2,
           "A material with the same size is reused");
     check(!rejection([&] {
                CatalogBuilder bad(catalog_fixture::metadata());

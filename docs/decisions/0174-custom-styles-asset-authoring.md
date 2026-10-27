@@ -1176,6 +1176,8 @@ textures are compiled into the binary and JPEG does not compress under zstd.
    they do not reach the document. Closing this needs an owner decision: store a repeat size on the
    material (a schema change, with an ADR 0108 addendum), or apply the preset's size as a face mapping
    when the material is applied. This is the main open item of R100.b.
+   **Closed by R100.b2** (schema 32): the parent decided to store the size on the material, as
+   SketchUp does, and the preset's size is stored with it. See the R100.b2 implementation notes.
 2. **Byte stability on other Qt versions is not shown.** The fixtures were checked on Qt 6.11.2 and
    6.12.0. The declared minimum, Qt 6.8, was not run, so the pins may not hold there.
 3. **Library indices moved.** The group headings are disabled items, so Glass is now item 6, not 5.

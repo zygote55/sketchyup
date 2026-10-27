@@ -7479,6 +7479,29 @@
                                             "maximum": 1,
                                             "minimum": 0,
                                             "type": "number"
+                                        },
+                                        "textureSize": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "height": {
+                                                    "maximum": 100,
+                                                    "minimum": 0.01,
+                                                    "type": "number"
+                                                },
+                                                "width": {
+                                                    "maximum": 100,
+                                                    "minimum": 0.01,
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "width",
+                                                "height"
+                                            ],
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -7527,6 +7550,29 @@
                                             "maximum": 1,
                                             "minimum": 0,
                                             "type": "number"
+                                        },
+                                        "textureSize": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "height": {
+                                                    "maximum": 100,
+                                                    "minimum": 0.01,
+                                                    "type": "number"
+                                                },
+                                                "width": {
+                                                    "maximum": 100,
+                                                    "minimum": 0.01,
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "width",
+                                                "height"
+                                            ],
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ]
                                         }
                                     },
                                     "required": [

@@ -50,6 +50,12 @@ re-encode to a canonical object. Its seeds are four accepted strokes (the defaul
 with a texture, a dashed and a dotted stroke with the largest id) and eight rejected inputs (a
 width of 0.5 and of 8.5, an opacity of zero and of 1.5, an unknown dash, a non-canonical id, a
 negative id and an unknown field).
+One more covers the R100.b2 material texture size (`material-texture-size`; [ADR 0174 section 3](decisions/0174-custom-styles-asset-authoring.md#3-expanded-material-presets-decision-3)):
+the `textureSize` object of a schema-32 material, with its width and height in metres (0.01 to 100).
+The harness decodes each input twice and requires equal results; an accepted size must be within its
+bounds and re-encode to a canonical object. Its seeds are three accepted sizes (the two bounds
+together, a brick at 0.90 m, and a non-square wool tile at 0.27 by 0.28 m) and five rejected inputs (a width
+below 0.01, a height above 100, a string height, a missing height and an unknown field).
 One more covers the R097.b IFC conversion package decoder (`ifc-package`;
 [ADR 0171 section 1.6](decisions/0171-ifc-exchange-subset.md#16-process-isolation-decision-19)): the bounded,
 versioned container the isolated IFC helper writes and the application decodes (a manifest of at most 32 MiB,
