@@ -146,6 +146,23 @@ int main() {
         });
         check(doc.isCurrentSnapshot(beforeScope),
               "Invalid restored style is rejected before mutation");
+        // R100.f1 (UX_DESIGN §18.3): the dash runs in logical pixels, from the edge's start. A run
+        // is clipped to the edge, and a solid edge is one run.
+        auto runs = [](double length, EdgeDash dash) { return edgeDashRuns(length, dash); };
+        using Runs = std::vector<std::pair<double, double>>;
+        check(runs(30, EdgeDash::Solid) == Runs{{0, 30}}, "A solid edge is one run");
+        check(runs(30, EdgeDash::Dashed) == Runs{{0, 8}, {12, 20}, {24, 30}},
+              "Dashed is 8 on and 4 off, clipped at the end");
+        check(runs(10, EdgeDash::Dotted) == Runs{{0, 2}, {5, 7}},
+              "Dotted is 2 on and 3 off, with no run past the end");
+        check(runs(20, EdgeDash::DashDot) == Runs{{0, 8}, {11, 13}, {16, 20}},
+              "Dash-dot is 8, 3, 2, 3 and starts with a long run");
+        check(runs(0, EdgeDash::Dashed).empty() && runs(-1, EdgeDash::Solid).empty(),
+              "An edge with no length has no runs");
+        check(edgeDashLengths(EdgeDash::Dashed) == std::vector<double>{8, 4} &&
+                  edgeDashLengths(EdgeDash::Dotted) == std::vector<double>{2, 3} &&
+                  edgeDashLengths(EdgeDash::DashDot) == std::vector<double>{8, 3, 2, 3},
+              "The published dash lengths are the proposed ones");
         std::cout << "Model style validation, history, snapshots, proposals and scope passed\n";
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

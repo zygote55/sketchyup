@@ -12,19 +12,34 @@
 namespace sketchy {
 namespace {
 QJsonObject number() { return {{"type", "number"}}; }
+QJsonObject edgeStrokeSchema();
 QJsonObject modelStyleSchema() {
     const QJsonObject rgb{{"type", "array"}, {"minItems", 3}, {"maxItems", 3},
                           {"items", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}}};
     const QJsonObject flag{{"type", "boolean"}};
     const QJsonObject properties{
-        {"mode", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"textured", "shaded", "monochrome", "wireframe", "xray"}}}},
-        {"background", rgb}, {"ground", rgb}, {"front", rgb}, {"back", rgb}, {"edge", rgb},
-        {"groundVisible", flag}, {"gridVisible", flag}, {"axesVisible", flag}, {"edgesVisible", flag}, {"profiles", flag},
+        {"mode", QJsonObject{{"type", "string"},
+                             {"enum", QJsonArray{"textured", "shaded", "monochrome", "wireframe",
+                                                 "xray"}}}},
+        {"background", rgb},
+        {"ground", rgb},
+        {"front", rgb},
+        {"back", rgb},
+        {"edge", rgb},
+        {"groundVisible", flag},
+        {"gridVisible", flag},
+        {"axesVisible", flag},
+        {"edgesVisible", flag},
+        {"profiles", flag},
         {"groundHeight", QJsonObject{{"type", "number"}, {"minimum", -1e6}, {"maximum", 1e6}}},
         {"profileWidth", QJsonObject{{"type", "number"}, {"minimum", 1}, {"maximum", 8}}},
-        {"xrayOpacity", QJsonObject{{"type", "number"}, {"minimum", .01}, {"maximum", .95}}}};
+        {"xrayOpacity", QJsonObject{{"type", "number"}, {"minimum", .01}, {"maximum", .95}}},
+        {"edgeStroke", edgeStrokeSchema()}};
+    // edgeStroke is optional: a style without it is the 14-field record.
     QJsonArray required;
-    for (const auto &name : properties.keys()) required.append(name);
+    for (const auto &name : properties.keys())
+        if (name != "edgeStroke")
+            required.append(name);
     return {{"type", "object"}, {"properties", properties}, {"required", required}, {"additionalProperties", false}};
 }
 QJsonObject stableId(bool zero = false) {
@@ -32,6 +47,20 @@ QJsonObject stableId(bool zero = false) {
             {"pattern", zero ? "^(0|[1-9][0-9]*)$" : "^[1-9][0-9]*$"},
             {"maxLength", 20},
             {"description", "Canonical uint64 decimal string"}};
+}
+// The optional edge stroke (ADR 0174 section 2, schema 31). Once present, every field is required;
+// the texture is "0" for none.
+QJsonObject edgeStrokeSchema() {
+    const QJsonObject properties{
+        {"width", QJsonObject{{"type", "number"}, {"minimum", 1}, {"maximum", 8}}},
+        {"opacity", QJsonObject{{"type", "number"}, {"minimum", .01}, {"maximum", 1}}},
+        {"dash", QJsonObject{{"type", "string"},
+                             {"enum", QJsonArray{"solid", "dashed", "dotted", "dashDot"}}}},
+        {"texture", stableId(true)}};
+    return {{"type", "object"},
+            {"properties", properties},
+            {"required", QJsonArray{"width", "opacity", "dash", "texture"}},
+            {"additionalProperties", false}};
 }
 QJsonObject list(QJsonObject items, int minimum, int maximum) {
     return {{"type", "array"}, {"items", items}, {"minItems", minimum}, {"maxItems", maximum}};
