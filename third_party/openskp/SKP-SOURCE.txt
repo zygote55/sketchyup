@@ -29,10 +29,17 @@ What is vendored
   baker, tinygltf and flatbuffers. The exact file list is the SUBSET table in
   scripts/vendor-openskp.py, and VENDOR.txt gives the SHA-256 of every vendored file.
 
-Changes to the upstream files (MIT permits them; both are recorded in PATCHES.md)
+Changes to the upstream files (MIT permits them; all six are recorded in PATCHES.md)
   - src/parser.cpp: the four scene-builder wrappers that call the excluded scene baker are
     removed.
-  - src/internal.hpp: the umbrella include is replaced by the public headers the sources use.
+  - src/internal.hpp: the umbrella include is replaced by the public headers the sources use, and
+    RawDefinition gains the definition's attribute dictionaries.
+  - include/openskp/model.hpp: Definition gains attribute_dictionaries (the definition's own
+    dictionaries, as Instance has).
+  - src/model.cpp: definition() copies the raw dictionaries into Definition.
+  - src/geometry.cpp: collect_definitions reads a VFF definition's dictionaries from its entity base.
+  - src/legacy.cpp: the CComponentDefinition reader keeps its attribute container, and the definition
+    loop reads it.
 
 Not affiliated with Trimble
   OpenSKP is an independent, open-source implementation built by reverse engineering the
@@ -46,7 +53,7 @@ Where the code runs
 How the vendored copy is checked
   scripts/vendor-openskp.py fetch DIR     downloads the two pinned archives and checks them
   scripts/vendor-openskp.py check DIR     fails unless every vendored file equals the pinned
-                                          upstream file (with the two patches applied)
+                                          upstream file (with the patches applied)
   scripts/vendor-openskp.py pin           checks that VENDOR.txt, PATCHES.md and
                                           dependencies.json record these pins
   The CI "SKP parser, helper and import" job runs the first two on every run it selects.

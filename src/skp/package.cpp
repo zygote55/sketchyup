@@ -327,6 +327,8 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
         switch (attribute.kind) {
           case SkpPackageAttribute::Kind::String:
             json.field("type", "string").field("value", clip(attribute.text, SkpPackageLimits::stringBytes));
+            if (attribute.truncated)
+                json.field("truncated", true);
             break;
           case SkpPackageAttribute::Kind::Number:
             json.field("type", "number").field("value", attribute.number);
