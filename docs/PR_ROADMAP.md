@@ -1529,7 +1529,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R107 — Investigate and conditionally add maps/geolocation services
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C06. **UX:** —.
+**Status:** Design accepted ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md), owner 2026-10-27): R107.a (offline WGS84/UTM coordinates, the site's geographic record at schema 32, the solar "Use site location" action) next, then R107.b (user-downloaded 3DEP and GLO-30 GeoTIFF elevation import), R107.c (credits in exports) and R107.e (docs); R107.b2 (orthophoto placement) optional; R107.d (Nominatim geocoding) held. **Track:** Interchange. **Scope:** C06. **UX:** —.
 
 **Requires:** [R089](#r089), [R067](#r067), [R095](#r095); milestone gate rule above.
 
