@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Textured material presets (R100.b, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md) Q1):
+  the New material dialog's Local library gains a **Textured** group of fifteen presets, nine CC0
+  textures from Poly Haven and six generated ones. Creating a preset adds its texture and its material
+  in one undo step, and an identical texture already in the model is reused. Each preset shows its
+  source and licence. The six colour presets are unchanged. The Poly Haven notice is in
+  `THIRD_PARTY_NOTICES`. The preset's repeat size is not yet stored with the material (see the ADR's
+  implementation notes).
+
 - Quantities report engine (R101.a, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
   a pure counting pass over the materialized document, with the counting rules for shared
   components, nested placements, hidden content, mirrored transforms, invalid solids and terrain.
