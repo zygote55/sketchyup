@@ -152,6 +152,9 @@ class Window : public QMainWindow {
     // The printer and paper Print uses; tests point it at a PDF file.
     QPrinter *sheetPrinter();
     void libraryDialog(bool templates);
+    // R100.f3 (UX_DESIGN §18.5, §18.1): File > Asset catalogs…, and File > Export asset catalog….
+    void catalogDialog();
+    void exportCatalogDialog();
     void extensionsDialog();
     // R099.d2 (UX_DESIGN §17.1): Camera > Presentations…, the dialog on its Camera paths tab.
     void presentationsDialog();

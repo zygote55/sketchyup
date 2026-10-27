@@ -42,13 +42,16 @@ QString georeferenceLine(const QJsonObject &report) {
         return QStringLiteral("not representable; the project axes were kept");
     return QStringLiteral("the project axes were kept");
 }
-// One proportional segment bar (the accounting identity), 100 units total.
-void addSegmentBar(QVBoxLayout *into, qint64 a, qint64 b, qint64 c) {
+} // namespace
+
+// One proportional segment bar (the accounting identity), 100 units total. The catalog report
+// (R100.f3) shares it; `objectName` names the bar for that report.
+void addSegmentBar(QVBoxLayout *into, qint64 a, qint64 b, qint64 c, const QString &objectName) {
     const qint64 total = a + b + c;
     if (total <= 0)
         return;
     auto *bar = new QFrame;
-    bar->setObjectName("ifcReportBar");
+    bar->setObjectName(objectName);
     auto *layout = new QHBoxLayout(bar);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(1);
@@ -64,6 +67,8 @@ void addSegmentBar(QVBoxLayout *into, qint64 a, qint64 b, qint64 c) {
     }
     into->addWidget(bar);
 }
+
+namespace {
 QString unitsLine(const QJsonObject &report) {
     const QJsonObject units = report["units"].toObject();
     const QString name = units["lengthUnit"].toString();

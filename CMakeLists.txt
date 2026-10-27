@@ -1356,6 +1356,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog (camera paths and render
   # presets, non-modal) and its scene picker; the Camera menu opens it.
   target_sources(sketchyup_desktop PRIVATE src/app/presentations_dialog.cpp src/app/presentation_scene_picker.cpp src/app/window_presentations.cpp)
+  # R100.f3 (ADR 0174 section 8, UX_DESIGN 18.5 to 18.7): the Asset catalogs dialog, its
+  # missing-dependency report, the Export asset catalog dialog, and the File menu flow.
+  target_sources(sketchyup_desktop PRIVATE src/app/catalog_dialog.cpp src/app/catalog_report.cpp src/app/catalog_export_dialog.cpp src/app/window_catalog.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1649,6 +1652,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME presentation_input COMMAND presentation_input_tests)
     set_tests_properties(presentation_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                     TIMEOUT 600)
+    # R100.f3 (ADR 0174 sections 8 and 10, UX_DESIGN 18.5 to 18.7): the Asset catalogs dialog, its
+    # missing-dependency report and the Export asset catalog dialog, driven the way a person drives
+    # them. The catalog cases are in their own test functions; R100.f2 adds its style cases here.
+    add_executable(style_catalog_input_tests tests/style_catalog_input_tests.cpp)
+    target_link_libraries(style_catalog_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(style_catalog_input_tests PRIVATE tests)
+    target_compile_definitions(style_catalog_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME style_catalog_input COMMAND style_catalog_input_tests)
+    set_tests_properties(style_catalog_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                      TIMEOUT 600)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.

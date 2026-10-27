@@ -34,6 +34,16 @@
   a document without one is written as before. A geographic site record is schema 32 (R107.a), and the
   two features are independent. The schema-33 file is refused by SketchyUp 1.3.0 and 1.2.0 as schema 31 is.
 
+- Asset catalogs dialog (R100.f3, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md) §8,
+  [UX_DESIGN §18](docs/UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs)): File → **Asset catalogs…**
+  lists the catalogs in the library folder (Choose folder… is remembered) and any catalog opened with
+  Open catalog file…, with search and a Kind filter. Insert places the selected entries at the model's
+  origin, as one undo step, after the engine's dry run. Templates and entries whose textures are missing
+  or do not match their checksum are not inserted, and a refused insert opens a report that names the
+  dependency. File → **Export asset catalog…** writes the chosen components, materials and style to a
+  new `.sketchycat` file. Choose folder… does not change the default folder that MCP and the command line
+  read. Save report… is not yet available.
+
 - Quantities report engine (R101.a, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
   a pure counting pass over the materialized document, with the counting rules for shared
   components, nested placements, hidden content, mirrored transforms, invalid solids and terrain.
