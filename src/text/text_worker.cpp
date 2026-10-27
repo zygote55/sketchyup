@@ -8,7 +8,10 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
+#include <QTemporaryDir>
 #include <QThread>
+
+#include <csignal>
 namespace sketchy {
 namespace {
 void require(bool value, const char *message) {
@@ -184,9 +187,22 @@ TextGeometry runTextWorker(const TextGeometrySettings &settings, const TextWorke
     require(request.size() <= textWorkerRequestLimit, "Text worker request exceeds 32 KiB");
     const auto program = options.executable.isEmpty() ? executable() : options.executable;
     require(QFileInfo(program).isAbsolute(), "Text worker path must be absolute");
+    // R109 S3 (ADR 0183 section 4.2): the helper's home, cache, configuration and temporary
+    // directories are one empty directory that this call creates and removes, so the helper reads
+    // no file of the user's. The locale is C.UTF-8 whatever the user's: Qt logs a warning through
+    // the journal's socket for a locale it cannot load, and the sandbox refuses that socket.
+    QTemporaryDir privateDirectory;
+    require(privateDirectory.isValid(), "Text worker private directory could not be created");
     QProcess process;
     auto environment = QProcessEnvironment::systemEnvironment();
     environment.insert("QT_QPA_PLATFORM", "offscreen");
+    environment.insert("HOME", privateDirectory.path());
+    environment.insert("XDG_CACHE_HOME", privateDirectory.path());
+    environment.insert("XDG_CONFIG_HOME", privateDirectory.path());
+    environment.insert("XDG_DATA_HOME", privateDirectory.path());
+    environment.insert("TMPDIR", privateDirectory.path());
+    environment.insert("LANG", "C.UTF-8");
+    environment.insert("LC_ALL", "C.UTF-8");
     process.setProcessEnvironment(environment);
     process.setProgram(program);
     process.setProcessChannelMode(QProcess::SeparateChannels);
@@ -216,6 +232,13 @@ TextGeometry runTextWorker(const TextGeometrySettings &settings, const TextWorke
             if (process.state() == QProcess::NotRunning)
                 break;
         }
+        // ADR 0183 sections 4.6 and 7: a call the sandbox's policy does not allow kills the helper
+        // with SIGSYS, which QProcess reports as the exit code of a crash. That is a violation, not
+        // a crash of the parser.
+        if (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS)
+            throw std::runtime_error(
+                "sandboxViolation: the text helper was stopped by its sandbox for an "
+                "action its policy does not allow; no text was generated");
         require(process.exitStatus() == QProcess::NormalExit, "Text geometry worker crashed");
         QJsonParseError parse;
         const auto reply = QJsonDocument::fromJson(output, &parse);

@@ -1,3 +1,4 @@
+#include "automation/extension_sandbox_policy.hpp"
 #include "automation/extension_worker.hpp"
 #include <QCoreApplication>
 #include <QFile>
@@ -5,6 +6,11 @@
 #include <iostream>
 using namespace sketchy;
 int main(int argc, char **argv) {
+    // R109 S4 (ADR 0183 section 4.1): the sandbox is installed before Qt starts and before the
+    // request is read. A layer that cannot be installed refuses here, with exit 70 and nothing
+    // parsed.
+    if (const auto failure = applyExtensionSandbox())
+        return refuseExtensionSandbox(*failure);
     QCoreApplication app(argc, argv);
     try {
         if (argc != 1)

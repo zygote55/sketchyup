@@ -1,3 +1,4 @@
+#include "text/sandbox_policy.hpp"
 #include "text/text_worker.hpp"
 #include <QFile>
 #include <QGuiApplication>
@@ -5,6 +6,11 @@
 #include <iostream>
 using namespace sketchy;
 int main(int argc, char **argv) {
+    // R109 S3 (ADR 0183 section 4.1): the sandbox is installed before Qt starts and before the
+    // request is read. A layer that cannot be installed refuses here, with exit 70 and nothing
+    // parsed.
+    if (const auto failure = applyTextSandbox())
+        return refuseTextSandbox(*failure);
     qputenv("QT_QPA_PLATFORM", "offscreen");
     qputenv("QT_QPA_PLATFORMTHEME", "generic");
     qputenv("QT_IM_MODULE", "compose");

@@ -86,6 +86,8 @@ void testTableMatchesCLibrary() {
     check(matches("writev", SYS_writev), "writev");
     check(matches("close", SYS_close), "close");
     check(matches("fstat", SYS_fstat), "fstat");
+    check(matches("fstatfs", SYS_fstatfs), "fstatfs");
+    check(matches("eventfd2", SYS_eventfd2), "eventfd2");
     check(matches("lseek", SYS_lseek), "lseek");
     check(matches("openat", SYS_openat), "openat");
     check(matches("brk", SYS_brk), "brk");
