@@ -515,7 +515,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     }));
     file->addAction(
         action("file.importTerrain", "Import terrain…", {}, [this] { importTerrainDialog(); }));
-    // R100.f2 (UX_DESIGN §18.1): Import style… after Import terrain…; no default shortcut.
+    // R100.f3 (UX_DESIGN 18.1): Asset catalogs… after Import terrain…, with no default shortcut.
+    file->addAction(
+        action("file.assetCatalogs", "Asset catalogs…", {}, [this] { catalogDialog(); }));
+    // R100.f2 (UX_DESIGN §18.1): Import style… follows Asset catalogs…, which follows Import terrain….
     file->addAction(action("file.importStyle", "Import style…", {}, [this] { importStyleDialog(); }));
     setupTerrainActions();
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
@@ -529,7 +532,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.exportIfc", "Export IFC…", {}, [this] { exportIfc(); }));
     // R098.c2: Export STEP… after Export IFC… (the STEP twin of the IFC export screen).
     file->addAction(action("file.exportStep", "Export STEP…", {}, [this] { exportStep(); }));
-    // R100.f2 (UX_DESIGN §18.1): Export style… after Export STEP….
+    // R100.f3 (UX_DESIGN 18.1): Export asset catalog… after Export STEP…, with no default shortcut.
+    file->addAction(action("file.exportAssetCatalog", "Export asset catalog…", {},
+                           [this] { exportCatalogDialog(); }));
+    // R100.f2 (UX_DESIGN §18.1): Export style… follows Export asset catalog…, which follows Export STEP….
     file->addAction(action("file.exportStyle", "Export style…", {}, [this] { exportStyleDialog(); }));
     file->addSeparator();
     file->addAction(action("file.recovery", "Recover work…", {}, [this] { showRecovery(); }));

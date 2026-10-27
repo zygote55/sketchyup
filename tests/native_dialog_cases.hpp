@@ -1640,6 +1640,42 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          {},
          "Esc closes it. The model is empty here, so the editor's controls are disabled."});
+    // ------------------------------------------------------------ catalogs ----------
+    // R100.f3 (UX_DESIGN §18.1, §18.5 to §18.7): File > Asset catalogs… opens the modal dialog. No
+    // button is its default, so Enter in a field does nothing, and Esc closes it. The insert is off
+    // until an entry is selected. style_catalog_input_tests drives the list, the insert and the
+    // report.
+    add({"asset-catalogs",
+         "catalogs",
+         "Asset catalogs",
+         "File > Asset catalogs… (palette)",
+         fresh,
+         viaPalette("Asset catalogs…"),
+         named("catalogDialog"),
+         Enter::DefaultOnly,
+         "",
+         Return::Viewport,
+         {},
+         {},
+         {},
+         "Esc closes it. Insert is off until an entry that can be inserted is selected."});
+    // R100.f3 (UX_DESIGN §18.1, §18.6): File > Export asset catalog… writes a new file, so its
+    // default is Export to file…, which is on because the demo model has a component.
+    add({"export-asset-catalog",
+         "catalogs",
+         "Export asset catalog",
+         "File > Export asset catalog… (palette)",
+         fresh,
+         viaPalette("Export asset catalog…"),
+         named("catalogExportDialog"),
+         Enter::DefaultOnly,
+         "Export to file…",
+         Return::Viewport,
+         {},
+         {},
+         {},
+         "Esc cancels. An existing file is never replaced."});
+
     // ----------------------------------------------------------- exchange ----------
     // R097.e1, R098.a3, R098.c2, R102.c: the IFC, STEP and SketchUp exchange commands. The
     // offline fixture has no helper, so each command opens its "not installed" availability

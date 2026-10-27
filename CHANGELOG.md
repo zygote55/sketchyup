@@ -34,6 +34,16 @@
   `THIRD_PARTY_NOTICES`. The preset's repeat size is not yet stored with the material (see the ADR's
   implementation notes).
 
+- Asset catalogs dialog (R100.f3, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md) §8,
+  [UX_DESIGN §18](docs/UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs)): File → **Asset catalogs…**
+  lists the catalogs in the library folder (Choose folder… is remembered) and any catalog opened with
+  Open catalog file…, with search and a Kind filter. Insert places the selected entries at the model's
+  origin, as one undo step, after the engine's dry run. Templates and entries whose textures are missing
+  or do not match their checksum are not inserted, and a refused insert opens a report that names the
+  dependency. File → **Export asset catalog…** writes the chosen components, materials and style to a
+  new `.sketchycat` file. Choose folder… does not change the default folder that MCP and the command line
+  read. Save report… is not yet available.
+
 - Quantities report engine (R101.a, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
   a pure counting pass over the materialized document, with the counting rules for shared
   components, nested placements, hidden content, mirrored transforms, invalid solids and terrain.

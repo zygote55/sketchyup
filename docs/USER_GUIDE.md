@@ -632,6 +632,16 @@ not import exactly as they look in SketchUp.
 Dynamic Components and Live Components are Trimble's terms. SketchyUp is not affiliated with or endorsed by
 Trimble for them either.
 
+**File → Asset catalogs…** lists the `.sketchycat` catalogs in the catalogs folder, and any catalog
+you open with **Open catalog file…**. Pick entries and **Insert** places them at the model's origin,
+as one undo step. An entry that cannot be inserted says why: a template opens as a new model, and no
+command does that yet; an entry whose texture is missing or does not match its checksum is refused,
+and nothing from that catalog is inserted with it. A refused insert opens a report that names the
+entry and the dependency. **Choose folder…** changes the folder the dialog lists, and the choice is
+remembered. The MCP server and the command line still read only the default catalogs folder.
+**File → Export asset catalog…** writes the components, materials and style you choose to a new
+`.sketchycat` file. An existing file is never replaced, and the model is not changed.
+
 ## Getting models from online libraries
 
 SketchyUp does not connect to any online model library. It does not search one, sign in to one or
