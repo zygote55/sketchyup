@@ -3,9 +3,10 @@
 // shared report sheet (banner, what came in, the accounting identity with its bar, how it was
 // read, the grouped list, the footer), the refusal sheet, and the "not installed" / "cannot
 // start" information sheet. All reuse the shared ReportSheet.
-#include "app/report_sheet.hpp"
-#include "app/import_report.hpp"
 #include "app/ifc_availability.hpp"
+#include "app/import_report.hpp"
+#include "app/report_sheet.hpp"
+#include "io/import_refusal.hpp"
 #include <QJsonObject>
 #include <functional>
 namespace sketchy {
@@ -43,6 +44,10 @@ void showStepRefusal(QWidget *parent, const QString &fileName, const std::string
 void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string &code,
                     const QString &message, const QJsonObject &report);
 void showSkpUnavailable(QWidget *parent);
+// R105.a (ADR 0179 section 7.3): the named refusal for a downloaded file of a refused type (a ZIP
+// archive, COLLADA, USDZ or FBX): the reason names the format, the advice says what to do next; the
+// model is unchanged.
+void showImportRefusal(QWidget *parent, const QString &fileName, const ImportRefusal &refusal);
 // The one shared availability sheet (the screens refactor): the helper's own states with the
 // application's own words; the broken state shows the helper's own last log line at the bottom
 // of the message, so a person can act on it (ADR 0171 §16.6).

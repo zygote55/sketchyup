@@ -553,6 +553,30 @@ int main(int argc, char **argv) {
                                   "(it may be truncated)."),
                   "a truncated file is refused and named");
 
+            // R105.a (ADR 0179 section 7.3): a downloaded file of a refused type is named in the
+            // banner, with Import off. Each fixture is self-made
+            // (tests/fixtures/import-refusal/SOURCE.txt).
+            const QString refusalDir = QStringLiteral(SOURCE_DIR "/tests/fixtures/import-refusal/");
+            dialog.setFile(refusalDir + "wrapped-box.zip");
+            check(dialog.refused() && !go->isEnabled() && !banner->isHidden() &&
+                      banner->text() ==
+                          QString("✗ This is a ZIP archive. Extract it, then import the model file "
+                                  "inside it."),
+                  "a ZIP is refused in the dialog with its named reason: " +
+                      banner->text().toStdString());
+            dialog.setFile(refusalDir + "minimal.dae");
+            check(dialog.refused() && !go->isEnabled() &&
+                      contains(banner->text(), "COLLADA (.dae)") &&
+                      contains(banner->text(), ".skp"),
+                  "a COLLADA file is refused in the dialog, with the .skp advice: " +
+                      banner->text().toStdString());
+            dialog.setFile(refusalDir + "stub.usdz");
+            check(dialog.refused() && !go->isEnabled() && contains(banner->text(), "USDZ (.usdz)"),
+                  "a USDZ file is refused in the dialog: " + banner->text().toStdString());
+            dialog.setFile(refusalDir + "stub.fbx");
+            check(dialog.refused() && !go->isEnabled() && contains(banner->text(), "FBX (.fbx)") &&
+                      facts->text() == humanSize(QFile(refusalDir + "stub.fbx").size()),
+                  "an FBX file is refused in the dialog, and its facts show the size only");
             // Enter imports, Escape cancels.
             dialog.setFile(model);
             dialog.show();

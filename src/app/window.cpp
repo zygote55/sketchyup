@@ -470,7 +470,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.importGltf", "Import GLB/glTF…", {}, [this] {
         const auto path =
             QFileDialog::getOpenFileName(this, "Import GLB/glTF", {}, "glTF models (*.glb *.gltf)");
-        if (!path.isEmpty())
+        if (!path.isEmpty() && !refuseUnsupportedImport(path))
             importGltfPath(path);
     }));
     // R097.e1: IFC exchange (ADR 0171 §16). Import IFC… after Import GLB/glTF…;
@@ -497,7 +497,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.importFormline", "Import Formline…", {}, [this] {
         const auto path = QFileDialog::getOpenFileName(this, "Import Formline v1", {},
                                                        "Formline models (*.formline *.json)");
-        if (!path.isEmpty())
+        if (!path.isEmpty() && !refuseUnsupportedImport(path))
             importFormlinePath(path);
     }));
     file->addAction(

@@ -71,6 +71,10 @@ class Window : public QMainWindow {
     QJsonObject inspect(const QJsonObject &request);
     void demo();
     void openPath(const QString &path);
+    // R105.a (ADR 0179 section 7.3): a file the user picked that is a refused type (a ZIP archive,
+    // COLLADA, USDZ or FBX) is named and refused before any importer runs; true when the import
+    // must stop.
+    bool refuseUnsupportedImport(const QString &path);
     void importFormlinePath(const QString &path);
     void importGltfPath(const QString &path);
     void importObjPath(const QString &path, ObjImportOptions options);

@@ -1,0 +1,11 @@
+R105.a refusal fixtures: provenance (ADR 0179 section 8, V1).
+
+Every file here is self-made. None is a third-party model, and none was downloaded.
+Regenerate them with: python3 -I tests/fixtures/import-refusal/make_refusal_fixtures.py
+
+wrapped-box.zip  A ZIP (stored, fixed timestamps) holding box.skp, the repository's own
+                 synthetic fixture (tests/fixtures/skp/SKP-SOURCE.txt). It stands for a
+                 download that arrives wrapped.
+minimal.dae      A COLLADA 1.4.1 document with no geometry, written by hand.
+stub.usdz        A ZIP with one USD ASCII layer, "#usda 1.0", and no prims.
+stub.fbx         The FBX binary header and 16 null bytes, with no nodes.
