@@ -1295,3 +1295,101 @@ catalog dialog (R100.f3) are not in it.
   - No window-level test covers the chip's visibility or its click.
   - The Qt 6.8 reference build, the sanitizer job and the Wayland runs run only in CI.
   - The §9 budget for dash runs is unmeasured, as above.
+
+## Implementation notes (R100.f3)
+
+Recorded for branch `feat/r100f3-catalog-dialog`, on origin/main `eae946ad`.
+
+**Shape.** File → Asset catalogs… follows Import terrain…, and File → Export asset catalog… follows
+Export STEP…. Neither has a default shortcut. The Asset catalogs dialog (`src/app/catalog_dialog.*`)
+lists the library folder and any file the person opens, groups their entries with a state and a
+reason, and inserts the selection as one `catalog.import` batch. The missing-dependency report is
+`src/app/catalog_report.*`, and Export asset catalog is `src/app/catalog_export_dialog.*`. No engine,
+command or format changed. The dialog runs the session's own batch: `authoring::dryRun` for the check
+and `authoring::publish` for the insert.
+
+**Insert.** Each selection change runs `authoring::dryRun` on the batch, so Insert is on only when no
+selected entry is blocked and the dry run passes. A blocked entry is named in the reason line, which
+says how many others to deselect. Pressing Insert reads each catalog the selection uses again and runs
+the dry run again. A file that changed since the listing therefore refuses the insert, and the report
+says why. The batch has one `catalog.import` per catalog and one undo step. Its label is "Insert
+component “X”", "Insert material “X”", "Apply style “X”", or "Insert N entries from “Catalog”" (or
+"Insert N entries" when the selection spans catalogs). Components are placed at the root, which is the
+model's origin.
+
+**Batch form.** A catalog in the default library folder is named with `library`, as MCP does. Any other
+catalog, from a chosen folder or opened by hand, is sent as its bytes (`catalog`, base64url). The MCP
+schema caps that field at 64 KiB, but the desktop batch runs in process and does not check the schema,
+so a larger catalog inserts from the desktop. This is not measured with a large catalog (see the
+budgets below).
+
+**Reasons.** A dependency's state (missing, tampered, not importable, not earlier) comes from the
+reader's per-entry records, and the sentences and report words are made from it. The reader's own text
+is used only for an entry whose own hash or payload fails.
+
+**Report.** The accounting follows UX_DESIGN §16.5: `0 + refused + not inserted = requested`, with the
+banner, the counts, the bar and the legend, and the three groups (Needs your attention, Not inserted,
+Notices). Its two row actions return to the dialog: Select the other entries, and Remove “X” from
+selection. Deviations from the design:
+
+- The IFC report builder (`ImportReportFace`) has flat label and value rows and no row actions. The
+  catalog report therefore uses its own `QTreeWidget` on the shared `ReportSheet`, and reuses the IFC
+  report's accounting bar (`addSegmentBar`, now declared in `ifc_sheets.hpp` with an object name).
+- The bar fills with three colours, not with the solid, hatched and cross-hatched fills of §18.7. The
+  legend and the identity line carry the numbers in words, so no colour is the only carrier.
+- **Save report…** is not built. The mockup has it; **Copy report** is built.
+
+**Export.** The dialog builds the bytes with `exportCatalog`, which has no 192 KiB query cap, and writes
+them with `writeCatalog`, which publishes a new file only. An existing name is refused with the IFC
+export's wording before anything is written. A missing record refuses the export and names it. The
+mockup has no export-catalog screen, so the dialog's fields are the catalog's name, description,
+labels, version (default `1.0.0`) and licence identifier (default `LicenseRef-Unspecified`), the
+model's components and materials (all checked by default), the document style, and a note on what is
+not written (tags, scenes and loose geometry).
+
+**Folders (§18.8 gap 4).** Choose folder… is remembered as the preference `catalogFolder`. The batch,
+`catalog.library`, MCP and the CLI read only the default folder. The button's tooltip and the user guide
+say so. Opened files are listed for the life of the dialog and are not remembered.
+
+**Keyboard and text size.** The list is one Tab stop. Space toggles the current entry, and Ctrl+A selects
+the insertable entries that are visible. Enter on an entry inserts when Insert is on. The footer's Insert
+and Cancel are not automatic defaults, so Enter in the search field does nothing. While testing, Enter in
+the search field opened Choose folder…, because that button was an auto-default. Above 125% text, and
+when narrow, the list stacks above its details.
+
+**Tests.** `style_catalog_input_tests` (new) covers each path in the brief's test list: the File menu
+order and shortcuts, the folder choice and its memory, the grouped list and its states, a refused
+catalog, a file over 130 MiB, search and the Kind filter, the details pane, Insert off with its reason,
+templates refused, one undo step for one entry and for four, the keyboard path, a refused insert that
+reads the file again and opens the report (both row actions), Export asset catalog (nothing chosen, a
+new file that re-reads as two importable entries, an existing file refused) and 200% text. The fixtures
+come from `catalog_fixtures.hpp`. The audited cases `asset-catalogs` and `export-asset-catalog` are in
+the `catalogs` group, and both pass the offscreen audit with no uncovered ellipsis action. The suite is
+registered in the four native display lines of `native.yml` and in `ci-path-map.json`.
+
+**Run locally.** `style_catalog_input_tests` passed offscreen at 1× and at `QT_SCALE_FACTOR=2`, and
+`native_accessibility_audit --dialogs-keyboard=catalogs` passed offscreen. `ifc_export_dialog_tests`,
+`step_export_dialog_tests` and `step_import_dialog_tests` passed offscreen, since they share the report
+bar. The X11 and Wayland runs need Xvfb or Weston, which this machine does not have, so they run only in
+CI.
+
+**Not measured.** The §9 budgets: an insert of a large (130 MiB) catalog, and the dry run that runs on
+each selection change, which is not debounced. The desktop's inline form copies the catalog bytes for
+each dry run, so a large catalog may stall the selection. The fixtures are small.
+
+**Gaps against the design:**
+
+- The neutral result (the model already has the entries) is written, but no test runs it.
+- The engine's document-level refusal shown as "Insert is off: …" is not tested, since no fixture
+  produces one.
+- The report's keyboard rows (Up, Down, Right, Left, Home, End) rely on the tree's defaults and are not
+  tested. The accessible names of the report's rows are not checked.
+- The stacking rule for a narrow dialog is in the code but not tested. At 200% the dialog's minimum width
+  is above the rule's 900 px, so the suite checks only the text-size path.
+- Templates are listed and refused. No command opens a catalog template as a new model (R100.d gap 3).
+- Placement is at the origin only (UX_DESIGN §18.8 gap 6). Component definitions shared by two entries are
+  stored in each entry (R100.d note).
+
+**Contradictions.** None with the ADR decisions. The brief cites "ADR 0174 §6.4" for the report. ADR 0174
+has no §6.4. The report's layout is the import report of UX_DESIGN §16.5, and that section cites the
+§6.4 component, which is a UX_DESIGN section, not an ADR one.
