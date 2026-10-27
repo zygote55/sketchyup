@@ -1985,3 +1985,177 @@ with a batch running. R099.d builds these.
 | ![resume](mockups/presentation/resume.png) | Failed, interrupted and canceled batches: the Resume wording | 17.6, 17.8 |
 | ![results](mockups/presentation/results.png) | Results: the presets, a video not written, and the stills grid | 17.7 |
 | ![broken](mockups/presentation/broken.png) | Refused: a path with a missing scene and a scene without a camera | 17.8 |
+
+## 18. Styles, edge strokes and asset catalogs
+
+Status: **approved by the owner on 2026-10-27**, with every 18.9 choice as recommended. This section designs the desktop side of the R100 styles and catalogs: the style library, the import and export of `.sketchystyle` files, the edge stroke controls, the textured presets in the Materials library, the asset catalog dialog and its missing-dependency report ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md) §8, decision 8; owner decision 11 asks for it before R100.f). The engine slices R100.a, R100.c, R100.d and R100.e are merged. R100.b, the textured preset data, is not, so 18.4 designs how the presets are shown without naming them. This section designs what a person sees of the merged engine work, and it adds no C++.
+
+Each part answers one bullet of ADR §8: 18.1 the library location, names and shortcuts; 18.2 the style import and export flow; 18.3 the edge stroke controls and the missing texture at the pointer; 18.4 the textured presets in the Materials library; 18.5 the asset catalog dialog and its report tree; 18.6 the refusals; 18.7 keyboard, accessibility and text size. 18.8 lists the engine and command gaps the design found, and 18.9 the open questions for the owner.
+
+The mockups are `mockups/styles.html` (all screens, with notes) or `mockups/styles.html?screen=<name>` (`menu`, `styles`, `texture`, `import`, `refused`, `export`, `save`, `materials`, `catalog`, `report`, `viewport`), drawn in the light theme of `src/app/theme.hpp`. Add `&text=200` for 200 % text. Every name in them is a placeholder. The textured preset list, its textures and their licences are open question Q1 of ADR 0174, so no preset or texture is named here. The numbers are illustrative.
+
+The existing surfaces this builds on are the R062 Styles tab (`styles_panel.cpp`), the Materials tab and its **New material** dialog (`materials_panel.cpp`), and the component library's **Insert library component** dialog (`window_library.cpp`), whose folder, refresh and search controls this section reuses.
+
+### 18.1 Where the libraries live
+
+- **Styles tab, not a new panel.** View → Model styles opens the R062 Styles tab in the Tray. It keeps its display controls and gains two sections under them: **Edge stroke** (18.3) and **Style library**. In the narrow layouts it is reached through More panels, as now.
+- **File menu, four entries, next to their siblings.** **Import style…** and **Asset catalogs…** after Import terrain…; **Export style…** and **Export asset catalog…** after Export STEP…. Nothing else in the menu moves. There is no Styles menu.
+- **Nothing is reachable only by the mouse.** A library row's context menu offers the same commands as its buttons, and Ctrl+K lists the four File entries by name.
+- **Names.** Styles tab: "Style library", "Edge stroke", "Apply to model", "Save to library…", "Choose folder…", "Refresh". Dialogs: "Import style", "Export style", "Save style to library", "Asset catalogs", "Export asset catalog". Catalog entries are inserted with "Insert component", "Insert material", "Insert N entries" or "Apply style".
+- **No default shortcuts.** Every plain letter in 4.2 is a tool, and the Ctrl keys near these commands are in use (Ctrl+J is the Assistant and Ctrl+K the command search). The shortcut editor can assign one (N05), and no conflict is introduced.
+- **The Components tab does not change.** Catalog entries are inserted from the Asset catalogs dialog, so the R079 component library and the catalogs never mix.
+- **Folders.** Each library has one folder, shown in its dialog. The desktop default for styles is `styles` under the application data folder, and for catalogs it is `catalogs` (the R100.d folder, which `catalog.library` also lists). **Choose folder…** changes it and the choice is remembered in preferences, as the component library's is (owner question 1).
+
+### 18.2 Style import and export
+
+- **Import style… (File).** The system chooser comes first (filters: `*.sketchystyle` and All files). Then the **Import style** dialog (screen `import`). The left column shows the file's facts, read from the file: name, description, the display settings (14), the edge stroke in words ("2.0 px · 60 % · dashed"), and the texture with its state ("stored in the file"). A preview draws the stroke's own settings, not a render. The right column offers two outcomes as radio buttons: **Apply to this model** (the default) and **Save to the style library**. The one primary button names the chosen outcome. Nothing changes until it is pressed, and Esc cancels.
+- **Apply.** One labelled undo step, "Apply style “Name”", as ADR 0068 requires. A style equal to the model's current style is not an error. The dialog closes, and the status bar says "This model already has this style. Nothing changed." (the engine's no-op refusal, shown as a neutral result).
+- **Save to the library.** The dialog asks for a file name, pre-filled and checked against the library folder before anything is written. The name rule is the R100.d catalog rule (1 to 64 characters; letters, digits, spaces, dots, underscores and hyphens; starting and ending with a letter, digit, underscore or hyphen). A name that is taken is refused in the dialog (screen `save`), with a free suggestion. The file is then written as a new file, never over an existing one.
+- **Apply from the library.** The Styles tab's **Apply to model** button applies the selected library style at once, as one undo step. The status line says what changed: "Applied “Style A”: edge stroke on, 3 settings changed. Undo: Apply style “Style A”." Applying is one step from undo, so it needs no second confirmation (owner question 4).
+- **Export style… (File).** The **Export style** dialog (screen `export`) lists what the file will hold: the display settings, the edge stroke, and the texture with its stored state. It also lists what a style never carries (materials, tags, components, scenes), with counts and the way to carry them (an asset catalog). **Export to file…** opens the system Save dialog (`*.sketchystyle`) with no overwrite prompt. A name that exists is refused with the message of 18.6 and nothing is written. The same save dialog serves **Save to library…** in the Styles tab.
+- **Library list.** Each row has a sample of the stroke (drawn from the stored width, opacity and dash; a textured style shows its texture tile when the texture decodes), the name, the settings in words, and one state: **✓ Stored**, **⚠ Texture missing from file** (listed, cannot be applied) or **✕ Cannot read** with the reason (not selectable). Search matches names and descriptions. **Refresh** re-scans the folder within the bounded scan limits of ADR 0132 (4,096 entries, 128 candidates, 256 MiB) and reports how many files it skipped and why.
+
+### 18.3 The edge stroke controls, and what the viewport shows
+
+The **Edge stroke** section of the Styles tab (screen `styles`):
+
+- **Use an edge stroke** (a check box, off by default). Off: profiles draw as they do now, at Profile width. On: the stroke applies. Turning it on is one labelled edit, "Turn on edge stroke", which copies the current profile width into the stroke width. Turning it off, or **Reset model style**, removes the stroke in one labelled edit, so the record returns to its 14 fields.
+- **Width**, 1 to 8 px, in the unit and step of Profile width. Edit: "Set edge width 2.5 px".
+- **Opacity**, 1 to 100 % (stored as 0.01 to 1). Edit: "Set edge opacity 60 %".
+- **Dash**, a list of the four named patterns (Solid, Dashed, Dotted, Dash-dot). Edit: "Set edge dash Dashed". The proposed dash lengths are 8 px on and 4 off (dashed), 2 and 3 (dotted), and 8, 3, 2, 3 (dash-dot), in logical pixels and scaled with the display; R100.f checks them at 1× and 2×.
+- **Texture**, a list of None and the model's PNG and JPEG assets. A missing asset is listed with a warning word and cannot be chosen. Edit: "Set edge texture “Name”".
+- **Saved in schema 31** appears as a caption whenever the stroke is on: "Saved in schema 31. SketchyUp 1.3.0 cannot open it." This is the consequence in ADR decision 2, and it is stated where the person turns the stroke on.
+- **Colors and details…** keeps colours, ground height and X-ray opacity. Its **Profile width (px)** is dimmed, with "Set by the edge stroke", while the stroke is on.
+
+**A missing texture at the pointer.** The Texture row always states its state in words: an amber field reading "⚠ Edge texture 2 · Missing", and a caption saying how the edges draw. Hovering the field, or hovering its row in the list, shows a tooltip beside the pointer: "Edge texture 2 is missing from this model (asset 4). Edges that use it draw hatched until it is restored. No other texture is used." Keyboard focus on the row shows the same text, and it is the accessible description. The tooltip adds the reason. It never carries the only state (screen `texture`).
+
+**What the viewport draws (R100.f; nothing draws the stroke yet, screen `viewport`).**
+
+- Profiles keep their screen-space width in logical pixels and the edge colour, now with the stroke's **opacity**, blended over the faces, and its **dash**. Soft and hidden edges are not drawn, as now.
+- **Dash** needs segment geometry along each profile. The current profile triangles cannot dash, so this is R100.f work (18.8).
+- **Texture** is tiled along each visible edge at the texture's own size in logical pixels and clipped to the stroke width. The texture carries its colour, so the edge colour is not multiplied into it, and the opacity applies to its alpha.
+- **Missing texture.** The edge draws **hatched** in the warning colour, which is the §7 rule "hatch, not hue" for things that are not what they say. While the model has one, the status bar shows the chip "⚠ Edge texture missing · Show in Styles". No plain colour, default texture or other substitute is drawn, which is ADR decision 3 applied to the viewport.
+- **No label floats over the model.** Principle 1 allows only feedback about the operation in progress, so the report is the Styles row, the status chip and the hatch itself.
+
+### 18.4 Materials: the textured presets
+
+The **New material** dialog's **Local library** keeps "Custom" and the six colour presets unchanged, under a **Colour** heading. The textured presets sit under a **Textured** heading (screen `materials`). The list is data-driven, so the design holds for any size of the Q1 list.
+
+- Choosing a textured preset fills **Name**, sets **Color** as the tint, and shows the texture as a tinted tile at 96 px, captioned "Adds 1 texture, embedded in this model."
+- **Asset** reads "Preset texture (added on Create)". The texture is not a choice in the Asset list, which keeps "No attached file" and the model's own assets as they are.
+- **Binding.** **Create material** makes the texture a managed asset of the model (its state "Stored") and the material's asset, in one labelled undo step, "New material “Name”". An identical texture already in the model (same media type and equal bytes) is reused and not copied (ADR 0131). The caption then says so.
+- **Source and licence** are shown for each preset before it ships. This is the gate of Q1 (ADR decision 3): a preset with no recorded licence is not listed.
+- **Materials tab.** Unchanged. A textured material's swatch shows its tint, and Entity info shows its texture as "Stored" or "Missing", the words the Asset list already uses.
+- **Refusal.** A preset whose texture fails its check adds nothing (18.6).
+
+### 18.5 Asset catalogs
+
+File → **Asset catalogs…** opens the **Asset catalogs** dialog (screen `catalog`), built from the component library's Insert dialog. It has **Library folder** with **Choose folder…** and **Refresh library**, a **Search** over names, descriptions and labels, and a **Kind** filter (All, Component, Material, Style, Template). **Open catalog file…** reads one `.sketchycat` outside the folder through the same bounded loader (130 MiB at most).
+
+- **Entry list.** Grouped by catalog, each group headed by the catalog's name, version and entry count. A row has a glyph and word, the name, the kind, and one state: **✓ Insertable**; **✕ Not insertable**, with the reason on the line below; or, for a catalog that cannot be read, **✕ Refused** with the file-level reason.
+- **Details** for the selected entry: kind, description, author, licence identifier, version, labels, each dependency with its id and state, and the placement ("Inserted at the model's origin").
+- **Insert.** One entry: **Insert component**, **Insert material** or **Apply style**. Several: **Insert N entries**. The button is **off** whenever a selected entry is not insertable, and a line says which one and why: "Insert is off: “Chair” cannot be inserted. Deselect it to insert the other two." The engine refuses a request as a whole (R100.d), so the dialog checks the same thing first with the shared dry run and never waits for a refusal.
+- **Templates** are listed and marked not insertable, with the reason: templates open as a new model, and no command does that yet.
+- **One undo step per insert**, named "Insert 3 entries from “Office fittings”" or "Insert component “Desk”". The status bar names the count.
+- **Missing-dependency report.** A refused insert opens the report (screen `report`). It is the §6.4 sheet laid out as §16.5: a summary with the accounting identity, "0 + 2 + 1 = 3 ✓ balanced" (every requested entry is inserted, refused with a reason, or not inserted because the request was refused), and a tree:
+
+```text
+✕ Nothing was inserted. Your model and the catalog file are unchanged.
+
+▾ [Attention] Needs your attention                                  2
+    ▾ Chair · component · entry 3 — missing texture
+        Asset 7 “Chair fabric” is not in this catalog. A component needs every
+        texture it names, so the request is refused as a whole.
+        [Select the other entries]  [Remove Chair from selection]
+    ▾ Desk top · material · entry 2 — tampered texture
+        Asset 6 does not match its recorded SHA-256. A matching name or size
+        never substitutes an asset, so the material is refused.
+▸ [Notice] Not inserted                                             1
+    Desk · component · entry 1 — refused with the request
+▸ [Notice] Notices                                                  1
+    Components are placed at the model's origin. Templates are not inserted.
+```
+
+  Each dependency row names its kind (asset or entry), its id and its name, and the reason in words: **missing** (not in the catalog), **tampered** (the bytes do not match the recorded hash), **not importable** (the entry it needs is refused, which is named), or **not earlier** (a layout fault, which the reader refuses). Rows expand with the arrow keys, as in §16.5.
+
+### 18.6 Refusals
+
+Every refusal has the §16.6 shape. It says first what did not happen ("Nothing was applied", "Nothing was saved", "Nothing was inserted"), then the reason with the measured number, then the next steps. Refusals use red, the word "Refused", ✕ and a sentence, never colour alone.
+
+| Where it appears | Refusal | What the person is told |
+| --- | --- | --- |
+| Import style, sheet (`refused`) | The texture is listed in the file but its bytes are not | "The edge texture is not in the file." Export the style again from the model that has it, or choose another file |
+| Import style, banner | The file is a catalog or a model, not a style | "This file is a catalog, not a style. Use File → Asset catalogs…" (the kind is named) |
+| Import style | Checksum mismatch; a texture that is not PNG or JPEG; a texture over 16 MiB | The bytes do not match the recorded checksum (the file may be damaged); the texture is not an image SketchyUp can read; the texture is 17.2 MiB, and the limit is 16 MiB. Each with a next step |
+| Import style | A field out of range | "Width 9 px is outside 1 to 8 px." The field is named, and nothing is applied |
+| Apply (style and library) | The texture is missing from the model | "Edge texture 2 (asset 4) is missing from this model. Restore it or choose another texture." Nothing changed |
+| Save to library | The name is taken | "A style named “Style B” is already in the library. An existing file is never replaced; choose a new name." |
+| Export style, export asset catalog | A destination that exists | "That file already exists. An existing file is never replaced; choose a new name." (the wording of the IFC export) |
+| Export style | The model's texture is missing | "Export refused: edge texture 2 (asset 4) is missing from this model. Nothing was written." |
+| New material | The preset's texture fails its check | "The preset's texture failed its check. Nothing was added." |
+| New material, insert | A document limit (1,024 assets; 64 MiB of payloads) | The measured number and the limit, for example "This would make the model's payloads 66.2 MiB; the limit is 64 MiB. Nothing was inserted." |
+| Asset catalogs, insert | A selected entry is not insertable | "Nothing was inserted. “Chair” needs asset 7, which is missing from the catalog. Deselect it to insert the others." |
+| Asset catalogs, insert | A tampered dependency | "Asset 6 does not match its recorded SHA-256. A matching name never substitutes an asset." |
+| Asset catalogs, open | The file is over 130 MiB, not a catalog, or fails its file-level checks | "This file is not a catalog SketchyUp can read: <reason>. Nothing is listed." |
+
+A style equal to the current one is not in this table. It is a neutral result, shown in the information colour: "This model already has this style. Nothing changed."
+
+### 18.7 Keyboard, accessibility and text size
+
+| Area | Rule |
+| --- | --- |
+| Styles tab | Tab order: display mode, the check boxes, Colors and details…, Reset model style, Use an edge stroke, Width, Opacity, Dash, Texture, the library list, Choose folder…, Refresh, Apply to model, Save to library…. Arrow keys move in the list; Enter applies the selected style; the context-menu key opens the row menu. |
+| Edge stroke fields | Each control's name carries its unit and range ("Edge width, 1 to 8 pixels"). Enter commits and Esc restores. An invalid value is a sentence under the field that begins "Invalid:". |
+| Texture state | "Missing" is in the field, the caption and the row. The tooltip text is the accessible description. |
+| Import style, Export style, library save | Tab order: the radio buttons, Name, Description, then the footer buttons. Enter is the primary button and Esc cancels. A refusal is announced as an alert, its first line "Nothing was applied" or "Nothing was saved". |
+| New material | Group labels in the Local library are disabled items that the arrow keys skip. The tile is named "Texture preview, tinted with the colour". |
+| Asset catalogs | The entry list is one Tab stop. Arrows move, Space toggles selection, and Ctrl+A selects every insertable entry. The Insert button is off, not hidden, and its reason is its description. |
+| Report | As §16.9: one Tab stop for the tree, Up and Down move between rows, Right and Left expand and collapse, Home and End jump. Close is the default and Esc closes. |
+| Colour | Never the only carrier. States are a glyph and a word (✓ Stored, ⚠ Missing, ✕ Refused). Stroke styles differ by dash, width and hatch. The accounting bar is solid, hatched and cross-hatched, with a legend. |
+| Text size (200 %) | The Tray keeps its widths as UX §3.3 sets them (capped at 420 px at large text). Dialogs stack their columns, summary above list, and scroll, and the footer stays in view. Status text wraps. Buttons wrap rather than truncate. |
+| Scale (1×, 2×, fractional) | The stroke width is in logical pixels, so it keeps its size on screen at every scale. The sample and tile are drawn at 1:1 logical pixels. |
+| Motion | None. The sample and the tile do not animate. |
+| Checks | `style_catalog_input_tests` drives these paths on X11 and Wayland at 1× and 2×, with the keyboard-reachability, accessible-name and 200 % extensions of ADR 0174 §10. |
+
+### 18.8 Engine and command gaps the design found
+
+These are gaps to close in R100.f or before it. The design does not depend on any of them being decided differently, but the R100.f slice cannot be built without them.
+
+1. **No command sets the edge stroke.** `document.style` has no `edgeStroke` field (R100.a left the choice to the owner), and `style.apply` replaces the whole style. Each control needs its own labelled undo step, so R100.f needs either a field on `document.style` or a dedicated command (owner question 3).
+2. **Two width fields.** `profileWidth` and `edgeStroke.width` both exist. The design shows one **Width**, which is the stroke's while the stroke is on. R100.f must state the precedence in the renderer and keep the Colors and details field dimmed.
+3. **A style library has no name.** It has no fixed folder, so MCP and the CLI cannot name a library style, and R100.e has no `--list-style`. The desktop scans its folder directly.
+4. **Two folders for catalogs.** The dialog may choose a folder, but `catalog.library` and `--to-library` see only the default `catalogs` folder (owner question 1).
+5. **The edge texture is not reported.** `document.describe` does not report the edge texture's `assetStatus`, and `missingAssets` does not name the entry (ADR 0174 R100.a and R100.d notes). The desktop reads the model directly, so the Styles tab is right, but MCP cannot show the same state.
+6. **Insert placement.** Catalog components insert at the identity transform, with no position field, and at the root (R100.d and R100.e). The dialog says where they went. A position field needs the engine to take a transform (owner question 5).
+7. **Templates from a catalog cannot be opened** as a new model, since no command does it (R100.d).
+8. **A nested component definition shared by two entries is stored in each entry** (R100.d), so the size in the details pane counts it twice.
+9. **Rendering is new work.** `Viewport::drawStyleProfiles` draws screen-space triangles. Dashes need segment geometry, texture tiling needs UVs along each edge, and the hatch needs a pattern. This is the main cost of R100.f, and the §9 budgets are unmeasured.
+10. **Wording.** The Asset list says "Stored" where the engine says `present`, and the design keeps "Stored". ADR 0174 §2 expects a newer-format error from 1.3.x, but the released CLI says "Unsupported container field" (R100.a). The design's warning does not quote the released reader's text.
+
+### 18.9 Open questions for the owner
+
+**The owner decided all five on 2026-10-27, each as recommended:** Choose folder is allowed; a missing edge texture draws hatched; `document.style` sets the edge stroke now (with the decision 9 re-pin if the assistant's bytes change); apply from the library without a confirmation step; and a catalog component is inserted at the origin until the engine takes a position. R100.f builds these.
+
+1. **Library folders.** Each library has one folder: the desktop default (`styles` and `catalogs` under the application data folder), with **Choose folder…** remembered in preferences, as the component library does. *Recommended: allow Choose folder. Reason: users keep shared catalogs on other drives, as R079 already allows. MCP and the CLI see only the default folder, and the docs say so.*
+2. **A missing edge texture on screen.** *Recommended: draw the edge hatched in the warning colour, with the status chip. Alternative: draw no edges until the texture is restored. Reason: the hatch says "not what the style says" with no substitute colour (ADR decision 3), and the model stays readable while it is fixed.*
+3. **Let `document.style` set the edge stroke now.** *Recommended: yes, one labelled field edit per control, so the Styles tab and MCP make the same edits. Reason: the UI needs one undo step per control. If the assistant's pinned tool bytes change, the re-pin under ADR decision 9 is part of the same change.*
+4. **Apply from the library without a confirmation step.** *Recommended: yes, apply at once, with one undo step and a status line that names the change. Alternative: a preview before every apply. Reason: applying is one undo away, and a dialog on every apply adds a click to the common case.*
+5. **Where a catalog component goes until the engine takes a position.** *Recommended: insert at the origin and let the person move it. Alternative: hold catalog insert until a position field exists. Reason: the components are usable at once, and the report says where they went.*
+
+Open question Q1 of ADR 0174 (the textured preset list, its textures and their licences) was answered on 2026-10-27: only procedural or CC0 textures (Poly Haven, ambientCG), with a drafted list the owner signs off. This section needs only that the Q1 list has a group heading and a per-preset licence line.
+
+| Screen | Shows | Sections |
+| --- | --- | --- |
+| ![menu](mockups/styles/menu.png) | The File menu with the four new entries, and command search | 18.1 |
+| ![styles](mockups/styles/styles.png) | The Styles tab: the display controls, the edge stroke and the style library | 18.1–18.3 |
+| ![texture](mockups/styles/texture.png) | A missing texture: the field's state, the list, and the tooltip at the pointer | 18.3 |
+| ![import](mockups/styles/import.png) | Import style: the file's facts and the two outcomes | 18.2 |
+| ![refused](mockups/styles/refused.png) | Refused: the texture is not in the file | 18.2, 18.6 |
+| ![export](mockups/styles/export.png) | Export style: what is written and what is not | 18.2 |
+| ![save](mockups/styles/save.png) | Save to the library, with a taken name refused in the dialog | 18.2 |
+| ![materials](mockups/styles/materials.png) | New material: the textured presets, the tinted tile and what will be added | 18.4 |
+| ![catalog](mockups/styles/catalog.png) | Asset catalogs: folder, search, entries and an insert that is off | 18.5 |
+| ![report](mockups/styles/report.png) | The missing-dependency report and its accounting | 18.5 |
+| ![viewport](mockups/styles/viewport.png) | What the viewport draws with a stroke and a missing texture | 18.3 |
+
+The 200 % versions are `mockups/styles/<name>-200.png` for each of the eleven screens.
