@@ -1556,3 +1556,797 @@ asks no dirty-document question.
 | ![limited](mockups/ifc/limited.png) | The helper is present, the geometry kernel is not | 16.7 |
 | ![export](mockups/ifc/export.png) | The export dialog: written, not written, georeferencing | 16.8 |
 | ![exported](mockups/ifc/exported.png) | The export report | 16.8 |
+
+## 17. Presentation batches
+
+Status: **approved by the owner on 2026-10-27**, with every §17.12 choice as recommended. Not implemented.
+R099.d builds this; the records, the batch engine, video and the command surface (R099.a to R099.c) are on
+main.
+
+This section designs the desktop side of camera paths and batch presentation output: where the path
+editor and the presets live, the batch dialog and its live budget, the Jobs row for a batch, results
+and video, refusals, coexistence with the one-shot animation sheet, and accessibility. It answers the
+eight questions in [ADR 0173](decisions/0173-camera-paths-batch-output.md) §7 (marked Q1 to Q8 below),
+as decision 14 asks before R099.d. §17.11 lists where the engine or the commands do not yet give the
+design what it needs; §17.12 lists the choices for the owner. The mockups are `mockups/presentation.html`
+(all screens, with notes) or `mockups/presentation.html?screen=<name>` (`menu`, `render`, `paths`,
+`pick`, `limit`, `presets`, `batch`, `device`, `video`, `unavailable`, `running`, `resume`, `results`,
+`broken`), drawn in the light theme of `src/app/theme.hpp`. Add `&text=200` to a screen to double its
+text size. The example is invented: a house, a path named Tour with five scenes, and two presets. Its
+numbers come from the engine's formulas, not from measurement. Engine wording is quoted from the code
+on main or on the R099.c branch.
+
+### 17.1 Where the tools live
+
+- **Camera menu.** One entry, *Presentations…*, after *Render…*. It opens the Presentations dialog (17.2
+  and 17.3). Command search (Ctrl+K) lists it, and also *Export presentation batch…*, which opens the
+  batch dialog directly. Neither has a default shortcut; the shortcut editor can assign one.
+- **Render sheet.** The Render with Blender sheet (§9) gains one button, *Export presentation batch…*,
+  beside *Export scene animation…*. The one-shot button and its sheet are unchanged (Q7).
+- **Presentations dialog.** A non-modal window with two tabs, *Camera paths* and *Render presets*, and
+  an *Export batch…* button in its footer. It is non-modal, like the Jobs list, so every edit is one
+  undoable step and the model stays usable behind it.
+- **Batch dialog.** Modal, like the one-shot sheet. *Start batch* closes it and opens the Jobs list with
+  the new batch selected.
+- **Jobs.** The existing Jobs list (§9) gains batch rows. Its title changes from "Render jobs" to
+  "Jobs", because it now lists two kinds of job.
+- **Not designed here.** No rail slot, tool or tray panel. The Saved scenes panel keeps capturing scenes;
+  a path only references them. No viewport preview of the path (ADR decision 17).
+
+A separate dialog, rather than a section of the render sheet, because the sheet is a single-render form
+that already scrolls, and a path needs an ordered list with a live count. A tray panel would compete with
+Saved scenes and would turn batch inputs into model organization.
+
+### 17.2 Q1: The path editor and its create flow
+
+**Recommendation:** the path editor is the *Camera paths* tab of the Presentations dialog. Its list
+holds the paths, and its editor holds the keyframes and the timing. The create flow uses a draft and a
+scene picker.
+
+- **List.** Each path shows its name, scene count and planned frames ("Tour · 5 scenes · 157 frames").
+  A broken path stays in the list with its reason ("✕ broken: keyframe 2 names a missing scene"). Under
+  the list: **New path** and **Delete path**. At 64 paths, **New path** is disabled with the reason.
+- **Name.** Unique, up to 1024 bytes, no leading or trailing space, no control characters (the saved-scene
+  rule). Engine text: "Camera path names must be unique".
+- **Keyframes.** An ordered list. A row shows its position, scene name and a warning if the scene has no
+  camera or is missing. A scene may repeat (R099.a allows it). **Add scene…** opens the picker,
+  **Move earlier** (Alt+↑) and **Move later** (Alt+↓) reorder, as in Saved scenes, and **Remove**
+  (Delete) takes a keyframe out. **Remove** is disabled when only two keyframes are left, with the reason
+  "A path needs two to thirty-two scenes".
+- **Timing, in seconds.** Frames per second (1 to 60, default 24); *Transition between scenes* (0.05 to
+  10 s, default 1.00 s); *Hold each scene* (0 to 5 s, default 0.50 s). These are the one-shot sheet's
+  units and its mapping: transition steps are `max(1, round(seconds × fps))` and hold steps are
+  `round(seconds × fps)`. Each field shows its steps ("1.00 s = 24 steps"). The seconds are the typed
+  value: when fps changes, steps are recomputed from the same seconds, so a one-second transition stays
+  one second. The Saved scenes panel's *Camera transition* is in milliseconds and drives viewport playback
+  only, so the label here says "between scenes".
+- **Live count.** Under the timing, on every change: "157 of 240 frames · 5 scenes · 6.5 s at 24 fps",
+  computed with the engine's formula `1 + N × hold + (N − 1) × transition`. It also says how many scenes
+  fit at this timing. With the defaults that is **7**, not 32: `1 + 7×12 + 6×24 = 229`, and 8 scenes is
+  265. The cap is shown, not hidden (owner question 2).
+- **Help, always visible.** "A pan takes the shorter turn. For a longer turn, add a scene between the
+  two." And: "A switch between perspective and orthographic is a cut at its keyframe." (ADR §9 asks for
+  the yaw note in the path editor's help.)
+
+**Create flow.**
+
+1. **New path** opens a draft named "Path 1", with the name selected so that typing replaces it. Nothing
+   is written to the model.
+2. The keyframe list is empty, with the line "Add at least two saved scenes. The path plays them in this
+   order."
+3. **Add scene…** opens the picker. It lists the camera scenes in their saved order. Enter or a double
+   click adds one; the picker stays open for more; **Done** (or Esc) returns. A saved scene without a
+   camera is listed dimmed, with "no camera: give it a camera in Saved scenes first".
+4. **Create path** is enabled when the draft has a unique name, two to thirty-two scenes and no more than
+   240 planned frames. Creating it is one undoable edit, "Create camera path". The engine stores only valid
+   paths (it refuses fewer than two keyframes), so the draft lives in the dialog until it is valid.
+   **Cancel** discards it, and the model does not change.
+5. The new path is selected. Each later edit is one undo step.
+
+**Broken paths.** A path whose scene was deleted, or whose scene lost its camera, still loads. Its
+editor shows the keyframe as "missing (was keyframe 2)" or "no camera". It can be renamed and retimed.
+Its keyframes can be changed only so that every keyframe left is valid (R099.a). A deleted scene cannot
+be restored under its old ID, so the repair is to remove the keyframe or to choose another scene.
+
+### 17.3 Q2: Preset management
+
+**Recommendation:** a named list in the *Render presets* tab. Each preset has the setup sheet's own
+controls, plus a name and a seed, and the sheet's current values can seed a new preset.
+
+- **List.** Name and summary ("Final · Cycles · 1280 × 720 · 128 samples"). **New preset**, **Duplicate**
+  and **Delete**. At 16 presets, **New preset** is disabled with the reason.
+- **Fields.** *Name* (unique, the same rule as paths). *Engine* (Cycles or Eevee preview, as radios).
+  *Width* and *Height* (64 to 4096 pixels). *Samples* (1 to 1024). *Seed* (default 0; "Cycles only; Eevee
+  ignores the seed"). The engine's own text is "Render resolution, samples or seed exceed bounds"; the
+  field-level help replaces it.
+- **No device, no environment.** A preset carries settings only (ADR decision 3). The batch picks the
+  device once, and an HDR panorama is not part of a preset. The caption says "even for video" beside the
+  sizes, because a batch that writes video needs even sizes (R099.c refuses odd sizes at validation).
+- **New from current settings.** Fills a new preset from the render sheet's width, height, samples and
+  engine. This is the only link between the sheet and the presets.
+- **How a preset differs from the current settings.** The sheet's values are this computer's preferences
+  and have no name. A preset is a named item in the model: it is saved with the file, shared with it, and
+  undoable. The footer says so: "Presets are saved with this model. The render sheet's values stay on this
+  computer."
+- **Later edits.** A batch keeps the settings it started with. Editing or deleting a preset afterwards
+  changes no batch that has run, and the Jobs details show the settings the batch used.
+
+### 17.4 Q3: The batch dialog and its live budget
+
+**Recommendation:** one modal dialog. On the left, what to render. On the right, what it will cost and
+whether Start is possible. Start is disabled, and its reason is shown beside it.
+
+**Left column.**
+
+- **Camera path.** Valid paths only. A broken path is listed, disabled, with its reason. Under the choice:
+  "6.5 s at 24 fps".
+- **Presets.** Check up to four. A preset that cannot use the
+  chosen device is shown disabled, with the reason on its row (17.8).
+- **Device.** *Device backend* and *Device* are the render sheet's own controls, with the same values
+  (CPU, CUDA, OPTIX, HIP, ONEAPI, METAL for Cycles; OPENGL for Eevee preview). *Retry once on CPU if a GPU
+  fails* applies to each frame. The batch has one device family, because the engine requires it.
+- **Output.** *New folder*, a new folder inside an existing parent. It is pre-filled as "parent/Tour" after
+  **Choose parent folder…**. The rule is the R072 sheet's and the GLB export's: an existing folder, or a
+  link, is refused.
+- **Video.** *Write H.264 video for each preset*, off by default (ADR decision 7). Its state is 17.5.
+
+**Right column: the live budget.** Each figure updates as a choice changes.
+
+- **Frames.** "314 frames: 157 frames × 2 presets."
+- **Output, at most.** "1.46 GiB. The batch stops when its output reaches 2.0 GiB." With video on, "2.0
+  GiB with video: the budget caps it." This is the engine's worst-case bound, the same figure its disk check
+  uses: per frame, `min(64 MiB, w × h × 5 bytes + 1 MiB) + 1 MiB` of metadata. The label says "Largest
+  possible; real frames are usually smaller", and the budget counts real bytes, so this is a ceiling, not a
+  forecast.
+- **Free space on this disk.** From `QStorageInfo`. "Enough: the batch needs about 1.7 GiB, with a 256 MiB
+  reserve." The need is the ceiling, plus the capture, plus the reserve. With video on, the ceiling is
+  doubled before the cap, as R099.c does for the disk check.
+- **Time.** "Not estimated. Each frame is a separate Blender render. In R099.b's measurement a 1024 × 768
+  frame at 32 samples took about 26 s on CPU." The engine offers no estimate, and this line says so.
+- **Blender.** "Blender 5.2.2 · CPU device ready", or the setup card (17.8).
+
+**Start rules.** The first failing rule decides the reason shown beside Start:
+
+| Condition | Start line |
+| --- | --- |
+| No valid path | "Choose a camera path." |
+| No preset | "Check at least one preset." |
+| Preset does not match the device | "Preview uses Eevee, which needs the OpenGL device. The batch uses CPU. Uncheck Preview, or choose OPENGL." |
+| Odd size with video | "A video needs even width and height in every preset: Draft is 641 × 360." |
+| Blender not found or not checked | the setup card (17.8) |
+| Video chosen, H.264 unavailable | the probe line (17.5) |
+| Another batch running | "Another presentation batch is running; wait for it to finish." |
+| Modeling gesture in progress | "Finish the current modeling gesture before starting the batch." |
+| Not enough free space | "Not enough free disk space for this batch: about 1,747 MiB needed, 812 MiB free." |
+
+**Start.** Start checks Blender and video again (17.5), freezes the model (the footer shows "Capturing the
+model…" for the short capture), and opens the Jobs list. There is no save prompt. The batch works from a
+copy of the model as it is now, and the Jobs row records the revision, so later edits show as "model has
+changed since". This is the one place where unsaved edits are not a reason to ask.
+
+### 17.5 Video availability before a batch
+
+The engine checks for H.264 only at encode time, after every frame has rendered (R099.c, `codec_unavailable`).
+A Blender without the codec would therefore render a whole batch before refusing. R099.d adds a probe.
+
+- **Where it runs.** The batch dialog runs it when it opens, as the render sheet already checks Blender
+  when it opens. The probe is the existing one, with one extra report field: the codec list of the chosen
+  Blender, read with the worker's `video_codecs()` (on the R099.c branch).
+- **Four states.** Each state has a word and an icon, and its checkbox says why it is off.
+  1. **Checking:** "Checking the video encoder…". *Write video* is disabled, and Start waits.
+  2. **Available:** "✓ H.264 available in Blender 5.2.2. Each video encode stops after 15:00." *Write video*
+     is enabled. The 15:00 is R099.c's per-encode limit.
+  3. **Unavailable:** "⚠ H.264 is not in this Blender's FFmpeg build. Frames still render; video is off."
+     *Write video* is disabled with that reason. A fallback codec is owner question 1.
+  4. **Not checked:** "No Blender found, so video cannot be checked", or "The check did not finish", with
+     **Check again**.
+- **Start checks again.** A Blender that changed after the dialog opened is caught before frame one. If
+  *Write video* is on and the fresh check says unavailable, Start refuses before anything is captured:
+  "Video is not available in this Blender: its FFmpeg build has no H.264 encoder. No frames were rendered.
+  Clear Write video to render the frames only."
+- **Fallback.** If an encode still fails at run time, the batch ends Failed with the R099.c message (17.8),
+  and the finished frames are kept.
+- **Odd sizes** are refused at validation (R099.c: "A video needs even width and height in every preset").
+  The dialog shows that on the preset's row, before Start, so it never reaches Start.
+
+### 17.6 Q4: The Jobs row
+
+**Recommendation:** a batch is one parent row in the Jobs list, with one child row per preset. Each child
+names its state in words and draws a bar only where there is a count. The parent's state word reads like
+the engine's job states.
+
+- **Parent row.** The state and a short progress: "Running · 58 of 157 frames", "Canceling · discarding
+  the frame in progress", "Completed · 2 presets · 314 frames", "Canceled · 58 of 157 kept, no video",
+  "Failed · frame 12 of 157 failed", "Interrupted · app stopped". The captured-model column carries the
+  batch's path name and the render provenance line: "Revision 42 · model has changed since". The other
+  two columns are attempts and elapsed time, as for renders.
+- **Child rows.** One per preset, in plan order. Presets render one after another, so a child reads
+  "Final · frame 58 of 157 · Running" with a determinate bar, "Draft · waiting for Final", and, after the
+  frames, "Final · encoding video (15:00 limit)" with no bar. A finished child reads "Final · video written,
+  6.5 s".
+- **Cancel batch.** Tooltip: "Stops the frame in progress and discards it. Finished frames stay." The
+  engine kills the in-flight worker (R099.b), so cancel returns in seconds. ADR §4 says "at frame
+  boundaries"; the design describes what the code does. While canceling, the row reads "Canceling ·
+  discarding frame 58 of 157". It then ends "Canceled", with "Batch canceled; finished frames are retained"
+  and no video.
+- **Resume.** Enabled for Failed, Canceled and Interrupted batches, the engine's retry set. Not enabled for
+  Completed or running batches. The label is "Resume", not "Retry", because the batch continues at its
+  first unfinished frame. Tooltip: "Continues at frame 59 of Final. Frames already kept are not rendered
+  again. The same captured model is used." For a failed video: "Resume encodes the missing video. No frame
+  is rendered again." For an output-budget stop, Resume stays enabled, and the line states the room left:
+  the next frame may or may not fit (the engine checks the real size of that frame).
+- **Remove.** Enabled unless the batch is Queued, Running or Canceling. Tooltip: "Removes this job's record
+  and log. Your frames and videos stay in the output folder." The store never touches the output folder
+  (R099.b).
+- **Show folder.** Opens the output folder in the file manager. Enabled once the folder exists.
+- **Remove all finished jobs.** The footer button stays, and its tooltip splits the two kinds: "Renders:
+  deletes captures, logs and images. Batches: deletes records and logs; output folders stay." The
+  current tooltip ("Deletes retained captures, logs and images for finished jobs") is wrong for batches.
+- **Details pane.** Provenance, the captured time, the output folder, each preset's settings, the device and
+  CPU fallback use, "Frames kept: Final 57, Draft 0", the capture's SHA-256 (as the render's source manifest
+  hash), and the bounded log.
+- **Provenance.** The same words as the render list: "restored capture", "another model session", "model
+  has changed since". A batch restored after a restart says "restored capture".
+- **Status-bar chip.** While a batch runs: "Batch Tour · Final 58 of 157 · Show jobs", beside the render
+  chip. After it ends, "Presentation ready · Show results" (or "Batch Tour: Draft video not written · Show
+  results"), until the model closes, as the IFC report chip does.
+
+### 17.7 Q5: Results and video
+
+**Recommendation:** a results sheet, opened from the chip or from **Show results…** in the Jobs row. A
+finished batch does not open its sheet by itself, so the sheet never takes focus from work in progress.
+That is a deliberate difference from the render result tab.
+
+- **Banner.** Completed: "✓ Completed. 2 presets, 314 frames, 2 videos. The model is unchanged." Not
+  finished: "⚠ Not finished. Final is complete. Draft's video was not written: …. Its frames are kept, and
+  Resume encodes that video only."
+- **Provenance.** "From revision 42 · model has changed since", then "Blender 5.2.2 · Cycles · CPU · CPU
+  fallback on 3 frames". This is the render result's own line.
+- **Preset cards.** Name, settings and frame count. Then either the video ("Video: 6.5 s · H.264 MP4 ·
+  4.2 MB", with **Play video** and **Show in folder**) or the reason it is missing, with **Resume: encode
+  video**.
+- **Video surfacing.** A video appears only once it is verified and written. The app has no player, so
+  **Play video** opens the system player. The file is `NN-<preset>/video.mp4`, and the card shows its
+  duration (frames ÷ fps) and size.
+- **Stills grid.** Rows are the keyframes in path order; columns are the presets. Each cell is the frame
+  flagged as a keyframe in that preset's sequence (ADR §4), so no still is rendered twice. Each cell is
+  labelled in text ("frame 0037"), not by its thumbnail alone. Enter opens the still in the system viewer.
+- **Folder layout.** A collapsed tree: `manifest.json`, then `NN-<preset>/frames/frame-NNNN.png` and
+  `.json`, and `NN-<preset>/video.mp4` where a video exists.
+- **Buttons.** **Copy report**, **Show output folder**, **Close** (the default).
+
+### 17.8 Q6: Errors and refusals
+
+Every refusal follows §16.6. It first says what did not happen (nothing was rendered, no folder was
+created, the model is unchanged), then the reason with the number and the limit, then numbered next steps.
+A refusal before Start is red with "✕ Refused"; a failure during a run is red with "✕ Failed". The word and
+the icon carry the state, never the colour alone. Codes such as `codec_unavailable` go to the log, never to
+the main text.
+
+**Before Start (in the dialog or the editor).**
+
+| Moment | Engine text (current) | What the person sees |
+| --- | --- | --- |
+| Broken path | "Camera path 'X' names saved scenes that no longer exist (17); repair the path before exporting" | Sheet "Batch not started: Courtyard needs repair". "✕ Nothing was rendered." Lists "Keyframe 2 · a saved scene that no longer exists" and "Keyframe 4 · Roof · has no camera". Next: remove or replace the keyframe in Presentations; give the scene a camera in Saved scenes; start again. |
+| Broken path, no camera | "Camera path 'X' has a keyframe scene without a camera; give it a camera before exporting" | As above, with "has no camera". |
+| Over 240 frames | "Camera path would plan 265 frames (1 + 8 x 12 + 7 x 24); the limit is 240" | "Path 1 would render 265 frames; the limit is 240. At this timing, 7 scenes is the most. Remove a scene, or shorten the transition or the hold." The formula stays in small type. The planner's own text, "Camera path exceeds 240 captured frames", is never shown. |
+| Device and preset | "Presets must match the selected device: Eevee needs an OpenGL device, and Cycles needs the CPU or a compute device" | "Preview uses Eevee, which needs the OpenGL device. The batch uses CPU. Uncheck Preview, or choose OPENGL." |
+| Odd size with video | "A video needs even width and height in every preset" | "Video needs even sizes: Draft is 641 × 360. Change the size in Presets, or clear Write video." |
+| Folder exists | "Choose a new batch folder that does not exist yet" | The same words, with the field focused. |
+| Folder not in a parent | "Choose a new batch folder within an existing directory" | The same words. |
+| Free space | "Not enough free disk space for this batch: about 1,747 MiB needed, 812 MiB free" | The same words, with "Choose another disk, or fewer frames." |
+| Another batch | "Another presentation batch is running; wait for it to finish" | The same words, and Start disabled. |
+| Blender missing | "Presentation batches need an installed Blender 5.2 LTS; install it or choose its executable" | The setup card (below). |
+| Video missing | "H.264 is not in this Blender build's FFmpeg codec list, so no video was written" (R099.c) | The probe's unavailable state (17.5), and at Start: "Video is not available in this Blender: its FFmpeg build has no H.264 encoder. No frames were rendered. Clear Write video to render the frames only." |
+| Modeling gesture | "Finish the current modeling gesture before capturing animation" (R072) | "Finish the current modeling gesture before starting the batch." |
+
+**Setup card (Blender missing).** The §9 card, reused: "Presentation batches render each frame with Blender
+5.2 LTS and encode video with its FFmpeg. Renders and the one-shot export use the same Blender." Then
+"Detected: Not found on PATH", **Choose executable…**, **Check again**, and "On Arch, install the blender
+package, then check again." The path and preset controls stay visible, greyed.
+
+**During a run (in the Jobs row and the results sheet).**
+
+| Moment | Engine text (current) | What the person sees |
+| --- | --- | --- |
+| Frame failed | "Frame 12 of 157 failed: <message>" | "✕ Failed · frame 12 of 157 failed: <message>. 11 frames kept. Resume retries frame 12." |
+| Output budget | "Batch output would exceed its 2048 MiB budget; 12 MiB remain" | "✕ Failed · Frame 59 of 121 would pass the 2 GiB output budget (12 MiB remain). Finished frames are kept. Resume adds frames only while they fit." Then the other way out: a new folder, with fewer frames or a smaller size. |
+| Video not written | "Video not written (codec_unavailable): …. The finished frames are kept." (R099.c) | "✕ Failed · Video not written for Draft: <reason>. Frames are kept. Resume encodes the video." The raw code is dropped from the sentence. |
+| Frame changed after verification | "Frame N changed after it was verified; no video was written" (R099.c) | "✕ Failed · Frame 40 changed on disk after it was verified, so no video was written. Resume renders that frame again." |
+| Interrupted | "Application stopped before this batch finished. Retry to resume from the first unverified frame." (R099.b store) | "⚠ Interrupted · SketchyUp stopped before this batch finished. Resume continues at frame 81 of 157." The engine says "Retry"; the UI says "Resume". |
+| Canceled | "Batch canceled; finished frames are retained" | "■ Canceled · finished frames are kept. No video was written." |
+| Output folder gone | "The batch folder is missing; the batch cannot resume" | "The output folder was moved or deleted, so this batch cannot resume. Remove the job, or start a new batch." |
+| Foreign manifest | "The batch manifest does not belong to this job; the finished frames are kept" | "The folder's manifest is not this batch's, so nothing was changed. Choose a new folder for a new batch." |
+| Storage full | "Presentation storage is full; remove finished batches before queuing more" | "Batch storage is full. Remove a finished job, then start again." |
+
+### 17.9 Q7: Coexistence with the one-shot sheet
+
+**Recommendation:** leave the R072 sheet alone and add the batch beside it. The two outputs do not merge.
+
+- **Unchanged.** *Export scene animation…* keeps its scene checklist, the render sheet's settings, one
+  preset, PNG frames, no video and no resume (ADR 0107). It keeps its name.
+- **New.** *Export presentation batch…* sits beside it. The one-shot export is for one set of frames from
+  the current settings. The batch is for several named presets, an optional video and resume. The batch
+  dialog's subline says so: "For one set of frames from the current settings, use Export scene animation…".
+- **Concurrency.** Both can run. The render queue already coexists with the one-shot export, and the batch
+  adds at most one worker (ADR §9). Each writes its own new folder, and neither touches the other's output.
+  The Jobs list shows both.
+- **Known gap, unchanged here.** The one-shot sheet has no live frame count. At its default timing, eight
+  or more scenes fail only after **Export frames** is pressed, with "Camera path exceeds 240 captured frames"
+  (§17.11). This design does not change the sheet (ADR decision 14); the owner may want the count there too.
+
+### 17.10 Q8: Accessibility and keyboard
+
+- **Keyboard path.** Alt+C (Camera), then the *Presentations…* entry; or Ctrl+K and "present". In the
+  Presentations dialog the tab order is: the two tabs; the path list; New path; Delete path; Name; the
+  keyframe list (Up and Down move the current row, Alt+Up and Alt+Down move the scene, Delete removes it);
+  Add scene…; the three timing fields; Export batch…; Close. Esc closes.
+- **Batch dialog.** Tab order: the path choice; the presets (Space toggles, arrows move); Device backend;
+  Device; Retry on CPU; the folder field; Choose parent folder…; Write video; Cancel; Start batch (the
+  default when enabled). Esc cancels. Enter starts only when Start is enabled.
+- **Picker.** Type-ahead on names; Enter adds; Esc is Done.
+- **Jobs list.** One Tab stop for the tree. Up and Down move between rows; Right and Left expand and collapse
+  a batch; the row's actions (Cancel batch, Resume, Show folder, Remove) follow the list. Cancel batch is not
+  the default button, so Enter cannot cancel by accident. Esc closes.
+- **Results.** Arrow keys move in the stills grid; Enter opens a still; Tab reaches Play video and Show in
+  folder for each preset.
+- **Accessible names.** A keyframe row reads "Keyframe 3 of 5, Side, has a camera", or "Keyframe 2 of 5,
+  scene missing; remove or replace it". A path row reads "Tour, 5 scenes, 157 frames". The budget reads
+  "Frames 314. Largest output 1.46 GiB. Free space 812 GiB, enough." A child progress bar reads "Final, frame
+  58 of 157". The video step reads "Encoding video, Final". The probe reads "Video encoder: unavailable, H.264
+  not in this Blender".
+- **Announcements.** One at Start ("Batch started: Tour, 2 presets, 314 frames"), one when each preset's frames
+  finish, one when each video is written, and one for each final state (Completed, Canceled, Failed,
+  Interrupted). Never one per frame. The status chip is named "Batch Tour, Final 58 of 157. Show jobs".
+- **Not colour alone.** States are a word and a glyph: ● Running, ✓ Completed, ■ Canceled, ⚠ Interrupted,
+  ✕ Failed or Refused. Bars carry their numbers. The stills grid labels every cell in text.
+- **Text size.** At 200% the batch dialog's columns stack, the budget cards come below the form, the
+  Presentations list stacks above the editor, the stills grid wraps to two columns, and the footers stay
+  in view. The mockup shows this with `&text=200`.
+- **Focus and motion.** A filled primary button shows focus as a 2 px inset ring in the surface colour (§10).
+  The only motion is the determinate bar.
+- **Checks.** A `presentation_input_tests` suite (proposed) drives the keyboard path, the names, the Start
+  reasons, the device conflict and the four probe states, on X11 and Wayland at 1× and 2× and at 200% text,
+  as R096.f and §16.9 do.
+
+### 17.11 Gaps in the engine and the commands
+
+These are the points where the design needs something the engine or the commands do not give today. Each
+is a note for R099.d or the owner, not a change made here.
+
+1. **No codec probe before a run.** H.264 is checked only at encode time (R099.c). The probe in 17.5 needs a
+   worker report field.
+2. **Default timing allows seven scenes.** Under `1 + N × hold + (N − 1) × transition ≤ 240`, the defaults
+   (24 fps, 24 transition steps, 12 hold steps) give at most 7 keyframes. The record's own documented range
+   (2 to 32) is not reachable at the defaults. The one-shot sheet has the same defaults and no live count.
+3. **Two refusals for one rule.** The record says "Camera path would plan 265 frames (1 + 8 x 12 + 7 x 24);
+   the limit is 240". The planner says "Camera path exceeds 240 captured frames". The UI shows the first,
+   reworded; the planner's text should not reach a person.
+4. **A deleted scene has no name.** The engine reports the scene's ID only, so the UI shows the keyframe's
+   position and the old ID. Keeping the last name on delete, or warning when a used scene is deleted, would
+   help the Saved scenes panel (its Delete has no confirmation).
+5. **No environment in a batch.** ADR §4 says the batch request names an environment when one is given. The
+   R099.b request has no such field, and the design shows none (owner question 3).
+6. **The budget is a ceiling.** The engine's worst-case bound is 5.75 MiB per 1024 × 768 frame (R099.b). The
+   measured frames were about 0.47 MB PNG and 0.21 MB metadata at that size. The ceiling is honest and matches
+   the disk check, but it is roughly ten times the typical output.
+7. **Metadata is most of the real output.** Each per-frame JSON is about 207 KB, because its diagnostics repeat
+   the worker's log three times (R099.b). Trimming it would shrink real output more than any budget change.
+8. **Codes in user text.** R099.c's message carries "(codec_unavailable)", and the store writes "Retry to
+   resume". The UI wording above replaces both; the engine text should follow.
+9. **"Cancel at frame boundaries" versus the code.** ADR §4 says cancel stops at the next frame boundary; R099.b
+   kills the in-flight worker and discards its frame. The UI describes the code. The ADR text needs a
+   correction, which this design does not make, because R099.c has appended its own notes to ADR 0173.
+10. **The Jobs list reads one source.** `RenderJobsDialog` reads `RenderQueue` only. R099.d needs a second source
+    (`PresentationJobStore`) and a two-level row, and the title and the tooltip change.
+11. **No time estimate.** The engine gives none. The design says "Not estimated" and shows elapsed time.
+12. **Resume after a budget stop is not pre-checked.** The per-frame check uses the real size of the next frame,
+    so Resume can fail at once. The UI warns; no engine change is needed.
+13. **Quitting during a batch.** R099.b's SIGTERM leaves a job Running until the store reopens (its contradiction
+    4). A rule for quitting is needed (owner question 5).
+
+### 17.12 Choices for the owner
+
+Each choice has a recommended default. **The owner decided all five on 2026-10-27, each as recommended:**
+MPEG-4 Part 2 in MP4 as the explicit fallback when H.264 is missing; the 24 fps, 1.00 s and 0.50 s defaults with
+the cap shown live; no HDR panoramas in v1; the worst-case ceiling as the live budget; and ask before quitting
+with a batch running. R099.d builds these.
+
+1. **A fallback codec when H.264 is missing.** Options: none; MPEG-4 Part 2 in MP4 (lossy, plays everywhere);
+   FFV1 in MKV (lossless). *Recommended: MPEG-4 Part 2 in MP4, offered only as an explicit choice when H.264 is
+   missing.* It is the R099.b recommendation, and it gives people on such builds a video without changing the
+   default.
+2. **Default timing.** Keep 24 fps, a 1.00 s transition and a 0.50 s hold (seven scenes at most), or lower
+   defaults (a 0.50 s transition and a 0.25 s hold allow 13). *Recommended: keep the defaults, and show the
+   cap live.* They match the one-shot sheet and ADR 0173, and the cap is visible, not hidden.
+3. **HDR panoramas in batches.** Keep them out of v1, or add a per-batch picker later. *Recommended: out of v1.*
+   ADR decision 3 and the R099.b request both leave them out, and the batch dialog says so.
+4. **The live budget.** Show the worst-case ceiling, or wait for a measured estimate. *Recommended: the ceiling,
+   labelled "largest possible; real frames are usually smaller".* A measured estimate needs a sample render per
+   preset, and a wrong estimate is worse than an honest large ceiling. R099.e can revisit it with measured
+   batches.
+5. **Quitting with a batch running.** Ask first, or stop quietly and leave the batch Interrupted. *Recommended: ask*
+   ("Closing stops the batch. Finished frames are kept, and you can resume it later."), because a batch can run for
+   hours and the person should decide.
+
+| Screen | Shows | Sections |
+| --- | --- | --- |
+| ![menu](mockups/presentation/menu.png) | The Camera menu with Presentations…, and command search | 17.1 |
+| ![render](mockups/presentation/render.png) | The render sheet: the unchanged one-shot button beside the new batch button | 17.1, 17.9 |
+| ![paths](mockups/presentation/paths.png) | The path editor: paths, keyframes in order, seconds and steps, the live count | 17.2 |
+| ![pick](mockups/presentation/pick.png) | The create flow: a draft, and the scene picker | 17.2 |
+| ![limit](mockups/presentation/limit.png) | Over the frame limit: the refusal in words, and the formula | 17.2, 17.8 |
+| ![presets](mockups/presentation/presets.png) | The render presets: name, settings, seed, and what is saved with the model | 17.3 |
+| ![batch](mockups/presentation/batch.png) | The batch dialog: the choices, and the live budget | 17.4 |
+| ![device](mockups/presentation/device.png) | A preset that cannot use the device: refused before Start | 17.4, 17.8 |
+| ![video](mockups/presentation/video.png) | The video probe: H.264 unavailable, and the frames still render | 17.5 |
+| ![unavailable](mockups/presentation/unavailable.png) | Blender absent: the setup card, Start unavailable | 17.4, 17.8 |
+| ![running](mockups/presentation/running.png) | The Jobs list: a running batch with per-preset progress and the chip | 17.6 |
+| ![resume](mockups/presentation/resume.png) | Failed, interrupted and canceled batches: the Resume wording | 17.6, 17.8 |
+| ![results](mockups/presentation/results.png) | Results: the presets, a video not written, and the stills grid | 17.7 |
+| ![broken](mockups/presentation/broken.png) | Refused: a path with a missing scene and a scene without a camera | 17.8 |
+
+## 18. Styles, edge strokes and asset catalogs
+
+Status: **approved by the owner on 2026-10-27**, with every 18.9 choice as recommended. This section designs the desktop side of the R100 styles and catalogs: the style library, the import and export of `.sketchystyle` files, the edge stroke controls, the textured presets in the Materials library, the asset catalog dialog and its missing-dependency report ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md) §8, decision 8; owner decision 11 asks for it before R100.f). The engine slices R100.a, R100.c, R100.d and R100.e are merged. R100.b, the textured preset data, is not, so 18.4 designs how the presets are shown without naming them. This section designs what a person sees of the merged engine work, and it adds no C++.
+
+Each part answers one bullet of ADR §8: 18.1 the library location, names and shortcuts; 18.2 the style import and export flow; 18.3 the edge stroke controls and the missing texture at the pointer; 18.4 the textured presets in the Materials library; 18.5 the asset catalog dialog and its report tree; 18.6 the refusals; 18.7 keyboard, accessibility and text size. 18.8 lists the engine and command gaps the design found, and 18.9 the open questions for the owner.
+
+The mockups are `mockups/styles.html` (all screens, with notes) or `mockups/styles.html?screen=<name>` (`menu`, `styles`, `texture`, `import`, `refused`, `export`, `save`, `materials`, `catalog`, `report`, `viewport`), drawn in the light theme of `src/app/theme.hpp`. Add `&text=200` for 200 % text. Every name in them is a placeholder. The textured preset list, its textures and their licences are open question Q1 of ADR 0174, so no preset or texture is named here. The numbers are illustrative.
+
+The existing surfaces this builds on are the R062 Styles tab (`styles_panel.cpp`), the Materials tab and its **New material** dialog (`materials_panel.cpp`), and the component library's **Insert library component** dialog (`window_library.cpp`), whose folder, refresh and search controls this section reuses.
+
+### 18.1 Where the libraries live
+
+- **Styles tab, not a new panel.** View → Model styles opens the R062 Styles tab in the Tray. It keeps its display controls and gains two sections under them: **Edge stroke** (18.3) and **Style library**. In the narrow layouts it is reached through More panels, as now.
+- **File menu, four entries, next to their siblings.** **Import style…** and **Asset catalogs…** after Import terrain…; **Export style…** and **Export asset catalog…** after Export STEP…. Nothing else in the menu moves. There is no Styles menu.
+- **Nothing is reachable only by the mouse.** A library row's context menu offers the same commands as its buttons, and Ctrl+K lists the four File entries by name.
+- **Names.** Styles tab: "Style library", "Edge stroke", "Apply to model", "Save to library…", "Choose folder…", "Refresh". Dialogs: "Import style", "Export style", "Save style to library", "Asset catalogs", "Export asset catalog". Catalog entries are inserted with "Insert component", "Insert material", "Insert N entries" or "Apply style".
+- **No default shortcuts.** Every plain letter in 4.2 is a tool, and the Ctrl keys near these commands are in use (Ctrl+J is the Assistant and Ctrl+K the command search). The shortcut editor can assign one (N05), and no conflict is introduced.
+- **The Components tab does not change.** Catalog entries are inserted from the Asset catalogs dialog, so the R079 component library and the catalogs never mix.
+- **Folders.** Each library has one folder, shown in its dialog. The desktop default for styles is `styles` under the application data folder, and for catalogs it is `catalogs` (the R100.d folder, which `catalog.library` also lists). **Choose folder…** changes it and the choice is remembered in preferences, as the component library's is (owner question 1).
+
+### 18.2 Style import and export
+
+- **Import style… (File).** The system chooser comes first (filters: `*.sketchystyle` and All files). Then the **Import style** dialog (screen `import`). The left column shows the file's facts, read from the file: name, description, the display settings (14), the edge stroke in words ("2.0 px · 60 % · dashed"), and the texture with its state ("stored in the file"). A preview draws the stroke's own settings, not a render. The right column offers two outcomes as radio buttons: **Apply to this model** (the default) and **Save to the style library**. The one primary button names the chosen outcome. Nothing changes until it is pressed, and Esc cancels.
+- **Apply.** One labelled undo step, "Apply style “Name”", as ADR 0068 requires. A style equal to the model's current style is not an error. The dialog closes, and the status bar says "This model already has this style. Nothing changed." (the engine's no-op refusal, shown as a neutral result).
+- **Save to the library.** The dialog asks for a file name, pre-filled and checked against the library folder before anything is written. The name rule is the R100.d catalog rule (1 to 64 characters; letters, digits, spaces, dots, underscores and hyphens; starting and ending with a letter, digit, underscore or hyphen). A name that is taken is refused in the dialog (screen `save`), with a free suggestion. The file is then written as a new file, never over an existing one.
+- **Apply from the library.** The Styles tab's **Apply to model** button applies the selected library style at once, as one undo step. The status line says what changed: "Applied “Style A”: edge stroke on, 3 settings changed. Undo: Apply style “Style A”." Applying is one step from undo, so it needs no second confirmation (owner question 4).
+- **Export style… (File).** The **Export style** dialog (screen `export`) lists what the file will hold: the display settings, the edge stroke, and the texture with its stored state. It also lists what a style never carries (materials, tags, components, scenes), with counts and the way to carry them (an asset catalog). **Export to file…** opens the system Save dialog (`*.sketchystyle`) with no overwrite prompt. A name that exists is refused with the message of 18.6 and nothing is written. The same save dialog serves **Save to library…** in the Styles tab.
+- **Library list.** Each row has a sample of the stroke (drawn from the stored width, opacity and dash; a textured style shows its texture tile when the texture decodes), the name, the settings in words, and one state: **✓ Stored**, **⚠ Texture missing from file** (listed, cannot be applied) or **✕ Cannot read** with the reason (not selectable). Search matches names and descriptions. **Refresh** re-scans the folder within the bounded scan limits of ADR 0132 (4,096 entries, 128 candidates, 256 MiB) and reports how many files it skipped and why.
+
+### 18.3 The edge stroke controls, and what the viewport shows
+
+The **Edge stroke** section of the Styles tab (screen `styles`):
+
+- **Use an edge stroke** (a check box, off by default). Off: profiles draw as they do now, at Profile width. On: the stroke applies. Turning it on is one labelled edit, "Turn on edge stroke", which copies the current profile width into the stroke width. Turning it off, or **Reset model style**, removes the stroke in one labelled edit, so the record returns to its 14 fields.
+- **Width**, 1 to 8 px, in the unit and step of Profile width. Edit: "Set edge width 2.5 px".
+- **Opacity**, 1 to 100 % (stored as 0.01 to 1). Edit: "Set edge opacity 60 %".
+- **Dash**, a list of the four named patterns (Solid, Dashed, Dotted, Dash-dot). Edit: "Set edge dash Dashed". The proposed dash lengths are 8 px on and 4 off (dashed), 2 and 3 (dotted), and 8, 3, 2, 3 (dash-dot), in logical pixels and scaled with the display; R100.f checks them at 1× and 2×.
+- **Texture**, a list of None and the model's PNG and JPEG assets. A missing asset is listed with a warning word and cannot be chosen. Edit: "Set edge texture “Name”".
+- **Saved in schema 31** appears as a caption whenever the stroke is on: "Saved in schema 31. SketchyUp 1.3.0 cannot open it." This is the consequence in ADR decision 2, and it is stated where the person turns the stroke on.
+- **Colors and details…** keeps colours, ground height and X-ray opacity. Its **Profile width (px)** is dimmed, with "Set by the edge stroke", while the stroke is on.
+
+**A missing texture at the pointer.** The Texture row always states its state in words: an amber field reading "⚠ Edge texture 2 · Missing", and a caption saying how the edges draw. Hovering the field, or hovering its row in the list, shows a tooltip beside the pointer: "Edge texture 2 is missing from this model (asset 4). Edges that use it draw hatched until it is restored. No other texture is used." Keyboard focus on the row shows the same text, and it is the accessible description. The tooltip adds the reason. It never carries the only state (screen `texture`).
+
+**What the viewport draws (R100.f; nothing draws the stroke yet, screen `viewport`).**
+
+- Profiles keep their screen-space width in logical pixels and the edge colour, now with the stroke's **opacity**, blended over the faces, and its **dash**. Soft and hidden edges are not drawn, as now.
+- **Dash** needs segment geometry along each profile. The current profile triangles cannot dash, so this is R100.f work (18.8).
+- **Texture** is tiled along each visible edge at the texture's own size in logical pixels and clipped to the stroke width. The texture carries its colour, so the edge colour is not multiplied into it, and the opacity applies to its alpha.
+- **Missing texture.** The edge draws **hatched** in the warning colour, which is the §7 rule "hatch, not hue" for things that are not what they say. While the model has one, the status bar shows the chip "⚠ Edge texture missing · Show in Styles". No plain colour, default texture or other substitute is drawn, which is ADR decision 3 applied to the viewport.
+- **No label floats over the model.** Principle 1 allows only feedback about the operation in progress, so the report is the Styles row, the status chip and the hatch itself.
+
+### 18.4 Materials: the textured presets
+
+The **New material** dialog's **Local library** keeps "Custom" and the six colour presets unchanged, under a **Colour** heading. The textured presets sit under a **Textured** heading (screen `materials`). The list is data-driven, so the design holds for any size of the Q1 list.
+
+- Choosing a textured preset fills **Name**, sets **Color** as the tint, and shows the texture as a tinted tile at 96 px, captioned "Adds 1 texture, embedded in this model."
+- **Asset** reads "Preset texture (added on Create)". The texture is not a choice in the Asset list, which keeps "No attached file" and the model's own assets as they are.
+- **Binding.** **Create material** makes the texture a managed asset of the model (its state "Stored") and the material's asset, in one labelled undo step, "New material “Name”". An identical texture already in the model (same media type and equal bytes) is reused and not copied (ADR 0131). The caption then says so.
+- **Source and licence** are shown for each preset before it ships. This is the gate of Q1 (ADR decision 3): a preset with no recorded licence is not listed.
+- **Materials tab.** Unchanged. A textured material's swatch shows its tint, and Entity info shows its texture as "Stored" or "Missing", the words the Asset list already uses.
+- **Refusal.** A preset whose texture fails its check adds nothing (18.6).
+
+### 18.5 Asset catalogs
+
+File → **Asset catalogs…** opens the **Asset catalogs** dialog (screen `catalog`), built from the component library's Insert dialog. It has **Library folder** with **Choose folder…** and **Refresh library**, a **Search** over names, descriptions and labels, and a **Kind** filter (All, Component, Material, Style, Template). **Open catalog file…** reads one `.sketchycat` outside the folder through the same bounded loader (130 MiB at most).
+
+- **Entry list.** Grouped by catalog, each group headed by the catalog's name, version and entry count. A row has a glyph and word, the name, the kind, and one state: **✓ Insertable**; **✕ Not insertable**, with the reason on the line below; or, for a catalog that cannot be read, **✕ Refused** with the file-level reason.
+- **Details** for the selected entry: kind, description, author, licence identifier, version, labels, each dependency with its id and state, and the placement ("Inserted at the model's origin").
+- **Insert.** One entry: **Insert component**, **Insert material** or **Apply style**. Several: **Insert N entries**. The button is **off** whenever a selected entry is not insertable, and a line says which one and why: "Insert is off: “Chair” cannot be inserted. Deselect it to insert the other two." The engine refuses a request as a whole (R100.d), so the dialog checks the same thing first with the shared dry run and never waits for a refusal.
+- **Templates** are listed and marked not insertable, with the reason: templates open as a new model, and no command does that yet.
+- **One undo step per insert**, named "Insert 3 entries from “Office fittings”" or "Insert component “Desk”". The status bar names the count.
+- **Missing-dependency report.** A refused insert opens the report (screen `report`). It is the §6.4 sheet laid out as §16.5: a summary with the accounting identity, "0 + 2 + 1 = 3 ✓ balanced" (every requested entry is inserted, refused with a reason, or not inserted because the request was refused), and a tree:
+
+```text
+✕ Nothing was inserted. Your model and the catalog file are unchanged.
+
+▾ [Attention] Needs your attention                                  2
+    ▾ Chair · component · entry 3 — missing texture
+        Asset 7 “Chair fabric” is not in this catalog. A component needs every
+        texture it names, so the request is refused as a whole.
+        [Select the other entries]  [Remove Chair from selection]
+    ▾ Desk top · material · entry 2 — tampered texture
+        Asset 6 does not match its recorded SHA-256. A matching name or size
+        never substitutes an asset, so the material is refused.
+▸ [Notice] Not inserted                                             1
+    Desk · component · entry 1 — refused with the request
+▸ [Notice] Notices                                                  1
+    Components are placed at the model's origin. Templates are not inserted.
+```
+
+  Each dependency row names its kind (asset or entry), its id and its name, and the reason in words: **missing** (not in the catalog), **tampered** (the bytes do not match the recorded hash), **not importable** (the entry it needs is refused, which is named), or **not earlier** (a layout fault, which the reader refuses). Rows expand with the arrow keys, as in §16.5.
+
+### 18.6 Refusals
+
+Every refusal has the §16.6 shape. It says first what did not happen ("Nothing was applied", "Nothing was saved", "Nothing was inserted"), then the reason with the measured number, then the next steps. Refusals use red, the word "Refused", ✕ and a sentence, never colour alone.
+
+| Where it appears | Refusal | What the person is told |
+| --- | --- | --- |
+| Import style, sheet (`refused`) | The texture is listed in the file but its bytes are not | "The edge texture is not in the file." Export the style again from the model that has it, or choose another file |
+| Import style, banner | The file is a catalog or a model, not a style | "This file is a catalog, not a style. Use File → Asset catalogs…" (the kind is named) |
+| Import style | Checksum mismatch; a texture that is not PNG or JPEG; a texture over 16 MiB | The bytes do not match the recorded checksum (the file may be damaged); the texture is not an image SketchyUp can read; the texture is 17.2 MiB, and the limit is 16 MiB. Each with a next step |
+| Import style | A field out of range | "Width 9 px is outside 1 to 8 px." The field is named, and nothing is applied |
+| Apply (style and library) | The texture is missing from the model | "Edge texture 2 (asset 4) is missing from this model. Restore it or choose another texture." Nothing changed |
+| Save to library | The name is taken | "A style named “Style B” is already in the library. An existing file is never replaced; choose a new name." |
+| Export style, export asset catalog | A destination that exists | "That file already exists. An existing file is never replaced; choose a new name." (the wording of the IFC export) |
+| Export style | The model's texture is missing | "Export refused: edge texture 2 (asset 4) is missing from this model. Nothing was written." |
+| New material | The preset's texture fails its check | "The preset's texture failed its check. Nothing was added." |
+| New material, insert | A document limit (1,024 assets; 64 MiB of payloads) | The measured number and the limit, for example "This would make the model's payloads 66.2 MiB; the limit is 64 MiB. Nothing was inserted." |
+| Asset catalogs, insert | A selected entry is not insertable | "Nothing was inserted. “Chair” needs asset 7, which is missing from the catalog. Deselect it to insert the others." |
+| Asset catalogs, insert | A tampered dependency | "Asset 6 does not match its recorded SHA-256. A matching name never substitutes an asset." |
+| Asset catalogs, open | The file is over 130 MiB, not a catalog, or fails its file-level checks | "This file is not a catalog SketchyUp can read: <reason>. Nothing is listed." |
+
+A style equal to the current one is not in this table. It is a neutral result, shown in the information colour: "This model already has this style. Nothing changed."
+
+### 18.7 Keyboard, accessibility and text size
+
+| Area | Rule |
+| --- | --- |
+| Styles tab | Tab order: display mode, the check boxes, Colors and details…, Reset model style, Use an edge stroke, Width, Opacity, Dash, Texture, the library list, Choose folder…, Refresh, Apply to model, Save to library…. Arrow keys move in the list; Enter applies the selected style; the context-menu key opens the row menu. |
+| Edge stroke fields | Each control's name carries its unit and range ("Edge width, 1 to 8 pixels"). Enter commits and Esc restores. An invalid value is a sentence under the field that begins "Invalid:". |
+| Texture state | "Missing" is in the field, the caption and the row. The tooltip text is the accessible description. |
+| Import style, Export style, library save | Tab order: the radio buttons, Name, Description, then the footer buttons. Enter is the primary button and Esc cancels. A refusal is announced as an alert, its first line "Nothing was applied" or "Nothing was saved". |
+| New material | Group labels in the Local library are disabled items that the arrow keys skip. The tile is named "Texture preview, tinted with the colour". |
+| Asset catalogs | The entry list is one Tab stop. Arrows move, Space toggles selection, and Ctrl+A selects every insertable entry. The Insert button is off, not hidden, and its reason is its description. |
+| Report | As §16.9: one Tab stop for the tree, Up and Down move between rows, Right and Left expand and collapse, Home and End jump. Close is the default and Esc closes. |
+| Colour | Never the only carrier. States are a glyph and a word (✓ Stored, ⚠ Missing, ✕ Refused). Stroke styles differ by dash, width and hatch. The accounting bar is solid, hatched and cross-hatched, with a legend. |
+| Text size (200 %) | The Tray keeps its widths as UX §3.3 sets them (capped at 420 px at large text). Dialogs stack their columns, summary above list, and scroll, and the footer stays in view. Status text wraps. Buttons wrap rather than truncate. |
+| Scale (1×, 2×, fractional) | The stroke width is in logical pixels, so it keeps its size on screen at every scale. The sample and tile are drawn at 1:1 logical pixels. |
+| Motion | None. The sample and the tile do not animate. |
+| Checks | `style_catalog_input_tests` drives these paths on X11 and Wayland at 1× and 2×, with the keyboard-reachability, accessible-name and 200 % extensions of ADR 0174 §10. |
+
+### 18.8 Engine and command gaps the design found
+
+These are gaps to close in R100.f or before it. The design does not depend on any of them being decided differently, but the R100.f slice cannot be built without them.
+
+1. **No command sets the edge stroke.** `document.style` has no `edgeStroke` field (R100.a left the choice to the owner), and `style.apply` replaces the whole style. Each control needs its own labelled undo step, so R100.f needs either a field on `document.style` or a dedicated command (owner question 3).
+2. **Two width fields.** `profileWidth` and `edgeStroke.width` both exist. The design shows one **Width**, which is the stroke's while the stroke is on. R100.f must state the precedence in the renderer and keep the Colors and details field dimmed.
+3. **A style library has no name.** It has no fixed folder, so MCP and the CLI cannot name a library style, and R100.e has no `--list-style`. The desktop scans its folder directly.
+4. **Two folders for catalogs.** The dialog may choose a folder, but `catalog.library` and `--to-library` see only the default `catalogs` folder (owner question 1).
+5. **The edge texture is not reported.** `document.describe` does not report the edge texture's `assetStatus`, and `missingAssets` does not name the entry (ADR 0174 R100.a and R100.d notes). The desktop reads the model directly, so the Styles tab is right, but MCP cannot show the same state.
+6. **Insert placement.** Catalog components insert at the identity transform, with no position field, and at the root (R100.d and R100.e). The dialog says where they went. A position field needs the engine to take a transform (owner question 5).
+7. **Templates from a catalog cannot be opened** as a new model, since no command does it (R100.d).
+8. **A nested component definition shared by two entries is stored in each entry** (R100.d), so the size in the details pane counts it twice.
+9. **Rendering is new work.** `Viewport::drawStyleProfiles` draws screen-space triangles. Dashes need segment geometry, texture tiling needs UVs along each edge, and the hatch needs a pattern. This is the main cost of R100.f, and the §9 budgets are unmeasured.
+10. **Wording.** The Asset list says "Stored" where the engine says `present`, and the design keeps "Stored". ADR 0174 §2 expects a newer-format error from 1.3.x, but the released CLI says "Unsupported container field" (R100.a). The design's warning does not quote the released reader's text.
+
+### 18.9 Open questions for the owner
+
+**The owner decided all five on 2026-10-27, each as recommended:** Choose folder is allowed; a missing edge texture draws hatched; `document.style` sets the edge stroke now (with the decision 9 re-pin if the assistant's bytes change); apply from the library without a confirmation step; and a catalog component is inserted at the origin until the engine takes a position. R100.f builds these.
+
+1. **Library folders.** Each library has one folder: the desktop default (`styles` and `catalogs` under the application data folder), with **Choose folder…** remembered in preferences, as the component library does. *Recommended: allow Choose folder. Reason: users keep shared catalogs on other drives, as R079 already allows. MCP and the CLI see only the default folder, and the docs say so.*
+2. **A missing edge texture on screen.** *Recommended: draw the edge hatched in the warning colour, with the status chip. Alternative: draw no edges until the texture is restored. Reason: the hatch says "not what the style says" with no substitute colour (ADR decision 3), and the model stays readable while it is fixed.*
+3. **Let `document.style` set the edge stroke now.** *Recommended: yes, one labelled field edit per control, so the Styles tab and MCP make the same edits. Reason: the UI needs one undo step per control. If the assistant's pinned tool bytes change, the re-pin under ADR decision 9 is part of the same change.*
+4. **Apply from the library without a confirmation step.** *Recommended: yes, apply at once, with one undo step and a status line that names the change. Alternative: a preview before every apply. Reason: applying is one undo away, and a dialog on every apply adds a click to the common case.*
+5. **Where a catalog component goes until the engine takes a position.** *Recommended: insert at the origin and let the person move it. Alternative: hold catalog insert until a position field exists. Reason: the components are usable at once, and the report says where they went.*
+
+Open question Q1 of ADR 0174 (the textured preset list, its textures and their licences) was answered on 2026-10-27: only procedural or CC0 textures (Poly Haven, ambientCG), with a drafted list the owner signs off. This section needs only that the Q1 list has a group heading and a per-preset licence line.
+
+| Screen | Shows | Sections |
+| --- | --- | --- |
+| ![menu](mockups/styles/menu.png) | The File menu with the four new entries, and command search | 18.1 |
+| ![styles](mockups/styles/styles.png) | The Styles tab: the display controls, the edge stroke and the style library | 18.1–18.3 |
+| ![texture](mockups/styles/texture.png) | A missing texture: the field's state, the list, and the tooltip at the pointer | 18.3 |
+| ![import](mockups/styles/import.png) | Import style: the file's facts and the two outcomes | 18.2 |
+| ![refused](mockups/styles/refused.png) | Refused: the texture is not in the file | 18.2, 18.6 |
+| ![export](mockups/styles/export.png) | Export style: what is written and what is not | 18.2 |
+| ![save](mockups/styles/save.png) | Save to the library, with a taken name refused in the dialog | 18.2 |
+| ![materials](mockups/styles/materials.png) | New material: the textured presets, the tinted tile and what will be added | 18.4 |
+| ![catalog](mockups/styles/catalog.png) | Asset catalogs: folder, search, entries and an insert that is off | 18.5 |
+| ![report](mockups/styles/report.png) | The missing-dependency report and its accounting | 18.5 |
+| ![viewport](mockups/styles/viewport.png) | What the viewport draws with a stroke and a missing texture | 18.3 |
+
+The 200 % versions are `mockups/styles/<name>-200.png` for each of the eleven screens.
+
+
+## 19. Quantities and schedules
+
+**Status: approved by the owner on 2026-10-27**, with every 19.12 choice as recommended. Not implemented. R101.e builds this on the merged engine, outputs, saved schedules and MCP surface (R101.a to R101.d).
+
+This section designs the desktop side of the report engine ([ADR 0175](decisions/0175-quantities-reports-schedules.md)): where the Quantities section lives, grouping and filters, the live totals, the invalid list, saved schedules, the export files, units and precision, refusals, and keyboard and accessibility. ADR 0175 §10 asks for it before R101.e, and each of its bullets is answered here:
+
+| ADR 0175 §10 bullet | Decided in |
+| --- | --- |
+| Entry point and default view | 19.1 |
+| Grouping and filters, the selection toggle, the file-only hint | 19.2 |
+| Live state: "Computed at revision N", computing and Cancel, the invalid list | 19.3, 19.4 |
+| Schedules: create, rename, delete, Run, Export CSV…, Export JSON… | 19.6, 19.7, 19.8 |
+| Units and precision in labels | 19.5 |
+| Keyboard and accessibility | 19.10 |
+
+The figures are the ADR 0175 §11 fixture `quantities-a` with its corrected totals: 40,259.20 m² at precision 2, where the earlier text said 40,174.20. Section 19.11 lists where the engine, the CLI or the schedule store does not yet give the design what it needs, and 19.12 lists the choices for the owner. The mockups are `mockups/quantities.html` (all screens, with notes) or `mockups/quantities.html?screen=<name>` (`menu`, `totals`, `groups`, `filters`, `computing`, `save`, `schedules`, `run`, `stale`, `delete`, `store`, `exported`, `exists`), drawn in the light theme of `src/app/theme.hpp`. Add `&text=200` to any of them to double the text size. The drawing is illustrative. The terrain's name, the folder and the tags other than Boxes and Off are invented, and each screen says which figures it derives.
+
+### 19.1 Where it lives and the default view
+
+- **The section.** Quantities is a section of the Tray, between Tags and History, like Entity info, Outliner, Materials and Tags (sections 3.1 and 5). It is not on the Info tab, which describes the selected entity. A quantity describes the whole model and must show with nothing selected. It is not a rail slot, a window or a floating palette (sections 2 and 3.1).
+- **Ways in.** View → Quantities shows the Tray, opens the section and puts focus on Group by. It has no default shortcut; the shortcut editor can assign one. Ctrl+K lists "Quantities" while it is enabled. In a narrow window the Tray is the overlay sheet of section 3.3, and the same entries open it. Version 1 adds no File menu entry; export lives in the section.
+- **Default view.** Group by None, the **All** row, hidden content included (ADR 0175 owner decision 1), the document's display units and precision. The All row shows area, volume, contexts, instances, definitions and "Not counted in volume". Below it come "Computed at revision N", the Not solids list when there is one, the terrain line and the export buttons (screen `totals`).
+- **Metrics are not a choice.** Every run computes all four tables. Each run computes the face areas anyway, because the terrain table is always emitted (R101.a notes), so a metrics switch would save no time. Version 1 has none.
+- **When it computes.** The section computes only while it is open. Collapsed, it does nothing. Open, it runs when opened and again whenever the revision changes (ADR 0175 §5), so the totals follow edits and undo.
+- **Empty model.** The All row shows zeros, as the engine always emits it, with the line "No bodies in this model. Draw something, or import a model."
+
+### 19.2 Grouping and filters
+
+- **Group by.** A combo box: None (the default), Kind, Tag, Material or Definition (ADR 0175 §1). The panel names each group: "Untagged", "No material", "No definition", and for kinds "Geometry", "Group", "Component", "Terrain" and "Reference image". An em dash marks a group with no ID only in the CSV. The panel uses the words.
+- **Hidden content.** Two radio buttons: **Include hidden** (the default) and **Visible only**. Visible only drops hidden groups, hidden bodies and content on hidden tags, as ADR 0175 §2.2 defines. It does not drop geometry hidden for this session only, because the file alone must reproduce the report. The caption under Visible only says so: "Hidden tags, groups and bodies are left out. Geometry hidden for this session only is still counted."
+- **Pickers.** Tags, Materials and Definitions are rows that show their value ("none", "Boxes", "2 selected") and open a popover of check rows. This is the pattern of the Tags and Materials sections: each row carries its name and a muted count, and the choice is by ID. A folder includes every tag under it, and its row says so ("includes its tags"). The Definitions picker lists all four definitions with their placement counts, nested ones included, so Post can be filtered on its own (ADR 0175 V2).
+- **Missing IDs in a filter.** A filter that names a tag, material or definition that no longer exists shows "Missing tag 7" in amber, with **Remove**. Save and Run are disabled until it is removed, so nothing runs with fewer filters (ADR 0175 §7).
+- **Materials apply to areas only.** The Materials row says "areas only", and its popover says "Counts and volumes ignore this filter." The CSV cannot say so (19.11, item 6), so the panel does.
+- **Selection only.** A check row. It is enabled when the editor has a selection, and it names the count ("3 bodies selected"). With nothing selected it is greyed, with the words "select bodies in the model to use this". A selection is the selected bodies and their descendants. A hidden body cannot be selected, so a selection never brings hidden content in (ADR 0175 §1 and the R101.a notes).
+- **The file-only hint.** A saved schedule and the command line have no editor, so they cannot use a selection. The save dialog therefore never offers the selection row, and says why: "Not stored: the selection. A schedule runs without it, from the file and the command line alike." A saved schedule never keeps a selection (ADR 0175 §7 and §8).
+- **Per model.** The filter state belongs to the open model. Opening another model resets it to the defaults, because the IDs belong to one document.
+
+### 19.3 Live state: revision, computing and Cancel
+
+- **Revision line.** "Computed at revision 214" sits under the totals. It is the revision the numbers came from (ADR 0175 §4 and §5), so any total can be traced to a model state. The document identity is in the export report, not in the panel.
+- **Quick runs.** A run that finishes within about a second shows no progress. The previous totals stay readable until the new ones replace them, so the panel never goes blank while it updates.
+- **Computing.** After about a second, the totals dim and a line reads "● Computing revision 215 · elapsed 0:03", with a bar and a **Cancel** button, which is not the default. The status bar shows a job chip, "Quantities 0:03 · Cancel", as it does for other background work (section 3.1).
+- **Progress.** The engine reports no progress yet (19.11, item 1), so the bar is indeterminate and the elapsed time is what the person reads. The design shows no percentage. When the engine reports the contexts it has done, the bar becomes determinate.
+- **Cancel.** Returns control in 100 ms or less (ADR 0175 §12). The panel then shows the last complete result with its own revision, and the line "Not updated: cancelled. Showing revision 214." A total is never shown with a revision other than the one it was computed at.
+- **A newer revision.** If the model changes while a run is in progress, the run is superseded. Its result is dropped and a run starts for the newest revision.
+- **A failed run.** The section says "The totals could not be computed: <the engine's message>." and keeps the last result, labelled with its revision.
+- **Announcements.** One per run the person waited for (a group change, Run or Cancel), not one per edit (19.10).
+
+### 19.4 The invalid list
+
+- **Where.** Under the totals, as "Not solids", with one row for each status that has bodies, in the order of the CSV's invalid table (ADR 0175 §6.1). A status with no bodies has no row. The header reads "area counted, volume not".
+- **Words.** A row uses the wording of the Entity info panel, from `unavailable()` in `src/app/entity_info_panel.cpp`: "Not a solid: open boundary", "Not a solid: non-manifold boundary", "Not a solid: inconsistent face winding", "Not a solid: loose geometry", "Not a solid: intersecting faces", "Not a solid: degenerate shell". The statuses the panel already names as unavailable keep its words ("Unavailable: multiple shells", "Unavailable: ambiguous shell containment", "Unavailable: analysis limit"), and an empty record reads "No closed surface". One table serves both (19.11, item 8).
+- **Row shape.** A ⚠ glyph in the warning colour, the words, the count ("1"), and a second line: "1 body · area counted, no volume". The glyph, the word and the count carry the state, so no row depends on colour. The glyph is amber because it is a warning about the model, not a refusal.
+- **Terrain is not in this list.** Terrain has its own line, as a terrain, with no volume and the words "not a solid" (ADR 0175 §2.5).
+- **The volume line.** The All row shows "Not counted in volume" beside the volume, so a reader can see that the volume leaves out N bodies.
+- **Selecting them.** The engine returns counts, not bodies (19.11, item 4), so version 1 rows cannot select their bodies. Owner question 3 proposes adding up to 64 body IDs per status to the query. Each row would then offer **Select in model**.
+
+### 19.5 Units and precision in labels
+
+- **Units.** Every measure carries its unit, in the document's display units (ADR 0175 §3): m² and m³ for metres, mm² and mm³ for millimetres, ft² and ft³ for feet. A feet-and-inches document reports in feet; the compound form never appears in a total. Counts have no unit. Accessible names say the unit in words ("square metres").
+- **Precision.** The document's display precision by default, set in File → Document units…. The panel header shows it ("precision 2"). Version 1 has no precision control in the panel. A saved schedule pins the precision it was saved with (owner question 4).
+- **The corrected totals.** Quantities-a at precision 2, the All row: **40,259.20 m²** and **82.40 m³**. Under Visible only: **40,241.20 m²** and **79.40 m³** (ADR 0175 §11, corrected in the R101.a review). The earlier 40,174.20 m² is withdrawn.
+- **Separators.** The panel groups digits as the locale does, as the Entity info panel does ("40,259.20"). The CSV and JSON never group (ADR 0175 §6.1), so a file and the screen agree once the separators are removed.
+- **Feet.** A feet document reports in ft², ft³, and at most three decimals, the largest precision `maxDisplayPrecision` allows for feet (`src/core/units.hpp`). ADR 0175 §11 gives ft-in values to four decimals ("141.2587 ft³", "172.2226 ft²"), which no allowed precision produces. The design shows "141.259 ft³" at precision 3 and asks for the ADR example to be corrected (19.11, item 14).
+- **Millimetres.** In mm, the same totals are a million times the m² figures: 40,259,200,000.00 mm² at precision 2. ADR 0175 §3 requires the document's units, so the design keeps them (19.11, item 13).
+
+### 19.6 Schedules: create, rename, delete and Run
+
+- **The list.** A **Saved schedules** block sits below the export buttons and holds this model's schedules in name order. Each row shows the name, a summary ("Definition · Included · all metrics · precision 2"), the date saved, a **Run** button and a **⋯ Actions** menu (screen `schedules`). The list is per model (ADR 0175 §7), so other models' schedules are not in it (19.7).
+- **Create.** **Save as schedule…** sits under the list and in the export row. It opens a small modal dialog (screen `save`) with a **Name** field, a "Stored with the name" list (grouping, hidden content, metrics, precision pinned) and the "Not stored" line for the selection. Save is the default. Enter saves and Esc cancels. The name rules are the store's: 1 to 64 characters, letters, digits, spaces and . _ ( ) -, starting and ending with a letter or a digit. The field counts characters as you type and says the rule in words when it is broken.
+- **Name in use.** "A schedule named "Boxes only" already exists for this model. Choose another name." The engine's own text says "delete it first", which the panel does not show (19.11, item 3).
+- **Disabled, with the reason on screen.** Save is disabled when the model has no file yet ("Save the model first. A schedule belongs to a saved model.") or when the model has 32 schedules ("This model has 32 schedules. Delete one to save another."). The first matters because a schedule keyed to a model that is never saved could not be found again (19.11, item 10).
+- **Run.** Runs the schedule's own request and makes it the active view. The section header reads "Schedule · Boxes only", with **Back to the live view** (screen `run`). The active schedule re-runs when the revision changes (ADR 0175 §5). A schedule never uses the selection.
+- **Rename.** **Rename…** opens the same name field, filled in, with the same rules and the same duplicate message. The request and the creation time are kept. The store has no rename yet, so the design assumes one (19.11, item 2).
+- **Delete.** **Delete…** asks first (screen `delete`): "Delete the schedule? Its saved filters are removed from this computer. The model is not changed. Reports you exported earlier are not changed." Cancel is the default, and Esc cancels, as Reset edits does (section 15.6). Delete is never the default.
+- **Export from a schedule.** Export CSV… and Export JSON… from a row, or from an active schedule, write that schedule's own request. The CSV carries `#schedule=` with the name in place of `#ad-hoc=1`, and the JSON carries `metadata.schedule` (ADR 0175 §6.1 and the R101.c notes).
+- **Limits.** The panel builds every request from its controls, so the 16 KiB request limit is never reached. The 1 MiB store file and the 64-model limit can be reached, and 19.9 covers them.
+
+### 19.7 Stale schedules and another model's schedules
+
+- **Stale.** A schedule that names a tag, material or definition that no longer exists is marked when the list opens and whenever the revision changes. The check only looks IDs up and runs nothing. The row shows an amber ⚠ and plain words: "Stale: tag 7 no longer exists", or "Stale: material 3 and tag 7 no longer exist".
+- **Run is refused.** Run on a stale schedule is refused in the row, not in a dialog. The row shows a red ✕ "Not run." and the sentence "It refers to tag 7, which no longer exists in this model. Nothing was run, and the totals above are unchanged." The row offers **Delete…** and **Save current filters as…**, which opens the save dialog with the current filters. The engine names the IDs in its refusal details, and the panel names them in words. Nothing runs with fewer filters (ADR 0175 §7).
+- **Stale is never silent or automatic.** The panel does not delete or edit a stale schedule, and no stale schedule changes the live totals.
+- **Another model's schedules.** A model's list shows only its own schedules, keyed by identity (ADR 0175 §7), so schedules saved for other models do not appear. When there are some, one muted line says: "Other models on this computer have 3 schedules. They are kept with those models and are not listed here." It gives a count and no names, and it offers no action. Those schedules are reached by opening their models.
+- **The command line.** A schedule run against the wrong file is refused WRONG_DOCUMENT and names both identities (R101.c). The panel never shows that refusal, because it lists only its own model's schedules.
+- **A store that cannot be read.** A damaged or oversized store file puts a red ✕ "Schedules cannot be read" in the schedules block, with the file's location and the place of the fault. The text then says: "Totals, groups and exports still work. SketchyUp never resets this file: move it aside yourself, then reopen this model." The rest of the section keeps working (screen `store`). An optional store must not stop the model's own numbers (principle 5).
+- **A busy or changed store.** Two cases, each with its own line: "Another SketchyUp window is changing schedules. Try again." when the store is locked, and "The schedule file changed in another process. Nothing was saved. Try again." when it changed after it was read.
+
+### 19.8 Export CSV… and Export JSON…
+
+- **The dialog.** Export CSV… and Export JSON… open the system Save dialog for a new file, suggesting "<model name>-takeoff.csv" or ".json" with the matching filter. The dialog has no overwrite prompt, as the IFC and DXF exports have (section 16.8). A name that exists is refused after the dialog, on the sheet of screen `exists`. Nothing is replaced.
+- **What is written.** The current view: its grouping, filters, precision and all four tables. In a schedule's view, the schedule's own request, with its marker. An export from the live view writes `#ad-hoc=1`.
+- **Selection.** If Selection only is on, the file holds the selection's figures and `#filters.selection=1` (ADR 0175 §6.1). The file writer does not take a selection yet (19.11, item 5).
+- **Progress.** A write that takes more than a second shows the progress line of 19.3, labelled "Writing the file…", with Cancel. Cancel writes nothing. The budget is 10 s for 100,000 rows (ADR 0175 §12).
+- **The export report.** The report sheet of section 6.4, laid out like the IFC export report (section 16.8; screen `exported`). Its banner reads "✓ Written. The model is unchanged." The left column records what was written: grouping, metrics, hidden content, precision, units, revision, and the schedule or "none (ad hoc)". The right column lists **Needs your attention** (each not-solid, with its words and, once 19.11 item 4 is done, **Select in model**) and **Notices** (terrain is not a solid). The buttons are **Copy path** and **Close**, which is the default.
+- **JSON.** The same figures as the CSV, in the shape of ADR 0175 §6.2. Both come from one result, so they agree.
+
+### 19.9 Refusals
+
+Every refusal follows section 16.6: it first says that nothing was saved or written and that the model is unchanged, then gives the reason and the number, then the next step. The name rules are the one exception. They show in the field as the person types, before anything is attempted.
+
+| Where | Engine refusal | What the person is told | Next step |
+| --- | --- | --- | --- |
+| Save or Rename, name | `INVALID_REQUEST` | In the field: "Use 1 to 64 letters, digits, spaces or . _ ( ) -, starting and ending with a letter or a digit." | Edit the name |
+| Save or Rename, name in use | `INVALID_REQUEST` | "A schedule named "X" already exists for this model. Choose another name." | Choose another name |
+| Save, 32 schedules | `LIMIT_EXCEEDED` | Save is disabled, with "This model has 32 schedules. Delete one to save another." | Delete a schedule |
+| Save, 64 models in the store | `LIMIT_EXCEEDED` | "Nothing was saved. This computer's schedule file holds 64 models, its limit. Open each model whose schedules you no longer need and delete them there." | Open those models |
+| Save or Run, missing IDs | `NOT_FOUND`, with the IDs | The stale row (19.7) | Delete…, or Save current filters as… |
+| Run, a schedule of another model | `WRONG_DOCUMENT` | Not shown: the panel lists only this model's schedules | Use the command line on the right file |
+| Any read of the store | `INPUT_ERROR` | The store block (19.7) | Move the file aside |
+| Store changed by another process | `FILE_CHANGED` | "The schedule file changed in another process. Nothing was saved. Try again." | Try again |
+| Store locked | `OUTPUT_ERROR` | "Another SketchyUp window is changing schedules. Try again." | Try again |
+| Export, file exists | `FILE_EXISTS` | "Nothing was written. quantities-a-takeoff.csv already exists in this folder. An existing file is never replaced." (screen `exists`) | Choose a new name |
+| Export, over 256 MiB | `LIMIT_EXCEEDED` | "Nothing was written. This report is over the 256 MiB limit. Group less, pick a tag, or choose Visible only." | Narrow the report |
+| Run, the engine fails | any | "The totals could not be computed: <message>." | Try again |
+
+### 19.10 Keyboard and accessibility
+
+| Control | Keys | Accessible name (example) |
+| --- | --- | --- |
+| The section | Ctrl+K "Quantities", or View → Quantities; focus lands on Group by | "Quantities, revision 214" |
+| Group by | Enter or Space opens the list; Up and Down choose; Enter confirms | "Group by: Definition" |
+| Hidden content | One Tab stop; the arrows choose | "Hidden content: Visible only" |
+| Tags, Materials, Definitions | Enter opens the popover; Up and Down move; Space checks; Esc closes | "Tags filter: Boxes selected, 1 of 3" |
+| Selection only | Space toggles; disabled while nothing is selected | "Selection only: nothing selected, unavailable" |
+| Totals and groups | One Tab stop; Up and Down move between rows; Ctrl+C copies the row | "Area, 40,259.20 square metres" |
+| Not solids | One Tab stop; Up and Down move; **Select in model**, when offered, is the next Tab stop | "Warning: Not a solid: open boundary, 1 body, area counted, no volume" |
+| Computing | Cancel is a Tab stop and not the default; Esc cancels while focus is in the section | "Computing revision 215, elapsed 0:03. Cancel" |
+| Saved schedules | One Tab stop; Up and Down choose; Enter runs; Shift+F10 or the menu key opens Actions; F2 renames; Delete asks first | "Takeoff by definition, saved 24 October 2026, Definition, Included. Run" |
+| Stale row | As above; the refusal is read with the row | "Walls, old. Warning: stale, tag 7 no longer exists" |
+| Save and Rename dialogs | The name is focused; Enter saves (the default); Esc cancels | "Schedule name, 21 of 64 characters" |
+| Delete dialog | Cancel is the default; Esc cancels | "Delete the schedule Walls, old?" |
+| Export buttons | Tab stops in the section's footer | "Export CSV…" |
+| Export report | Close is the default; Esc closes | "Export report: items that need attention and notices" |
+
+- **Keyboard-only path.** Ctrl+K, then "Quantities", then Group by, the hidden-content radios, the pickers, Selection only, the totals, Not solids, the schedules and the export buttons, in that order. The Tab order follows the section, and no step needs a pointer. Enter runs a schedule, and Esc cancels a run or closes a popover.
+- **Not colour alone.** Every state has a glyph and a word: ⚠ Not a solid, ⚠ Stale, ✕ Not run, ✕ Nothing was written, ● Computing, ✓ Written. Amber marks a warning about the model, and red marks a refusal or a failure (section 7). A hidden tag is named "hidden" in the Tags popover as well as shown in its colour.
+- **Announcements.** One per run the person waited for ("Computed at revision 214: area 40,259.20 square metres, volume 82.40 cubic metres. 2 not solids."), one per export ("Written: quantities-a-takeoff.csv. The model is unchanged."), and one per refusal, announced as an alert. There is no announcement per edit, per row, or per background change of revision.
+- **Text size.** At 200 % the value of each group row moves under its name, the schedule actions go under the summary, dialogs scroll with their footer in view (section 16.9), and the report's two columns stack. The section scrolls, and nothing is cut off without a scroll.
+- **Motion.** The bar is the only animation. With reduced motion on, it is static, and the elapsed time still counts up (section 7).
+- **Checks.** R101.e's input tests run on X11 and Wayland at 1×, 2× and 200 % text, with the keyboard-reachability and accessible-name checks of the IFC and terrain tests (sections 15.7 and 16.9). They cover the stale row, the unreadable store, the existing-file refusal, Cancel and a newer revision during a run.
+
+### 19.11 Gaps in the engine, the CLI and the schedules
+
+These are the points where the design needs something that the engine, the CLI or the schedule store does not yet give. Each is a note for R101.e or a later row. None is changed here.
+
+1. **No progress and no cancel in the engine.** `runReport` (`src/core/report.hpp`) is one synchronous pass, with no progress callback and no cancel flag. The panel needs a worker that runs it off the UI thread, checks a cancel flag between records, and reports the contexts it has done. The 100 ms cancel budget depends on how often that check runs. The re-run budget for the panel (p95 ≤ 250 ms on a model of up to 100,000 faces, ADR 0175 §12) has not been measured: R101.b timed the engine on its own, and the panel has no run yet.
+2. **No rename and no update of a schedule.** The store has add, lookup and remove, and the session action has save, describe and delete (`src/automation/report_schedules.hpp`; R101.c). A rename is a delete and a save, so a failure between them can lose the name or the request. The design assumes one atomic `rename` in the store and the session action that keeps the request and `createdAt`. Fixing a stale schedule's filters needs the same action.
+3. **The duplicate-name refusal says "delete it first".** That text suits the command line. The panel says "Choose another name", and a rename would make the engine's text unnecessary.
+4. **Invalid rows carry a count, not bodies.** `ReportInvalidRow` holds a status and a count. Selecting the bodies needs bounded body IDs per status (owner question 3).
+5. **A file cannot take a selection.** `ReportFileOptions` has no selection field, and `writeReportFile` runs without the session's bodies. A selection file needs either that field and the bodies as an argument, or the panel calling `reportDescription` with the bodies and writing the file through `publishNewFile`, as `writeReportFile` does. The CSV metadata already has `#filters.selection=1` (ADR 0175 §6.1), so the file form is settled.
+6. **The CSV cannot say that materials apply to areas only.** The JSON does. The CSV's metadata list is fixed by ADR 0175 §6.1, which allows no other `#` line, so the panel says it instead (owner question 5).
+7. **Terrain names are not unique in the CSV.** The terrain rows carry the name only (R101.b notes). The panel tells two same-named terrains apart by their ID, which the CSV does not carry. This is a gap in the file of record.
+8. **The "Not a solid" words are private to the Entity info panel.** `unavailable()` sits in an anonymous namespace of `src/app/entity_info_panel.cpp`. The report should use the same words, so the function moves to a shared header.
+9. **A schedule does not pin its units.** A request has a precision but no display units, so a schedule run after the owner changes the units reports in the new ones. Precision is pinned (owner question 4). Pinning units would need a request field; the design accepts the gap until then.
+10. **A schedule for a model that is never saved is lost.** The store is keyed by identity, and an unsaved model's identity cannot be opened again. The design disables Save until the model has a file (19.6). The engine accepts such a save, and its message "save the document before scheduling reports" applies only to an unusable identity.
+11. **A copied file shares schedules.** The identity lives in the file, so a copy made outside SketchyUp lists the same schedules. Save as… keeps the identity (ADR 0175 §4). This is accepted for version 1 and flagged, not solved.
+12. **The 64-model refusal cannot be acted on from the panel.** The engine's text says to delete schedules "of another document", and the panel lists only this model's. The design sends the person to open those models instead.
+13. **Millimetre totals are very large.** In mm the same totals are a million times the m² figures. ADR 0175 §3 requires the document's units, so the design keeps them. A report unit choice would be a later row.
+14. **ADR 0175 text that does not match the code or itself.** (a) §11 gives ft-in values to four decimals, which no allowed precision produces (19.5). (b) §11 and the R101.a notes call the 214 m² "non-terrain non-component" area, but it includes BoxP's 48 m², and BoxP is a component. The total of 40,259.20 m² is right, and only the label is wrong. (c) The R101 roadmap row says R101.b is "awaiting merge" and R101.c to R101.f are planned. R101.b is merged (#452) and R101.c is open (#453). This change sets the row's UX field and nothing else.
+15. **The terrain's material is not stated.** §11 gives the unassigned area as 214 m² of the 259.2 m² non-terrain, and does not say which material the terrain's 40,000 m² reports under. The Material view in this design shows it under "No material". R101.e's tests should check that.
+
+### 19.12 Choices for the owner
+
+Each choice has a recommended default. **The owner decided all five on 2026-10-27, each as recommended:** the Tray section with View → Quantities; exporting a selection is allowed; the invalid rows carry up to 64 body IDs so they can select bodies; a schedule pins its precision at save; and the materials caveat stays in the panel, with no new CSV line. R101.e builds these.
+
+1. **Where the section lives.** A Tray section with View → Quantities (recommended), a section on the Info tab beside Terrain edits, or a Reports menu that opens sheets. *Recommended: the Tray section. The totals describe the whole model, and the Info tab describes the selected entity.*
+2. **Exporting a selection.** Allow a file of the selection (recommended; needs 19.11 item 5), or whole-model files only in version 1. *Recommended: allow it. The totals on screen should be exportable as they are shown.*
+3. **Bodies behind "Not solids".** Add up to 64 body IDs per status to the query, so that each row can select its bodies (recommended; the change is additive), or counts only in version 1. *Recommended: add the IDs. A count without the bodies leaves the person to hunt for them.*
+4. **Precision in a schedule.** Pin the precision at save (recommended), or follow the model's setting at each run. *Recommended: pin. A saved takeoff should not change because someone changed a display setting, the same reason the stamp carries the revision.*
+5. **The materials caveat.** Say it in the panel only (recommended; the CSV dialect stays as ADR 0175 §6.1 has it), or add a metadata line to the CSV, which amends §6.1. *Recommended: the panel only. The file's metadata list is fixed, and the JSON already states it.*
+
+| Screen | Shows | Sections |
+| --- | --- | --- |
+| ![menu](mockups/quantities/menu.png) | View → Quantities and the Ctrl+K path; the section not yet open | 19.1 |
+| ![totals](mockups/quantities/totals.png) | The default view: the All row, the revision, Not solids, terrain, the exports | 19.1, 19.3, 19.4, 19.5 |
+| ![groups](mockups/quantities/groups.png) | Group by Definition with Visible only: the three rows and the caption | 19.2, 19.5 |
+| ![filters](mockups/quantities/filters.png) | The Tags popover with a folder and a hidden tag; the materials caveat; the disabled selection | 19.2 |
+| ![computing](mockups/quantities/computing.png) | A run past a second: the previous totals kept, the progress line, Cancel | 19.3 |
+| ![save](mockups/quantities/save.png) | Save as schedule: the name rules, what is stored and what is not | 19.6 |
+| ![schedules](mockups/quantities/schedules.png) | The model's saved schedules and the ⋯ Actions menu | 19.6, 19.7 |
+| ![run](mockups/quantities/run.png) | A schedule as the active view, with its revision and Back to the live view | 19.6 |
+| ![stale](mockups/quantities/stale.png) | A stale schedule: the amber state, the red refusal and the two ways out | 19.7, 19.9 |
+| ![delete](mockups/quantities/delete.png) | Delete a schedule: Cancel is the default | 19.6 |
+| ![store](mockups/quantities/store.png) | The schedule file cannot be read; the rest still works | 19.7 |
+| ![exported](mockups/quantities/exported.png) | The export report: what was written, Not solids, notices | 19.8 |
+| ![exists](mockups/quantities/exists.png) | Refused: the file already exists, and nothing was written | 19.8, 19.9 |
+
+Each screen also renders at 200 % text as `mockups/quantities/<name>-200.png`, which is the check for wrapping and overlap.
