@@ -380,7 +380,8 @@ fonts.
 
 **Limits.** Formulas are one-way: editing geometry never changes a parameter, and a
 formula reads only its own definition's parameters. SketchUp Dynamic Components are not
-imported or converted. The in-app assistant cannot change component parameters; MCP
+converted into parameters; their attributes are read as read-only properties of a `.skp` import (see
+[Importing SketchUp (.skp) files](#importing-sketchup-skp-files)). The in-app assistant cannot change component parameters; MCP
 clients and the transaction APIs can (`component_parameter.*` operations and
 `component_parameters.*` queries in the [tool reference](TOOL_REFERENCE.md)).
 
@@ -584,6 +585,10 @@ If a file is refused, save it again from SketchUp 2021 or later and import that 
 - The names of components, groups, instances and materials.
 - Attributes, as properties named `skp.<dictionary>.<key>`. Only text, number and yes/no values come
   across.
+- Dynamic Component attributes (the `dynamic_attributes` dictionary), at instance and definition level,
+  as read-only properties. A length is stored in metres. A definition's values reach each of its
+  placements, and a placement's own value for the same key wins. Formulas and the `onClick` script come
+  across as text: they are shown, never evaluated or run.
 
 Geometry is converted from inches to metres. The file's unit setting is shown in the report, and it
 does not change the size of the model.
@@ -594,7 +599,11 @@ does not change the size of the model.
   the data the reader gets, so the result is a component, not a native group.
 - **Scenes, styles, section planes, text, dimensions, guides (construction lines and points) and the
   camera** are not imported. The report counts what was left out.
-- **Dynamic-component behaviour** is not imported. The component's geometry is.
+- **Dynamic-component formulas and behaviour** are not run. A component with `Copies` comes across as one
+  placement. The report counts each formula, each `onClick` script and each placement with `Copies`.
+- **Live Components.** The import makes no call to any Trimble service, and a Live Component's
+  configuration is not available offline. The file does not mark a Live Component, so the report does not
+  identify one. Its geometry and attributes come across like any other component's.
 - **A face the native model refuses** is left out and counted in the report under "Faces the native
   model refuses". These are faces that are not flat, that cross themselves, that collapse, or whose
   outline touches itself.
@@ -619,6 +628,9 @@ SketchUp is a trademark of Trimble Inc. SketchyUp is not affiliated with or endo
 The reader is OpenSKP, an independent open-source implementation (MIT licence) that was built by
 studying the file format. It is not affiliated with or endorsed by Trimble either, so some files may
 not import exactly as they look in SketchUp.
+
+Dynamic Components and Live Components are Trimble's terms. SketchyUp is not affiliated with or endorsed by
+Trimble for them either.
 
 ## Getting models from online libraries
 

@@ -43,6 +43,23 @@ constexpr double vertical = 1e-3;  // the exporter's face-frame tolerance (face_
 
 using PairKey = std::pair<std::uint32_t, std::uint32_t>;
 
+// The dynamic_attributes dictionary of a Dynamic Component (ADR 0178 section 5.2, R104.a).
+constexpr const char *dynamicDictionary = "dynamic_attributes";
+bool isDynamic(const SkpPackageAttribute &attribute) {
+    return attribute.dictionary == dynamicDictionary;
+}
+
+// The Dynamic Component counts (ADR 0178 section 6). Each value is counted once, when it is kept as
+// a property, so a definition's value counts once however many placements hold it;
+// copiesNotReproduced counts placements, as the ADR says. `unsupported` counts the values the
+// package carries without a value.
+struct DynamicCounts {
+    long long metadata{}, lengths{}, formulas{}, behaviours{}, copies{}, materialFormulas{},
+        unsupported{}, truncated{};
+    long long instanceCounted{}, instanceImported{};     // the instances' values, and those kept
+    long long definitionCounted{}, definitionImported{}; // the definitions' values, and those kept
+};
+
 PairKey pairKey(std::uint32_t a, std::uint32_t b) { return a < b ? PairKey{a, b} : PairKey{b, a}; }
 
 // A UTF-8 string cut to at most `bytes` bytes, never inside a code point.
@@ -221,15 +238,33 @@ class Converter {
     }
     void locate(const std::string &kind, const std::string &definition, const std::string &message);
     void omit(const std::string &kind, long long count = 1) { omitted[kind] += count; }
-    // The instance's attributes as the body's properties skp.<dictionary>.<key> (ADR 0176 section
-    // 4): a string, a number or a boolean, within the native caps (128 properties a body, names of
-    // at most 128 bytes, strings of at most 2,048 bytes). Each value that does not fit is dropped
-    // and counted (propertiesDropped), and each string cut to 2,048 bytes is counted
-    // (truncatedAttributes); both are named in the samples. `owner` names the definition that holds
-    // the instance.
-    void addAttributeProperties(
-        std::map<std::string, std::variant<bool, double, std::string>> &properties,
-        const SkpPackageInstance &instance, const std::string &owner);
+    using Properties = std::map<std::string, std::variant<bool, double, std::string>>;
+    // The attribute's property skp.<dictionary>.<key> (ADR 0176 section 4; R104.a for a Length):
+    // within the native caps (128 properties a body, names of at most 128 bytes, strings of at most
+    // 2,048 bytes). A value that does not fit is dropped and counted (propertiesDropped). `cut` is
+    // set when a string is cut to 2,048 bytes. `owner` names the definition the value is reported
+    // under.
+    bool attachProperty(Properties &properties, const SkpPackageAttribute &attribute,
+                        const std::string &owner, bool &cut);
+    // Notices and counts for one value that is now a property, once per value: a string cut to
+    // 2,048 bytes (truncatedAttributes), and for a Dynamic Component value the DC counts of ADR
+    // 0178 section 6.
+    void noteAttached(const SkpPackageAttribute &attribute, bool cut, const std::string &owner);
+    // The instance's attributes, as the body's properties (R102.b, ADR 0176 section 4).
+    void addAttributeProperties(Properties &properties, const SkpPackageInstance &instance,
+                                const std::string &owner);
+    // A definition's dynamic_attributes values, as the properties of one placement of it (R104.a).
+    // A value the placement's own attributes already name is not replaced: the instance's value
+    // wins.
+    void attachDefinitionProperties(Properties &properties, std::size_t d,
+                                    const std::string &owner);
+    // The properties of one placement of definition `d`: its own attributes, then the definition's,
+    // and the placement's Copies (ADR 0178 D1.5).
+    void attachPlacement(Properties &properties, const SkpPackageInstance &instance, std::size_t d,
+                         const std::string &owner);
+    // Counts, once for the package, the Dynamic Component values the package holds and those it
+    // cannot carry.
+    void countDynamicValues();
 
     void buildTags();
     void buildMaterials();
@@ -268,55 +303,166 @@ class Converter {
     long long nativeEdges{};   // the topology edges of every body (a shared edge counts per body)
     long long
         importedAttributes{}; // the instance attributes that became properties (once per instance)
+    std::set<std::pair<std::size_t, std::size_t>>
+        attachedDefinitionValues; // (definition, value) kept once
+    DynamicCounts dynamic;
 };
 
-void Converter::addAttributeProperties(
-    std::map<std::string, std::variant<bool, double, std::string>> &properties,
-    const SkpPackageInstance &instance, const std::string &owner) {
+bool Converter::attachProperty(Properties &properties, const SkpPackageAttribute &attribute,
+                               const std::string &owner, bool &cut) {
     constexpr std::size_t propertyNameBytes = 128;
     constexpr std::size_t propertiesPerBody = 128;
     constexpr std::size_t propertyTextBytes = 2048;
+    const std::string named =
+        "dictionary \"" + attribute.dictionary + "\", key \"" + attribute.key + "\"";
+    std::string key = "skp." + attribute.dictionary + "." + attribute.key;
+    const auto dropped = [&](const std::string &why) {
+        note("propertiesDropped");
+        locate("propertiesDropped", owner, named + ": " + why);
+        return false;
+    };
+    if (attribute.kind == SkpPackageAttribute::Kind::Unsupported)
+        return false; // counted once, by countDynamicValues
+    if (attribute.kind == SkpPackageAttribute::Kind::Length && !isDynamic(attribute)) {
+        // ADR 0176 section 4: a length outside dynamic_attributes is not imported.
+        note("attributeNotImported");
+        locate("attributeNotImported", owner, named + ": a length is not imported");
+        return false;
+    }
+    if (key.size() > propertyNameBytes)
+        return dropped("the property name is longer than 128 bytes");
+    if (properties.size() >= propertiesPerBody)
+        return dropped("the body already holds 128 properties");
+    if (properties.contains(key))
+        return dropped("another attribute already has this property name");
+    std::variant<bool, double, std::string> value;
+    switch (attribute.kind) {
+    case SkpPackageAttribute::Kind::String:
+        // Cut to the property cap; the package flags a text it cut earlier, and that counts once,
+        // here.
+        cut = attribute.truncated || attribute.text.size() > propertyTextBytes;
+        value = std::string(clipUtf8(attribute.text, propertyTextBytes));
+        break;
+    case SkpPackageAttribute::Kind::Number:
+    case SkpPackageAttribute::Kind::Length: // a dynamic_attributes length, already in metres
+        value = attribute.number;
+        break;
+    case SkpPackageAttribute::Kind::Boolean:
+        value = attribute.flag;
+        break;
+    case SkpPackageAttribute::Kind::Unsupported:
+        return false;
+    }
+    properties.emplace(std::move(key), std::move(value));
+    return true;
+}
+
+void Converter::noteAttached(const SkpPackageAttribute &attribute, bool cut,
+                             const std::string &owner) {
+    const std::string named =
+        "dictionary \"" + attribute.dictionary + "\", key \"" + attribute.key + "\"";
+    if (cut) {
+        note("truncatedAttributes");
+        locate("truncatedAttributes", owner, named + ": the text is cut to 2,048 bytes");
+    }
+    if (!isDynamic(attribute))
+        return;
+    const std::string &key = attribute.key;
+    dynamic.metadata++;
+    if (cut)
+        dynamic.truncated++;
+    if (attribute.kind == SkpPackageAttribute::Kind::Length) {
+        dynamic.lengths++;
+        locate("lengthConverted", owner, named + ": a length, kept in metres");
+    }
+    // ADR 0178 section 1.2: the formula keys are _<name>_formula and _material_formula, and onClick
+    // is the behaviour. Each is kept as inert text and never evaluated or run.
+    if (key == "_material_formula") {
+        dynamic.materialFormulas++;
+        note("materialFormulaNotApplied");
+        locate("materialFormulaNotApplied", owner, named + ": kept as text, not applied");
+    } else if (key.size() >= 10 && key.front() == '_' &&
+               key.compare(key.size() - 8, 8, "_formula") == 0) {
+        dynamic.formulas++;
+        locate("formulaNotEvaluated", owner, named + ": kept as text, not evaluated");
+    } else if (key == "onClick") {
+        dynamic.behaviours++;
+        note("behaviourNotRun");
+        locate("behaviourNotRun", owner, named + ": kept as text, not run");
+    }
+}
+
+void Converter::addAttributeProperties(Properties &properties, const SkpPackageInstance &instance,
+                                       const std::string &owner) {
     for (const auto &attribute : instance.attributes) {
-        const std::string named =
-            "dictionary \"" + attribute.dictionary + "\", key \"" + attribute.key + "\"";
-        std::string key = "skp." + attribute.dictionary + "." + attribute.key;
-        const auto dropped = [&](const std::string &why) {
-            note("propertiesDropped");
-            locate("propertiesDropped", owner, named + ": " + why);
-        };
-        if (key.size() > propertyNameBytes) {
-            dropped("the property name is longer than 128 bytes");
+        bool cut = false;
+        if (!attachProperty(properties, attribute, owner, cut))
             continue;
-        }
-        if (properties.size() >= propertiesPerBody) {
-            dropped("the body already holds 128 properties");
-            continue;
-        }
-        if (properties.contains(key)) {
-            dropped("another attribute already has this property name");
-            continue;
-        }
-        std::variant<bool, double, std::string> value;
-        switch (attribute.kind) {
-        case SkpPackageAttribute::Kind::String: {
-            // Cut to the property cap; an attribute the package cut earlier counts once, here.
-            const bool cut = attribute.truncated || attribute.text.size() > propertyTextBytes;
-            value = std::string(clipUtf8(attribute.text, propertyTextBytes));
-            if (cut) {
-                note("truncatedAttributes");
-                locate("truncatedAttributes", owner, named + ": the text is cut to 2,048 bytes");
-            }
-            break;
-        }
-        case SkpPackageAttribute::Kind::Number:
-            value = attribute.number;
-            break;
-        case SkpPackageAttribute::Kind::Boolean:
-            value = attribute.flag;
-            break;
-        }
-        properties.emplace(std::move(key), std::move(value));
         importedAttributes++;
+        if (isDynamic(attribute))
+            dynamic.instanceImported++;
+        noteAttached(attribute, cut, owner);
+    }
+}
+
+void Converter::attachDefinitionProperties(Properties &properties, std::size_t d,
+                                           const std::string &owner) {
+    const auto &attributes = pkg.definitions[d].attributes;
+    for (std::size_t i = 0; i < attributes.size(); ++i) {
+        bool cut = false;
+        if (!attachProperty(properties, attributes[i], owner, cut))
+            continue;
+        // A definition's value is one value, however many placements hold it: it is counted on the
+        // first.
+        if (attachedDefinitionValues.insert({d, i}).second) {
+            if (isDynamic(attributes[i]))
+                dynamic.definitionImported++;
+            noteAttached(attributes[i], cut, owner);
+        }
+    }
+}
+
+void Converter::attachPlacement(Properties &properties, const SkpPackageInstance &instance,
+                                std::size_t d, const std::string &owner) {
+    addAttributeProperties(properties, instance, owner);
+    attachDefinitionProperties(properties, d, pkg.definitions[d].name);
+    // ADR 0178 D1.5: a placement with Copies above 0 imports as one placement. The effective value
+    // is the placement's own, or the definition's where the placement names none.
+    const auto copies = properties.find("skp.dynamic_attributes.Copies");
+    if (copies != properties.end() && std::holds_alternative<double>(copies->second) &&
+        std::get<double>(copies->second) > 0) {
+        dynamic.copies++;
+        locate("copiesNotReproduced", owner,
+               "the placement holds Copies " +
+                   std::to_string(static_cast<long long>(std::get<double>(copies->second))) +
+                   ": imported as one placement");
+    }
+}
+
+void Converter::countDynamicValues() {
+    const auto unsupported = [&](const SkpPackageAttribute &attribute, const std::string &owner) {
+        dynamic.unsupported++;
+        note("attributeNotImported");
+        locate("attributeNotImported", owner,
+               "dictionary \"" + attribute.dictionary + "\", key \"" + attribute.key + "\": a " +
+                   attribute.text + " is not imported");
+    };
+    for (const auto &definition : pkg.definitions) {
+        for (const auto &attribute : definition.attributes) {
+            if (!isDynamic(attribute))
+                continue;
+            dynamic.definitionCounted++;
+            if (attribute.kind == SkpPackageAttribute::Kind::Unsupported)
+                unsupported(attribute, definition.name);
+        }
+        for (const auto &instance : definition.instances)
+            for (const auto &attribute : instance.attributes) {
+                if (!isDynamic(attribute))
+                    continue;
+                dynamic.instanceCounted++;
+                if (attribute.kind == SkpPackageAttribute::Kind::Unsupported)
+                    unsupported(attribute, definition.name);
+            }
     }
 }
 
@@ -762,7 +908,8 @@ Canonical Converter::buildDefinition(std::size_t d) {
             node->kind = BodyKind::Group;
             node->parent = 1;
             node->name = capName(instance.name.empty() ? pkg.definitions[std::size_t(instance.definition)].name : instance.name);
-            addAttributeProperties(node->properties, instance, definition.name);
+            attachPlacement(node->properties, instance, std::size_t(instance.definition),
+                            definition.name);
             node->transform = placement;
             node->tag = tagOf(instance.tag);
             node->hidden = instance.hidden;
@@ -842,7 +989,7 @@ void Converter::placeTopLevel(std::size_t k, Id parent) {
     group->kind = BodyKind::Group;
     group->parent = parent;
     group->name = capName(instance.name.empty() ? pkg.definitions[d].name : instance.name);
-    addAttributeProperties(group->properties, instance, pkg.definitions[0].name);
+    attachPlacement(group->properties, instance, d, pkg.definitions[0].name);
     group->transform = placement;
     group->tag = tagOf(instance.tag);
     group->hidden = instance.hidden;
@@ -864,6 +1011,7 @@ SkpImport Converter::run() {
 
     buildTags();
     buildMaterials();
+    countDynamicValues();
 
     // Every definition's canonical geometry: the root (0) first, then the file's definitions in order.
     canonical.resize(pkg.definitions.size());
@@ -961,10 +1109,33 @@ SkpImport Converter::run() {
     // file holds is kept on an instance or counted as omitted, and the kept ones are imported as
     // properties or counted as dropped.
     long long keptAttributes = 0;
-    for (const auto &definition : pkg.definitions)
+    for (const auto &definition : pkg.definitions) {
+        keptAttributes += static_cast<long long>(definition.attributes.size());
         for (const auto &instance : definition.instances)
             keptAttributes += static_cast<long long>(instance.attributes.size());
-    account("attributes", keptAttributes, importedAttributes);
+    }
+    account("attributes", keptAttributes,
+            importedAttributes + static_cast<long long>(attachedDefinitionValues.size()));
+    // The Dynamic Component values (ADR 0178 section 6), per level: counted = imported + omitted.
+    // Omitted is what the package holds and the import does not keep, such as a value that no
+    // placement holds.
+    const auto level = [](long long counted, long long imported) {
+        return QJsonObject{
+            {"counted", counted}, {"imported", imported}, {"omitted", counted - imported}};
+    };
+    const QJsonObject dynamicComponents{
+        {"metadataImported", qint64(dynamic.metadata)},
+        {"lengthConverted", qint64(dynamic.lengths)},
+        {"formulaNotEvaluated", qint64(dynamic.formulas)},
+        {"behaviourNotRun", qint64(dynamic.behaviours)},
+        {"copiesNotReproduced", qint64(dynamic.copies)},
+        {"materialFormulaNotApplied", qint64(dynamic.materialFormulas)},
+        {"attributeNotImported", qint64(dynamic.unsupported)},
+        {"textTruncated", qint64(dynamic.truncated)},
+        {"accounting",
+         QJsonObject{{"instance", level(dynamic.instanceCounted, dynamic.instanceImported)},
+                     {"definition", level(dynamic.definitionCounted, dynamic.definitionImported)}}},
+    };
 
     // What the SketchUp file holds that the package does not carry (ADR 0176 section 5): counted as none.
     QJsonArray notCarried{"scenes", "styles", "sectionPlanes", "texts", "dimensions", "camera", "constructionLines",
@@ -1045,6 +1216,7 @@ SkpImport Converter::run() {
         {"omittedByWorker", omittedWorker},
         {"notices", notes},
         {"notCarried", notCarried},
+        {"dynamicComponents", dynamicComponents},
         {"locations", where},
     };
     return result;

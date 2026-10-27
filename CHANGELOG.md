@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Dynamic Components in SketchUp (.skp) files (R104.a, R104.c, R104.d, [ADR 0178](docs/decisions/0178-dynamic-live-component-feasibility.md)):
+  a Dynamic Component's `dynamic_attributes` values are read as read-only properties
+  `skp.dynamic_attributes.<key>`, at instance and definition level (a definition's values reach each of its
+  placements, and the placement's own value wins). Lengths are stored in metres. Formulas (`_<name>_formula`,
+  `_material_formula`) and `onClick` are kept as text, capped at 2,048 bytes, and never evaluated or run.
+  `Copies` imports as one placement. The report has a `dynamicComponents` section that balances per level.
+  Live Components are not identified: the file does not mark them, so the report does not label them
+  service-dependent; the import makes no call to any Trimble service, and a test checks that it needs no
+  network. Formula mapping is deferred indefinitely (R104.b). Dynamic Components and Live Components are
+  Trimble's terms; SketchyUp is not affiliated with or endorsed by Trimble.
 - Textured material presets (R100.b, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md) Q1):
   the New material dialog's Local library gains a **Textured** group of fifteen presets, nine CC0
   textures from Poly Haven and six generated ones. Creating a preset adds its texture and its material

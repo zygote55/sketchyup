@@ -42,6 +42,38 @@ bool finiteAll(const std::array<double, N>& numbers, const char* what, std::stri
   return true;
 }
 
+// One list of attributes, as the manifest writes it (R102.b, R104.a): a JSON array of
+// {dictionary, key, type, value} objects; a string the worker cut carries "truncated": true.
+void writeAttributes(JsonOut& json, const std::vector<SkpPackageAttribute>& attributes) {
+  json.beginArray();
+  for (const auto& attribute : attributes) {
+    json.beginObject()
+        .field("dictionary", clip(attribute.dictionary, SkpPackageLimits::nameBytes))
+        .field("key", clip(attribute.key, SkpPackageLimits::nameBytes));
+    switch (attribute.kind) {
+      case SkpPackageAttribute::Kind::String:
+        json.field("type", "string").field("value", clip(attribute.text, SkpPackageLimits::stringBytes));
+        if (attribute.truncated)
+          json.field("truncated", true);
+        break;
+      case SkpPackageAttribute::Kind::Number:
+        json.field("type", "number").field("value", attribute.number);
+        break;
+      case SkpPackageAttribute::Kind::Boolean:
+        json.field("type", "boolean").field("value", attribute.flag);
+        break;
+      case SkpPackageAttribute::Kind::Length:
+        json.field("type", "length").field("value", attribute.number);
+        break;
+      case SkpPackageAttribute::Kind::Unsupported:
+        json.field("type", "unsupported").field("value", clip(attribute.text, 16));
+        break;
+    }
+    json.endObject();
+  }
+  json.endArray();
+}
+
 }  // namespace
 
 std::string countsJson(const SkpPackage& package) {
@@ -318,30 +350,11 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
     for (const auto& instance : definition.instances)
       json.value(clip(instance.name, SkpPackageLimits::nameBytes));
     json.endArray().key("instanceAttributes").beginArray();
-    for (const auto& instance : definition.instances) {
-      json.beginArray();
-      for (const auto& attribute : instance.attributes) {
-        json.beginObject()
-            .field("dictionary", clip(attribute.dictionary, SkpPackageLimits::nameBytes))
-            .field("key", clip(attribute.key, SkpPackageLimits::nameBytes));
-        switch (attribute.kind) {
-          case SkpPackageAttribute::Kind::String:
-            json.field("type", "string").field("value", clip(attribute.text, SkpPackageLimits::stringBytes));
-            if (attribute.truncated)
-                json.field("truncated", true);
-            break;
-          case SkpPackageAttribute::Kind::Number:
-            json.field("type", "number").field("value", attribute.number);
-            break;
-          case SkpPackageAttribute::Kind::Boolean:
-            json.field("type", "boolean").field("value", attribute.flag);
-            break;
-        }
-        json.endObject();
-      }
-      json.endArray();
-    }
-    json.endArray().endObject();
+    for (const auto& instance : definition.instances) writeAttributes(json, instance.attributes);
+    // R104.a: the definition's own dynamic_attributes values (a list, as an instance's is).
+    json.endArray().key("attributes");
+    writeAttributes(json, definition.attributes);
+    json.endObject();
   }
   json.endArray().key("tags");
   json.beginArray();
