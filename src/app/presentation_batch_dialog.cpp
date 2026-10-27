@@ -312,6 +312,10 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     start_->setObjectName("batchStart");
     start_->setDefault(true);
     footer->addWidget(start_);
+    // Start is the dialog's default, even while it is disabled. A button that is not Start is not
+    // auto-default, so Qt does not give the default to a setup button when Start is disabled (§17.10).
+    for (auto *button : {chooseFolder_, recheckVideo_, chooseBlender_, checkBlender_})
+        button->setAutoDefault(false);
     outer->addLayout(footer);
 
     // The lists and the choices, then the probes. Each probe reports through a signal, so the
