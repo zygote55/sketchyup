@@ -25,6 +25,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
@@ -98,19 +99,18 @@ void checkNamed(QWidget &dialog) {
     }
 }
 
-// Chooses `path` in a file chooser the way a person does: the chooser shows the file's folder, the
-// file is selected in it, and Open or Save is pressed. A chooser that is not a QFileDialog fails.
+// Chooses `path` in a file chooser the way a person does: the file's full path is typed into the
+// chooser's file name field, and Open or Save is pressed. A selection made from the chooser's list
+// is not used, because the list is filled asynchronously and differs between platforms.
 void chooseFile(QDialog &chooser, const QString &path) {
     auto *picker = qobject_cast<QFileDialog *>(&chooser);
     check(picker, "A file chooser is open");
-    const QFileInfo info(path);
-    picker->setDirectory(info.absolutePath());
-    // The chooser lists its folder asynchronously, so the file is selected after a short wait.
-    QTest::qWait(300);
-    picker->selectFile(info.fileName());
-    check(picker->selectedFiles().contains(info.absoluteFilePath()),
-          "The chooser selects the file");
-    chooser.done(QDialog::Accepted);
+    auto *name = picker->findChild<QLineEdit *>("fileNameEdit");
+    check(name, "The chooser has a file name field");
+    name->setText(QFileInfo(path).absoluteFilePath());
+    QMetaObject::invokeMethod(picker, "accept");
+    check(picker->selectedFiles().contains(QFileInfo(path).absoluteFilePath()),
+          "The chooser returns the typed file");
 }
 
 // Chooses the folder `path` in a folder chooser: the chooser shows it, and nothing is selected.
@@ -827,6 +827,9 @@ int main(int argc, char **argv) {
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     qputenv("XDG_DATA_HOME", files.path().toUtf8());
+    // The file and folder choosers are Qt's own widgets here, so the test can choose in them. A
+    // platform chooser has no widgets to drive, and its selection is not the test's to set.
+    qputenv("QT_QPA_PLATFORMTHEME", "generic");
     QApplication app(argc, argv);
     QSettings preferences("SketchyUp", "SketchyUp");
     preferences.setValue("recoverySeconds", 0);
