@@ -1555,7 +1555,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 **Status:** Design accepted ([ADR 0183](decisions/0183-helper-process-sandbox.md), owner decisions approved 2026-10-27); planned before the next release. The `.skp` helper's refusal-code fix from the measurements is merged (PR #470). **Track:** Core. **Scope:** — (hardening of shipped helpers). **UX:** —.
 
-**Requires:** [R097](#r097), [R098](#r098), [R102](#r102), [R072](#r072); milestone gate rule above.
+**Requires:** [R070](#r070), [R097](#r097), [R098](#r098), [R102](#r102); milestone gate rule above.
 
 **Build:** A shared in-tree sandbox library (no new dependency): `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset confined to the input and a private directory, and a raw seccomp-bpf allow-list with a kill default. Apply it, fail closed, in the SKP, IFC/STEP, text and extension workers and the Blender job (offline, private home, exec of its own binary only), including the developer probe modes. Report a sandbox kill as `sandboxViolation`, never as a crash to restart.
 
