@@ -1549,6 +1549,18 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 **Verify:** Two-client fixtures demonstrate defined conflict handling, disconnection and recovery without lost updates; publish the feasibility decision and subsequent delivery scope before implementation claims.
 
+<a id="r109"></a>
+
+#### R109 — Sandbox the file-parsing helper processes
+
+**Status:** Design accepted ([ADR 0183](decisions/0183-helper-process-sandbox.md), owner decisions approved 2026-10-27); planned before the next release. The `.skp` helper's refusal-code fix from the measurements is merged (PR #470). **Track:** Core. **Scope:** — (hardening of shipped helpers). **UX:** —.
+
+**Requires:** [R070](#r070), [R097](#r097), [R098](#r098), [R102](#r102); milestone gate rule above.
+
+**Build:** A shared in-tree sandbox library (no new dependency): `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset confined to the input and a private directory, and a raw seccomp-bpf allow-list with a kill default. Apply it, fail closed, in the SKP, IFC/STEP, text and extension workers and the Blender job (offline, private home, exec of its own binary only), including the developer probe modes. Report a sandbox kill as `sandboxViolation`, never as a crash to restart.
+
+**Verify:** Each helper's committed fixtures produce output identical to an unsandboxed run; a sandboxed helper cannot open a socket, exec another program or read outside its directory; an unavailable layer refuses with a named reason; the required `sandbox_available` CI check passes on the runner images.
+
 ## Scope-to-PR coverage
 
 Every scope ID appears below. A row with several PRs closes only when its complete
