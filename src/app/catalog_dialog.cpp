@@ -2,8 +2,8 @@
 
 #include "app/catalog_report.hpp"
 #include "app/component_definition_section.hpp"
-#include "io/catalog_insert.hpp"
 #include "app/interface_preferences.hpp"
+#include "io/catalog_insert.hpp"
 #include "io/library_bundle.hpp"
 
 #include <QComboBox>
@@ -147,12 +147,12 @@ QString dependencyRow(const CatalogPackage &package, const CatalogDependency &de
                       DependencyState state) {
     const bool asset = dependency.kind == CatalogDependency::Kind::Asset;
     const auto name = asset ? assetName(package, dependency.id) : entryName(package, dependency.id);
-    const auto label = name.isEmpty()
-                           ? QStringLiteral("%1 %2").arg(asset ? "Asset" : "Entry").arg(dependency.id)
-                           : QStringLiteral("%1 %2 %3")
-                                 .arg(asset ? "Asset" : "Entry")
-                                 .arg(dependency.id)
-                                 .arg(quoted(name));
+    const auto label =
+        name.isEmpty() ? QStringLiteral("%1 %2").arg(asset ? "Asset" : "Entry").arg(dependency.id)
+                       : QStringLiteral("%1 %2 %3")
+                             .arg(asset ? "Asset" : "Entry")
+                             .arg(dependency.id)
+                             .arg(quoted(name));
     return QStringLiteral("%1 · %2").arg(label, stateWord(state));
 }
 
@@ -394,8 +394,8 @@ CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
 
 void CatalogDialog::resizeEvent(QResizeEvent *event) {
     QDialog::resizeEvent(event);
-    // The large text size (above 125 %, as the command search reads it) and a narrow dialog stack the
-    // list above its details (UX_DESIGN 18.7).
+    // The large text size (above 125 %, as the command search reads it) and a narrow dialog stack
+    // the list above its details (UX_DESIGN 18.7).
     if (split_) {
         const bool stacked = event->size().width() < 900 || interfaceTextPercent() > 125;
         split_->setOrientation(stacked ? Qt::Vertical : Qt::Horizontal);
@@ -525,10 +525,10 @@ void CatalogDialog::rebuildTree() {
                 shown.push_back(index);
         if (filtered && shown.empty())
             continue;
-        auto *group = new QTreeWidgetItem(
-            list_, {QStringLiteral("%1 · %2 · %3")
-                        .arg(source.title(), package.metadata.version)
-                        .arg(countWord(qsizetype(package.entries.size())))});
+        auto *group =
+            new QTreeWidgetItem(list_, {QStringLiteral("%1 · %2 · %3")
+                                            .arg(source.title(), package.metadata.version)
+                                            .arg(countWord(qsizetype(package.entries.size())))});
         group->setFlags(group->flags() & ~Qt::ItemIsSelectable);
         group->setData(0, Qt::UserRole + 1, source.path);
         group->setExpanded(true);
@@ -577,18 +577,19 @@ void CatalogDialog::openFile() {
     source.path = QFileInfo(dialog.selectedFiles().constFirst()).absoluteFilePath();
     const QFileInfo info(source.path);
     try {
-        // The bounded loader refuses a larger file, but the size is named here, in the words of 18.6.
+        // The bounded loader refuses a larger file, but the size is named here, in the words
+        // of 18.6.
         if (info.size() > qint64(libraryBundleLimit))
-            throw std::runtime_error(
-                QStringLiteral("the file is %1 MiB, and the limit is 130 MiB")
-                    .arg(double(info.size()) / (1024.0 * 1024.0), 0, 'f', 1)
-                    .toStdString());
+            throw std::runtime_error(QStringLiteral("the file is %1 MiB, and the limit is 130 MiB")
+                                         .arg(double(info.size()) / (1024.0 * 1024.0), 0, 'f', 1)
+                                         .toStdString());
         source.package = loadCatalog(source.path);
     } catch (const std::exception &failure) {
         source.error = unreadable(QString::fromUtf8(failure.what()));
     }
     // Opening a file again replaces its listing; the file is never written.
-    std::erase_if(sources_, [&](const CatalogSource &listed) { return listed.path == source.path; });
+    std::erase_if(sources_,
+                  [&](const CatalogSource &listed) { return listed.path == source.path; });
     sources_.push_back(std::move(source));
     rebuildTree();
     refreshInsert();
@@ -640,7 +641,8 @@ void CatalogDialog::showDetails() {
         lines << (package.metadata.description.isEmpty() ? QStringLiteral("No description.")
                                                          : package.metadata.description);
         lines << QStringLiteral("Author: %1")
-                     .arg(package.metadata.author.isEmpty() ? QStringLiteral("none") : package.metadata.author);
+                     .arg(package.metadata.author.isEmpty() ? QStringLiteral("none")
+                                                            : package.metadata.author);
         lines << QStringLiteral("Licence: %1").arg(package.metadata.licenseIdentifier);
         lines << QStringLiteral("Labels: %1")
                      .arg(package.metadata.labels.isEmpty() ? QStringLiteral("none")
@@ -655,27 +657,31 @@ void CatalogDialog::showDetails() {
     const auto block = insertBlock(package, entry);
     lines << QStringLiteral("%1 · %2 · %3")
                  .arg(entry.name, kindTitle(entry.kind),
-                      block.isEmpty() ? QStringLiteral("Insertable") : QStringLiteral("Not insertable"));
+                      block.isEmpty() ? QStringLiteral("Insertable")
+                                      : QStringLiteral("Not insertable"));
     if (!block.isEmpty())
         lines << QStringLiteral("✕ %1").arg(block);
     lines << (entry.description.isEmpty() ? QStringLiteral("No description.") : entry.description);
     lines << QStringLiteral("From %1 %2 · licence %3 · author %4")
                  .arg(package.metadata.name, package.metadata.version,
                       package.metadata.licenseIdentifier,
-                      package.metadata.author.isEmpty() ? QStringLiteral("none") : package.metadata.author);
+                      package.metadata.author.isEmpty() ? QStringLiteral("none")
+                                                        : package.metadata.author);
     lines << QStringLiteral("Dependencies:");
     if (entry.dependencies.empty())
         lines << QStringLiteral("  None.");
     for (const auto &dependency : entry.dependencies) {
         const auto state = stateOf(package, entry.id, dependency);
         lines << QStringLiteral("  %1 %2")
-                     .arg(state == DependencyState::Present ? QStringLiteral("✓") : QStringLiteral("✕"))
+                     .arg(state == DependencyState::Present ? QStringLiteral("✓")
+                                                            : QStringLiteral("✕"))
                      .arg(dependencyRow(package, dependency, state));
     }
     switch (entry.kind) {
     case CatalogEntryKind::Component:
-        lines << QStringLiteral("Placement: inserted at the model’s origin. A position field follows "
-                                "when the engine takes one.");
+        lines << QStringLiteral(
+            "Placement: inserted at the model’s origin. A position field follows "
+            "when the engine takes one.");
         break;
     case CatalogEntryKind::Material:
         lines << QStringLiteral("Placement: added to the model’s materials.");
@@ -702,8 +708,10 @@ void CatalogDialog::refreshInsert() {
     refusal_.clear();
     const auto refs = chosen();
     if (refs.empty()) {
-        setInsertState(false, QStringLiteral("Insert"),
-                       QStringLiteral("Select an entry to insert. Entries are inserted at the model’s origin."));
+        setInsertState(
+            false, QStringLiteral("Insert"),
+            QStringLiteral(
+                "Select an entry to insert. Entries are inserted at the model’s origin."));
         return;
     }
     std::vector<const CatalogEntryReport *> entries;
@@ -831,12 +839,15 @@ void CatalogDialog::insertSelected() {
     } catch (const std::exception &failure) {
         const QString message = QString::fromUtf8(failure.what());
         if (message == QStringLiteral("Batch has no committed changes")) {
-            // The model already has these entries: a neutral result, not a refusal (UX_DESIGN 18.2).
+            // The model already has these entries: a neutral result, not a refusal
+            // (UX_DESIGN 18.2).
             const bool style =
-                refs.size() == 1 && sourceAt(refs.front().first)->package->entries[refs.front().second]
-                                            .kind == CatalogEntryKind::Style;
-            inserted_ = style ? QStringLiteral("This model already has this style. Nothing changed.")
-                              : QStringLiteral("This model already has these entries. Nothing changed.");
+                refs.size() == 1 &&
+                sourceAt(refs.front().first)->package->entries[refs.front().second].kind ==
+                    CatalogEntryKind::Style;
+            inserted_ =
+                style ? QStringLiteral("This model already has this style. Nothing changed.")
+                      : QStringLiteral("This model already has these entries. Nothing changed.");
             accept();
             return;
         }
@@ -846,8 +857,10 @@ void CatalogDialog::insertSelected() {
     const auto summary =
         refs.size() == 1
             ? QStringLiteral("Inserted %1 at the model’s origin")
-                  .arg(quoted(sourceAt(refs.front().first)->package->entries[refs.front().second].name))
-            : QStringLiteral("Inserted %1 at the model’s origin").arg(countWord(qsizetype(refs.size())));
+                  .arg(quoted(
+                      sourceAt(refs.front().first)->package->entries[refs.front().second].name))
+            : QStringLiteral("Inserted %1 at the model’s origin")
+                  .arg(countWord(qsizetype(refs.size())));
     inserted_ = QStringLiteral("%1. Undo: %2.").arg(summary, label);
     accept();
 }
@@ -879,7 +892,8 @@ void CatalogDialog::showReport(const QString &refusal) {
         paths.insert(ref.first);
     const auto *first = paths.size() == 1 ? sourceAt(*paths.begin()) : nullptr;
     if (first && first->package)
-        report.catalog = QStringLiteral("%1 %2").arg(first->title(), first->package->metadata.version);
+        report.catalog =
+            QStringLiteral("%1 %2").arg(first->title(), first->package->metadata.version);
     else if (first)
         report.catalog = first->title();
     else

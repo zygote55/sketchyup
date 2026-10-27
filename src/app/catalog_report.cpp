@@ -47,8 +47,9 @@ QString summaryText(const CatalogInsertReport &report, const Accounting &counts)
     if (!report.refusal.isEmpty())
         parts << QStringLiteral("The engine refused the request: %1.").arg(report.refusal);
     if (counts.refused > 0)
-        parts << QStringLiteral("%1 %2 a missing or mismatched dependency. Fix or deselect %3, then "
-                                "insert again.")
+        parts << QStringLiteral(
+                     "%1 %2 a missing or mismatched dependency. Fix or deselect %3, then "
+                     "insert again.")
                      .arg(capitalised(entryCount(counts.refused)))
                      .arg(counts.refused == 1 ? QStringLiteral("has") : QStringLiteral("have"))
                      .arg(counts.refused == 1 ? QStringLiteral("it") : QStringLiteral("them"));
@@ -90,12 +91,13 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
     // The left column: the counts, the accounting identity with its bar and legend, and how the
     // request was checked.
     auto *left = new QVBoxLayout;
-    auto *counted = new QLabel(QStringLiteral("Entries requested: %1\nInserted: 0\nRefused, with a "
-                                              "reason: %2\nNot inserted (the request was refused as "
-                                              "a whole): %3")
-                                   .arg(requested)
-                                   .arg(counts.refused)
-                                   .arg(counts.notInserted));
+    auto *counted =
+        new QLabel(QStringLiteral("Entries requested: %1\nInserted: 0\nRefused, with a "
+                                  "reason: %2\nNot inserted (the request was refused as "
+                                  "a whole): %3")
+                       .arg(requested)
+                       .arg(counts.refused)
+                       .arg(counts.notInserted));
     counted->setObjectName("catalogReportCounts");
     counted->setTextFormat(Qt::PlainText);
     left->addWidget(counted);
@@ -111,17 +113,19 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
                  : QStringLiteral("✕ not balanced: the parts do not add up to %1").arg(requested));
     identity->setObjectName("catalogReportIdentity");
     left->addWidget(identity);
-    auto *legend = new QLabel(QStringLiteral("Inserted: 0\nRefused, with its reason: %1\nNot inserted, "
-                                              "because the request was refused: %2")
-                                  .arg(counts.refused)
-                                  .arg(counts.notInserted));
+    auto *legend =
+        new QLabel(QStringLiteral("Inserted: 0\nRefused, with its reason: %1\nNot inserted, "
+                                  "because the request was refused: %2")
+                       .arg(counts.refused)
+                       .arg(counts.notInserted));
     legend->setObjectName("catalogReportLegend");
     legend->setTextFormat(Qt::PlainText);
     left->addWidget(legend);
-    auto *checked = new QLabel(QStringLiteral("How it was checked\nCatalog: %1\nEvery entry hash: "
-                                              "checked\nEvery dependency: checked\nInsert placement: "
-                                              "the model’s origin")
-                                   .arg(report.catalog));
+    auto *checked =
+        new QLabel(QStringLiteral("How it was checked\nCatalog: %1\nEvery entry hash: "
+                                  "checked\nEvery dependency: checked\nInsert placement: "
+                                  "the model’s origin")
+                       .arg(report.catalog));
     checked->setObjectName("catalogReportChecked");
     checked->setTextFormat(Qt::PlainText);
     checked->setWordWrap(true);
@@ -135,7 +139,8 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
     // The right column: the grouped tree and the row actions for the current row.
     auto *tree = new QTreeWidget;
     tree->setObjectName("catalogReportTree");
-    tree->setAccessibleName("Asset catalog report: refused entries, their dependencies and notices");
+    tree->setAccessibleName(
+        "Asset catalog report: refused entries, their dependencies and notices");
     tree->setHeaderHidden(true);
     tree->setColumnCount(1);
     tree->setWordWrap(true);
@@ -143,12 +148,14 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
     tree->setSelectionMode(QAbstractItemView::SingleSelection);
     tree->setExpandsOnDoubleClick(false);
 
-    auto *attention = new QTreeWidgetItem(tree, {QStringLiteral("Needs your attention · %1")
-                                                     .arg(counts.refused + (report.refusal.isEmpty() ? 0 : 1))});
+    auto *attention =
+        new QTreeWidgetItem(tree, {QStringLiteral("Needs your attention · %1")
+                                       .arg(counts.refused + (report.refusal.isEmpty() ? 0 : 1))});
     attention->setFlags(attention->flags() & ~Qt::ItemIsSelectable);
     attention->setExpanded(true);
     if (!report.refusal.isEmpty()) {
-        auto *refusal = new QTreeWidgetItem(attention, {QStringLiteral("The engine refused the request")});
+        auto *refusal =
+            new QTreeWidgetItem(attention, {QStringLiteral("The engine refused the request")});
         new QTreeWidgetItem(refusal, {report.refusal});
         refusal->setExpanded(true);
     }
@@ -165,7 +172,8 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
             new QTreeWidgetItem(row, {entry.explanation});
     }
 
-    auto *notInserted = new QTreeWidgetItem(tree, {QStringLiteral("Not inserted · %1").arg(counts.notInserted)});
+    auto *notInserted =
+        new QTreeWidgetItem(tree, {QStringLiteral("Not inserted · %1").arg(counts.notInserted)});
     notInserted->setFlags(notInserted->flags() & ~Qt::ItemIsSelectable);
     notInserted->setExpanded(true);
     for (qsizetype index = 0; index < requested; ++index) {
@@ -176,7 +184,8 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
         row->setData(0, Qt::UserRole, qulonglong(index));
     }
 
-    auto *notices = new QTreeWidgetItem(tree, {QStringLiteral("Notices · %1").arg(report.notices.size())});
+    auto *notices =
+        new QTreeWidgetItem(tree, {QStringLiteral("Notices · %1").arg(report.notices.size())});
     notices->setFlags(notices->flags() & ~Qt::ItemIsSelectable);
     notices->setExpanded(true);
     for (const auto &notice : report.notices)
@@ -204,18 +213,19 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
     rightWidget->setLayout(rightColumn);
     columns->addWidget(rightWidget, 1);
 
-    QObject::connect(tree, &QTreeWidget::currentItemChanged, &sheet,
-                     [remove, &report](QTreeWidgetItem *current, QTreeWidgetItem *) {
-                         const bool isEntry = current && current->data(0, Qt::UserRole).isValid();
-                         remove->setEnabled(isEntry);
-                         if (isEntry) {
-                             const auto &entry =
-                                 report.entries[size_t(current->data(0, Qt::UserRole).toULongLong())];
-                             remove->setText(QStringLiteral("Remove “%1” from selection").arg(entry.name));
-                         } else {
-                             remove->setText("Remove from selection");
-                         }
-                     });
+    QObject::connect(
+        tree, &QTreeWidget::currentItemChanged, &sheet,
+        [remove, &report](QTreeWidgetItem *current, QTreeWidgetItem *) {
+            const bool isEntry = current && current->data(0, Qt::UserRole).isValid();
+            remove->setEnabled(isEntry);
+            if (isEntry) {
+                const auto &entry =
+                    report.entries[size_t(current->data(0, Qt::UserRole).toULongLong())];
+                remove->setText(QStringLiteral("Remove “%1” from selection").arg(entry.name));
+            } else {
+                remove->setText("Remove from selection");
+            }
+        });
     QObject::connect(selectOthers, &QPushButton::clicked, &sheet, [&result, &sheet] {
         result.choice = CatalogReportChoice::SelectOthers;
         sheet.accept();
@@ -232,9 +242,8 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
     // Copy report and Close (the default) sit in the footer.
     auto *copy = new QPushButton("Copy report");
     copy->setObjectName("catalogReportCopy");
-    QObject::connect(copy, &QPushButton::clicked, &sheet, [&report] {
-        QApplication::clipboard()->setText(catalogReportText(report));
-    });
+    QObject::connect(copy, &QPushButton::clicked, &sheet,
+                     [&report] { QApplication::clipboard()->setText(catalogReportText(report)); });
     auto *close = new QPushButton("Close");
     close->setObjectName("catalogReportClose");
     close->setDefault(true);

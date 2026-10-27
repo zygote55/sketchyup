@@ -195,10 +195,12 @@ void CatalogExportDialog::exportToFile() {
         request.labels.append(label.trimmed());
     for (int row = 0; row < components_->count(); ++row)
         if (components_->item(row)->checkState() == Qt::Checked)
-            request.components.push_back(Id(components_->item(row)->data(Qt::UserRole).toULongLong()));
+            request.components.push_back(
+                Id(components_->item(row)->data(Qt::UserRole).toULongLong()));
     for (int row = 0; row < materials_->count(); ++row)
         if (materials_->item(row)->checkState() == Qt::Checked)
-            request.materials.push_back(Id(materials_->item(row)->data(Qt::UserRole).toULongLong()));
+            request.materials.push_back(
+                Id(materials_->item(row)->data(Qt::UserRole).toULongLong()));
     request.style = style_->isChecked();
     const auto entries =
         qsizetype(request.components.size() + request.materials.size()) + (request.style ? 1 : 0);
@@ -236,7 +238,8 @@ void CatalogExportDialog::exportToFile() {
     try {
         writeCatalog(bytes, path);
     } catch (const std::exception &failure) {
-        showExportRefusal(this, QString::fromUtf8(failure.what()), QStringLiteral("✕ Export refused"));
+        showExportRefusal(this, QString::fromUtf8(failure.what()),
+                          QStringLiteral("✕ Export refused"));
         return;
     }
     exported_ = QStringLiteral("Exported asset catalog “%1”: %2 entries. Your model is unchanged.")

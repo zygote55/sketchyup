@@ -8,12 +8,12 @@
 #include "app/terrain_actions.hpp"
 #include "app/terrain_import_dialog.hpp"
 #include "automation/commands.hpp"
-#include "core/terrain.hpp"
 #include "automation/extension_store.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
+#include "core/terrain.hpp"
 #include "integrations/chatgpt_auth.hpp"
 #include "native_dialog_audit.hpp"
 #include <QBuffer>
@@ -1589,7 +1589,8 @@ inline std::vector<Case> cases(Context &ctx) {
     // ------------------------------------------------------------ catalogs ----------
     // R100.f3 (UX_DESIGN §18.1, §18.5 to §18.7): File > Asset catalogs… opens the modal dialog. No
     // button is its default, so Enter in a field does nothing, and Esc closes it. The insert is off
-    // until an entry is selected. style_catalog_input_tests drives the list, the insert and the report.
+    // until an entry is selected. style_catalog_input_tests drives the list, the insert and the
+    // report.
     add({"asset-catalogs",
          "catalogs",
          "Asset catalogs",
@@ -1604,8 +1605,8 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          {},
          "Esc closes it. Insert is off until an entry that can be inserted is selected."});
-    // R100.f3 (UX_DESIGN §18.1, §18.6): File > Export asset catalog… writes a new file, so its default
-    // is Export to file…, which is on because the demo model has a component.
+    // R100.f3 (UX_DESIGN §18.1, §18.6): File > Export asset catalog… writes a new file, so its
+    // default is Export to file…, which is on because the demo model has a component.
     add({"export-asset-catalog",
          "catalogs",
          "Export asset catalog",

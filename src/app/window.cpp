@@ -504,7 +504,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(
         action("file.importTerrain", "Import terrain…", {}, [this] { importTerrainDialog(); }));
     // R100.f3 (UX_DESIGN 18.1): Asset catalogs… after Import terrain…, with no default shortcut.
-    file->addAction(action("file.assetCatalogs", "Asset catalogs…", {}, [this] { catalogDialog(); }));
+    file->addAction(
+        action("file.assetCatalogs", "Asset catalogs…", {}, [this] { catalogDialog(); }));
     setupTerrainActions();
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
     file->addAction(

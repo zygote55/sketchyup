@@ -1,10 +1,10 @@
 #pragma once
 // R100.f3 (UX_DESIGN §18.1, §18.5 to §18.7; ADR 0174 sections 4, 5 and 8): the Asset catalogs
 // dialog. It lists the catalogs in the library folder and any file the person opens, groups their
-// entries with a state and a reason, and inserts the selection as one catalog.import batch: one undo
-// step, checked first by the engine's shared dry run. A refused insert opens the missing-dependency
-// report. The dialog never changes a catalog file. A catalog that cannot be read is listed as
-// refused, and its entries are never inserted.
+// entries with a state and a reason, and inserts the selection as one catalog.import batch: one
+// undo step, checked first by the engine's shared dry run. A refused insert opens the
+// missing-dependency report. The dialog never changes a catalog file. A catalog that cannot be read
+// is listed as refused, and its entries are never inserted.
 #include "core/model.hpp"
 #include "io/catalog_io.hpp"
 
@@ -95,7 +95,8 @@ class CatalogDialog : public QDialog {
     QPushButton *insert_{};
 };
 
-// How a catalog dependency stands (ADR 0174 section 5). Present is the only state an insert accepts.
+// How a catalog dependency stands (ADR 0174 section 5). Present is the only state an insert
+// accepts.
 enum class DependencyState { Present, Missing, Tampered, NotImportable, NotEarlier };
 
 // The state of one dependency of the entry numbered `owner`. An entry may depend only on an

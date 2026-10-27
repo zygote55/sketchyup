@@ -16,18 +16,18 @@ namespace sketchy {
 // One requested entry of the insert, in the order the person selected it.
 struct CatalogReportEntry {
     QString name;
-    QString kind;                 // "component", "material", "style" or "template"
-    qulonglong number{};          // the entry's number in its catalog, from 1
-    bool refused{};               // refused with a reason, rather than not inserted with the request
-    QString reason;               // the row's words, for example "missing texture"
-    QString explanation;          // the sentence that says why, or empty
-    QStringList dependencies;     // the failing dependencies: "Asset 7 “Chair fabric” · missing"
+    QString kind;             // "component", "material", "style" or "template"
+    qulonglong number{};      // the entry's number in its catalog, from 1
+    bool refused{};           // refused with a reason, rather than not inserted with the request
+    QString reason;           // the row's words, for example "missing texture"
+    QString explanation;      // the sentence that says why, or empty
+    QStringList dependencies; // the failing dependencies: "Asset 7 “Chair fabric” · missing"
 };
 
 struct CatalogInsertReport {
-    QString catalog;                          // "Office fittings 1.0.0", or "Two catalogs"
-    QString refusal;                          // the engine's refusal of the whole request, or empty
-    std::vector<CatalogReportEntry> entries;  // every requested entry
+    QString catalog;                         // "Office fittings 1.0.0", or "Two catalogs"
+    QString refusal;                         // the engine's refusal of the whole request, or empty
+    std::vector<CatalogReportEntry> entries; // every requested entry
     QStringList notices;
 };
 
