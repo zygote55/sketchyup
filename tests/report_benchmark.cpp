@@ -143,34 +143,11 @@ double percentile(std::vector<double> sample, double fraction) {
     return sample[std::max<std::size_t>(rank, 1) - 1];
 }
 
-// The re-run's model: `placements` placements of the 12-face part, built as quantities-b builds
-// its part, and with `withTerrain` quantities-b's 250,000-triangle terrain too.
-Document partsModel(std::size_t placements, bool withTerrain) {
-    Document doc;
-    if (withTerrain) {
-        const auto mesh = flatGrid(353, 1.);
-        createTerrain(doc, mesh, terrainRecord(mesh));
-    }
-    const auto first = box(doc, {0, 0, 0}, {.5, .5, 2});
-    const auto second = box(doc, {1, 0, 0}, {.5, .5, 2});
-    const auto group = createGroup(doc, {first, second}, "Part");
-    const auto definition = createComponent(doc, group, "Part").definition;
-    Selection origin;
-    origin.apply(doc, {{doc.instances().begin()->first, SelectionKind::Body, 0}},
-                 SelectionMode::Replace);
-    eraseSelected(doc, origin);
-    const std::size_t columns = 100;
-    for (std::size_t i = 0; i < placements; ++i)
-        placeComponent(
-            doc, definition,
-            Transform::translation({double(i % columns) * 2, double(i / columns) * 2 + 10, 0}));
-    return doc;
-}
-
 // R101.e1 (ADR 0175 §12): the panel's re-run. One edit before each run (which moves the revision),
 // then the engine's run and the description the panel reads. The first two runs are warm-up.
 void rerun(std::size_t runs, bool withTerrain) {
-    auto doc = partsModel(8333, withTerrain);
+    Document doc;
+    buildPartsModel(doc, 8333, withTerrain);
     std::size_t faces = 0;
     for (const auto &[id, record] : doc.bodies())
         faces += record->surface.faces.size();

@@ -10,6 +10,11 @@
 #include <unistd.h>
 
 namespace sketchy {
+namespace {
+// The helper's exit code for a layer of its sandbox that could not be installed (ADR 0183 section
+// 7).
+constexpr int sandboxUnavailableExit = 70;
+} // namespace
 
 // Runs the helper once with a fixed argv and a scrubbed environment, in its own session, with a deadline; the
 // parent ends it (terminate, then kill after a second) on cancel, on the deadline or when it floods its output.
@@ -88,12 +93,19 @@ IfcWorkerRun runIfcWorker(const QString &worker, const QString &directory, const
         run.reason = "error";
     } else if (process.exitStatus() == QProcess::NormalExit && run.exitCode == 0 && run.result["status"] == "ok") {
         run.kind = IfcWorkerRun::Finished;
-    } else if (process.exitStatus() == QProcess::NormalExit && run.exitCode == 3 && run.result["status"] == "refused") {
+    } else if (process.exitStatus() == QProcess::NormalExit &&
+               (run.exitCode == 3 || run.exitCode == sandboxUnavailableExit) &&
+               run.result["status"] == "refused") {
         run.kind = IfcWorkerRun::Refused;
     } else {
-        run.reason = process.exitStatus() == QProcess::CrashExit ? "crash"
-                     : (run.logTail.contains("bad_alloc") || run.logTail.contains("length_error")) ? "memory"
-                                                                                                   : "error";
+        // A call the sandbox's policy does not allow is SIGSYS, which QProcess reports as the exit
+        // code of a crash (ADR 0183 section 4.6): a violation, not a crash.
+        run.reason = (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS)
+                         ? "sandboxViolation"
+                     : process.exitStatus() == QProcess::CrashExit ? "crash"
+                     : (run.logTail.contains("bad_alloc") || run.logTail.contains("length_error"))
+                         ? "memory"
+                         : "error";
     }
     return run;
 }

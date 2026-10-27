@@ -10,6 +10,15 @@ item 3). F07 ships in its own gated minor release with the other M10
 entries ([M10 acceptance](../M10_ACCEPTANCE.md),
 [ADR 0162](0162-release-versioning.md)).
 
+**Acceptance record (R101.f, 2026-10-27):** [R101f](../verification/R101f-quantities-reports.md)
+([summary](../verification/R101f-quantities-reports.json)). The Verify line is met: V1 to V12 pass. All seven §12 rows
+are met on the Release build; the panel re-run row is met, marginal (p95 at most 985 ms in six of seven series, one series
+at 1,097 ms under load). In the large-model V7 test (Debug) the UI never stops for more than 26 ms locally (50 ms in CI) while the
+run computes, the section adds 13 to 38 ms locally (156 ms in CI) to an edit's synchronous work, and Cancel clears the
+computing line in 11 to 65 ms locally (51 ms in CI). The edit's
+own synchronous work on that model (0.30 to 0.42 s locally, 0.85 s in CI) is outside V7 and carried as the record's finding
+22. The parent decided the record's §8 items 2 to 8, and item 1 by measurement, on 2026-10-27; the owner can reopen them.
+
 **Build line:** "Build configurable component/material counts, areas/volumes
 and CSV/tabular reports from document semantics. Include units, filters and
 source revision." **Verify line:** "Shared components, hidden content and
@@ -523,7 +532,6 @@ default `visibility: all`):
 | Box on hidden tag `Off`, 2×2×0.5 (2 m³; 12 m²) | included by default; excluded under `visible` |
 | Open plate 1×2 m, single face | area 2 m² counted; volume absent; status `open_boundary` |
 | Two 1 m³ cubes sharing a face, as one body | 1 context; area 12 m² counted; volume absent; status `non_manifold` |
-| Zero-thickness extrusion of a 1×2 face | area 0 m²; volume absent; status `degenerate` (cannot be built: `Surface::extrude` refuses a zero distance; see the R101.a notes) |
 | Terrain T: 200 m × 200 m flat plane, 1 m grid | 80,000 triangles; area 40,000 m² (flat, tolerance ≤ 1e-6 relative); 1 container + tile contexts |
 | Definitions: `Post` (0.5×0.5×2 box: 0.5 m³; 4.5 m²), `Top` (2×1×0.1 box: 0.2 m³; 4.6 m²), `Table` (4 `Post` refs + 1 `Top` ref, no members of its own); two `Table` placements | 3 unique definitions; 12 materialized placements (2 `Table` + 8 `Post` + 2 `Top`); 22 contexts (root + placements + members); 4.4 m³; 45.2 m² |
 | Materials: `Post` painted `Steel`, `Top` painted `Wood` | Steel 36 m²; Wood 9.2 m²; unassigned 214 m² (of the 259.2 m² non-terrain) |
@@ -533,21 +541,17 @@ default `visibility: all`):
 degenerate contexts and the terrain tile contexts below; the earlier figures did not follow from the
 rows above. The R101.a notes give the arithmetic.*
 
-Hand totals for the whole document as first written: **contexts 80,041** (3 `BoxP`
-placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
-`Off` + 1 plate + 2 shared-face cubes + 1 degenerate + 80,001 terrain +
-22 component contexts = 80,041); **instances 15** (5 top-level: 3 `BoxP`
-+ 2 `Table`; 10 nested: 8 `Post` + 2 `Top`); **unique definitions 4**
-(`BoxP`, `Post`, `Top`, `Table`); **known volume 82.4 m³** (12 + 32 + 4
-+ 27 + 1 + 2 + 4.4; the invalid and degenerate records contribute none);
-**unvalidated 3** (one per status: `open_boundary`, `non_manifold`,
-`degenerate`); **area 40,174.2 m²** (169 m² non-terrain non-component +
-45.2 m² component + 40,000 m² terrain); under `visible`: volume 79.4 m³,
-area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain area outside the `Table` definitions + 45.2 m²
-component + 40,000 m² terrain), under `visible` **40,241.2 m²**; volumes unchanged (82.4 m³ and
-79.4 m³); the shared-face cubes are one context and the degenerate body cannot be built, so
-**unvalidated 2**; the terrain is 1 container + 81 tile contexts, so **contexts 120**. The same fixture in `ft-in`:
-4 m³ = 141.2587 ft³ (tolerance ≤ 1e-4 relative), 16 m² = 172.2226 ft².
+Hand totals for the whole document, as corrected (the R101.a review, approved on 2026-10-27 as R101.f decision 4):
+**contexts 120** (6 `BoxP` contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1 `Off` + 1 plate + 1
+shared-face cube + 82 terrain contexts (1 container + 81 tiles) + 22 component contexts); **instances 15** (5
+top-level: 3 `BoxP` + 2 `Table`; 10 nested: 8 `Post` + 2 `Top`); **unique definitions 4** (`BoxP`, `Post`, `Top`,
+`Table`); **known volume 82.4 m³** (12 + 32 + 4 + 27 + 1 + 2 + 4.4; the invalid contexts contribute none);
+**unvalidated 2** (`open_boundary` and `non_manifold`; the two shared-face cubes are one context); **area
+40,259.2 m²** (214 m² non-terrain area outside the `Table` definitions + 45.2 m² component + 40,000 m² terrain);
+under `visible`, volume 79.4 m³ and area **40,241.2 m²**. The first draft's totals (80,041 contexts, 3 unvalidated,
+40,174.2 m² and 40,156.2 m²) did not follow from the rows and are superseded. No public-API body reaches
+`degenerate`, so the zero-thickness row the first draft named is dropped (R101.f decision 3). The same fixture in
+`ft-in`: 4 m³ = 141.2587 ft³ (tolerance ≤ 1e-4 relative), 16 m² = 172.2226 ft².
 
 Checks (each maps to the Verify line):
 
@@ -558,13 +562,13 @@ Checks (each maps to the Verify line):
 | Hidden content and hidden tags are explicitly stated | V3: default totals include Stash and Off (82.4 m³ / 40,259.2 m²); `visible` excludes them (79.4 m³ / 40,241.2 m²); the metadata states the applied mode |
 | Nested and mirrored transforms | V4: the mirrored copy equals the unscaled box; the 2× scale is ×8 volume / ×4 area; the three-level chain is 27 m³ / 54 m² |
 | Geometry edits update totals | V5: scale `Stash` by 2 → its contribution ×8; the totals change by hand; the revision stamp increments; undo restores the previous totals with a new, higher revision (§4: revisions only increase) |
-| Invalid solids are not counted as known volumes | V6: the three invalid contexts appear under their exact statuses; volume totals exclude them; an `analysis_limit` case (an over-budget shell) is also excluded from the total and listed |
+| Invalid solids are not counted as known volumes | V6: the two invalid contexts (`open_boundary`, `non_manifold`) appear under their exact statuses; volume totals exclude them; an `analysis_limit` case (an over-budget shell) is also excluded from the total and listed. No public-API body reaches `degenerate`, so that status is not checked (R101.f decision 3) |
 | Live update | V7: on a large model the panel shows "computing …" without freezing the UI; Cancel returns in ≤ 100 ms |
 | Units and precision are stated | V8: the header carries the unit codes and precision for each document unit setting (m, mm, ft-in) and each precision (`full`, 3) |
 | Source revision is stamped | V9: the stamp equals the document's identity + revision; a different revision changes the stamp; undo/redo states are both reported exactly |
 | CSV dialect | V10: golden bytes — UTF-8 no BOM, LF, minimal RFC 4180 quoting (fixture names with commas and quotes), metadata block, byte-identical repeated runs (hash-pinned) |
 | Saved schedules | V11: the sidecar round-trips; a document save is bit-identical with or without a schedule present; a schedule for another document is refused |
-| CLI | V12: `--report` writes a new file and never replaces; an existing path is refused; `--list-schedules` / `--save-schedule` / `--delete-schedule`; the CLI output is byte-identical to the session `report.run` result for the same request and revision |
+| CLI | V12: `--report` writes a new file and never replaces; an existing path is refused; `--list-schedules` / `--save-schedule` / `--delete-schedule`; the CLI output is byte-identical to the session's data less the session-only body IDs, for the same request and revision (R101.f decision 2) |
 
 **`quantities-b`** is the budget fixture (§12): 250,000-triangle
 terrain plus 10,000 placements of a 12-face part (two joined 6-face
@@ -581,15 +585,18 @@ materialized faces and 250,000 terrain triangles. Proposed budgets (to be
 [ADR 0171](0171-ifc-exchange-subset.md) §6.1 /
 [ADR 0169](0169-terrain-editing-drape-stamp.md) §13.1 pattern):
 
-| Work (desktop, the developer machine class) | Budget |
-| --- | --- |
-| Counts over `quantities-b` (250,000-triangle terrain + 10,000 placements of a 12-face part: 120,000 materialized faces) | ≤ 2 s |
-| + areas (world triangle areas over all records) | ≤ 5 s |
-| + solid volume analysis (per-context `inspectSolid`, `quantities-b`) | ≤ 30 s, async with progress; cancel returns in ≤ 100 ms and the run stops in ≤ 5 s |
-| Desktop panel re-run after a single edit, ≤ 100,000-face model | p95 ≤ 1 s, run off the UI thread with the §5 "computing" state (*changed by the owner on 2026-10-27 from 250 ms: R101.e1 measured 582–968 ms p95 in Release; the full four-table pass has no cache*) |
-| CSV write | ≤ 10 s for 100,000 rows; output ≤ 256 MiB (refused above) |
-| Schedule re-run | the matching report budget (no extra pass) |
-| Engine memory | peak ≤ 512 MiB; no cross-run cache |
+| Work (desktop, the developer machine class) | Budget | Measured, R101.f (Release, 2026-10-27) | Verdict |
+| --- | --- | --- | --- |
+| Counts over `quantities-b` (250,000-triangle terrain + 10,000 placements of a 12-face part: 120,000 materialized faces) | ≤ 2 s | 0.290 s median of 5 | Met |
+| + areas (world triangle areas over all records) | ≤ 5 s | 0.315 s median of 5; the all-tables run, which bounds the cumulative reading, is 0.827 s | Met |
+| + solid volume analysis (per-context `inspectSolid`, `quantities-b`) | ≤ 30 s, async with progress; cancel returns in ≤ 100 ms and the run stops in ≤ 5 s | 0.848 s median of 5; cancel returned 0.05 to 2.80 ms over 12 samples | Met |
+| Desktop panel re-run after a single edit, ≤ 100,000-face model | p95 ≤ 1 s, run off the UI thread with the §5 "computing" state (*changed by the owner on 2026-10-27 from 250 ms: R101.e1 measured 582–968 ms p95 in Release; the full four-table pass has no cache*) | 99,996 faces, the engine pass and the description, p95 of seven series of 200 runs: 965, 1,097, 569, 800, 985, 726 and 838 ms (engine alone, the same seven: 943, 995, 561, 787, 955, 726 and 844 ms). Load at the start of each series: 3.8, 6.5, 2.8, 1.8, 1.42, 1.24 and 1.44. The panel's own timing was not measured | **Met, marginal** (R101.f decision 1, 2026-10-27): six of seven series under 1 s; the one miss, 1,097 ms, started at a load of 6.5. The headroom is small (up to 985 ms on a shared machine). If a release measurement misses, the per-body solid-analysis cache applies (the record's §8 option (b)) |
+| CSV write | ≤ 10 s for 100,000 rows; output ≤ 256 MiB (refused above) | 100,002 rows: 0.081 s median of 5; 3.99 MB. The 256 MiB refusal is not exercised | Met |
+| Schedule re-run | the matching report budget (no extra pass) | CLI wall time, five pairs on `quantities-b`: scheduled 2.25 s and ad hoc 2.30 s (medians); the CSVs differ only at the marker line | Met |
+| Engine memory | peak ≤ 512 MiB; no cross-run cache | peak 282,824 kB (about 276 MiB), median of 5; "no cache" is a design property, not measured | Met |
+
+The figures above are measured records, not CI checks: `report_benchmark` is not built in CI, and each budget is
+re-measured at each release that carries R101 (R101.f decision 5, 2026-10-27).
 
 **Not verified** in the repository: no full-document solid sweep or
 full-document area sum has been benchmarked before R101 (the entity info
@@ -614,8 +621,9 @@ R101 lands as six independently reviewable units, each with its own tests
 and acceptance record. The acceptance record lives at
 `docs/verification/R101f-quantities-reports.md` (JSON: the Verify line and
 each clause's checks, the confirmed §12 budgets, the native matrix — Linux
-desktop, Windows desktop, macOS; the sanitizers; and the support matrix
-row) — the R097/ADR 0171 pattern.
+x86_64 only, as `docs/SUPPORT_MATRIX.md` supports it (R101.f decision 7,
+2026-10-27: Windows and macOS are not run and not claimed, as R098d did);
+the sanitizers; and the support matrix row) — the R097/ADR 0171 pattern.
 
 - **R101.a — The report engine.** The request model (§1), the counting
   rules (§2.1–2.5) as one pure pass over the materialized document, unit
@@ -1331,3 +1339,71 @@ native dialog audit (`tests/native_dialog_cases.hpp`).
 
 The terrain's area is reported under its Terrain material, as R101.e1 records. `docs/mockups/quantities.html`
 is not redrawn here, so it still draws the terrain under "No material".
+
+## Implementation notes (R101.f)
+
+R101.f is the acceptance record, [verification/R101f-quantities-reports.md](../verification/R101f-quantities-reports.md),
+with its [summary](../verification/R101f-quantities-reports.json). It checks V1 to V12 against their tests and CI runs,
+runs the CLI in scripted checks, measures the §12 budgets on `quantities-b` in a Release build with repeat counts, and
+carries the native and sanitizer results. Its product-side change is a test: `quantities_large_input_tests` runs the
+large-model part of V7 as a new line in the X11 1× job, so the fast tier runs it. The re-run model moved into
+`tests/report_fixtures.hpp` as `buildPartsModel`, which `report_benchmark` also uses. No file under `src/` changed.
+
+### Verdicts
+
+- **V1 to V6 and V8 to V12 pass.** V6 passes with the `degenerate` row dropped, because no public-API body reaches that
+  status. V12 passes with its amended wording: the JSON file is the session's data less the session-only body IDs.
+- **V7 passes** (record §8 item 8). While the run computes, the longest UI gap is 13.6 to 25.5 ms. The section adds 13.5
+  and 38.2 ms to an edit's synchronous work (the faster of two edits each side; single samples gave −3.7 to 104 ms). Cancel
+  clears the computing line in 10.8 to 65.3 ms. Each bound is the one the first version used: 250, 250 and 100 ms.
+  In CI at `a0913c9c` (X11 1×, software GL): 49.9 ms, a share of 156.1 ms (hidden 573.8, shown 729.8) and 51.2 ms. The
+  CI share leaves 94 ms of margin.
+- **§12: all seven rows are met.** The panel re-run row is met, marginal. Seven series of 200 runs give p95 of 569 to 985 ms
+  in six series and 1,097 ms in one, the series that started at a 1-minute load of 6.5. The headroom is small.
+
+### Decisions where the ADR was silent
+
+- **V7 has its own suite.** `quantities_input_tests` runs in four native cells under a 90 s deadline. A 100,000-face model
+  in each cell would add time to all four. `quantities_large_input_tests` runs once, in the X11 1× job, with a 120 s
+  deadline. It takes about 25 s locally in Debug.
+- **The V7 numbers are a Debug build**, as the brief asked (`build/dev`, unoptimised). No Release desktop build was made,
+  so the Release figure for the trigger's stall is not measured.
+- **The 250 ms gap bound is the brief's.** The ADR gives no number for "without freezing the UI". 250 ms is also the figure
+  of the re-run budget before the owner's change of 2026-10-27.
+- **What V7 measures.** V7 is about the panel's live update. The test asserts the longest UI gap while the run computes,
+  and the section's share of the edit's synchronous work (hidden against shown, the faster of two edits each). The
+  edit's total, which every panel on `Viewport::changed` shares, is printed and carried as the record's finding 22. The
+  first version counted that total against the section and failed at 324 to 330 ms locally and 848 ms in CI.
+- **The §14 reference is stale.** The R101.e1 notes and the record cite a "§14 trigger" for a per-body cache. ADR 0175 has
+  no §14. The cache is the record's §8 option (b), and it applies if a release measurement misses the §12 row.
+- **Platforms.** Linux x86_64 only (decision 7). Windows and macOS are not run and not claimed.
+
+### Where the trigger's stall is
+
+One diagnostic run (not committed) split the trigger's synchronous work in the Debug build:
+
+- `doc.readSnapshot()` alone: 26 ms. The snapshot copy is not the cost.
+- The trigger with the Quantities section hidden: 380 ms. The panel does not run then, so the cost is elsewhere.
+- The trigger with the section shown, sync only: 363 ms. The panel adds nothing measurable.
+
+So the cost is in the other slots that run on `Viewport::changed`. `Window::sync()` is one of them (connected at
+`src/app/window.cpp` line 1160; it refreshes the organization panels). Other panels connect to the same signal, among them
+the annotations, sections, scenes, reference-images and presentations panels. The slots were not timed one by one, because
+the brief stops at the number. The next probe is to time each slot connected to `Viewport::changed` in a Debug build.
+
+### Prior gaps
+
+The record's §1 and §7 resolve or carry each gap that R101.a to R101.e2 left.
+
+- **Resolved:** the `degenerate` status (decision 3); the JSON body IDs (decision 2); the panel re-run budget (decision 1,
+  by measurement); the CHANGELOG entry (decision 6, at the release); the budgets outside CI (decision 5); and the §11
+  corrections (decision 4).
+- **Carried:** the edit's own synchronous work on a large model (finding 22, outside V7); the 200 % text check; the Rename and Export keyboard audit; the Wayland popup
+  warning; the 256 MiB refusal; cancel between records only; the units a schedule does not pin; terrain names that are not
+  unique in the CSV; the CSV's missing `materialsApply` line; the §11 sheet fixture; the Windows and macOS builds; a fuzz
+  campaign for the report code; and the Release timing of the desktop panel.
+
+### Owner decisions
+
+The parent decided the record's §8 items 2 to 7 as recommended on 2026-10-27, and item 1 by measurement. The owner can
+reopen any of them. The record's §8 gives each decision.

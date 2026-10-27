@@ -1,6 +1,8 @@
 #include "app/solar_panel.hpp"
 #include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
+#include "core/terrain.hpp"
+#include "geo/geographic.hpp"
 #include <QCheckBox>
 #include <QDateEdit>
 #include <QDialog>
@@ -43,12 +45,27 @@ SolarPanel::SolarPanel(Document &document, Viewport &viewport, QWidget *parent)
     details_->setWordWrap(true);
     details_->setTextFormat(Qt::PlainText);
     layout->addWidget(details_);
+    convergence_ = new QLabel;
+    convergence_->setObjectName("solarConvergence");
+    convergence_->setWordWrap(true);
+    convergence_->setTextFormat(Qt::PlainText);
+    layout->addWidget(convergence_);
+    warning_ = new QLabel;
+    warning_->setObjectName("solarSiteWarning");
+    warning_->setWordWrap(true);
+    warning_->setTextFormat(Qt::PlainText);
+    layout->addWidget(warning_);
+    useSite_ = new QPushButton("Use site location");
+    useSite_->setObjectName("solarUseSite");
+    useSite_->setAccessibleName("Use the site location for the sun study");
+    layout->addWidget(useSite_);
     auto *button = new QPushButton("Edit sun study…");
     button->setObjectName("solarEditButton");
     layout->addWidget(button);
     layout->addStretch();
     setFocusProxy(button);
     connect(button, &QPushButton::clicked, this, [this] { edit(); });
+    connect(useSite_, &QPushButton::clicked, this, [this] { useSiteLocation(); });
     connect(&view_, &Viewport::changed, this, [this] { refresh(); });
     refresh();
 }
@@ -71,6 +88,31 @@ void SolarPanel::refresh() {
             .arg(sun.aboveHorizon ? "Sun center above the geometric horizon"
                                   : "Sun center below the geometric horizon")
             .arg(s.shadows ? "enabled when sun lighting is on and above the horizon" : "off"));
+    // ADR 0181 §2.1 and §2.6: the site's convergence (read only), and the two locations' warning.
+    const auto &site = doc_.site();
+    const auto distance = solarSiteDistance(doc_);
+    useSite_->setEnabled(site && site->geographic);
+    convergence_->setText(site && site->geographic
+                              ? QString("Grid north is %1° clockwise of true north (read only; the "
+                                        "model is not rotated).")
+                                    .arg(site->geographic->convergence, 0, 'f', 4)
+                              : QString());
+    const bool differs = distance && *distance > siteGeographicToleranceMetres;
+    warning_->setText(differs ? QString("The sun location is %1 m from the site location. Use site "
+                                        "location to match them.")
+                                    .arg(*distance, 0, 'f', 1)
+                              : QString());
+    warning_->setVisible(differs);
+}
+void SolarPanel::useSiteLocation() {
+    // One undoable edit: the sun study takes the site's latitude and longitude, all else kept.
+    if (!doc_.site() || !doc_.site()->geographic)
+        return;
+    auto solar = doc_.solar();
+    solar.latitude = doc_.site()->geographic->latitude;
+    solar.longitude = doc_.site()->geographic->longitude;
+    view_.applyModelSolar(solar);
+    refresh();
 }
 void SolarPanel::edit() {
     const auto original = doc_.solar();
@@ -102,6 +144,19 @@ void SolarPanel::edit() {
     auto *north = number("solarNorth", "North rotation (clockwise degrees)", original.northDegrees);
     const auto oldLatitude = latitude->text(), oldLongitude = longitude->text(),
                oldNorth = north->text();
+    // ADR 0181 §2.6: an explicit action fills the north rotation with the site's grid north, and
+    // Save applies it. Model north is grid north, so true north is the convergence
+    // counter-clockwise.
+    if (doc_.site() && doc_.site()->geographic) {
+        const auto convergence = doc_.site()->geographic->convergence;
+        auto *gridNorth = new QPushButton("Use grid north");
+        gridNorth->setObjectName("solarGridNorth");
+        gridNorth->setAccessibleName("Set north rotation from the site's grid north");
+        form->addRow(gridNorth);
+        connect(gridNorth, &QPushButton::clicked, &dialog, [north, convergence] {
+            north->setText(QLocale().toString(-convergence, 'g', 15));
+        });
+    }
     auto *date = new QDateEdit(QDate(original.time.year, original.time.month, original.time.day));
     date->setObjectName("solarDate");
     date->setCalendarPopup(true);

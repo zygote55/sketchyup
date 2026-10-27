@@ -12854,6 +12854,87 @@
                                     {
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
                                         "additionalProperties": false,
+                                        "description": "Set site geographic location",
+                                        "properties": {
+                                            "command": {
+                                                "const": "site.set_geographic"
+                                            },
+                                            "datum": {
+                                                "description": "WGS84; NAD83 as a labelled approximation (warned); other datums are refused",
+                                                "maxLength": 16,
+                                                "type": "string"
+                                            },
+                                            "latitude": {
+                                                "description": "WGS84 latitude in degrees, within the UTM band (80°S to 84°N)",
+                                                "maximum": 84,
+                                                "minimum": -80,
+                                                "type": "number"
+                                            },
+                                            "longitude": {
+                                                "description": "WGS84 longitude in degrees",
+                                                "maximum": 180,
+                                                "minimum": -180,
+                                                "type": "number"
+                                            },
+                                            "provenance": {
+                                                "enum": [
+                                                    "typed",
+                                                    "geocoded",
+                                                    "imported"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "sha256": {
+                                                "maxLength": 64,
+                                                "pattern": "^[0-9a-f]{64}$",
+                                                "type": "string"
+                                            },
+                                            "source": {
+                                                "maxLength": 256,
+                                                "type": "string"
+                                            },
+                                            "verticalReference": {
+                                                "description": "Vertical reference of the origin's elevation",
+                                                "enum": [
+                                                    "unknown",
+                                                    "ellipsoid",
+                                                    "EGM96",
+                                                    "EGM2008",
+                                                    "NAVD88"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "zone": {
+                                                "description": "UTM zone; default the zone of the longitude",
+                                                "maximum": 60,
+                                                "minimum": 1,
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "required": [
+                                            "latitude",
+                                            "longitude",
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
+                                        "description": "Clear site geographic location",
+                                        "properties": {
+                                            "command": {
+                                                "const": "site.clear_geographic"
+                                            }
+                                        },
+                                        "required": [
+                                            "command"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "additionalProperties": false,
                                         "description": "Explode terrain",
                                         "properties": {
                                             "body": {

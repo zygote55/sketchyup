@@ -16,6 +16,14 @@
   replaced. A dotted edge costs about 91 bytes of vertex data per visible pixel; the frame-time numbers
   are software-rendered and recorded in the ADR.
 
+- Sandboxed IFC and STEP helper (R109 S2, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)): every mode of
+  `sketchyup-ifc-worker` that reads or writes a file (the import, the check, the export, the STEP import and export,
+  and the developer probes) now runs under a Landlock ruleset and a seccomp allow-list, with `PR_SET_NO_NEW_PRIVS`,
+  before it opens the file. A helper that a call outside its policy stops is reported as `sandboxViolation` and is
+  not restarted. A layer that cannot be installed refuses the import, the check or the export with
+  `sandboxUnavailable`, and nothing is read or written. The STEP export's AP203 header no longer names the machine's
+  address: it names `0.0.0.0`, because the name lookup that wrote it is refused under the sandbox.
+
 - Dynamic Components in SketchUp (.skp) files (R104.a, R104.c, R104.d, [ADR 0178](docs/decisions/0178-dynamic-live-component-feasibility.md)):
   a Dynamic Component's `dynamic_attributes` values are read as read-only properties
   `skp.dynamic_attributes.<key>`, at instance and definition level (a definition's values reach each of its

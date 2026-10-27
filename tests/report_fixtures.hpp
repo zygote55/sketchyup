@@ -196,13 +196,14 @@ QuantitiesA buildQuantitiesA(Document &doc) {
     return a;
 }
 
-// quantities-b (ADR 0175 §11, §12), the budget fixture: a 250,000-triangle terrain (353 × 353
-// cells, 249,218 triangles, inside the terrain limit) and `placements` placements of a 12-face part
-// (two joined 6-face boxes), one component. Built in memory; the budgets run on this document.
-inline Document buildQuantitiesB(std::size_t placements) {
-    Document doc;
-    const auto mesh = flatGrid(353, 1.);
-    createTerrain(doc, mesh, terrainRecord(mesh));
+// The re-run model (ADR 0175 §12): `placements` placements of a 12-face part (two joined 6-face
+// boxes), built into `doc`, and with `withTerrain` the 250,000-triangle terrain too. Without the
+// terrain, 8,333 placements are 99,996 faces: the "about 100,000 faces" of the panel re-run row.
+inline void buildPartsModel(Document &doc, std::size_t placements, bool withTerrain) {
+    if (withTerrain) {
+        const auto mesh = flatGrid(353, 1.);
+        createTerrain(doc, mesh, terrainRecord(mesh));
+    }
     // The part: two 6-face boxes in one group, made a component (the source placement is removed).
     const auto first = box(doc, {0, 0, 0}, {.5, .5, 2});
     const auto second = box(doc, {1, 0, 0}, {.5, .5, 2});
@@ -217,6 +218,14 @@ inline Document buildQuantitiesB(std::size_t placements) {
         placeComponent(
             doc, definition,
             Transform::translation({double(i % columns) * 2, double(i / columns) * 2 + 10, 0}));
+}
+
+// quantities-b (ADR 0175 §11, §12), the budget fixture: a 250,000-triangle terrain (353 × 353
+// cells, 249,218 triangles, inside the terrain limit) and `placements` placements of a 12-face part
+// (two joined 6-face boxes), one component. Built in memory; the budgets run on this document.
+inline Document buildQuantitiesB(std::size_t placements) {
+    Document doc;
+    buildPartsModel(doc, placements, true);
     return doc;
 }
 
