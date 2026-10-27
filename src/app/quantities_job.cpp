@@ -17,8 +17,8 @@ void ReportJob::run() {
     hooks.cancel = &cancel_;
     std::size_t reported = 0;
     hooks.progress = [this, &reported](std::size_t done, std::size_t total) {
-        // About two hundred updates per run, and the last one. The engine calls this on this thread;
-        // the signal reaches the panel through a queued connection.
+        // About two hundred updates per run, and the last one. The engine calls this on this
+        // thread; the signal reaches the panel through a queued connection.
         const auto step = std::max<std::size_t>(1, total / 200);
         if (done != total && done - reported < step)
             return;

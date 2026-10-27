@@ -64,7 +64,8 @@ class QuantitiesPanel : public QWidget {
         QJsonObject data;
         bool valid{};
     };
-    // A saved schedule as listed for this model (§19.6). `staleText` is set for a stale one (§19.7).
+    // A saved schedule as listed for this model (§19.6). `staleText` is set for a stale one
+    // (§19.7).
     struct Row {
         QString name, summary, saved, staleText;
         QJsonObject request;
@@ -123,7 +124,8 @@ class QuantitiesPanel : public QWidget {
     QString scheduleName_;
     QJsonObject scheduleRequest_;
     std::vector<Row> rows_;
-    std::map<QString, QString> refusals_; // a stale row's refusal sentence, by schedule name (§19.7)
+    std::map<QString, QString>
+        refusals_; // a stale row's refusal sentence, by schedule name (§19.7)
     QString storePath_, storeFault_;
     bool listed_{};
     std::uint64_t listedRevision_{};
@@ -135,8 +137,9 @@ class QuantitiesPanel : public QWidget {
     std::uint64_t jobRevision_{};
     QString jobSignature_;
     bool jobAnnounce_{};
-    bool queued_{};             // a newer request waits for the running pass to end
-    QString cancelledSignature_; // Cancel stands for this request until something it depends on changes
+    bool queued_{}; // a newer request waits for the running pass to end
+    QString
+        cancelledSignature_; // Cancel stands for this request until something it depends on changes
     QString exportPath_, exportSchedule_;
     bool exportingCsv_{};
 

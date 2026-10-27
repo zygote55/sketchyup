@@ -2,25 +2,26 @@
 // offscreen Qt platform. It checks the default view, grouping and filters, an off-thread run with
 // Cancel, a newer revision, the invalid list, schedules (save, rename, delete, run, stale rows, the
 // other models' count, an unreadable store), the exports (CSV and JSON, selection export, a refused
-// existing file), the refusals, and the keyboard path. Every file it writes is in a temporary folder:
-// XDG_DATA_HOME, XDG_CONFIG_HOME and HOME point there, so the schedule store is never the user's.
+// existing file), the refusals, and the keyboard path. Every file it writes is in a temporary
+// folder: XDG_DATA_HOME, XDG_CONFIG_HOME and HOME point there, so the schedule store is never the
+// user's.
 #include "app/quantities_panel.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "automation/report_schedules.hpp"
-#include "core/tags.hpp"
 #include "core/model.hpp"
+#include "core/tags.hpp"
 #include "report_fixtures.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
-#include <QFrame>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
+#include <QFrame>
 #include <QGraphicsOpacityEffect>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -30,8 +31,8 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
-#include <QTabWidget>
 #include <QScrollArea>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QThread>
@@ -74,8 +75,8 @@ void driveModal(const std::function<bool(QWidget *)> &matches,
     timer->start(10);
 }
 
-// A check made inside a dialog's driver runs in a Qt slot, where an exception would end the process.
-// It is recorded here and raised by verifyDeferred() once the action has returned.
+// A check made inside a dialog's driver runs in a Qt slot, where an exception would end the
+// process. It is recorded here and raised by verifyDeferred() once the action has returned.
 std::vector<std::string> deferred;
 void expectInSlot(bool value, const std::string &message) {
     if (!value)
@@ -90,7 +91,8 @@ bool named(QWidget *widget, const char *name) { return widget->objectName() == n
 
 // A window shortcut (F2, Delete) fires only in the widget that holds focus, so focus it first.
 void pressShortcut(QWidget *widget, Qt::Key key) {
-    if (auto *list = qobject_cast<QListWidget *>(widget); list && list->count() && list->currentRow() < 0)
+    if (auto *list = qobject_cast<QListWidget *>(widget);
+        list && list->count() && list->currentRow() < 0)
         list->setCurrentRow(0);
     widget->setFocus(Qt::OtherFocusReason);
     QTest::qWaitFor([widget] { return widget->hasFocus(); }, 1000);
@@ -119,11 +121,13 @@ bool waitFor(const std::function<bool()> &predicate, int milliseconds = 8000) {
 }
 
 // Waits until a label shows `expected`; on failure the message names what it shows instead.
-void expectText(QWidget *parent, const char *name, const QString &expected, const std::string &message) {
+void expectText(QWidget *parent, const char *name, const QString &expected,
+                const std::string &message) {
     if (waitFor([&] { return text(parent, name) == expected; }))
         return;
-    throw std::runtime_error(message + " (" + name + " shows \"" + text(parent, name).toStdString() +
-                             "\", expected \"" + expected.toStdString() + "\")");
+    throw std::runtime_error(message + " (" + name + " shows \"" +
+                             text(parent, name).toStdString() + "\", expected \"" +
+                             expected.toStdString() + "\")");
 }
 
 Id bodyNamed(const Document &doc, const std::string &name) {
@@ -146,7 +150,8 @@ QString measure(const QString &value, const QString &unit) { return value + " " 
 } // namespace
 
 int main(int argc, char **argv) {
-    // Every path the feature uses lives under this folder: the schedule store, the settings and HOME.
+    // Every path the feature uses lives under this folder: the schedule store, the settings and
+    // HOME.
     QTemporaryDir home;
     qputenv("HOME", home.path().toUtf8());
     qputenv("XDG_DATA_HOME", (home.path() + "/data").toUtf8());
@@ -194,19 +199,21 @@ int main(int argc, char **argv) {
               "Include hidden is the default");
         if (!waitFor([&] { return text(panel, "quantitiesArea") == "40,259.20 m²"; }))
             throw std::runtime_error("The All row shows 40,259.20 m² at precision 2; it shows: " +
-                                     text(panel, "quantitiesArea").toStdString() + " / status: " +
-                                     text(panel, "quantitiesError").toStdString());
+                                     text(panel, "quantitiesArea").toStdString() +
+                                     " / status: " + text(panel, "quantitiesError").toStdString());
         check(text(panel, "quantitiesVolume") == "82.40 m³", "The All row shows 82.40 m³");
         check(text(panel, "quantitiesUnvalidated") == "2", "Two bodies are not counted in volume");
         check(text(panel, "quantitiesRevision") ==
                   QString("Computed at revision %1").arg(doc.revision()),
               "Computed at revision N names the revision the figures came from");
         check(text(panel, "quantitiesPrecision") == "precision 2", "The header shows precision 2");
-        check(child<QWidget>(panel, "quantitiesNotSolid0")->isVisible(), "The invalid list is shown");
+        check(child<QWidget>(panel, "quantitiesNotSolid0")->isVisible(),
+              "The invalid list is shown");
         check(text(panel, "quantitiesNotSolidWords0").contains("Not a solid: open boundary"),
               "The open plate is named with the shared words");
-        check(text(panel, "quantitiesNotSolidWords1").contains("Not a solid: non-manifold boundary"),
-              "The shared-face cubes are named as non-manifold");
+        check(
+            text(panel, "quantitiesNotSolidWords1").contains("Not a solid: non-manifold boundary"),
+            "The shared-face cubes are named as non-manifold");
         check(child<QWidget>(panel, "quantitiesTerrain")->isVisible(),
               "The terrain line is shown, and not in the invalid list");
         check(!child<QWidget>(panel, "quantitiesComputing")->isVisible(),
@@ -219,8 +226,10 @@ int main(int argc, char **argv) {
         // 2. Grouping and filters (§19.2).
         groupBy->setCurrentIndex(2); // Tag
         emit groupBy->activated(2);
-        check(waitFor([&] { return child<QTreeWidget>(panel, "quantitiesGroups")->isVisible() &&
-                                   child<QTreeWidget>(panel, "quantitiesGroups")->topLevelItemCount() >= 2; }),
+        check(waitFor([&] {
+                  return child<QTreeWidget>(panel, "quantitiesGroups")->isVisible() &&
+                         child<QTreeWidget>(panel, "quantitiesGroups")->topLevelItemCount() >= 2;
+              }),
               "Group by Tag lists the tag groups");
         check(text(panel, "quantitiesAreaCaption") == "Area", "The total stays the area");
         auto *groups = child<QTreeWidget>(panel, "quantitiesGroups");
@@ -233,7 +242,8 @@ int main(int argc, char **argv) {
                    "Visible only leaves out Stash and Off: 40,241.20 m²");
         check(text(panel, "quantitiesVolume") == "79.40 m³", "Visible only: 79.40 m³");
         check(child<QLabel>(panel, "quantitiesVisibleCaption")->isVisible() &&
-                  text(panel, "quantitiesVisibleCaption").contains("Geometry hidden for this session"),
+                  text(panel, "quantitiesVisibleCaption")
+                      .contains("Geometry hidden for this session"),
               "The Visible only caption says what it leaves out");
         child<QRadioButton>(panel, "quantitiesIncludeHidden")->setChecked(true);
         expectText(panel, "quantitiesArea", "40,259.20 m²",
@@ -253,8 +263,8 @@ int main(int argc, char **argv) {
         QMetaObject::invokeMethod(view, "changed");
         check(waitFor([&] { return child<QWidget>(panel, "quantitiesComputing")->isVisible(); }),
               "A run past a second shows the computing line");
-        check(text(panel, "quantitiesComputingText").contains(
-                  QString("Computing revision %1").arg(doc.revision())),
+        check(text(panel, "quantitiesComputingText")
+                  .contains(QString("Computing revision %1").arg(doc.revision())),
               "The computing line names the revision it computes");
         check(child<QWidget>(panel, "quantitiesTotals")->graphicsEffect() != nullptr &&
                   static_cast<QGraphicsOpacityEffect *>(
@@ -268,10 +278,13 @@ int main(int argc, char **argv) {
         QElapsedTimer clock;
         clock.start();
         child<QPushButton>(panel, "quantitiesCancel")->click();
-        check(waitFor([&] { return text(panel, "quantitiesStatus").startsWith("Not updated: cancelled"); }),
+        check(waitFor([&] {
+                  return text(panel, "quantitiesStatus").startsWith("Not updated: cancelled");
+              }),
               "Cancel reports that the totals were not updated");
         const auto cancelMilliseconds = clock.elapsed();
-        std::cout << "cancel returned in " << cancelMilliseconds << " ms (budget 100 ms)" << std::endl;
+        std::cout << "cancel returned in " << cancelMilliseconds << " ms (budget 100 ms)"
+                  << std::endl;
         check(cancelMilliseconds < 1000, "Cancel returns at once");
         check(text(panel, "quantitiesStatus") ==
                   QString("Not updated: cancelled. Showing revision %1.").arg(before),
@@ -290,8 +303,10 @@ int main(int argc, char **argv) {
         hold = false;
         doc.addFace({{{100, 0, 0}, {101, 0, 0}, {101, 1, 0}, {100, 1, 0}}}, "Third extra plate");
         QMetaObject::invokeMethod(view, "changed");
-        check(waitFor([&] { return text(panel, "quantitiesRevision") ==
-                                   QString("Computed at revision %1").arg(doc.revision()); }),
+        check(waitFor([&] {
+                  return text(panel, "quantitiesRevision") ==
+                         QString("Computed at revision %1").arg(doc.revision());
+              }),
               "The newest revision is the one shown after a supersede");
         check(!text(panel, "quantitiesStatus").startsWith("Not updated"),
               "A superseded run is not reported as a cancel");
@@ -303,7 +318,9 @@ int main(int argc, char **argv) {
               "The run before Escape is computing");
         QTest::keyClick(panel, Qt::Key_Escape);
         hold = false;
-        check(waitFor([&] { return text(panel, "quantitiesStatus").startsWith("Not updated: cancelled"); }),
+        check(waitFor([&] {
+                  return text(panel, "quantitiesStatus").startsWith("Not updated: cancelled");
+              }),
               "Escape cancels the run");
         QuantitiesPanel::runGateForTesting = nullptr;
         // Undo the four extra plates, so the fixture totals hold for the checks that follow.
@@ -320,7 +337,9 @@ int main(int argc, char **argv) {
               "Select in model selects the open plate");
         view->setSelection(0);
         QMetaObject::invokeMethod(view, "changed");
-        check(waitFor([&] { return child<QCheckBox>(panel, "quantitiesSelectionOnly")->isEnabled() == false; }),
+        check(waitFor([&] {
+                  return child<QCheckBox>(panel, "quantitiesSelectionOnly")->isEnabled() == false;
+              }),
               "With nothing selected Selection only stays greyed");
 
         // 6. Schedules: save, name rules, rename, run and delete (§19.6, §19.7).
@@ -334,10 +353,12 @@ int main(int argc, char **argv) {
                        auto *dialog = qobject_cast<QDialog *>(w);
                        auto *name = dialog->findChild<QLineEdit *>("scheduleName");
                        name->setText("Bad/name");
-                       expectInSlot(!dialog->findChild<QPushButton *>("scheduleSave")->isEnabled() &&
-                                        dialog->findChild<QLabel *>("scheduleNameProblem")->text().contains(
-                                            "Use 1 to 64 letters"),
-                                    "The name rules show as the person types, and Save is disabled");
+                       expectInSlot(
+                           !dialog->findChild<QPushButton *>("scheduleSave")->isEnabled() &&
+                               dialog->findChild<QLabel *>("scheduleNameProblem")
+                                   ->text()
+                                   .contains("Use 1 to 64 letters"),
+                           "The name rules show as the person types, and Save is disabled");
                        name->setText("Boxes only");
                        dialog->findChild<QPushButton *>("scheduleSave")->click();
                    },
@@ -347,9 +368,7 @@ int main(int argc, char **argv) {
         check(child<QListWidget>(panel, "quantitiesScheduleList")->count() == 1 &&
                   text(panel, "quantitiesScheduleCount") == "1 for this model",
               "The saved schedule is listed for this model");
-        const auto stored = [&] {
-            return ReportScheduleStore(store).schedules(doc.identity());
-        };
+        const auto stored = [&] { return ReportScheduleStore(store).schedules(doc.identity()); };
         check(stored().size() == 1 && stored().front().name == "Boxes only",
               "The schedule is in the store, under this model's identity");
         const auto savedAt = stored().front().createdAt;
@@ -359,7 +378,8 @@ int main(int argc, char **argv) {
         driveModal([](QWidget *w) { return named(w, "scheduleNameDialog"); },
                    [](QWidget *w) {
                        auto *dialog = qobject_cast<QDialog *>(w);
-                       expectInSlot(dialog->windowTitle() == "Rename schedule", "The rename dialog opens");
+                       expectInSlot(dialog->windowTitle() == "Rename schedule",
+                                    "The rename dialog opens");
                        dialog->findChild<QLineEdit *>("scheduleName")->setText("Boxes renamed");
                        dialog->findChild<QPushButton *>("scheduleSave")->click();
                    },
@@ -371,8 +391,9 @@ int main(int argc, char **argv) {
             QStringList names;
             for (const auto &schedule : stored())
                 names << schedule.name + "@" + schedule.createdAt;
-            throw std::runtime_error("Rename moves the schedule and keeps its creation time; store holds [" +
-                                     names.join(", ").toStdString() + "], saved at " + savedAt.toStdString());
+            throw std::runtime_error(
+                "Rename moves the schedule and keeps its creation time; store holds [" +
+                names.join(", ").toStdString() + "], saved at " + savedAt.toStdString());
         }
 
         // Run makes the schedule the view, and Back to the live view returns (§19.6).
@@ -391,7 +412,8 @@ int main(int argc, char **argv) {
         driveModal([](QWidget *w) { return named(w, "scheduleDeleteDialog"); },
                    [](QWidget *w) {
                        auto *box = qobject_cast<QMessageBox *>(w);
-                       expectInSlot(box->defaultButton() && box->defaultButton()->text() == "Cancel",
+                       expectInSlot(box->defaultButton() &&
+                                        box->defaultButton()->text() == "Cancel",
                                     "Cancel is the default in the Delete dialog");
                        box->done(0);
                    },
@@ -417,11 +439,11 @@ int main(int argc, char **argv) {
         child<QPushButton>(panel, "quantitiesTagsValue")->click();
         auto *tagPopup = panel->findChild<QFrame *>("quantitiesTagsPopup");
         check(tagPopup != nullptr, "The Tags popover opens");
-        child<QCheckBox>(tagPopup, QString("quantitiesTagsCheck%1").arg(spareTag).toUtf8().constData())
+        child<QCheckBox>(tagPopup,
+                         QString("quantitiesTagsCheck%1").arg(spareTag).toUtf8().constData())
             ->setChecked(true);
         tagPopup->close();
-        expectText(panel, "quantitiesTagsValue", "Spare ▸",
-                   "A tag filter names its tag");
+        expectText(panel, "quantitiesTagsValue", "Spare ▸", "A tag filter names its tag");
         driveModal([](QWidget *w) { return named(w, "scheduleNameDialog"); },
                    [](QWidget *w) {
                        auto *dialog = qobject_cast<QDialog *>(w);
@@ -430,20 +452,24 @@ int main(int argc, char **argv) {
                    },
                    "Save filtered schedule");
         child<QPushButton>(panel, "quantitiesSaveSchedule")->click();
-        check(stored().size() == 1 && stored().front().request["filters"].toObject()["tags"].toArray().size() == 1,
+        check(stored().size() == 1 &&
+                  stored().front().request["filters"].toObject()["tags"].toArray().size() == 1,
               "A filtered schedule keeps its tag");
         const auto boxesRequest = stored().front().request;
 
-        // Delete the tag in the model: the schedule goes stale, its row refuses to run, the store keeps it.
+        // Delete the tag in the model: the schedule goes stale, its row refuses to run, the store
+        // keeps it.
         const auto boxesTotal = text(panel, "quantitiesArea");
         eraseTag(doc, spareTag);
         QMetaObject::invokeMethod(view, "changed");
-        check(waitFor([&] { return child<QWidget>(panel, "quantitiesScheduleStale")->isVisible(); }),
-              "A schedule whose tag was deleted is marked stale");
-        check(text(panel, "quantitiesScheduleStale").contains(
-                  QString("Stale: tag %1 no longer exists").arg(spareTag)),
+        check(
+            waitFor([&] { return child<QWidget>(panel, "quantitiesScheduleStale")->isVisible(); }),
+            "A schedule whose tag was deleted is marked stale");
+        check(text(panel, "quantitiesScheduleStale")
+                  .contains(QString("Stale: tag %1 no longer exists").arg(spareTag)),
               "The stale row names the missing tag in words");
-        check(child<QWidget>(panel, QString("quantitiesMissingtag%1").arg(spareTag).toUtf8().constData())
+        check(child<QWidget>(panel,
+                             QString("quantitiesMissingtag%1").arg(spareTag).toUtf8().constData())
                   ->isVisible(),
               "The live filter shows a Missing tag row");
         child<QListWidget>(panel, "quantitiesScheduleList")->setCurrentRow(0);
@@ -460,13 +486,15 @@ int main(int argc, char **argv) {
         check(text(panel, "quantitiesArea") == boxesTotal,
               "The totals are unchanged by a refused run");
         // Remove the deleted tag from the live filter: the live view is the whole model again.
-        child<QPushButton>(panel, QString("quantitiesMissingRemovetag%1").arg(spareTag).toUtf8().constData())
+        child<QPushButton>(
+            panel, QString("quantitiesMissingRemovetag%1").arg(spareTag).toUtf8().constData())
             ->click();
         expectText(panel, "quantitiesTagsValue", "none ▸", "Remove clears the missing tag filter");
 
         // Another model's schedules appear only as a count.
         ReportScheduleStore other(store);
-        other.add("elsewhere-identity", ReportSchedule{"Elsewhere", "2026-10-27T00:00:00Z", boxesRequest});
+        other.add("elsewhere-identity",
+                  ReportSchedule{"Elsewhere", "2026-10-27T00:00:00Z", boxesRequest});
         window.findChild<QAction *>("view.quantities")->trigger();
         check(waitFor([&] { return child<QLabel>(panel, "quantitiesOtherModels")->isVisible(); }),
               "Another model's schedules are counted");
@@ -490,16 +518,20 @@ int main(int argc, char **argv) {
         check(text(panel, "quantitiesStoreError").contains("Schedules cannot be read") &&
                   text(panel, "quantitiesStoreError").contains("never resets this file"),
               "The store block says the rest still works and the file is never reset");
-        waitFor([&] { return text(panel, "quantitiesArea") != "—" && !text(panel, "quantitiesArea").isEmpty(); });
+        waitFor([&] {
+            return text(panel, "quantitiesArea") != "—" && !text(panel, "quantitiesArea").isEmpty();
+        });
         if (text(panel, "quantitiesArea").isEmpty() || text(panel, "quantitiesArea") == "—")
-            throw std::runtime_error("The totals still work with an unreadable store; Area shows \"" +
-                                     text(panel, "quantitiesArea").toStdString() + "\", error \"" +
-                                     text(panel, "quantitiesError").toStdString() + "\"");
+            throw std::runtime_error(
+                "The totals still work with an unreadable store; Area shows \"" +
+                text(panel, "quantitiesArea").toStdString() + "\", error \"" +
+                text(panel, "quantitiesError").toStdString() + "\"");
         if (original.isEmpty()) {
             QFile::remove(store);
         } else {
             QFile file(store);
-            check(file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(original.toUtf8()) > 0,
+            check(file.open(QIODevice::WriteOnly | QIODevice::Truncate) &&
+                      file.write(original.toUtf8()) > 0,
                   "Restore the store");
         }
         window.findChild<QAction *>("view.quantities")->trigger();
@@ -514,7 +546,8 @@ int main(int argc, char **argv) {
         bool reportClosed = false;
         auto closeReport = [&reportClosed](QWidget *w) {
             auto *dialog = qobject_cast<QDialog *>(w);
-            expectInSlot(dialog->findChild<QLabel *>("exportBanner")->text() == "✓ Written. The model is unchanged.",
+            expectInSlot(dialog->findChild<QLabel *>("exportBanner")->text() ==
+                             "✓ Written. The model is unchanged.",
                          "The export report banner says the model is unchanged");
             dialog->findChild<QPushButton *>("exportClose")->click();
             reportClosed = true;
@@ -523,7 +556,8 @@ int main(int argc, char **argv) {
             return [path](QWidget *w) {
                 auto *dialog = qobject_cast<QFileDialog *>(w);
                 dialog->selectFile(path);
-                // accept() is protected in QFileDialog; the meta-object call reaches it as the button does.
+                // accept() is protected in QFileDialog; the meta-object call reaches it as the
+                // button does.
                 QMetaObject::invokeMethod(dialog, "accept");
             };
         };
@@ -531,14 +565,16 @@ int main(int argc, char **argv) {
                    "export report");
         driveModal([](QWidget *w) { return qobject_cast<QFileDialog *>(w) != nullptr; },
                    saveTo(csvPath), "export CSV file");
-        check(waitFor([&] { return child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled(); }),
-              "The export waits for the totals, then runs");
+        check(
+            waitFor([&] { return child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled(); }),
+            "The export waits for the totals, then runs");
         child<QPushButton>(panel, "quantitiesExportCsv")->click();
         verifyDeferred();
         if (!waitFor([&] { return reportClosed; }))
             throw std::runtime_error("The CSV export writes and reports; status \"" +
-                                     text(panel, "quantitiesStatus").toStdString() + "\", error \"" +
-                                     text(panel, "quantitiesError").toStdString() + "\"");
+                                     text(panel, "quantitiesStatus").toStdString() +
+                                     "\", error \"" + text(panel, "quantitiesError").toStdString() +
+                                     "\"");
         const auto csv = readFile(csvPath);
         check(csv.contains("#ad-hoc=1") && csv.contains("#filters.visibility=all"),
               "The CSV is the live view: ad hoc, all hidden content included");
@@ -547,10 +583,13 @@ int main(int argc, char **argv) {
         // A second export to the same name is refused, and nothing is replaced (§19.8, §19.9).
         driveModal([](QWidget *w) { return qobject_cast<QFileDialog *>(w) != nullptr; },
                    saveTo(csvPath), "export CSV again");
-        check(waitFor([&] { return child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled(); }),
-              "The export waits for the totals, then runs");
+        check(
+            waitFor([&] { return child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled(); }),
+            "The export waits for the totals, then runs");
         child<QPushButton>(panel, "quantitiesExportCsv")->click();
-        check(waitFor([&] { return text(panel, "quantitiesError").startsWith("Nothing was written."); }),
+        check(waitFor([&] {
+                  return text(panel, "quantitiesError").startsWith("Nothing was written.");
+              }),
               "An existing file is refused, and nothing is written");
         check(text(panel, "quantitiesError").contains("quantities-a-takeoff.csv already exists"),
               "The refusal names the file");
@@ -562,8 +601,9 @@ int main(int argc, char **argv) {
                    "JSON export report");
         driveModal([](QWidget *w) { return qobject_cast<QFileDialog *>(w) != nullptr; },
                    saveTo(jsonPath), "export JSON file");
-        check(waitFor([&] { return child<QPushButton>(panel, "quantitiesExportJson")->isEnabled(); }),
-              "The export waits for the totals, then runs");
+        check(
+            waitFor([&] { return child<QPushButton>(panel, "quantitiesExportJson")->isEnabled(); }),
+            "The export waits for the totals, then runs");
         child<QPushButton>(panel, "quantitiesExportJson")->click();
         verifyDeferred();
         check(waitFor([&] { return reportClosed; }), "The JSON export writes and reports");
@@ -575,7 +615,8 @@ int main(int argc, char **argv) {
         // Selection export: the file holds the selection's figures and its marker.
         view->setSelection(bodyNamed(doc, "Plate"));
         QMetaObject::invokeMethod(view, "changed");
-        check(waitFor([&] { return child<QCheckBox>(panel, "quantitiesSelectionOnly")->isEnabled(); }),
+        check(waitFor(
+                  [&] { return child<QCheckBox>(panel, "quantitiesSelectionOnly")->isEnabled(); }),
               "Selection only is enabled with a selection");
         child<QCheckBox>(panel, "quantitiesSelectionOnly")->setChecked(true);
         expectText(panel, "quantitiesArea", "2.00 m²",
@@ -585,8 +626,9 @@ int main(int argc, char **argv) {
                    "selection export report");
         driveModal([](QWidget *w) { return qobject_cast<QFileDialog *>(w) != nullptr; },
                    saveTo(selectionPath), "selection export file");
-        check(waitFor([&] { return child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled(); }),
-              "The export waits for the totals, then runs");
+        check(
+            waitFor([&] { return child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled(); }),
+            "The export waits for the totals, then runs");
         child<QPushButton>(panel, "quantitiesExportCsv")->click();
         verifyDeferred();
         check(waitFor([&] { return reportClosed; }), "The selection export writes and reports");
@@ -596,27 +638,36 @@ int main(int argc, char **argv) {
         view->setSelection(0);
         QMetaObject::invokeMethod(view, "changed");
 
-        // 9. Refusals (§19.9): an unsaved model cannot be scheduled, and 32 schedules are the limit.
+        // 9. Refusals (§19.9): an unsaved model cannot be scheduled, and 32 schedules are the
+        // limit.
         panel->setModelPath([] { return QString(); });
         QMetaObject::invokeMethod(view, "changed");
-        check(waitFor([&] { return !child<QPushButton>(panel, "quantitiesSaveSchedule")->isEnabled(); }),
+        check(waitFor([&] {
+                  return !child<QPushButton>(panel, "quantitiesSaveSchedule")->isEnabled();
+              }),
               "Save is disabled until the model has a file");
-        check(text(panel, "quantitiesScheduleNote") == "Save the model first. A schedule belongs to a saved model.",
+        check(text(panel, "quantitiesScheduleNote") ==
+                  "Save the model first. A schedule belongs to a saved model.",
               "The reason is on screen");
         panel->setModelPath([modelFile] { return modelFile; });
         {
             ReportScheduleStore full(store);
             for (int i = 0; full.schedules(doc.identity()).size() < 32; ++i)
-                full.add(doc.identity(), ReportSchedule{QString("Fill %1").arg(i, 2, 10, QChar('0')),
-                                                        "2026-10-27T00:00:00Z", boxesRequest});
+                full.add(doc.identity(),
+                         ReportSchedule{QString("Fill %1").arg(i, 2, 10, QChar('0')),
+                                        "2026-10-27T00:00:00Z", boxesRequest});
         }
         QMetaObject::invokeMethod(view, "changed");
         window.findChild<QAction *>("view.quantities")->trigger();
-        check(waitFor([&] { return !child<QPushButton>(panel, "quantitiesSaveSchedule")->isEnabled(); }),
+        check(waitFor([&] {
+                  return !child<QPushButton>(panel, "quantitiesSaveSchedule")->isEnabled();
+              }),
               "Save is disabled at 32 schedules");
-        check(text(panel, "quantitiesScheduleNote") == "This model has 32 schedules. Delete one to save another.",
+        check(text(panel, "quantitiesScheduleNote") ==
+                  "This model has 32 schedules. Delete one to save another.",
               "The 32-schedule limit is named on screen");
-        check(text(panel, "quantitiesScheduleCount") == "32 for this model", "Thirty-two are listed");
+        check(text(panel, "quantitiesScheduleCount") == "32 for this model",
+              "Thirty-two are listed");
 
         // 10. The keyboard path (§19.10): focus lands on Group by, and the arrows choose.
         window.findChild<QAction *>("view.quantities")->trigger();

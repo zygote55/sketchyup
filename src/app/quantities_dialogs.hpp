@@ -15,9 +15,9 @@ class QPushButton;
 
 namespace sketchy {
 
-// The store's name rules (§19.6): 1 to 64 characters, letters, digits, spaces and . _ ( ) -, starting
-// and ending with a letter or a digit. Empty when the name follows them, otherwise the words the
-// field shows.
+// The store's name rules (§19.6): 1 to 64 characters, letters, digits, spaces and . _ ( ) -,
+// starting and ending with a letter or a digit. Empty when the name follows them, otherwise the
+// words the field shows.
 QString scheduleNameProblem(const QString &name);
 
 // Save as schedule… and Rename…: a name field that counts and checks as the person types, the list
@@ -44,8 +44,8 @@ class ScheduleNameDialog : public QDialog {
 // the person confirms.
 bool confirmScheduleDelete(QWidget *parent, const QString &name);
 
-// One row of the export report's "Needs your attention" column (§19.8): a not-solid group, its words,
-// its count and the bodies behind it.
+// One row of the export report's "Needs your attention" column (§19.8): a not-solid group, its
+// words, its count and the bodies behind it.
 struct ExportAttention {
     QString words;
     QString detail;

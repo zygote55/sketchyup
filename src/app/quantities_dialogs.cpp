@@ -15,11 +15,13 @@ namespace sketchy {
 
 QString scheduleNameProblem(const QString &name) {
     if (name.isEmpty() || name.size() > 64)
-        return "Use 1 to 64 letters, digits, spaces or . _ ( ) -, starting and ending with a letter or a digit.";
+        return "Use 1 to 64 letters, digits, spaces or . _ ( ) -, starting and ending with a "
+               "letter or a digit.";
     if (!QRegularExpression(R"(\A[A-Za-z0-9](?:[A-Za-z0-9 ._()-]{0,62}[A-Za-z0-9])?\z)")
              .match(name)
              .hasMatch())
-        return "Use 1 to 64 letters, digits, spaces or . _ ( ) -, starting and ending with a letter or a digit.";
+        return "Use 1 to 64 letters, digits, spaces or . _ ( ) -, starting and ending with a "
+               "letter or a digit.";
     return {};
 }
 
@@ -104,8 +106,9 @@ void ScheduleNameDialog::check() {
     auto problem = scheduleNameProblem(name);
     // taken_ holds the other schedules' names: a rename keeps the name it already has.
     if (problem.isEmpty() && taken_.contains(name))
-        problem = QString("A schedule named \"%1\" already exists for this model. Choose another name.")
-                      .arg(name);
+        problem =
+            QString("A schedule named \"%1\" already exists for this model. Choose another name.")
+                .arg(name);
     problem_->setText(problem);
     save_->setEnabled(problem.isEmpty());
     error_->clear();
@@ -192,9 +195,8 @@ ExportReportDialog::ExportReportDialog(QWidget *parent, const QString &path,
     auto *buttons = new QDialogButtonBox;
     auto *copy = buttons->addButton("Copy path", QDialogButtonBox::ActionRole);
     copy->setObjectName("exportCopyPath");
-    connect(copy, &QPushButton::clicked, this, [path] {
-        QApplication::clipboard()->setText(path);
-    });
+    connect(copy, &QPushButton::clicked, this,
+            [path] { QApplication::clipboard()->setText(path); });
     auto *close = buttons->addButton("Close", QDialogButtonBox::AcceptRole);
     close->setObjectName("exportClose");
     close->setDefault(true);

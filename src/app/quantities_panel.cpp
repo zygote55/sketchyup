@@ -113,13 +113,15 @@ QString clockText(qint64 milliseconds) {
     return QString("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QChar('0'));
 }
 
-// The refusal words of the schedule actions (§19.9). Each says that nothing was saved, as §16.6 asks.
+// The refusal words of the schedule actions (§19.9). Each says that nothing was saved, as §16.6
+// asks.
 QString scheduleRefusal(const InspectionError &error) {
     const auto message = QString::fromStdString(error.what());
     const auto code = QString::fromStdString(error.code());
     if (code == "LIMIT_EXCEEDED") {
         if (message.contains("64") || message.contains("models"))
-            return "Nothing was saved. This computer's schedule file holds 64 models, its limit. Open "
+            return "Nothing was saved. This computer's schedule file holds 64 models, its limit. "
+                   "Open "
                    "each model whose schedules you no longer need and delete them there.";
         return "Nothing was saved. This model has 32 schedules. Delete one to save another.";
     }
@@ -137,7 +139,8 @@ QString exportRefusal(const ReportJob &job, const QString &path) {
                        "never replaced.")
             .arg(QFileInfo(path).fileName());
     if (job.code() == "LIMIT_EXCEEDED")
-        return "Nothing was written. This report is over the 256 MiB limit. Group less, pick a tag, "
+        return "Nothing was written. This report is over the 256 MiB limit. Group less, pick a "
+               "tag, "
                "or choose Visible only.";
     return "Nothing was written. " + job.message();
 }
@@ -162,9 +165,9 @@ QString joinWords(const QStringList &parts) {
 // A schedule's summary: "Definition · Included · all metrics · precision 2" (§19.6).
 QString settingWords(const QJsonObject &request) {
     const auto group = request["groupBy"].toString("none");
-    const QString groupName = group == "kind"       ? "Kind"
-                              : group == "tag"      ? "Tag"
-                              : group == "material" ? "Material"
+    const QString groupName = group == "kind"         ? "Kind"
+                              : group == "tag"        ? "Tag"
+                              : group == "material"   ? "Material"
                               : group == "definition" ? "Definition"
                                                       : "None";
     const auto visible = request["filters"].toObject()["visibility"].toString() == "visible";
@@ -184,15 +187,15 @@ QStringList storedWords(const QJsonObject &request, int documentPrecision) {
     const auto group = settingWords(request).split(" · ").first();
     const auto visible = request["filters"].toObject()["visibility"].toString() == "visible";
     const auto precision = request["precision"];
-    QString precisionText = precision.isString() ? precision.toString()
+    QString precisionText = precision.isString()   ? precision.toString()
                             : precision.isDouble() ? QString::number(precision.toInt())
                                                    : (documentPrecision == fullDisplayPrecision
                                                           ? QString("full")
                                                           : QString::number(documentPrecision));
-    return QStringList{"Grouping: " + group,
-                       QString("Hidden content: %1").arg(visible ? "Visible only" : "Include hidden"),
-                       "Metrics: all four tables",
-                       "Precision: " + precisionText + " (pinned at save)"};
+    return QStringList{
+        "Grouping: " + group,
+        QString("Hidden content: %1").arg(visible ? "Visible only" : "Include hidden"),
+        "Metrics: all four tables", "Precision: " + precisionText + " (pinned at save)"};
 }
 
 QString idList(const std::set<Id> &ids) {
@@ -307,7 +310,8 @@ QuantitiesPanel::QuantitiesPanel(Document &document, Viewport &viewport, QWidget
         value->setAutoDefault(false);
         row->addWidget(value);
         layout->addLayout(row);
-        connect(value, &QPushButton::clicked, this, [this, kind, value] { pickerMenu(kind, value); });
+        connect(value, &QPushButton::clicked, this,
+                [this, kind, value] { pickerMenu(kind, value); });
         return value;
     };
     tagsValue_ = picker("Tags", {}, "Tags");
@@ -520,7 +524,8 @@ void QuantitiesPanel::buildSchedules() {
     scheduleList_->setSelectionMode(QAbstractItemView::SingleSelection);
     scheduleList_->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(scheduleList_);
-    // Enter runs, F2 renames, Delete asks first, and Shift+F10 or the menu key opens Actions (§19.10).
+    // Enter runs, F2 renames, Delete asks first, and Shift+F10 or the menu key opens Actions
+    // (§19.10).
     auto *rename = new QAction(scheduleList_);
     rename->setShortcut(Qt::Key_F2);
     rename->setShortcutContext(Qt::WidgetShortcut);
@@ -537,9 +542,8 @@ void QuantitiesPanel::buildSchedules() {
         if (auto *item = scheduleList_->currentItem())
             deleteSchedule(item->data(Qt::UserRole).toString());
     });
-    connect(scheduleList_, &QListWidget::itemActivated, this, [this](QListWidgetItem *item) {
-        runSchedule(item->data(Qt::UserRole).toString());
-    });
+    connect(scheduleList_, &QListWidget::itemActivated, this,
+            [this](QListWidgetItem *item) { runSchedule(item->data(Qt::UserRole).toString()); });
     connect(scheduleList_, &QListWidget::customContextMenuRequested, this, [this](QPoint at) {
         if (auto *item = scheduleList_->itemAt(at))
             scheduleActions(item->data(Qt::UserRole).toString(),
@@ -564,7 +568,8 @@ void QuantitiesPanel::buildSchedules() {
 
 void QuantitiesPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
-    // Opening the section computes the totals (§19.1). A pass cancelled by hiding starts again here.
+    // Opening the section computes the totals (§19.1). A pass cancelled by hiding starts again
+    // here.
     cancelledSignature_.clear();
     reloadSchedules();
     requestRun(false);
@@ -628,9 +633,8 @@ QJsonObject QuantitiesPanel::liveRequest(bool withSelection) const {
                         {"definitions", definitions}};
     if (withSelection && selectionOnly_->isChecked())
         filters["selection"] = true;
-    return QJsonObject{{"metrics", "all"},
-                       {"groupBy", groupBy_->currentData().toString()},
-                       {"filters", filters}};
+    return QJsonObject{
+        {"metrics", "all"}, {"groupBy", groupBy_->currentData().toString()}, {"filters", filters}};
 }
 
 std::set<Id> QuantitiesPanel::selectedBodies() const {
@@ -670,8 +674,8 @@ void QuantitiesPanel::requestRun(bool announceRun) {
     if (job_) {
         if (jobSignature_ == signature)
             return;
-        // A newer revision, filter or selection supersedes the pass in progress (§19.3). Its numbers
-        // are dropped when it ends, and a pass starts for the newest request.
+        // A newer revision, filter or selection supersedes the pass in progress (§19.3). Its
+        // numbers are dropped when it ends, and a pass starts for the newest request.
         queued_ = true;
         jobAnnounce_ = jobAnnounce_ || announceRun;
         job_->requestCancel();
@@ -730,11 +734,10 @@ void QuantitiesPanel::showComputing(bool visible) {
     computing_->setVisible(visible);
     if (visible) {
         const auto elapsed = clockText(clock_.elapsed());
-        computingText_->setText(jobExport_
-                                    ? QString("Writing the file… elapsed %1").arg(elapsed)
-                                    : QString("● Computing revision %1 · elapsed %2")
-                                          .arg(jobRevision_)
-                                          .arg(elapsed));
+        computingText_->setText(
+            jobExport_
+                ? QString("Writing the file… elapsed %1").arg(elapsed)
+                : QString("● Computing revision %1 · elapsed %2").arg(jobRevision_).arg(elapsed));
     }
     // The old totals stay readable and dimmed while a run is in progress (§19.3).
     auto *effect = qobject_cast<QGraphicsOpacityEffect *>(totals_->graphicsEffect());
@@ -768,9 +771,10 @@ void QuantitiesPanel::jobFinished() {
             return;
         }
         // The person pressed Cancel. The last complete result stays, with its own revision (§19.3).
-        status_->setText(shown_.valid
-                             ? QString("Not updated: cancelled. Showing revision %1.").arg(shown_.revision)
-                             : QString("Not updated: cancelled. No totals are shown yet."));
+        status_->setText(
+            shown_.valid
+                ? QString("Not updated: cancelled. Showing revision %1.").arg(shown_.revision)
+                : QString("Not updated: cancelled. No totals are shown yet."));
         if (announceRun)
             announce(status_);
         syncControls();
@@ -808,11 +812,13 @@ void QuantitiesPanel::jobFinished() {
         QStringList parts{QString("Computed at revision %1").arg(revision)};
         if (areas.size() == 1)
             parts << "area " + measureWords(areas.first().toObject()["area"].toString(),
-                                           units["area"].toString());
+                                            units["area"].toString());
         if (volumes.size() == 1)
             parts << "volume " + measureWords(volumes.first().toObject()["volume"].toString(),
                                               units["volume"].toString());
-        status_->setText(parts.join(", ") + QString(". %1 not %2.").arg(invalid).arg(invalid == 1 ? "solid" : "solids"));
+        status_->setText(
+            parts.join(", ") +
+            QString(". %1 not %2.").arg(invalid).arg(invalid == 1 ? "solid" : "solids"));
         announce(status_);
     } else {
         status_->clear();
@@ -837,7 +843,8 @@ void QuantitiesPanel::finishExport(ReportJob *job) {
         setError(refusal);
         announce(error_);
     } else {
-        status_->setText(QString("Written: %1. The model is unchanged.").arg(QFileInfo(path).fileName()));
+        status_->setText(
+            QString("Written: %1. The model is unchanged.").arg(QFileInfo(path).fileName()));
         announce(status_);
         exportReport(path, csv, schedule, data, revision);
     }
@@ -913,11 +920,13 @@ void QuantitiesPanel::showResult(const Result &result) {
 
     const bool grouped = groupBy != "none";
     const bool visibleOnly = visibleOnly_->isChecked();
-    totalsTitle_->setText(visibleOnly ? QString("Visible only") : grouped ? QString("Totals") : QString("All"));
+    totalsTitle_->setText(visibleOnly ? QString("Visible only")
+                          : grouped   ? QString("Totals")
+                                      : QString("All"));
     empty_->setVisible(doc_.bodies().empty());
 
-    // The engine's "All" row is the whole model's total in every grouping (ADR 0175 §1), so the totals
-    // come from it, and the group table lists the other rows.
+    // The engine's "All" row is the whole model's total in every grouping (ADR 0175 §1), so the
+    // totals come from it, and the group table lists the other rows.
     QString areaValue, volumeValue;
     qulonglong contexts = 0, instances = 0, definitions = 0, unvalidated = 0;
     for (const auto &group : groups)
@@ -941,8 +950,9 @@ void QuantitiesPanel::showResult(const Result &result) {
     area_->setAccessibleName(areaValue.isEmpty() ? QString("Area, not reported")
                                                  : "Area, " + measureWords(areaValue, areaCode));
     volume_->setText(volumeValue.isEmpty() ? dashed : measureText(volumeValue, volumeCode));
-    volume_->setAccessibleName(volumeValue.isEmpty() ? QString("Volume, not reported")
-                                                     : "Volume, " + measureWords(volumeValue, volumeCode));
+    volume_->setAccessibleName(volumeValue.isEmpty()
+                                   ? QString("Volume, not reported")
+                                   : "Volume, " + measureWords(volumeValue, volumeCode));
     contexts_->setText(QString::number(contexts));
     instances_->setText(QString::number(instances));
     definitionCount_->setText(grouped ? dashed : QString::number(definitions));
@@ -960,21 +970,24 @@ void QuantitiesPanel::showResult(const Result &result) {
                 continue;
             auto *item = new QTreeWidgetItem(groups_);
             item->setText(0, groupLabel(group.name, groupBy));
-            item->setText(1, group.areaText.isEmpty() ? dashed : measureText(group.areaText, areaCode));
-            item->setText(2, group.volumeText.isEmpty() ? dashed : measureText(group.volumeText, volumeCode));
+            item->setText(1, group.areaText.isEmpty() ? dashed
+                                                      : measureText(group.areaText, areaCode));
+            item->setText(
+                2, group.volumeText.isEmpty() ? dashed : measureText(group.volumeText, volumeCode));
             const auto detail = QString("%1, %2, %3")
                                     .arg(countText(group.instances, "instance", "instances"))
                                     .arg(countText(group.contexts, "context", "contexts"))
                                     .arg(countText(group.definitions, "definition", "definitions"));
             item->setToolTip(0, detail);
-            item->setData(0, Qt::AccessibleTextRole,
-                          QString("%1, area %2, volume %3, %4")
-                              .arg(groupLabel(group.name, groupBy))
-                              .arg(group.areaText.isEmpty() ? QString("not reported")
-                                                            : measureWords(group.areaText, areaCode))
-                              .arg(group.volumeText.isEmpty() ? QString("not reported")
-                                                              : measureWords(group.volumeText, volumeCode))
-                              .arg(detail));
+            item->setData(
+                0, Qt::AccessibleTextRole,
+                QString("%1, area %2, volume %3, %4")
+                    .arg(groupLabel(group.name, groupBy))
+                    .arg(group.areaText.isEmpty() ? QString("not reported")
+                                                  : measureWords(group.areaText, areaCode))
+                    .arg(group.volumeText.isEmpty() ? QString("not reported")
+                                                    : measureWords(group.volumeText, volumeCode))
+                    .arg(detail));
         }
     }
 
@@ -1037,10 +1050,11 @@ void QuantitiesPanel::showResult(const Result &result) {
         auto *title = new QLabel(QString("%1 · terrain").arg(row["name"].toString()));
         title->setStyleSheet("font-weight: bold;");
         terrainLayout_->addWidget(title);
-        auto *detail = new QLabel(QString("%1 · %2 triangles · %3 · no volume (not a solid)")
-                                      .arg(countText(qulonglong(row["contexts"].toInt()), "context", "contexts"))
-                                      .arg(groupedDigits(QString::number(row["triangles"].toInt())))
-                                      .arg(measureText(row["area"].toString(), areaCode)));
+        auto *detail = new QLabel(
+            QString("%1 · %2 triangles · %3 · no volume (not a solid)")
+                .arg(countText(qulonglong(row["contexts"].toInt()), "context", "contexts"))
+                .arg(groupedDigits(QString::number(row["triangles"].toInt())))
+                .arg(measureText(row["area"].toString(), areaCode)));
         detail->setWordWrap(true);
         terrainLayout_->addWidget(detail);
     }
@@ -1049,17 +1063,19 @@ void QuantitiesPanel::showResult(const Result &result) {
 
 void QuantitiesPanel::syncControls() {
     const bool scheduled = !scheduleName_.isEmpty();
-    header_->setText(scheduled ? QString("Schedule · %1").arg(scheduleName_) : QString("Quantities"));
-    backLive_->setText(scheduled
-                           ? QString("Run made %1 the view. Its own request is computed, without the selection.")
-                                 .arg(scheduleName_)
-                           : QString());
+    header_->setText(scheduled ? QString("Schedule · %1").arg(scheduleName_)
+                               : QString("Quantities"));
+    backLive_->setText(
+        scheduled
+            ? QString("Run made %1 the view. Its own request is computed, without the selection.")
+                  .arg(scheduleName_)
+            : QString());
     backLive_->setVisible(scheduled);
     backButton_->setVisible(scheduled);
     // The live controls describe the live view only. A schedule keeps its own request (§19.6).
-    for (auto *widget : std::initializer_list<QWidget *>{groupBy_, includeHidden_, visibleOnly_,
-                                                         tagsValue_, materialsValue_,
-                                                         definitionsValue_, selectionOnly_}) {
+    for (auto *widget :
+         std::initializer_list<QWidget *>{groupBy_, includeHidden_, visibleOnly_, tagsValue_,
+                                          materialsValue_, definitionsValue_, selectionOnly_}) {
         if (widget == selectionOnly_)
             continue;
         widget->setEnabled(!scheduled);
@@ -1071,9 +1087,10 @@ void QuantitiesPanel::syncControls() {
         selectionOnly_->setChecked(false);
     }
     selectionOnly_->setEnabled(!scheduled && !selected.empty());
-    selectionOnly_->setText(selected.empty()
-                                ? QString("Selection only · none selected")
-                                : QString("Selection only · %1").arg(countText(selected.size(), "body selected", "bodies selected")));
+    selectionOnly_->setText(selected.empty() ? QString("Selection only · none selected")
+                                             : QString("Selection only · %1")
+                                                   .arg(countText(selected.size(), "body selected",
+                                                                  "bodies selected")));
     selectionHint_->setVisible(!scheduled && selected.empty());
     visibleCaption_->setVisible(!scheduled && visibleOnly_->isChecked());
 
@@ -1122,7 +1139,8 @@ void QuantitiesPanel::syncControls() {
     }
     scheduleNote_->setText(reason);
     scheduleNote_->setVisible(!reason.isEmpty());
-    saveSchedule_->setEnabled(!scheduled && !path.isEmpty() && storeFault_.isEmpty() && room && resolved);
+    saveSchedule_->setEnabled(!scheduled && !path.isEmpty() && storeFault_.isEmpty() && room &&
+                              resolved);
 
     // An export waits for the totals; a run never starts an export (§19.8).
     const bool busy = job_ != nullptr;
@@ -1134,7 +1152,8 @@ void QuantitiesPanel::syncControls() {
 }
 
 void QuantitiesPanel::refreshMissing() {
-    // The rows are rebuilt only when the set of missing IDs changes, so a focused Remove keeps focus.
+    // The rows are rebuilt only when the set of missing IDs changes, so a focused Remove keeps
+    // focus.
     struct Missing {
         QString word;
         std::set<Id> *ids;
@@ -1146,7 +1165,8 @@ void QuantitiesPanel::refreshMissing() {
             return doc.definitions().contains(id);
         }
     };
-    const Missing kinds[]{{"tag", &tags_}, {"material", &materials_}, {"definition", &definitions_}};
+    const Missing kinds[]{
+        {"tag", &tags_}, {"material", &materials_}, {"definition", &definitions_}};
     QStringList found;
     for (const auto &kind : kinds)
         for (auto id : *kind.ids)
@@ -1219,13 +1239,18 @@ void QuantitiesPanel::pickerMenu(const QString &kind, QWidget *anchor) {
         // bodies it holds, nested ones included. Untagged is a group of its own, not a filter.
         std::map<Id, std::size_t> counts;
         for (const auto &[id, body] : doc_.bodies())
-            for (auto tag = body->tag; tag; tag = doc_.tags().contains(tag) ? doc_.tags().at(tag)->parent : Id{0})
+            for (auto tag = body->tag; tag;
+                 tag = doc_.tags().contains(tag) ? doc_.tags().at(tag)->parent : Id{0})
                 ++counts[tag];
         for (const auto &[id, record] : doc_.tags()) {
             const auto name = QString::fromStdString(record->name);
             const auto text = name + "  " + QString::number(counts[id]) +
                               (record->folder ? "  (includes its tags)" : QString());
-            add(id, text, QString("%1 %2, %3 bodies%4").arg(noun, name).arg(counts[id]).arg(record->folder ? ", includes its tags" : ""));
+            add(id, text,
+                QString("%1 %2, %3 bodies%4")
+                    .arg(noun, name)
+                    .arg(counts[id])
+                    .arg(record->folder ? ", includes its tags" : ""));
         }
     } else if (kind == "Materials") {
         for (const auto &[id, record] : doc_.materials()) {
@@ -1238,7 +1263,8 @@ void QuantitiesPanel::pickerMenu(const QString &kind, QWidget *anchor) {
             ++placements[instance->definition];
         for (const auto &[id, record] : doc_.definitions()) {
             const auto name = QString::fromStdString(record->name);
-            add(id, name + "  " + QString::number(placements[id]), QString("%1 %2, %3 placements").arg(noun, name).arg(placements[id]));
+            add(id, name + "  " + QString::number(placements[id]),
+                QString("%1 %2, %3 placements").arg(noun, name).arg(placements[id]));
         }
     }
     if (kind == "Materials") {
@@ -1293,21 +1319,25 @@ void QuantitiesPanel::reloadSchedules() {
         }
         const auto outside = store.schedulesOutside(id);
         if (outside > 0) {
-            otherModels_->setText(QString("Other models on this computer have %1. They are kept with "
-                                          "those models and are not listed here.")
-                                      .arg(countText(outside, "schedule", "schedules")));
+            otherModels_->setText(
+                QString("Other models on this computer have %1. They are kept with "
+                        "those models and are not listed here.")
+                    .arg(countText(outside, "schedule", "schedules")));
             otherModels_->show();
         }
     } catch (const InspectionError &error) {
-        // A store that cannot be read is shown in its block; the model's own numbers keep working (§19.7).
+        // A store that cannot be read is shown in its block; the model's own numbers keep working
+        // (§19.7).
         storeFault_ = QString::fromStdString(error.what());
-        storeError_->setText(QString("✕ Schedules cannot be read\n%1\nTotals, groups and exports still work. "
-                                     "SketchyUp never resets this file: move it aside yourself, then reopen "
-                                     "this model.")
-                                 .arg(storePath_.isEmpty() ? storeFault_ : storePath_ + ": " + storeFault_));
+        storeError_->setText(
+            QString("✕ Schedules cannot be read\n%1\nTotals, groups and exports still work. "
+                    "SketchyUp never resets this file: move it aside yourself, then reopen "
+                    "this model.")
+                .arg(storePath_.isEmpty() ? storeFault_ : storePath_ + ": " + storeFault_));
         storeError_->show();
     }
-    scheduleCount_->setText(rows_.empty() ? QString() : QString("%1 for this model").arg(rows_.size()));
+    scheduleCount_->setText(rows_.empty() ? QString()
+                                          : QString("%1 for this model").arg(rows_.size()));
     for (const auto &row : rows_) {
         auto *item = new QListWidgetItem;
         item->setData(Qt::UserRole, row.name);
@@ -1370,11 +1400,13 @@ void QuantitiesPanel::runSchedule(const QString &name) {
         try {
             requireResolvedScheduleIds(doc_, saved.request);
         } catch (const InspectionError &error) {
-            // A stale schedule is refused in its row. Nothing runs, and the totals stay as they are (§19.7).
+            // A stale schedule is refused in its row. Nothing runs, and the totals stay as they are
+            // (§19.7).
             const auto parts = missingParts(error.details()["missing"].toObject());
-            refusals_[name] = QString("It refers to %1, which no longer %2 in this model. Nothing was run, "
-                                      "and the totals above are unchanged.")
-                                  .arg(joinWords(parts), parts.size() == 1 ? "exists" : "exist");
+            refusals_[name] =
+                QString("It refers to %1, which no longer %2 in this model. Nothing was run, "
+                        "and the totals above are unchanged.")
+                    .arg(joinWords(parts), parts.size() == 1 ? "exists" : "exist");
             reloadSchedules();
             announce(scheduleList_);
             return;
@@ -1431,8 +1463,8 @@ void QuantitiesPanel::scheduleActions(const QString &name, const QPoint &at) {
 }
 
 void QuantitiesPanel::saveSchedule(const QJsonObject &request, const QString &rename) {
-    // A schedule never stores the selection (§19.2): the request is taken without it. A rename keeps
-    // the request the schedule already has.
+    // A schedule never stores the selection (§19.2): the request is taken without it. A rename
+    // keeps the request the schedule already has.
     std::set<QString> taken;
     for (const auto &row : rows_)
         if (row.name != rename)
@@ -1452,7 +1484,8 @@ void QuantitiesPanel::saveSchedule(const QJsonObject &request, const QString &re
         }
         try {
             if (rename.isEmpty())
-                saveReportSchedule(doc_, storePath_.isEmpty() ? reportScheduleStorePath() : storePath_,
+                saveReportSchedule(doc_,
+                                   storePath_.isEmpty() ? reportScheduleStorePath() : storePath_,
                                    name, request);
             else
                 renameReportSchedule(doc_, storePath_, rename, name);
@@ -1501,12 +1534,13 @@ void QuantitiesPanel::exportFile(bool csv, const QString &schedule) {
     const auto path = modelPath_ ? modelPath_() : QString();
     const auto suggested = (path.isEmpty() ? QString() : QFileInfo(path).absolutePath() + "/") +
                            modelName() + (csv ? "-takeoff.csv" : "-takeoff.json");
-    // No overwrite prompt: an existing file is refused after the dialog, and nothing is replaced (§19.8).
-    // The system Save dialog (§19.8), as the file choosers of the other panels are opened. No overwrite
-    // prompt: an existing file is refused after the dialog, and nothing is replaced.
-    const auto chosen = QFileDialog::getSaveFileName(
-        this, csv ? "Export CSV" : "Export JSON", suggested,
-        csv ? "CSV files (*.csv)" : "JSON files (*.json)", nullptr, QFileDialog::DontConfirmOverwrite);
+    // No overwrite prompt: an existing file is refused after the dialog, and nothing is replaced
+    // (§19.8). The system Save dialog (§19.8), as the file choosers of the other panels are opened.
+    // No overwrite prompt: an existing file is refused after the dialog, and nothing is replaced.
+    const auto chosen =
+        QFileDialog::getSaveFileName(this, csv ? "Export CSV" : "Export JSON", suggested,
+                                     csv ? "CSV files (*.csv)" : "JSON files (*.json)", nullptr,
+                                     QFileDialog::DontConfirmOverwrite);
     if (chosen.isEmpty())
         return;
     ReportFileOptions options;
@@ -1534,7 +1568,8 @@ void QuantitiesPanel::exportFile(bool csv, const QString &schedule) {
         [snapshot, options, bodies, gate](const ReportHooks &hooks) {
             if (gate)
                 gate(*hooks.cancel);
-            return writeReportFile(*snapshot, options, options.selection ? &bodies : nullptr, hooks);
+            return writeReportFile(*snapshot, options, options.selection ? &bodies : nullptr,
+                                   hooks);
         },
         this);
     exportPath_ = chosen;
@@ -1551,18 +1586,22 @@ void QuantitiesPanel::exportReport(const QString &path, bool csv, const QString 
     QStringList written{
         QString("Written to %1").arg(path),
         QString("Format: %1").arg(csv ? "CSV" : "JSON"),
-        QString("Bytes: %1").arg(groupedDigits(QString::number(exported["bytes"].toDouble(), 'f', 0))),
+        QString("Bytes: %1")
+            .arg(groupedDigits(QString::number(exported["bytes"].toDouble(), 'f', 0))),
         QString("Revision: %1").arg(revision),
-        schedule.isEmpty() ? QString("Schedule: none (ad hoc)") : QString("Schedule: %1").arg(schedule),
+        schedule.isEmpty() ? QString("Schedule: none (ad hoc)")
+                           : QString("Schedule: %1").arg(schedule),
         QString("Grouping: %1").arg(groupBy_->currentText()),
-        QString("Hidden content: %1").arg(visibleOnly_->isChecked() ? "Visible only" : "Include hidden"),
+        QString("Hidden content: %1")
+            .arg(visibleOnly_->isChecked() ? "Visible only" : "Include hidden"),
         QString("Metrics: all four tables"),
     };
     // The attention list comes from the totals on screen, when they were computed at this revision.
     std::vector<ExportAttention> attention;
     QStringList notices;
     if (shown_.valid && shown_.revision == revision && schedule.isEmpty()) {
-        written << QString("Precision: %1").arg(shown_.data["metadata"].toObject()["precision"].toVariant().toString());
+        written << QString("Precision: %1")
+                       .arg(shown_.data["metadata"].toObject()["precision"].toVariant().toString());
         for (const auto &value : shown_.data["invalid"].toArray()) {
             const auto row = value.toObject();
             ExportAttention item;
