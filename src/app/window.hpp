@@ -40,6 +40,7 @@ class ComponentDefinitionSection;
 class ComponentDriversSection;
 class DesktopInspection;
 class RenderPanel;
+class PresentationsDialog;
 class DrawingViewRenderCache;
 class SheetWorkspace;
 class SheetsTray;
@@ -152,6 +153,8 @@ class Window : public QMainWindow {
     QPrinter *sheetPrinter();
     void libraryDialog(bool templates);
     void extensionsDialog();
+    // R099.d2 (UX_DESIGN §17.1): Camera > Presentations…, the dialog on its Camera paths tab.
+    void presentationsDialog();
     void saveLibraryDialog(bool component);
     void openTemplatePath(const QString &path);
     void openTemplateBundle(const struct TemplateBundle &bundle);
@@ -167,6 +170,7 @@ class Window : public QMainWindow {
     Document doc_;
     Viewport *viewport_{};
     RenderPanel *render_{};
+    PresentationsDialog *presentations_{};
     AssistantPanel *assistant_{};
     QHBoxLayout *content_{};
     QTabWidget *sideTabs_{};

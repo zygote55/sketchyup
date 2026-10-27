@@ -11,6 +11,7 @@
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/presentations_dialog.hpp"
 #include "app/render_panel.hpp"
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
@@ -898,6 +899,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         "WASD/arrows walk · Q/E change height · Shift moves faster · Drag looks · Esc exits",
         false));
     cameraMenu->addAction(action("camera.render", "Render…", {}, [this] { render_->showSetup(); }));
+    cameraMenu->addAction(
+        action("camera.presentations", "Presentations…", {}, [this] { presentationsDialog(); }));
     auto *extensions = menuBar()->addMenu("E&xtensions");
     extensions->addAction(
         action("extensions.manage", "Manage extensions…", {}, [this] { extensionsDialog(); }));
@@ -1613,6 +1616,9 @@ void Window::sync() {
         assistant_->refresh();
     if (render_)
         render_->refreshProvenance();
+    // Undo and redo end here, so the open Presentations dialog refreshes after them.
+    if (presentations_)
+        presentations_->refresh();
     if (workspace_ == Workspace::Sheets) {
         // Bare numbers are paper millimetres in Sheets (ADR 0164 §4).
         measurementUnits_->setText("Paper units: mm");

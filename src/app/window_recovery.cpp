@@ -3,6 +3,7 @@
 #include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
 #include "app/inspection_service.hpp"
+#include "app/presentations_dialog.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/window.hpp"
@@ -29,6 +30,9 @@ Window::~Window() {
     // R094.e: the context opener, the message actions and a suspended placement's restore must
     // not reach the window while it is torn down.
     detachParameterStates();
+    // R099.d2: the Presentations dialog stops first, so a field losing focus cannot commit.
+    if (presentations_)
+        presentations_->detach();
     // The document goes before the widgets: a field losing focus must not commit (R094.c).
     if (parameters_)
         parameters_->detach();
