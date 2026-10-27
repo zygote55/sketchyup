@@ -50,7 +50,7 @@
     "V4": "pass with the ADR chain area corrected from 9 m2 to 54 m2 (owner decision 4): report transforms(); the default CSV equals its golden",
     "V5": "pass: report quantitiesA() (Stash x2 adds 7 m3 and 18 m2; revision advances; undo restores under a higher revision); not scripted (no CLI edit command)",
     "V6": "pass: report invalidSolids() covers open_boundary, non_manifold and analysis_limit; the degenerate row is dropped (decision 3: no public-API body reaches it); CLI invalid rows and unvalidated 2 verified",
-    "V7": "pass: Debug build (build/dev), offscreen, on the redesigned test (§8 item 8): seven local runs. Computing phase: the longest UI gap after the first tick is 13.6 to 25.5 ms (bound 250 ms). The section's share of an edit's synchronous work: 13.5 and 38.2 ms with the faster of two edits each side (hidden 295 and 327 ms, shown 334 and 341 ms); single-sample runs before that gave −3.7 to 104 ms (bound 250 ms). Cancel: the computing line goes 10.8 to 65.3 ms after the click (bound 100 ms). The computing line shows 0.95 to 1.47 s after the trigger, on the panel's 1 s tick. The edit's own synchronous work, the same with the section hidden, is 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce; it is printed, not bounded (finding 22)",
+    "V7": "pass: Debug build (build/dev), offscreen, on the redesigned test (§8 item 8): seven local runs. Computing phase: the longest UI gap after the first tick is 13.6 to 25.5 ms (bound 250 ms). The section's share of an edit's synchronous work: 13.5 and 38.2 ms with the faster of two edits each side (hidden 295 and 327 ms, shown 334 and 341 ms); single-sample runs before that gave −3.7 to 104 ms (bound 250 ms). Cancel: the computing line goes 10.8 to 65.3 ms after the click (bound 100 ms). The computing line shows 0.95 to 1.47 s after the trigger, on the panel's 1 s tick. The edit's own synchronous work, the same with the section hidden, is 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce; it is printed, not bounded (finding 22). CI at a0913c9c (fast tier, X11 1× on xcb with software GL, Debug, job 122528438312): computing phase 49.9 ms, the section's share 156.1 ms (hidden 573.8 ms, shown 729.8 ms), cancel 51.2 ms; the edit's own work 1,053 ms. The CI share leaves 94 ms of margin, so a slower runner could approach the bound",
     "V8": "pass: report unitsAndPrecision() and report_output metadataMatrix(); CLI header #units.length=m, #units.area=m2, #units.volume=m3, #precision=full; mm and ft-in in-process only",
     "V9": "pass: report quantitiesA(); CLI header #documentId and #revision; repeated run identical",
     "V10": "pass: report_output csvDialect, quoting, goldens (repeat runs identical), pins (SHA-256); CLI reproduces all four goldens byte for byte",
@@ -144,12 +144,12 @@
     },
     "uiGapV7": {
       "budget": "longest gap of a 10 ms UI timer while the run computes (from the first tick after the edit to the result) < 250 ms; the section's share of the edit's synchronous work < 250 ms (faster of two edits, hidden against shown)",
-      "measured": "computing phase 13.6 to 25.5 ms over seven local Debug runs; the section's share 13.5 and 38.2 ms (faster of two; single samples -3.7 to 104 ms); the edit's own synchronous work 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce, the same with the section hidden (finding 22)",
+      "measured": "computing phase 13.6 to 25.5 ms over seven local Debug runs; the section's share 13.5 and 38.2 ms (faster of two; single samples -3.7 to 104 ms); the edit's own synchronous work 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce, the same with the section hidden (finding 22); CI at a0913c9c (X11 1x, software GL): computing phase 49.9 ms, share 156.1 ms (hidden 573.8, shown 729.8)",
       "verdict": "met (record section 8 item 8 defines the measurement)"
     },
     "cancelV7": {
       "budget": "<= 100 ms from the click until the computing state is gone (ADR 0175 V7 and section 5)",
-      "measured": "10.8 to 65.3 ms over seven local Debug runs; 22.4 ms on the CI runner at 39d8c1ce; Debug, offscreen",
+      "measured": "10.8 to 65.3 ms over seven local Debug runs; 22.4 ms on the CI runner at 39d8c1ce; Debug, offscreen; CI at a0913c9c: 51.2 ms",
       "verdict": "met"
     }
   },

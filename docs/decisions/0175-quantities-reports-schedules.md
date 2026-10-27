@@ -13,8 +13,9 @@ entries ([M10 acceptance](../M10_ACCEPTANCE.md),
 **Acceptance record (R101.f, 2026-10-27):** [R101f](../verification/R101f-quantities-reports.md)
 ([summary](../verification/R101f-quantities-reports.json)). The Verify line is met: V1 to V12 pass. All seven §12 rows
 are met on the Release build; the panel re-run row is met, marginal (p95 at most 985 ms in six of seven series, one series
-at 1,097 ms under load). In the large-model V7 test (Debug) the UI never stops for more than 26 ms while the run computes,
-the section adds 13 to 38 ms to an edit's synchronous work, and Cancel clears the computing line in 11 to 65 ms. The edit's
+at 1,097 ms under load). In the large-model V7 test (Debug) the UI never stops for more than 26 ms locally (50 ms in CI) while the
+run computes, the section adds 13 to 38 ms locally (156 ms in CI) to an edit's synchronous work, and Cancel clears the
+computing line in 11 to 65 ms locally (51 ms in CI). The edit's
 own synchronous work on that model (0.30 to 0.42 s locally, 0.85 s in CI) is outside V7 and carried as the record's finding
 22. The parent decided the record's §8 items 2 to 8, and item 1 by measurement, on 2026-10-27; the owner can reopen them.
 
@@ -1355,6 +1356,8 @@ large-model part of V7 as a new line in the X11 1× job, so the fast tier runs i
 - **V7 passes** (record §8 item 8). While the run computes, the longest UI gap is 13.6 to 25.5 ms. The section adds 13.5
   and 38.2 ms to an edit's synchronous work (the faster of two edits each side; single samples gave −3.7 to 104 ms). Cancel
   clears the computing line in 10.8 to 65.3 ms. Each bound is the one the first version used: 250, 250 and 100 ms.
+  In CI at `a0913c9c` (X11 1×, software GL): 49.9 ms, a share of 156.1 ms (hidden 573.8, shown 729.8) and 51.2 ms. The
+  CI share leaves 94 ms of margin.
 - **§12: all seven rows are met.** The panel re-run row is met, marginal. Seven series of 200 runs give p95 of 569 to 985 ms
   in six series and 1,097 ms in one, the series that started at a 1-minute load of 6.5. The headroom is small.
 
