@@ -1529,7 +1529,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R107 — Investigate and conditionally add maps/geolocation services
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C06. **UX:** —.
+**Status:** Feasibility design proposed (ADR 0181); delivery conditional on feasibility. **Track:** Interchange. **Scope:** C06. **UX:** —.
 
 **Requires:** [R089](#r089), [R067](#r067), [R095](#r095); milestone gate rule above.
 
