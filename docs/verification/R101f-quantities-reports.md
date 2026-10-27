@@ -159,6 +159,43 @@ Each gap is either resolved in this record or carried. A carried gap names its o
 20. **Budgets are not enforced in CI.** `report_benchmark` is `EXCLUDE_FROM_ALL`, and no CI job builds or runs it. The budgets above were measured once, by hand, for this record. Carried; owner decision 5.
 21. **The §11 corrections are not yet approved.** R101.a corrected the chain area, the area totals, the context count, the unvalidated count and the `degenerate` row. The corrected figures are the ones checked here. Carried; owner decision 4.
 
+### Gaps left by R101.a to R101.e2
+
+Each gap that an implementation note recorded, and what this record does with it.
+
+| Note | Gap as recorded | Here |
+| --- | --- | --- |
+| R101.a | The `degenerate` status cannot be built (point 6) | carried (gap 1; owner decision 3) |
+| R101.a | V5 beyond the single edit and undo; V7; V10 to V12 | V5 and V10 to V11 resolved (tests and scripted runs); V12 partly carried (gap 3); V7 partly carried (gap 2) |
+| R101.a | No fixture with sheets | partly resolved (S10 reads the metadata of `drawing-sheets-v27`); the exact fixture carried (gap 10) |
+| R101.a | The desktop selection path is not run by a desktop test | resolved: `quantities_input_tests` section 8 (Selection only, the 2 m² plate, the selection export) runs in CI's native cells |
+| R101.a | §12 budgets on the full application and on other platforms | engine budgets measured here; the panel's own timing and other platforms carried (gaps 5 and 16) |
+| R101.b | Terrain names not unique in the CSV | carried (gap 14) |
+| R101.b | No `materialsApply` line in the CSV | carried (gap 15) |
+| R101.b | Desktop re-run, cancel and stop not measured | measured here (§6) |
+| R101.b | Schedule re-run not measured in the desktop | measured here as the CLI re-run (§6) |
+| R101.b | The 256 MiB refusal not exercised | carried (gap 11) |
+| R101.c | Windows and macOS store isolation; the read-only folder check skips as root | carried (gap 16); the root skip not re-checked here |
+| R101.c | Sanitizer runs of the schedule tests | resolved: CI's sanitize job (§5) |
+| R101.c | Desktop artifacts not regenerated | resolved: the API-schema check passed in CI's Development build job |
+| R101.c | A hand-edited request is checked only when it runs | carried; the documented behaviour, not re-checked here |
+| R101.c | The desktop did not call the store path | resolved by R101.e2, which uses the store and is run in CI |
+| R101.d | A 65-character name is refused by the wire schema before the store | accepted behaviour; the store's own refusal is tested |
+| R101.d | 63 of the 64 MCP tool slots used | carried; the next MCP tool needs the bound raised or a tool removed |
+| R101.d | The native assistant can run any registry query it is sent | carried (pre-existing; the assistant is off by decision 10) |
+| R101.d | Session operations have a generic MCP description | carried (cosmetic) |
+| R101.d | Not run under sanitizers or on the native display | resolved: sanitizer jobs (§5) and `native_mcp_tests` in CI's native cells |
+| R101.e1 | The panel re-run budget not met (measured at 582 to 968 ms against 250 ms) | measured here against the owner's 1 s: missed in one series (gap 4; owner decision 1) |
+| R101.e1 | The exported JSON carries no body IDs | carried (gap 3; owner decision 2) |
+| R101.e1 | A pinned precision refused after a units change; units not pinned | carried (gap 13) |
+| R101.e1 | A single record is not interrupted by cancel | carried (gap 12) |
+| R101.e1 | The desktop panel not built; X11 and Wayland display tests not run; Qt 6.8 compile not run | resolved: the panel is built and tested in CI's native cells, and the Qt 6.8 reference compile succeeded (compile only) |
+| R101.e1 | No sanitizer build of the desktop tests | carried: the sanitize job runs the engine and schedule suites, not `quantities_input_tests` |
+| R101.e2 | Rename, Export CSV and Export JSON not in the keyboard audit | carried (gap 7) |
+| R101.e2 | 200 % text not checked on screen | carried (gap 6) |
+| R101.e2 | Status-bar job chip, Ctrl+C on a totals row, the two-line group rows and the material counts in the pickers | carried: UX deviations listed in R101.e2; not in this record's checks |
+| R101.e2 | Offscreen only, Qt 6.12 not 6.8 | resolved: CI's native cells run X11 and Wayland at 1× and 2×, on the CI image's Qt |
+
 ## 8. Owner decisions
 
 Each item gives the recommendation. I have not made any of these decisions.
