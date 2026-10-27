@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QProcess>
@@ -10,6 +11,7 @@
 #include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QXmlStreamWriter>
 
 #include <csignal>
 namespace sketchy {
@@ -17,6 +19,54 @@ namespace {
 void require(bool value, const char *message) {
     if (!value)
         throw std::runtime_error(message);
+}
+// R109 S4 (ADR 0183 section 5): the user's font folders, which the desktop's font list reads. The
+// desktop's fontconfig reads $XDG_DATA_HOME/fonts (default ~/.local/share/fonts) and ~/.fonts, and
+// these are the same folders. Only existing directories are kept, and each once.
+// The rule: a folder outside the home directory is accepted only when it came from XDG_DATA_HOME,
+// the user's own choice. The default folders are inside HOME by construction, so only the XDG one
+// can lie outside it. A relative XDG_DATA_HOME is ignored, as the XDG specification says.
+QStringList userFontFolders(const QProcessEnvironment &environment) {
+    const auto home = environment.value("HOME");
+    const auto dataHome = environment.value("XDG_DATA_HOME");
+    QStringList candidates;
+    if (QDir::isAbsolutePath(dataHome))
+        candidates << dataHome + "/fonts";
+    else if (QDir::isAbsolutePath(home))
+        candidates << home + "/.local/share/fonts";
+    if (QDir::isAbsolutePath(home))
+        candidates << home + "/.fonts";
+    QStringList folders;
+    for (const auto &candidate : candidates) {
+        const QFileInfo info(candidate);
+        if (info.isDir() && !folders.contains(info.canonicalFilePath()))
+            folders << info.canonicalFilePath();
+    }
+    return folders;
+}
+// The fontconfig file the helper reads (FONTCONFIG_FILE): the system configuration, one <dir> for
+// each user folder, and the cache in the private directory. The helper cannot write there, so
+// fontconfig cannot keep a cache for these folders and scans them again on each call.
+// QXmlStreamWriter escapes the paths.
+void writeFontConfiguration(const QString &file, const QStringList &folders, const QString &cache) {
+    QFile output(file);
+    require(output.open(QIODevice::WriteOnly), "Text worker font configuration cannot be written");
+    QXmlStreamWriter xml(&output);
+    xml.setAutoFormatting(true);
+    xml.writeStartDocument();
+    xml.writeDTD(QStringLiteral("<!DOCTYPE fontconfig SYSTEM \"urn:fontconfig:fonts.dtd\">"));
+    xml.writeStartElement(QStringLiteral("fontconfig"));
+    xml.writeStartElement(QStringLiteral("include"));
+    xml.writeAttribute(QStringLiteral("ignore_missing"), QStringLiteral("yes"));
+    xml.writeCharacters(QStringLiteral("/etc/fonts/fonts.conf"));
+    xml.writeEndElement();
+    for (const auto &folder : folders)
+        xml.writeTextElement(QStringLiteral("dir"), folder);
+    xml.writeTextElement(QStringLiteral("cachedir"), cache);
+    xml.writeEndElement();
+    xml.writeEndDocument();
+    output.close();
+    require(output.error() == QFileDevice::NoError, "Text worker font configuration is incomplete");
 }
 void fields(const QJsonObject &o, const QStringList &keys) {
     require(o.size() == keys.size(), "Text protocol has missing or unknown fields");
@@ -189,12 +239,26 @@ TextGeometry runTextWorker(const TextGeometrySettings &settings, const TextWorke
     require(QFileInfo(program).isAbsolute(), "Text worker path must be absolute");
     // R109 S3 (ADR 0183 section 4.2): the helper's home, cache, configuration and temporary
     // directories are one empty directory that this call creates and removes, so the helper reads
-    // no file of the user's. The locale is C.UTF-8 whatever the user's: Qt logs a warning through
-    // the journal's socket for a locale it cannot load, and the sandbox refuses that socket.
+    // no file of the user's own. R109 S4 adds the user's font folders, read-only, and the
+    // fontconfig file for them (userFontFolders and writeFontConfiguration). The locale is C.UTF-8
+    // whatever the user's: Qt logs a warning through the journal's socket for a locale it cannot
+    // load, and the sandbox refuses that socket.
     QTemporaryDir privateDirectory;
     require(privateDirectory.isValid(), "Text worker private directory could not be created");
     QProcess process;
     auto environment = QProcessEnvironment::systemEnvironment();
+    // The folders come from the user's own environment, so they are read before HOME and the XDG
+    // directories are replaced below.
+    const auto fontFolders = userFontFolders(environment);
+    QStringList arguments;
+    if (!fontFolders.isEmpty()) {
+        const auto configuration = privateDirectory.path() + "/fonts.conf";
+        writeFontConfiguration(configuration, fontFolders, privateDirectory.path());
+        environment.insert("FONTCONFIG_FILE", configuration);
+        arguments << "--font-config=" + configuration;
+        for (const auto &folder : fontFolders)
+            arguments << "--font-dir=" + folder;
+    }
     environment.insert("QT_QPA_PLATFORM", "offscreen");
     environment.insert("HOME", privateDirectory.path());
     environment.insert("XDG_CACHE_HOME", privateDirectory.path());
@@ -205,6 +269,7 @@ TextGeometry runTextWorker(const TextGeometrySettings &settings, const TextWorke
     environment.insert("LC_ALL", "C.UTF-8");
     process.setProcessEnvironment(environment);
     process.setProgram(program);
+    process.setArguments(arguments);
     process.setProcessChannelMode(QProcess::SeparateChannels);
     QElapsedTimer timer;
     timer.start();

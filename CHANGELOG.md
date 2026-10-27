@@ -7,10 +7,9 @@
   under the sandbox. They can read only the system files they need (fonts and their configuration for the text
   helper, the locale for both) and write nothing; they cannot open a socket or run a program. A call outside the
   allow-list ends the helper, which the application reports as a sandbox violation and does not restart. A helper
-  that cannot install the sandbox refuses and runs nothing. The text helper now reads the system fonts only: a font
-  installed only in your home directory (`~/.local/share/fonts`, `~/.fonts`) is no longer found, and a text command
-  that names it falls back, or reports a missing font when substitution is off. The helper's locale is
-  C.UTF-8 whatever yours is.
+  that cannot install the sandbox refuses and runs nothing. The text helper reads your font folders
+  (`$XDG_DATA_HOME/fonts`, `~/.local/share/fonts` and `~/.fonts`) read-only, so a font installed there is found
+  as before, and it reads no other file of yours. The helper's locale is C.UTF-8 whatever yours is.
 
 - Edge stroke drawing (R100.f1, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)):
   `document.style` takes the optional edge stroke (width, opacity, dash and texture), one labelled

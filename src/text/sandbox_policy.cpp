@@ -1,5 +1,7 @@
 #include "text/sandbox_policy.hpp"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLibraryInfo>
@@ -8,6 +10,7 @@
 #include <cstdint>
 #include <fcntl.h>
 #include <iostream>
+#include <string_view>
 
 namespace sketchy {
 namespace {
@@ -18,9 +21,39 @@ namespace {
 constexpr std::uint32_t kTcgets = 0x5401;
 constexpr std::uint32_t kTcgets2 = 0x802C542A;
 
+constexpr std::string_view kFolderArgument = "--font-dir=";
+constexpr std::string_view kConfigurationArgument = "--font-config=";
+
 } // namespace
 
-sketchyup::sandbox::Policy textSandboxPolicy() {
+std::optional<std::string> parseTextFontArguments(int argc, char **argv, TextFontGrants &grants) {
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view argument = argv[i];
+        if (argument.starts_with(kFolderArgument)) {
+            const std::string folder(argument.substr(kFolderArgument.size()));
+            const QString path = QString::fromStdString(folder);
+            if (!QDir::isAbsolutePath(path) || !QFileInfo(path).isDir())
+                return "Text font folder is not an existing directory";
+            grants.folders.push_back(folder);
+        } else if (argument.starts_with(kConfigurationArgument)) {
+            const std::string file(argument.substr(kConfigurationArgument.size()));
+            const QString path = QString::fromStdString(file);
+            if (!grants.configuration.empty() || !QDir::isAbsolutePath(path) ||
+                !QFileInfo(path).isFile())
+                return "Text font configuration is not an existing file";
+            grants.configuration = file;
+        } else {
+            return "Text worker does not take that argument";
+        }
+    }
+    // The host gives both or neither: a folder that the configuration does not name is granted for
+    // nothing, and a configuration that names no folder grants nothing the helper needs.
+    if (grants.folders.empty() != grants.configuration.empty())
+        return "Text font folders and their configuration come together";
+    return std::nullopt;
+}
+
+sketchyup::sandbox::Policy textSandboxPolicy(const TextFontGrants &fonts) {
     using sketchyup::sandbox::Action;
     using sketchyup::sandbox::FileAccess;
 
@@ -44,6 +77,17 @@ sketchyup::sandbox::Policy textSandboxPolicy() {
                                QStringLiteral("/usr/lib/locale")};
     for (const QString &path : readOnly)
         policy.files.push_back({path.toStdString(), FileAccess::readOnly});
+
+    // R109 S4 (ADR 0183 implementation notes, S3 and S4): the user's font folders, so that the
+    // helper sees the fonts the desktop's list shows, and the fontconfig file that names them. Both
+    // are read-only, as the system folders are: a font file is data, and nothing in these folders
+    // is executed or written. The host chooses the folders (the helper's HOME is the private
+    // directory, so it cannot tell where a folder came from); the helper checks only that each is
+    // an existing directory (parseTextFontArguments).
+    for (const std::string &folder : fonts.folders)
+        policy.files.push_back({folder, FileAccess::readOnly});
+    if (!fonts.configuration.empty())
+        policy.files.push_back({fonts.configuration, FileAccess::readOnly});
 
     policy.syscalls = {
         // the request on stdin, the files above, and the answer on stdout
@@ -81,6 +125,14 @@ sketchyup::sandbox::Policy textSandboxPolicy() {
         // unmeasured.
         {"clone", Action::threadOnly},
         {"clone3", Action::notImplemented},
+        // R109 S4 (measured with a user font folder, the trace of the helper after the sandbox is
+        // installed): fontconfig tries to write its cache. It makes the directory of its cache,
+        // sets the mode of the file and removes its lock file, and the helper has no write rule,
+        // so Landlock would refuse each one anyway. Each returns EPERM and does nothing, where the
+        // kill default would end the helper.
+        {"mkdir", Action::denied},
+        {"chmod", Action::denied},
+        {"unlink", Action::denied},
         // signals: rt_sigaction and rt_sigprocmask, and abort()'s tgkill to its own process, so
         // that a parser's abort is a crash and not a violation (ADR 0183 section 5)
         {"rt_sigaction", Action::allow},
@@ -108,8 +160,8 @@ sketchyup::sandbox::Policy textSandboxPolicy() {
 }
 
 std::optional<sketchyup::sandbox::Failure>
-applyTextSandbox(const sketchyup::sandbox::ApplyOptions &options) {
-    return sketchyup::sandbox::apply(textSandboxPolicy(), options);
+applyTextSandbox(const TextFontGrants &fonts, const sketchyup::sandbox::ApplyOptions &options) {
+    return sketchyup::sandbox::apply(textSandboxPolicy(fonts), options);
 }
 
 int refuseTextSandbox(const sketchyup::sandbox::Failure &failure) {

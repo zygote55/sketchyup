@@ -16,9 +16,15 @@
 //     a crash (SIGABRT) as a crash; the host's private directory is HOME, is empty, and is removed
 //     after the call; the locale the helper gets is C.UTF-8 whatever the user's LANG and LC_ALL
 //     are;
-//   - a user LANG that is not installed does not stop the helper (the host sets C.UTF-8).
-// Needs sketchyup-text-worker (TEXT_WORKER_PATH). Landlock must be available: the checks fail, not
-// skip, when it is not (ADR 0183 decision 9).
+//   - a user LANG that is not installed does not stop the helper (the host sets C.UTF-8);
+//   - R109 S4: a font in a user's font folder ($XDG_DATA_HOME/fonts, ~/.fonts or
+//   ~/.local/share/fonts)
+//     resolves in the helper with no fallback, and is missing without its folder; the folder is
+//     granted read-only (a read is allowed; a write, a create, a read beside it or a remove is
+//     not); the helper refuses bad font arguments.
+// Needs sketchyup-text-worker (TEXT_WORKER_PATH) and a DejaVu Sans under /usr/share/fonts (the
+// user-font tests copy it). Landlock must be available: the checks fail, not skip, when it is not
+// (ADR 0183 decision 9).
 #include "sandbox/sandbox.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
 #include "text/sandbox_policy.hpp"
@@ -26,6 +32,7 @@
 #include "text/text_worker.hpp"
 
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -45,6 +52,7 @@
 #include <iostream>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <optional>
 #include <string>
 #include <sys/prctl.h>
 #include <sys/socket.h>
@@ -52,6 +60,7 @@
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 using namespace sketchy;
@@ -264,9 +273,10 @@ void testFixturesIdentical(const std::string &scratch) {
 }
 
 // The policy the helper applies, before any of the attacks (the same call the helper makes).
-Outcome armed(const std::string &stdoutFile, const std::function<int()> &attack) {
+Outcome armed(const std::string &stdoutFile, const std::function<int()> &attack,
+              const TextFontGrants &fonts = {}) {
     return inChild(stdoutFile, [&, attack] {
-        if (applyTextSandbox())
+        if (applyTextSandbox(fonts))
             return 3;
         return attack();
     });
@@ -344,7 +354,7 @@ void testRefusalsFailClosed(const std::string &scratch) {
         const Outcome outcome = inChild(scratch + "/simulate.out", [&] {
             sketchyup::sandbox::ApplyOptions options;
             options.simulate = sketchyup::sandbox::Failure{layer, ENOSYS};
-            const auto failure = applyTextSandbox(options);
+            const auto failure = applyTextSandbox({}, options);
             if (!failure || failure->layer != layer)
                 return 1;
             return refuseTextSandbox(*failure) == textSandboxUnavailableExit ? 0 : 2;
@@ -479,6 +489,266 @@ void testMissingUserLocale() {
     check(ok, "a helper runs under a user locale that is not installed");
 }
 
+// R109 S4 (ADR 0183 implementation notes): the user's font folders. The family of the test font is
+// not installed on any system, so a request for it resolves only through a user folder. The repo
+// ships no font, so the font is a copy of the system's DejaVu Sans with its family renamed. The new
+// name has the same length, so the font's table offsets hold.
+constexpr const char *kUserFamily = "UserFontTst";
+
+// Writes the renamed copy of DejaVu Sans to destination. Returns false when no DejaVu Sans is
+// installed or the copy cannot be written.
+bool makeUserFont(const std::string &destination) {
+    QDirIterator found("/usr/share/fonts", {"DejaVuSans.ttf"}, QDir::Files,
+                       QDirIterator::Subdirectories);
+    if (!found.hasNext())
+        return false;
+    QFile source(found.next());
+    if (!source.open(QIODevice::ReadOnly))
+        return false;
+    QByteArray bytes = source.readAll();
+    // Windows family names are UTF-16BE and Mac family names are ASCII: rename both. Each pair has
+    // the same length, so the replacement keeps every offset in the file.
+    auto utf16 = [](const char *text) {
+        QByteArray encoded;
+        for (const char *p = text; *p; ++p)
+            encoded.append('\0').append(*p);
+        return encoded;
+    };
+    const std::vector<std::pair<QByteArray, QByteArray>> renames = {
+        {"DejaVu Sans", kUserFamily}, {utf16("DejaVu Sans"), utf16(kUserFamily)}};
+    int renamed = 0;
+    for (const auto &[from, to] : renames) {
+        check(from.size() == to.size(), "the renamed family has the same length");
+        for (qsizetype at = bytes.indexOf(from); at >= 0;
+             at = bytes.indexOf(from, at + from.size())) {
+            bytes.replace(at, from.size(), to);
+            ++renamed;
+        }
+    }
+    if (renamed == 0)
+        return false;
+    QFile out(QString::fromStdString(destination));
+    return out.open(QIODevice::WriteOnly) && out.write(bytes) == bytes.size();
+}
+
+// The geometry the helper returns for a request, with HOME and XDG_DATA_HOME set as the test
+// needs (an empty dataHome unsets XDG_DATA_HOME). Returns the message the host gives, or nothing.
+std::string resolveAs(const std::string &home, const std::string &dataHome,
+                      const TextGeometrySettings &settings, TextGeometry &result) {
+    qputenv("HOME", home.c_str());
+    if (dataHome.empty())
+        qunsetenv("XDG_DATA_HOME");
+    else
+        qputenv("XDG_DATA_HOME", dataHome.c_str());
+    TextWorkerOptions options;
+    options.executable = TEXT_WORKER_PATH;
+    try {
+        result = runTextWorker(settings, options);
+        return "";
+    } catch (const std::exception &error) {
+        return error.what();
+    }
+}
+
+// The three places the host reads a user's fonts from: $XDG_DATA_HOME/fonts, which the user named
+// and which lies outside HOME here (its name has XML characters, which the configuration must
+// escape); ~/.fonts; and ~/.local/share/fonts. A font in each resolves in the helper with no
+// fallback. System fonts still resolve with the folder present, and the test font is missing when
+// the folder is absent.
+void testUserFontFolders(const std::string &scratch) {
+    struct Layout {
+        std::string name, home, dataHome, folder;
+    };
+    const std::vector<Layout> layouts = {
+        {"XDG_DATA_HOME", scratch + "/xdg-home", scratch + "/xdg & <data>",
+         scratch + "/xdg & <data>/fonts"},
+        {"~/.fonts", scratch + "/dot-fonts-home", "", scratch + "/dot-fonts-home/.fonts"},
+        {"~/.local/share/fonts", scratch + "/local-home", "",
+         scratch + "/local-home/.local/share/fonts"},
+    };
+    const TextGeometrySettings user =
+        latin(QStringLiteral("SketchyUp 1"), QString::fromLatin1(kUserFamily));
+    const TextGeometrySettings system =
+        latin(QStringLiteral("SketchyUp 1"), QStringLiteral("DejaVu Sans"));
+    for (const Layout &layout : layouts) {
+        fs::create_directories(layout.folder);
+        check(makeUserFont(layout.folder + "/user-font.ttf"),
+              layout.name + ": the test font is copied into the user's folder");
+
+        TextGeometry geometry;
+        const std::string error = resolveAs(layout.home, layout.dataHome, user, geometry);
+        check(error.empty() && geometry.actualFamily == kUserFamily && !geometry.substituted &&
+                  !geometry.fallback,
+              layout.name + ": the font in the user's folder resolves without fallback (" + error +
+                  ", family " + geometry.actualFamily.toStdString() + ")");
+
+        TextGeometry systemGeometry;
+        const std::string systemError =
+            resolveAs(layout.home, layout.dataHome, system, systemGeometry);
+        check(systemError.empty() && systemGeometry.actualFamily == "DejaVu Sans" &&
+                  !systemGeometry.substituted && !systemGeometry.fallback,
+              layout.name + ": a system font still resolves with the user's folder present (" +
+                  systemError + ")");
+
+        // The same request with no folder: the family is not installed, so the host reports it
+        // missing (substitution is off).
+        const std::string empty = scratch + "/empty-" + std::to_string(&layout - layouts.data());
+        fs::create_directories(empty);
+        TextGeometry none;
+        const std::string missing = resolveAs(empty, "", user, none);
+        check(missing.find("missing") != std::string::npos,
+              layout.name + ": without the folder the font is missing (got: " + missing + ")");
+    }
+}
+
+// The grants the host makes are read-only (ADR 0183 section 5): the helper reads a font in the
+// user's folder, and it cannot read a file beside the folder, open the folder's parent, write or
+// create anything in the folder, or remove a font (unlink returns EPERM under the policy).
+void testUserFontFolderIsReadOnly(const std::string &scratch) {
+    const std::string parent = scratch + "/read-only & <parent>";
+    const std::string folder = parent + "/fonts";
+    const std::string font = folder + "/user-font.ttf";
+    const std::string sibling = parent + "/secret.txt";
+    fs::create_directories(folder);
+    {
+        std::ofstream(sibling) << "private";
+    }
+    check(makeUserFont(font), "the read-only test font is copied");
+
+    TextFontGrants grants;
+    grants.folders = {folder};
+    const std::string out = scratch + "/read-only";
+
+    const Outcome read =
+        armed(out + "-read.out", [&] { return open(font.c_str(), O_RDONLY) >= 0 ? 0 : 1; }, grants);
+    check(!read.signaled && read.code == 0, "the helper can read a font in its user folder");
+
+    const Outcome beside = armed(
+        out + "-beside.out",
+        [&] {
+            const int fd = open(sibling.c_str(), O_RDONLY);
+            return (fd < 0 && errno == EACCES) ? 0 : 1;
+        },
+        grants);
+    check(!beside.signaled && beside.code == 0,
+          "the helper cannot read a file beside its user folder (EACCES)");
+
+    const Outcome above = armed(
+        out + "-above.out",
+        [&] {
+            const int fd = open(parent.c_str(), O_RDONLY | O_DIRECTORY);
+            return (fd < 0 && errno == EACCES) ? 0 : 1;
+        },
+        grants);
+    check(!above.signaled && above.code == 0,
+          "the helper cannot open the parent of its user folder (EACCES)");
+
+    const Outcome overwrite = armed(
+        out + "-overwrite.out",
+        [&] {
+            const int fd = open(font.c_str(), O_WRONLY);
+            return (fd < 0 && errno == EACCES) ? 0 : 1;
+        },
+        grants);
+    check(!overwrite.signaled && overwrite.code == 0,
+          "the helper cannot write a font in its user folder (EACCES)");
+
+    const Outcome create = armed(
+        out + "-create.out",
+        [&] {
+            const int fd = open((folder + "/new.ttf").c_str(), O_WRONLY | O_CREAT, 0600);
+            return (fd < 0 && errno == EACCES) ? 0 : 1;
+        },
+        grants);
+    check(!create.signaled && create.code == 0,
+          "the helper cannot create a file in its user folder (EACCES)");
+
+    const Outcome remove = armed(
+        out + "-remove.out",
+        [&] {
+            const int removed = unlink(font.c_str());
+            return (removed != 0 && errno == EPERM) ? 0 : 1;
+        },
+        grants);
+    check(!remove.signaled && remove.code == 0,
+          "the helper cannot remove a font in its user folder (EPERM: unlink is denied)");
+
+    const Outcome makeDirectory = armed(
+        out + "-mkdir.out",
+        [&] {
+            const int made = mkdir((folder + "/sub").c_str(), 0700);
+            return (made != 0 && errno == EPERM) ? 0 : 1;
+        },
+        grants);
+    check(!makeDirectory.signaled && makeDirectory.code == 0,
+          "the helper cannot make a directory in its user folder (EPERM: mkdir is denied)");
+
+    const Outcome changeMode = armed(
+        out + "-chmod.out",
+        [&] {
+            const int changed = chmod(font.c_str(), 0777);
+            return (changed != 0 && errno == EPERM) ? 0 : 1;
+        },
+        grants);
+    check(!changeMode.signaled && changeMode.code == 0,
+          "the helper cannot change the mode of a font (EPERM: chmod is denied)");
+
+    check(fs::exists(font) && !fs::exists(folder + "/sub") && readAll(sibling) == "private",
+          "the user's folder and the file beside it are unchanged after the attacks");
+}
+
+// The helper's font arguments: a folder and its configuration are accepted; a folder that is not an
+// existing directory, a configuration that is not an existing file, a folder without its
+// configuration, a configuration without folders, a relative path and any other argument are
+// refused. No arguments are accepted and grant nothing.
+void testFontArguments(const std::string &scratch) {
+    const std::string folder = scratch + "/args-folder";
+    const std::string configuration = scratch + "/args.conf";
+    fs::create_directories(folder);
+    {
+        std::ofstream(configuration) << "<fontconfig/>";
+    }
+    // Each call parses with its own grants: a partial result from one call must not reach the next.
+    auto parse = [](const std::vector<std::string> &args, TextFontGrants &grants) {
+        std::vector<std::string> storage = {"sketchyup-text-worker"};
+        storage.insert(storage.end(), args.begin(), args.end());
+        std::vector<char *> argv;
+        for (auto &arg : storage)
+            argv.push_back(arg.data());
+        argv.push_back(nullptr);
+        return parseTextFontArguments(int(storage.size()), argv.data(), grants);
+    };
+    auto refused = [&](const std::vector<std::string> &args) {
+        TextFontGrants grants;
+        return parse(args, grants).has_value();
+    };
+
+    TextFontGrants grants;
+    check(!parse({"--font-dir=" + folder, "--font-config=" + configuration}, grants),
+          "a folder and its configuration are accepted");
+    check(grants.folders == std::vector<std::string>{folder} &&
+              grants.configuration == configuration,
+          "the folder and the configuration are the ones given");
+
+    TextFontGrants none;
+    check(!parse({}, none) && none.folders.empty() && none.configuration.empty(),
+          "no arguments are accepted and grant nothing");
+
+    check(refused({"--font-dir=" + scratch + "/missing", "--font-config=" + configuration}),
+          "a folder that does not exist is refused");
+    check(refused({"--font-dir=" + configuration, "--font-config=" + configuration}),
+          "a file given as a folder is refused");
+    check(refused({"--font-dir=relative", "--font-config=" + configuration}),
+          "a relative folder is refused");
+    check(refused({"--font-config=" + scratch + "/missing.conf", "--font-dir=" + folder}),
+          "a configuration that does not exist is refused");
+    check(refused({"--font-dir=" + folder}), "a folder without its configuration is refused");
+    check(refused({"--font-config=" + configuration}),
+          "a configuration without folders is refused");
+    check(refused({"--font-dir=" + folder, "--font-config=" + configuration, "--other"}),
+          "any other argument is refused");
+}
+
 } // namespace
 
 int main() {
@@ -490,11 +760,20 @@ int main() {
         return 1;
     }
     const std::string scratch = temporary.path().toStdString();
+    // The user's fonts are the test's own: HOME and XDG_DATA_HOME name empty folders, so no test
+    // reads the fonts of the machine it runs on. The user-font tests set their own.
+    fs::create_directories(scratch + "/no-home");
+    fs::create_directories(scratch + "/no-data");
+    qputenv("HOME", (scratch + "/no-home").c_str());
+    qputenv("XDG_DATA_HOME", (scratch + "/no-data").c_str());
     testFixturesIdentical(scratch);
     testPolicyRefusesAttacks(scratch);
     testRefusalsFailClosed(scratch);
     testHostClassifies(scratch);
     testMissingUserLocale();
+    testUserFontFolders(scratch);
+    testUserFontFolderIsReadOnly(scratch);
+    testFontArguments(scratch);
     if (failures == 0)
         std::cout << "text sandbox tests passed\n";
     return failures == 0 ? 0 : 1;
