@@ -321,6 +321,14 @@ void edgeStrokeControls() {
     doc.undo();
     check(doc.style().edgeStroke && doc.style().edgeStroke->width == 2.5,
           "Undo restores the stroke that was turned off");
+
+    // Reset model style removes the stroke in one labelled edit. The position counts the applied
+    // steps, which a new edit after an undo advances by one (the total keeps the redo entries).
+    const auto position = doc.history().position;
+    field<QPushButton>(panel, "styleReset")->click();
+    check(!doc.style().edgeStroke && lastLabel(doc) == "Reset model style" &&
+              doc.history().position == position + 1 && !stroke->isChecked(),
+          "Reset model style removes the stroke in one labelled edit");
 }
 
 // Colors and details dims Profile width while the stroke is on (UX_DESIGN §18.3, gap 2).
