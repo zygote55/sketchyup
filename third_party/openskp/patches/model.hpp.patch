@@ -1,0 +1,13 @@
+--- a/model.hpp
++++ b/model.hpp
+@@ -497,6 +497,10 @@
+   bool shadows_face_sun{};
+   /// Image entity flag.
+   bool is_image{};
++  /// Every attribute dictionary attached to this definition, keyed by the dictionary's declared
++  /// name, with the values' native types (the same shape as Instance::attribute_dictionaries).
++  /// Empty when the file has none.
++  ParsedAttrDictionaries attribute_dictionaries;
+ };
+ 
+ /// Top-level model container holding all definitions, layers, materials, and styles.

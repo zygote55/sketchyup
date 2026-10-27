@@ -92,6 +92,8 @@ struct SkpPackageAttribute {
   std::string text;  // String
   double number{};   // Number (finite)
   bool flag{};       // Boolean
+  bool truncated{};  // String: the worker cut it to the package bound (the import counts the cut to
+                     // 2,048 bytes)
 };
 
 struct SkpPackageInstance {

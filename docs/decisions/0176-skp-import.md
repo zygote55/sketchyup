@@ -617,6 +617,80 @@ owner's corpus, the fixtures and the L1 check.
   by the CLI and the import library built here, but not by the desktop targets.
 - The full `dev` test tree.
 
+## Follow-up: attribute reporting (2026-10-26)
+
+R104's study (ADR 0178, proposed) found attribute data the import dropped with no report. This
+follow-up reports every attribute and every part of the file the import does not carry, each with a
+count, a notice code and bounded samples that name the dictionary and key. Branch
+`fix/skp-attribute-reporting`.
+
+- **Definition-level dictionaries were never read.** The pinned parser now reads them: four patches
+  (`third_party/openskp/patches/`, recorded in `PATCHES.md`). VFF reads them from the definition's
+  entity base (8813, D007, DC05); legacy reads them from the `CComponentDefinition` attribute
+  container, which the reader used to discard. The import does not map them: each value is counted
+  under `definitionAttributesNotCarried` and listed as "Definition attributes". The owner's file has
+  four dictionaries and 23 values (6 strings, 4 integers, 4 floats, 7 booleans, 2 arrays).
+- **Model-level dictionaries were parsed but not reported.** Each value is counted under
+  `modelAttributesNotCarried`. The owner's file has three dictionaries and 10 values. Legacy
+  (2013 to 2020) files: the parser reads model-level dictionaries only for VFF, so a legacy file's
+  model attributes are still not reported. Closing that needs the legacy model record, which the
+  pinned parser does not decode. Layer (tag) dictionaries follow the same rule: legacy files are read,
+  VFF files are not.
+- **Clipped strings were silent.** There are two cuts: the helper at its 64 KiB package bound, and the
+  import at the 2,048-byte property cap. Each value is counted once under `truncatedAttributes` with a
+  sample. The helper flags its own cut (`"truncated": true` on the attribute), so the import counts a
+  value once whichever cut applied. The owner's file cut none of its strings (no `truncatedAttributes`
+  notice). The legacy writer refuses a
+  string over 255 bytes, so the 2,048-byte case is an in-test package, not a fixture.
+- **Values the import does not carry, now counted.**
+  - An instance's Length, vector, nested array, null, non-finite number or empty key:
+    `attributeNotImported`, with a sample. The empty key and the count per dictionary were silent.
+  - Instance attributes past the 256 a package keeps: `attributesOverLimit`, counted per attribute.
+    It was counted per dictionary, and the dropped values were not named.
+  - Attributes over the property caps: `propertiesDropped`, for a body's 128-property cap, a name
+    over 128 bytes, and a name another attribute already has (that last one was silent).
+  - Scenes, styles, section planes, texts, dimensions, the camera, and construction lines and points
+    were listed under "not carried" with no count. ADR 0176 section 4 says "Counted in the report".
+    Each is now a notice with its count (`omittedScenes`, `omittedStyles` and so on). The owner's file
+    has 2 styles, 1 saved camera view and 6 construction lines.
+- **Accounting.** `accounting.attributes` follows the identity ADR 0178 uses: counted = imported +
+  omitted, where imported is the instance attributes that became properties. The helper's
+  `source.attributes` is the number of attributes the file holds, and the decoder checks it equals the
+  kept attributes plus the omitted kinds `attribute`, `modelAttribute`, `definitionAttribute` and
+  `layerAttribute`. A package without `source.attributes` is not checked. The owner's file: 35 values
+  read = 2 imported + 33 omitted.
+- **Samples.** They are in the report's `locations`, as every other kind's samples are. The sheet
+  shows the notices and the "not carried" group, not the samples; it did not show samples before this
+  follow-up either.
+- **Bounds and old packages.** The new members are optional and bounded, and are decoded before any
+  allocation. A package without them decodes as before: the hand-built manifest in
+  `skp_package_tests` that has none of them still decodes, and the existing fixtures decode as they did.
+- **Parser patch and fixture.** `tests/fixtures/skp/attribute_reporting.skp` (legacy v17, from
+  OpenSKP's writer, recorded in `SKP-SOURCE.txt`) holds a definition dictionary of four values, and an
+  instance with a Length, a 130-byte key and 130 integers, so the 128-property cap drops two of them.
+  `scripts/vendor-openskp.py check` passes against the pinned archives.
+
+**Owner's file (counts only, `skp_mapping_tests --real` in the pinned image).** Notices:
+`definitionAttributesNotCarried` 23, `modelAttributesNotCarried` 10, `omittedStyles` 2,
+`omittedCamera` 1, `omittedConstructionLines` 6, and the existing `invalidFaces` 1. The import took
+132 ms in that run. The machine's load was not controlled. The R102.d figure (24 to 29 ms) was measured
+on an idle machine, so the two are not comparable.
+
+**Verification.** In the pinned image, the `skp` preset's CTest set passes 7 of 7 (`skp_package`,
+`skp_import`, `skp_import_real`, `skp_mapping`, `skp_mapping_real`, `skp_library_install`,
+`skp_library_source`), with the owner's corpus mounted for the `_real` tests.
+
+**Not done.**
+- Legacy model-level and VFF layer-level dictionaries (above).
+- Mapping definition or model dictionaries to properties. The brief keeps them out of scope.
+- The sheet does not show the samples.
+- The `attention` count does not include attributes, so a model with many not-carried values does not
+  raise the chip's count. They are reported in the notices and the identity line.
+
+**Where the code and the ADR disagree.** Section 4's "Counted in the report" for scenes, styles, section
+planes, texts, dimensions, camera and construction lines was not true before this follow-up: the report
+listed those kinds with no count. It is true now.
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue

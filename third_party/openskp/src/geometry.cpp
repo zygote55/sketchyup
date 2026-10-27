@@ -443,6 +443,13 @@ void collect_definitions(const std::vector<TlvNode>& ns, std::map<EntityId, RawD
           }
       }
       collect_geometry(e.children, d.builder);
+      // The definition's own attributes: its entity base's D007 container, read as the model's are.
+      for (auto& b : e.children)
+        if (b.tag == "8813")
+          for (auto& c : b.children)
+            if (c.tag == "D007")
+              for (auto& x : c.children)
+                if (x.tag == "DC05") extract_attribute_dictionaries(x.payload, d.attribute_dicts);
       if (auto id = entity_id(e)) out[*id] = std::move(d);
     }
     collect_definitions(e.children, out);
