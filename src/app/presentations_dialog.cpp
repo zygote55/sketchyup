@@ -21,7 +21,8 @@
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QSplitter>
-#include <QTabWidget>
+#include <QStackedWidget>
+#include <QTabBar>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
@@ -69,6 +70,12 @@ QString limitProblem(const QString &name, size_t scenes, CameraPathTiming timing
     const auto frames = cameraPathFrameCount(scenes, timing);
     if (frames <= cameraPathFrameLimit)
         return {};
+    if (scenesThatFit(timing) == 0)
+        return QString("%1 would render %2 frames; the limit is %3. At this timing, no path of two "
+                       "scenes fits. Shorten the transition or the hold.")
+            .arg(name)
+            .arg(frames)
+            .arg(cameraPathFrameLimit);
     return QString(
                "%1 would render %2 frames; the limit is %3. At this timing, %4 scenes is the most. "
                "Remove a scene, or shorten the transition or the hold.")
@@ -174,12 +181,20 @@ PresentationsDialog::PresentationsDialog(Document &doc, Viewport &view,
                              "undo step; the model stays open behind this window.");
     intro->setWordWrap(true);
     layout->addWidget(intro);
-    tabs_ = new QTabWidget;
+    // A tab bar over a stack of pages: the bar is the one Tab stop of the two tabs, and each page
+    // is a plain widget (a QTabWidget's own focus reaches the bar only indirectly).
+    tabs_ = new QTabBar;
     tabs_->setObjectName("presentationsTabs");
-    tabs_->setAccessibleName("Presentations");
-    tabs_->addTab(buildPaths(), "Camera paths");
-    tabs_->addTab(buildPresets(), "Render presets");
-    layout->addWidget(tabs_, 1);
+    tabs_->setAccessibleName("Presentations sections");
+    tabs_->addTab("Camera paths");
+    tabs_->addTab("Render presets");
+    layout->addWidget(tabs_);
+    pages_ = new QStackedWidget;
+    pages_->setObjectName("presentationsPages");
+    pages_->addWidget(buildPaths());
+    pages_->addWidget(buildPresets());
+    layout->addWidget(pages_, 1);
+    connect(tabs_, &QTabBar::currentChanged, pages_, &QStackedWidget::setCurrentIndex);
     auto *footer = new QHBoxLayout;
     footerNote_ = new QLabel("Each change is one undo step (Ctrl+Z, or History).");
     footerNote_->setObjectName("presentationsFooterNote");
@@ -195,12 +210,27 @@ PresentationsDialog::PresentationsDialog(Document &doc, Viewport &view,
     close_ = new QPushButton("Close");
     close_->setObjectName("presentationsClose");
     close_->setAccessibleName("Close");
-    close_->setDefault(true);
+    // Close is not the default: Qt sends Enter from a field to the default button, and in this
+    // non-modal editor Enter commits the field. Esc closes the dialog (§17.10).
+    close_->setDefault(false);
     footer->addWidget(close_);
     layout->addLayout(footer);
     connect(close_, &QPushButton::clicked, this, &QDialog::reject);
+    // Enter in a field commits the field. A dialog with no default button passes Enter to its first
+    // auto-default button, which would press New path, so the buttons here are not auto-default.
+    for (auto *button : findChildren<QPushButton *>()) {
+        button->setAutoDefault(false);
+        button->setDefault(false);
+    }
     connect(&view_, &Viewport::changed, this, [this] { refresh(); });
     refresh();
+}
+
+void PresentationsDialog::detach() {
+    view_.disconnect(this);
+    blockSignals(true);
+    for (auto *child : findChildren<QObject *>())
+        child->blockSignals(true);
 }
 
 void PresentationsDialog::showCameraPaths() {
@@ -223,6 +253,8 @@ QWidget *PresentationsDialog::buildPaths() {
     auto *page = new QWidget;
     auto *outer = new QVBoxLayout(page);
     pathSplit_ = new QSplitter(Qt::Horizontal);
+    pathSplit_->setObjectName("cameraPathSplit");
+    pathSplit_->setAccessibleName("Camera paths and editor");
     pathSplit_->setChildrenCollapsible(false);
     outer->addWidget(pathSplit_, 1);
 
@@ -443,6 +475,8 @@ QWidget *PresentationsDialog::buildPresets() {
     auto *page = new QWidget;
     auto *outer = new QVBoxLayout(page);
     presetSplit_ = new QSplitter(Qt::Horizontal);
+    presetSplit_->setObjectName("renderPresetSplit");
+    presetSplit_->setAccessibleName("Render presets and editor");
     presetSplit_->setChildrenCollapsible(false);
     outer->addWidget(presetSplit_, 1);
 
@@ -618,6 +652,16 @@ void PresentationsDialog::refresh() {
 
 void PresentationsDialog::resizeEvent(QResizeEvent *event) {
     QDialog::resizeEvent(event);
+    stackAtLargeText();
+}
+
+void PresentationsDialog::changeEvent(QEvent *event) {
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::FontChange || event->type() == QEvent::ApplicationFontChange)
+        stackAtLargeText();
+}
+
+void PresentationsDialog::stackAtLargeText() {
     // §17.10: at a large text size the list stacks above its editor. A side-by-side editor needs
     // about forty characters beside the list.
     const int editorWidth = fontMetrics().horizontalAdvance(QString(40, 'M'));
@@ -689,9 +733,9 @@ QString PresentationsDialog::nextPresetName() const {
     return numberedName("Preset", presetNames(0));
 }
 
-QString PresentationsDialog::commit(const QJsonArray &commands) {
+QString PresentationsDialog::commit(const QJsonArray &commands, const QString &label) {
     try {
-        view_.editPresentations(commands);
+        view_.editPresentations(commands, label);
         return {};
     } catch (const std::exception &error) {
         return QString::fromUtf8(error.what());
@@ -981,7 +1025,7 @@ void PresentationsDialog::createDraftPath() {
                                            {"holdSteps", saved.timing.holdSteps}}}}};
     draft_.reset();
     draftSelected_ = false;
-    const auto refusal = commit(commands);
+    const auto refusal = commit(commands, "Create camera path");
     if (!refusal.isEmpty()) {
         draft_ = saved;
         draftSelected_ = true;
@@ -1016,8 +1060,10 @@ void PresentationsDialog::deleteSelectedPath() {
                                                          : Id{};
     const auto before = selectedPath_;
     selectedPath_ = neighbour;
-    const auto refusal = commit(QJsonArray{QJsonObject{
-        {"command", "camera_path.delete"}, {"path", QString::number(qulonglong(record->id))}}});
+    const auto refusal =
+        commit(QJsonArray{QJsonObject{{"command", "camera_path.delete"},
+                                      {"path", QString::number(qulonglong(record->id))}}},
+               "Delete camera path");
     if (!refusal.isEmpty()) {
         selectedPath_ = before;
         showRefusal(pathError_, refusal);
@@ -1043,7 +1089,8 @@ void PresentationsDialog::renameSelectedPath() {
         problem.isEmpty()
             ? commit(QJsonArray{QJsonObject{{"command", "camera_path.update"},
                                             {"path", QString::number(qulonglong(record->id))},
-                                            {"name", name}}})
+                                            {"name", name}}},
+                     "Rename camera path")
             : problem;
     if (!refusal.isEmpty()) {
         showRefusal(pathError_, refusal);
@@ -1070,13 +1117,15 @@ void PresentationsDialog::changeTiming() {
     const auto problem =
         limitProblem(QString::fromStdString(record->name), record->keyframes.size(), timing);
     const auto refusal =
-        problem.isEmpty() ? commit(QJsonArray{QJsonObject{
-                                {"command", "camera_path.update"},
-                                {"path", QString::number(qulonglong(record->id))},
-                                {"timing", QJsonObject{{"framesPerSecond", timing.framesPerSecond},
-                                                       {"transitionSteps", timing.transitionSteps},
-                                                       {"holdSteps", timing.holdSteps}}}}})
-                          : problem;
+        problem.isEmpty()
+            ? commit(QJsonArray{QJsonObject{
+                         {"command", "camera_path.update"},
+                         {"path", QString::number(qulonglong(record->id))},
+                         {"timing", QJsonObject{{"framesPerSecond", timing.framesPerSecond},
+                                                {"transitionSteps", timing.transitionSteps},
+                                                {"holdSteps", timing.holdSteps}}}}},
+                     "Change camera path timing")
+            : problem;
     if (!refusal.isEmpty()) {
         showRefusal(pathError_, refusal);
         showPath();
@@ -1114,7 +1163,8 @@ QString PresentationsDialog::replaceKeyframes(const std::vector<Id> &keyframes) 
         scenes.append(QString::number(qulonglong(scene)));
     return commit(QJsonArray{QJsonObject{{"command", "camera_path.update"},
                                          {"path", QString::number(qulonglong(record->id))},
-                                         {"keyframes", scenes}}});
+                                         {"keyframes", scenes}}},
+                  "Change camera path keyframes");
 }
 
 void PresentationsDialog::addSceneToPath() {
@@ -1183,14 +1233,16 @@ void PresentationsDialog::newPresetFrom(const QString &name, RenderSettings sett
         presetRefused(problem);
         return;
     }
-    const auto refusal = commit(QJsonArray{
-        QJsonObject{{"command", "render_preset.create"},
-                    {"name", name},
-                    {"width", settings.width},
-                    {"height", settings.height},
-                    {"samples", settings.samples},
-                    {"seed", settings.seed},
-                    {"engine", settings.engine == RenderEngine::Eevee ? "eevee" : "cycles"}}});
+    const auto refusal =
+        commit(QJsonArray{QJsonObject{
+                   {"command", "render_preset.create"},
+                   {"name", name},
+                   {"width", settings.width},
+                   {"height", settings.height},
+                   {"samples", settings.samples},
+                   {"seed", settings.seed},
+                   {"engine", settings.engine == RenderEngine::Eevee ? "eevee" : "cycles"}}},
+               "Create render preset");
     if (!refusal.isEmpty()) {
         presetRefused(refusal);
         return;
@@ -1221,8 +1273,10 @@ void PresentationsDialog::deleteSelectedPreset() {
                                                : Id{};
     const auto before = selectedPreset_;
     selectedPreset_ = neighbour;
-    const auto refusal = commit(QJsonArray{QJsonObject{
-        {"command", "render_preset.delete"}, {"preset", QString::number(qulonglong(record->id))}}});
+    const auto refusal =
+        commit(QJsonArray{QJsonObject{{"command", "render_preset.delete"},
+                                      {"preset", QString::number(qulonglong(record->id))}}},
+               "Delete render preset");
     if (!refusal.isEmpty()) {
         selectedPreset_ = before;
         presetRefused(refusal);
@@ -1242,7 +1296,8 @@ void PresentationsDialog::renameSelectedPreset() {
         problem.isEmpty()
             ? commit(QJsonArray{QJsonObject{{"command", "render_preset.update"},
                                             {"preset", QString::number(qulonglong(record->id))},
-                                            {"name", name}}})
+                                            {"name", name}}},
+                     "Rename render preset")
             : problem;
     if (!refusal.isEmpty()) {
         presetRefused(refusal);
@@ -1257,14 +1312,16 @@ void PresentationsDialog::changePresetSettings() {
     const auto settings = presetSettingsInEditor();
     if (settings == record->settings)
         return;
-    const auto refusal = commit(QJsonArray{
-        QJsonObject{{"command", "render_preset.update"},
-                    {"preset", QString::number(qulonglong(record->id))},
-                    {"width", settings.width},
-                    {"height", settings.height},
-                    {"samples", settings.samples},
-                    {"seed", settings.seed},
-                    {"engine", settings.engine == RenderEngine::Eevee ? "eevee" : "cycles"}}});
+    const auto refusal =
+        commit(QJsonArray{QJsonObject{
+                   {"command", "render_preset.update"},
+                   {"preset", QString::number(qulonglong(record->id))},
+                   {"width", settings.width},
+                   {"height", settings.height},
+                   {"samples", settings.samples},
+                   {"seed", settings.seed},
+                   {"engine", settings.engine == RenderEngine::Eevee ? "eevee" : "cycles"}}},
+               "Change render preset settings");
     if (!refusal.isEmpty()) {
         presetRefused(refusal);
         showPreset();

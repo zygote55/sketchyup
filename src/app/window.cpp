@@ -11,6 +11,7 @@
 #include "app/interface_preferences.hpp"
 #include "app/keyboard_navigation.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/presentations_dialog.hpp"
 #include "app/render_panel.hpp"
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
@@ -1605,6 +1606,9 @@ void Window::sync() {
         assistant_->refresh();
     if (render_)
         render_->refreshProvenance();
+    // Undo and redo reach the Presentations dialog here, since they do not emit Viewport::changed.
+    if (presentations_)
+        presentations_->refresh();
     if (workspace_ == Workspace::Sheets) {
         // Bare numbers are paper millimetres in Sheets (ADR 0164 §4).
         measurementUnits_->setText("Paper units: mm");

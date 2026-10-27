@@ -22,7 +22,8 @@ class QRadioButton;
 class QResizeEvent;
 class QSpinBox;
 class QSplitter;
-class QTabWidget;
+class QStackedWidget;
+class QTabBar;
 
 namespace sketchy {
 
@@ -51,11 +52,16 @@ class PresentationsDialog : public QDialog {
     void showRenderPresets();
     // Re-reads the model: called when the model changes, including undo and redo.
     void refresh();
+    // Stops every signal of the dialog before its document goes (the Window's destructor does
+    // this).
+    void detach();
 
   protected:
     void resizeEvent(QResizeEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
   private:
+    void stackAtLargeText();
     struct Draft {
         QString name;
         std::vector<Id> keyframes;
@@ -68,7 +74,8 @@ class PresentationsDialog : public QDialog {
     std::optional<Draft> draft_;
     bool draftSelected_{};
     Id selectedPath_{}, selectedPreset_{};
-    QTabWidget *tabs_{};
+    QTabBar *tabs_{};
+    QStackedWidget *pages_{};
     QSplitter *pathSplit_{}, *presetSplit_{};
     // Camera paths (§17.2)
     QListWidget *pathList_{}, *keyframeList_{};
@@ -104,7 +111,7 @@ class PresentationsDialog : public QDialog {
     void updateStepLabels();
     // Runs one batch of camera_path.* or render_preset.* commands. Returns the refusal, or an empty
     // string when the edit was made.
-    QString commit(const QJsonArray &commands);
+    QString commit(const QJsonArray &commands, const QString &label);
     void showRefusal(QLabel *label, const QString &text);
     void presetRefused(const QString &text);
     void selectPath(Id path, bool draft);

@@ -138,12 +138,12 @@ QJsonObject Viewport::editSavedScenes(const QJsonArray &commands) {
     emit changed();
     return result;
 }
-QJsonObject Viewport::editPresentations(const QJsonArray &commands) {
+QJsonObject Viewport::editPresentations(const QJsonArray &commands, const QString &historyLabel) {
     for (const auto &command : commands)
         if (!isPresentationCommand(command.toObject()["command"].toString()))
             throw std::runtime_error("Expected camera path or render preset edit");
     cancel();
-    auto result = commitCommands(commands, false);
+    auto result = commitCommands(commands, false, historyLabel);
     refresh();
     emit changed();
     return result;

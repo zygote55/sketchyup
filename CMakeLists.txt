@@ -1563,6 +1563,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME ifc_export_dialog COMMAND ifc_export_dialog_tests)
     set_tests_properties(ifc_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                     TIMEOUT 600)
+    # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog: the Camera menu entry,
+    # the path editor and its draft create flow, the scene picker, the preset editor, the keyboard,
+    # the refusals and the broken-path display, and the text size, offscreen and on the native displays.
+    add_executable(presentation_input_tests tests/presentation_input_tests.cpp)
+    target_link_libraries(presentation_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(presentation_input_tests PRIVATE tests)
+    target_compile_definitions(presentation_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME presentation_input COMMAND presentation_input_tests)
+    set_tests_properties(presentation_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.

@@ -338,7 +338,7 @@ class Viewport : public QOpenGLWidget {
     QJsonObject editSavedScenes(const QJsonArray &commands);
     // R099.d2 (ADR 0173 §7): camera_path.* and render_preset.* edits from the Presentations dialog,
     // one undo step per call.
-    QJsonObject editPresentations(const QJsonArray &commands);
+    QJsonObject editPresentations(const QJsonArray &commands, const QString &historyLabel = {});
     QJsonObject editSections(const QJsonArray &commands);
     QJsonObject editAnnotations(const QJsonArray &commands);
     void importReferenceImage(const QByteArray &data, const QString &mediaType, const QString &name,
