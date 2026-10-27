@@ -870,6 +870,44 @@ terrain command and query, among them `terrain.import`, `terrain.create_from_edg
 terrain but not change one: it sees only `site.describe`, `terrain.describe` and
 `terrain.elevation_at`.
 
+## Quantities, reports and schedules
+
+**View → Quantities** opens the Quantities section of the Tray and puts the focus on **Group by**. It
+shows the totals for the whole model: contexts, instances and definitions, the area, the solid volume,
+and the solids whose volume could not be checked. Each total carries its unit and the revision of the
+model it was computed from. The count runs off the interface, so the section stays usable while a large
+model is counted. **Cancel** stops a count and keeps the last complete result, labelled with its own
+revision.
+
+**Grouping and filters.** Group by None, Kind, Tag, Material or Definition. **Include hidden** (the
+default) counts hidden groups, hidden bodies and content on hidden tags; **Visible only** leaves them out.
+A material filter limits the area rows only, because counts and volumes ignore it. **Selection only**
+counts the selected bodies and is available while something is selected.
+
+**Solids that are not counted in volume.** A body that is not a closed solid has an area, which is
+counted, but no volume. Each such body is listed under its reason, such as "Not a solid: open boundary",
+and the volume total says how many bodies it leaves out. Terrain has an area but no volume.
+
+**Export.** **Export CSV…** and **Export JSON…** write the report to a new file. An existing file is never
+replaced. The CSV is the file of record. Its first lines are `#` lines that state the document and its
+revision, the units, the precision, the metrics, the grouping and the filters. The JSON carries the same
+figures. A report over 256 MiB is refused, and nothing is written.
+
+**Schedules.** **Save as schedule…** keeps the current grouping and filters under a name, for the open
+model only. Schedules are stored on this computer, not in the model file, so saving one does not change
+the model. Run a schedule from the list, rename it or delete it. A schedule saved for one model is refused
+for another, and a schedule does not use the selection. It keeps the precision it was saved with.
+
+**Command line.** `sketchyup-cli --input MODEL.sketchyup --report OUT.csv` writes a report. Add
+`--metrics counts,areas,volumes` (or `all`), `--group-by tag`, `--visible`, `--precision full` (or a number
+of decimals) and `--format csv` or `json`. `--report OUT.csv --schedule NAME` runs a saved schedule;
+`--save-schedule NAME` saves the flags as a schedule; `--list-schedules` and `--delete-schedule NAME`
+manage them. The command line never changes the model and never replaces a file.
+
+**What is not counted.** Sheets, views and items are listed in the file's metadata, not in any total. The
+in-app assistant cannot run reports or schedules. Quantities, reports and schedules are not in the 1.3.0
+declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+
 ## Troubleshooting
 
 | Symptom | Check |

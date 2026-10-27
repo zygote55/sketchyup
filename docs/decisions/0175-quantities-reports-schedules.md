@@ -10,6 +10,12 @@ item 3). F07 ships in its own gated minor release with the other M10
 entries ([M10 acceptance](../M10_ACCEPTANCE.md),
 [ADR 0162](0162-release-versioning.md)).
 
+**Acceptance record (R101.f, 2026-10-27):** [R101f](../verification/R101f-quantities-reports.md)
+([summary](../verification/R101f-quantities-reports.json)). The Verify line is partly met: V1 to V5 and V8
+to V11 pass, and V6, V7 and V12 are partial. Six of the seven §12 rows are met on the Release build. The
+panel re-run row is missed (p95 1,097 ms in one of four series) and is frozen as a fail for the owner. The
+owner decides the items in the record's §8.
+
 **Build line:** "Build configurable component/material counts, areas/volumes
 and CSV/tabular reports from document semantics. Include units, filters and
 source revision." **Verify line:** "Shared components, hidden content and
@@ -581,15 +587,15 @@ materialized faces and 250,000 terrain triangles. Proposed budgets (to be
 [ADR 0171](0171-ifc-exchange-subset.md) §6.1 /
 [ADR 0169](0169-terrain-editing-drape-stamp.md) §13.1 pattern):
 
-| Work (desktop, the developer machine class) | Budget |
-| --- | --- |
-| Counts over `quantities-b` (250,000-triangle terrain + 10,000 placements of a 12-face part: 120,000 materialized faces) | ≤ 2 s |
-| + areas (world triangle areas over all records) | ≤ 5 s |
-| + solid volume analysis (per-context `inspectSolid`, `quantities-b`) | ≤ 30 s, async with progress; cancel returns in ≤ 100 ms and the run stops in ≤ 5 s |
-| Desktop panel re-run after a single edit, ≤ 100,000-face model | p95 ≤ 1 s, run off the UI thread with the §5 "computing" state (*changed by the owner on 2026-10-27 from 250 ms: R101.e1 measured 582–968 ms p95 in Release; the full four-table pass has no cache*) |
-| CSV write | ≤ 10 s for 100,000 rows; output ≤ 256 MiB (refused above) |
-| Schedule re-run | the matching report budget (no extra pass) |
-| Engine memory | peak ≤ 512 MiB; no cross-run cache |
+| Work (desktop, the developer machine class) | Budget | Measured, R101.f (Release, 2026-10-27) | Verdict |
+| --- | --- | --- | --- |
+| Counts over `quantities-b` (250,000-triangle terrain + 10,000 placements of a 12-face part: 120,000 materialized faces) | ≤ 2 s | 0.290 s median of 5 | Met |
+| + areas (world triangle areas over all records) | ≤ 5 s | 0.315 s median of 5; the all-tables run, which bounds the cumulative reading, is 0.827 s | Met |
+| + solid volume analysis (per-context `inspectSolid`, `quantities-b`) | ≤ 30 s, async with progress; cancel returns in ≤ 100 ms and the run stops in ≤ 5 s | 0.848 s median of 5; cancel returned 0.05 to 2.80 ms over 12 samples | Met |
+| Desktop panel re-run after a single edit, ≤ 100,000-face model | p95 ≤ 1 s, run off the UI thread with the §5 "computing" state (*changed by the owner on 2026-10-27 from 250 ms: R101.e1 measured 582–968 ms p95 in Release; the full four-table pass has no cache*) | 99,996 faces, the engine pass and the description, p95 of four series of 200 runs: 965, 1,097, 569 and 800 ms (engine alone: 943, 995, 561 and 787 ms). The panel's own timing was not measured | **Missed** in one series (1,097 ms, under load); frozen as a fail, owner decision |
+| CSV write | ≤ 10 s for 100,000 rows; output ≤ 256 MiB (refused above) | 100,002 rows: 0.081 s median of 5; 3.99 MB. The 256 MiB refusal is not exercised | Met |
+| Schedule re-run | the matching report budget (no extra pass) | CLI wall time, five pairs on `quantities-b`: scheduled 2.25 s and ad hoc 2.30 s (medians); the CSVs differ only at the marker line | Met |
+| Engine memory | peak ≤ 512 MiB; no cross-run cache | peak 282,824 kB (about 276 MiB), median of 5; "no cache" is a design property, not measured | Met |
 
 **Not verified** in the repository: no full-document solid sweep or
 full-document area sum has been benchmarked before R101 (the entity info
@@ -1331,3 +1337,55 @@ native dialog audit (`tests/native_dialog_cases.hpp`).
 
 The terrain's area is reported under its Terrain material, as R101.e1 records. `docs/mockups/quantities.html`
 is not redrawn here, so it still draws the terrain under "No material".
+
+## Implementation notes (R101.f)
+
+R101.f is the acceptance record, [verification/R101f-quantities-reports.md](../verification/R101f-quantities-reports.md),
+with its [summary](../verification/R101f-quantities-reports.json). It checks V1 to V12 against their tests and CI runs,
+runs the CLI in scripted checks, measures the §12 budgets on `quantities-b` in a Release build with repeat counts, and
+carries the native and sanitizer results. No product code changed and no test was added.
+
+### Verdicts
+
+- **V1 to V5 and V8 to V11 pass.** V6 is partial: the `degenerate` status cannot be built through the public API, so two
+  of the three named statuses are reached. V7 is partial: the UI run is on `quantities-a`, and the 100 ms cancel is measured
+  here but not asserted in CI. V12 is partial: the CSV is byte-identical to the session's CSV, and the JSON file omits the
+  session-only body IDs.
+- **§12: six of the seven rows are met; the panel re-run row is missed.** Counts 0.29 s, areas 0.32 s, solid volumes 0.85 s,
+  cancel at most 2.8 ms, the 100,002-row CSV 0.08 s, the schedule re-run as fast as the ad hoc run, and peak memory 276 MiB.
+  The panel re-run is p95 965, 1,097, 569 and 800 ms in four series of 200 runs on a 99,996-face model. It is frozen as a
+  fail at 1,097 ms, the series that ran under load. No budget was changed.
+
+### Decisions where the ADR was silent
+
+- **The panel row is judged on the engine pass the panel calls**: `runReport` and `reportDescription` on a snapshot, as
+  R101.e1 measured it. The panel's own widget timing was not measured, because no Release desktop build was made.
+- **The p95 is judged per series, and the worst series is frozen.** The four series disagree (569 to 1,097 ms), so no one of
+  them is the figure. The worst is the number; the three quieter series are reported beside it.
+- **Cancel and stop share one measurement.** In the engine, the stop is the return from `runReport`, so the two terms of the
+  solid-volume row are judged on the same twelve samples.
+- **The cumulative rows are bounded by the all-tables run,** which is at most the sum of the stages and passes every
+  cumulative reading.
+- **Full-tier evidence for the panel** is PR #480's run at its head `6c371a5e`, because no full-tier run on `main` includes
+  the panel yet. The fourteen commits between that head and `main` change no R101 file.
+- **Platforms.** Linux x86_64, as the support matrix states. Windows and macOS are not run.
+
+### Prior gaps
+
+The record's §1 and §7 resolve or carry each gap that R101.a to R101.e2 left.
+
+- **Resolved here:** the §12 figures that R101.b and R101.e1 left open (the panel re-run, cancel, stop, and the schedule
+  re-run); the sanitizer runs that R101.c and R101.d did not make (the CI sanitize job ran the six report suites); the
+  native X11 and Wayland runs of `quantities_input_tests` (R101.e2); the desktop selection path, which the input test covers
+  in its section 8; and the generated API check, which passed in CI.
+- **Carried,** with the owner decision named where one exists: the `degenerate` status (V6); the large-model UI run and the
+  CI cancel check (V7); the JSON body IDs (V12); the 200 % text check; the Rename and Export keyboard audit; the Wayland popup
+  warning; the 256 MiB refusal; cancel between records only (a single large body is not interruptible); the units a schedule
+  does not pin; terrain names that are not unique in the CSV; the CSV's missing `materialsApply` line; the §11 sheet fixture;
+  the Windows and macOS builds; a fuzz campaign for the report code; and the budgets outside CI.
+
+### Owner decisions
+
+The record's §8: (1) the panel re-run budget, where the first step is a measurement on the owner's own desktop; (2) the JSON
+body IDs; (3) the `degenerate` row; (4) the §11 corrections in this ADR, which the owner has not yet approved; (5) whether
+the budgets run in CI; (6) a CHANGELOG entry for the panel; (7) the platform scope in the implementation split.
