@@ -14,6 +14,7 @@
 #include "report_fixtures.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QLocale>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -26,6 +27,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLocale>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
@@ -164,6 +166,12 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QApplication::setOrganizationName("SketchyUp");
     QApplication::setApplicationName("SketchyUp");
+    // The panel groups digits as the locale does (§19.5). The expected "40,259.20" must not depend
+    // on the host's LANG: CI runs under the C locale, which does not group.
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+    // The panel formats numbers in the person's locale (digit grouping included). Pin it, so the
+    // expected "40,259.20 m²" holds on a CI container whose locale is C.
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
 
     try {
         Window window;
