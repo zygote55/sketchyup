@@ -10,7 +10,7 @@
 #include <linux/audit.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
-#include <set>
+#include <map>
 #include <unistd.h>
 #include <vector>
 
@@ -59,10 +59,16 @@ std::optional<std::vector<sock_filter>> buildProgram(const std::vector<SyscallRu
         statement(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
         statement(BPF_LD | BPF_W | BPF_ABS, kSeccompDataNr),
     };
-    std::set<long> seen;
+    // A call named twice with the same action is one entry; with two actions it is an error.
+    std::map<long, Action> seen;
     for (const SyscallRule& rule : all) {
         const std::optional<long> number = syscallNumber(rule.name);
-        if (!number || !seen.insert(*number).second) return std::nullopt;
+        if (!number) return std::nullopt;
+        const auto [entry, fresh] = seen.emplace(*number, rule.action);
+        if (!fresh) {
+            if (entry->second != rule.action) return std::nullopt;
+            continue;
+        }
         const std::vector<sock_filter> block = blockFor(rule.action);
         program.push_back(jump(BPF_JMP | BPF_JEQ | BPF_K, static_cast<std::uint32_t>(*number), 0,
                                static_cast<std::uint8_t>(block.size())));

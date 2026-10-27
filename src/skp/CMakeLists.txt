@@ -7,6 +7,7 @@ add_library(sketchyup_skp ${SKETCHYUP_LIBRARY_TYPE}
   import.cpp
   package.cpp
   report.cpp
+  sandbox_policy.cpp
   sha256.cpp)
 target_include_directories(sketchyup_skp PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(sketchyup_skp PUBLIC sketchyup_openskp sketchyup_sandbox)

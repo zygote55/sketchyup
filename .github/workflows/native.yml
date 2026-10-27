@@ -1988,8 +1988,11 @@ jobs:
         # (the .skp files' provenance is tests/fixtures/skp/SKP-SOURCE.txt), the mapping of
         # the import into the native model (R102.b, S1 to S5 and the undo), and the owner-file
         # checks (skipped on a machine without the corpus). The helper's linkage (only the helper
-        # links the parser, its runtime closure) and the notices and source record (R102.d).
-        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_library_install|skp_library_source)$' --output-on-failure --no-tests=error
+        # links the parser, its runtime closure) and the notices and source record (R102.d). The helper's
+        # sandbox (ADR 0183, R109 S0 and S1): the library's own checks, and the helper under its policy
+        # (every fixture identical to the unsandboxed run, the attacks refused, the refusals named). Landlock
+        # must be on the runner's kernel: the checks fail, not skip, without it.
+        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_library_install|skp_library_source|sandbox|skp_sandbox)$' --output-on-failure --no-tests=error
       - name: Helper and package tests under the sanitizers
         # The helper's own code, the package decoder and the import under ASan and UBSan, against an
         # instrumented library: the IFC helper's sanitizer line (ADR 0176 section 7, S7). Full tier only.

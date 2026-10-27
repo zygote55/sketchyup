@@ -149,7 +149,9 @@
         "sketchyup_assemblies",
         "skp_package_tests",
         "skp_import_tests",
-        "skp_mapping_tests"
+        "skp_mapping_tests",
+        "sandbox_tests",
+        "skp_sandbox_tests"
       ]
     },
     {
@@ -160,7 +162,9 @@
         "sketchyup-cli",
         "skp_package_tests",
         "skp_import_tests",
-        "skp_mapping_tests"
+        "skp_mapping_tests",
+        "sandbox_tests",
+        "skp_sandbox_tests"
       ]
     }
   ],

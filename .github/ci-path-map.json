@@ -135,8 +135,10 @@
       "paths": [
         "third_party/openskp/**",
         "src/skp/**",
+        "src/sandbox/**",
         "src/io/skp_*",
         "tests/skp*",
+        "tests/sandbox*",
         "tests/fixtures/skp/**",
         "scripts/vendor-openskp.py",
         "scripts/verify-skp-library.py"

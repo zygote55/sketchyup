@@ -1,12 +1,13 @@
 // sketchyup-skp-worker: the only executable that links the OpenSKP parser (ADR 0176 decision 2).
 // R102.a ships the .skp reader: --probe and --import (the SKSKPP01 conversion package).
 // It takes a fixed argv, reads no environment-dependent configuration and runs no shell.
+// Before it opens its input, every mode that reads a file applies the sandbox (ADR 0183, R109 S1): the
+// input is readable, the package's directory is writable, and a system call outside the policy kills it.
 //
 // The helper enforces its own limits (the IFC helper takes them from the application):
 // RLIMIT_AS 4 GiB (absent in the sanitizer build, where the 4 GiB ceiling would collide with the
 // sanitizer's reservations), RLIMIT_CPU 480 s and RLIMIT_FSIZE 512 MiB, plus a 120 s deadline.
 // The --rlimit-* and --deadline-seconds options override the limits for the tests.
-#include <sys/prctl.h>
 #include <sys/resource.h>
 
 #include <cstdio>
@@ -17,6 +18,7 @@
 #include <string>
 
 #include "import.hpp"
+#include "skp/sandbox_policy.hpp"
 #include "sketchyup/version.hpp"
 
 namespace {
@@ -68,6 +70,8 @@ int main(int argc, char** argv) {
       return 0;
     }
     if (argc == 3 && std::strcmp(argv[1], "--probe") == 0) {
+      // The developer probe reads the file, so it is sandboxed too (ADR 0183 decision 7).
+      if (const auto failure = applySkpSandbox(argv[2], std::string())) return refuseSandboxUnavailable(*failure);
       Progress progress;
       return runProbe(argv[2], progress);
     }
@@ -89,7 +93,10 @@ int main(int argc, char** argv) {
       }
       if (options.input.empty() || (options.output.empty() && !options.dryRun))
         return fail("--import needs an input file and --output");
-      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      // The sandbox is in place before the input is opened; a dry run writes nothing, so it has no
+      // writable directory.
+      if (const auto failure = applySkpSandbox(options.input, options.dryRun ? std::string() : options.output))
+        return refuseSandboxUnavailable(*failure);
       applyDefaults(options);
       Progress progress;
       return runImport(options, progress);

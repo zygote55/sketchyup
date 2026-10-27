@@ -797,6 +797,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(skp_package_tests PRIVATE sketchyup_io sketchyup_skp)
     target_include_directories(skp_package_tests PRIVATE src tests)
     add_test(NAME skp_package COMMAND skp_package_tests)
+    # R109.a (ADR 0183): the sandbox library on its own (the kill default, the explicit errno entries, the
+    # Landlock grants and the injected failures), each check in a forked child.
+    add_executable(sandbox_tests tests/sandbox_tests.cpp)
+    target_link_libraries(sandbox_tests PRIVATE sketchyup_sandbox)
+    target_include_directories(sandbox_tests PRIVATE src tests)
+    add_test(NAME sandbox COMMAND sandbox_tests)
     # R102.a: the import through the helper, against the synthetic .skp fixtures (the .skp
     # format is a binary MFC archive; the fixtures' provenance is tests/fixtures/skp/SKP-SOURCE.txt).
     if(TARGET sketchyup-skp-worker)
@@ -813,6 +819,15 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       add_test(NAME skp_import COMMAND skp_import_tests)
       add_test(NAME skp_import_real COMMAND skp_import_tests --real)
       set_tests_properties(skp_import_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+      # R109.a/S1 (ADR 0183): the helper under its sandbox, against the same fixtures and against the
+      # unsandboxed run of the same code; the attack probes; the fail-closed refusals; the host's classes.
+      add_executable(skp_sandbox_tests tests/skp_sandbox_tests.cpp)
+      target_link_libraries(skp_sandbox_tests PRIVATE sketchyup_io sketchyup_skp sketchyup_sandbox)
+      target_include_directories(skp_sandbox_tests PRIVATE src tests)
+      target_compile_definitions(skp_sandbox_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      add_test(NAME skp_sandbox COMMAND skp_sandbox_tests)
+      set_tests_properties(skp_sandbox PROPERTIES TIMEOUT 600)
       # R102.b (ADR 0176 section 4): the import's mapping through the helper, against the fixtures and,
       # with SKETCHYUP_SKP_CORPUS, the owner's file (skipped, exit 77, when it is not on this machine).
       add_executable(skp_mapping_tests tests/skp_mapping_tests.cpp)

@@ -996,6 +996,16 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
     } else if (codeText == "parse") {
         reason = QStringLiteral("The SketchUp reader could not read this file.");
         whatToDo = saveAgain;
+    } else if (codeText == "sandboxUnavailable") {
+        // ADR 0183 section 7: the import fails closed, so the helper reads nothing and nothing is run unsandboxed.
+        reason = QStringLiteral("This system cannot start the sandbox the SketchUp helper runs in, so the helper read "
+                                "nothing. The import is refused rather than run without the sandbox.");
+        whatToDo = QStringLiteral("1. Check that the kernel offers Landlock and seccomp (Linux 5.13 or later).\n"
+                                  "2. Import again.");
+    } else if (codeText == "sandboxViolation") {
+        reason = QStringLiteral("The SketchUp helper was stopped by its sandbox, because it tried an action its policy "
+                                "does not allow. This is not a crash of the file's parser; the helper was not restarted.");
+        whatToDo = tryAgain;
     } else if ((codeText == "workerFailed" && stop == "timeout") || codeText == "deadline") {
         reason = QStringLiteral("The SketchUp helper ran past its time limit and was stopped, so nothing was read.");
     } else if (codeText == "workerFailed") {
@@ -1007,7 +1017,9 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
         reason = QStringLiteral("The import could not be completed.");
     }
     // The helper's own words are shown for a refusal it made; a stop has its reason in the sentence already.
-    const bool helperWords = !message.isEmpty() && message != reason && codeText != "workerFailed" && codeText != "deadline";
+    // The sandbox's violation message is the application's own sentence, not the helper's words.
+    const bool helperWords = !message.isEmpty() && message != reason && codeText != "workerFailed" &&
+                             codeText != "deadline" && codeText != "sandboxViolation";
     RefusalSheet face;
     face.sheetName = "skpRefusal";
     face.title = "SketchUp import refused";
