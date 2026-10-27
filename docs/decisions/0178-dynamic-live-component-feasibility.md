@@ -285,6 +285,100 @@ Nothing is dropped silently. The report uses the convention of [ADR 0176](0176-s
 8. *Not exercised: R104.b is deferred indefinitely (owner, 2026-10-27).* **Counsel gate for R104.b.** Before any formula work, ask counsel the ADR 0177 §3.3 questions, plus: may a non-affiliated program implement the documented DC formula language, and what do the offering terms say about it? *Recommended: yes, when R104.b is proposed.* It is not needed for D1, which only reads files.
 9. **Public wording.** "Dynamic Components: attributes read as read-only properties; formulas and behaviour are not run." *Recommended: yes,* in R104.d. It replaces the "neither reads nor writes" line in the release notes.
 
+## Implementation notes (R104.a, R104.c, R104.d)
+
+Branch `feat/r104a-dc-metadata`, based on `main` at `61adf107`. Owner decisions 1 to 5, 7 and 9 apply; decision 6 is met
+by the self-made fixtures below. Formula mapping (R104.b) is not started, and no formula evaluator is written.
+
+**What was built (D1.1 to D1.7).**
+
+- A `dynamic_attributes` value at instance or definition level, of kind String, Integer, Float, Boolean or Length, becomes
+  the property `skp.dynamic_attributes.<key>`. A Length is stored in metres (inches × 0.0254). Only the DC dictionary is
+  converted; other dictionaries keep ADR 0176 section 4 (a Length there is still not imported).
+- Formulas (`_<name>_formula`, `_material_formula`) and `onClick` are kept as text under the 2,048-byte cap, with
+  `truncatedAttributes` for a cut. They are never evaluated or run. `Copies` is kept as a property and each placement with
+  `Copies` above 0 is counted (`copiesNotReproduced`).
+- The report has the `behaviourNotRun` and `materialFormulaNotApplied` notices and a `dynamicComponents` section.
+
+**How a definition-level value attaches (the decision the brief left to this work).** The native model keeps properties on
+bodies, and a definition has no body of its own: its placements are its only bodies. So each placement of a definition
+carries the definition's `dynamic_attributes` values as its own properties. Rules:
+
+- A value the placement's own attributes already name is not replaced; the instance's value wins, and the definition's
+  value is dropped on that placement (`propertiesDropped`, with its sample).
+- A definition's value is counted once however many placements hold it. A definition with no placement holds its values
+  nowhere, so they are omitted and counted as such.
+- A definition-level value that the placement cannot carry, and the root's dictionaries (the model, not a component), are
+  reported as before (`definitionAttributesNotCarried`).
+- Rejected: a field on `ComponentDefinition`. That changes the document's saved form for one metadata group, which R104.a
+  does not need.
+
+**The package.** A definition gains an optional `attributes` list, and attribute entries gain two kinds: `length` (the
+value in metres) and `unsupported` (a vector, an array, a null, or a number that is not finite, with its kind named). The
+decoder accepts both, and it counts the definition's kept values in the attribute identity. The helper keeps an
+unsupported value so the app can count it per level. Outside the DC dictionary, the package is unchanged.
+
+**Accounting (D1.2).** `accounting.attributes` (the whole file) now includes the definitions' kept values. The new
+`dynamicComponents.accounting` gives `counted`, `imported` and `omitted` for each level, and `omitted` is `counted` minus
+`imported` by construction. Helper-level losses (the 256-attribute cap, an empty key) stay in `accounting.attributes` and
+are outside the DC levels.
+
+**Where the report differs from §6 (recorded here, not silently).**
+
+- `definitionLevelRead` is not a separate counter; `dynamicComponents.accounting.definition` covers the definition level.
+- `textTruncated` is in the section; the notice stays `truncatedAttributes`, as the brief asks.
+- `serviceDependent` is not emitted. No marker in a file identifies a Live Component, because its storage is undocumented
+  (section 1.4) and the owner's file has none. A label keyed on a guessed marker would be wrong, so R104.c's label is not
+  built. The user guide says so.
+- The one-line user summary (§6) is on the import report sheet, in the "How" lines and the identity lines.
+- The release note is in an Unreleased section. The 1.3.0 bullet stays as it was, because it was true for 1.3.0, which did
+  not import `.skp` files.
+
+**Fixtures (decision 6).** `tests/fixtures/skp/generate_dc.cpp` writes three self-authored fixtures with the pinned OpenSKP
+writer: `dc_instance_kinds.skp` (every kind, two Lengths), `dc_definition_keys.skp` (a definition's Length, two formulas
+and `onClick`, placed twice at the root and once nested) and `dc_copies_limits.skp` (`Copies` and a 200-byte formula).
+The pinned writer reproduces `box.skp` and `face_with_hole.skp` byte-for-byte, so its build is the one the committed bytes
+came from. The three DC fixtures are not byte-reproducible (random component GUIDs); the committed bytes are the reference.
+
+The fixtures prove the importer's handling of the shape the writer can write. They do not prove SketchUp's key spellings,
+and they do not prove that SketchUp stores a DC length as a Float; both stay open until a SketchUp-authored file exists.
+The writer cannot write a vector, an array or a null, and it refuses a string over 255 bytes in a legacy file. So the
+over-2,048-byte string and the unsupported values are tested with in-test packages (`tests/skp_dc_tests.cpp`), and the
+helper's own code path for a vector, an array or a null is not run by any test.
+
+**No network (D1.9, R104.c).** `skp_dc` scans `src/skp/` and `src/io/skp_*` for socket, network, HTTP and curl code, and it
+checks that it scanned at least ten files. It also runs the helper under `unshare -rn` (a new user and network namespace
+with no network), when the runner allows that. The runner used here refuses `unshare -n` without a user namespace, and
+allows `unshare -rn`. The CI container refuses both (ADR 0183), so there the namespace run exits 77 (skipped) and the scan
+stands alone. When the namespace run is skipped, the test prints that it was.
+
+**The owner's file (decision 6: aggregate counts only).** BanyanHarbor.skp holds no Dynamic Component: the instance and
+definition DC values are both zero, and nothing is kept or reported under `dynamicComponents`. The import's time is in the
+run record below.
+
+**Gaps and open items.**
+
+- A DC length stored as a Float, and SketchUp's own key spellings, remain unconfirmed (decision 6).
+- The sanitizer shard (`skp-sanitize`) runs `skp_dc` in CI's full tier; it was not run locally.
+- The desktop files that changed (`ifc_sheets.cpp`, `components_tab.cpp` and the assemblies test) are compiled by the
+  desktop build in CI; see the run record below for the local check.
+- No Live Component fixture exists, so R104.c's label is not implemented (above).
+
+**Run record (R104.a, 2026-10-27, this runner).**
+
+- `skp` preset, all targets, built under the 10 GB cap with BFD. The CI skp set (`skp_package`, `skp_import`,
+  `skp_import_real`, `skp_mapping`, `skp_mapping_real`, `skp_dc`, `skp_dc_real`, `skp_library_install`,
+  `skp_library_source`) passed 9 of 9, with `SKETCHYUP_SKP_CORPUS` set to the owner's directory.
+- `skp-sanitize`: `skp_package`, `skp_import`, `skp_mapping` and `skp_dc` passed under ASan and UBSan, with
+  `ASAN_OPTIONS=detect_leaks=0`. ASan cannot run under an address-space `ulimit` of 8 GB, so the cap was a cgroup
+  limit of 10 GB.
+- The owner's file, aggregate only: 0 Dynamic Component values at instance level and 0 at definition level, so the
+  `dynamicComponents` section is empty for it. The helper imports the file in 146 to 163 ms wall (three runs, load average
+  near 9.5), into a package of 64,299 bytes.
+- Desktop: `ifc_sheets.cpp`, `components_tab.cpp` and `assembly_library_input_tests.cpp` compile with the `dev` preset.
+  One warning, in `ifc_sheets.cpp` line 209, is on code this change does not touch. The desktop tests were not run
+  locally.
+
 ## Sources
 
 Each page was read on 2026-10-26. "Last updated" dates are the page's own, as shown on the fetched page.

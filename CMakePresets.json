@@ -128,7 +128,8 @@
         "ifc_export_tests",
         "ifc_step_tests",
         "ifc_step_export_tests",
-        "step_import_tests"
+        "step_import_tests",
+        "import_refusal_tests"
       ]
     },
     {
@@ -149,7 +150,8 @@
         "sketchyup_assemblies",
         "skp_package_tests",
         "skp_import_tests",
-        "skp_mapping_tests"
+        "skp_mapping_tests",
+        "skp_dc_tests"
       ]
     },
     {
@@ -160,7 +162,8 @@
         "sketchyup-cli",
         "skp_package_tests",
         "skp_import_tests",
-        "skp_mapping_tests"
+        "skp_mapping_tests",
+        "skp_dc_tests"
       ]
     }
   ],

@@ -380,7 +380,8 @@ fonts.
 
 **Limits.** Formulas are one-way: editing geometry never changes a parameter, and a
 formula reads only its own definition's parameters. SketchUp Dynamic Components are not
-imported or converted. The in-app assistant cannot change component parameters; MCP
+converted into parameters; their attributes are read as read-only properties of a `.skp` import (see
+[Importing SketchUp (.skp) files](#importing-sketchup-skp-files)). The in-app assistant cannot change component parameters; MCP
 clients and the transaction APIs can (`component_parameter.*` operations and
 `component_parameters.*` queries in the [tool reference](TOOL_REFERENCE.md)).
 
@@ -549,11 +550,11 @@ note appears above 100,000 triangles, before a model of triangle faces reaches t
 
 ## Importing SketchUp (.skp) files
 
-**File → Import SketchUp (.skp)…** opens a SketchUp model as a new, unsaved SketchyUp model. Choose
+**File → Import .skp file…** opens a SketchUp model as a new, unsaved SketchyUp model. Choose
 the file; there are no options to set. The file is read by a separate helper process,
 `sketchyup-skp-worker`, with a progress sheet and Cancel. A file that cannot be imported is refused
 and nothing is created. The report lists what came across, what did not and anything that needs
-your attention; **Show SketchUp import report…** shows it again. The .skp file itself is never
+your attention; **Show .skp import report…** shows it again. The .skp file itself is never
 changed, and Save chooses where the new model goes.
 
 On the command line, `sketchyup-cli --import-skp FILE.skp` validates the file and prints the report
@@ -584,6 +585,10 @@ If a file is refused, save it again from SketchUp 2021 or later and import that 
 - The names of components, groups, instances and materials.
 - Attributes, as properties named `skp.<dictionary>.<key>`. Only text, number and yes/no values come
   across.
+- Dynamic Component attributes (the `dynamic_attributes` dictionary), at instance and definition level,
+  as read-only properties. A length is stored in metres. A definition's values reach each of its
+  placements, and a placement's own value for the same key wins. Formulas and the `onClick` script come
+  across as text: they are shown, never evaluated or run.
 
 Geometry is converted from inches to metres. The file's unit setting is shown in the report, and it
 does not change the size of the model.
@@ -594,7 +599,11 @@ does not change the size of the model.
   the data the reader gets, so the result is a component, not a native group.
 - **Scenes, styles, section planes, text, dimensions, guides (construction lines and points) and the
   camera** are not imported. The report counts what was left out.
-- **Dynamic-component behaviour** is not imported. The component's geometry is.
+- **Dynamic-component formulas and behaviour** are not run. A component with `Copies` comes across as one
+  placement. The report counts each formula, each `onClick` script and each placement with `Copies`.
+- **Live Components.** The import makes no call to any Trimble service, and a Live Component's
+  configuration is not available offline. The file does not mark a Live Component, so the report does not
+  identify one. Its geometry and attributes come across like any other component's.
 - **A face the native model refuses** is left out and counted in the report under "Faces the native
   model refuses". These are faces that are not flat, that cross themselves, that collapse, or whose
   outline touches itself.
@@ -619,6 +628,72 @@ SketchUp is a trademark of Trimble Inc. SketchyUp is not affiliated with or endo
 The reader is OpenSKP, an independent open-source implementation (MIT licence) that was built by
 studying the file format. It is not affiliated with or endorsed by Trimble either, so some files may
 not import exactly as they look in SketchUp.
+
+Dynamic Components and Live Components are Trimble's terms. SketchyUp is not affiliated with or endorsed by
+Trimble for them either.
+
+## Getting models from online libraries
+
+SketchyUp does not connect to any online model library. It does not search one, sign in to one or
+download from one. To use a model from a library, download the file yourself in a browser, then
+import it. The import makes a new, unsaved model, and the downloaded file is never changed.
+
+### The 3D Warehouse website
+
+The 3D Warehouse website is run by Trimble Inc. SketchyUp is not affiliated with or endorsed by
+Trimble Inc. The 3D Warehouse website is named here only to say where to find models.
+
+1. Open the model's page on the 3D Warehouse website in your browser. Sign in to your own account if
+   the download needs it. The Download Policy on the 3D Warehouse website sets a daily download limit for
+   each plan.
+   SketchyUp does not set it, and it does not count your downloads.
+2. If the page offers a choice of formats, choose one in the table below. The download may arrive as
+   a ZIP archive.
+3. If it is a ZIP archive, extract it first, in your file manager. SketchyUp refuses a ZIP archive and
+   does not extract it for you. Then import the model file inside it.
+4. Import the file from the File menu entry for its type.
+
+| File | In this version |
+|---|---|
+| `.skp` | Not released yet. When it is, the versions in [the .skp section](#importing-sketchup-skp-files) apply. |
+| `.glb`, `.gltf` | Imported with a conversion report, from File › Import GLB/glTF… |
+| `.obj`, `.stl`, `.dxf`, `.ifc`, `.step` | Imported with their own reports, from their File › Import entries. |
+| `.zip` | Refused, with the advice to extract the archive and import the file inside it. |
+| `.dae` (COLLADA) | Refused, with the reason. Where the page offers a newer `.skp` version of the model, download that instead. The `.skp` import is not released yet. |
+| `.usdz`, `.fbx` | Refused, with the reason. Where the source offers a glTF or GLB version of the model, download that instead. |
+
+Every import shows a report. A `.skp` report gives the format version and container, the file's
+SHA-256, the units, the counts of what came across, the notices, and a plain line for a file read
+best effort. A glTF or GLB report gives the triangle, instance and camera counts, the unit and axis
+conversion, what was kept, and a notice for each loss. Nothing is dropped without a notice.
+
+**Trademarks.** SketchUp is a trademark of Trimble Inc. SketchyUp is not affiliated with or endorsed
+by Trimble Inc. The 3D Warehouse website is named in this section only to say where to find models.
+
+### Licences and credit
+
+- Each model has its own licence. Models on the 3D Warehouse website are licensed under the General
+  Model License, which its Terms of Use set out. The Terms we read did not require credit to the uploader. They do
+  forbid claiming to own a model you did not create, and removing its copyright or trademark notices.
+  Keep those notices in the file.
+- The Terms bar selling a model on its own or as a stand-alone item, and gathering models into a
+  collection for redistribution.
+- Read the Terms of Use on the 3D Warehouse website before you publish or sell work that uses a model.
+  This section is not legal advice.
+
+### Poly Haven and Sketchfab
+
+Some sites offer glTF or GLB files, for example Poly Haven and Sketchfab. Check the format on each
+asset's page. Each asset has its own licence, shown on its page. That licence governs the asset's use,
+and SketchyUp does not grant one. Poly Haven and Sketchfab are named here only to say where to find
+glTF and GLB files. SketchyUp is not affiliated with or endorsed by Poly Haven or Sketchfab, and it
+does not connect to either site.
+
+### What this is not
+
+This is not a service integration. SketchyUp sends no request to an online library for this, and it
+does not search, sign in, download or keep a copy. Only the downloads you make in your browser leave
+your computer. The import reads the file on your computer, and no network request is made for it.
 
 ## Terrain and site tools
 

@@ -252,6 +252,19 @@
       ]
     },
     {
+      "why": "The R099.d2 Presentations dialog (UX_DESIGN 17): the dialog, its scene picker and the Camera menu entry, with the input suite that drives them and the native display lines that run it. The suite links the desktop, so it runs in the fast tier as well.",
+      "paths": [
+        "tests/presentation_input_tests.cpp",
+        "src/app/presentations_dialog.*",
+        "src/app/presentation_scene_picker.*",
+        "src/app/window_presentations.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
       "why": "R101.e2 (UX_DESIGN section 19): the Quantities section of the Model Tray, its off-thread runs, schedules and exports, driven through the main window offscreen and on the native display lines. Its dialogs are in the native dialog audit's quantities group.",
       "paths": [
         "src/app/quantities_job.cpp",

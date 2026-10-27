@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor><authoring_tool>R105.a refusal fixture</authoring_tool></contributor>
+    <created>2026-10-27T00:00:00</created>
+    <modified>2026-10-27T00:00:00</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_geometries/>
+  <library_visual_scenes/>
+  <scene/>
+</COLLADA>

@@ -265,6 +265,47 @@ int main(int argc, char **argv) {
         check(tooMany["refusals"].toArray().size() >= 1,
               "A presentation with more than four presets names the limit");
 
+        // The frame limit has one message, the record's, with its formula (UX_DESIGN 17.11, gap 3).
+        check(cameraPathFrameLimitMessage(3, CameraPathTiming{24, 24, 80}) ==
+                      "Camera path would plan 289 frames (1 + 3 x 80 + 2 x 24); the limit is 240" &&
+                  cameraPathFrameLimitMessage(2, CameraPathTiming{24, 1, 1}).empty(),
+              "The frame limit message is the record's, and a plan within the limit has none");
+
+        // presentation.describe reports the configured Blender's video encoders through the probe
+        // the application installs. A build without H.264 refuses a video; a probe that did not
+        // finish says so.
+        setPresentationVideoProbe(
+            [] { return QJsonObject{{"checked", true}, {"h264", false}, {"mpeg4", true}}; });
+        const auto noH264 = presentationDescription(doc, mixed, {check64}, true);
+        const auto encoders = noH264["blender"].toObject()["videoEncoders"].toObject();
+        if (blender) {
+            check(encoders["checked"] == true && encoders["h264"] == false &&
+                      encoders["mpeg4"] == true,
+                  "presentation.describe reports the Blender's video encoders");
+            check(noH264["refusals"].toArray().contains(
+                      QJsonValue("Video is not available in this Blender: its FFmpeg build has no "
+                                 "H.264 encoder. A request can choose the MPEG-4 Part 2 codec, or "
+                                 "clear video")),
+                  "A video on a build without H.264 is refused in the description");
+        } else {
+            check(encoders["checked"] == false,
+                  "Without a Blender the description reports the video as not checked");
+        }
+        setPresentationVideoProbe([] {
+            return QJsonObject{{"checked", false}, {"message", "The video check did not finish"}};
+        });
+        const auto unchecked = presentationDescription(doc, mixed, {check64}, true);
+        if (blender)
+            check(unchecked["refusals"].toArray().contains(QJsonValue(
+                      "Video cannot be confirmed in this Blender: The video check did not finish; "
+                      "check again")),
+                  "A video whose check did not finish is refused in the description");
+        check(presentationDescription(doc, mixed, {check64}, false)["blender"]
+                      .toObject()["videoEncoders"]
+                      .toObject()["checked"] == false,
+              "A plan without video reports the encoders as the probe found them");
+        setPresentationVideoProbe({});
+
         // A broken path is reported, not thrown, and the refusal names the missing scene.
         executeBatch(doc, batch(doc, {QJsonObject{{"command", "saved_scene.delete"},
                                                   {"scene", QString::number(side)}}}));

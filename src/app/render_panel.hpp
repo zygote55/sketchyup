@@ -1,5 +1,6 @@
 #pragma once
 #include "app/viewport.hpp"
+#include "core/render_settings.hpp"
 #include "integrations/animation_capture.hpp"
 #include "integrations/blender_job.hpp"
 #include <QObject>
@@ -13,6 +14,8 @@ class RenderPanel : public QObject {
                 QWidget &window);
     ~RenderPanel() override;
     void showSetup();
+    // R099.d2: the render sheet's current settings, for a presentation preset.
+    RenderSettings setupSettings() const;
     void showJobs();
     void refreshProvenance();
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView);

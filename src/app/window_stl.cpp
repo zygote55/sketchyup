@@ -180,6 +180,8 @@ void Window::importStlDialog() {
     file.setFileMode(QFileDialog::ExistingFile);
     if (file.exec() != QDialog::Accepted || file.selectedFiles().isEmpty())
         return;
+    if (refuseUnsupportedImport(file.selectedFiles().front()))
+        return;
     const auto choice = options(this, false);
     if (choice)
         importStlPath(file.selectedFiles().front(), choice->coordinates, choice->repairs);

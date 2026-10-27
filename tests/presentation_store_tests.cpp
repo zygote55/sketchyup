@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <iostream>
 using namespace sketchy;
@@ -24,6 +26,11 @@ void write(const QString &path, const QByteArray &bytes) {
     QFile file(path);
     check(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size(),
           "Write store fixture");
+}
+QByteArray read(const QString &path) {
+    QFile file(path);
+    check(file.open(QIODevice::ReadOnly), "Read store fixture");
+    return file.readAll();
 }
 QString digest(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
@@ -99,6 +106,9 @@ int main(int argc, char **argv) {
             check(recovered.state == PresentationJobState::Interrupted &&
                       recovered.plan == plan("Orbit") && recovered.plan.presets.size() == 2,
                   "Restart reopens a stopped batch as interrupted with its plan intact");
+            check(recovered.message == presentationInterruptedMessage() &&
+                      recovered.message.contains("Resume") && !recovered.message.contains("Retry"),
+                  "The interrupted message names Resume, in the interface's words");
             check(recovered.report.value("interruptedWorkerLogs")
                       .toObject()
                       .contains("scratch-abcdef/1"),
@@ -204,6 +214,40 @@ int main(int argc, char **argv) {
             rejects([&] { store.capture(id); }, "A changed capture is refused");
             write(tampered + "/" + id + "/capture.sketchyup", capture("TAMPER"));
             rejects([&] { store.capture(id); }, "A same-size changed capture is refused");
+        }
+        {
+            // The video codec is stored with the plan. A job stored before the codec choice existed
+            // has no codec field, and reads as H.264, the only codec that existed then.
+            const auto codecs = files.filePath("codecs");
+            QString id;
+            {
+                PresentationJobStore store(codecs, limits);
+                auto mpeg4 = plan("Mpeg");
+                mpeg4.video = true;
+                mpeg4.videoCodec = PresentationVideoCodec::MPEG4;
+                id = store.enqueue(capture("codec"), "doc-4", "1", mpeg4, output + "/codec");
+            }
+            {
+                PresentationJobStore store(codecs, limits);
+                check(store.jobs().at(id).plan.videoCodec == PresentationVideoCodec::MPEG4 &&
+                          store.jobs().at(id).plan.video,
+                      "The store keeps the video codec with the plan");
+            }
+            const auto record = codecs + "/" + id + "/job.json";
+            auto stored = QJsonDocument::fromJson(read(record)).object();
+            auto legacy = stored.value("plan").toObject();
+            legacy.remove("videoCodec");
+            stored["plan"] = legacy;
+            write(record, QJsonDocument(stored).toJson());
+            PresentationJobStore reopened(codecs, limits);
+            check(reopened.jobs().at(id).plan.videoCodec == PresentationVideoCodec::H264,
+                  "A job stored without a codec field reads as H.264");
+            check(presentationVideoCodecFromName("mpeg4") == PresentationVideoCodec::MPEG4 &&
+                      presentationVideoCodecName(PresentationVideoCodec::MPEG4) == "mpeg4" &&
+                      presentationVideoCodecId(PresentationVideoCodec::MPEG4) == "MPEG4",
+                  "The codec names and identifiers agree");
+            rejects([&] { presentationVideoCodecFromName("av1"); },
+                    "An unknown codec name is refused");
         }
         {
             // A symbolic link in place of the store directory is refused.

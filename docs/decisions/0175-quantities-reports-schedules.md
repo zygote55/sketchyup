@@ -586,7 +586,7 @@ materialized faces and 250,000 terrain triangles. Proposed budgets (to be
 | Counts over `quantities-b` (250,000-triangle terrain + 10,000 placements of a 12-face part: 120,000 materialized faces) | ≤ 2 s |
 | + areas (world triangle areas over all records) | ≤ 5 s |
 | + solid volume analysis (per-context `inspectSolid`, `quantities-b`) | ≤ 30 s, async with progress; cancel returns in ≤ 100 ms and the run stops in ≤ 5 s |
-| Desktop panel re-run after a single edit, ≤ 100,000-face model | p95 ≤ 250 ms |
+| Desktop panel re-run after a single edit, ≤ 100,000-face model | p95 ≤ 1 s, run off the UI thread with the §5 "computing" state (*changed by the owner on 2026-10-27 from 250 ms: R101.e1 measured 582–968 ms p95 in Release; the full four-table pass has no cache*) |
 | CSV write | ≤ 10 s for 100,000 rows; output ≤ 256 MiB (refused above) |
 | Schedule re-run | the matching report budget (no extra pass) |
 | Engine memory | peak ≤ 512 MiB; no cross-run cache |

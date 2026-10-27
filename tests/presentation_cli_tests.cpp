@@ -1,5 +1,6 @@
 #include "core/presentation.hpp"
 #include "core/scenes.hpp"
+#include "integrations/presentation_store.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QDir>
@@ -172,6 +173,48 @@ int main(int argc, char **argv) {
               "A SIGINT cancel keeps finished frames and writes nothing past the boundary");
         check(read(native) == nativeBytes, "An interrupted run leaves the native model unchanged");
 
+        // Stop: SIGTERM stops at once. The batch is recorded interrupted, keeps its finished frame
+        // and exits 1, as an interrupted batch does; a later run can resume it.
+        const auto stopCounter = files.filePath("count-stop");
+        blenderLauncher(bin + "/blender", binary, stopCounter, 2);
+        const auto stoppedOutput = files.filePath("export/stopped");
+        const auto stopRequest = request(
+            "stop.json", R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
+                             stoppedOutput.toUtf8() + R"("})");
+        QProcess stopping;
+        stopping.setProcessEnvironment(env);
+        stopping.start(QStringLiteral(CLI_PATH),
+                       {"--input", native, "--export-presentation", stopRequest});
+        check(stopping.waitForStarted(10000), "Stopped CLI starts");
+        QElapsedTimer stopTimer;
+        stopTimer.start();
+        while (!(launches(stopCounter) == 2 &&
+                 QFileInfo::exists(stoppedOutput + "/01-Draft/frames/frame-0001.png")) &&
+               stopTimer.elapsed() < 120000) {
+            QCoreApplication::processEvents();
+            QThread::msleep(5);
+        }
+        check(launches(stopCounter) == 2, "The stopped batch reaches its second frame");
+        stopping.terminate();
+        check(stopping.waitForFinished(120000), "Stopped CLI finishes");
+        check(stopping.exitCode() == 1, "A SIGTERM stop exits 1, as an interrupted batch does");
+        const auto stoppedManifest =
+            QJsonDocument::fromJson(stopping.readAllStandardOutput()).object();
+        check(stoppedManifest.value("state") == "interrupted" &&
+                  stoppedManifest.value("completedFrames") == 1,
+              "A SIGTERM stop prints the interrupted manifest with the finished frame");
+        check(QFileInfo::exists(stoppedOutput + "/01-Draft/frames/frame-0001.png") &&
+                  !QFileInfo::exists(stoppedOutput + "/01-Draft/frames/frame-0002.png"),
+              "A SIGTERM stop keeps the finished frame and writes none of the one in flight");
+        {
+            PresentationJobStore stored(data + "/SketchyUp/SketchyUp/presentation-jobs");
+            bool recorded = false;
+            for (const auto &[id, job] : stored.jobs())
+                recorded = recorded || (job.output == stoppedOutput &&
+                                        job.state == PresentationJobState::Interrupted);
+            check(recorded, "The store records the stopped batch as interrupted at once");
+        }
+
         // Refusals: exit 1, a structured reason on stderr, and nothing created.
         const auto refused = [&](const QString &name, const QByteArray &body,
                                  const QProcessEnvironment &refusedEnv, const char *message) {
@@ -193,6 +236,19 @@ int main(int argc, char **argv) {
                 R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"video":"yes","output":")" +
                     files.filePath("export/refused-2").toUtf8() + R"("})",
                 env, "A video flag that is not true or false is refused");
+        refused(
+            "codec-without-video.json",
+            R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"videoCodec":"mpeg4","output":")" +
+                files.filePath("export/refused-5").toUtf8() + R"("})",
+            env, "A video codec without video true is refused");
+        refused(
+            "codec-unknown.json",
+            R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"video":true,"videoCodec":"av1","output":")" +
+                files.filePath("export/refused-6").toUtf8() + R"("})",
+            env, "An unknown video codec is refused");
+        check(!QFileInfo::exists(files.filePath("export/refused-5")) &&
+                  !QFileInfo::exists(files.filePath("export/refused-6")),
+              "A refused video codec makes no folder");
         refused("extra.json",
                 R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"preview":true,"output":")" +
                     files.filePath("export/refused-3").toUtf8() + R"("})",
@@ -235,15 +291,16 @@ int main(int argc, char **argv) {
                 runCli({"--describe-command", "export-presentation"}, env, files.path());
             const auto description = QJsonDocument::fromJson(result.out).object();
             check(result.code == 0 && description.value("name") == "export-presentation" &&
-                      description.value("request").toObject().contains("presets"),
-                  "The request schema is printed for --describe-command");
+                      description.value("request").toObject().contains("presets") &&
+                      description.value("request").toObject().contains("videoCodec"),
+                  "The request schema, with the codec choice, is printed for --describe-command");
             const auto capabilities = runCli({"--capabilities"}, env, files.path());
-            check(QJsonDocument::fromJson(capabilities.out)
-                          .object()
-                          .value("presentation")
-                          .toObject()
-                          .value("operation") == "export-presentation",
-                  "The capabilities list the presentation operation");
+            const auto presentation =
+                QJsonDocument::fromJson(capabilities.out).object().value("presentation").toObject();
+            check(presentation.value("operation") == "export-presentation" &&
+                      presentation.value("videoCodecs") == QJsonArray{"h264", "mpeg4"} &&
+                      presentation.value("videoCodecDefault") == "h264",
+                  "The capabilities list the presentation operation and its video codecs");
         }
         std::cout << "Presentation CLI success, SIGINT cancel, refusals and discovery passed\n";
         return 0;

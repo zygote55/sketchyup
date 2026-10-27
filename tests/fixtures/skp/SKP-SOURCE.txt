@@ -93,3 +93,43 @@ with the scaledPlacement notice) is therefore exercised by no fixture.
                            string over 255 bytes in a legacy file, so the over-2,048-byte truncation is
                            tested with an in-test package, not this file.
   SHA-256: dfca2b93434f9d18378294012abb719fbd24f692e630928cf844c59cb0fb766f
+
+# R104.a Dynamic Component fixtures (ADR 0178, decision 6): generate_dc.cpp
+
+Written by generate_dc.cpp, built against the same pinned OpenSKP writer (commit
+23a15e8742e936694bf14aa029cb0e2862dce5b9, the same libOpenSkp.a as above) and run with one argument,
+the output directory:
+
+  g++ -std=c++17 -O2 -I $OPENSKP/packages/cpp/include -I $BUILD/include \
+    tests/fixtures/skp/generate_dc.cpp $BUILD/libOpenSkp.a -o /tmp/gen_dc
+  /tmp/gen_dc DIR
+
+The pinned writer reproduces the byte-reproducible fixtures above (box.skp and face_with_hole.skp) exactly.
+These three are not byte-reproducible, for the reason given for the component fixtures: each component
+definition carries a random GUID and a timestamp. The committed bytes are the reference.
+
+  dc_instance_kinds.skp    "Panel" placed once as "Panel A", with instance dictionary dynamic_attributes:
+                           a String (Label), an Integer (Qty 3), a Float (Weight 1.5), a Boolean (Flag),
+                           and two Lengths (LenX 12 inches, Unit 1 inch). Legacy v17.
+  dc_definition_keys.skp   "Desk", with definition dictionary dynamic_attributes: a Length (LenX 36 inches),
+                           _LenX_formula "LenX+10", _material_formula "IF(LenX>1,1,0)" and onClick
+                           "ALERT(\"Hi\"); REDRAW()". Placed as "Desk A" and "Desk B" (its own LenX 24
+                           inches) at the root, and as "Desk C" nested in "Room", which is placed as "Room A".
+  dc_copies_limits.skp     "Shelf", placed as "Shelf A" (Copies Integer 3, and a 200-byte _Qty_formula, under
+                           the writer's 255-byte limit) and "Shelf B" (Copies Float 0).
+
+SHA-256 of the committed bytes:
+  dc_copies_limits.skp     3c134e90cae4fba4d2e262c849f94d27178168280ed04a7d780f484cc5a9c65a
+  dc_definition_keys.skp   973e35535e9b3d5264f85158cdf561101254fdf7da10ebdef7fbe6a548c1cee4
+  dc_instance_kinds.skp    4d47b55fa76043e114d860abc43d7eeca41a50440186ea02c307a2be2793cee3
+
+What these fixtures can and cannot show (ADR 0178 decision 6):
+  - They prove the importer's handling of the dynamic_attributes shape that the writer can write. The writer
+    and the reader are the same library, so they prove regressions, not fidelity.
+  - They do not prove SketchUp's own key spellings (the names come from 2016 and 2018 forum posts), nor whether
+    SketchUp stores a Dynamic Component length as a Float. Both stay unconfirmed until a file authored in
+    SketchUp is available.
+  - The writer cannot write a vector, an array or a null, and it refuses a string over 255 bytes in a legacy
+    file. So the over-2,048-byte string, and the values the package carries without a value, are in-test
+    packages in tests/skp_dc_tests.cpp, not fixtures.
+  - No Live Component fixture can be made: its storage is undocumented (ADR 0178 section 1.4).

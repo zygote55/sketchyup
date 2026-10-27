@@ -1,5 +1,6 @@
 #include "app/ifc_import_dialog.hpp"
 #include "io/ifc_worker.hpp"
+#include "io/import_refusal.hpp"
 #include <QButtonGroup>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -225,6 +226,13 @@ void IfcImportDialog::setFile(const QString &path) {
     bytes_ = info.size();
     schema_.clear();
     fileRow->setText(info.fileName().isEmpty() ? path : info.fileName());
+    // R105.a (ADR 0179 section 7.3): a downloaded file of a refused type is named before the IFC or
+    // STEP check.
+    if (const auto refusal = refusedImportFile(path)) {
+        showRefusal(refusal->whatToDo.isEmpty() ? refusal->message
+                                                : refusal->message + "\n" + refusal->whatToDo);
+        return;
+    }
     // The cheap checks of the application's bounded code (ADR 0172 section 10: a file that does not pass
     // them gets no conversion attempt, and its reason is said); for STEP (R098.a3) the application's
     // own bounded copy of the helper's cheap scan: the ISO-10303-21 header, one accepted AP schema,
@@ -245,15 +253,18 @@ void IfcImportDialog::setFile(const QString &path) {
         if (importButton)
             importButton->setEnabled(true);
     } catch (const IfcImportError &error) {
-        // A refusal: name what is wrong and keep Import off.
-        refused_ = true;
-        fileFacts->setText(humanSize(bytes_));
-        banner->setText(QString("✗ %1").arg(QString::fromStdString(error.what())));
-        banner->setStyleSheet("color: #b3261e;");
-        banner->show();
-        if (importButton)
-            importButton->setEnabled(false);
+        showRefusal(QString::fromStdString(error.what()));
     }
+}
+// A refusal: name what is wrong and keep Import off. The file's size stands in for its facts.
+void IfcImportDialog::showRefusal(const QString &text) {
+    refused_ = true;
+    fileFacts->setText(humanSize(bytes_));
+    banner->setText(QString("✗ %1").arg(text));
+    banner->setStyleSheet("color: #b3261e;");
+    banner->show();
+    if (importButton)
+        importButton->setEnabled(false);
 }
 IfcImportOptions IfcImportDialog::options() const {
     IfcImportOptions options;

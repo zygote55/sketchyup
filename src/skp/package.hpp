@@ -53,6 +53,12 @@
 // the file holds in all). The attributes the file holds are the kept ones (on instances) plus the
 // omitted kinds attribute, modelAttribute, definitionAttribute and layerAttribute; the decoder
 // checks that identity when source.attributes is present.
+// R104.a (ADR 0178): a definition's "attributes" (optional, a list of the same entries as an
+// instanceAttributes entry) holds its dynamic_attributes values, and the kinds of an attribute
+// entry gain "length" (the value in metres: the inches x 0.0254) and "unsupported" (a vector,
+// an array, a null or a number that is not finite, with "value" naming which: "vector", "array",
+// "null" or "notFinite"). A Length is written only for the dynamic_attributes dictionary; every
+// other dictionary keeps ADR 0176 section 4's rule.
 #include <array>
 #include <cstdint>
 #include <map>
@@ -131,7 +137,9 @@ struct SkpPackageFace {
 
 // One attribute of an instance (R102.b): the same shape as the decoder's (io/skp_package.hpp).
 struct SkpPackageAttribute {
-  enum class Kind : std::uint8_t { String, Number, Boolean };
+  // Length: a dynamic_attributes length in metres (R104.a). Unsupported: a value the package
+  // cannot carry (a vector, an array, a null, a number that is not finite); text names which.
+  enum class Kind : std::uint8_t { String, Number, Boolean, Length, Unsupported };
   std::string dictionary;
   std::string key;
   Kind kind{Kind::String};
@@ -162,6 +170,7 @@ struct SkpPackageDefinition {
   std::vector<SkpPackageEdge> edges;
   std::vector<SkpPackageFace> faces;
   std::vector<SkpPackageInstance> instances;
+  std::vector<SkpPackageAttribute> attributes;  // R104.a: the definition's dynamic_attributes values
 };
 
 struct SkpPackageLocation {
