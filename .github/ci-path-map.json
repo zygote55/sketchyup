@@ -135,8 +135,10 @@
       "paths": [
         "third_party/openskp/**",
         "src/skp/**",
+        "src/sandbox/**",
         "src/io/skp_*",
         "tests/skp*",
+        "tests/sandbox*",
         "tests/fixtures/skp/**",
         "scripts/vendor-openskp.py",
         "scripts/verify-skp-library.py"
@@ -229,6 +231,11 @@
     {
       "why": "R100.e (ADR 0174 sections 7 and 10): the style and catalog CLI flags, their refusals, the --capabilities and --describe-command shapes and the library export. The generic source and test rules already select build and native; this rule names the slice.",
       "paths": ["src/automation/style_catalog_cli*", "tests/style_catalog_cli*"],
+      "areas": ["build", "native"]
+    },
+    {
+      "why": "R100.b (ADR 0174 Q1): the textured material presets, their generated textures and embedded CC0 files, and the Poly Haven notice. The Textured group of the Materials library is tested by material_input_tests, which the build and native lines run.",
+      "paths": ["src/io/procedural_textures*", "src/io/texture_presets*", "tests/texture_preset_tests*", "resources/textures/**", "third_party/textures/**"],
       "areas": ["build", "native"]
     },
     {
@@ -697,6 +704,7 @@
     "report_schedule": 15,
     "report_schedule_cli": 23,
     "report_mcp": 4,
-    "style_catalog_cli": 1
+    "style_catalog_cli": 1,
+    "texture_presets": 2
   }
 }

@@ -4,6 +4,8 @@
 #include "core/materials.hpp"
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
+#include "io/procedural_textures.hpp"
+#include "io/texture_presets.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -16,7 +18,10 @@
 #include <QTest>
 #include <QTimer>
 #include <QWindow>
+#include <array>
+#include <functional>
 #include <iostream>
+#include <optional>
 using namespace sketchy;
 namespace {
 void check(bool value, const char *message) {
@@ -114,7 +119,8 @@ int main(int argc, char **argv) {
                   window.findChild<QTabWidget *>("organizationTabs")->currentIndex() == 3,
               "B activates Paint and opens Materials");
         modal(window, "materialNew", [&](QDialog *dialog) {
-            dialog->findChild<QComboBox *>("materialLibrary")->setCurrentIndex(5);
+            auto *library = dialog->findChild<QComboBox *>("materialLibrary");
+            library->setCurrentIndex(library->findText("Glass"));
             check(dialog->findChild<QLineEdit *>("materialColor")->text() == "#b7d9e5" &&
                       dialog->findChild<QDoubleSpinBox *>("materialOpacity")->value() == 35,
                   "Local swatch library populates editable color and opacity");
@@ -257,6 +263,131 @@ int main(int argc, char **argv) {
                 "Stale editor retains error");
         });
         check(doc.materials().at(1) == beforeStale, "Stale dialog does not overwrite material");
+        // Textured presets (UX_DESIGN 18.4, ADR 0174 Q1): one undo step adds the texture and its
+        // material, an identical texture is reused, and the six colour presets are unchanged.
+        const auto textured = [&](const char *preset,
+                                  const std::function<void(QDialog *)> &check_) {
+            modal(window, "materialNew", [&](QDialog *dialog) {
+                auto *library = dialog->findChild<QComboBox *>("materialLibrary");
+                library->setCurrentIndex(library->findText(preset));
+                check_(dialog);
+                accept(dialog);
+            });
+        };
+        const auto assetsBefore = doc.assets().size();
+        const auto materialsBefore = doc.materials().size();
+        modal(window, "materialNew", [&](QDialog *dialog) {
+            auto *library = dialog->findChild<QComboBox *>("materialLibrary");
+            const auto heading = library->findText("Textured");
+            check(heading > library->findText("Terrain") && heading >= 0,
+                  "Textured heading follows the colour presets");
+            check(
+                !(library->model()->flags(library->model()->index(heading, 0)) & Qt::ItemIsEnabled),
+                "Group headings are disabled, so the arrow keys skip them");
+            library->setCurrentIndex(library->findText("Wood, light"));
+            check(dialog->findChild<QLabel *>("materialTexturePreview")->isVisible() &&
+                      dialog->findChild<QLabel *>("materialTextureCaption")
+                          ->text()
+                          .startsWith("Adds 1 texture") &&
+                      dialog->findChild<QLabel *>("materialTextureLicence")->text().contains("CC0"),
+                  "A textured preset shows its tile, caption and licence");
+            check(!dialog->findChild<QComboBox *>("materialAsset")->isEnabled(),
+                  "The asset chooser is held to the preset's texture");
+            check(dialog->findChild<QLineEdit *>("materialName")->text() == "Wood, light",
+                  "A textured preset fills the name");
+            accept(dialog);
+        });
+        const auto woodId = doc.materials().rbegin()->first;
+        const auto wood = doc.materials().at(woodId);
+        check(doc.materials().size() == materialsBefore + 1 &&
+                  doc.assets().size() == assetsBefore + 1,
+              "A textured preset adds one material and one texture");
+        check(wood->color == std::array<float, 3>{1, 1, 1} && wood->opacity == 1 && wood->asset,
+              "Wood, light has a white tint, full opacity and its texture");
+        check(doc.assets().at(wood->asset)->mediaType == "image/jpeg" &&
+                  assetByteArray(doc.assets().at(wood->asset)->payload) ==
+                      texturePresetBytes(texturePresets()[0]),
+              "The texture is the embedded Wood, light file, byte for byte");
+        check(window.findChild<QLabel *>("materialDetails")->text().contains("Stored"),
+              "The new textured material shows its texture as stored");
+        // Undo removes the material and its texture together. The encoding is not compared: the
+        // retired asset and material IDs stay used, so the next IDs advance.
+        doc.undo();
+        sync(window);
+        check(doc.materials().size() == materialsBefore && doc.assets().size() == assetsBefore &&
+                  !doc.materials().contains(woodId) && !doc.assets().contains(wood->asset),
+              "A textured preset is one undo step");
+        doc.redo();
+        sync(window);
+        check(doc.materials().contains(woodId) && doc.assets().contains(wood->asset),
+              "Redo restores the textured preset");
+        textured("Wood, light", [&](QDialog *dialog) {
+            check(dialog->findChild<QLabel *>("materialTextureCaption")
+                      ->text()
+                      .startsWith("Reuses the texture"),
+                  "An identical texture in the model is reused, and the caption says so");
+        });
+        check(doc.assets().size() == assetsBefore + 1 &&
+                  doc.materials().rbegin()->second->asset == wood->asset,
+              "Identical texture bytes are reused, not copied");
+        textured("Floor tile, 600 mm", [&](QDialog *dialog) {
+            check(dialog->findChild<QLabel *>("materialTextureCaption")
+                      ->text()
+                      .startsWith("Adds 1 texture"),
+                  "A new texture is added");
+        });
+        const auto floor = doc.materials().rbegin()->second;
+        check(floor->asset && floor->asset != wood->asset &&
+                  floor->color == std::array<float, 3>{float(QColor("#d6d1c7").redF()),
+                                                       float(QColor("#d6d1c7").greenF()),
+                                                       float(QColor("#d6d1c7").blueF())},
+              "The floor tile carries its own texture and tint");
+        check(assetByteArray(doc.assets().at(floor->asset)->payload) ==
+                  proceduralTextureJpeg(ProceduralTexture::FloorTile600),
+              "The generated floor tile is stored as its generator's bytes");
+        textured("Glass, reeded", [](QDialog *) {});
+        check(doc.materials().rbegin()->second->opacity == .35f,
+              "Glass, reeded keeps the flat Glass opacity");
+        // The six colour presets are byte-unchanged: the same colour and opacity as before, and
+        // no texture.
+        // The colour and opacity as the dialog has always written them (ADR 0174 section 3).
+        struct ColourPreset {
+            const char *name, *color;
+            float opacity;
+        };
+        constexpr std::array<ColourPreset, 6> colours{{{"White", "#e6e6e6", 1},
+                                                       {"Concrete", "#b0ada6", 1},
+                                                       {"Terracotta", "#c45f42", 1},
+                                                       {"Steel", "#7c8a96", 1},
+                                                       {"Glass", "#b7d9e5", .35f},
+                                                       {"Terrain", "#8a9a6b", 1}}};
+        const auto assetsForColours = doc.assets().size();
+        // The model keeps material names unique, and the first swatch of this test is Terracotta.
+        std::optional<Id> earlier;
+        for (const auto &[id, material] : doc.materials())
+            if (material->name == "Terracotta")
+                earlier = id;
+        if (earlier)
+            view->editMaterials({QJsonObject{{"command", "material.edit"},
+                                             {"material", QString::number(*earlier)},
+                                             {"name", "Terracotta swatch"}}});
+        for (const auto &preset : colours) {
+            modal(window, "materialNew", [&](QDialog *dialog) {
+                auto *library = dialog->findChild<QComboBox *>("materialLibrary");
+                library->setCurrentIndex(library->findText(preset.name));
+                check(!dialog->findChild<QLabel *>("materialTexturePreview")->isVisible(),
+                      "A colour preset shows no texture tile");
+                accept(dialog);
+            });
+            const auto &created = doc.materials().rbegin()->second;
+            const QColor rgb(preset.color);
+            check(created->name == preset.name && created->asset == 0 &&
+                      created->color == std::array<float, 3>{float(rgb.redF()), float(rgb.greenF()),
+                                                             float(rgb.blueF())} &&
+                      created->opacity == preset.opacity,
+                  "A colour preset is unchanged");
+        }
+        check(doc.assets().size() == assetsForColours, "Colour presets add no texture");
         sync(window);
         check(view->rendererReady(), "Material controls retain live renderer");
         if (app.arguments().contains("--capture"))

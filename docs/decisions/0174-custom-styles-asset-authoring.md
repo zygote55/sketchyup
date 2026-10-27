@@ -561,7 +561,7 @@ Each carries a recommended default and a one-line reason.
 
 ## Q1 preset list (proposed for owner sign-off, 2026-10-27)
 
-**Status: signed off by the owner on 2026-10-27, not yet bundled.** The owner approved the 15 presets and the size budget below, with one change: R100.b makes the floor tile's grout clearly visible (it is nearly invisible in the preview). The owner also accepted ambientCG's site-wide CC0 statement as sufficient for future presets (no per-asset licence line needed there); no ambientCG asset is in this list. Originally: drafted, not signed off, not bundled. This list was drafted on 2026-10-27 under the owner's Q1 answer (procedural textures, or CC0 textures from Poly Haven or ambientCG). The owner signs the list off before R100.b bundles anything. This section commits no texture bytes. The downloads and the embedded files stay in `.local/r100b-textures/`, outside git. The one image committed is the review contact sheet, [`mockups/presets/contact-sheet.png`](../mockups/presets/contact-sheet.png) (110 KiB). It is derived from the nine listed Poly Haven assets (credited below) and from throwaway procedural previews. It is not the generator's output.
+**Status: signed off by the owner on 2026-10-27; bundled by R100.b ([PR #477](https://github.com/zygote55/sketchyup/pull/477)), awaiting CI and review.** The owner approved the 15 presets and the size budget below, with one change: R100.b makes the floor tile's grout clearly visible (it is nearly invisible in the preview). The owner also accepted ambientCG's site-wide CC0 statement as sufficient for future presets (no per-asset licence line needed there); no ambientCG asset is in this list. Originally: drafted, not signed off, not bundled. This list was drafted on 2026-10-27 under the owner's Q1 answer (procedural textures, or CC0 textures from Poly Haven or ambientCG). The owner signs the list off before R100.b bundles anything. This section commits no texture bytes. The downloads and the embedded files stay in `.local/r100b-textures/`, outside git. The one image committed is the review contact sheet, [`mockups/presets/contact-sheet.png`](../mockups/presets/contact-sheet.png) (110 KiB). It is derived from the nine listed Poly Haven assets (credited below) and from throwaway procedural previews. It is not the generator's output.
 
 ### The list
 
@@ -1117,3 +1117,79 @@ test was not run; it reads only the presentation section, which did not change.
 
 **Not measured.** The section 9 budgets. The fixtures are small, and no CLI import of a 130 MiB
 catalog entry was timed.
+
+## Implementation notes (R100.b)
+
+R100.b bundles the fifteen presets of the Q1 list, in the order of its table, under **Textured**
+in the New material dialog. The owner's one change is in force: the floor tile's grout is clearly
+visible.
+
+**Embedded files.** The nine CC0 JPEGs are in `resources/textures/` and compiled into `sketchyup_io`
+as Qt resources. Each file's SHA-256 matched the "Embedded SHA-256" column before it was committed,
+and the set is 544,164 bytes, as the table says. Each file has only a JFIF header as a marker segment:
+no EXIF, XMP or comment, so "no metadata" holds.
+
+**Generated files.** The six generators are in `src/io/procedural_textures.cpp`. They follow the
+"Procedural presets" rules: 512 px, neutral luminance, a fixed seed, SplitMix64, double arithmetic,
+8-bit round-half-up, JPEG quality 85 through Qt with no metadata. The bytes are the same on the CI
+image (`sketchyup-ci-pinned:r097a-ifc`, Qt 6.11.2, libjpeg-turbo 3.2.0) and on Qt 6.12.0, so the
+fixtures pin each file's SHA-256 rather than its decoded pixels.
+
+| Preset | Measured bytes (R100.b) | Preview estimate (above) |
+| --- | ---: | ---: |
+| Brick, running bond | 25,817 | 16,258 |
+| Concrete, cast | 38,242 | 62,466 |
+| Floor tile, 600 mm | 5,593 | 5,315 |
+| Plaster, fine | 7,054 | 4,954 |
+| Metal, brushed | 15,006 | 15,510 |
+| Glass, reeded | 17,574 | 13,826 |
+
+The six generated files total 109,286 bytes (106.7 KiB), against 118,329 bytes in the preview
+estimate. The full fixture SHA-256 values are in `tests/texture_preset_tests.cpp`.
+
+**Budgets (section 9), measured.** The fifteen files total 653,450 bytes (638.1 KiB), within the
+1 MiB limit. The largest file is Gravel at 120,454 bytes (117.6 KiB), within 200 KiB. Every file is at
+most 512 px on its long side (Fabric is 502 × 512). The package grows by these bytes, because the
+textures are compiled into the binary and JPEG does not compress under zstd.
+
+**Decisions the ADR did not settle.**
+
+1. **Floor-tile joint: 8 px at luminance 0.62**, not the draft's 3 px at 0.70. The owner asked for the
+   grout to be clearly visible. At 3 px the joint is under one screen pixel at normal distance and
+   vanishes when the 512 px tile repeats, because there are no mipmaps (ADR 0065). In the 8-bit
+   output the joint is 158 and the field is 242. The test requires a difference of at least 0.30 on
+   the 0 to 1 scale, and the measured difference is 0.33. The owner may want to confirm the width.
+2. **Parameters the draft left open:** the floor field's fBm uses 4 base cells; the brick fine noise
+   uses 64 cells per tile; the brushed-metal streak is the 5-tap kernel over rows; the glass rib
+   profile is evaluated at each pixel's position within its rib; the concrete speckle is a Box-Muller
+   Gaussian on the same PRNG. Each is documented in its generator.
+3. **Preview tint.** The preview and the library icons multiply sRGB channels by the tint. The
+   renderer multiplies linear values (ADR 0065), so the preview's shade is only approximate.
+
+**What does not match the ADR or the brief.**
+
+1. **The repeat size does not reach the model.** The table gives each textured preset a real-world
+   tile size (0.60 m for the floor tile, for example), but `MaterialRecord` has no size field. The
+   only texture scale in the model is the per-face mapping in `src/core/face_textures.hpp`, which
+   defaults to one metre per repeat. A preset's texture therefore repeats every 1 m until a person
+   sets the mapping on each face. The sizes are in the preset table, and the tests check them, but
+   they do not reach the document. Closing this needs an owner decision: store a repeat size on the
+   material (a schema change, with an ADR 0108 addendum), or apply the preset's size as a face mapping
+   when the material is applied. This is the main open item of R100.b.
+2. **Byte stability on other Qt versions is not shown.** The fixtures were checked on Qt 6.11.2 and
+   6.12.0. The declared minimum, Qt 6.8, was not run, so the pins may not hold there.
+3. **Library indices moved.** The group headings are disabled items, so Glass is now item 6, not 5.
+   The materials test looks items up by name.
+
+**Tests.** `texture_presets` (`tests/texture_preset_tests.cpp`): the table, the embedded hashes and
+sizes, the budgets, the fixture pins and their determinism, the floor-joint and brick-mortar contrast,
+and the notice, its CMake install line and the dependency entry. `material_input_tests` gained the
+Textured checks: the disabled heading, the preview, caption and licence, one undo step, the reuse of an
+identical texture, the generated floor tile's bytes, the Glass opacity, and the six colour presets
+unchanged. The native display lines run `material_input_tests` on X11 and Wayland at 1 and 2 times scale.
+
+**Run locally.** `texture_preset_tests` passed. `material_input_tests` passed every Textured and colour-preset
+check. Its last check, that the viewport renderer is ready, failed on the offscreen platform, because that
+platform creates no GL context here (`graphicsDescription()` was empty). That check is unchanged from before
+R100.b and needs the Xvfb or Wayland display that the CI native lines provide. The X11 and Wayland runs were
+not done locally, because Xvfb and Weston are not installed on this machine.
