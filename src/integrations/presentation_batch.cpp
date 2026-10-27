@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <chrono>
 #include <future>
+#include <map>
 #include <optional>
 #include <stdexcept>
 namespace sketchy {
@@ -109,10 +110,64 @@ void requireBlender(const BlenderJob::Options &options) {
             "Presentation batches need an installed Blender 5.2 LTS; install it or choose its "
             "executable");
 }
+// The executable a probe launches, resolved as BlenderJob resolves it. Its path, size and
+// modification time say whether an earlier answer still stands for it.
+struct ExecutableKey {
+    QString path;
+    qint64 size{-1}, modified{-1};
+    bool operator==(const ExecutableKey &) const = default;
+};
+ExecutableKey executableKey(const BlenderJob::Options &options) {
+    const auto executable = options.executable.isEmpty() ? QStandardPaths::findExecutable("blender")
+                                                         : options.executable;
+    const QFileInfo file(executable);
+    if (executable.isEmpty() || !file.isAbsolute() || !file.isFile() || !file.isExecutable())
+        return {};
+    return {file.canonicalFilePath(), file.size(), file.lastModified().toMSecsSinceEpoch()};
+}
+// The probe runs on the CPU: it reports the codecs of the build, whatever device a batch uses.
+BlenderJob::Options probeOptions(BlenderJob::Options options) {
+    options.backend = "CPU";
+    options.deviceId = "CPU";
+    return options;
+}
+// The answer of a finished probe (UX_DESIGN 17.5).
+PresentationVideoCheck answerOf(const BlenderJob &probe) {
+    PresentationVideoCheck check;
+    if (probe.phase() != BlenderJob::Phase::Succeeded) {
+        check.message = "The video check did not finish";
+        return check;
+    }
+    const auto codecs = probe.videoCodecs();
+    if (!codecs) {
+        check.message = "The video check did not report this Blender's codecs";
+        return check;
+    }
+    check.checked = true;
+    check.codecs = *codecs;
+    return check;
+}
+// A failed answer is reused this long, so a Blender that cannot be probed is not launched on every
+// call.
+constexpr auto failedAnswerWindow = std::chrono::seconds(60);
+
 // Refuses before any frame renders when the chosen codec is not in this Blender's list (UX_DESIGN
 // 17.5). A check that did not report the list refuses too, since the codec cannot be confirmed.
-void requireVideoCodec(const BlenderJob::Options &options, PresentationVideoCodec codec) {
-    const auto check = checkPresentationVideo(options);
+// With a cache (the desktop) the answer is the cached one, and a missing one refuses rather than
+// blocking; without one (the CLI) the Blender is checked now.
+void requireVideoCodec(PresentationVideoChecks *cache, const BlenderJob::Options &options,
+                       PresentationVideoCodec codec) {
+    PresentationVideoCheck check;
+    if (cache) {
+        const auto answer = cache->cached(options);
+        if (!answer)
+            throw std::runtime_error(
+                "The video encoder has not been checked yet. Check again, then Start.");
+        check = *answer;
+    } else {
+        PresentationVideoChecks blocking;
+        check = blocking.check(options);
+    }
     if (!check.checked)
         throw std::runtime_error(check.message.toStdString() +
                                  ". No frames were rendered. Check again, or clear Write video to "
@@ -127,33 +182,83 @@ void requireVideoCodec(const BlenderJob::Options &options, PresentationVideoCode
 }
 } // namespace
 
-PresentationVideoCheck checkPresentationVideo(const BlenderJob::Options &options) {
+struct PresentationVideoChecks::Impl {
+    struct Answer {
+        ExecutableKey key;
+        PresentationVideoCheck check;
+        std::chrono::steady_clock::time_point at;
+    };
+    std::map<QString, Answer> answers;      // By executable path.
+    std::map<QString, BlenderJob *> probes; // The running probes, by executable path.
+    std::function<std::chrono::steady_clock::time_point()> clock{
+        [] { return std::chrono::steady_clock::now(); }};
+    // The stored answer for this file, when it still stands: the file is unchanged, and a failed
+    // answer is inside its retry window.
+    const Answer *lookup(const ExecutableKey &key) const {
+        if (key.path.isEmpty())
+            return nullptr;
+        const auto found = answers.find(key.path);
+        if (found == answers.end() || found->second.key != key)
+            return nullptr;
+        if (!found->second.check.checked && clock() - found->second.at >= failedAnswerWindow)
+            return nullptr;
+        return &found->second;
+    }
+    void record(const ExecutableKey &key, const BlenderJob &probe) {
+        // A probe that could not start, because two Blender jobs were already active, says nothing
+        // about the Blender, so its answer is not kept.
+        if (key.path.isEmpty() || probe.report().value("code") == "BUSY")
+            return;
+        answers[key.path] = Answer{key, answerOf(probe), clock()};
+    }
+};
+
+PresentationVideoChecks::PresentationVideoChecks(QObject *parent)
+    : QObject(parent), impl_(std::make_unique<Impl>()) {}
+PresentationVideoChecks::~PresentationVideoChecks() = default;
+std::optional<PresentationVideoCheck>
+PresentationVideoChecks::cached(const BlenderJob::Options &options) const {
+    const auto *answer = impl_->lookup(executableKey(options));
+    if (!answer)
+        return std::nullopt;
+    return answer->check;
+}
+void PresentationVideoChecks::refresh(const BlenderJob::Options &options, bool force) {
+    const auto key = executableKey(options);
+    if (key.path.isEmpty() || impl_->probes.contains(key.path) || (!force && impl_->lookup(key)))
+        return;
+    auto *probe = new BlenderJob(this);
+    impl_->probes.emplace(key.path, probe);
+    // The answer arrives through the job's changed(), on this thread. Nothing waits here.
+    QObject::connect(probe, &BlenderJob::changed, this, [this, probe, key] {
+        if (!probe->done())
+            return;
+        impl_->probes.erase(key.path);
+        impl_->record(key, *probe);
+        probe->deleteLater();
+        emit finished();
+    });
+    probe->probe(probeOptions(options));
+}
+PresentationVideoCheck PresentationVideoChecks::check(const BlenderJob::Options &options) {
+    const auto key = executableKey(options);
+    if (const auto *answer = impl_->lookup(key))
+        return answer->check;
     BlenderJob probe;
     QEventLoop loop;
     QObject::connect(&probe, &BlenderJob::changed, &loop, [&] {
         if (probe.done())
             loop.quit();
     });
-    // The probe runs on the CPU: it reports the codecs of the build, whatever device a batch uses.
-    auto probing = options;
-    probing.backend = "CPU";
-    probing.deviceId = "CPU";
-    probe.probe(probing);
+    probe.probe(probeOptions(options));
     if (!probe.done())
         loop.exec();
-    PresentationVideoCheck check;
-    if (probe.phase() != BlenderJob::Phase::Succeeded) {
-        check.message = "The video check did not finish";
-        return check;
-    }
-    const auto codecs = probe.videoCodecs();
-    if (!codecs) {
-        check.message = "The video check did not report this Blender's codecs";
-        return check;
-    }
-    check.checked = true;
-    check.codecs = *codecs;
-    return check;
+    impl_->record(key, probe);
+    return answerOf(probe);
+}
+void PresentationVideoChecks::setClock(
+    std::function<std::chrono::steady_clock::time_point()> clock) {
+    impl_->clock = std::move(clock);
 }
 PresentationCapture::PresentationCapture(Document document, QByteArray encoded,
                                          PresentationPlan plan)
@@ -209,6 +314,7 @@ struct PresentationExport::Impl {
     QTimer timer;
     std::function<qint64(const QString &)> freeSpace{defaultFreeSpace};
     qint64 limit{outputLimit};
+    PresentationVideoChecks *videoChecks{};
 
     Impl(PresentationExport &owner, PresentationJobStore &store) : owner(owner), store(store) {
         timer.setInterval(10);
@@ -755,7 +861,7 @@ QString PresentationExport::start(PresentationCapture capture, QString output,
                 .toStdString());
     // A video checks the Blender's codec list before anything is written (UX_DESIGN 17.5).
     if (plan.video)
-        requireVideoCodec(options, plan.videoCodec);
+        requireVideoCodec(impl.videoChecks, options, plan.videoCodec);
     const auto id =
         impl.store.enqueue(capture.encoded(), QString::fromStdString(capture.documentId()),
                            QString::number(capture.revision()), plan, target.absoluteFilePath());
@@ -796,7 +902,7 @@ void PresentationExport::retry(const QString &id, BlenderJob::Options options) {
     requireBlender(options);
     // A resumed video checks its codec before any frame renders, as a new batch does.
     if (job.plan.video)
-        requireVideoCodec(options, job.plan.videoCodec);
+        requireVideoCodec(impl.videoChecks, options, job.plan.videoCodec);
     if (!QFileInfo(job.output).isDir() || QFileInfo(job.output).isSymLink())
         throw std::runtime_error("The batch folder is missing; the batch cannot resume");
     auto frozen = PresentationCapture::restore(impl.store.capture(id), job.plan);
@@ -853,5 +959,8 @@ bool PresentationExport::done() const {
 void PresentationExport::setOutputLimit(qint64 bytes) { impl_->limit = bytes; }
 void PresentationExport::setFreeSpaceProbe(std::function<qint64(const QString &)> probe) {
     impl_->freeSpace = std::move(probe);
+}
+void PresentationExport::setVideoChecks(PresentationVideoChecks *checks) {
+    impl_->videoChecks = checks;
 }
 } // namespace sketchy

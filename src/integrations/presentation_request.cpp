@@ -83,14 +83,28 @@ PresentationRun runPresentationRequest(const Document &doc, const PresentationRe
     return {batch.state(), manifest};
 }
 
-void installPresentationVideoProbe() {
-    setPresentationVideoProbe([]() -> QJsonObject {
-        const auto check = checkPresentationVideo(BlenderJob::Options{});
-        if (!check.checked)
-            return {{"checked", false}, {"message", check.message}};
-        return {{"checked", true},
-                {"h264", check.codecs.contains("H264")},
-                {"mpeg4", check.codecs.contains("MPEG4")}};
+namespace {
+// The describe query's report of one check (UX_DESIGN 17.5).
+QJsonObject encodersReport(const PresentationVideoCheck &check) {
+    if (!check.checked)
+        return {{"checked", false}, {"message", check.message}};
+    return {{"checked", true},
+            {"h264", check.codecs.contains("H264")},
+            {"mpeg4", check.codecs.contains("MPEG4")}};
+}
+} // namespace
+
+void installPresentationVideoProbe(PresentationVideoChecks &checks) {
+    setPresentationVideoProbe([&checks]() -> QJsonObject {
+        if (const auto answer = checks.cached(BlenderJob::Options{}))
+            return encodersReport(*answer);
+        checks.refresh(BlenderJob::Options{});
+        return {{"checked", false}, {"pending", true}, {"message", "Checking the video encoder…"}};
     });
+}
+
+void installBlockingPresentationVideoProbe(PresentationVideoChecks &checks) {
+    setPresentationVideoProbe(
+        [&checks]() -> QJsonObject { return encodersReport(checks.check(BlenderJob::Options{})); });
 }
 } // namespace sketchy

@@ -346,7 +346,8 @@ QJsonObject presentationDescription(const Document &doc, Id path, const std::vec
     if (!blender)
         refusals.append("Presentation batches need an installed Blender 5.2 LTS");
     // The configured Blender's video encoders (UX_DESIGN 17.5). The check runs only when a Blender
-    // is found, and the probe bounds how long it can take.
+    // is found. The desktop's probe answers from its cache and never blocks
+    // (installPresentationVideoProbe).
     QJsonObject encoders{{"checked", false},
                          {"message", "No Blender found, so video cannot be checked"}};
     if (blender)
@@ -354,7 +355,10 @@ QJsonObject presentationDescription(const Document &doc, Id path, const std::vec
                        ? presentationVideoProbe()
                        : QJsonObject{{"checked", false},
                                      {"message", "This program does not check video encoders"}};
-    if (video && blender && !encoders.value("checked").toBool())
+    if (video && blender && encoders.value("pending").toBool())
+        refusals.append("Video cannot be confirmed yet: the Blender's video encoders are being "
+                        "checked; ask again shortly");
+    else if (video && blender && !encoders.value("checked").toBool())
         refusals.append("Video cannot be confirmed in this Blender: " +
                         encoders.value("message").toString() + "; check again");
     if (video && encoders.value("checked").toBool() && !encoders.value("h264").toBool())

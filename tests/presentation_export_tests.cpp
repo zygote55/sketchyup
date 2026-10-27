@@ -1,5 +1,7 @@
+#include "automation/presentation_commands.hpp"
 #include "core/scenes.hpp"
 #include "integrations/presentation_batch.hpp"
+#include "integrations/presentation_request.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -13,8 +15,10 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <iostream>
+#include <utime.h>
 using namespace sketchy;
 namespace {
 void check(bool ok, const char *message) {
@@ -54,6 +58,15 @@ void waitUntil(const std::function<bool()> &condition, const char *message,
 }
 void wait(PresentationExport &batch) {
     waitUntil([&] { return batch.done(); }, "Batch finishes within its deadline");
+}
+// Runs queued events for a while, so an answer that would arrive has arrived.
+void settle(int milliseconds) {
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < milliseconds) {
+        QCoreApplication::processEvents();
+        QThread::msleep(2);
+    }
 }
 // A fake Blender that counts its launches. The launch numbered `hang` never returns, so a test can
 // stop a frame while its worker runs; zero never hangs.
@@ -898,6 +911,228 @@ int main(int argc, char **argv) {
             wait(batch);
             check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
                   "A batch closed while it ran resumes to completion");
+        }
+
+        // The codec check is cached per executable (UX_DESIGN 17.5). A second check launches
+        // nothing; a changed modification time or size is probed again.
+        {
+            std::chrono::steady_clock::time_point now{};
+            PresentationVideoChecks checks;
+            checks.setClock([&now] { return now; });
+            int finished = 0;
+            QObject::connect(&checks, &PresentationVideoChecks::finished, &app,
+                             [&finished] { ++finished; });
+            const auto counter = files.filePath("count-cache");
+            const auto probed = blender(counter);
+            check(!checks.cached(probed).has_value(), "Nothing is cached before a check");
+            const auto first = checks.check(probed);
+            check(first.checked && first.codecs.contains("H264") && launches(counter) == 1,
+                  "The first check probes the Blender once");
+            check(checks.check(probed).checked && launches(counter) == 1 &&
+                      checks.cached(probed).has_value(),
+                  "A second check reuses the cached answer and launches nothing");
+            now += std::chrono::hours(1);
+            check(checks.cached(probed).has_value(),
+                  "A successful answer is reused until the file changes");
+
+            struct utimbuf older{1000000000, 1000000000};
+            check(utime(probed.executable.toUtf8().constData(), &older) == 0,
+                  "Set an older modification time on the fixture");
+            check(!checks.cached(probed).has_value(),
+                  "A changed modification time ends the cached answer");
+            checks.refresh(probed);
+            waitUntil([&] { return finished == 1; }, "A refresh probes the changed file");
+            check(launches(counter) == 2 && checks.cached(probed).has_value(),
+                  "The changed file is probed once and its answer is cached");
+
+            write(probed.executable, read(probed.executable) + "\n");
+            check(!checks.cached(probed).has_value(), "A changed size ends the cached answer");
+            checks.refresh(probed);
+            waitUntil([&] { return finished == 2; }, "A refresh probes the resized file");
+            check(launches(counter) == 3, "The resized file is probed once more");
+        }
+
+        // A failed answer is kept for its 60 s window, so a broken Blender is not launched on every
+        // call. After the window it is probed again; a forced refresh ("Check again") probes at
+        // once.
+        {
+            std::chrono::steady_clock::time_point now{};
+            PresentationVideoChecks checks;
+            checks.setClock([&now] { return now; });
+            int finished = 0;
+            QObject::connect(&checks, &PresentationVideoChecks::finished, &app,
+                             [&finished] { ++finished; });
+            const auto counter = files.filePath("count-failed");
+            const auto broken = blender(counter);
+            qputenv("SKETCHYUP_FAKE_CODECS", "absent");
+            check(!checks.check(broken).checked && launches(counter) == 1,
+                  "A probe that reports no codec list fails once");
+            check(!checks.check(broken).checked && launches(counter) == 1,
+                  "A failed answer is reused inside its retry window");
+            now += std::chrono::seconds(59);
+            checks.refresh(broken);
+            settle(200);
+            check(launches(counter) == 1 && finished == 0,
+                  "A refresh inside the retry window launches nothing");
+            now += std::chrono::seconds(2);
+            check(!checks.cached(broken).has_value(),
+                  "A failed answer ends at its 60 s retry window");
+            checks.refresh(broken);
+            waitUntil([&] { return finished == 1; }, "A refresh after the window probes again");
+            check(launches(counter) == 2, "The failed Blender is probed again after its window");
+            checks.refresh(broken, true);
+            waitUntil([&] { return finished == 2; }, "A forced refresh probes at once");
+            check(launches(counter) == 3, "A forced refresh probes inside the retry window");
+            qunsetenv("SKETCHYUP_FAKE_CODECS");
+        }
+
+        // presentation.describe in the desktop never blocks. With no cached check it reports the
+        // check as pending, starts one, and returns; the answer arrives while events run. The CLI's
+        // describe checks synchronously.
+        {
+            const auto oldPath = qgetenv("PATH");
+            const auto bin = files.filePath("bin");
+            check(QDir().mkpath(bin), "Blender directory fixture");
+            Document described;
+            described.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+            SceneSnapshot shot;
+            shot.camera = SceneCamera{};
+            const auto sceneA = createScene(described, "A", shot);
+            shot.camera->yaw = 90;
+            const auto sceneB = createScene(described, "B", shot);
+            executePresentationCommand(
+                described, QJsonObject{{"command", "camera_path.create"},
+                                       {"name", "Orbit"},
+                                       {"keyframes", QJsonArray{QString::number(sceneA),
+                                                                QString::number(sceneB)}},
+                                       {"timing", QJsonObject{{"framesPerSecond", 24},
+                                                              {"transitionSteps", 1},
+                                                              {"holdSteps", 1}}}});
+            executePresentationCommand(described, QJsonObject{{"command", "render_preset.create"},
+                                                              {"name", "Draft"},
+                                                              {"width", 64},
+                                                              {"height", 64},
+                                                              {"samples", 1},
+                                                              {"seed", 0},
+                                                              {"engine", "cycles"}});
+            Id pathId{}, presetId{};
+            for (const auto &[id, path] : described.cameraPaths())
+                if (path->name == "Orbit")
+                    pathId = id;
+            for (const auto &[id, preset] : described.renderPresets())
+                if (preset->name == "Draft")
+                    presetId = id;
+            const auto encodersOf = [](const QJsonObject &description) {
+                return description["blender"].toObject()["videoEncoders"].toObject();
+            };
+            qputenv("PATH", bin.toUtf8() + ":" + oldPath);
+            {
+                const auto counter = files.filePath("count-describe");
+                launcher(files, "bin/blender", binary, counter, 0);
+                PresentationVideoChecks desktop;
+                installPresentationVideoProbe(desktop);
+                const auto pending = presentationDescription(described, pathId, {presetId}, true);
+                const auto encoders = encodersOf(pending);
+                check(encoders["checked"] == false && encoders["pending"] == true &&
+                          encoders["message"] == "Checking the video encoder…",
+                      "A describe with no cached check reports it as pending");
+                check(!desktop.cached(BlenderJob::Options{}).has_value(),
+                      "The describe returns before the probe can answer");
+                check(pending["refusals"].toArray().contains(QJsonValue(
+                          "Video cannot be confirmed yet: the Blender's video encoders are being "
+                          "checked; ask again shortly")),
+                      "A pending check is refused in words that say it is pending");
+                waitUntil([&] { return desktop.cached(BlenderJob::Options{}).has_value(); },
+                          "The background check fills the cache");
+                const auto ready =
+                    encodersOf(presentationDescription(described, pathId, {presetId}, true));
+                check(ready["checked"] == true && ready["h264"] == true && ready["mpeg4"] == true,
+                      "The next describe reports the cached check");
+                presentationDescription(described, pathId, {presetId}, true);
+                check(launches(counter) == 1, "Describe queries share one probe");
+                setPresentationVideoProbe({});
+            }
+            {
+                const auto counter = files.filePath("count-describe-cli");
+                launcher(files, "bin/blender", binary, counter, 0);
+                PresentationVideoChecks blocking;
+                installBlockingPresentationVideoProbe(blocking);
+                const auto answer =
+                    encodersOf(presentationDescription(described, pathId, {presetId}, true));
+                check(answer["checked"] == true && answer["h264"] == true && launches(counter) == 1,
+                      "The CLI's describe checks the Blender before it returns");
+                setPresentationVideoProbe({});
+            }
+            qputenv("PATH", oldPath);
+        }
+
+        // The desktop batch never probes. start refuses a video until the cache holds a fresh
+        // answer for this Blender, before any folder, job or frame. Once it does, the batch runs; a
+        // changed Blender is refused again.
+        {
+            PresentationVideoChecks checks;
+            const auto counter = files.filePath("count-desktop");
+            const auto desktopBlender = blender(counter);
+            PresentationJobStore jobs(files.filePath("desktop-store"), limits);
+            const auto jobsBefore = jobs.jobs().size();
+            auto videoPlan = plan(keyframes);
+            videoPlan.video = true;
+            const auto output = files.filePath("desktop-video");
+            const std::string missing =
+                "The video encoder has not been checked yet. Check again, then Start.";
+            std::string message;
+            PresentationExport refused(jobs);
+            refused.setVideoChecks(&checks);
+            try {
+                refused.start(PresentationCapture::capture(doc, videoPlan), output, desktopBlender);
+            } catch (const std::exception &error) {
+                message = error.what();
+            }
+            check(message == missing && !QFileInfo::exists(output) &&
+                      jobs.jobs().size() == jobsBefore && launches(counter) == 0,
+                  "A missing check refuses a desktop video before any folder, job or launch");
+            checks.refresh(desktopBlender);
+            waitUntil([&] { return checks.cached(desktopBlender).has_value(); },
+                      "The dialog's background check fills the cache");
+            PresentationExport batch(jobs);
+            batch.setVideoChecks(&checks);
+            batch.start(PresentationCapture::capture(doc, videoPlan), output, desktopBlender);
+            wait(batch);
+            check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
+                  "A fresh cached check lets the desktop video batch complete");
+            verifyVideos(output, 6);
+
+            write(desktopBlender.executable, read(desktopBlender.executable) + "\n");
+            const auto launchesBefore = launches(counter);
+            message.clear();
+            PresentationExport stale(jobs);
+            stale.setVideoChecks(&checks);
+            try {
+                stale.start(PresentationCapture::capture(doc, videoPlan),
+                            files.filePath("desktop-stale"), desktopBlender);
+            } catch (const std::exception &error) {
+                message = error.what();
+            }
+            check(message == missing && !QFileInfo::exists(files.filePath("desktop-stale")) &&
+                      launches(counter) == launchesBefore,
+                  "A changed Blender is refused until it is checked again, and nothing launches");
+        }
+
+        // The CLI keeps the synchronous check: a video batch without a cache checks the Blender
+        // before start returns.
+        {
+            PresentationJobStore cliJobs(files.filePath("cli-store"), limits);
+            const auto counter = files.filePath("count-cli");
+            auto videoPlan = plan(keyframes);
+            videoPlan.video = true;
+            PresentationExport cli(cliJobs);
+            cli.start(PresentationCapture::capture(doc, videoPlan), files.filePath("cli-video"),
+                      blender(counter));
+            check(launches(counter) == 1,
+                  "Without a cache, start checks the Blender synchronously");
+            wait(cli);
+            check(cli.state() == PresentationJobState::Completed,
+                  "The CLI's synchronously checked video batch completes");
         }
 
         // Real Blender, when the explicit opt-in is set: one batch from one capture.

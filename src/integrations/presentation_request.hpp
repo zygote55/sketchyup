@@ -21,7 +21,12 @@ PresentationRun runPresentationRequest(const Document &doc, const PresentationRe
                                        const std::function<bool()> &interrupted,
                                        const std::function<bool()> &stopped,
                                        BlenderJob::Options options = {});
-// Installs the real Blender video check behind presentation.describe. The application and the CLI
-// call it at startup; without it the query reports the video as not checked.
-void installPresentationVideoProbe();
+// Installs the Blender video check behind presentation.describe for the desktop. It never blocks:
+// it reports the cached check, or {checked: false, pending: true} while a background probe fills
+// the cache. `checks` must outlive the process's describe queries.
+void installPresentationVideoProbe(PresentationVideoChecks &checks);
+// The CLI's form: it checks synchronously, since no interactive event loop can freeze. `checks`
+// must outlive the process's describe queries. Without an installed probe the video is reported as
+// not checked.
+void installBlockingPresentationVideoProbe(PresentationVideoChecks &checks);
 } // namespace sketchy

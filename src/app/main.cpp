@@ -24,8 +24,10 @@ int main(int argc, char **argv) {
     QGuiApplication::setDesktopFileName("io.sketchyup.SketchyUp");
     QApplication::setOrganizationName("SketchyUp");
     QApplication::setApplicationVersion(SKETCHYUP_VERSION);
-    // The assistant and the MCP surface report the Blender's video encoders through this probe.
-    sketchy::installPresentationVideoProbe();
+    // The assistant and the MCP surface report the Blender's video encoders through this probe. It
+    // never blocks: it reports the cached check and starts a background one (UX_DESIGN 17.5).
+    sketchy::PresentationVideoChecks videoChecks;
+    sketchy::installPresentationVideoProbe(videoChecks);
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();

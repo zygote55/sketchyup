@@ -22,9 +22,9 @@ QJsonObject presentationDescription(const Document &doc, Id path, const std::vec
                                     bool video);
 
 // The Blender video check that presentation.describe reports while a Blender is configured: either
-// {checked: true, h264, mpeg4} or {checked: false, message}. The render library's probe is
-// installed at startup (installPresentationVideoProbe); without one, the video is reported as not
-// checked.
+// {checked: true, h264, mpeg4}, {checked: false, message}, or {checked: false, pending: true,
+// message} while the desktop's background check runs. The render library's probe is installed at
+// startup (installPresentationVideoProbe); without one, the video is reported as not checked.
 using PresentationVideoProbe = std::function<QJsonObject()>;
 void setPresentationVideoProbe(PresentationVideoProbe probe);
 

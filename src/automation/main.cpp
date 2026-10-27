@@ -104,8 +104,10 @@ int main(int argc, char **argv) {
         application = std::make_unique<QCoreApplication>(argc, argv);
     auto &app = *application;
     QCoreApplication::setApplicationVersion(SKETCHYUP_VERSION);
-    // The describe queries report the Blender's video encoders through this probe.
-    sketchy::installPresentationVideoProbe();
+    // The describe queries report the Blender's video encoders through this probe. The CLI has no
+    // event loop to freeze, so it checks synchronously.
+    sketchy::PresentationVideoChecks videoChecks;
+    sketchy::installBlockingPresentationVideoProbe(videoChecks);
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();

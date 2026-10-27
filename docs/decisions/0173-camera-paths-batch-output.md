@@ -1015,3 +1015,24 @@ engine and worker the presentation UI needs. No UI.
      that cost. Its input is unchanged, and its codec answer covers both codecs.
 - **Open for R099.d2 and R099.d3.** The Presentations dialog (d2) and the batch dialog, Jobs row,
   results and quit prompt (d3). The quit prompt calls `stop()`.
+
+**Review fix (R099.d1): cached, non-blocking codec check.** The review found that
+`presentation.describe` launched a Blender probe on every call and waited for it on a nested event
+loop on the UI thread, so each query could freeze the desktop for up to 15 s and re-enter UI code.
+This resolves contradictions 3 and 4 above, and the "Codec probe" and "Describe" notes describe the
+blocking form that this supersedes. `PresentationVideoChecks` caches the probe per Blender
+executable, keyed by its canonical path, size and modification time. A successful answer stands
+until the key changes. A failed one stands for 60 s, so a broken Blender is not launched on every
+call. `cached()` only reads. `refresh()` starts a `BlenderJob` probe and emits `finished()` when it
+fills the cache, with no nested loop. `check()` is the CLI's blocking form. The desktop installs
+`installPresentationVideoProbe`, so `presentation.describe` reports the cached check, or
+`checked: false, pending: true` with "Checking the video encoder…" while a refresh runs. The CLI
+installs `installBlockingPresentationVideoProbe`. The describe input schema and description are
+unchanged. `PresentationExport::setVideoChecks` makes `start` and `retry` read the cache only. Without
+a fresh answer for the current Blender, they refuse before capture with "The video encoder has not
+been checked yet. Check again, then Start."; the 17.5 wording for a missing codec is unchanged. The
+batch dialog runs `refresh()` on open, reads `cached()` on Start, and refreshes first when the answer
+is missing, which covers a changed executable. The cache was chosen over passing a result in: a
+passed result would need its own key, and a caller could pass a stale one. Unset, `start` and
+`retry` check synchronously, as the CLI does. The nested event loops that remain are the CLI's only:
+`PresentationVideoChecks::check()` and the wait in `runPresentationRequest`. The desktop path has none.
