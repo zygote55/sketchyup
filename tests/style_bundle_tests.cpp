@@ -164,7 +164,8 @@ void schemaSelection() {
           "Presentation records without an edge stroke stay schema 30");
 
     const auto fixture = styleFixture();
-    check(nativeDocumentVersionFor(fixture) == 31 && nativeDocumentVersion == 31,
+    check(nativeDocumentVersionFor(fixture) == 31 && nativeEdgeStyleDocumentVersion == 31 &&
+              nativeDocumentVersion == 32,
           "An edge stroke on the document style is schema 31");
     const auto bytes = encodeContainer(fixture);
     check(hasFeature(bytes, "edge-styles-v1") && hasFeature(bytes, "presentation-v1"),

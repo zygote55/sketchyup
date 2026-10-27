@@ -1195,3 +1195,109 @@ check. Its last check, that the viewport renderer is ready, failed on the offscr
 platform creates no GL context here (`graphicsDescription()` was empty). That check is unchanged from before
 R100.b and needs the Xvfb or Wayland display that the CI native lines provide. The X11 and Wayland runs were
 not done locally, because Xvfb and Weston are not installed on this machine.
+
+## Implementation notes (R100.b2)
+
+Recorded 2026-10-27 for branch `feat/r100b2-material-texture-size`, on origin/main `ffc7ff95` (R100.b).
+
+**Schema (the reading the brief sets).** Schema 31 is R100.a's, so this slice is schema 32 with
+`material-texture-size-v1`, cumulative with the schema-31 set. R107.a (PR #483, `feat/r107a-offline-coordinates`)
+also takes 32 and is open. Whichever PR merges first keeps 32. If R107.a merges first, this slice moves to 33:
+`nativeDocumentVersion`, the `json-v32` encoding, the feature check, the fixture, the sweeps and the API documents.
+Both features stay conditional, so neither changes a document that does not use it.
+
+**The field.** `MaterialRecord::textureSize` is an optional `TextureSize {width, height}` in metres. Each side
+is finite and from 0.01 m to 100 m (1 cm to 100 m). The bounds are this slice's choice: the signed-off presets run
+from 0.27 m to 2.50 m, the viewport's precision guard already refuses large spans, and 100 m is above any repeat
+the presets use. The size is validated on load (`validateMaterialRecords`), on command, in the catalog reader and
+writer, and in the `.skp` import, where an out-of-range size is not stored and raises a notice.
+
+**The implicit mapping.** `effectiveFaceTextureMapping` takes the document's material records as a new fourth
+argument. For a side whose material has a size, the implicit projection is `planarTextureMapping` with that width
+and height; otherwise it is one metre, as before. Explicit side mappings are unchanged, and an explicit mapping
+ignores the size. The callers are the viewport, the texture editor, the texture commands and inspection, and the
+GLB and OBJ exporters. The viewport rebuilds a body when a referenced material record changes (its `buildMesh`
+compares the material pointers), so a size edit refreshes the render without touching the body.
+
+**Encoding.** A size is written only when set. `nativeDocumentVersionFor` returns 32 when any material has one,
+and the container adds `material-texture-size-v1` at 32. The decoder checks the schema-31 feature set without the
+new feature, and a file carrying the new feature must match that set exactly; otherwise it throws
+`Invalid required features`. A payload accepts `textureSize` only from version 32 (`supportedFields`).
+
+**Commands.** `material.create` and `material.edit` take `textureSize`: `{width, height}` in metres, or `null` for
+no size. On edit an absent field keeps the size and `null` clears it. Each edit is one undo step. `materials.describe`
+reports `textureSize` per material (the object, or `null`). The brief names `material.describe`, which does not
+exist; the command is `materials.describe`. `document.describe` reports counts and is unchanged.
+
+**Assistant.** The field is removed from the assistant's copy of the command schemas (`withoutOptionalField` in
+`src/automation/assistant.cpp`). R100.f1 does the same for `edgeStroke` on its own branch, which is not merged, so
+this helper is new code here. The engine still accepts the field. `assistant_tool_surface_tests` checks that the
+assistant's tools do not contain `textureSize` and that MCP's `transaction.apply` does; the byte pin
+`tests/assistant-tool-surface-baseline.json` is unchanged. The MCP and transaction API documents in `docs/api` gained
+the field, regenerated with `generate-api-schemas.py` and `generate-tool-reference.py` and checked with `--check`.
+
+**Editor.** The material dialog has a **Set size** checkbox and width and height spin boxes (0.01 to 100 m, two
+decimals), after **Stored file**. A textured preset turns the size on with its tile size. A colour preset and
+Custom leave it alone. An edit sends `textureSize` only when the size changed. UX_DESIGN §18 does not design this
+field; it is added here without a design, for the owner to review.
+
+**Presets.** The fifteen textured presets already carry their Q1 tile sizes; creating one now stores that size on
+its material. `texture_preset_tests` checks all fifteen against the table (it checked four before). The six colour
+presets store no size.
+
+**Carriers.**
+
+- *Catalogs (`.sketchycat`).* A material record may carry `textureSize`. The four existing fields stay required and
+  the fifth is optional, written only when set. The bundle version stays 1, because the catalog format is not yet
+  released (R100). A reader without this change refuses a sized entry under its strict field check, as it would any
+  unknown field. Insertion reuses a material only when the size matches (ADR 0131), and `catalog.export` carries it.
+- *Style files (`.sketchystyle`).* Nothing to carry. A style holds the display record and the edge stroke, and no
+  material. The edge texture is an image asset for the stroke, not a material, so it has no size. The brief asked
+  for style files to carry the size; they cannot, because they carry no materials.
+- *`.skp` import.* OpenSKP's `Texture` has `width` and `height`, which the importer already reads in inches for
+  the explicit face mappings (R102.b). The material now keeps them in metres (times 0.0254) when both are positive
+  and within the bounds; otherwise it keeps no size and the notice `textureSizeOutOfRange` is raised. The explicit
+  mappings are unchanged. The unit is the inch reading R102.b already uses. OpenSKP's header calls the values a
+  "scale factor" and does not state the unit, and this slice did not check the unit against a second source.
+- *glTF and OBJ import.* Both leave the size unset. Neither format carries a metres size: a glTF texture transform is
+  a UV transform, and an OBJ file has no scale. No importer code changed.
+- *glTF and OBJ export.* The GLB export (the only glTF exporter, `src/integrations/glb_export.cpp`) and the OBJ
+  export compute UVs from the same mapping, so a sized material repeats over its size in both.
+
+**Released-reader refusal (measured).** The released packages come from the GitHub release. Each was downloaded to a
+scratch directory, checked against `SHA256SUMS`, extracted without installing, and run on the schema-32 fixture
+`tests/fixtures/material-texture-size-v32.sketchyup` with `--validate-native`:
+
+- `sketchyup-cli 1.3.0` (`sketchyup-1.3.0-1-x86_64.pkg.tar.zst`): exit 1,
+  `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`, file unchanged (`cmp`).
+- `sketchyup-cli 1.2.0` (`sketchyup-1.2.0-1-x86_64.pkg.tar.zst`): the same output, exit 1, file unchanged.
+
+`material_texture_size_tests` runs the 1.3.0 check when `SKETCHYUP_PRIOR_CLI` is set, and it passed with that CLI.
+This is the message R100.a recorded for schema 31, not the newer-format wording ADR 0168 §2 describes.
+
+**Verification run locally.** See the final report for each binary's result. The local build is the Debug `dev`
+preset with the BFD linker, because the `ci-fast` preset needs mold, which this machine does not have.
+
+**Contradictions for the owner.**
+
+1. The brief names `material.describe` and says style files carry the size. The engine has `materials.describe`, and
+   style files carry no materials (above).
+2. The released readers refuse with `Unsupported container field`, not the newer-format error §2 and §6 expect. R100.a
+   recorded the same difference.
+3. UX_DESIGN §18 has no size field. The field here is minimal and not designed.
+4. R100.b's note that the repeat size "does not reach the model" is closed by this slice.
+
+**Not measured or not run.**
+
+- The viewport was not run on a GL context here, so the rendered repeat is not seen. The renderer uses the same
+  mapping function that the tests check, and the texture export test checks the GLB and OBJ UVs. That a size edit
+  refreshes the viewport is read from the mesh cache check, not run.
+- The Qt 6.8 minimum was not run (this machine has Qt 6.12, and CI pins 6.11.2).
+- The native X11 and Wayland display lines and the sanitizer build were not run locally. They are registered in
+  `native.yml`, which lists the new test in the sanitizer build and the CTest filter.
+- The fuzz format builds only under the clang fuzzer configuration, which was not built here. The seed program was
+  compiled with the dev flags and run instead, and its own checks validate each seed.
+- The §9 budgets were not measured.
+- glTF and OBJ import leave the size unset by construction. No test was added for that.
+- An import whose entries are all reused is refused with `Empty edit`. That behaviour exists on main and was not
+  changed here.

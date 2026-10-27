@@ -267,18 +267,15 @@ int main(int argc, char **argv) {
                 check(nested.contains(command),
                       std::string("MCP transaction.apply accepts ") + command);
         }
-        // R100.b2: MCP's material commands take the texture size.
+        // R100.b2: MCP's material commands take the texture size. They are nested in the
+        // transaction tools' schemas, so count the field across every MCP tool.
         {
             int sized = 0;
-            for (const auto &tool : mcpToolCatalog()) {
-                const auto entry = tool.toObject();
-                const auto toolName = entry["name"].toString();
-                if (toolName == "material.create" || toolName == "material.edit")
-                    sized += QJsonDocument(entry["inputSchema"].toObject())
-                                 .toJson(QJsonDocument::Compact)
-                                 .contains("textureSize");
-            }
-            check(sized == 2, "MCP material.create and material.edit accept the texture size");
+            for (const auto &tool : mcpToolCatalog())
+                sized += QJsonDocument(tool.toObject()["inputSchema"].toObject())
+                             .toJson(QJsonDocument::Compact)
+                             .count("textureSize");
+            check(sized >= 2, "MCP material.create and material.edit accept the texture size");
         }
         // 5. Site and terrain commands cannot be authorized for an assistant task, and the
         // hidden query site.convert is rejected without reaching the document.

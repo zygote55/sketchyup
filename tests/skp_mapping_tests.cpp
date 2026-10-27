@@ -545,7 +545,6 @@ int main(int argc, char **argv) {
             }
         }
         check(textured, "S5: the textured face is imported with its mapping");
-        checkUndo("textured_face.skp (S5)", imported);
         // S6 (R100.b2, ADR 0174 section 3): the material keeps the texture's size, in metres from
         // the inches OpenSKP reports, and the explicit mapping above is unchanged by it.
         const auto &texture = package.textures.at(0);
@@ -561,6 +560,7 @@ int main(int argc, char **argv) {
             sized = true;
         }
         check(sized, "S6: the textured material is imported with its size");
+        checkUndo("textured_face.skp (S5)", imported);
     }
     {
         // A mirrored placement keeps its faces outward: the block's faces point away from its centre, and the
