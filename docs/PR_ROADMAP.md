@@ -1481,7 +1481,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R103 — Investigate and conditionally implement Ruby extension compatibility
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Automation. **Scope:** C02. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0177](decisions/0177-ruby-extension-feasibility.md), accepted: not viable for 1.x; C02 stays unsupported). **Track:** Automation. **Scope:** C02. **UX:** —.
 
 **Requires:** [R089](#r089), [R080](#r080); milestone gate rule above.
 
