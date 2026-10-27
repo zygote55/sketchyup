@@ -21,6 +21,14 @@
 #include "skp/sandbox_policy.hpp"
 #include "sketchyup/version.hpp"
 
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+// The sanitizer builds. LeakSanitizer checks for leaks at exit by stopping the helper's threads with
+// ptrace, which the sandbox refuses (ADR 0183 section 3). The application starts the helper with an
+// empty environment, so ASAN_OPTIONS cannot turn it off there; the CI runs the sanitizers with
+// detect_leaks=0 (native.yml), and this is that setting, built into the sanitized helper.
+extern "C" const char* __lsan_default_options() { return "detect_leaks=0"; }
+#endif
+
 namespace {
 
 void usage(std::FILE* stream) {

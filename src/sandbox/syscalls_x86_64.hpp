@@ -1,8 +1,8 @@
 #pragma once
 // The x86_64 system call numbers the sandbox policies name (ADR 0183 section 4.3). The numbers are
-// the kernel's ABI, from arch/x86/entry/syscalls/syscall_64.tbl. Only the calls a policy can name are
-// listed: a name that is not here cannot be allowed, so the policy fails closed. The sandbox tests
-// check every entry against the C library's SYS_ constants where the C library defines one.
+// the kernel's ABI, from arch/x86/entry/syscalls/syscall_64.tbl. Only the calls a policy can name
+// are listed: a name that is not here cannot be allowed, so the policy fails closed. The sandbox
+// tests check every entry against the C library's SYS_ constants where the C library defines one.
 #include <cstddef>
 #include <optional>
 #include <string_view>
@@ -91,6 +91,7 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"execveat", 322},
     {"statx", 332},
     {"rseq", 334},
+    {"pipe2", 293},
     {"io_uring_setup", 425},
     {"io_uring_enter", 426},
     {"io_uring_register", 427},
@@ -112,20 +113,22 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
 
 // The number of a call by its name, or nothing when the table does not list it.
 inline std::optional<long> syscallNumber(std::string_view name) {
-    for (const SyscallNumber& entry : kX86_64Syscalls)
-        if (entry.name == name) return entry.number;
+    for (const SyscallNumber &entry : kX86_64Syscalls)
+        if (entry.name == name)
+            return entry.number;
     return std::nullopt;
 }
 
 // The kernel's AUDIT_ARCH_X86_64 and seccomp_data layout (linux/audit.h, linux/seccomp.h).
 inline constexpr unsigned kAuditArchX86_64 = 0xC000003EU;
 inline constexpr std::size_t kSeccompDataArch = 4;
-inline constexpr std::size_t kSeccompDataArg0 = 16;  // the low 32 bits of args[0], little-endian
+inline constexpr std::size_t kSeccompDataArg0 = 16; // the low 32 bits of args[0], little-endian
 
-// Numbers the sandbox calls itself (the kernel's ABI; the C library does not define the Landlock ones).
+// Numbers the sandbox calls itself (the kernel's ABI; the C library does not define the Landlock
+// ones).
 inline constexpr long kSysSeccomp = 317;
 inline constexpr long kSysLandlockCreateRuleset = 444;
 inline constexpr long kSysLandlockAddRule = 445;
 inline constexpr long kSysLandlockRestrictSelf = 446;
 
-}  // namespace sketchyup::sandbox
+} // namespace sketchyup::sandbox

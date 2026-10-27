@@ -53,6 +53,20 @@ sandbox::Policy skpSandboxPolicy(const std::string& input, const std::string& ou
         // falls back to clone (ADR 0183 section 4.3)
         {"clone", Action::threadOnly},
         {"clone3", Action::notImplemented},
+        // abort() signals its own process (tgkill), so a parser abort is a crash and not a violation;
+        // a signal to any other process is EPERM
+        {"tgkill", Action::ownProcessOnly},
+        {"getpid", Action::allow},
+        {"gettid", Action::allow},
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+        // The sanitizer builds (ASan and UBSan, and the fuzzer build) only: their runtimes make these calls
+        // after main. UBSan's type cache opens a pipe on a first-time vptr check; ASan gives each thread an
+        // alternate signal stack. A release helper does not carry them (ADR 0183 section 5).
+        {"pipe2", Action::allow},
+        {"sigaltstack", Action::allow},
+        {"fcntl", Action::allow},
+        {"sched_getaffinity", Action::allow},
+#endif
         // no socket, no exec, no fork: a call not listed here (socket, execve, fork, ptrace...) kills
         // the helper with SIGSYS (ADR 0183 section 5: the SKP network and exec rows are "none").
     };
