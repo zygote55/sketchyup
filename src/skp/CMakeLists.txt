@@ -7,9 +7,10 @@ add_library(sketchyup_skp ${SKETCHYUP_LIBRARY_TYPE}
   import.cpp
   package.cpp
   report.cpp
+  sandbox_policy.cpp
   sha256.cpp)
 target_include_directories(sketchyup_skp PRIVATE ${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(sketchyup_skp PUBLIC sketchyup_openskp)
+target_link_libraries(sketchyup_skp PUBLIC sketchyup_openskp sketchyup_sandbox)
 target_compile_options(sketchyup_skp PRIVATE -Wall -Wextra -Wpedantic)
 add_executable(sketchyup-skp-worker worker_main.cpp)
 target_include_directories(sketchyup-skp-worker PRIVATE ${PROJECT_SOURCE_DIR}/src)

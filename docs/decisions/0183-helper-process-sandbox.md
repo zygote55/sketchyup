@@ -357,3 +357,42 @@ Every source was read on 2026-10-26 unless noted. Dates in brackets are the page
 - Blender 5.2 manual, command-line options and preferences, read through the research pass (branch `blender-v5.2-release` of the manual repository, <https://projects.blender.org/blender/blender-manual>). `--offline-mode`, `--factory-startup`, `--disable-autoexec` and `--background` were then run on the installed Blender 5.2.2 LTS.
 - Blender system requirements, <https://www.blender.org/download/requirements/>, read through the research pass.
 - Measurements in §6 were taken on this machine on 2026-10-26, with the prototype described in §6.1 and §6.10. The prototype is not committed. The numbers are the only copy of its results.
+
+## Implementation notes (R109 S0, S1)
+
+Recorded 2026-10-27 on branch `feat/r109a-sandbox-skp`, based on `origin/main` at `04f80ca9`. This section covers the shared library (S0, `src/sandbox/`) and the `.skp` helper (S1). S2 to S6 are not covered here. The design above is unchanged except where a point below says so.
+
+**Kernel and budgets (measured on this machine, kernel 7.2.8-9-omarchy).**
+
+- Landlock ABI 10, read with the version flag (`landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION)`). The runner's ABI is not known yet; the first `skp_sandbox` run on the runner records it, and S6 makes it a required check.
+- The SKP policy compiles to 67 instructions, 536 bytes, from `buildProgram` (the program's length is read from the code, not counted by hand). That is far below the 4096 limit of §9.
+- Install cost, the median of 300 forks: fork and exit 134.8 µs; fork, apply the SKP policy and exit 307.2 µs. The install costs about 172 µs, under the 1 ms budget.
+- Per allowed call (`lseek`, 2 million calls): 59.9 ns without a filter and 66.5 ns with the SKP policy. That is +6.6 ns, under the 50 ns budget.
+
+**The allow-list, re-derived (SKP).** The helper's calls are the calls made from `main` onward. The loader's calls before `main` are not filtered, because the filter goes in at the top of `main`.
+
+- Traced with gdb, from `main`, on all 12 fixtures in each of the three modes (`--import`, `--probe`, `--dry-run`), with `--deadline-seconds 0`. The calls seen were `read`, `write`, `writev`, `close`, `fstat`, `lseek`, `openat`, `brk`, `prlimit64` and `exit_group`. The trace could not follow the watch thread: gdb's catch loop stops when the thread is created. So the thread's calls were not traced.
+- The watch thread (the default deadline) was measured another way: a driver creates, sleeps and joins a thread under the policy, and each entry is removed in turn. Removing `mmap`, `madvise`, `mprotect`, `munmap`, `rseq`, `set_robust_list`, `futex`, `rt_sigprocmask`, `rt_sigaction` or `clock_nanosleep` kills the thread. `clone` (thread-only) and `clone3` (ENOSYS) are the thread's creation calls.
+- The ADR's list of 19 differs from the final list in these ways. `prctl` is dropped: it runs before the filter, and no call after the filter uses it. `mprotect` and `munmap` are added, because the watch thread needs both; the ADR's list had neither. `clone` (thread-only) and `clone3` (ENOSYS) are added, because the watch thread creates a thread. `mremap` is added with no trace: no fixture reaches the size at which glibc uses it, so it is kept for large inputs (§6.9). `getpid` and `gettid` are added, and `tgkill` (below). The library always allows `exit` and `rt_sigreturn`.
+- The final SKP list has 23 named calls allowed, and `clone` (thread-only), `clone3` (ENOSYS) and `tgkill` (own process only). There are no explicit EPERM entries: §5 says SKP has no network row, so `socket`, `execve` and a raw `fork` are killed (SIGSYS).
+
+**A change to §5: `tgkill` is allowed for the helper's own process only.** glibc's `abort()` signals itself with `tgkill`, and reads its thread and process IDs with `gettid` and `getpid`. With the kill default alone, a parser's `abort()` died with SIGSYS. The host would then have reported a crash as `sandboxViolation`. The new action `ownProcessOnly` allows `tgkill` when its first argument is this process, and returns EPERM for any other process. This keeps the threat model's rule that a helper cannot signal other processes of the user (§2). The test checks both cases: an abort is SIGABRT, and a signal to another process is EPERM.
+
+**Sanitizer builds.** Every sanitizer build (ASan and UBSan) and the fuzzer build set `SKP_WORKER_NO_ADDRESS_LIMIT`. Under those builds the policy adds four calls that the runtimes make after `main`: `pipe2` (UBSan's type cache, on a first vptr check in `readFile`), `sigaltstack` (ASan's stack for the watch thread), `sched_getaffinity` (ASan's thread bounds) and `fcntl`. A release build does not carry them. The sanitized helper also defines `__lsan_default_options` to return `detect_leaks=0`. The application starts the helper with an empty environment (`QProcessEnvironment` with only `LC_ALL`), so `ASAN_OPTIONS` never reached the helper. LeakSanitizer then checked for leaks at exit, using `ptrace`, which the sandbox refuses. CI's `detect_leaks=0` setting is now in the binary.
+
+**Results.**
+
+- Fixtures, release build: 12 of 12 for `--import` (package bytes and R line equal to the unsandboxed run of the same code, in this process), 12 of 12 for `--probe`, and 12 of 12 for `--dry-run`. The sanitized build matches the same tests. The clang ASan build of the fuzz tree also imports the five corpus fixtures that the fuzz step uses (5 of 5).
+- Attack probes, under the SKP policy in a child: `socket` and `execve` are killed with SIGSYS; `fork` is EPERM; a read of `/etc/passwd` is EACCES; a write to a sibling of the private directory is EACCES; a write inside it works; the input file can be read; `abort` is SIGABRT.
+- Fail closed, the real helper. Under a test filter that returns ENOSYS for the Landlock calls, the helper refuses with exit 70 and `sandboxUnavailable: landlock (Function not implemented)`. Under a filter that returns EPERM for `seccomp`, it refuses with `sandboxUnavailable: seccomp filter (Operation not permitted)`. Neither writes a package. The layer is simulated through the test filter, which needs no kernel change (method of §6.7). The in-process simulations give the same reasons for all three layers.
+- The host: a helper killed by SIGSYS is `sandboxViolation`. QProcess reports the signal as the exit code of a crash (31), which is how the host tells it apart. A helper killed by SIGABRT is still a crash (`workerFailed`). A helper that exits 70 with `sandboxUnavailable` is a refusal.
+- CI check on the release tree: `skp_package`, `sandbox`, `skp_import`, `skp_sandbox`, `skp_mapping`, `skp_library_install` and `skp_library_source` pass. `skp_import_real` and `skp_mapping_real` skip, because the owner's corpus file is not on this machine (exit 77, as before). The sanitizer set passes: `skp_package`, `skp_import`, `skp_sandbox`, `skp_mapping`.
+
+**Contradictions with this ADR, and what was decided.**
+
+1. §5 (SKP: no socket entry, so kill) and §4.3 (explicit EPERM for `socket` in helpers that need no network) disagree for SKP. The code follows §5: a socket attempt kills the helper, which the host reports as `sandboxViolation`. The owner should confirm which is wanted for SKP.
+2. §4.3 and §5 do not mention `tgkill`. The own-process rule above is new.
+3. §6.4's SKP negative control ("refused with `tooLarge`") no longer applies: the refusal-code fix (PR #470) is merged, and a denied open is now `unreadable`.
+4. The refusal names the layer as `no_new_privs`, `landlock` or `seccomp filter`. §6.7 used the last two and did not name NNP.
+
+**Not done here.** The corrections owed to ADRs 0171, 0176, 0136 and 0180 (see Corrections owed) are not edited in this record. The IFC and STEP, text, extension and Blender helpers (S2 to S5) and the required `sandbox_available` check (S6) are not started. The `sketchyup_sandbox` library has no runner-side Landlock result yet, and the mremap path is not measured (§6.9).
