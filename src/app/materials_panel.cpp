@@ -4,6 +4,7 @@
 #include "app/texture_editor.hpp"
 #include "core/face_textures.hpp"
 #include "io/assets.hpp"
+#include "io/texture_presets.hpp"
 #include <QColorDialog>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -15,6 +16,8 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QStandardItem>
+#include <QStandardItemModel>
 #include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -27,6 +30,45 @@ QString describe(const Document &doc, Id id) {
     const auto &m = *doc.materials().at(id);
     return QString::fromStdString(m.name) + QString(" · %1% opacity").arg(qRound(m.opacity * 100));
 }
+
+// The library's item data: -1 for Custom, 0 to 5 for a colour preset, and this plus the index in
+// texturePresets() for a textured preset.
+constexpr int texturedLibraryKey = 100;
+
+QString text(std::string_view value) {
+    return QString::fromUtf8(value.data(), qsizetype(value.size()));
+}
+
+// The asset already in the model with the same media type and equal bytes, or 0 (ADR 0131). A
+// textured preset reuses it instead of adding a copy (UX_DESIGN 18.4).
+Id identicalTexture(const Document &doc, const QByteArray &bytes) {
+    for (const auto &[id, asset] : doc.assets())
+        if (asset->payload && asset->mediaType == texturePresetMediaType &&
+            assetByteArray(asset->payload) == bytes)
+            return id;
+    return 0;
+}
+
+// The preset texture tinted by the material colour, for the preview and the library icons. The
+// renderer multiplies linear values (ADR 0065); this multiplies sRGB values, so the shade here is
+// only an approximation.
+QImage tintedTexture(const TexturePreset &preset, int size, const QColor &tint) {
+    QImage image;
+    if (!image.loadFromData(texturePresetBytes(preset), "JPEG"))
+        throw std::runtime_error("The texture preset could not be decoded");
+    image = image.convertToFormat(QImage::Format_RGB888)
+                .scaled(size, size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    for (int y = 0; y < size; ++y)
+        for (int x = 0; x < size; ++x) {
+            const auto pixel = image.pixelColor(x, y);
+            image.setPixelColor(x, y,
+                                QColor::fromRgbF(pixel.redF() * tint.redF(),
+                                                 pixel.greenF() * tint.greenF(),
+                                                 pixel.blueF() * tint.blueF()));
+        }
+    return image;
+}
+
 } // namespace
 MaterialsPanel::MaterialsPanel(Document &doc, Viewport &view, QWidget *parent)
     : QWidget(parent), doc_(doc), view_(view) {
@@ -273,6 +315,12 @@ void MaterialsPanel::edit(bool create) {
                        sid(assetId));
     if (id)
         asset->setCurrentIndex(asset->findData(sid(doc_.materials().at(id)->asset)));
+    auto *error = new QLabel;
+    error->setObjectName("materialDialogError");
+    error->setWordWrap(true);
+    error->setTextFormat(Qt::PlainText);
+    QComboBox *library{};
+    QLabel *texturePreview{}, *textureCaption{}, *textureLicence{};
     if (create) {
         struct Preset {
             const char *name;
@@ -287,23 +335,127 @@ void MaterialsPanel::edit(bool create) {
                                                         {"Steel", "#7c8a96", 100},
                                                         {"Glass", "#b7d9e5", 35},
                                                         {"Terrain", "#8a9a6b", 100}}};
-        auto *library = new QComboBox;
-        library->setObjectName("materialLibrary");
-        library->addItem("Custom");
-        for (const auto &preset : presets) {
+        // The Colour and Textured headings carry no data and are disabled, so the arrow keys skip
+        // them (UX_DESIGN 18.7).
+        auto *model = new QStandardItemModel(&dialog);
+        const auto heading = [&](const char *label) {
+            auto *item = new QStandardItem(label);
+            item->setFlags(Qt::NoItemFlags);
+            item->setForeground(palette().color(QPalette::Disabled, QPalette::Text));
+            model->appendRow(item);
+        };
+        const auto entry = [&](const QString &label, const QIcon &icon, int key) {
+            auto *item = new QStandardItem(icon, label);
+            item->setData(key, Qt::UserRole);
+            model->appendRow(item);
+            return item;
+        };
+        entry("Custom", {}, -1);
+        heading("Colour");
+        for (size_t i = 0; i < presets.size(); ++i) {
             QPixmap swatch(16, 16);
-            swatch.fill(QColor(preset.color));
-            library->addItem(QIcon(swatch), preset.name);
+            swatch.fill(QColor(presets[i].color));
+            entry(presets[i].name, QIcon(swatch), int(i));
         }
+        heading("Textured");
+        const auto textures = texturePresets();
+        for (size_t i = 0; i < textures.size(); ++i) {
+            const auto &preset = textures[i];
+            const auto tint = QColor(text(preset.tint));
+            entry(text(preset.name), QIcon(QPixmap::fromImage(tintedTexture(preset, 16, tint))),
+                  texturedLibraryKey + int(i))
+                ->setToolTip(text(preset.licence));
+        }
+        library = new QComboBox;
+        library->setObjectName("materialLibrary");
+        library->setModel(model);
         form->addRow("Local library", library);
-        connect(library, &QComboBox::currentIndexChanged, &dialog, [=](int index) {
-            if (index <= 0)
+        // A textured preset shows its texture as a 96 px tile, with the licence and whether the
+        // texture is added or reused (UX_DESIGN 18.4). These rows stay hidden for other choices.
+        texturePreview = new QLabel;
+        texturePreview->setObjectName("materialTexturePreview");
+        texturePreview->setAccessibleName("Texture preview, tinted with the colour");
+        texturePreview->setFixedSize(96, 96);
+        texturePreview->setVisible(false);
+        textureCaption = new QLabel;
+        textureCaption->setObjectName("materialTextureCaption");
+        textureCaption->setWordWrap(true);
+        textureCaption->setTextFormat(Qt::PlainText);
+        textureCaption->setVisible(false);
+        textureLicence = new QLabel;
+        textureLicence->setObjectName("materialTextureLicence");
+        textureLicence->setWordWrap(true);
+        textureLicence->setTextFormat(Qt::PlainText);
+        textureLicence->setVisible(false);
+        form->addRow(texturePreview);
+        form->addRow(textureCaption);
+        form->addRow(textureLicence);
+        // Shows a textured preset's tile, caption and licence, and holds the asset chooser to the
+        // preset's own texture. Any other choice hides them and restores the chooser.
+        const auto showTexture = [=, this](int key) {
+            const bool textured = key >= texturedLibraryKey;
+            if (textured) {
+                const auto &preset = textures[size_t(key - texturedLibraryKey)];
+                const auto chosen = QColor(color->text());
+                const auto tint = chosen.isValid() ? chosen : QColor(text(preset.tint));
+                texturePreview->setPixmap(QPixmap::fromImage(tintedTexture(preset, 96, tint)));
+                const bool reused = identicalTexture(doc_, texturePresetBytes(preset)) != 0;
+                textureCaption->setText(reused
+                                            ? "Reuses the texture already in this model; no copy "
+                                              "is added."
+                                            : "Adds 1 texture, embedded in this model.");
+                textureLicence->setText(text(preset.licence));
+            }
+            texturePreview->setVisible(textured);
+            textureCaption->setVisible(textured);
+            textureLicence->setVisible(textured);
+            const int presetAsset = asset->findData("preset");
+            if (textured) {
+                if (presetAsset < 0)
+                    asset->addItem("Preset texture (added on Create)", "preset");
+                asset->setCurrentIndex(asset->findData("preset"));
+            } else if (presetAsset >= 0) {
+                asset->removeItem(presetAsset);
+                asset->setCurrentIndex(0);
+            }
+            asset->setEnabled(!textured);
+        };
+        connect(library, &QComboBox::currentIndexChanged, &dialog, [=, this](int index) {
+            const auto data = library->itemData(index, Qt::UserRole);
+            if (!data.isValid())
+                return; // A heading: the list does not select it.
+            try {
+                const auto key = data.toInt();
+                if (key >= texturedLibraryKey) {
+                    const auto &preset = textures[size_t(key - texturedLibraryKey)];
+                    name->setText(text(preset.name));
+                    color->setText(text(preset.tint));
+                    color->setModified(true);
+                    opacity->setValue(preset.opacity);
+                    showTexture(key);
+                } else if (key >= 0) {
+                    const auto &preset = presets[size_t(key)];
+                    name->setText(preset.name);
+                    color->setText(preset.color);
+                    color->setModified(true);
+                    opacity->setValue(preset.opacity);
+                    showTexture(-1);
+                } else
+                    showTexture(-1); // Custom keeps the fields as they are.
+            } catch (const std::exception &failure) {
+                error->setText(failure.what());
+            }
+        });
+        // The tile follows a colour the person types, because the tint is the colour.
+        connect(color, &QLineEdit::textEdited, &dialog, [=, this](const QString &) {
+            const auto key = library->currentData(Qt::UserRole).toInt();
+            if (key < texturedLibraryKey)
                 return;
-            const auto &preset = presets[size_t(index - 1)];
-            name->setText(preset.name);
-            color->setText(preset.color);
-            color->setModified(true);
-            opacity->setValue(preset.opacity);
+            try {
+                showTexture(key);
+            } catch (const std::exception &failure) {
+                error->setText(failure.what());
+            }
         });
     }
     form->addRow("Name", name);
@@ -325,10 +477,6 @@ void MaterialsPanel::edit(bool create) {
     form->addRow("Color", colorRow);
     form->addRow("Opacity", opacity);
     form->addRow("Stored file", asset);
-    auto *error = new QLabel;
-    error->setObjectName("materialDialogError");
-    error->setWordWrap(true);
-    error->setTextFormat(Qt::PlainText);
     form->addRow(error);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     form->addRow(buttons);
@@ -340,6 +488,32 @@ void MaterialsPanel::edit(bool create) {
             const QColor chosen(color->text());
             if (!chosen.isValid() || color->text().size() != 7 || !color->text().startsWith('#'))
                 throw std::runtime_error("Enter a color as #RRGGBB");
+            const auto key = library ? library->currentData(Qt::UserRole).toInt() : -1;
+            if (create && key >= texturedLibraryKey) {
+                // A textured preset adds its texture, unless an identical one is in the model, and
+                // the material that binds it: one edit, one undo step (UX_DESIGN 18.4).
+                const auto &preset = texturePresets()[size_t(key - texturedLibraryKey)];
+                const auto bytes = texturePresetBytes(preset);
+                const auto existing = identicalTexture(doc_, bytes);
+                const auto texture = existing ? existing : doc_.nextAssetId();
+                const auto next = doc_.nextMaterialId();
+                QJsonArray commands;
+                if (!existing)
+                    commands.append(QJsonObject{{"command", "asset.import"},
+                                                {"name", text(preset.name)},
+                                                {"mediaType", text(texturePresetMediaType)},
+                                                {"data", QString::fromLatin1(bytes.toBase64())}});
+                commands.append(QJsonObject{
+                    {"command", "material.create"},
+                    {"name", name->text()},
+                    {"color", QJsonArray{chosen.redF(), chosen.greenF(), chosen.blueF()}},
+                    {"opacity", opacity->value() / 100},
+                    {"asset", sid(texture)}});
+                view_.editMaterials(commands);
+                view_.setPaintMaterial(next, view_.paintSide());
+                dialog.accept();
+                return;
+            }
             QJsonObject command{{"command", create ? "material.create" : "material.edit"},
                                 {"name", name->text()},
                                 {"asset", asset->currentData().toString()}};
