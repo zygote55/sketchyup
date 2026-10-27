@@ -234,6 +234,10 @@ StepScan checkStepSource(const QString &path) {
 }
 
 namespace {
+// The helper's exit code for a layer of its sandbox that could not be installed (ADR 0183 section
+// 7).
+constexpr int sandboxUnavailableExit = 70;
+
 RunResult runOnce(const QString &worker, const QString &directory, const QString &input, const QString &output,
                   const StepWorkerOptions &options) {
     RunResult run;
@@ -358,12 +362,18 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
         run.kind = RunResult::Finished;
         return run;
     }
-    if (process.exitStatus() == QProcess::NormalExit && run.exitCode == 3 && run.result["status"] == "refused") {
+    const bool refusedExit = run.exitCode == 3 || run.exitCode == sandboxUnavailableExit;
+    if (process.exitStatus() == QProcess::NormalExit && refusedExit &&
+        run.result["status"] == "refused") {
         run.kind = RunResult::Refused;
         return run;
     }
     run.kind = RunResult::Stopped;
-    if (process.exitStatus() == QProcess::CrashExit)
+    // A call the sandbox's policy does not allow is SIGSYS, which QProcess reports as the exit code
+    // of a crash (ADR 0183 section 4.6): a violation, not a crash.
+    if (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS)
+        run.reason = "sandboxViolation";
+    else if (process.exitStatus() == QProcess::CrashExit)
         run.reason = "crash";
     else if (run.logTail.contains("bad_alloc") || run.logTail.contains("std::length_error"))
         run.reason = "memory";
@@ -471,6 +481,22 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     const RunResult run = runOnce(workerPath, directory.path(), input, output, worker);
     if (run.kind == RunResult::Cancelled)
         throw IfcImportError("cancelled", "The import was cancelled.");
+    if (run.kind != RunResult::Finished && run.kind != RunResult::Refused &&
+        run.reason == "sandboxViolation") {
+        // ADR 0183 sections 4.6 and 7: the helper was stopped for an action its policy does not
+        // allow. It is not restarted, and nothing is imported.
+        QJsonObject report{
+            {"apiVersion", 1},
+            {"format", "STEP"},
+            {"direction", "import"},
+            {"helper",
+             QJsonObject{{"completed", false}, {"stop", run.reason}, {"phase", run.phase}}}};
+        throw IfcImportError("sandboxViolation",
+                             "The STEP helper (sketchyup-ifc-worker) was stopped by its sandbox: "
+                             "the seccomp filter ended it "
+                             "for an action its policy does not allow. Nothing was imported.",
+                             report);
+    }
     if (run.kind != RunResult::Finished && run.kind != RunResult::Refused) {
         // The STEP import has no per-element restart protocol: a stop is a failure, reported with what the helper
         // left behind.

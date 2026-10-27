@@ -112,9 +112,11 @@
       "paths": [
         "third_party/ifcopenshell/**",
         "src/ifc/**",
+        "src/sandbox/**",
         "src/io/ifc_*",
         "src/io/step_*",
         "tests/ifc*",
+        "tests/sandbox*",
         "tests/step_*",
         "tests/fixtures/ifc/**",
         "tests/fixtures/step/**",
@@ -299,7 +301,8 @@
         "src/app/quantities_panel.hpp",
         "src/app/quantities_dialogs.cpp",
         "src/app/quantities_dialogs.hpp",
-        "tests/quantities_input_tests.cpp"
+        "tests/quantities_input_tests.cpp",
+        "tests/quantities_large_input_tests.cpp"
       ],
       "areas": [
         "build",
