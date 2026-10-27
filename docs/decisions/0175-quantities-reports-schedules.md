@@ -1101,3 +1101,146 @@ and the fixture has no tag with ID 5.
   `Table` definitions", as the total requires (BoxP is a component). The first-written total in the
   same section still says "non-terrain non-component", as it did in the original; it is left as
   first written.
+
+## Implementation notes (R101.e1)
+
+R101.e1 is the engine, schedule-store and command support for the Quantities panel (UX_DESIGN
+§19, approved 2026-10-27). It has no UI; the panel is R101.e2. The run's hooks are in
+`src/core/report.{hpp,cpp}`, the output in `src/automation/report_commands.{hpp,cpp}` and
+`src/io/report_csv.cpp` (unchanged), the store and the session operation in
+`src/automation/report_schedules.{hpp,cpp}`, and the shared wording in `src/core/solid_words.hpp`
+(the former `unavailable()` of `src/app/entity_info_panel.cpp`). Tests: `tests/report_tests.cpp`
+(hooks, cancel, body IDs, the terrain row, the words), `tests/report_output_tests.cpp` (session
+rows, the file shape, the selection file, a cancelled write, the goldens), and
+`tests/report_schedule_tests.cpp` and `tests/report_mcp_tests.cpp` (rename, update, the pinned
+precision, the stale fix, the session and MCP actions). `tests/report_benchmark.cpp` has the two
+timing modes (`--cancel`, `--rerun`). No test file is new, so no registration changed.
+
+### Decisions where the ADR was silent
+
+- **Cancel granularity.** The flag is read before each body record and once more after the last
+  one, so a cancel takes effect at the next record boundary. A single record's solid analysis is
+  not interrupted. The longest gap between two records bounds any cancel, and it is measured
+  below.
+- **Progress.** The count is the body records visited, including those a filter drops. The total
+  is the document's body count, so the count reaches the total on a complete run.
+- **Body IDs on invalid rows.** The lowest 64 body IDs per status, in ID order, and a `truncated`
+  flag when the status has more. They are the record IDs that the panel can select.
+- **The file's JSON and the CSV keep their R101.b shape.** The session's invalid rows carry the
+  body IDs, the truncation flag and the Not a solid words; `reportFileData` leaves those out of the
+  file's JSON, and the CSV never had them. So the R101.b goldens (both CSV and JSON, hash-pinned)
+  are byte-identical. UX_DESIGN §19.4 and owner choice 3 ask for body IDs "in JSON and session
+  results". Putting them in the file's JSON changes the JSON golden pins, which the brief says to
+  stop on. **Decision (parent, 2026-10-27):** the exported JSON file does not carry the body IDs.
+  They exist so the panel can select bodies, the file is a report, and the R101.b golden pins stay
+  unchanged.
+- **Shared words.** `unavailable()` is `solidStatusWords()` in `src/core/solid_words.hpp`, with the
+  same words, and the panel calls it. The panel's output is unchanged; `entity_info_input_tests`
+  checks the wording on the desktop, and it passed (offscreen).
+- **Selection export.** `ReportFileOptions::selection` asks for the desktop's selection, and
+  `writeReportFile` takes the selected bodies as an argument. A selection without bodies is
+  refused (INVALID_REQUEST, nothing written), and so is a selection in a schedule. The CLI never
+  sets it. The CSV writes `#filters.selection=1` as ADR §6.1 already has it.
+- **Cancel writes nothing.** A cancelled `writeReportFile` throws `ReportCancelled` before the file
+  is published.
+- **Rename and update.** Each is one store commit. A rename moves the entry under its new key and
+  keeps its request and `createdAt`; an update replaces the request and keeps the name and
+  `createdAt`. A failed commit leaves the file and the store as they were (checked by a changed
+  file and by an unwritable folder). Refusals: `WRONG_DOCUMENT` and `NOT_FOUND` by the identity
+  guard, `INVALID_REQUEST` for a name in use (rename onto itself included) and for an invalid name.
+  The duplicate refusal now reads "Choose another name." and no longer says "delete it first".
+- **Precision pinned at save (owner choice 4).** The stored request had no precision when the
+  request named none, so the run followed the document. Save and update now write the document's
+  precision into the request ("full" or the integer), when the request names none. An update
+  pins again at the update, because it is a new saved request. The CLI's `--save-schedule` takes
+  the same path.
+- **Session actions.** `report.schedule` gains `rename` (with `newName`) and `update` (with
+  `request`). The API JSON (headless session and MCP) and the tool reference are regenerated. No
+  other artifact changed, and `--check` was not run against the desktop binary (see below).
+- **The CLI has no rename or update flag.** The brief allowed flags only if trivial; a rename flag
+  needs a new flag pair and a refusal set, so none was added.
+
+### Terrain's material row (UX_DESIGN §19.11 item 15)
+
+The terrain's area is reported under the **Terrain** material, not under "No material". Terrain
+creation adds the material "Terrain" and gives every tile that material on its faces (R095.e2,
+`src/core/terrain.cpp`, `terrainMaterial`). In the quantities-a fixture it is material 3, and its
+40,000.001 m² is the `areas,Terrain,,3,,area` row of the golden (`quantities-a-material.csv`). The
+terrain container has no faces, so it has no material and its one context counts under the
+no-material row. `terrainMaterialRow` in `tests/report_tests.cpp` checks both. UX_DESIGN §19.11 item
+15 says the Material view shows the terrain under "No material", and the mock in
+`mockups/quantities.html` draws it so; the code does not. The design text and the mock need correcting
+before R101.e2.
+
+### Budgets measured in R101.e1
+
+Release build (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3 -DNDEBUG`), `tests/report_benchmark.cpp`
+on the developer machine (Linux, 22 threads, 30 GB RAM). The machine was shared with other workers'
+builds during these runs, so the load average was about 5 to 10 while they ran.
+
+**Cancel (§12, quantities-b, 30,257 records, all four tables).** The run is on a worker thread; the
+main thread sets the flag after the run has visited N records, and the time is taken from the flag
+to the worker's `ReportCancelled`.
+
+| Flag set after record | Returned after |
+| --- | --- |
+| 1 | 1.67 ms |
+| 3,025 | 0.076 ms |
+| 15,128 | 0.080 ms |
+| 30,256 | 0.078 ms |
+
+The longest gap between two records in the same run was 1.98 ms, which bounds any cancel. The
+budget is 100 ms, and it is **met** (four samples, one run).
+
+**Panel re-run (§12, after one edit, all four tables and the description, 40 runs after two
+warm-ups).** Each run moves one placement (which moves the revision), then times `runReport` and
+`reportDescription`.
+
+| Model | Faces | Records | Engine p95 | Run and description p95 |
+| --- | --- | --- | --- | --- |
+| 8,333 placements of the 12-face part, no terrain (idle machine) | 99,996 | 24,999 | 582 ms (median 523 ms, max 642 ms) | 595 ms |
+| The same, measured under load | 99,996 | 24,999 | 781 ms | 857 ms |
+| quantities-b's shape with its terrain | 349,214 | 25,256 | 1,281 ms | 1,264 ms |
+
+The budget is p95 at most 250 ms for a model of up to 100,000 faces (§12). **It is not met**: the
+100,000-face case runs at about 2.3 times the budget on an idle machine. The engine is consistent
+with R101.b, which measured the four tables on quantities-b at 0.71 s. The cost is the full pass
+(every table on every run, §5 and owner choice 10); no cross-run cache exists in v1, so nothing is
+reused between runs. See "Gaps" below for the options. The budget and the no-cache decision are
+not changed here.
+
+### Gaps and what was not run
+
+- **The panel re-run budget is not met (§12).** The 100,000-face case takes about 0.6 s at p95 on an
+  idle machine, against 250 ms. The engine does all four tables on every run, and there is no
+  cross-run cache in v1 (§5, owner choice 10). Options for the owner, none taken here: accept a
+  larger p95 for the panel, change the budget, or allow a cache of per-body solid analysis keyed by
+  each body's revision. A background worker (the §14 trigger) would move the time off the UI thread
+  but would not shorten it.
+- **The file's JSON carries no body IDs.** Owner choice 3 asks for them in JSON and in the session.
+  The file's JSON golden pins would change if they were in the file, so they are kept to the session
+  (see the decisions above). The owner should decide.
+- **A pinned precision can be refused after a units change.** A schedule saved at precision 5 in
+  metres is refused at run time with `LIMIT_EXCEEDED`, naming the schedule and the store, once the
+  document is in feet (maximum 3). Units are not pinned (§19.11 item 9). Schedules saved before
+  R101.e1 have no precision in their request, so they keep following the document.
+- **A single record is not interrupted.** The cancel checks between records. The analysis of one
+  body (`inspectSolid`) runs to its end. The longest gap measured here, 1.98 ms, is on quantities-b,
+  whose bodies are small. A document with one very large body is not measured.
+- **The desktop panel is not built.** R101.e1 has no UI. The desktop build here is the `sketchyup`
+  executable and `entity_info_input_tests`, which passed offscreen. The native display tests
+  (X11, Wayland) were not run, and neither were the sanitizers, Windows or macOS.
+- **The desktop binaries were built by a process I did not start.** Ninja's log shows the
+  `sketchyup` and `entity_info_input_tests` targets linked at 14:11 UTC in this build directory,
+  while my chained build was waiting. Their sources had not changed since 13:21 UTC, so the binaries
+  match the tree, and `generate-api-schemas.py --check` against them passed (10 artifacts). The cause
+  of the build was not found.
+- **The generated API artifacts.** The headless session, MCP and tool-reference files were
+  regenerated by the registries (`scripts/generate-tool-reference.py` and the CLI discovery of
+  `scripts/generate-api-schemas.py`). The desktop-backed files were checked, not regenerated; they
+  already matched.
+- **No CLI flag for rename or update.** The brief allowed flags only if trivial. A rename flag needs
+  its own refusal set, so none was added.
+- **Store tests on Windows and macOS.** The rename and update checks on the store follow R101.c:
+  the isolation of the store path is Linux-only, and the store-level checks use temporary folders on
+  every platform.
