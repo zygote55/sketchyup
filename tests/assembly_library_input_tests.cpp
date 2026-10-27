@@ -152,9 +152,9 @@ struct Fixture {
     }
 };
 void tabAndCards(Fixture &f) {
-    check(f.tabs->count() == 13 && f.tabs->tabText(12) == "Components" &&
-              f.tabs->widget(12) == f.tab,
-          "Components is the Tray's tab 12");
+    check(f.tabs->count() == 14 && f.tabs->tabText(13) == "Components" &&
+              f.tabs->widget(13) == f.tab,
+          "Components is the Tray's tab 13, after Quantities");
     f.window.findChild<QAction *>("view.components")->trigger();
     check(QTest::qWaitFor([&] { return f.tabs->currentIndex() == 12 && f.tab->isVisible(); }),
           "View → Components shows the tab");

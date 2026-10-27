@@ -592,7 +592,13 @@ void QuantitiesPanel::keyPressEvent(QKeyEvent *event) {
     QWidget::keyPressEvent(event);
 }
 
-void QuantitiesPanel::focusGroupBy() { groupBy_->setFocus(Qt::OtherFocusReason); }
+void QuantitiesPanel::focusGroupBy() {
+    // View > Quantities re-reads the schedules, even when the section is already shown (§19.6).
+    reloadSchedules();
+    requestRun(false);
+    syncControls();
+    groupBy_->setFocus(Qt::OtherFocusReason);
+}
 
 void QuantitiesPanel::refresh() {
     if (!isVisible())
@@ -853,11 +859,13 @@ void QuantitiesPanel::showResult(const Result &result) {
     revisionLine_->setText(QString("Computed at revision %1").arg(result.revision));
 
     // The rows of the three tables, merged by key (§19.2). A group with no key of its own is "All".
+    // The areas table has a row per material within a group, so a group's area is the sum of them.
     struct Group {
         QString key, name, areaText, volumeText;
         qulonglong contexts{}, instances{}, definitions{}, unvalidated{};
         double area{}, volume{};
-        bool hasCounts{};
+        int areaDecimals{}, volumeDecimals{};
+        bool hasArea{}, hasVolume{};
     };
     std::vector<Group> groups;
     auto find = [&groups](const QString &key, const QString &name) -> Group & {
@@ -873,20 +881,34 @@ void QuantitiesPanel::showResult(const Result &result) {
         group.contexts = qulonglong(row["contexts"].toInt());
         group.instances = qulonglong(row["instances"].toInt());
         group.definitions = qulonglong(row["definitions"].toInt());
-        group.hasCounts = true;
     }
+    auto decimalsOf = [](const QString &text) {
+        const auto dot = text.indexOf('.');
+        return dot < 0 ? 0 : int(text.size() - dot - 1);
+    };
     for (const auto &value : data["areas"].toArray()) {
         const auto row = value.toObject();
         auto &group = find(row["key"].toString(), row["name"].toString());
-        group.areaText = row["area"].toString();
-        group.area = group.areaText.toDouble();
+        const auto text = row["area"].toString();
+        group.area += text.toDouble();
+        group.areaDecimals = std::max(group.areaDecimals, decimalsOf(text));
+        group.hasArea = true;
     }
     for (const auto &value : data["volumes"].toArray()) {
         const auto row = value.toObject();
         auto &group = find(row["key"].toString(), row["name"].toString());
-        group.volumeText = row["volume"].toString();
-        group.volume = group.volumeText.toDouble();
+        const auto text = row["volume"].toString();
+        group.volume += text.toDouble();
+        group.volumeDecimals = std::max(group.volumeDecimals, decimalsOf(text));
+        group.hasVolume = true;
         group.unvalidated = qulonglong(row["unvalidated"].toInt());
+    }
+    // Each figure keeps the precision's decimals, as the engine wrote them.
+    for (auto &group : groups) {
+        if (group.hasArea)
+            group.areaText = QString::number(group.area, 'f', group.areaDecimals);
+        if (group.hasVolume)
+            group.volumeText = QString::number(group.volume, 'f', group.volumeDecimals);
     }
 
     const bool grouped = groupBy != "none";
@@ -894,37 +916,26 @@ void QuantitiesPanel::showResult(const Result &result) {
     totalsTitle_->setText(visibleOnly ? QString("Visible only") : grouped ? QString("Totals") : QString("All"));
     empty_->setVisible(doc_.bodies().empty());
 
+    // The engine's "All" row is the whole model's total in every grouping (ADR 0175 §1), so the totals
+    // come from it, and the group table lists the other rows.
     QString areaValue, volumeValue;
     qulonglong contexts = 0, instances = 0, definitions = 0, unvalidated = 0;
-    if (!grouped) {
-        if (!groups.empty()) {
-            const auto &only = groups.front();
-            areaValue = only.areaText;
-            volumeValue = only.volumeText;
-            contexts = only.contexts;
-            instances = only.instances;
-            definitions = only.definitions;
-            unvalidated = only.unvalidated;
+    for (const auto &group : groups)
+        if (group.key == "All") {
+            areaValue = group.areaText;
+            volumeValue = group.volumeText;
+            contexts = group.contexts;
+            instances = group.instances;
+            definitions = group.definitions;
+            unvalidated = group.unvalidated;
         }
-    } else {
-        // The total of the groups. Each row has the precision's decimals, and so has the total.
-        double area = 0, volume = 0;
-        int decimals = 0;
-        for (const auto &group : groups) {
-            contexts += group.contexts;
-            instances += group.instances;
-            unvalidated += group.unvalidated;
-            area += group.area;
-            volume += group.volume;
-            const auto dot = group.areaText.indexOf('.');
-            if (dot >= 0)
-                decimals = std::max(decimals, int(group.areaText.size() - dot - 1));
-        }
-        if (!groups.empty())
-            areaValue = QString::number(area, 'f', decimals);
-        if (!groups.empty())
-            volumeValue = QString::number(volume, 'f', decimals);
-    }
+    // With nothing to count the engine emits no rows for the measure; the All row still shows zeros
+    // (§19.1). A report that does not ask for the measure has no figure at all, and shows a dash.
+    const auto decimals = precisionValue.isDouble() ? precisionValue.toInt() : 2;
+    if (areaValue.isEmpty() && data.contains("areas"))
+        areaValue = QString::number(0.0, 'f', decimals);
+    if (volumeValue.isEmpty() && data.contains("volumes"))
+        volumeValue = QString::number(0.0, 'f', decimals);
     const auto dashed = QString("—");
     area_->setText(areaValue.isEmpty() ? dashed : measureText(areaValue, areaCode));
     area_->setAccessibleName(areaValue.isEmpty() ? QString("Area, not reported")
@@ -945,6 +956,8 @@ void QuantitiesPanel::showResult(const Result &result) {
     groups_->setVisible(grouped);
     if (grouped) {
         for (const auto &group : groups) {
+            if (group.key == "All")
+                continue;
             auto *item = new QTreeWidgetItem(groups_);
             item->setText(0, groupLabel(group.name, groupBy));
             item->setText(1, group.areaText.isEmpty() ? dashed : measureText(group.areaText, areaCode));
@@ -984,6 +997,7 @@ void QuantitiesPanel::showResult(const Result &result) {
         line->setContentsMargins(0, 2, 0, 2);
         auto *left = new QVBoxLayout;
         auto *title = new QLabel(QString::fromUtf8("⚠ ") + words);
+        title->setObjectName(QString("quantitiesNotSolidWords%1").arg(i));
         title->setWordWrap(true);
         title->setAccessibleName(QString("Warning: %1, %2").arg(words).arg(contextCount));
         left->addWidget(title);
