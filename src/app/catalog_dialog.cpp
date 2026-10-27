@@ -3,6 +3,7 @@
 #include "app/catalog_report.hpp"
 #include "app/component_definition_section.hpp"
 #include "io/catalog_insert.hpp"
+#include "app/interface_preferences.hpp"
 #include "io/library_bundle.hpp"
 
 #include <QComboBox>
@@ -289,11 +290,14 @@ CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
     folderLabel_->setAccessibleName("Library folder");
     folderLabel_->setTextFormat(Qt::PlainText);
     folderLabel_->setWordWrap(true);
+    // No button here is the dialog's default, so Enter in the search field does nothing.
     auto *choose = new QPushButton("Choose folder…");
     choose->setObjectName("catalogChooseFolder");
     choose->setAccessibleName("Choose library folder");
+    choose->setAutoDefault(false);
     auto *refresh = new QPushButton("Refresh library");
     refresh->setObjectName("catalogRefresh");
+    refresh->setAutoDefault(false);
     folderRow->addWidget(new QLabel("Library folder"));
     folderRow->addWidget(folderLabel_, 1);
     folderRow->addWidget(choose);
@@ -318,6 +322,7 @@ CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
 
     // The grouped entry list, one Tab stop, and the details of the current row.
     split_ = new QSplitter(Qt::Horizontal);
+    split_->setObjectName("catalogSplit");
     list_ = new QTreeWidget;
     list_->setObjectName("catalogEntries");
     list_->setAccessibleName("Catalog entries");
@@ -389,15 +394,25 @@ CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
 
 void CatalogDialog::resizeEvent(QResizeEvent *event) {
     QDialog::resizeEvent(event);
-    // Narrow windows, and the large text size, stack the list above its details.
-    if (split_)
-        split_->setOrientation(event->size().width() < 900 ? Qt::Vertical : Qt::Horizontal);
+    // The large text size (above 125 %, as the command search reads it) and a narrow dialog stack the
+    // list above its details (UX_DESIGN 18.7).
+    if (split_) {
+        const bool stacked = event->size().width() < 900 || interfaceTextPercent() > 125;
+        split_->setOrientation(stacked ? Qt::Vertical : Qt::Horizontal);
+    }
 }
 
 bool CatalogDialog::eventFilter(QObject *watched, QEvent *event) {
-    // Ctrl+A selects every insertable entry, not every row (UX_DESIGN 18.7).
     if (watched == list_ && event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
+        // Space toggles the current entry's selection, and a group row takes no selection (18.7).
+        if (key->key() == Qt::Key_Space && key->modifiers() == Qt::NoModifier) {
+            auto *current = list_->currentItem();
+            if (current && current->data(0, Qt::UserRole).isValid())
+                current->setSelected(!current->isSelected());
+            return true;
+        }
+        // Ctrl+A selects every insertable entry, not every row (UX_DESIGN 18.7).
         if (key->key() == Qt::Key_A && key->modifiers() == Qt::ControlModifier) {
             rebuilding_ = true;
             list_->clearSelection();
@@ -538,10 +553,13 @@ void CatalogDialog::chooseFolder() {
     dialog.setObjectName("catalogFolderDialog");
     dialog.setFileMode(QFileDialog::Directory);
     dialog.setOption(QFileDialog::ShowDirsOnly);
-    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty())
+    if (dialog.exec() != QDialog::Accepted)
         return;
+    // A folder chooser with nothing selected chooses the folder it shows.
+    const auto picked = dialog.selectedFiles().isEmpty() ? dialog.directory().absolutePath()
+                                                         : dialog.selectedFiles().constFirst();
     // The choice is remembered in preferences, as the component library's is (UX_DESIGN 18.1).
-    folder_ = QDir(dialog.selectedFiles().constFirst()).absolutePath();
+    folder_ = QDir(picked).absolutePath();
     QSettings("SketchyUp", "SketchyUp").setValue("catalogFolder", folder_);
     folderLabel_->setText(folder_);
     refreshLibrary();
