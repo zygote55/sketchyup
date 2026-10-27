@@ -11,6 +11,10 @@
 //
 // Where an ADR hand total is wrong, the test asserts the corrected arithmetic, with the ADR value
 // named in a comment; see docs/decisions/0175 "Implementation notes (R101.a)".
+//
+// R101.e1 adds the run's progress and cancel (ADR 0175 §5, §12), the body IDs of the invalid rows
+// (UX_DESIGN §19.4), the terrain's material row (UX_DESIGN §19.11 item 15) and the shared words of
+// a solid status (§19.11 item 8).
 #include "automation/inspection.hpp"
 #include "automation/report_commands.hpp"
 #include "core/components.hpp"
@@ -19,6 +23,7 @@
 #include "core/materials.hpp"
 #include "core/report.hpp"
 #include "core/selection.hpp"
+#include "core/solid_words.hpp"
 #include "core/tags.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_records.hpp"
@@ -28,12 +33,15 @@
 #include <QJsonDocument>
 #include <QLocale>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <string>
+#include <thread>
+#include <vector>
 
 using namespace sketchy;
 using namespace sketchy::report_fixtures;
@@ -492,6 +500,199 @@ void registry() {
           "The inspection catalogue lists the queries");
 }
 
+// The body record with the given name. The fixtures name their bodies, so this finds them again.
+Id bodyNamed(const Document &doc, const std::string &name) {
+    for (const auto &[id, record] : doc.bodies())
+        if (record->name == name)
+            return id;
+    throw std::runtime_error("No body named " + name);
+}
+
+// R101.e1 (ADR 0175 §5, §12): the progress and cancel hooks. Without them the run is the same pass
+// with the same result; with them, progress counts the records and a cancel stops the run before
+// the next one, without changing the document.
+void hooksAndCancel() {
+    Document doc;
+    buildQuantitiesA(doc);
+    const auto plain = runReport(doc, request());
+    const auto empty = runReport(doc, request(), nullptr, ReportHooks{});
+    check(near(areaSum(empty), areaSum(plain), 1e-12) &&
+              empty.counts.size() == plain.counts.size() &&
+              empty.counts.front().contexts == plain.counts.front().contexts &&
+              empty.invalid.size() == plain.invalid.size(),
+          "Empty hooks give the same result as no hooks");
+
+    // Progress: one call per body record, counting up to the record count of the document.
+    std::vector<std::size_t> done;
+    ReportHooks progress;
+    progress.progress = [&](std::size_t count, std::size_t total) {
+        check(total == doc.bodies().size(), "Progress reports the document's record count");
+        done.push_back(count);
+    };
+    runReport(doc, request(), nullptr, progress);
+    check(done.size() == doc.bodies().size() && done.front() == 1 &&
+              done.back() == doc.bodies().size(),
+          "Progress is called once per record, counting 1 to the record count");
+
+    // A cancel set inside the progress call stops the run before the next record: ten records
+    // visited, no more, and no result.
+    std::atomic<bool> stop{false};
+    std::size_t visited = 0;
+    ReportHooks cancelAfterTen;
+    cancelAfterTen.cancel = &stop;
+    cancelAfterTen.progress = [&](std::size_t count, std::size_t) {
+        visited = count;
+        if (count == 10)
+            stop = true;
+    };
+    auto cancelled = [&](ReportHooks hooks) {
+        try {
+            runReport(doc, request(), nullptr, hooks);
+        } catch (const ReportCancelled &) {
+            return true;
+        }
+        return false;
+    };
+    check(cancelled(cancelAfterTen) && visited == 10,
+          "A cancel stops the run before the eleventh record");
+    check(cancelled(cancelAfterTen) && visited == 10,
+          "A flag that stays set stops the next run at its first record");
+
+    // A flag set before the run stops it before any record.
+    stop = true;
+    visited = 0;
+    cancelAfterTen.progress = [&](std::size_t count, std::size_t) { visited = count; };
+    check(cancelled(cancelAfterTen) && visited == 0,
+          "A flag set before the run stops it before any record");
+
+    // A flag set while the last record is visited still stops the run: the check at the end holds
+    // it.
+    stop = false;
+    const auto total = doc.bodies().size();
+    cancelAfterTen.progress = [&](std::size_t count, std::size_t) {
+        if (count == total)
+            stop = true;
+    };
+    check(cancelled(cancelAfterTen), "A cancel during the last record stops the run");
+    check(doc.revision() == plain.revision, "A cancelled run leaves the document unchanged");
+
+    // A cancel from another thread: the worker is held at record five until the canceller has set
+    // the flag, so the check is deterministic. The worker must then throw without visiting more.
+    std::atomic<bool> reached{false}, released{false}, flag{false};
+    std::size_t workerVisited = 0;
+    bool workerCancelled = false;
+    ReportHooks held;
+    held.cancel = &flag;
+    held.progress = [&](std::size_t count, std::size_t) {
+        workerVisited = count;
+        if (count == 5) {
+            reached = true;
+            while (!released)
+                std::this_thread::yield();
+        }
+    };
+    std::thread worker([&] {
+        try {
+            runReport(doc, request(), nullptr, held);
+        } catch (const ReportCancelled &) {
+            workerCancelled = true;
+        }
+    });
+    while (!reached)
+        std::this_thread::yield();
+    flag = true;
+    released = true;
+    worker.join();
+    check(workerCancelled && workerVisited == 5,
+          "A cancel from another thread stops the worker at the next record");
+}
+
+// UX_DESIGN §19.4 and owner choice 3: an invalid row carries its body IDs, lowest first, and a row
+// with more than 64 bodies carries 64 and the truncation flag. The CSV is not affected (its goldens
+// are checked in report_output_tests).
+void invalidBodies() {
+    Document doc;
+    buildQuantitiesA(doc);
+    const auto result = runReport(doc, request());
+    const auto plate = bodyNamed(doc, "Plate");
+    const auto cubes = bodyNamed(doc, "Shared-face cubes");
+    check(result.invalid.size() == 2 && result.invalid[0].bodies == std::vector<Id>{plate} &&
+              result.invalid[1].bodies == std::vector<Id>{cubes},
+          "Each invalid row names its body: the open plate and the shared-face cubes");
+    check(!result.invalid[0].truncated && !result.invalid[1].truncated,
+          "A row with fewer than 65 bodies is not truncated");
+
+    // 65 open plates in one document: the open_boundary row has 65 contexts, 64 IDs and the flag.
+    Document many;
+    std::vector<Id> plates;
+    for (int i = 0; i < 65; ++i)
+        plates.push_back(
+            many.addFace({{{2. * i, 0, 0}, {2. * i + 1, 0, 0}, {2. * i + 1, 2, 0}, {2. * i, 2, 0}}},
+                         "Plate " + std::to_string(i)));
+    const auto open = runReport(many, request());
+    check(open.invalid.size() == 1 && open.invalid[0].status == "open_boundary" &&
+              open.invalid[0].contexts == 65 &&
+              open.invalid[0].bodies.size() == reportInvalidBodyLimit,
+          "A row with 65 bodies carries 64 of them");
+    check(open.invalid[0].truncated, "A row with more than 64 bodies is marked truncated");
+    check(std::is_sorted(open.invalid[0].bodies.begin(), open.invalid[0].bodies.end()) &&
+              open.invalid[0].bodies.front() == *std::min_element(plates.begin(), plates.end()) &&
+              std::find(open.invalid[0].bodies.begin(), open.invalid[0].bodies.end(),
+                        plates.back()) == open.invalid[0].bodies.end(),
+          "The 64 IDs are the lowest, in ID order; the last plate is not among them");
+}
+
+// UX_DESIGN §19.11 item 15 and R101.e1: the terrain's area reports under the material its tiles
+// carry, the "Terrain" material that terrain creation adds (R095.e2), not under the no-material
+// row.
+void terrainMaterialRow() {
+    Document doc;
+    const auto a = buildQuantitiesA(doc);
+    auto byMaterial = request();
+    byMaterial.groupBy = ReportGroup::Material;
+    const auto result = runReport(doc, byMaterial);
+    // The container has no faces, so its tiles carry the material; each tile's front side is the
+    // Terrain material that createTerrain adds.
+    Id terrainMaterial = 0;
+    for (const auto &[id, record] : doc.bodies())
+        if (record->terrainTile && terrainMaterial == 0)
+            terrainMaterial = record->materials.front;
+    check(terrainMaterial != 0 && doc.materials().at(terrainMaterial)->name == "Terrain",
+          "The terrain's tiles carry the Terrain material");
+    double underTerrain = 0, underNone = 0;
+    for (const auto &row : result.areas) {
+        if (row.key == "All")
+            continue;
+        if (row.material == terrainMaterial)
+            underTerrain += row.area;
+        if (row.material == 0)
+            underNone += row.area;
+    }
+    check(near(underTerrain, 40000, 1e-6),
+          "The terrain's 40,000 m² reports under the Terrain material row");
+    check(near(underNone, 214, 1e-9),
+          "The no-material row holds the 214 m² of non-terrain area that has no material");
+}
+
+// R101.e1 (UX_DESIGN §19.4, gap 8): the Entity info panel and the report share one set of words.
+// The statuses the report lists are the ones the panel names, and the words are exact.
+void solidWords() {
+    check(solidStatusWords("open_boundary") == "Not a solid: open boundary" &&
+              solidStatusWords("non_manifold") == "Not a solid: non-manifold boundary" &&
+              solidStatusWords("inconsistent_winding") ==
+                  "Not a solid: inconsistent face winding" &&
+              solidStatusWords("loose_geometry") == "Not a solid: loose geometry" &&
+              solidStatusWords("self_intersection") == "Not a solid: intersecting faces" &&
+              solidStatusWords("degenerate") == "Not a solid: degenerate shell",
+          "The Not a solid words are the Entity info panel's words");
+    check(solidStatusWords("multiple_shells") == "Unavailable: multiple shells" &&
+              solidStatusWords("ambiguous_containment") ==
+                  "Unavailable: ambiguous shell containment" &&
+              solidStatusWords("analysis_limit") == "Unavailable: analysis limit" &&
+              solidStatusWords("empty") == "No closed surface",
+          "The other statuses keep their words, and an empty record reads No closed surface");
+}
+
 } // namespace
 
 int main() {
@@ -504,6 +705,10 @@ int main() {
         refusals();
         determinism();
         registry();
+        hooksAndCancel();
+        invalidBodies();
+        terrainMaterialRow();
+        solidWords();
         std::cout << "report tests passed\n";
     } catch (const std::exception &error) {
         std::cerr << "report tests failed: " << error.what() << '\n';
