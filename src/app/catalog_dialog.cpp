@@ -294,6 +294,7 @@ CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
     auto *choose = new QPushButton("Choose folder…");
     choose->setObjectName("catalogChooseFolder");
     choose->setAccessibleName("Choose library folder");
+    choose->setToolTip("The MCP server and the command line read only the default catalogs folder.");
     choose->setAutoDefault(false);
     auto *refresh = new QPushButton("Refresh library");
     refresh->setObjectName("catalogRefresh");
