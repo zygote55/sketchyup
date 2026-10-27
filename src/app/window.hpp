@@ -115,7 +115,7 @@ class Window : public QMainWindow {
     // thread from a copy of the document (the same helper; ADR 0172 section 8). Export needs the helper,
     // not the kernel: a missing or broken helper is the availability sheet, a Limited one is not.
     void exportStep();
-    // R102.c: File › Import SketchUp (.skp)… (window_skp.cpp, ADR 0176 section 9). The parser runs only
+    // R102.c: File › Import .skp file… (window_skp.cpp, ADR 0176 section 9). The parser runs only
     // in sketchyup-skp-worker; the import runs on a worker thread (SkpImportRunner). A missing helper is
     // the availability sheet. The import has no options, so the file picker leads to the progress sheet.
     void importSkp();
