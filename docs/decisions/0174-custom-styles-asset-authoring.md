@@ -1302,11 +1302,11 @@ catalog dialog (R100.f3) are not in it.
 
 Recorded 2026-10-27 for branch `feat/r100b2-material-texture-size`, on origin/main `ffc7ff95` (R100.b).
 
-**Schema (the reading the brief sets).** Schema 31 is R100.a's, so this slice is schema 32 with
-`material-texture-size-v1`, cumulative with the schema-31 set. R107.a (PR #483, `feat/r107a-offline-coordinates`)
-also takes 32 and is open. Whichever PR merges first keeps 32. If R107.a merges first, this slice moves to 33:
-`nativeDocumentVersion`, the `json-v32` encoding, the feature check, the fixture, the sweeps and the API documents.
-Both features stay conditional, so neither changes a document that does not use it.
+**Schema.** This slice is schema 33 with `material-texture-size-v1`, after R107.a (PR #483), which keeps schema 32
+for the geographic site record (`geographic-site-v1`, [ADR 0181](0181-maps-geolocation-feasibility.md) §2.1). The two
+features are independent and cumulative. A sized material alone writes 33 and requires only
+`material-texture-size-v1`; a geographic record alone writes 32; a document with both writes 33 and requires both.
+A document with neither writes what it wrote before.
 
 **The field.** `MaterialRecord::textureSize` is an optional `TextureSize {width, height}` in metres. Each side
 is finite and from 0.01 m to 100 m (1 cm to 100 m). The bounds are this slice's choice: the signed-off presets run
@@ -1321,20 +1321,22 @@ ignores the size. The callers are the viewport, the texture editor, the texture 
 GLB and OBJ exporters. The viewport rebuilds a body when a referenced material record changes (its `buildMesh`
 compares the material pointers), so a size edit refreshes the render without touching the body.
 
-**Encoding.** A size is written only when set. `nativeDocumentVersionFor` returns 32 when any material has one,
-and the container adds `material-texture-size-v1` at 32. The decoder checks the schema-31 feature set without the
-new feature, and a file carrying the new feature must match that set exactly; otherwise it throws
-`Invalid required features`. A payload accepts `textureSize` only from version 32 (`supportedFields`).
+**Encoding.** A size is written only when set. `nativeDocumentVersionFor` returns 33 when any material has one, and 32
+for a geographic record without one. The container adds `material-texture-size-v1` for a sized material and
+`geographic-site-v1` for a record, each on its own. The decoder checks the schema-31 feature set with both optional
+features taken out, and a file carrying either must match that set exactly; otherwise it throws `Invalid required
+features`. A payload accepts `textureSize` only from version 33 (`supportedFields`).
 
 **Commands.** `material.create` and `material.edit` take `textureSize`: `{width, height}` in metres, or `null` for
 no size. On edit an absent field keeps the size and `null` clears it. Each edit is one undo step. `materials.describe`
 reports `textureSize` per material (the object, or `null`). The brief names `material.describe`, which does not
 exist; the command is `materials.describe`. `document.describe` reports counts and is unchanged.
 
-**Assistant.** The field is removed from the assistant's copy of the command schemas (`withoutOptionalField` in
-`src/automation/assistant.cpp`). R100.f1 does the same for `edgeStroke` on its own branch, which is not merged, so
-this helper is new code here. The engine still accepts the field. `assistant_tool_surface_tests` checks that the
-assistant's tools do not contain `textureSize` and that MCP's `transaction.apply` does; the byte pin
+**Assistant.** The field is removed from the assistant's copy of the command schemas. `withoutOptionalField` in
+`src/automation/assistant.cpp` strips a named field at every depth, and the assistant's `transaction.apply` schemas
+strip `edgeStroke` (R100.f1, [PR #482](https://github.com/zygote55/sketchyup/pull/482)) and `textureSize` through
+the same helper. The engine still accepts both fields. `assistant_tool_surface_tests` checks that the assistant's
+tools do not contain `textureSize` and that MCP's `transaction.apply` does; the byte pin
 `tests/assistant-tool-surface-baseline.json` is unchanged. The MCP and transaction API documents in `docs/api` gained
 the field, regenerated with `generate-api-schemas.py` and `generate-tool-reference.py` and checked with `--check`.
 
@@ -1366,9 +1368,17 @@ presets store no size.
 - *glTF and OBJ export.* The GLB export (the only glTF exporter, `src/integrations/glb_export.cpp`) and the OBJ
   export compute UVs from the same mapping, so a sized material repeats over its size in both.
 
-**Released-reader refusal (measured).** The released packages come from the GitHub release. Each was downloaded to a
-scratch directory, checked against `SHA256SUMS`, extracted without installing, and run on the schema-32 fixture
-`tests/fixtures/material-texture-size-v32.sketchyup` with `--validate-native`:
+**Released-reader refusal (measured).** The 1.3.0 CLI is the installed package, `/usr/bin/sketchyup-cli`. The 1.2.0 CLI
+is the release package `sketchyup-1.2.0-1-x86_64.pkg.tar.zst`, checked against the release's `SHA256SUMS` (SHA-256
+`b95fc18909040de68c8c8cb425f1bd01f3573249b48b4c3b61fe0be53d31295d`) and extracted without installing. Each was run with
+`--validate-native` on a copy of the schema-33 fixture `tests/fixtures/material-texture-size-v33.sketchyup`:
+
+- `sketchyup-cli 1.3.0`: exit 1, `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`,
+  the copy unchanged (`cmp`).
+- `sketchyup-cli 1.2.0`: the same output, exit 1, the copy unchanged.
+
+`material_texture_size_tests` runs the 1.3.0 check when `SKETCHYUP_PRIOR_CLI` is set, and it passed with that CLI.
+This is the message R100.a recorded for schema 31, not the newer-format wording ADR 0168 §2 describes.
 
 - `sketchyup-cli 1.3.0` (`sketchyup-1.3.0-1-x86_64.pkg.tar.zst`): exit 1,
   `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`, file unchanged (`cmp`).
@@ -1377,8 +1387,15 @@ scratch directory, checked against `SHA256SUMS`, extracted without installing, a
 `material_texture_size_tests` runs the 1.3.0 check when `SKETCHYUP_PRIOR_CLI` is set, and it passed with that CLI.
 This is the message R100.a recorded for schema 31, not the newer-format wording ADR 0168 §2 describes.
 
-**Verification run locally.** See the final report for each binary's result. The local build is the Debug `dev`
-preset with the BFD linker, because the `ci-fast` preset needs mold, which this machine does not have.
+**Verification run locally.** The local build is the Debug `dev` preset with the BFD linker, because the `ci-fast`
+preset needs mold, which this machine does not have. Each binary below was built and run here with exit 0:
+`material_texture_size_tests`, `native_format_tests`, `geographic_site_tests` and `style_bundle_tests` with
+`SKETCHYUP_PRIOR_CLI` set to 1.3.0; `component_parameter_io_tests` and `terrain_io_tests` with it set to 1.2.0 (their
+prior-release checks name 1.2.x); `texture_preset_tests`, `catalog_tests`, `catalog_import_tests`,
+`assistant_tool_surface_tests`, `drawing_sheet_io_tests`, `presentation_io_tests`, `command_tests` and `skp_mapping_tests`.
+`generate-api-schemas.py --check` and `generate-tool-reference.py --check` pass, and
+`ci-line-inventory.py check` and `ci-plan.py check` pass. The seed program was built with the test's own flags and run
+into a new directory: it wrote 8 `material-texture-size` seeds and 15 `geographic-site` seeds, and its checks passed.
 
 **Contradictions for the owner.**
 

@@ -263,8 +263,8 @@
       "areas": ["build", "native"]
     },
     {
-      "why": "R100.b2 (ADR 0174 section 3): the material texture size, schema 32 with material-texture-size-v1, and its fixture. Tested by material_texture_size_tests, which the build and native lines run; the mapping and exporter checks are in texture_export_tests and the carriers in skp_mapping_tests and catalog_import_tests.",
-      "paths": ["tests/material_texture_size_tests*", "tests/fixtures/material-texture-size-v32.sketchyup"],
+      "why": "R100.b2 (ADR 0174 section 3): the material texture size, schema 33 with material-texture-size-v1, and its fixture. Tested by material_texture_size_tests, which the build and native lines run; the mapping and exporter checks are in texture_export_tests and the carriers in skp_mapping_tests and catalog_import_tests.",
+      "paths": ["tests/material_texture_size_tests*", "tests/fixtures/material-texture-size-v33.sketchyup"],
       "areas": ["build", "native"]
     },
     {

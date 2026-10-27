@@ -544,7 +544,7 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(geographic_site_tests PRIVATE sketchyup_io)
     target_compile_definitions(geographic_site_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME geographic_site COMMAND geographic_site_tests)
-    # R100.b2 (ADR 0174 section 3): the material texture size, schema 32 with material-texture-size-v1.
+    # R100.b2 (ADR 0174 section 3): the material texture size, schema 33 with material-texture-size-v1.
     add_executable(material_texture_size_tests tests/material_texture_size_tests.cpp)
     target_link_libraries(material_texture_size_tests PRIVATE sketchyup_io)
     target_compile_definitions(material_texture_size_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

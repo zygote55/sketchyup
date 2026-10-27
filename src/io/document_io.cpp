@@ -261,7 +261,7 @@ int storedDisplayPrecision(const QJsonValue &value) {
     return int(number);
 }
 } // namespace
-// Schema 32 (R100.b2): a material's texture size, written only when the material has one.
+// Schema 33 (R100.b2): a material's texture size, written only when the material has one.
 QJsonObject encodeTextureSize(const TextureSize &size) {
     return {{"width", size.width}, {"height", size.height}};
 }
@@ -1073,7 +1073,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             QStringList materialFields{"id", "name", "color", "opacity"};
             if (root["version"].toInt() >= 11)
                 materialFields.append("asset");
-            if (root["version"].toInt() >= 32)
+            if (root["version"].toInt() >= nativeMaterialTextureSizeDocumentVersion)
                 materialFields.append("textureSize");
             supportedFields(record, materialFields);
             if (!record["name"].isString())
@@ -1087,7 +1087,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                 {float(number(color[0])), float(number(color[1])), float(number(color[2]))},
                 float(number(record["opacity"])),
                 root["version"].toInt() >= 11 ? readId(record["asset"], true) : Id{},
-                root["version"].toInt() >= 32 && record.contains("textureSize")
+                root["version"].toInt() >= nativeMaterialTextureSizeDocumentVersion && record.contains("textureSize")
                     ? std::optional(decodeTextureSize(record["textureSize"]))
                     : std::nullopt});
             if (!materials.emplace(material->id, material).second)

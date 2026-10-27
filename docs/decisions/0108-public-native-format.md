@@ -605,12 +605,21 @@ same rule. A document without an edge stroke still writes its lower schema. The 
 1 to 31. SketchyUp 1.3.0 and 1.2.0 refuse a schema-31 file unchanged with an
 `Unsupported container field` error, as they refuse schema 30.
 
-**Schema 32 addendum: material texture size (R100.b2).** 2026-10-27. The public schema advances to
-**sketchyup-document-v32** under container version 2; see
-[custom styles](0174-custom-styles-asset-authoring.md) section 3. A document with a material that has a
-texture size writes schema 32, with `requiredFeatures` appending `material-texture-size-v1` after
-`edge-styles-v1`, and its document chunk uses `json-v32`. A material record's optional field
-`textureSize` is an object of exactly two fields, `width` and `height`, each a finite number in metres
-from 0.01 to 100. A schema-31 or older root refuses `textureSize`. A document without a sized material
-still writes its lower schema, byte for byte. The read range is 1 to 32. SketchyUp 1.3.0 and 1.2.0 refuse a
-schema-32 file unchanged with the `Unsupported container field` error, as they refuse schema 31.
+**Schema 32 addendum: geographic site record (R107.a).** 2026-10-27. The public schema is
+**sketchyup-document-v32** under container version 2; see [ADR 0181](0181-maps-geolocation-feasibility.md)
+section 2.1. A document whose site origin carries a geographic record writes schema 32, with
+`requiredFeatures` appending `geographic-site-v1` after `edge-styles-v1`, and its document chunk uses
+`json-v32`. A document without the record writes its lower schema, byte for byte. A schema-31 or older
+root refuses the record. The read range is 1 to 32.
+
+**Schema 33 addendum: material texture size (R100.b2).** 2026-10-27. The public schema advances to
+**sketchyup-document-v33** under container version 2; see [custom styles](0174-custom-styles-asset-authoring.md)
+section 3. A document with a material that has a texture size writes schema 33, with `requiredFeatures`
+appending `material-texture-size-v1` after `edge-styles-v1`, and its document chunk uses `json-v33`. The
+two optional features are independent. A sized material alone writes schema 33 and requires only
+`material-texture-size-v1`; a geographic record alone writes schema 32; a document with both writes
+schema 33 and requires both. A material record's optional field `textureSize` is an object of exactly
+two fields, `width` and `height`, each a finite number in metres from 0.01 to 100. A schema-32 or older
+root refuses `textureSize`. A document with neither feature still writes its lower schema, byte for
+byte. The read range is 1 to 33. SketchyUp 1.3.0 and 1.2.0 refuse a schema-33 file unchanged, as they
+refuse schema 31 and 32.

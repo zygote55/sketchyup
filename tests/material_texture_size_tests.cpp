@@ -1,5 +1,5 @@
 // R100.b2 (ADR 0174 section 3): a material's real-world texture size. The implicit face mapping
-// uses it, the document carries it as schema 32 with material-texture-size-v1, and the material
+// uses it, the document carries it as schema 33 with material-texture-size-v1, and the material
 // commands, materials.describe and catalogs follow the same rule. The released-reader refusal runs
 // when SKETCHYUP_PRIOR_CLI is set (package acceptance); the S6 .skp check is in skp_mapping_tests
 // and the GLB and OBJ UV checks are in texture_export_tests.
@@ -7,6 +7,8 @@
 #include "catalog_fixtures.hpp"
 #include "core/face_textures.hpp"
 #include "core/materials.hpp"
+#include "core/terrain.hpp"
+#include "geo/geographic.hpp"
 #include "io/catalog_insert.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
@@ -85,7 +87,7 @@ std::pair<Id, Id> horizontalSquare(Document &doc) {
     return {body, doc.bodies().at(body)->surface.faces.begin()->first};
 }
 
-// The schema-32 fixture: a textured tile at a non-square size, a size-free material and a
+// The schema-33 fixture: a textured tile at a non-square size, a size-free material and a
 // square size, with the tile assigned to the front of one face.
 Document sizedFixture() {
     Document doc;
@@ -199,17 +201,17 @@ void implicitMapping() {
     }
 }
 
-// The schema-32 writer, the lowest-schema writer and the feature gate.
+// The schema-33 writer, the lowest-schema writer and the feature gate.
 void schemaAndRoundTrip() {
     const auto sized = sizedFixture();
     const auto bytes = encodeContainer(sized);
-    check(nativeDocumentVersionFor(sized) == 32 && nativeDocumentVersion == 32,
-          "A sized material needs schema 32");
-    check(documentChunkEncoding(bytes) == "json-v32" &&
+    check(nativeDocumentVersionFor(sized) == 33 && nativeMaterialTextureSizeDocumentVersion == 33,
+          "A sized material needs schema 33");
+    check(documentChunkEncoding(bytes) == "json-v33" &&
               hasFeature(bytes, "material-texture-size-v1") && hasFeature(bytes, "materials-v1"),
-          "A sized material writes json-v32 with material-texture-size-v1");
-    check(QJsonDocument::fromJson(encodeDocument(sized)).object()["version"] == 32,
-          "The payload is version 32");
+          "A sized material writes json-v33 with material-texture-size-v1");
+    check(QJsonDocument::fromJson(encodeDocument(sized)).object()["version"] == 33,
+          "The payload is version 33");
     const auto reopened = decodeContainer(bytes);
     check(reopened.materials().size() == 3, "The three materials reopen");
     check(reopened.materials().at(materialNamed(reopened, "Brick"))->textureSize ==
@@ -218,7 +220,7 @@ void schemaAndRoundTrip() {
               reopened.materials().at(materialNamed(reopened, "Wool"))->textureSize ==
                   TextureSize{.27, .28},
           "Each material keeps its own size, and an unsized one keeps none");
-    check(encodeContainer(reopened) == bytes, "A schema-32 container re-encodes bit for bit");
+    check(encodeContainer(reopened) == bytes, "A schema-33 container re-encodes bit for bit");
 
     // A document without a sized material writes what it wrote before.
     Document plain;
@@ -386,7 +388,65 @@ void catalogCarriesSize() {
           "The catalog writer refuses an out-of-bound size");
 }
 
-// The released-reader refusal (ADR 0174 section 6): the schema-32 file is refused unchanged.
+// A site origin and its geographic record at London (UTM zone 30N), so the two agree.
+SiteOrigin londonOrigin() {
+    const auto grid = geoToUtm({51.5, -0.1}, 30);
+    return SiteOrigin{grid.easting, grid.northing, 0, "EPSG:32630", {"", ""}, {}};
+}
+SiteGeographic londonRecord() {
+    const GeoPosition position{51.5, -0.1};
+    SiteGeographic record;
+    record.latitude = position.latitude;
+    record.longitude = position.longitude;
+    record.datum = "WGS84";
+    record.utmZone = 30;
+    record.utmNorth = true;
+    record.convergence = utmGridConvergence(position, 30);
+    record.verticalReference = "NAVD88";
+    record.provenance = {"typed", "surveyed by hand", ""};
+    return record;
+}
+
+// The two optional features are independent and cumulative (ADR 0174 section 3, ADR 0181 §2.1).
+// A sized material alone is schema 33 and requires only material-texture-size-v1; a geographic
+// record alone is schema 32 and requires only geographic-site-v1; both are schema 33 and require
+// both.
+void independentFeatures() {
+    const auto sized = sizedFixture();
+    const auto sizedBytes = encodeContainer(sized);
+    check(nativeDocumentVersionFor(sized) == 33 && documentChunkEncoding(sizedBytes) == "json-v33" &&
+              hasFeature(sizedBytes, "material-texture-size-v1") &&
+              !hasFeature(sizedBytes, "geographic-site-v1"),
+          "A sized material alone is schema 33 and requires only material-texture-size-v1");
+
+    Document geographic;
+    setSiteOrigin(geographic, londonOrigin());
+    setSiteGeographic(geographic, londonRecord());
+    const auto geographicBytes = encodeContainer(geographic);
+    check(nativeDocumentVersionFor(geographic) == 32 &&
+              documentChunkEncoding(geographicBytes) == "json-v32" &&
+              hasFeature(geographicBytes, "geographic-site-v1") &&
+              !hasFeature(geographicBytes, "material-texture-size-v1"),
+          "A geographic record alone is schema 32 and requires only geographic-site-v1");
+    check(decodeContainer(geographicBytes).site() &&
+              decodeContainer(geographicBytes).site()->geographic == londonRecord(),
+          "A schema-32 file reopens its geographic record");
+
+    Document both = sizedFixture();
+    setSiteOrigin(both, londonOrigin());
+    setSiteGeographic(both, londonRecord());
+    const auto bothBytes = encodeContainer(both);
+    check(nativeDocumentVersionFor(both) == 33 && documentChunkEncoding(bothBytes) == "json-v33" &&
+              hasFeature(bothBytes, "geographic-site-v1") &&
+              hasFeature(bothBytes, "material-texture-size-v1"),
+          "A document with both features is schema 33 and requires both");
+    const auto reopened = decodeContainer(bothBytes);
+    check(reopened.site() && reopened.site()->geographic == londonRecord() &&
+              reopened.materials().size() == 3 && encodeContainer(reopened) == bothBytes,
+          "A schema-33 file with both features reopens both and re-encodes bit for bit");
+}
+
+// The released-reader refusal (ADR 0174 section 6): the schema-33 file is refused unchanged.
 void priorRelease(const QString &directory, const QByteArray &bytes) {
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (prior.isEmpty()) {
@@ -398,7 +458,7 @@ void priorRelease(const QString &directory, const QByteArray &bytes) {
     QProcess process;
     process.start(prior, {"--validate-native", path});
     check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == bytes,
-          "The prior release refuses a schema-32 file unchanged");
+          "The prior release refuses a schema-33 file unchanged");
     std::cout << "prior release refusal: " << process.readAllStandardError().trimmed().toStdString()
               << '\n';
 }
@@ -407,7 +467,7 @@ void priorRelease(const QString &directory, const QByteArray &bytes) {
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
-    // --write-fixture PATH regenerates the checked-in schema-32 fixture.
+    // --write-fixture PATH regenerates the checked-in schema-33 fixture.
     if (argc == 3 && QString::fromLocal8Bit(argv[1]) == "--write-fixture") {
         write(QString::fromLocal8Bit(argv[2]), encodeContainer(stable(sizedFixture())));
         return 0;
@@ -416,16 +476,17 @@ int main(int argc, char **argv) {
         validation();
         implicitMapping();
         schemaAndRoundTrip();
+        independentFeatures();
         commandsAndUndo();
         catalogCarriesSize();
-        // The checked-in fixture reads as a schema-32 file and reopens bit for bit.
+        // The checked-in fixture reads as a schema-33 file and reopens bit for bit.
         const auto fixture = read(QString::fromLocal8Bit(SOURCE_DIR) +
-                                  "/tests/fixtures/material-texture-size-v32.sketchyup");
-        check(documentChunkEncoding(fixture) == "json-v32" &&
+                                  "/tests/fixtures/material-texture-size-v33.sketchyup");
+        check(documentChunkEncoding(fixture) == "json-v33" &&
                   hasFeature(fixture, "material-texture-size-v1"),
-              "The fixture is schema 32 with material-texture-size-v1");
+              "The fixture is schema 33 with material-texture-size-v1");
         check(encodeContainer(decodeContainer(fixture)) == fixture,
-              "The schema-32 fixture reopens bit for bit");
+              "The schema-33 fixture reopens bit for bit");
         QTemporaryDir dir;
         check(dir.isValid(), "A temporary directory");
         priorRelease(dir.path(), fixture);

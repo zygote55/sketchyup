@@ -30,9 +30,9 @@
   preset stores its signed-off tile size, and the New and Edit material dialogs have a **Set size**
   field. A material without a size repeats every metre, as before. The material commands take
   `textureSize`, `materials.describe` reports it, and catalogs and the `.skp` import carry it. A
-  document with a sized material is schema 32 with the conditional feature `material-texture-size-v1`;
-  a document without one is written as before. The schema-32 file is refused by SketchyUp 1.3.0 and
-  1.2.0 as schema 31 is.
+  document with a sized material is schema 33 with the conditional feature `material-texture-size-v1`;
+  a document without one is written as before. A geographic site record is schema 32 (R107.a), and the
+  two features are independent. The schema-33 file is refused by SketchyUp 1.3.0 and 1.2.0 as schema 31 is.
 
 - Quantities report engine (R101.a, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
   a pure counting pass over the materialized document, with the counting rules for shared
