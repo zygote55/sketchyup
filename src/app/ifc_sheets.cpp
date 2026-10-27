@@ -1010,7 +1010,7 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
     const bool helperWords = !message.isEmpty() && message != reason && codeText != "workerFailed" && codeText != "deadline";
     RefusalSheet face;
     face.sheetName = "skpRefusal";
-    face.title = "SketchUp import refused";
+    face.title = ".skp import refused";
     face.width = 680;
     face.height = 480;
     face.prefix = "skpRefusal";

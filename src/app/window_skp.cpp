@@ -33,7 +33,7 @@ void Window::importSkp() {
         return;
     }
     const QString path = QFileDialog::getOpenFileName(this, "Choose a SketchUp file", {},
-                                                      "SketchUp models (*.skp *.SKP);;All files (*.*)");
+                                                      ".skp files (*.skp *.SKP);;All files (*.*)");
     if (path.isEmpty())
         return;
     // The confirm phase: before the helper starts, ask about unsaved changes (16.3).
