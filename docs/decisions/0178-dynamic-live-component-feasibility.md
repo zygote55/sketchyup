@@ -364,6 +364,21 @@ run record below.
   desktop build in CI; see the run record below for the local check.
 - No Live Component fixture exists, so R104.c's label is not implemented (above).
 
+**Run record (R104.a, 2026-10-27, this runner).**
+
+- `skp` preset, all targets, built under the 10 GB cap with BFD. The CI skp set (`skp_package`, `skp_import`,
+  `skp_import_real`, `skp_mapping`, `skp_mapping_real`, `skp_dc`, `skp_dc_real`, `skp_library_install`,
+  `skp_library_source`) passed 9 of 9, with `SKETCHYUP_SKP_CORPUS` set to the owner's directory.
+- `skp-sanitize`: `skp_package`, `skp_import`, `skp_mapping` and `skp_dc` passed under ASan and UBSan, with
+  `ASAN_OPTIONS=detect_leaks=0`. ASan cannot run under an address-space `ulimit` of 8 GB, so the cap was a cgroup
+  limit of 10 GB.
+- The owner's file, aggregate only: 0 Dynamic Component values at instance level and 0 at definition level, so the
+  `dynamicComponents` section is empty for it. The helper imports the file in 146 to 163 ms wall (three runs, load average
+  near 9.5), into a package of 64,299 bytes.
+- Desktop: `ifc_sheets.cpp`, `components_tab.cpp` and `assembly_library_input_tests.cpp` compile with the `dev` preset.
+  One warning, in `ifc_sheets.cpp` line 209, is on code this change does not touch. The desktop tests were not run
+  locally.
+
 ## Sources
 
 Each page was read on 2026-10-26. "Last updated" dates are the page's own, as shown on the fetched page.
