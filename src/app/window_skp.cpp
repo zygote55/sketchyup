@@ -1,4 +1,4 @@
-// R102.c (ADR 0176 section 9): File › Import SketchUp (.skp)… / Show SketchUp import report…, the STEP
+// R102.c (ADR 0176 section 9): File › Import .skp file… / Show .skp import report…, the STEP
 // import's own screens with the SketchUp helper (sketchyup-skp-worker). The parser runs only in that
 // helper (ADR 0176 decision 2); the import runs on a worker thread, so the UI is never blocked. A
 // missing helper is the availability sheet. The import has no options (decision 5), so the file picker

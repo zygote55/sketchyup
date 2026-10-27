@@ -202,7 +202,7 @@ class Converter {
   public:
     Converter(const SkpPackage &package, const SkpConversionHooks &hooks) : pkg(package), hooks(hooks) {
         // The one undoable entry of the whole import (ADR 0176 section 4).
-        edit.label = "Import SketchUp";
+        edit.label = "Import .skp file";
     }
     SkpImport run();
 

@@ -888,7 +888,7 @@ QString skpNotCarriedLabel(const QString &key) {
 ImportReportFace skpImportReportFace() {
     ImportReportFace face;
     face.sheetName = "skpImportReport";
-    face.title = "SketchUp import report";
+    face.title = ".skp import report";
     face.prefix = "skpReport";
     face.identitySubject = "faces";
     face.chipWord = "SketchUp";

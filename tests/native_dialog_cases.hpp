@@ -1586,8 +1586,8 @@ inline std::vector<Case> cases(Context &ctx) {
          "File > Export STEP… (palette)", fresh, viaPalette("Export STEP…"),
          namedTitle("stepExportUnavailable", "STEP export"), Enter::Closes, "OK"});
     add({"skp-import-unavailable", "exchange", "SketchUp import (helper not installed)",
-         "File > Import SketchUp (.skp)… (palette)", fresh,
-         viaPalette("Import SketchUp (.skp)…"),
+         "File > Import .skp file… (palette)", fresh,
+         viaPalette("Import .skp file…"),
          namedTitle("skpUnavailable", "SketchUp import"), Enter::Closes, "OK"});
     // -------------------------------------------------------------- sheets ---------
     // R091.f: opened from the page canvas through the palette; focus returns to the canvas.
