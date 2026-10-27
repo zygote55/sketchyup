@@ -1541,7 +1541,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R108 — Specify and prototype multi-user document collaboration
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Core. **Scope:** C07. **UX:** —.
+**Status:** Feasibility design proposed ([ADR 0182](decisions/0182-collaboration-feasibility.md)); delivery conditional on feasibility. **Track:** Core. **Scope:** C07. **UX:** —.
 
 **Requires:** [R089](#r089), [R041](#r041); milestone gate rule above.
 
