@@ -16,6 +16,7 @@ class TextPanel;
 class SolarPanel;
 class ReferenceImagesPanel;
 class ComponentsTab;
+class QuantitiesPanel;
 class OrganizationPanel : public QWidget {
   public:
     OrganizationPanel(Document &document, Viewport &viewport, QWidget *parent = nullptr);
@@ -26,6 +27,10 @@ class OrganizationPanel : public QWidget {
     void showInfo();
     void showMaterials();
     void showHistory();
+    // R101.e2 (UX_DESIGN §19.1): the Quantities section, between Materials and History.
+    void showQuantities();
+    // The model's file, for the Quantities section's schedules and export names ("" when unsaved).
+    void setModelPath(std::function<QString()> path);
     void showStyles();
     void showScenes();
     void showSections();
@@ -45,6 +50,7 @@ class OrganizationPanel : public QWidget {
     QTabWidget *tabs_{};
     EntityInfoPanel *info_{};
     MaterialsPanel *materials_{};
+    QuantitiesPanel *quantities_{};
     HistoryPanel *history_{};
     StylesPanel *styles_{};
     ScenesPanel *scenes_{};

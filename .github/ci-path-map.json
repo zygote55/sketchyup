@@ -272,6 +272,22 @@
       ]
     },
     {
+      "why": "R101.e2 (UX_DESIGN section 19): the Quantities section of the Model Tray, its off-thread runs, schedules and exports, driven through the main window offscreen and on the native display lines. Its dialogs are in the native dialog audit's quantities group.",
+      "paths": [
+        "src/app/quantities_job.cpp",
+        "src/app/quantities_job.hpp",
+        "src/app/quantities_panel.cpp",
+        "src/app/quantities_panel.hpp",
+        "src/app/quantities_dialogs.cpp",
+        "src/app/quantities_dialogs.hpp",
+        "tests/quantities_input_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
       "why": "The R099.d3 batch dialog, the Jobs batch rows, the results sheet and the quit prompt (UX_DESIGN 17.4 to 17.7, 17.12): the batch controller, the dialog and the results sheet, with the input suite that drives them and the native display lines that run it. The suite links the desktop and runs the fake worker of blender_job_tests, so it runs in the fast tier as well.",
       "paths": [
         "tests/presentation_batch_input_tests.cpp",
