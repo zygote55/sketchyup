@@ -1022,6 +1022,14 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       add_dependencies(report_schedule_cli_tests sketchyup-cli)
       add_test(NAME report_schedule_cli COMMAND report_schedule_cli_tests)
       set_tests_properties(report_schedule_cli PROPERTIES SKIP_RETURN_CODE 77)
+      # R100.e (ADR 0174 sections 7 and 10): the style and catalog CLI flags, run as the built binary.
+      add_executable(style_catalog_cli_tests tests/style_catalog_cli_tests.cpp)
+      target_link_libraries(style_catalog_cli_tests PRIVATE sketchyup_io)
+      target_compile_definitions(style_catalog_cli_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+                                 CLI_PATH="$<TARGET_FILE:sketchyup-cli>")
+      add_dependencies(style_catalog_cli_tests sketchyup-cli)
+      add_test(NAME style_catalog_cli COMMAND style_catalog_cli_tests)
+      set_tests_properties(style_catalog_cli PROPERTIES SKIP_RETURN_CODE 77)
       add_executable(report_mcp_tests tests/report_mcp_tests.cpp)
       target_link_libraries(report_mcp_tests PRIVATE sketchyup_io)
       target_compile_definitions(report_mcp_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
