@@ -3,8 +3,11 @@
 #include <QByteArray>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QString>
 namespace sketchy {
+QJsonObject encodeTextureSize(const TextureSize &size);
+TextureSize decodeTextureSize(const QJsonValue &value);
 QJsonObject encodeCurve(Id id, const Curve &curve);
 QJsonObject encodeGuide(Id id, const Guide &guide);
 QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records);

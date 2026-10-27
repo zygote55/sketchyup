@@ -353,11 +353,13 @@ int main(int argc, char **argv) {
 
         // The policy constants: 28 is written for parameters (29 only adds terrain and
         // the site origin, ADR 0168; 30 adds camera paths and presets, ADR 0173; 31 adds
-        // an edge stroke on the style, ADR 0174); parameter-free content stays 27 or 26.
+        // an edge stroke on the style, ADR 0174; 32 adds a material texture size, ADR 0174
+        // section 3); parameter-free content stays 27 or 26.
         static_assert(
-            nativeDocumentVersion == 31 && nativePresentationDocumentVersion == 30 &&
-            nativeTerrainDocumentVersion == 29 && nativeTerrainFreeDocumentVersion == 28 &&
-            nativeParameterFreeDocumentVersion == 27 && nativeSheetFreeDocumentVersion == 26);
+            nativeDocumentVersion == 32 && nativeEdgeStyleDocumentVersion == 31 &&
+            nativePresentationDocumentVersion == 30 && nativeTerrainDocumentVersion == 29 &&
+            nativeTerrainFreeDocumentVersion == 28 && nativeParameterFreeDocumentVersion == 27 &&
+            nativeSheetFreeDocumentVersion == 26);
         check(nativeDocumentVersionFor(Document{}) == 26, "An empty document needs schema 26");
 
         auto t = makeTable();
@@ -1088,9 +1090,11 @@ int main(int argc, char **argv) {
                 fixtures.entryList({"*.sketchyup", "raw-*.json"}, QDir::Files, QDir::Name);
             int historical{}, exact{};
             for (const auto &name : names) {
-                // Schema-28, schema-30 and schema-31 fixtures carry records this loop is not about.
+                // Schema-28, schema-30, schema-31 and schema-32 fixtures carry records this loop is
+                // not about.
                 if (name == "component-parameters-v28.sketchyup" ||
-                    name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup")
+                    name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup" ||
+                    name == "material-texture-size-v32.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);

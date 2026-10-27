@@ -11,6 +11,7 @@
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QtEndian>
+#include <algorithm>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -197,9 +198,13 @@ int main(int argc, char **argv) {
             const auto sheets = !loaded.drawingSheets().empty();
             const auto presentation = !loaded.cameraPaths().empty() || !loaded.renderPresets().empty();
             const auto edgeStroke = bool(loaded.style().edgeStroke);
+            const auto textureSized = std::any_of(
+                loaded.materials().begin(), loaded.materials().end(),
+                [](const auto &entry) { return entry.second->textureSize.has_value(); });
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (edgeStroke     ? nativeDocumentVersion
+                          (textureSized   ? nativeDocumentVersion
+                           : edgeStroke   ? nativeEdgeStyleDocumentVersion
                            : presentation ? nativePresentationDocumentVersion
                            : parametric   ? nativeTerrainFreeDocumentVersion
                            : sheets       ? nativeParameterFreeDocumentVersion

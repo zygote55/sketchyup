@@ -261,6 +261,17 @@ int storedDisplayPrecision(const QJsonValue &value) {
     return int(number);
 }
 } // namespace
+// Schema 32 (R100.b2): a material's texture size, written only when the material has one.
+QJsonObject encodeTextureSize(const TextureSize &size) {
+    return {{"width", size.width}, {"height", size.height}};
+}
+TextureSize decodeTextureSize(const QJsonValue &value) {
+    const auto record = object(value);
+    supportedFields(record, {"width", "height"});
+    const TextureSize size{number(record["width"]), number(record["height"])};
+    validateTextureSize(size);
+    return size;
+}
 QJsonObject encodeCurve(Id id, const Curve &curve) {
     auto point = [](Vec3 p) { return QJsonArray{p.x, p.y, p.z}; };
     QJsonArray edges;
@@ -406,13 +417,17 @@ QByteArray encodeDocument(const Document &doc, AssetStorage assetStorage) {
              inlineData ? QJsonValue(QString::fromLatin1(assetByteArray(asset->payload).toBase64()))
                         : QJsonValue::Null}});
     }
-    for (const auto &[id, material] : doc.materials())
-        materials.append(QJsonObject{
+    for (const auto &[id, material] : doc.materials()) {
+        QJsonObject record{
             {"id", sid(id)},
             {"name", QString::fromStdString(material->name)},
             {"color", QJsonArray{material->color[0], material->color[1], material->color[2]}},
             {"opacity", material->opacity},
-            {"asset", sid(material->asset)}});
+            {"asset", sid(material->asset)}};
+        if (material->textureSize)
+            record["textureSize"] = encodeTextureSize(*material->textureSize);
+        materials.append(record);
+    }
     for (const auto &[id, tag] : doc.tags())
         tags.append(QJsonObject{{"id", sid(id)},
                                 {"parent", sid(tag->parent)},
@@ -1058,6 +1073,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             QStringList materialFields{"id", "name", "color", "opacity"};
             if (root["version"].toInt() >= 11)
                 materialFields.append("asset");
+            if (root["version"].toInt() >= 32)
+                materialFields.append("textureSize");
             supportedFields(record, materialFields);
             if (!record["name"].isString())
                 throw std::runtime_error("Invalid material name");
@@ -1069,7 +1086,10 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                 record["name"].toString().toStdString(),
                 {float(number(color[0])), float(number(color[1])), float(number(color[2]))},
                 float(number(record["opacity"])),
-                root["version"].toInt() >= 11 ? readId(record["asset"], true) : Id{}});
+                root["version"].toInt() >= 11 ? readId(record["asset"], true) : Id{},
+                root["version"].toInt() >= 32 && record.contains("textureSize")
+                    ? std::optional(decodeTextureSize(record["textureSize"]))
+                    : std::nullopt});
             if (!materials.emplace(material->id, material).second)
                 throw std::runtime_error("Duplicate material identity");
         }

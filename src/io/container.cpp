@@ -92,7 +92,8 @@ QByteArray encodeContainer(const Document &doc) {
     // applies the same policy to the payload.
     const auto version = nativeDocumentVersionFor(doc);
     const bool drawingSheets = version >= 27, componentParameters = version >= 28,
-               terrain = version >= 29, presentation = version >= 30, edgeStyles = version >= 31;
+               terrain = version >= 29, presentation = version >= 30, edgeStyles = version >= 31,
+               textureSizes = version >= 32;
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
@@ -144,6 +145,8 @@ QByteArray encodeContainer(const Document &doc) {
         features.append("presentation-v1");
     if (edgeStyles)
         features.append("edge-styles-v1");
+    if (textureSizes)
+        features.append("material-texture-size-v1");
     const auto manifest =
         QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
                                   {"epoch", "1"},
@@ -188,7 +191,12 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    const bool edgeStyles = features == std::set<QString>{"scene-v2",
+    // Schema 32 (R100.b2) adds material-texture-size-v1 to the schema-31 set. The schema-31
+    // comparison below runs without that feature, and a file that has it must match that set.
+    const bool textureSizes = features.contains("material-texture-size-v1");
+    auto schema31 = features;
+    schema31.erase("material-texture-size-v1");
+    const bool edgeStyles = schema31 == std::set<QString>{"scene-v2",
                                                           "topology-v1",
                                                           "curves-v1",
                                                           "guides-v1",
@@ -218,6 +226,8 @@ Document decodeContainer(const QByteArray &bytes) {
                                                           "terrain-v1",
                                                           "presentation-v1",
                                                           "edge-styles-v1"};
+    if (textureSizes && !edgeStyles)
+        throw std::runtime_error("Invalid required features");
     const bool presentation = edgeStyles || features == std::set<QString>{"scene-v2",
                                                                           "topology-v1",
                                                                           "curves-v1",
@@ -401,7 +411,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (edgeStyles            ? "json-v31"
+        chunk["encoding"] != (textureSizes          ? "json-v32"
+                              : edgeStyles          ? "json-v31"
                               : presentation        ? "json-v30"
                               : terrain             ? "json-v29"
                               : componentParameters ? "json-v28"
@@ -477,7 +488,8 @@ Document decodeContainer(const QByteArray &bytes) {
     QJsonParseError payloadError;
     const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
     const auto payloadTree = parsedPayload.object();
-    if (payloadTree["version"] != (edgeStyles            ? 31
+    if (payloadTree["version"] != (textureSizes          ? 32
+                                   : edgeStyles          ? 31
                                    : presentation        ? 30
                                    : terrain             ? 29
                                    : componentParameters ? 28

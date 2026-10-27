@@ -205,6 +205,13 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
     return {std::move(sheets), std::move(views)};
 }
 namespace {
+// Schema 32 (ADR 0174 section 3): a material has a real-world texture size.
+bool usesTextureSizes(const Document &document) {
+    for (const auto &[id, material] : document.materials())
+        if (material->textureSize)
+            return true;
+    return false;
+}
 // Schema 31 (ADR 0174 §2): the document style or a saved scene's style carries an edge stroke.
 bool usesEdgeStrokes(const Document &document) {
     if (document.style().edgeStroke)
@@ -217,8 +224,10 @@ bool usesEdgeStrokes(const Document &document) {
 } // namespace
 
 int nativeDocumentVersionFor(const Document &document) {
-    if (usesEdgeStrokes(document))
+    if (usesTextureSizes(document))
         return nativeDocumentVersion;
+    if (usesEdgeStrokes(document))
+        return nativeEdgeStyleDocumentVersion;
     if (!document.cameraPaths().empty() || !document.renderPresets().empty())
         return nativePresentationDocumentVersion;
     if (document.site())

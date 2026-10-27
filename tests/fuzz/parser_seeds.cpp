@@ -597,6 +597,28 @@ int main(int argc, char **argv) {
                             bytes(stroke(2, 1, "solid", "0")).replace("\"width\"", "\"wide\""),
                             "unknown-field");
         }
+        // R100.b2: material texture sizes at the bounds, a square and a non-square tile, and the
+        // rejected bounds, fields and types.
+        {
+            const auto sized = [](QJsonValue width, QJsonValue height) {
+                return QJsonObject{{"width", width}, {"height", height}};
+            };
+            const auto bytes = [](const QJsonObject &object) {
+                return QJsonDocument(object).toJson(QJsonDocument::Compact);
+            };
+            publish("material-texture-size", bytes(sized(minimumTextureSize, maximumTextureSize)),
+                    "bounds");
+            publish("material-texture-size", bytes(sized(.9, .9)), "brick");
+            publish("material-texture-size", bytes(sized(.27, .28)), "wool-non-square");
+            publishRejected("material-texture-size", bytes(sized(.009, 1)), "width-below");
+            publishRejected("material-texture-size", bytes(sized(1, 100.5)), "height-above");
+            publishRejected("material-texture-size", bytes(sized(1, "1")), "string-height");
+            publishRejected("material-texture-size", bytes(QJsonObject{{"width", 1}}),
+                            "missing-height");
+            publishRejected("material-texture-size",
+                            bytes(QJsonObject{{"width", 1}, {"height", 1}, {"depth", 1}}),
+                            "unknown-field");
+        }
         // R093.a: parameter expressions, canonical text, every type and function.
         const char *const expressions[][2] = {
             {"table-width", "width - 60 mm"},
