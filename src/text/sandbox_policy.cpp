@@ -91,6 +91,16 @@ sketchyup::sandbox::Policy textSandboxPolicy() {
         {"fcntl", Action::argumentOneOf, {F_SETFD, F_GETFL, F_SETFL}},
         // ioctl: the terminal queries of the stdout check, and nothing else
         {"ioctl", Action::argumentOneOf, {kTcgets, kTcgets2}},
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+        // The sanitizer builds (ASan and UBSan): their runtimes make these calls after main. UBSan
+        // opens a
+        // pipe for its type cache on the first vptr check; ASan gives each thread an alternate
+        // signal stack.
+        // A release helper does not carry them (ADR 0183 implementation notes, S3 and S4).
+        {"pipe2", Action::allow},
+        {"sigaltstack", Action::allow},
+        {"madvise", Action::allow}, // ASan releases the pages of freed blocks
+#endif
         // no socket and no exec: a call to either kills the helper with SIGSYS, which the host
         // reports as sandboxViolation. exit and exit_group are always allowed.
     };

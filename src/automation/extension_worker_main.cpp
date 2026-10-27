@@ -5,6 +5,13 @@
 #include <QJsonDocument>
 #include <iostream>
 using namespace sketchy;
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+// The sanitizer builds: LeakSanitizer's exit check would stop the worker's threads with ptrace,
+// which the sandbox refuses (ADR 0183 section 3). The host gives the worker a clean environment, so
+// this is the worker's own setting, detect_leaks=0 (as the .skp helper's).
+extern "C" const char *__lsan_default_options() { return "detect_leaks=0"; }
+#endif
+
 int main(int argc, char **argv) {
     // R109 S4 (ADR 0183 section 4.1): the sandbox is installed before Qt starts and before the
     // request is read. A layer that cannot be installed refuses here, with exit 70 and nothing

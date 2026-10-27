@@ -66,6 +66,13 @@ sketchyup::sandbox::Policy extensionSandboxPolicy() {
         // ioctl: the terminal queries of the stdout check (ADR 0183 section 6.5, item 2), and
         // nothing else
         {"ioctl", Action::argumentOneOf, {kTcgets, kTcgets2}},
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+        // The sanitizer builds (ASan and UBSan): their runtimes make these calls after main (see
+        // the text policy).
+        {"pipe2", Action::allow},
+        {"sigaltstack", Action::allow},
+        {"madvise", Action::allow}, // ASan releases the pages of freed blocks
+#endif
         // no socket, no exec and no clone: the ADR's row for the worker says it creates no thread,
         // so a
         // call to any of them kills the worker with SIGSYS, which the host reports as
