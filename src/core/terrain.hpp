@@ -3,8 +3,9 @@
 // TerrainRecord holds the sources, and whose children are ordinary geometry tiles of at
 // most 2,048 triangles; the document site origin and model <-> site conversion.
 // Triangulation is not here: callers pass an already-triangulated mesh.
-#include "core/terrain_records.hpp"
 #include "core/model.hpp"
+#include "core/terrain_records.hpp"
+#include "geo/geographic.hpp"
 #include "geometry/terrain_progress.hpp"
 #include <array>
 #include <cstdint>
@@ -140,6 +141,16 @@ TerrainRegenerated regenerateTerrain(Document &doc, Id terrain, const TerrainTil
 void assignTerrainSourceIds(TerrainRecord &record);
 // Establishes the site origin; refuses (INVALID_REQUEST) when one exists.
 void setSiteOrigin(Document &doc, SiteOrigin origin);
+// Checks a geographic record on its own (ADR 0181 §2.1): the zone, the WGS84 or NAD83 datum, the
+// position in its UTM band, the hemisphere, the stored convergence, the labels and the provenance.
+// Returns its UTM position. The origin's own position is checked by validateSiteOrigin.
+UtmPosition validateSiteGeographicRecord(const SiteGeographic &record);
+// Sets or clears the geographic record of the site origin as one edit (ADR 0181 §2.1). The
+// record must sit at the origin's UTM position (validateSiteOrigin); refuses without an origin.
+void setSiteGeographic(Document &doc, std::optional<SiteGeographic> geographic);
+// The distance in metres on the ground between the solar latitude and longitude and the site's
+// geographic record, or nothing without a record (ADR 0181 §2.1). Compared to 1 m.
+std::optional<double> solarSiteDistance(const Document &doc);
 // Changes the origin and moves by the difference every stored world position: top-level
 // bodies (with their guides, reference images and descendants), model-frame section
 // planes, saved cameras and clip planes, the model and saved-scene ground heights, and
