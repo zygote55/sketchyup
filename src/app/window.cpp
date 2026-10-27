@@ -888,6 +888,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         "WASD/arrows walk · Q/E change height · Shift moves faster · Drag looks · Esc exits",
         false));
     cameraMenu->addAction(action("camera.render", "Render…", {}, [this] { render_->showSetup(); }));
+    cameraMenu->addAction(
+        action("camera.presentations", "Presentations…", {}, [this] { presentationsDialog(); }));
     auto *extensions = menuBar()->addMenu("E&xtensions");
     extensions->addAction(
         action("extensions.manage", "Manage extensions…", {}, [this] { extensionsDialog(); }));

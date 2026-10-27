@@ -1,4 +1,5 @@
 #include "app/viewport.hpp"
+#include "automation/presentation_commands.hpp"
 #include "core/camera_motion.hpp"
 #include "core/scenes.hpp"
 #include "io/scenes_io.hpp"
@@ -131,6 +132,16 @@ QJsonObject Viewport::editSavedScenes(const QJsonArray &commands) {
     for (const auto &command : commands)
         if (!command.toObject()["command"].toString().startsWith("saved_scene."))
             throw std::runtime_error("Expected saved scene edit");
+    cancel();
+    auto result = commitCommands(commands, false);
+    refresh();
+    emit changed();
+    return result;
+}
+QJsonObject Viewport::editPresentations(const QJsonArray &commands) {
+    for (const auto &command : commands)
+        if (!isPresentationCommand(command.toObject()["command"].toString()))
+            throw std::runtime_error("Expected camera path or render preset edit");
     cancel();
     auto result = commitCommands(commands, false);
     refresh();

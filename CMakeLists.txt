@@ -1284,6 +1284,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # on a worker thread), the report, the refusal and the availability sheets, and the File menu flow;
   # the helper is sketchyup-skp-worker, which the application finds beside it and never links.
   target_sources(sketchyup_desktop PRIVATE src/app/skp_import_runner.cpp src/app/skp_progress_sheet.cpp src/app/window_skp.cpp)
+  # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog (camera paths and render
+  # presets, non-modal) and its scene picker; the Camera menu opens it.
+  target_sources(sketchyup_desktop PRIVATE src/app/presentations_dialog.cpp src/app/presentation_scene_picker.cpp src/app/window_presentations.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
