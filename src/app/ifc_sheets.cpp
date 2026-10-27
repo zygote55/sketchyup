@@ -891,7 +891,7 @@ ImportReportFace skpImportReportFace() {
     face.title = ".skp import report";
     face.prefix = "skpReport";
     face.identitySubject = "faces";
-    face.chipWord = "SketchUp";
+    face.chipWord = ".skp";
     face.restarts = false; // the helper has no restart protocol (ADR 0176 section 1)
     face.attention = [](const ImportReportState &state) {
         // What the import omitted (the native validator's refusals and the caps), summed over the kinds.
@@ -1033,10 +1033,10 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
 void showSkpUnavailable(QWidget *parent) {
     AvailabilitySheet face;
     face.sheetName = "skpUnavailable";
-    face.title = "SketchUp import";
+    face.title = ".skp import";
     face.prefix = "skpUnavailable";
     face.text = QStringLiteral(
-        "SketchUp import is not installed.\n\n"
+        "The .skp import is not installed.\n\n"
         "The sketchyup-skp-worker helper is not installed on this machine.\n"
         "Everything else is unaffected: the open model, the sheets, the assistant, your settings and "
         "recovery all work as before.\n\n"
