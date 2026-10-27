@@ -16,6 +16,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <stdexcept>
+#include <utility>
 
 namespace sketchy {
 namespace {
