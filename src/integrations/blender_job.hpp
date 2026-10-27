@@ -2,8 +2,10 @@
 #include "integrations/glb_export.hpp"
 #include <QImage>
 #include <QObject>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <memory>
+#include <optional>
 #include <vector>
 namespace sketchy {
 class PreparedRender {
@@ -41,12 +43,14 @@ struct BlenderVideoFrame {
 };
 
 // The input of one video encode (ADR 0173 §4, decision 7). The worker re-hashes every frame.
+// The codec is the worker's FFmpeg identifier: "H264" (the default) or "MPEG4" (MPEG-4 Part 2).
 struct BlenderVideoRequest {
     std::vector<BlenderVideoFrame> frames;
     int width{}, height{}, framesPerSecond{};
+    QString codec{"H264"};
 };
 
-// The encoded H.264 MP4 and its manifest record. Written to the output only after verification.
+// The encoded MP4 and its manifest record. Written to the output only after verification.
 struct BlenderVideoResult {
     QJsonObject manifest;
     QByteArray mp4;
@@ -80,9 +84,13 @@ class BlenderJob : public QObject {
     void probe(Options options);
     void start(std::shared_ptr<const PreparedRender> input, Options options);
     void handoff(std::shared_ptr<const PreparedRender> input, Options options);
-    // Encodes verified frames into one H.264 MP4 in the worker's private scratch. Refused with
-    // the reason `codec_unavailable` when this Blender has no H.264 encoder.
+    // Encodes verified frames into one MP4 in the worker's private scratch, with the codec the
+    // request names. Refused with `codec_unavailable` when this Blender has no such encoder; the
+    // codec is never switched.
     void encode(BlenderVideoRequest request, Options options);
+    // The FFmpeg codec identifiers of the last probe, validated. Unset when the probe did not report
+    // them (an absent field); a malformed field fails the probe.
+    std::optional<QStringList> videoCodecs() const;
     void cancel();
     Phase phase() const;
     bool done() const;

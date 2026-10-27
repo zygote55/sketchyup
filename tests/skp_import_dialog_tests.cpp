@@ -537,11 +537,11 @@ int main(int argc, char **argv) {
             auto &doc = window.document();
             check(!doc.bodies().empty(), "the model has bodies");
             check(doc.history().total == history + 1, "the import is one edit");
-            check(doc.history().entries.back().label == "Import SketchUp", "the edit is labelled Import SketchUp");
+            check(doc.history().entries.back().label == "Import .skp file", "the edit is labelled Import .skp file");
             check(contains(status->text(), "Imported an unsaved SketchUp model") &&
                       contains(status->text(), "Source file unchanged"),
                   "the status names the outcome: " + status->text().toStdString());
-            check(chip->isVisible() && contains(chip->text(), "SketchUp import report"),
+            check(chip->isVisible() && contains(chip->text(), ".skp import report"),
                   "the chip offers the report: " + chip->text().toStdString());
             check(reportAction->isEnabled(), "the report action is enabled after an import");
             check(driver.sheets.contains("skpImportReport"), "the report sheet was shown");
@@ -626,7 +626,7 @@ int main(int argc, char **argv) {
             check(contains(status->text(), "cancelled"), "the status says the import was cancelled: " + status->text().toStdString());
             check(encodeContainer(window.document()) == encoded && window.document().history().total == history,
                   "the model is byte for byte unchanged");
-            check(chip->isVisible() && contains(chip->text(), "SketchUp import"), "the previous import's chip stays: " + chip->text().toStdString());
+            check(chip->isVisible() && contains(chip->text(), ".skp import"), "the previous import's chip stays: " + chip->text().toStdString());
         }
         // S11: Escape is Cancel during the import, as the Cancel button is.
         {
@@ -690,10 +690,10 @@ int main(int argc, char **argv) {
             driver.stop();
             check(driver.confirmations == 2, "both prompts were answered");
             auto &doc = window.document();
-            check(doc.history().total == 1 && doc.history().entries.back().label == "Import SketchUp",
+            check(doc.history().total == 1 && doc.history().entries.back().label == "Import .skp file",
                   "the replacement is one labelled edit");
             check(contains(status->text(), "Imported an unsaved SketchUp model"), "the status names the outcome");
-            check(chip->isVisible() && contains(chip->text(), "SketchUp import report"),
+            check(chip->isVisible() && contains(chip->text(), ".skp import report"),
                   "the chip offers the report of the replaced model");
         }
         // S15: a new model ends the SketchUp chip's lifetime, as it ends the STEP chip's.
@@ -701,6 +701,31 @@ int main(int argc, char **argv) {
             window.demo();
             check(!chip->isVisible() && !reportAction->isEnabled(),
                   "a new model clears the SketchUp chip and its report");
+        }
+        // S16 (R105.a, ADR 0179 section 7.3): a downloaded ZIP chosen in the picker is named before
+        // the helper runs, and the model is unchanged. The picker's "All files" filter lets it be
+        // chosen.
+        {
+            window.setSkpWorkerPath(available);
+            const auto encoded = encodeContainer(window.document());
+            Driver driver;
+            driver.choose =
+                QStringLiteral(SOURCE_DIR "/tests/fixtures/import-refusal/wrapped-box.zip");
+            driver.start();
+            importAction->trigger();
+            driver.stop();
+            check(driver.sheets == (QStringList{"importRefusal"}),
+                  "the ZIP refusal sheet was shown");
+            check(contains(
+                      driver.summaries["importRefusal"],
+                      "This is a ZIP archive. Extract it, then import the model file inside it."),
+                  "the sheet names the archive and the step: " +
+                      driver.summaries["importRefusal"].toStdString());
+            check(contains(driver.summaries["importRefusal"], "The model was not changed"),
+                  "the sheet says the model was not changed");
+            check(encodeContainer(window.document()) == encoded,
+                  "the model is byte for byte unchanged");
+            check(!chip->isVisible(), "a refused file shows no chip");
         }
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << '\n';

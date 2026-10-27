@@ -1433,7 +1433,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R099 — Add camera paths and batch presentation output
 
-**Status:** In progress: R099.a (camera path and render preset records, schema 30 with `presentation-v1`) is merged in [PR #446](https://github.com/zygote55/sketchyup/pull/446); R099.b (presentation job store, one-capture batch engine with manifest, cancel and resume, and `sketchyup-cli --export-presentation`) is merged in [PR #448](https://github.com/zygote55/sketchyup/pull/448), with measured budgets, the H.264 answer and the owner decisions listed in [ADR 0173](decisions/0173-camera-paths-batch-output.md) (Implementation notes, R099.b); R099.c (optional H.264 video from the isolated Blender worker, the camera path, render preset and presentation commands, the assistant's re-pinned tool surface and corpus v6) is merged in [PR #449](https://github.com/zygote55/sketchyup/pull/449) (Implementation notes, R099.c); R099.d2 (the Presentations dialog: UX_DESIGN §17.1 to §17.3 and §17.10) is in [PR #475](https://github.com/zygote55/sketchyup/pull/475) (Implementation notes, R099.d2); R099.d1 (the engine changes) is in [PR #473](https://github.com/zygote55/sketchyup/pull/473); R099.d3 (the batch dialog, Jobs row, results and quit prompt) follows, and R099.e is planned. Design accepted ([ADR 0173](decisions/0173-camera-paths-batch-output.md), owner decisions approved 2026-10-23). **Track:** Rendering. **Scope:** F05. **UX:** [UX_DESIGN §17](UX_DESIGN.md#17-presentation-batches) (approved by the owner on 2026-10-27).
+**Status:** In progress: R099.a (camera path and render preset records, schema 30 with `presentation-v1`) is merged in [PR #446](https://github.com/zygote55/sketchyup/pull/446); R099.b (presentation job store, one-capture batch engine with manifest, cancel and resume, and `sketchyup-cli --export-presentation`) is merged in [PR #448](https://github.com/zygote55/sketchyup/pull/448), with measured budgets, the H.264 answer and the owner decisions listed in [ADR 0173](decisions/0173-camera-paths-batch-output.md) (Implementation notes, R099.b); R099.c (optional H.264 video from the isolated Blender worker, the camera path, render preset and presentation commands, the assistant's re-pinned tool surface and corpus v6) is merged in [PR #449](https://github.com/zygote55/sketchyup/pull/449) (Implementation notes, R099.c); R099.d1 (the engine and worker the presentation UI needs: the cached codec probe, the MPEG-4 Part 2 choice, the engine text, the per-frame metadata trim and a clean stop) is merged in [PR #473](https://github.com/zygote55/sketchyup/pull/473) (Implementation notes, R099.d1); R099.d2 (the Presentations dialog: UX_DESIGN §17.1 to §17.3 and §17.10) is in [PR #475](https://github.com/zygote55/sketchyup/pull/475) (Implementation notes, R099.d2); R099.d3 (the batch dialog, Jobs row, results and quit prompt) follows, and R099.e is planned. Design accepted ([ADR 0173](decisions/0173-camera-paths-batch-output.md), owner decisions approved 2026-10-23). **Track:** Rendering. **Scope:** F05. **UX:** [UX_DESIGN §17](UX_DESIGN.md#17-presentation-batches) (approved by the owner on 2026-10-27).
 
 **Requires:** [R089](#r089), [R072](#r072), [R070](#r070); milestone gate rule above.
 
@@ -1445,7 +1445,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R100 — Add custom styles and richer asset authoring
 
-**Status:** In progress: R100.a (the optional edge stroke, schema 31 with `edge-styles-v1`, the `.sketchystyle` envelope, `style.apply` and the `style.export` query) is merged in [PR #457](https://github.com/zygote55/sketchyup/pull/457), with its measured refusal by the released 1.3.0 and 1.2.0 CLIs and the owner questions listed in [ADR 0174](decisions/0174-custom-styles-asset-authoring.md) (Implementation notes, R100.a); R100.c (the `.sketchycat` catalog format: the version 1 manifest on the shared envelope, shared-asset deduplication, per-entry and per-asset hashes, relocation, the bounded decoder and its fuzz target, and `catalog.list`) is in [PR #456](https://github.com/zygote55/sketchyup/pull/456) (Implementation notes, R100.c); R100.d (the catalog library reference, `catalog.import` through the ADR 0131 insertion path as one undo step, `catalog.export`, and the `catalog.library` listing) is in [PR #458](https://github.com/zygote55/sketchyup/pull/458) (Implementation notes, R100.d; component-definition deduplication is not done there); R100.e (the CLI flags `--import-style`, `--export-style`, `--list-catalog`, `--import-catalog` and `--export-catalog`, with `--to-library` for the catalog library folder: each one standalone, publishing only new files, and listed in `--capabilities` and `--describe-command`) is on branch `feat/r100e-style-catalog-cli` in its pull request (Implementation notes, R100.e); R100.b and R100.f to R100.g planned. Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23; Q1 open). **Track:** Desktop. **Scope:** F06. **UX:** —.
+**Status:** In progress: R100.a (the optional edge stroke, schema 31 with `edge-styles-v1`, the `.sketchystyle` envelope, `style.apply` and the `style.export` query) is merged in [PR #457](https://github.com/zygote55/sketchyup/pull/457); R100.c (the `.sketchycat` catalog format and `catalog.list`) in [PR #456](https://github.com/zygote55/sketchyup/pull/456); R100.d (the catalog library reference, `catalog.import`, `catalog.export` and `catalog.library`; component-definition deduplication not done) in [PR #458](https://github.com/zygote55/sketchyup/pull/458); R100.e (the style and catalog CLI flags) in [PR #459](https://github.com/zygote55/sketchyup/pull/459). See the ADR 0174 implementation notes. R100.b (textured presets; Q1 answered 2026-10-27: procedural or CC0 only; the 15-preset list in ADR 0174 signed off by the owner on 2026-10-27, not yet bundled) and R100.f (desktop, per the approved §18) next; R100.g planned. Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23). **Track:** Desktop. **Scope:** F06. **UX:** [UX_DESIGN §18](UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs) (approved by the owner on 2026-10-27).
 
 **Requires:** [R089](#r089), [R062](#r062), [R079](#r079); milestone gate rule above.
 
@@ -1457,7 +1457,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R101 — Add quantities, reports and schedules
 
-**Status:** Planned; design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). Slices R101.a–f; R101.a (merged, #450): the report engine, the request model with its refusals, the counting pass (§2), units, precision and the revision stamp, the session `report.run` query kept off the assistant, and the Q1–Q4 fixtures with checks V1–V4, V6, V8 and V9 (ADR 0175 §1–§4, §11; implementation notes R101.a). R101.b (merged, #452): the CSV file of record and the JSON form (§6), `sketchyup-cli --report` without the schedule flags (§8), the quantities-a fixture with hash-pinned goldens (V10), the CLI and session parity (V12), and the budgets of §12 confirmed in a Release build on quantities-b (implementation notes R101.b). R101.c (merged, #453): the user-level schedule store keyed by document identity (§7, option b), save, describe and delete with the identity guard and the stale-ID refusal, no document schema change (V11), the flags `--schedule`, `--list-schedules`, `--save-schedule` and `--delete-schedule` (§8), and the session `report.schedule` kept off the assistant (implementation notes R101.c). R101.d (this PR, awaiting merge): `report.run` and `report.schedule` on MCP under their registry names, with no `reports.*` alias, parity with the session, the refusals, store isolation, and the assistant still off (ADR 0175 §9; implementation notes R101.d). R101.e–f (desktop, acceptance record) are planned. **Track:** Automation. **Scope:** F07. **UX:** —.
+**Status:** Planned; design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). Slices R101.a–f; R101.a (merged, #450): the report engine, the request model with its refusals, the counting pass (§2), units, precision and the revision stamp, the session `report.run` query kept off the assistant, and the Q1–Q4 fixtures with checks V1–V4, V6, V8 and V9 (ADR 0175 §1–§4, §11; implementation notes R101.a). R101.b (merged, #452): the CSV file of record and the JSON form (§6), `sketchyup-cli --report` without the schedule flags (§8), the quantities-a fixture with hash-pinned goldens (V10), the CLI and session parity (V12), and the budgets of §12 confirmed in a Release build on quantities-b (implementation notes R101.b). R101.c (merged, #453): the user-level schedule store keyed by document identity (§7, option b), save, describe and delete with the identity guard and the stale-ID refusal, no document schema change (V11), the flags `--schedule`, `--list-schedules`, `--save-schedule` and `--delete-schedule` (§8), and the session `report.schedule` kept off the assistant (implementation notes R101.c). R101.d (merged, #455): `report.run` and `report.schedule` on MCP under their registry names, with no `reports.*` alias, parity with the session, the refusals, store isolation, and the assistant still off (ADR 0175 §9; implementation notes R101.d). R101.e1 (#478, awaiting merge): the engine, schedule-store and command support the Quantities panel needs, with no UI: progress and cancel (the cancel latency and the re-run measured against their budgets), schedule rename and update with the pinned precision, body IDs on invalid rows in the session, the selection file export, and the shared "Not a solid" words (ADR 0175 §12; implementation notes R101.e1). R101.e2 (the panel) and R101.f (the acceptance record) are planned. **Track:** Automation. **Scope:** F07. **UX:** [UX_DESIGN §19](UX_DESIGN.md#19-quantities-and-schedules) (approved by the owner on 2026-10-27).
 
 **Requires:** [R089](#r089), [R060](#r060); milestone gate rule above.
 
@@ -1481,7 +1481,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R103 — Investigate and conditionally implement Ruby extension compatibility
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Automation. **Scope:** C02. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0177](decisions/0177-ruby-extension-feasibility.md), accepted: not viable for 1.x; C02 stays unsupported). **Track:** Automation. **Scope:** C02. **UX:** —.
 
 **Requires:** [R089](#r089), [R080](#r080); milestone gate rule above.
 
@@ -1493,7 +1493,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R104 — Investigate Dynamic and Live Component interoperability
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C03. **UX:** —.
+**Status:** Design accepted ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md), owner decisions 1–5, 7 and 9 approved 2026-10-27): Dynamic Component attributes imported as read-only metadata (R104.a, with self-authored fixtures), Live Components labelled service-dependent with a no-network test (R104.c), and the public wording (R104.d) next; formula mapping (R104.b) deferred indefinitely. **Track:** Interchange. **Scope:** C03. **UX:** —.
 
 **Requires:** [R094](#r094), [R102](#r102); milestone gate rule above.
 
@@ -1505,7 +1505,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R105 — Investigate supported hosted asset access
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C04. **UX:** —.
+**Status:** Design accepted ([ADR 0179](decisions/0179-hosted-asset-access-feasibility.md), owner decisions 2026-10-27): user-mediated downloads only for 1.x (R105.a: the user guide page and named refusals for `.zip`, `.dae`, `.usdz` and `.fbx`) in progress in [PR #476](https://github.com/zygote55/sketchyup/pull/476), with no network code ([implementation notes](decisions/0179-hosted-asset-access-feasibility.md#implementation-notes-r105a)); the Poly Haven CC0 adapter and its cache (R105.b, R105.c) approved as design only, after 1.x; Sketchfab (R105.d) deferred; network stance N1–N9 adopted. **Track:** Interchange. **Scope:** C04. **UX:** —.
 
 **Requires:** [R089](#r089), [R079](#r079); milestone gate rule above.
 
@@ -1517,7 +1517,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R106 — Deliver DWG support only after feasibility passes
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C05. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0180](decisions/0180-dwg-feasibility.md), accepted: DWG import not needed; DWG stays unsupported, DXF unchanged). **Track:** Interchange. **Scope:** C05. **UX:** —.
 
 **Requires:** [R089](#r089), [R005](#r005), [R077](#r077); milestone gate rule above.
 
@@ -1529,7 +1529,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R107 — Investigate and conditionally add maps/geolocation services
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C06. **UX:** —.
+**Status:** Design accepted ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md), owner 2026-10-27): R107.a (offline WGS84/UTM coordinates, the site's geographic record at schema 32, the solar "Use site location" action) next, then R107.b (user-downloaded 3DEP and GLO-30 GeoTIFF elevation import), R107.c (credits in exports) and R107.e (docs); R107.b2 (orthophoto placement) optional; R107.d (Nominatim geocoding) held. **Track:** Interchange. **Scope:** C06. **UX:** —.
 
 **Requires:** [R089](#r089), [R067](#r067), [R095](#r095); milestone gate rule above.
 
@@ -1541,13 +1541,25 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R108 — Specify and prototype multi-user document collaboration
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Core. **Scope:** C07. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0182](decisions/0182-collaboration-feasibility.md), accepted: concurrent editing is not needed; models are shared as files). **Track:** Core. **Scope:** C07. **UX:** —.
 
 **Requires:** [R089](#r089), [R041](#r041); milestone gate rule above.
 
 **Build:** First decide conflict/ownership semantics, identity, transport and service operations. Prototype concurrent edits and recovery before breaking production delivery into follow-up PRs; this item does not promise a complete hosted service.
 
 **Verify:** Two-client fixtures demonstrate defined conflict handling, disconnection and recovery without lost updates; publish the feasibility decision and subsequent delivery scope before implementation claims.
+
+<a id="r109"></a>
+
+#### R109 — Sandbox the file-parsing helper processes
+
+**Status:** Design accepted ([ADR 0183](decisions/0183-helper-process-sandbox.md), owner decisions approved 2026-10-27); planned before the next release. The `.skp` helper's refusal-code fix from the measurements is merged (PR #470). **Track:** Core. **Scope:** — (hardening of shipped helpers). **UX:** —.
+
+**Requires:** [R070](#r070), [R097](#r097), [R098](#r098), [R102](#r102); milestone gate rule above.
+
+**Build:** A shared in-tree sandbox library (no new dependency): `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset confined to the input and a private directory, and a raw seccomp-bpf allow-list with a kill default. Apply it, fail closed, in the SKP, IFC/STEP, text and extension workers and the Blender job (offline, private home, exec of its own binary only), including the developer probe modes. Report a sandbox kill as `sandboxViolation`, never as a crash to restart.
+
+**Verify:** Each helper's committed fixtures produce output identical to an unsandboxed run; a sandboxed helper cannot open a socket, exec another program or read outside its directory; an unavailable layer refuses with a named reason; the required `sandbox_available` CI check passes on the runner images.
 
 ## Scope-to-PR coverage
 

@@ -471,7 +471,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.importGltf", "Import GLB/glTF…", {}, [this] {
         const auto path =
             QFileDialog::getOpenFileName(this, "Import GLB/glTF", {}, "glTF models (*.glb *.gltf)");
-        if (!path.isEmpty())
+        if (!path.isEmpty() && !refuseUnsupportedImport(path))
             importGltfPath(path);
     }));
     // R097.e1: IFC exchange (ADR 0171 §16). Import IFC… after Import GLB/glTF…;
@@ -488,17 +488,17 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                                  [this] { showStepImportReport(); });
     stepReportAction_->setEnabled(false);
     file->addAction(stepReportAction_);
-    // R102.c (ADR 0176 section 9): SketchUp import. Import SketchUp (.skp)… after the STEP pair; Show
-    // SketchUp import report… directly below it (enabled only after a SketchUp import).
-    file->addAction(action("file.importSkp", "Import SketchUp (.skp)…", {}, [this] { importSkp(); }));
-    skpReportAction_ = action("file.skpImportReport", "Show SketchUp import report…", {},
+    // R102.c (ADR 0176 section 9): .skp import. Import .skp file… after the STEP pair; Show
+    // .skp import report… directly below it (enabled only after a .skp import).
+    file->addAction(action("file.importSkp", "Import .skp file…", {}, [this] { importSkp(); }));
+    skpReportAction_ = action("file.skpImportReport", "Show .skp import report…", {},
                               [this] { showSkpImportReport(); });
     skpReportAction_->setEnabled(false);
     file->addAction(skpReportAction_);
     file->addAction(action("file.importFormline", "Import Formline…", {}, [this] {
         const auto path = QFileDialog::getOpenFileName(this, "Import Formline v1", {},
                                                        "Formline models (*.formline *.json)");
-        if (!path.isEmpty())
+        if (!path.isEmpty() && !refuseUnsupportedImport(path))
             importFormlinePath(path);
     }));
     file->addAction(

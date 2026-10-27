@@ -62,5 +62,6 @@ class IfcImportDialog : public Settled<QDialog> {
     Kind kind_ = Kind::Ifc;
     IfcProbe probe_;
     void applyProbeBanner(); // the banner is the probe's own warning: shown when Limited, hidden otherwise
+    void showRefusal(const QString &text); // the red banner, the size only, and Import off
 };
 } // namespace sketchy

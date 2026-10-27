@@ -30,6 +30,15 @@ size_t cameraPathFrameCount(size_t keyframes, CameraPathTiming timing) {
         return 0;
     return 1 + keyframes * size_t(timing.holdSteps) + (keyframes - 1) * size_t(timing.transitionSteps);
 }
+std::string cameraPathFrameLimitMessage(size_t keyframes, CameraPathTiming timing) {
+    const auto frames = cameraPathFrameCount(keyframes, timing);
+    if (frames <= cameraPathFrameLimit)
+        return {};
+    return "Camera path would plan " + std::to_string(frames) + " frames (1 + " +
+           std::to_string(keyframes) + " x " + std::to_string(timing.holdSteps) + " + " +
+           std::to_string(keyframes - 1) + " x " + std::to_string(timing.transitionSteps) +
+           "); the limit is " + std::to_string(cameraPathFrameLimit);
+}
 void validateCameraPathRecords(const CameraPathRecords &paths, Id next) {
     if (!next || paths.size() > cameraPathCountLimit)
         throw std::runtime_error("Invalid camera path allocator or count");
@@ -51,14 +60,9 @@ void validateCameraPathRecords(const CameraPathRecords &paths, Id next) {
         for (const auto scene : path->keyframes)
             if (!scene)
                 throw std::runtime_error("Camera path keyframes must name saved scenes");
-        const auto frames = cameraPathFrameCount(keyframes, path->timing);
-        if (frames > cameraPathFrameLimit)
-            throw std::runtime_error(
-                "Camera path would plan " + std::to_string(frames) + " frames (1 + " +
-                std::to_string(keyframes) + " x " + std::to_string(path->timing.holdSteps) +
-                " + " + std::to_string(keyframes - 1) + " x " +
-                std::to_string(path->timing.transitionSteps) + "); the limit is " +
-                std::to_string(cameraPathFrameLimit));
+        if (const auto message = cameraPathFrameLimitMessage(keyframes, path->timing);
+            !message.empty())
+            throw std::runtime_error(message);
         bytes += cameraPathBytes(path);
         if (bytes > cameraPathBytesLimit)
             throw std::runtime_error("Camera paths exceed the 512 KiB record budget");

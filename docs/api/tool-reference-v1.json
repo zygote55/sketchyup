@@ -14541,7 +14541,9 @@
             "enum": [
               "save",
               "describe",
-              "delete"
+              "delete",
+              "rename",
+              "update"
             ],
             "type": "string"
           },
@@ -14554,6 +14556,10 @@
             "type": "string"
           },
           "name": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "newName": {
             "maxLength": 64,
             "type": "string"
           },
@@ -31817,7 +31823,9 @@
             "enum": [
               "save",
               "describe",
-              "delete"
+              "delete",
+              "rename",
+              "update"
             ],
             "type": "string"
           },
@@ -31830,6 +31838,10 @@
             "type": "string"
           },
           "name": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "newName": {
             "maxLength": 64,
             "type": "string"
           },

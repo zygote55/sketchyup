@@ -2,6 +2,10 @@
 // quantities-a (V10), the session parity of the JSON (V12), and the generator of the fixture and
 // its golden outputs.
 //
+// R101.e1 adds the session's invalid rows with their body IDs, the file's JSON without them (the
+// goldens do not change), the selection file (UX_DESIGN §19.8, owner choice 2) and a cancelled
+// write, which publishes nothing.
+//
 //   report_output_tests --write-fixture PATH       writes quantities-a as a native container
 //   report_output_tests --write-goldens DIRECTORY  writes the golden CSV and JSON of quantities-a
 //
@@ -15,11 +19,14 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <atomic>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -296,8 +303,122 @@ void pins() {
               "The golden matches its SHA-256 pin: " + file.toStdString());
 }
 
-// V12 (JSON): the file is byte-identical to the session's report.run data, and the CSV is the CSV
-// of the same data. The CLI writes the same bytes because it calls the same functions.
+// R101.e1: the session's invalid rows carry their body IDs, the truncation flag and the words of
+// the Entity info panel (UX_DESIGN §19.4). The file's JSON keeps the R101.b shape, so the goldens
+// are unchanged, and the CSV never had them.
+void invalidRowsInSession() {
+    const auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
+    const auto data = sessionReport(doc, defaultCase().request);
+    Id plate = 0;
+    for (const auto &[id, record] : doc.bodies())
+        if (record->name == "Plate")
+            plate = id;
+    check(plate != 0, "The quantities-a fixture has the open plate");
+    const auto invalid = data["invalid"].toArray();
+    check(invalid.size() == 2, "Two invalid rows in the session data");
+    const auto open = invalid[0].toObject();
+    check(open["status"] == "open_boundary" && open["contexts"] == 1 &&
+              open["bodies"].toArray() == QJsonArray{QString::number(plate)} &&
+              open["truncated"] == false && open["label"] == "Not a solid: open boundary",
+          "The open boundary row names the plate, its words and no truncation");
+    check(invalid[1].toObject()["label"] == "Not a solid: non-manifold boundary" &&
+              invalid[1].toObject()["bodies"].toArray().size() == 1,
+          "The non-manifold row names the shared-face cubes");
+    const auto file = reportFileData(data)["invalid"].toArray()[0].toObject();
+    check(file.size() == 2 && file["status"] == "open_boundary" && file["contexts"] == 1,
+          "The file's invalid rows keep only the status and the count");
+}
+
+// UX_DESIGN §19.8 and owner choice 2: a selection file holds the selection's figures and says so in
+// its metadata (ADR 0175 §6.1). The file writer takes the bodies as an argument; without them, or
+// for a schedule, a selection is refused, and nothing is written.
+void selectionFile() {
+    auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
+    Id scaled = 0;
+    for (const auto &[id, record] : doc.bodies())
+        if (record->name == "Scaled")
+            scaled = id;
+    check(scaled != 0, "The quantities-a fixture has the scaled copy");
+    const std::set<Id> bodies{scaled};
+    QTemporaryDir dir;
+    check(dir.isValid(), "A temporary directory");
+
+    ReportFileOptions csv;
+    csv.path = dir.filePath("selection.csv");
+    csv.format = "csv";
+    csv.metrics = "all";
+    csv.precision = "full";
+    csv.selection = true;
+    writeReportFile(doc, csv, &bodies);
+    const auto text = QString::fromUtf8(readFile(csv.path));
+    check(text.split('\n').contains("#filters.selection=1"),
+          "A selection file carries #filters.selection=1");
+    check(text.contains("counts,All,,,,contexts,1\n") &&
+              text.contains("volumes,All,,,,volume,32\n"),
+          "The selection file holds the selected body alone: 1 context and 32 m3");
+    check(text.contains("#ad-hoc=1\n"), "A selection file is an ad-hoc run");
+
+    ReportFileOptions json = csv;
+    json.path = dir.filePath("selection.json");
+    json.format = "json";
+    writeReportFile(doc, json, &bodies);
+    const auto written = QJsonDocument::fromJson(readFile(json.path)).object();
+    check(written["metadata"].toObject()["filters"].toObject()["selection"].toBool(),
+          "The selection JSON states the selection in its filters");
+
+    // Refusals: no bodies, a schedule, and the CSV without the selection line on a whole-model
+    // file.
+    const auto refused = [](auto action, const char *code) {
+        try {
+            action();
+        } catch (const InspectionError &error) {
+            return std::string(error.code()) == code;
+        }
+        return false;
+    };
+    ReportFileOptions none = csv;
+    none.path = dir.filePath("no-bodies.csv");
+    check(refused([&] { writeReportFile(doc, none, nullptr); }, "INVALID_REQUEST") &&
+              !QFileInfo::exists(none.path),
+          "A selection without the bodies is refused, and nothing is written");
+    ReportFileOptions scheduled = csv;
+    scheduled.path = dir.filePath("scheduled.csv");
+    scheduled.schedule = "Anything";
+    check(refused([&] { writeReportFile(doc, scheduled, &bodies); }, "INVALID_REQUEST") &&
+              !QFileInfo::exists(scheduled.path),
+          "A schedule cannot use the selection, and nothing is written");
+    ReportFileOptions whole = csv;
+    whole.path = dir.filePath("whole.csv");
+    whole.selection = false;
+    writeReportFile(doc, whole, &bodies);
+    check(!QString::fromUtf8(readFile(whole.path)).contains("#filters.selection"),
+          "A whole-model file has no selection line, even when bodies are passed");
+}
+
+// R101.e1 (UX_DESIGN §19.3, §19.8): a cancelled write publishes nothing.
+void cancelledWrite() {
+    const auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
+    QTemporaryDir dir;
+    check(dir.isValid(), "A temporary directory");
+    std::atomic<bool> stop{true};
+    ReportHooks hooks;
+    hooks.cancel = &stop;
+    ReportFileOptions options;
+    options.path = dir.filePath("cancelled.csv");
+    options.format = "csv";
+    bool cancelled = false;
+    try {
+        writeReportFile(doc, options, nullptr, hooks);
+    } catch (const ReportCancelled &) {
+        cancelled = true;
+    }
+    check(cancelled, "A cancelled write throws ReportCancelled");
+    check(!QFileInfo::exists(options.path), "A cancelled write leaves no file behind");
+}
+
+// V12 (JSON): the file is byte-identical to the session's report.run data, less the session-only
+// fields of its invalid rows (reportFileData), and the CSV is the CSV of the same data. The CLI
+// writes the same bytes because it calls the same functions.
 void sessionParity() {
     const auto doc = loadDocument(sourcePath("tests/fixtures/reports/quantities-a.sketchyup"));
     QTemporaryDir dir;
@@ -308,8 +429,8 @@ void sessionParity() {
         json.path = dir.filePath(golden.name + "-parity.json");
         json.format = "json";
         writeReportFile(doc, json);
-        check(readFile(json.path) == jsonBytes(data),
-              "The JSON file is the session's report.run data, byte for byte");
+        check(readFile(json.path) == jsonBytes(reportFileData(data)),
+              "The JSON file is the session's report.run data, less the session-only fields");
 
         ReportFileOptions csv = golden.options;
         csv.path = dir.filePath(golden.name + "-parity.csv");
@@ -350,6 +471,9 @@ int main(int argc, char **argv) {
         pins();
         goldens();
         sessionParity();
+        invalidRowsInSession();
+        selectionFile();
+        cancelledWrite();
         std::cout << "report output tests passed\n";
     } catch (const std::exception &error) {
         std::cerr << "report output tests failed: " << error.what() << '\n';

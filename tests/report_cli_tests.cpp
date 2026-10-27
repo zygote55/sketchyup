@@ -1,6 +1,7 @@
 // R101.b (ADR 0175 §8, §11 V12): `sketchyup-cli --report`. A report is written to a new file only,
 // an existing path is refused, bad flags are refused by name, --input is never changed, the CSV and
-// the JSON of one run agree, and the file is byte-identical to the session's report.run data.
+// the JSON of one run agree, and the file is byte-identical to the session's report.run data, less
+// the session-only fields of the invalid rows (R101.e1, reportFileData).
 // Built only with the CLI (it runs the built sketchyup-cli, whose path CMake passes as CLI_PATH).
 #include "automation/inspection.hpp"
 #include "automation/report_commands.hpp"
@@ -120,10 +121,11 @@ void writesNewFileOnly() {
         cli({"--input", input, "--report", jsonPath, "--metrics", "all", "--precision", "full"});
     check(json.exitCode == 0, "A new JSON report succeeds");
     check(readFile(jsonPath) ==
-              QJsonDocument(sessionData(QJsonObject{
-                                {"metrics", "all"}, {"groupBy", "none"}, {"precision", "full"}}))
+              QJsonDocument(reportFileData(sessionData(QJsonObject{
+                                {"metrics", "all"}, {"groupBy", "none"}, {"precision", "full"}})))
                   .toJson(QJsonDocument::Compact),
-          "The CLI JSON is the session's report.run data, byte for byte (V12)");
+          "The CLI JSON is the session's report.run data, byte for byte (V12), less the "
+          "session-only fields");
 
     // The CSV and the JSON of one run agree: the All row's counts and totals (§6.2).
     const auto values = csvValues(csv);

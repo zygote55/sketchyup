@@ -656,7 +656,7 @@
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --preset skp
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -L full --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2
-[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import)$' --output-on-failure --no-tests=error --parallel 2
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import|import_refusal)$' --output-on-failure --no-tests=error --parallel 2
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_library_install|skp_library_source)$' --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] echo "key=ifc-prefix-v1-${{ steps.package-cache-key.outputs.sum }}-$sum" >> "$GITHUB_OUTPUT"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-ifcopenshell.py check /tmp/ifcopenshell-upstream/ifcopenshell-v0.9.0.tar.gz

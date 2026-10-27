@@ -4,9 +4,13 @@
 // the session's report.schedule. Every test keeps its store in a temporary user data folder: HOME
 // and XDG_DATA_HOME point into it before any location is read, so no test touches the real user's
 // data.
+//
+// R101.e1 adds the atomic rename and update of a schedule (gaps 2 and 3), the precision pinned at
+// save (owner choice 4), and the stale schedule fixed by an update.
 #include "automation/report_commands.hpp"
 #include "automation/report_schedules.hpp"
 #include "automation/session.hpp"
+#include "core/units.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
 #include "report_fixtures.hpp"
@@ -81,6 +85,12 @@ QJsonObject kindRequest() {
     return {{"metrics", QJsonArray{"counts"}},
             {"groupBy", "kind"},
             {"filters", QJsonObject{{"visibility", "all"}}}};
+}
+
+// The request with its precision set, as a save stores it (R101.e1): "full" or an integer.
+QJsonObject withPrecision(QJsonObject request, const QJsonValue &precision) {
+    request["precision"] = precision;
+    return request;
 }
 
 QJsonObject tagRequest(const QString &tag) {
@@ -291,6 +301,193 @@ void changedFileRefused(const QTemporaryDir &dir) {
     check(readFile(path) == theirs, "The other writer's store is left as it was");
 }
 
+// R101.e1 (gap 2, ADR 0175 §7): rename keeps the request and the creation time; each refusal leaves
+// the store as it was, and the names are checked as a save checks them.
+void renameKeepsRequest(const QTemporaryDir &dir) {
+    const auto path = dir.filePath("rename/report-schedules.json");
+    const std::string doc = "0123456789abcdef0123456789abcdef";
+    ReportScheduleStore store(path);
+    store.add(doc, scheduleNamed("Old", tagRequest("5")));
+    store.add(doc, scheduleNamed("Other", kindRequest()));
+    store.rename(doc, "Old", "New");
+    const ReportScheduleStore reopened(path);
+    const auto moved = reopened.lookup(doc, "New");
+    check(moved.createdAt == "2026-10-26T12:00:00Z" && moved.request == tagRequest("5"),
+          "A rename keeps the request and the creation time, and the file holds the new name");
+    auto refusal = refusedBy([&] { reopened.lookup(doc, "Old"); });
+    check(refusesWith(refusal, "NOT_FOUND"), "The old name is gone after a rename");
+
+    refusal = refusedBy([&] { store.rename(doc, "New", "Other"); });
+    check(refusesWith(refusal, "INVALID_REQUEST", "already exists") &&
+              refusal.message.find("delete it first") == std::string::npos,
+          "A rename onto a name in use is refused, and not with the delete-first text");
+    refusal = refusedBy([&] { store.rename(doc, "New", "New"); });
+    check(refusesWith(refusal, "INVALID_REQUEST", "already exists"),
+          "A rename to the same name is refused as a name in use");
+    refusal = refusedBy([&] { store.rename(doc, "New", "a,b"); });
+    check(refusesWith(refusal, "INVALID_REQUEST", "starts and ends"),
+          "A rename to an invalid name is refused by the name rules");
+    refusal = refusedBy([&] { store.rename(doc, "Missing", "Fine"); });
+    check(refusesWith(refusal, "NOT_FOUND"), "A rename of a name saved nowhere is not found");
+    refusal = refusedBy([&] { store.rename("fedcba9876543210fedcba9876543210", "New", "Fine"); });
+    check(refusesWith(refusal, "WRONG_DOCUMENT"),
+          "A rename of another document's schedule is refused");
+    const ReportScheduleStore after(path);
+    check(after.schedules(doc).size() == 2 && after.lookup(doc, "New").request == tagRequest("5") &&
+              after.lookup(doc, "Other").request == kindRequest(),
+          "Every refused rename leaves both schedules as they were");
+}
+
+// R101.e1 (gap 2): a rename that cannot be written loses neither the name nor the request. The
+// rename is one commit, so each failure is injected at the commit and checked against the file.
+void renameIsAtomic(const QTemporaryDir &dir) {
+    const auto path = dir.filePath("atomic-rename/report-schedules.json");
+    const std::string doc = "0123456789abcdef0123456789abcdef";
+    ReportScheduleStore first(path);
+    first.add(doc, scheduleNamed("Old", kindRequest()));
+
+    // Another process changes the store after this one read it: the rename is refused, the other
+    // writer's store is kept, and this process's schedule is not renamed or lost.
+    {
+        ReportScheduleStore other(path);
+        other.add(doc, scheduleNamed("Other", tagRequest("5")));
+    }
+    const auto theirs = readFile(path);
+    auto refusal = refusedBy([&] { first.rename(doc, "Old", "New"); });
+    check(refusesWith(refusal, "FILE_CHANGED"), "A rename over a changed store is refused");
+    check(readFile(path) == theirs, "The other writer's store is left as it was");
+    const ReportScheduleStore reopened(path);
+    check(reopened.lookup(doc, "Old").request == kindRequest() &&
+              reopened.lookup(doc, "Other").request == tagRequest("5"),
+          "After the refused rename, the old name and its request are still there");
+
+    // A store folder that cannot be written refuses the commit. Skipped where this process can
+    // write a read-only folder (root).
+    const auto folder = dir.filePath("atomic-locked");
+    const auto locked = folder + "/report-schedules.json";
+    ReportScheduleStore lockedStore(locked);
+    lockedStore.add(doc, scheduleNamed("Old", kindRequest()));
+    const auto before = readFile(locked);
+    QFile::setPermissions(folder, QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+    const bool readOnly = !QFileInfo(folder).isWritable();
+    refusal = refusedBy([&] { lockedStore.rename(doc, "Old", "New"); });
+    QFile::setPermissions(folder,
+                          QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    if (readOnly) {
+        check(!refusal.code.empty(), "A rename into a read-only folder is refused");
+        check(readFile(locked) == before, "A refused rename leaves the previous contents");
+        const ReportScheduleStore unchanged(locked);
+        check(unchanged.lookup(doc, "Old").request == kindRequest(),
+              "The name and the request survive a refused rename");
+    } else {
+        std::cout << "  (rename write-failure check skipped: this process can write a read-only "
+                     "folder)\n";
+    }
+}
+
+// R101.e1 (gap 3, owner choice 4): a schedule saved without a precision pins the document's
+// precision at save; a request that names one keeps it; a later display change does not move a
+// saved schedule (a run of it reports the pinned precision), and an update pins again.
+void pinnedPrecision(const QTemporaryDir &dir) {
+    Document doc;
+    buildQuantitiesA(doc);
+    const auto store = dir.filePath("pin/report-schedules.json");
+    saveReportSchedule(doc, store, "Full", kindRequest());
+    check(describeReportSchedules(doc, store, "Full")["schedule"]
+                  .toObject()["request"]
+                  .toObject()["precision"] == "full",
+          "A schedule saved at full precision pins \"full\"");
+
+    doc.setDisplayUnits(DisplayUnit::Meters, 3);
+    saveReportSchedule(doc, store, "Three", kindRequest());
+    check(describeReportSchedules(doc, store, "Three")["schedule"]
+                  .toObject()["request"]
+                  .toObject()["precision"] == 3,
+          "A schedule saved at precision 3 pins 3");
+    saveReportSchedule(doc, store, "Explicit", withPrecision(kindRequest(), 2));
+    check(describeReportSchedules(doc, store, "Explicit")["schedule"]
+                  .toObject()["request"]
+                  .toObject()["precision"] == 2,
+          "A precision the request names is kept as it was given");
+    doc.setDisplayUnits(DisplayUnit::Meters, 1);
+    const auto after = describeReportSchedules(doc, store, "Three")["schedule"].toObject();
+    check(after["request"].toObject()["precision"] == 3,
+          "A later display change leaves the saved precision where it was");
+    updateReportSchedule(doc, store, "Three", kindRequest());
+    check(describeReportSchedules(doc, store, "Three")["schedule"]
+                  .toObject()["request"]
+                  .toObject()["precision"] == 1,
+          "An update of the request pins the precision in force at the update");
+
+#if defined(Q_OS_LINUX)
+    // The run reads the saved precision, not the document's: an ad-hoc run follows the document.
+    isolate(dir.path());
+    Document run;
+    buildQuantitiesA(run);
+    run.setDisplayUnits(DisplayUnit::Meters, 3);
+    saveReportSchedule(run, reportScheduleStorePath(), "Pinned", kindRequest());
+    run.setDisplayUnits(DisplayUnit::Meters, 1);
+    ReportFileOptions options;
+    options.schedule = "Pinned";
+    options.path = dir.filePath("pinned.csv");
+    writeReportFile(run, options);
+    check(readFile(options.path).contains("#precision=3\n"),
+          "A scheduled run reports the precision it was saved with");
+    options.schedule.clear();
+    options.path = dir.filePath("adhoc.csv");
+    writeReportFile(run, options);
+    check(readFile(options.path).contains("#precision=1\n"),
+          "An ad-hoc run reports the document's current precision");
+#endif
+}
+
+// R101.e1 (gap 2, UX_DESIGN §19.7): a stale schedule is fixed by an update. The name and the time
+// it was saved stay; the request is the new one, which must resolve in the document, and a request
+// that still does not is refused with nothing changed.
+void staleFix(const QTemporaryDir &dir) {
+    Document doc;
+    buildQuantitiesA(doc);
+    const auto store = dir.filePath("stale-fix/report-schedules.json");
+    const auto id = identity(doc);
+    ReportScheduleStore(store).add(id.toStdString(), scheduleNamed("Walls", tagRequest("987654")));
+    const auto created = ReportScheduleStore(store).lookup(id.toStdString(), "Walls").createdAt;
+    const auto tag = QString::number(doc.tags().begin()->first);
+
+    auto refusal =
+        refusedBy([&] { updateReportSchedule(doc, store, "Walls", tagRequest("987654")); });
+    check(refusesWith(refusal, "NOT_FOUND", "987654"),
+          "An update to a request that still names a missing tag is refused, naming the ID");
+    check(ReportScheduleStore(store).lookup(id.toStdString(), "Walls").request ==
+              tagRequest("987654"),
+          "A refused update leaves the stale schedule unchanged");
+
+    const auto fixed = updateReportSchedule(doc, store, "Walls", tagRequest(tag));
+    const auto schedule = fixed["schedule"].toObject();
+    check(is(fixed["status"], "updated") && is(schedule["name"], "Walls") &&
+              schedule["createdAt"].toString() == created &&
+              schedule["request"].toObject()["filters"].toObject()["tags"].toArray() ==
+                  QJsonArray{tag},
+          "An update fixes a stale schedule: its name and creation time stay, its request is new");
+    refusal = refusedBy([&] {
+        requireResolvedScheduleIds(
+            doc, ReportScheduleStore(store).lookup(id.toStdString(), "Walls").request);
+    });
+    check(refusal.code.empty(), "The fixed schedule resolves in the document");
+
+    refusal = refusedBy([&] { updateReportSchedule(doc, store, "Missing", kindRequest()); });
+    check(refusesWith(refusal, "NOT_FOUND"), "An update of a name saved nowhere is not found");
+    Document other;
+    buildQuantitiesA(other);
+    refusal = refusedBy([&] { updateReportSchedule(other, store, "Walls", kindRequest()); });
+    check(refusesWith(refusal, "WRONG_DOCUMENT", "another document"),
+          "An update of another document's schedule is refused by the identity guard");
+    QJsonObject selected = kindRequest();
+    selected["filters"] = QJsonObject{{"selection", true}};
+    refusal = refusedBy([&] { updateReportSchedule(doc, store, "Walls", selected); });
+    check(refusesWith(refusal, "INVALID_REQUEST", "session selection"),
+          "An update cannot use the session selection");
+}
+
 // The identity guard (V11): a schedule saved for one document is never run or changed on another.
 void identityGuard(const QTemporaryDir &dir) {
     const auto path = dir.filePath("guard/report-schedules.json");
@@ -325,14 +522,16 @@ void saveDescribeDelete(const QTemporaryDir &dir) {
     check(listed["schedules"].toArray().size() == 1,
           "describe without a name lists the document's");
     check(describeReportSchedules(doc, store, "Kinds")["schedule"].toObject()["request"] ==
-              kindRequest(),
-          "describe with a name returns that schedule's request");
+              withPrecision(kindRequest(), "full"),
+          "describe with a name returns that schedule's request, with the precision it pinned");
     auto refusal = refusedBy([&] { describeReportSchedules(doc, store, "Nope"); });
     check(refusesWith(refusal, "NOT_FOUND"), "describe refuses a missing name");
 
     refusal = refusedBy([&] { saveReportSchedule(doc, store, "Kinds", kindRequest()); });
-    check(refusesWith(refusal, "INVALID_REQUEST", "already exists"),
-          "Names are unique per document");
+    check(refusesWith(refusal, "INVALID_REQUEST", "already exists") &&
+              refusal.message.find("delete it first") == std::string::npos &&
+              refusal.message.find("Choose another name") != std::string::npos,
+          "Names are unique per document, and the refusal says to choose another name");
 
     QJsonObject withSelection = kindRequest();
     withSelection["filters"] = QJsonObject{{"selection", true}};
@@ -498,8 +697,42 @@ void sessionSchedule(const QTemporaryDir &dir) {
     check(rejectedWith(response, "INVALID_REQUEST"), "A save without a request is refused");
     response = call(session, op({{"action", "describe"}, {"request", kindRequest()}}));
     check(rejectedWith(response, "INVALID_REQUEST"), "A describe with a request is refused");
-    response = call(session, op({{"action", "rename"}}));
+    response = call(session, op({{"action", "bogus"}}));
     check(rejectedWith(response, "INVALID_REQUEST"), "An unknown action is refused by the schema");
+
+    // R101.e1: rename and update on the session, and the refusals of their fields.
+    response =
+        call(session, op({{"action", "save"}, {"name", "Kinds"}, {"request", kindRequest()}}));
+    response = call(session, op({{"action", "rename"}, {"name", "Kinds"}, {"newName", "Renamed"}}));
+    check(response["ok"] == true && is(response["result"].toObject()["status"], "renamed") &&
+              is(response["result"].toObject()["schedule"].toObject()["name"], "Renamed"),
+          "The session renames a schedule");
+    response =
+        call(session, op({{"action", "update"},
+                          {"name", "Renamed"},
+                          {"request", tagRequest(QString::number(doc.tags().begin()->first))}}));
+    check(response["ok"] == true && is(response["result"].toObject()["status"], "updated") &&
+              is(response["result"].toObject()["schedule"].toObject()["name"], "Renamed"),
+          "The session updates a schedule's request and keeps its name");
+    response =
+        call(session, op({{"action", "rename"}, {"name", "Renamed"}, {"newName", "Renamed"}}));
+    check(rejectedWith(response, "INVALID_REQUEST"), "The session refuses a rename onto itself");
+    response = call(session, op({{"action", "rename"}, {"name", "Renamed"}}));
+    check(rejectedWith(response, "INVALID_REQUEST"), "A rename without a new name is refused");
+    response = call(session, op({{"action", "rename"},
+                                 {"name", "Renamed"},
+                                 {"newName", "New"},
+                                 {"request", kindRequest()}}));
+    check(rejectedWith(response, "INVALID_REQUEST"), "A rename with a request is refused");
+    response = call(session, op({{"action", "save"},
+                                 {"name", "Other"},
+                                 {"request", kindRequest()},
+                                 {"newName", "Other2"}}));
+    check(rejectedWith(response, "INVALID_REQUEST"), "A save with a new name is refused");
+    response = call(session, op({{"action", "update"}, {"name", "Renamed"}}));
+    check(rejectedWith(response, "INVALID_REQUEST"), "An update without a request is refused");
+    response = call(session, op({{"action", "delete"}, {"name", "Renamed"}}));
+    check(response["ok"] == true, "The renamed schedule can be deleted by its new name");
 
     response = call(session, op({{"action", "describe"}}));
     QJsonObject other = op({{"action", "describe"}});
@@ -515,10 +748,12 @@ void sessionSchedule(const QTemporaryDir &dir) {
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
-        QTemporaryDir bounds, round, corrupt, atomic, changed, guard, sdd, names, bit, run, session;
+        QTemporaryDir bounds, round, corrupt, atomic, changed, guard, sdd, names, bit, run, session,
+            renaming, atomicRename, pin, stale;
         check(bounds.isValid() && round.isValid() && corrupt.isValid() && atomic.isValid() &&
                   changed.isValid() && guard.isValid() && sdd.isValid() && names.isValid() &&
-                  bit.isValid() && run.isValid() && session.isValid(),
+                  bit.isValid() && run.isValid() && session.isValid() && renaming.isValid() &&
+                  atomicRename.isValid() && pin.isValid() && stale.isValid(),
               "Temporary folders");
         storeBounds(bounds);
         storeRoundTrip(round);
@@ -529,6 +764,10 @@ int main(int argc, char **argv) {
         saveDescribeDelete(sdd);
         namesAndIdentity(names);
         bitIdenticalSave(bit);
+        renameKeepsRequest(renaming);
+        renameIsAtomic(atomicRename);
+        pinnedPrecision(pin);
+        staleFix(stale);
 #if defined(Q_OS_LINUX)
         // These two use the application's store location, which XDG_DATA_HOME isolates on Linux
         // only.

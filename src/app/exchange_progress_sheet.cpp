@@ -62,7 +62,7 @@ ExchangeProgressConfig skpImportProgressConfig() {
     // busy until the run ends.
     ExchangeProgressConfig config;
     config.sheetName = "skpProgressSheet";
-    config.windowTitle = "Importing SketchUp";
+    config.windowTitle = "Importing .skp file";
     config.prefix = "skpProgress";
     config.steps = {"Check the file", "Read the file", "Convert geometry", "Build the model",
                     "Create the new model"};

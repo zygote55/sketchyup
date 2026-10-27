@@ -33,9 +33,10 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
     if (error.error != QJsonParseError::NoError || !json.isObject())
         throw InspectionError("INVALID_REQUEST", "Expected one JSON presentation request object");
     const auto value = json.object();
-    requireFields(
-        value, {"apiVersion", "path", "name", "keyframes", "timing", "presets", "output", "video"},
-        "presentation request");
+    requireFields(value,
+                  {"apiVersion", "path", "name", "keyframes", "timing", "presets", "output",
+                   "video", "videoCodec"},
+                  "presentation request");
     if (value.value("apiVersion") != 1)
         throw InspectionError("INVALID_REQUEST", "Presentation requests require apiVersion 1");
     if (value.contains("video") && !value.value("video").isBool())
@@ -99,6 +100,16 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
         throw InspectionError("INVALID_REQUEST", "A presentation names a new output folder");
     request.output = value.value("output").toString();
     request.video = value.value("video").toBool();
+    if (value.contains("videoCodec")) {
+        const auto codec = value.value("videoCodec").toString();
+        if (!value.value("videoCodec").isString() || (codec != "h264" && codec != "mpeg4"))
+            throw InspectionError("INVALID_REQUEST", "Presentation videoCodec is h264 or mpeg4");
+        if (!request.video)
+            throw InspectionError("INVALID_REQUEST",
+                                  "Presentation videoCodec needs video true; without video it is "
+                                  "not used");
+        request.videoCodec = codec;
+    }
     return request;
 }
 QJsonObject presentationExportCapabilities() {
@@ -112,28 +123,34 @@ QJsonObject presentationExportCapabilities() {
             {"outputBudgetBytes", 2LL * 1024 * 1024 * 1024},
             {"frameDeadlineMs", 180000},
             {"store", "AppLocalDataLocation/presentation-jobs"},
-            {"cancel", "SIGINT stops at the next frame boundary"},
+            {"cancel", "SIGINT stops at the next frame boundary and cancels; SIGTERM stops now and "
+                       "records the batch interrupted, so it can be resumed"},
             {"exitCodes",
              QJsonObject{{"0", "completed"}, {"1", "failed or interrupted"}, {"130", "canceled"}}},
-            {"video", "optional H.264 MP4 per preset, encoded by the isolated Blender worker"}};
+            {"video", "optional MP4 per preset, encoded by the isolated Blender worker"},
+            {"videoCodecs", QJsonArray{"h264", "mpeg4"}},
+            {"videoCodecDefault", "h264"}};
 }
 QJsonObject presentationExportDescription() {
-    return {
-        {"name", "export-presentation"},
-        {"usage", "sketchyup-cli --input MODEL --export-presentation REQUEST.json"},
-        {"summary", "Render a camera path through one or more render presets to a new folder "
-                    "with a batch manifest. Finished frames survive cancellation."},
-        {"request",
-         QJsonObject{{"apiVersion", 1},
-                     {"path", "camera path name (or use keyframes with timing)"},
-                     {"keyframes", "saved scene names, two to thirty-two, in playback order"},
-                     {"name", "name for an explicit keyframe list, default Keyframes"},
-                     {"timing", timingSchema()},
-                     {"presets", "one to four render preset names"},
-                     {"output", "new folder; its parent must exist"},
-                     {"video", "optional, default false: H.264 MP4 per preset after every frame "
-                               "is verified; a Blender without H.264 refuses the video and keeps "
-                               "the frames"}}},
-        {"limits", presentationExportCapabilities()}};
+    return {{"name", "export-presentation"},
+            {"usage", "sketchyup-cli --input MODEL --export-presentation REQUEST.json"},
+            {"summary", "Render a camera path through one or more render presets to a new folder "
+                        "with a batch manifest. Finished frames survive cancellation."},
+            {"request",
+             QJsonObject{
+                 {"apiVersion", 1},
+                 {"path", "camera path name (or use keyframes with timing)"},
+                 {"keyframes", "saved scene names, two to thirty-two, in playback order"},
+                 {"name", "name for an explicit keyframe list, default Keyframes"},
+                 {"timing", timingSchema()},
+                 {"presets", "one to four render preset names"},
+                 {"output", "new folder; its parent must exist"},
+                 {"video", "optional, default false: an MP4 per preset after every frame is "
+                           "verified; a Blender without the chosen encoder refuses the video "
+                           "before any frame renders"},
+                 {"videoCodec", "optional, default h264 (H.264). mpeg4 is MPEG-4 Part 2 in MP4, "
+                                "chosen only by name, for a Blender without H.264. Only with "
+                                "video true. The codec is never switched"}}},
+            {"limits", presentationExportCapabilities()}};
 }
 } // namespace sketchy
