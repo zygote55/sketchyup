@@ -4,6 +4,7 @@
 #include "app/entity_info_panel.hpp"
 #include "app/history_panel.hpp"
 #include "app/materials_panel.hpp"
+#include "app/quantities_panel.hpp"
 #include "app/reference_images_panel.hpp"
 #include "app/scenes_panel.hpp"
 #include "app/sections_panel.hpp"
@@ -312,6 +313,10 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     tabs_->addTab(info_, "Info");
     materials_ = new MaterialsPanel(doc_, view_);
     tabs_->addTab(materials_, "Materials");
+    // R101.e2 (UX_DESIGN §19.1): Quantities sits between Materials and History, so the indices of
+    // Info (2) and the tabs before it are unchanged.
+    quantities_ = new QuantitiesPanel(doc_, view_);
+    tabs_->addTab(quantities_, "Quantities");
     history_ = new HistoryPanel(doc_, view_);
     tabs_->addTab(history_, "History");
     styles_ = new StylesPanel(doc_, view_);
@@ -335,15 +340,16 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
     connect(components_, &ComponentsTab::placed, this, [this] { showInfo(); });
     setFocusProxy(outliner_);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int index) {
-        setFocusProxy(index == 12   ? static_cast<QWidget *>(components_)
-                      : index == 11 ? static_cast<QWidget *>(references_)
-                      : index == 10 ? static_cast<QWidget *>(solar_)
-                      : index == 9  ? static_cast<QWidget *>(text_)
-                      : index == 8  ? static_cast<QWidget *>(annotations_)
-                      : index == 7  ? static_cast<QWidget *>(sections_)
-                      : index == 6  ? static_cast<QWidget *>(scenes_)
-                      : index == 5  ? static_cast<QWidget *>(styles_)
-                      : index == 4  ? static_cast<QWidget *>(history_)
+        setFocusProxy(index == 13   ? static_cast<QWidget *>(components_)
+                      : index == 12 ? static_cast<QWidget *>(references_)
+                      : index == 11 ? static_cast<QWidget *>(solar_)
+                      : index == 10 ? static_cast<QWidget *>(text_)
+                      : index == 9  ? static_cast<QWidget *>(annotations_)
+                      : index == 8  ? static_cast<QWidget *>(sections_)
+                      : index == 7  ? static_cast<QWidget *>(scenes_)
+                      : index == 6  ? static_cast<QWidget *>(styles_)
+                      : index == 5  ? static_cast<QWidget *>(history_)
+                      : index == 4  ? static_cast<QWidget *>(quantities_)
                       : index == 3  ? static_cast<QWidget *>(materials_)
                       : index == 2  ? static_cast<QWidget *>(info_)
                       : index       ? tags_
@@ -594,6 +600,13 @@ void OrganizationPanel::showHistory() {
     tabs_->setCurrentWidget(history_);
     history_->setFocus();
 }
+void OrganizationPanel::showQuantities() {
+    tabs_->setCurrentWidget(quantities_);
+    quantities_->focusGroupBy();
+}
+void OrganizationPanel::setModelPath(std::function<QString()> path) {
+    quantities_->setModelPath(std::move(path));
+}
 void OrganizationPanel::refresh() {
     if (syncing_)
         return;
@@ -709,5 +722,7 @@ void OrganizationPanel::refresh() {
         components_->refresh();
     // Save acknowledgements can move the saved marker without advancing content revision.
     history_->refresh(true);
+    // R101.e2: the section computes only while it is shown, and refresh() checks that itself.
+    quantities_->refresh();
 }
 } // namespace sketchy
