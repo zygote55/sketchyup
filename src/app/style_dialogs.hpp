@@ -1,4 +1,5 @@
 #pragma once
+#include "app/settled_dialog.hpp"
 #include "app/viewport.hpp"
 #include "io/style_bundle.hpp"
 #include <QDialog>
@@ -48,7 +49,7 @@ void setStyleLibraryPreference(const QString &folder);
 // File → Import style… (UX_DESIGN §18.2): the file's facts, a preview of its stroke, and the two
 // outcomes. Nothing changes until the primary button is pressed. A file that cannot be used shows
 // the refusal of §18.6 instead, with "Choose another file…", which closes with kChooseAnother.
-class StyleImportDialog : public QDialog {
+class StyleImportDialog : public Settled<QDialog> {
     Q_OBJECT
   public:
     static constexpr int kChooseAnother = 2;
@@ -56,6 +57,9 @@ class StyleImportDialog : public QDialog {
                       QWidget *parent = nullptr);
     // The status line text for the outcome that happened, once the dialog is accepted.
     QString outcome() const { return outcome_; }
+
+  protected:
+    void showEvent(QShowEvent *event) override;
 
   private:
     Document &doc_;
@@ -74,7 +78,7 @@ class StyleImportDialog : public QDialog {
 
 // File → Export style… (UX_DESIGN §18.2): what the file will hold, with counts of what a style never
 // carries. Export to file… refuses a missing edge texture and an existing name (§18.6).
-class StyleExportDialog : public QDialog {
+class StyleExportDialog : public Settled<QDialog> {
     Q_OBJECT
   public:
     StyleExportDialog(Document &doc, QWidget *parent = nullptr);
@@ -91,7 +95,7 @@ class StyleExportDialog : public QDialog {
 
 // Styles tab → Save to library… (UX_DESIGN §18.2): copies the current style into the library folder
 // under a new name. The name rule and the taken name are checked in the dialog, before any write.
-class StyleSaveDialog : public QDialog {
+class StyleSaveDialog : public Settled<QDialog> {
     Q_OBJECT
   public:
     StyleSaveDialog(Document &doc, const QString &folder, QWidget *parent = nullptr);

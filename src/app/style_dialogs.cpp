@@ -17,6 +17,8 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSettings>
+#include <QShowEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QtEndian>
 #include <optional>
@@ -265,7 +267,7 @@ void setStyleLibraryPreference(const QString &folder) {
 
 StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QString &path,
                                      QWidget *parent)
-    : QDialog(parent), doc_(doc), view_(view), path_(path) {
+    : Settled<QDialog>(parent), doc_(doc), view_(view), path_(path) {
     setObjectName("importStyleDialog");
     setWindowTitle("Import style");
     setMinimumWidth(640);
@@ -347,6 +349,7 @@ StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QStrin
         connect(close, &QPushButton::clicked, this, &QDialog::reject);
         footer->addWidget(close);
         layout->addLayout(footer);
+        close->setFocus();
         return;
     }
 
@@ -454,6 +457,16 @@ StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QStrin
     });
 }
 
+// The first outcome takes the focus once the dialog is shown and the platform has activated it, so
+// Tab and the arrow keys start where the choice is. Focus set before activation is not kept.
+void StyleImportDialog::showEvent(QShowEvent *event) {
+    Settled<QDialog>::showEvent(event);
+    QTimer::singleShot(0, this, [this] {
+        if (usable_ && apply_)
+            apply_->setFocus();
+    });
+}
+
 void StyleImportDialog::apply() {
     try {
         const auto before = doc_.style();
@@ -489,7 +502,7 @@ void StyleImportDialog::save() {
 }
 
 StyleExportDialog::StyleExportDialog(Document &doc, QWidget *parent)
-    : QDialog(parent), doc_(doc) {
+    : Settled<QDialog>(parent), doc_(doc) {
     setObjectName("exportStyleDialog");
     setWindowTitle("Export style");
     setMinimumWidth(640);
@@ -584,6 +597,7 @@ StyleExportDialog::StyleExportDialog(Document &doc, QWidget *parent)
     connect(exportButton, &QPushButton::clicked, this, [this] { exportFile(); });
     footer->addWidget(exportButton);
     layout->addLayout(footer);
+    name_->setFocus();
 }
 
 void StyleExportDialog::exportFile() {
@@ -621,7 +635,7 @@ void StyleExportDialog::exportFile() {
 }
 
 StyleSaveDialog::StyleSaveDialog(Document &doc, const QString &folder, QWidget *parent)
-    : QDialog(parent), doc_(doc), folder_(folder) {
+    : Settled<QDialog>(parent), doc_(doc), folder_(folder) {
     setObjectName("saveStyleDialog");
     setWindowTitle("Save style to library");
     setMinimumWidth(560);

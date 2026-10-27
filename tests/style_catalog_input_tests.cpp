@@ -876,6 +876,31 @@ void accessibleAndLargeText() {
     QApplication::setFont(normal);
 }
 
+// The §18.7 keyboard order of the Styles tab: from the stroke's check box, Tab reaches each control
+// in turn, the library list, then Choose folder, Refresh, Apply and Save. Each is reached, in order,
+// by moving the focus chain forward.
+void tabOrder() {
+    Window window;
+    window.resize(1180, 850);
+    window.show();
+    check(QTest::qWaitForWindowExposed(&window), "Window exposed");
+    setModelStyle(window, strokeStyle(2, 1, EdgeDash::Dashed));
+    auto &panel = stylesTab(window);
+    const QStringList expected = {"styleEdgeStroke", "styleEdgeWidth", "styleEdgeOpacity",
+                                  "styleEdgeDash", "styleEdgeTexture", "styleSearch", "styleLibrary",
+                                  "styleChooseFolder", "styleRefresh", "styleApplyLibrary",
+                                  "styleSaveLibrary"};
+    QWidget *widget = field<QWidget>(panel, "styleEdgeStroke");
+    QStringList reached;
+    for (int step = 0; step < 400 && widget && reached.size() < expected.size(); ++step) {
+        if (!widget->objectName().isEmpty() && expected.contains(widget->objectName()) &&
+            (reached.isEmpty() || reached.last() != widget->objectName()))
+            reached << widget->objectName();
+        widget = widget->nextInFocusChain();
+    }
+    check(reached == expected, "The Styles tab's controls are reached in the §18.7 order");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -903,7 +928,8 @@ int main(int argc, char **argv) {
                           {"import refusals", importRefusals},
                           {"export style", exportStyle},
                           {"file menu", fileMenu},
-                          {"accessible names and large text", accessibleAndLargeText}};
+                          {"accessible names and large text", accessibleAndLargeText},
+                          {"tab order", tabOrder}};
     int failures = 0;
     for (const auto &test : tests) {
         // An optional argument names one test, for a quicker run.
