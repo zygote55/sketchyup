@@ -396,3 +396,71 @@ Recorded 2026-10-27 on branch `feat/r109a-sandbox-skp`, based on `origin/main` a
 4. The refusal names the layer as `no_new_privs`, `landlock` or `seccomp filter`. §6.7 used the last two and did not name NNP.
 
 **Not done here.** The corrections owed to ADRs 0171, 0176, 0136 and 0180 (see Corrections owed) are not edited in this record. The IFC and STEP, text, extension and Blender helpers (S2 to S5) and the required `sandbox_available` check (S6) are not started. The `sketchyup_sandbox` library has no runner-side Landlock result yet, and the mremap path is not measured (§6.9).
+
+## Implementation notes (R109 S2)
+
+Recorded 2026-10-27 on branch `feat/r109s2-sandbox-ifc`, based on `origin/main` at `6dcea44a`. This section covers the IFC and STEP helper (S2). The shared library and the `.skp` helper (S0, S1) are as recorded above. S3 to S6 are not covered here. Where a point below differs from the design above, it says so.
+
+**Measurement setup.** The pinned image `sketchyup-ci-pinned:r097a-ifc`, kernel 7.2.8-9-omarchy (Landlock ABI 10). The helper is a Debug build (the test configuration; CMake's `Debug`), so the install and the wall times below are Debug numbers. The IFC prefix was the cached one for this pin. Release numbers are not measured.
+
+**The allow-list, re-derived from a trace.** The helper's calls were traced from `main()` on (a ptrace tracer that starts at `main`, so the loader and the static constructors are not recorded). The traced runs were: every IFC and STEP fixture in each mode the application uses (import with one and four threads, check, the probe API, the STEP import with and without a package, the STEP probe, the probes, the corpus writers) with stdout and stderr as pipes, files and `/dev/null`; the existing Python suites (`ifc_worker_probe`, `ifc_georeference`, `ifc_step_worker`, `ifc_export_worker`, `ifc_import_worker`, and the fault corpus with 4 mutations per file); the diagnosis (`--test-fault crash:69` with `--diagnose-from`, whose children fork, and `abort`, `alloc` and `hang`); and the application's C++ tests (`ifc_import`, `ifc_worker_run`, `ifc_export`, `ifc_step`, `ifc_step_export`, `step_import`, `ifc_package`, `import_refusal`), with the helper replaced by the traced build. The traces record the path of every `openat`, `newfstatat`, `readlink`, `access` and `execve`, the request of `ioctl` and the option of `prctl`.
+
+The allow-list (`src/ifc/sandbox_policy.cpp`) has 39 named calls, and the library always allows `exit`, `exit_group` and `rt_sigreturn`:
+
+- 30 allowed: `read`, `write`, `writev`, `close`, `fstat`, `lseek`, `openat`, `newfstatat`, `statx`, `readlink`, `brk`, `mmap`, `mprotect`, `madvise`, `munmap`, `mremap`, `futex`, `set_robust_list`, `rseq`, `clock_nanosleep`, `rt_sigaction`, `rt_sigprocmask`, `alarm`, `wait4`, `getpid`, `getppid`, `gettid`, `getuid`, `uname`, `times`.
+- `clone` with `forkOrThread`: threads, and fork-like children for the diagnosis; a clone that asks for a new namespace (`CLONE_NEW*`) is EPERM.
+- `clone3` ENOSYS, so that glibc falls back to `clone`.
+- `tgkill` with `ownProcessOnly`: abort signals its own process.
+- `prctl` with `whenArgument`: only `PR_SET_PDEATHSIG`, which the diagnosis children set.
+- `ioctl` with `whenArgument`: only request `0x802c542a` (`TCGETS2`), which glibc's `isatty` asks on a character device (stdout as `/dev/null` or a terminal).
+- `socket`, `socketpair`, `bind` and `connect` with `denied` (EPERM).
+
+The file rules are: the plugin directory (the directory of `libifcopenshell.plugin.so`, from `pinPluginDirectory()`) and `/usr/lib`, read and execute; five single files, read only (`/etc/ld.so.cache`, `/etc/localtime`, `/proc/self/maps`, `/proc/sys/vm/overcommit_memory`, `/sys/devices/system/cpu/online`); the input, read only; the output's directory, read and write. A trace's single file is granted, not its directory: `/etc`, `/proc` and `/sys` are not granted, so `/etc/passwd` and the NSS state under `/run` are out of reach.
+
+Sanitizer builds add `pipe2` (UBSan's type cache), `sigaltstack`, `sched_getaffinity` and `fcntl` (ASan), behind `SKP_WORKER_NO_ADDRESS_LIMIT`. Only `pipe2` appeared in the sanitized traces made here; the other three were taken from S1 and were not re-checked one by one. The sanitized helper also defines `__lsan_default_options` (detect_leaks=0), as S1 does.
+
+Compared with the list of section 5 (31 calls for the import, measured before S2): the policy adds `statx`, `uname`, `times` and `getuid` (found in the STEP export and the STEP import, not in the import trace), `mremap` (no trace reaches it: kept for large buffers, as S1 does), `alarm`, `wait4`, `getppid`, `gettid` and `getpid` (the diagnosis children), `tgkill` for the own process, and the `whenArgument` entries. It adds the four network calls as EPERM, which section 4.3 prescribes and section 5 did not list for this helper (see the contradictions). `clone3` ENOSYS and the `forkOrThread` rule are in section 4.3's design.
+
+**Results.**
+
+- Fixtures, the sandboxed helper against the unsandboxed code in this process (`ifc_sandbox`, which passes): all 66 IFC files (60 in `tests/fixtures/ifc` and 6 in `tests/fixtures/ifc/export`) imported with four threads give the same return code, signal and R line, and imported with one thread the same package bytes too (at four threads the package lists elements in the order the threads finish, ADR 0171 F8, so its bytes vary from run to run; the first version compared them and failed once in CI, on `openings-hard.ifc` in run 40601593697); all 66 checked give the same; all 14 STEP files give the same import package, the same metadata and the same probe. Section 6.3 counted 74 (60 IFC and 14 STEP); the committed set is 66 IFC and 14 STEP. The 3 `.skifc` packages in `tests/fixtures/ifc/packages` are inputs to the import tests, and this test does not use them.
+- The helper's own outcome classes over the same fixtures (tally on the sandboxed binary): IFC import 58 succeed, 6 refused, 2 crash with SIGSEGV (the two that crash in both runs in section 6.3); IFC check 39 valid, 27 reported invalid; STEP import 13 succeed, 1 refused.
+- The Python suites (`ifc_worker_probe`, `ifc_georeference`, `ifc_step_worker`, `ifc_export_worker`, `ifc_import_worker`, `ifc_worker_fault_corpus` with 64 mutations per file) and the application's `ifc_*` suites pass under the sandbox. The sanitized helper (ASan and UBSan) passes the six Python suites under the sandbox.
+- The diagnosis case (`extrusion-profiles.ifc`, `crash:69`, `--diagnose-from 0`): the same return code, signal, progress lines and R line as the unsandboxed run. The host's restart sequence (`--diagnose-from 1`, as `ifc_worker_run` runs it) works under the sandbox: the child for element 69 dies, and the parent imports the rest.
+- Attack probes, under the policy in a child (`ifc_sandbox`): an exec is killed with SIGSYS; `ptrace` is killed with SIGSYS; a socket is EPERM; a fork-like child runs, and its exec is killed with SIGSYS; a clone into a new user namespace is EPERM; an `ioctl` other than `TCGETS2` is EPERM, and `TCGETS2` answers ENOTTY; a `prctl` other than `PR_SET_PDEATHSIG` is EPERM; a read of `/etc/passwd` and of a sibling file is EACCES; a write to the sibling is EACCES; a write in the private directory and a read of the input work; an `abort` is SIGABRT.
+- Fail closed (`ifc_sandbox`): a simulated failure of each layer is named and returns 70. The real helper under a filter that refuses Landlock's three calls (ENOSYS) refuses with exit 70 and `sandboxUnavailable: landlock (Function not implemented)`; under a filter that refuses `seccomp` (EPERM) it refuses with `sandboxUnavailable: seccomp filter (Operation not permitted)`; the probe refuses too. None writes a package.
+- Host (`ifc_sandbox`): a helper killed by SIGSYS is `sandboxViolation` and runs once (not restarted); a refusal with exit 70 is `sandboxUnavailable`; a helper killed by SIGABRT is `workerFailed` (a crash). The STEP host does the same.
+- Export and check (in-process, Debug; medians; the policy applied in the child before the work):
+
+| Measure | Unsandboxed | Sandboxed | Change |
+|---|---|---|---|
+| Install (fork plus apply, against fork alone; 300 forks) | 630 µs | 1,149 µs | +520 µs (budget 1 ms) |
+| Per call, `getpid` (2 million calls, 5 runs) | 77 ns | 80 ns | +1 to +5 ns (budget 50 ns) |
+| IFC import, 60 files, four threads, 5 rounds, total | 2.408 s | 2.461 s | +2.2% (budget 3%) |
+| Check, `bsi-ifc4-arch.ifc`, 20 runs | 18.6 ms | 19.2 ms | +3.3% |
+| STEP export, AP214, one box, 20 runs | 7.3 ms | 8.1 ms | +11% (+0.8 ms) |
+| STEP export, AP203, one box, 20 runs | 7.8 ms | 8.8 ms | +12% (+0.9 ms) |
+
+The export rows are small operations: the install cost (about half a millisecond) is most of the change. The corpus is within the 3% budget. The export overhead is above 3%, and the owner should decide whether to accept it. The helper's wall time with its real process startup was not timed separately.
+
+- BPF size: about 100 instructions (about 800 bytes), counted from the block sizes of section 4.3 (the library does not print the program); the kernel limit is 4096.
+- Landlock: nine path rules at most (two directories, five files, one input and one output).
+
+**Contradictions with this ADR, and what was decided.**
+
+1. **The network calls are EPERM for the IFC and STEP helper, not a kill.** Section 5 gives this helper no network row, and section 4.3 says helpers that need no network refuse `socket`, `socketpair`, `bind` and `connect` with EPERM. The brief asked for `socket` to be killed, as S1 does for the `.skp` helper. The trace shows that OpenCASCADE's AP203 writer calls `gethostbyname` (through `OSD_Host::InternetAddress`) when it writes the header, so a kill would fail every AP203 export. The IFC and STEP helper follows section 4.3. The `.skp` helper still kills (S1). The two helpers now differ, and the owner should choose one rule.
+2. **The AP203 header names 0.0.0.0, not the machine's address.** OpenCASCADE 7.9.3 does not check the `gethostbyname` answer, so an EPERM there makes the writer crash with SIGSEGV (seen under gdb). The helper answers that one call itself (`gethostbyname` in `worker_main.cpp`, returning the unspecified address), and the header reads `PERSON('IP0.0.0,' ...)`. Before S2 it read the machine's address (for example `IP172.17.0,` in the container). This is an output change for AP203 exports only, and it removes the machine's address from the exported file. The owner should accept it or choose another fix.
+3. **The own-process rule covers the helper's process only.** `ownProcessOnly` compares `tgkill`'s process with the process id that was read when the policy was built. A diagnosis child is a different process, so its `raise()` is EPERM. The test fault `crash` therefore raises a real fault (a store to address 0) in `geometry.cpp`: the kernel delivers SIGSEGV, and the child still dies, which is what the diagnosis needs. An `abort()` in a child is EPERM for the `tgkill`, and glibc then ends the child with its abort instruction. The child still dies, so the diagnosis is unchanged, but the signal is not SIGABRT. A fork-aware own-process rule would need a change to the library (not made here).
+4. **Section 5's IFC file rules are narrower.** Section 5 lists `ro /etc`, `ro /proc` and `ro /sys`. This policy grants five single files and no directory under those trees (the brief requires `/etc/passwd` to be denied). The trace shows which files each mode reads (see the list above).
+5. **The `clone` rule goes beyond section 4.3 by one bit.** A fork-like clone runs (decision 5), and a clone with a `CLONE_NEW*` namespace flag is EPERM. Decision 5 did not say so. A namespace would give the child capabilities inside it.
+6. **`TCGETS2`, not `TCGETS`.** The pinned image's glibc asks `isatty` for `TCGETS2` (request `0x802c542a`). The policy allows that request only.
+7. **The two developer directories are created before the policy.** `--probe-step --round-trip-directory DIR` and `--write-step DIR` create `DIR` in `main()` before they apply the policy, because a Landlock rule does not grant a path that does not exist. The trace's `mkdir` is therefore not in the list.
+
+**Not done here, and gaps.**
+
+- The full fault corpus (`ifc_worker_fault_corpus_full`, 512 mutations per file) was not run locally; the full tier runs it in CI.
+- `ifc_sandbox` is not built or run in the sanitizer configuration: the IFC sanitizer preset builds only the helper (no CLI). The sanitized helper runs the six Python suites under the sandbox instead.
+- The STEP export's output is not compared byte for byte (OpenCASCADE writes the current time in the header; the AP203 header differs by design, see contradiction 2). The export tests of the application check the export's content.
+- Release builds are not measured.
+- The Landlock check on the CI runner's kernel is not done (the required `sandbox_available` check is S6).
+- An existing issue, not caused by S2: `--probe-api --threads 1` and `--threads 2` on `tests/fixtures/ifc/tree-cases.ifc` do not finish (both run and time out at 60 s, with and without the sandbox). The developer probe is affected; no import is.
