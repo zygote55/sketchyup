@@ -33,7 +33,8 @@ ImportRefusal collada() {
         QStringLiteral("1. If the source offers a newer .skp version of this model, download that "
                        "file instead.\n"
                        "2. The .skp import is not released in this version, so the file cannot be "
-                       "imported yet.")};
+                       "imported yet.\n"
+                       "3. See Getting models from online libraries in the user guide.")};
 }
 
 ImportRefusal usdz() {
@@ -41,7 +42,8 @@ ImportRefusal usdz() {
             QStringLiteral("A USDZ (.usdz) file is not imported. SketchyUp has no USD reader."),
             QStringLiteral(
                 "1. If the source offers a glTF or GLB version of this model, download that file.\n"
-                "2. Import it with File › Import GLB/glTF…")};
+                "2. Import it with File › Import GLB/glTF…\n"
+                "3. See Getting models from online libraries in the user guide.")};
 }
 
 ImportRefusal fbx() {
@@ -49,7 +51,8 @@ ImportRefusal fbx() {
             QStringLiteral("An FBX (.fbx) file is not imported. SketchyUp has no FBX reader."),
             QStringLiteral(
                 "1. If the source offers a glTF or GLB version of this model, download that file.\n"
-                "2. Import it with File › Import GLB/glTF…")};
+                "2. Import it with File › Import GLB/glTF…\n"
+                "3. See Getting models from online libraries in the user guide.")};
 }
 
 } // namespace
