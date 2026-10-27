@@ -1,6 +1,6 @@
 # Custom styles and asset authoring
 
-Status: **Accepted (2026-10-23)**: owner decisions 1 to 12 approved as recommended on 2026-10-23; question Q1 (the preset list and texture licences) stays open until the presets slice. Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
+Status: **Accepted (2026-10-23)**: owner decisions 1 to 12 approved as recommended on 2026-10-23; question Q1 (the preset list and texture licences) answered on 2026-10-27 (procedural or CC0 only; the 15-preset list signed off by the owner on 2026-10-27). Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
 [F06](../SCOPE.md)). R100 requires [R089](../PR_ROADMAP.md#r089) (the 1.0 gate,
 accepted; 1.3.0 is the current release), [R062](../PR_ROADMAP.md#r062) (viewport
 styles and display controls, delivered) and [R079](../PR_ROADMAP.md#r079)
@@ -552,12 +552,172 @@ Each carries a recommended default and a one-line reason.
 
 ## Questions for the owner
 
-- **Q1. Preset list and texture licences. *Open.*** The exact set of new
+- **Q1. Preset list and texture licences. *Answered by the owner on 2026-10-27:*** only procedural textures or CC0 textures (Poly Haven, ambientCG); a worker drafts the list with each source and licence, and the owner signs it off before R100.b ships. The original question: The exact set of new
   textured presets, and the provenance and licence of every bundled texture,
   are not verified in this repository. The owner is asked to confirm the preset
   list and, with counsel if you wish, that every bundled texture's licence is
   distributable, with attribution where the licence
   requires it.
+
+## Q1 preset list (proposed for owner sign-off, 2026-10-27)
+
+**Status: signed off by the owner on 2026-10-27, not yet bundled.** The owner approved the 15 presets and the size budget below, with one change: R100.b makes the floor tile's grout clearly visible (it is nearly invisible in the preview). The owner also accepted ambientCG's site-wide CC0 statement as sufficient for future presets (no per-asset licence line needed there); no ambientCG asset is in this list. Originally: drafted, not signed off, not bundled. This list was drafted on 2026-10-27 under the owner's Q1 answer (procedural textures, or CC0 textures from Poly Haven or ambientCG). The owner signs the list off before R100.b bundles anything. This section commits no texture bytes. The downloads and the embedded files stay in `.local/r100b-textures/`, outside git. The one image committed is the review contact sheet, [`mockups/presets/contact-sheet.png`](../mockups/presets/contact-sheet.png) (110 KiB). It is derived from the nine listed Poly Haven assets (credited below) and from throwaway procedural previews. It is not the generator's output.
+
+### The list
+
+Fifteen textured presets, in the order the Materials library should show them under **Textured**. Nine are CC0 from Poly Haven and six are procedural. The tile size is the real-world size one texture repeat covers. `src/core/face_textures.hpp` gives implicit mapping one metre per repeat, and each preset sets its own size. The embedded size is the file the preset would bundle after the resize in "CC0 presets: files" below. Procedural sizes are estimates from a preview, not final numbers.
+
+| # | Name (UI) | Source | Tile (m) | Tint | Opacity % | Embedded size (bytes) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Wood, light | CC0, Poly Haven `ash_veneer` | 1.00 × 1.00 | #ffffff | 100 | 30,728 |
+| 2 | Wood, dark | CC0, Poly Haven `black_oak_veneer` | 1.00 × 1.00 | #ffffff | 100 | 32,898 |
+| 3 | Brick, running bond | Procedural | 0.90 × 0.90 | #9c4a36 | 100 | ≈16,258 |
+| 4 | Concrete, cast | Procedural | 2.00 × 2.00 | #b0ada6 | 100 | ≈62,466 |
+| 5 | Stone, rubble wall | CC0, Poly Haven `rustic_stone_wall_02` | 1.50 × 1.50 | #ffffff | 100 | 63,050 |
+| 6 | Floor tile, 600 mm | Procedural | 0.60 × 0.60 | #d6d1c7 | 100 | ≈5,315 |
+| 7 | Plaster, fine | Procedural | 2.00 × 2.00 | #f2efe8 | 100 | ≈4,954 |
+| 8 | Metal, brushed | Procedural | 1.00 × 1.00 | #8c96a0 | 100 | ≈15,510 |
+| 9 | Metal, corrugated | CC0, Poly Haven `corrugated_iron` | 1.12 × 1.12 | #ffffff | 100 | 53,376 |
+| 10 | Glass, reeded | Procedural | 0.30 × 0.30 | #b7d9e5 | 35 | ≈13,826 |
+| 11 | Grass | CC0, Poly Haven `leafy_grass` | 2.00 × 2.00 | #ffffff | 100 | 89,503 |
+| 12 | Gravel | CC0, Poly Haven `bicolour_gravel` | 1.90 × 1.90 | #ffffff | 100 | 120,454 |
+| 13 | Asphalt | CC0, Poly Haven `clean_asphalt` | 2.10 × 2.10 | #ffffff | 100 | 25,760 |
+| 14 | Roof tiles, clay | CC0, Poly Haven `clay_roof_tiles_02` | 2.50 × 2.50 | #ffffff | 100 | 71,553 |
+| 15 | Fabric, wool | CC0, Poly Haven `poly_wool_herringbone` | 0.27 × 0.28 | #ffffff | 100 | 56,842 |
+
+Tints are sRGB. For a CC0 preset the tint is white, so the albedo keeps its own colours. For a procedural preset the texture is a neutral luminance map and the tint carries the colour. ADR 0065 multiplies the linear tint by the sampled texture RGB, so this works with the existing path. Opacity 35 for Glass copies the flat "Glass" preset. UX_DESIGN §18.4 does not list opacity, so this is a proposal (see open questions).
+
+### Sources and how each was checked
+
+- **Poly Haven (used).** Each asset's own page, `https://polyhaven.com/a/<id>`, was read on 2026-10-27. In each one the data block carries `"license":"https://creativecommons.org/publicdomain/zero/1.0/"` and the `copyrightNotice` quoted in the table below. Each page's keywords include `seamless` and `tileable`. The file list at `https://api.polyhaven.com/files/<id>` gives the 1K diffuse JPEG. The MD5 in that list matched the downloaded file for all nine. The info JSON at `https://api.polyhaven.com/info/<id>` gives the `dimensions`. Poly Haven's licence page, `https://polyhaven.com/license` (read 2026-10-27), says "Our assets are all licensed as CC0" and "You do not need to give credit or attribution when using them (although it is appreciated)". Credit is listed below as a courtesy.
+- **Unit of `dimensions`.** The OpenAPI spec at `https://api.polyhaven.com/api-docs/swagger.json` (read 2026-10-27) describes the field as "An array with the dimensions of this asset on each axis in millimeters". The info JSON itself gives no unit. The tile sizes above are therefore the Poly Haven values divided by 1000.
+- **ambientCG (not used).** The asset pages read on 2026-10-27, `https://ambientcg.com/view?id=Bricks059`, `Concrete034`, `Wood066` and `Metal049A`, carry the site-wide FAQ sentence "All assets are released under the Creative Commons CC0 license", with a link to `https://docs.ambientcg.com/license/`. They have no licence field for the asset itself. The brief asks for the asset's own page to state CC0, so no ambientCG asset is in the list. This is an owner decision, listed below.
+
+### CC0 presets: licence on the asset's own page
+
+| # | Name (UI) | Poly Haven asset | Creator (credit) | Licence line, quoted from the asset's page | Checked on the asset's own page |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Wood, light | [ash_veneer](https://polyhaven.com/a/ash_veneer) | Jenelle van Heerden | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 2 | Wood, dark | [black_oak_veneer](https://polyhaven.com/a/black_oak_veneer) | Jenelle van Heerden | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 5 | Stone, rubble wall | [rustic_stone_wall_02](https://polyhaven.com/a/rustic_stone_wall_02) | Amal Kumar | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 9 | Metal, corrugated | [corrugated_iron](https://polyhaven.com/a/corrugated_iron) | Jenelle van Heerden, Dimitrios Savva | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 11 | Grass | [leafy_grass](https://polyhaven.com/a/leafy_grass) | Charlotte Baglioni | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 12 | Gravel | [bicolour_gravel](https://polyhaven.com/a/bicolour_gravel) | Dimitrios Savva | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 13 | Asphalt | [clean_asphalt](https://polyhaven.com/a/clean_asphalt) | Dimitrios Savva | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 14 | Roof tiles, clay | [clay_roof_tiles_02](https://polyhaven.com/a/clay_roof_tiles_02) | Amal Kumar | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+| 15 | Fabric, wool | [poly_wool_herringbone](https://polyhaven.com/a/poly_wool_herringbone) | colormass, Rico Cilliers | `CC0 1.0 Universal - public domain dedication, no attribution required` | yes, read 2026-10-27 |
+
+### CC0 presets: files
+
+The source is the Poly Haven 1K diffuse JPEG, kept in `.local/r100b-textures/polyhaven/<id>/` and not committed. The embedded file is that source resized and re-encoded, kept in `.local/r100b-textures/embedded/` and not committed. The recipe is `magick SOURCE -strip -colorspace sRGB -resize '512x512>' -sampling-factor 4:2:0 -interlace none -quality 85 OUT.jpg`, with ImageMagick 7.1.2-34 (Q16-HDRI). Two runs produced identical bytes. R100.b must reproduce the same SHA-256, or record the new one with the ImageMagick version.
+
+| # | Name (UI) | Source (downloaded, not committed) | Embedded file (not committed) | Embedded SHA-256 | Tile (m) | Tint |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Wood, light | Diffuse 1K JPEG, 1024×1024, `13fd87c8b0a5cc1d4e408fb75b3eb629417ea6b1aaf1672b5adf993640486673` | `wood-light-ash.jpg`, 512×512, 30728 | `91a0846b4578f6d333a7fa950ac72c87b661eb0d23b45e7a015e89310e4a6b5e` | 1.00 × 1.00 | #ffffff |
+| 2 | Wood, dark | Diffuse 1K JPEG, 1024×1024, `7893f9bfeda626364f0a803dea6327c9f3a7b2f2fe330f6b4f326f6b06c0c265` | `wood-dark-oak.jpg`, 512×512, 32898 | `ff787eabf5b8b2638bae2ad4336dcc9f59fa03775a1e5320be8870009cda917d` | 1.00 × 1.00 | #ffffff |
+| 5 | Stone, rubble wall | Diffuse 1K JPEG, 1024×1024, `a091e04d73ddf7485d1b99a66d6cfe270e9ba36cdc26f98dbc17934427e43bc9` | `stone-rubble-wall.jpg`, 512×512, 63050 | `6874d83108366863e409de5d23147a4f0602cfd36c4c42bf0232331e302ffe24` | 1.50 × 1.50 | #ffffff |
+| 9 | Metal, corrugated | Diffuse 1K JPEG, 1024×1024, `7f3649dd0d056a55a910146f09b1d5298370696a90f511a255fb4c5715bb4b58` | `metal-corrugated.jpg`, 512×512, 53376 | `1e1a5803ac390860b34830eb64c2191b0684c758e0bbf0e6852dc18dd6c64d55` | 1.12 × 1.12 | #ffffff |
+| 11 | Grass | Diffuse 1K JPEG, 1024×1024, `cfa40bc9d9417d1852db8753a8d5917f110c40101179f63543c382e39bc05e4a` | `grass.jpg`, 512×512, 89503 | `b46a499a537948bf457533d6e522e545536e83d3a71f7e3cd4276191ca85c3a0` | 2.00 × 2.00 | #ffffff |
+| 12 | Gravel | Diffuse 1K JPEG, 1024×1024, `95301f134ad5dcc51442d23f901220743bba63d17e306b5c4131668d4d87d82f` | `gravel.jpg`, 512×512, 120454 | `489e8fb30eb98b8f67158f9a677ebe3a239c8f88b0d6695e706d1b211a47dba8` | 1.90 × 1.90 | #ffffff |
+| 13 | Asphalt | Diffuse 1K JPEG, 1024×1024, `ddf9224e9cfa3eb2998d9097e4cd34bd3630c85e0e6798e5a0a000415a684083` | `asphalt.jpg`, 512×512, 25760 | `d0b08e7ac43f3a6ff5e118a0261b3d496f607c37be8731e1bccc95a6790aef8d` | 2.10 × 2.10 | #ffffff |
+| 14 | Roof tiles, clay | Diffuse 1K JPEG, 1024×1024, `227a062b38b170e02c27eaa513dae45dc8bc893a62cbd8d0c08e2c32b381fc25` | `roof-tiles-clay.jpg`, 512×512, 71553 | `e6a214840c55dd99e83daf8331931322985bc8c37ea074ebf14fad3945caf013` | 2.50 × 2.50 | #ffffff |
+| 15 | Fabric, wool | Diffuse 1K JPEG, 1024×1045, `fd889a46f617efd331e522e36b8ad2548e16e1cb018c001872f17537d7666af5` | `fabric-wool-herringbone.jpg`, 502×512, 56842 | `6d18bc27c52f70dc73e5e53144f80c62b2cf281ea6be7ae49c562d71d051e04d` | 0.27 × 0.28 | #ffffff |
+
+Credits, for `THIRD_PARTY_NOTICES` as a courtesy (CC0 needs none):
+
+- Wood, light: Jenelle van Heerden, [ash_veneer](https://polyhaven.com/a/ash_veneer)
+- Wood, dark: Jenelle van Heerden, [black_oak_veneer](https://polyhaven.com/a/black_oak_veneer)
+- Stone, rubble wall: Amal Kumar, [rustic_stone_wall_02](https://polyhaven.com/a/rustic_stone_wall_02)
+- Metal, corrugated: Jenelle van Heerden, Dimitrios Savva, [corrugated_iron](https://polyhaven.com/a/corrugated_iron)
+- Grass: Charlotte Baglioni, [leafy_grass](https://polyhaven.com/a/leafy_grass)
+- Gravel: Dimitrios Savva, [bicolour_gravel](https://polyhaven.com/a/bicolour_gravel)
+- Asphalt: Dimitrios Savva, [clean_asphalt](https://polyhaven.com/a/clean_asphalt)
+- Roof tiles, clay: Amal Kumar, [clay_roof_tiles_02](https://polyhaven.com/a/clay_roof_tiles_02)
+- Fabric, wool: colormass, Rico Cilliers, [poly_wool_herringbone](https://polyhaven.com/a/poly_wool_herringbone)
+
+### Procedural presets: generator descriptions (no code yet)
+
+Shared rules for all six:
+
+- **Output.** 512 × 512 px. One luminance value per pixel, written to R, G and B in sRGB, encoded as JPEG at quality 85 through Qt, with no metadata. The generator makes only neutral luminance. The tint carries the colour.
+- **Periodic.** The tile repeats with no seam. Value noise uses a lattice that wraps, and 1-D streaks wrap around.
+- **Deterministic.** Each preset has a fixed seed. The PRNG is a documented integer generator (SplitMix64 is proposed). Arithmetic is double. Values are quantised to 8 bits with round-half-up. R100.b pins each preset's output bytes with a fixture SHA-256, which is the "SHA-256 of the exact file" for a procedural preset.
+- **Inputs.** The tile size, the seed and the constants below. No file reads and no network.
+
+The seeds and preview bytes below come from a throwaway NumPy preview (`PCG64`, seeds 11 to 16). The preview is only for the contact sheet and for a rough size. It is not the generator, and R100.b's bytes will differ.
+
+| # | Name (UI) | Generator | Tile (m) | Tint | Opacity % | Seed (preview) | Preview JPEG (bytes) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3 | Brick, running bond | Brick bond | 0.90 × 0.90 | #9c4a36 | 100 | 11 | 16,258 |
+| 4 | Concrete, cast | fBm noise with pits | 2.00 × 2.00 | #b0ada6 | 100 | 14 | 62,466 |
+| 6 | Floor tile, 600 mm | Tile grid | 0.60 × 0.60 | #d6d1c7 | 100 | 12 | 5,315 |
+| 7 | Plaster, fine | fBm noise | 2.00 × 2.00 | #f2efe8 | 100 | 13 | 4,954 |
+| 8 | Metal, brushed | Row streaks | 1.00 × 1.00 | #8c96a0 | 100 | 15 | 15,510 |
+| 10 | Glass, reeded | Vertical ribs | 0.30 × 0.30 | #b7d9e5 | 35 | 16 | 13,826 |
+
+- **Brick, running bond (3).** Brick 215 × 65 mm, mortar joint 10 mm, course 75 mm. Twelve courses, four bricks per course at a 225 mm pitch. Odd courses are offset by half a pitch. The tile is 0.90 m square, which is 12 × 75 mm and 4 × 225 mm, so it repeats seamlessly. Brick face luminance is 0.96, with a per-brick offset of ±0.04 from the seed and fine noise. Mortar is 0.76.
+- **Concrete, cast (4).** Tile 2.00 m square. Periodic fBm value noise, 4 octaves, base 8 cells per tile, luminance 0.85 to 1.00. Add 1,200 seeded pits of radius 1 to 3 px that darken to 0.65, and a speckle with σ 0.01. The tint equals the flat "Concrete" colour, `#b0ada6`.
+- **Floor tile, 600 mm (6).** Tile 0.60 m square, one tile per repeat. The 3 mm grout is drawn at least 3 px wide at the edges, at luminance 0.70. The field is 0.95 with ±0.015 of 4-octave fBm.
+- **Plaster, fine (7).** Tile 2.00 m square. Periodic fBm, 4 octaves, base 4 cells, luminance 0.88 to 1.00.
+- **Metal, brushed (8).** Tile 1.00 m square. One random value per row, smoothed by a 5-tap periodic kernel, gives horizontal streaks of ±0.03. An anisotropic fBm, 3 octaves on 8 × 64 base cells, adds ±0.02. Luminance is 0.85 ± 0.06.
+- **Glass, reeded (10).** Tile 0.30 m square with 12 vertical ribs at a 25 mm pitch. The profile is the square root of (0.5 + 0.5 cos φ), which gives luminance 0.82 to 1.00. A per-rib offset of ±0.02 comes from the seed. Opacity 35 follows the flat "Glass" preset.
+
+### Size budget (proposed; measured where a file exists)
+
+| Item | Proposed budget | Measured now |
+| --- | --- | --- |
+| One embedded file | ≤ 512 px on the long edge; JPEG q85; sRGB; no metadata; ≤ 200 KiB | CC0: 25,760 to 120,454 bytes; the largest is 117.6 KiB. Procedural: 4,954 to 62,466 bytes (preview estimate) |
+| The 15-preset set | ≤ 1 MiB | 662,493 bytes (647.0 KiB): CC0 544,164 bytes (531.4 KiB); procedural preview estimate 118,329 bytes (115.6 KiB) |
+| Document impact | One asset per placed preset; identical bytes reused (ADR 0131). Decoded RGBA is 1 MiB per preset (512 × 512 × 4), well inside the 4096 px and 64 MiB decoder limits (`TextureImage`) | Largest preset 117.6 KiB, so 0.12 MiB or less per material. The whole set is 0.99% of the 64 MiB payload limit (`assetTotalLimit`) and 15 of 1,024 asset slots |
+| Package impact | ≤ 1 MiB added to the uncompressed package. JPEG does not recompress under zstd, so the package grows by about this much | About 0.63 MiB. R100.b measures the real figure with its chosen install path (Qt resource or installed file) |
+
+Procedural sizes must be re-measured with the Qt encoder in R100.b. The owner signs off the budget with the list.
+
+### Notices (proposed text)
+
+If the list is signed off, R100.b commits a notice file `third_party/textures/PolyHaven-CC0.txt` and adds a line to `CMakeLists.txt`, so that `scripts/release-artifacts.sh` collects it into `THIRD_PARTY_NOTICES`:
+
+```cmake
+install(FILES third_party/textures/PolyHaven-CC0.txt DESTINATION share/licenses/sketchyup RENAME Textures-PolyHaven-CC0)
+```
+
+Proposed content of that file:
+
+```text
+Textures in the material presets (ADR 0174 Q1; R100.b)
+
+Wood, light; Wood, dark; Stone, rubble wall; Metal, corrugated; Grass; Gravel; Asphalt;
+Roof tiles, clay; Fabric, wool are derived from Poly Haven assets (https://polyhaven.com).
+Each asset is licensed CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/),
+as stated on the asset's own page, checked 2026-10-27. No attribution is required.
+Credits are given as a courtesy:
+  Ash Veneer, Jenelle van Heerden: https://polyhaven.com/a/ash_veneer
+  Black Oak Veneer, Jenelle van Heerden: https://polyhaven.com/a/black_oak_veneer
+  Rustic Stone Wall 02, Amal Kumar: https://polyhaven.com/a/rustic_stone_wall_02
+  Corrugated Iron, Jenelle van Heerden and Dimitrios Savva: https://polyhaven.com/a/corrugated_iron
+  Leafy Grass, Charlotte Baglioni: https://polyhaven.com/a/leafy_grass
+  Bicolour Gravel, Dimitrios Savva: https://polyhaven.com/a/bicolour_gravel
+  Clean Asphalt, Dimitrios Savva: https://polyhaven.com/a/clean_asphalt
+  Clay Roof Tiles 02, Amal Kumar: https://polyhaven.com/a/clay_roof_tiles_02
+  Poly Wool Herringbone, colormass and Rico Cilliers: https://polyhaven.com/a/poly_wool_herringbone
+
+Brick, running bond; Concrete, cast; Floor tile, 600 mm; Plaster, fine; Metal, brushed;
+Glass, reeded are generated by SketchyUp and need no notice.
+```
+
+### Open questions for the owner
+
+1. **ambientCG.** The asset pages carry only the site-wide CC0 sentence, not a per-asset licence. Is the site-wide sentence enough? If yes, the next step is to add ambientCG alternates, verified the same way. No ambientCG bytes have been downloaded.
+2. **One tint per preset.** The brick mortar and the floor-tile grout take a darker shade of the preset tint. A separate mortar or grout colour would need a second colour per preset, which the design does not have.
+3. **Glass opacity.** The list gives Glass 35 %, copied from the flat preset. UX_DESIGN §18.4 does not list opacity. Please confirm that a textured preset sets opacity.
+4. **Tile sizes.** The sizes are Poly Haven's millimetre figures, divided by 1000. R100.b should check the scale on screen before the list is frozen.
+5. **No mipmaps (ADR 0065).** Viewed at a distance, a 512 px tile can alias. R100.b should measure this at 1× and 2×, and decide whether 512 px is the size to keep.
+
+### Corrections made with this section
+
+- The status line at the top of this ADR said the list was "signed off by the owner". It was not. The line now says the drafted list awaits sign-off.
+- The R100 row in `docs/PR_ROADMAP.md` says the list is drafted and awaits sign-off, with nothing bundled.
+- No code was changed, and the six colour presets in `materials_panel.cpp` are untouched. The mapping and limit facts cited here (one metre per implicit repeat in `face_textures.hpp`; 16 MiB per asset payload and 64 MiB per document in `asset_records.hpp`; 4096 px and 64 MiB RGBA in `texture_image.hpp`) were read at origin/main `607cd670`.
 
 ## Implementation notes (R100.a)
 
