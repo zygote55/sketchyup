@@ -195,6 +195,14 @@ std::vector<ReportSchedule> ReportScheduleStore::schedules(const std::string &do
     return result;
 }
 
+std::size_t ReportScheduleStore::schedulesOutside(const std::string &documentId) const {
+    std::size_t count = 0;
+    for (const auto &[id, schedules] : documents_)
+        if (id != documentId)
+            count += schedules.size();
+    return count;
+}
+
 const ReportSchedule &ReportScheduleStore::lookup(const std::string &documentId,
                                                   const QString &name) const {
     if (const auto document = documents_.find(documentId); document != documents_.end())

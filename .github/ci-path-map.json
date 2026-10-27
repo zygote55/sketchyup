@@ -272,6 +272,22 @@
       ]
     },
     {
+      "why": "R101.e2 (UX_DESIGN section 19): the Quantities section of the Model Tray, its off-thread runs, schedules and exports, driven through the main window offscreen and on the native display lines. Its dialogs are in the native dialog audit's quantities group.",
+      "paths": [
+        "src/app/quantities_job.cpp",
+        "src/app/quantities_job.hpp",
+        "src/app/quantities_panel.cpp",
+        "src/app/quantities_panel.hpp",
+        "src/app/quantities_dialogs.cpp",
+        "src/app/quantities_dialogs.hpp",
+        "tests/quantities_input_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
       "why": "The R097.e1 import screens suite (ADR 0171), its R098.a3 STEP twin (ADR 0172), the R102.c SketchUp twin (ADR 0176) the R097.e2 export screens suite (ADR 0171) and its R098.c2 STEP export twin (ADR 0172 section 8): the options dialog, the progress sheet, the report and the refusal and unavailable sheets, offscreen and driven by a stand-in helper. They link the desktop but not the IFC library, so they run in the fast tier (build and the native display lines) as well as the IFC job the generic IFC rule selects.",
       "paths": [
         "tests/ifc_import_dialog_tests.cpp",

@@ -718,7 +718,7 @@ void componentsTab(Fixture &f) {
     auto &window = f.window;
     auto *tabs = window.findChild<QTabWidget *>("organizationTabs");
     auto *tab = window.findChild<ComponentsTab *>("componentsTab");
-    check(tab && tabs->indexOf(tab) == 12, "Components is the Tray's tab 12");
+    check(tab && tabs->indexOf(tab) == 13, "Components is the Tray's tab 13, after Quantities");
     window.findChild<QAction *>(toolId(Viewport::Tool::Pan))->trigger();
     window.findChild<QAction *>("view.components")->trigger();
     check(QTest::qWaitFor([&] { return tabs->currentWidget() == tab; }),
