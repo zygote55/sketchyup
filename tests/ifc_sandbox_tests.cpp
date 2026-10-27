@@ -245,8 +245,11 @@ void compareRuns(const std::string &label, const Outcome &sandboxed, const Outco
 }
 
 void testFixturesIdentical(const std::string &scratch) {
-    // IFC: import (four threads, the application's default) and check, for every fixture and the
-    // export fixtures.
+    // IFC: import and check, for every fixture and the export fixtures. The import runs at four
+    // threads, the application's default, so the sandbox sees the threaded path; there the package
+    // lists elements in the order the threads finish (ADR 0171 F8; the document does not depend on
+    // it), so those runs compare the return code, signal and R line. A one-thread import, which is
+    // in file order, compares the package bytes too.
     std::vector<std::string> ifcFiles =
         fixturesIn(std::string(SOURCE_DIR) + "/tests/fixtures/ifc", ".ifc");
     for (const std::string &path :
@@ -265,8 +268,16 @@ void testFixturesIdentical(const std::string &scratch) {
             runHelper(stem + ".sandboxed.out",
                       {"--import", input, "--output", sandboxedPackage, "--threads", "4"});
         const Outcome plain = baselineImport(stem + ".plain.out", input, plainPackage, 4);
-        compareRuns("import " + name, sandboxed, plain, readAll(sandboxedPackage),
-                    readAll(plainPackage));
+        compareRuns("import " + name + " (four threads)", sandboxed, plain, "", "");
+
+        const std::string sandboxedSerial = stem + ".sandboxed-1.skifc";
+        const std::string plainSerial = stem + ".plain-1.skifc";
+        const Outcome serial =
+            runHelper(stem + ".sandboxed-1.out",
+                      {"--import", input, "--output", sandboxedSerial, "--threads", "1"});
+        const Outcome serialPlain = baselineImport(stem + ".plain-1.out", input, plainSerial, 1);
+        compareRuns("import " + name + " (one thread)", serial, serialPlain,
+                    readAll(sandboxedSerial), readAll(plainSerial));
 
         const Outcome checked = runHelper(stem + ".check.out", {"--check", input});
         const Outcome checkedPlain = baselineCheck(stem + ".check-plain.out", input);
