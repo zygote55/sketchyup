@@ -1,6 +1,7 @@
 #include "app/viewport.hpp"
 #include "core/appearance.hpp"
 #include "io/model_style_io.hpp"
+#include "io/style_bundle.hpp"
 #include <algorithm>
 namespace sketchy {
 void Viewport::applyModelStyle(const ModelStyle &style) {
@@ -26,6 +27,10 @@ void Viewport::applyStyleEdit(const StyleEdit &edit) {
 }
 
 QString Viewport::applyStyleFile(const QByteArray &bytes, const QString &name) {
+    // A style already in the model is the neutral result. The engine refuses a batch that changes
+    // nothing, so the check happens here, before any batch.
+    if (styleAlreadyInDocument(doc_, decodeStyleBundle(bytes)))
+        return "unchanged";
     cancel();
     const auto result = commitCommands(
         {QJsonObject{{"command", "style.apply"},

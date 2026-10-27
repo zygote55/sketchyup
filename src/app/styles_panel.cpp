@@ -127,6 +127,7 @@ StylesPanel::StylesPanel(Document &doc, Viewport &view, QWidget *parent)
     // fields are off while the stroke is off.
     auto *strokeHeader = new QHBoxLayout;
     strokeHeader->addWidget(sectionTitle("Edge stroke", &strokeState_));
+    strokeState_->setObjectName("styleEdgeState");
     strokeHeader->addWidget(strokeState_);
     layout->addLayout(strokeHeader);
     stroke_ = new QCheckBox("Use an edge stroke");
@@ -209,6 +210,7 @@ StylesPanel::StylesPanel(Document &doc, Viewport &view, QWidget *parent)
     // Style library (UX_DESIGN §18.1, §18.2): the folder, search, the rows and the commands.
     auto *libraryHeader = new QHBoxLayout;
     libraryHeader->addWidget(sectionTitle("Style library", &libraryCount_));
+    libraryCount_->setObjectName("styleLibraryCount");
     libraryHeader->addWidget(libraryCount_);
     layout->addLayout(libraryHeader);
     auto *folderRow = new QHBoxLayout;
@@ -253,10 +255,12 @@ StylesPanel::StylesPanel(Document &doc, Viewport &view, QWidget *parent)
     auto *folderButtons = new QHBoxLayout;
     auto *choose = new QPushButton("Choose folder…");
     choose->setObjectName("styleChooseFolder");
+    choose->setAccessibleName("Choose style folder");
     connect(choose, &QPushButton::clicked, this, [this] { chooseFolder(); });
     folderButtons->addWidget(choose);
     auto *refreshButton = new QPushButton("Refresh");
     refreshButton->setObjectName("styleRefresh");
+    refreshButton->setAccessibleName("Refresh style library");
     connect(refreshButton, &QPushButton::clicked, this, [this] { scanLibrary(); });
     folderButtons->addWidget(refreshButton);
     folderButtons->addStretch();
@@ -264,11 +268,13 @@ StylesPanel::StylesPanel(Document &doc, Viewport &view, QWidget *parent)
     auto *libraryButtons = new QHBoxLayout;
     apply_ = new QPushButton("Apply to model");
     apply_->setObjectName("styleApplyLibrary");
+    apply_->setAccessibleName("Apply style to model");
     apply_->setEnabled(false);
     connect(apply_, &QPushButton::clicked, this, [this] { applySelected(); });
     libraryButtons->addWidget(apply_);
     saveLibrary_ = new QPushButton("Save to library…");
     saveLibrary_->setObjectName("styleSaveLibrary");
+    saveLibrary_->setAccessibleName("Save style to library");
     connect(saveLibrary_, &QPushButton::clicked, this, [this] { saveToLibrary(); });
     libraryButtons->addWidget(saveLibrary_);
     libraryButtons->addStretch();
@@ -592,14 +598,14 @@ void StylesPanel::fillLibrary() {
             continue;
         }
         item->setIcon(QIcon(styleStrokeSample(entry.style, QSize(64, 20))));
-        const auto texture = entry.textureStatus == StyleTextureStatus::Present ? "texture stored"
-                             : entry.textureStatus == StyleTextureStatus::Missing
-                                 ? "texture missing from file"
-                                 : "no texture";
         const bool missing = entry.textureStatus == StyleTextureStatus::Missing;
-        item->setText(entry.metadata.name + "\n" + styleSettingsWords(entry.style) + " · " +
-                      texture + (missing ? " · ⚠ Texture missing from file · cannot apply"
-                                         : " · ✓ Stored"));
+        const auto texture = entry.textureStatus == StyleTextureStatus::Present ? " · texture stored"
+                             : entry.textureStatus == StyleTextureStatus::None  ? " · no texture"
+                                                                                : QString();
+        item->setText(entry.metadata.name + "\n" + styleSettingsWords(entry.style) + texture +
+                      (missing ? QStringLiteral(" · ⚠ Texture missing from file · cannot apply")
+                               : QStringLiteral(" · ✓ Stored")));
+        // A missing texture is listed, but it is not a style that can be applied or selected.
         if (missing)
             item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     }

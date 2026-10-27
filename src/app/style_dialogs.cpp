@@ -81,6 +81,19 @@ QLabel *heading(const QString &text) {
     return label;
 }
 
+// The refusal of a missing edge texture, which names it and writes nothing (UX_DESIGN §18.6). Empty
+// when the stroke names no texture or the texture has its bytes.
+QString missingTextureRefusal(const Document &doc, const char *verb, const char *outcome) {
+    const auto &style = doc.style();
+    if (!style.edgeStroke || !style.edgeStroke->texture)
+        return {};
+    const auto &asset = doc.assets().at(style.edgeStroke->texture);
+    if (asset->payload)
+        return {};
+    return QString(verb) + " refused: “" + QString::fromStdString(asset->name) + "” (asset " +
+           QString::number(asset->id) + ") is missing from this model. Nothing was " + outcome + ".";
+}
+
 QLabel *errorLabel(const char *name) {
     auto *label = new QLabel;
     label->setObjectName(name);
@@ -102,7 +115,9 @@ QWidget *refusalBody(const StyleImportRefusal &refusal, QWidget *parent) {
     auto *body = new QWidget(parent);
     auto *layout = new QVBoxLayout(body);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(heading(refusal.title));
+    auto *title = heading(refusal.title);
+    title->setObjectName("styleRefusalTitle");
+    layout->addWidget(title);
     auto *reason = new QLabel(refusal.reason);
     reason->setObjectName("styleRefusalReason");
     reason->setWordWrap(true);
@@ -512,7 +527,6 @@ StyleExportDialog::StyleExportDialog(Document &doc, QWidget *parent)
     fact("Display", modeWord(style.mode) + " · 14 settings", "exportDisplay");
     fact("Edge stroke", styleSettingsWords(style), "exportStroke");
     QString texture = "None";
-    QString missing;
     if (style.edgeStroke && style.edgeStroke->texture) {
         const auto &asset = doc.assets().at(style.edgeStroke->texture);
         if (asset->payload) {
@@ -521,8 +535,6 @@ StyleExportDialog::StyleExportDialog(Document &doc, QWidget *parent)
                       " · stored in the file ✓";
         } else {
             texture = "⚠ " + QString::fromStdString(asset->name) + " · Missing";
-            missing = "Export refused: “" + QString::fromStdString(asset->name) + "” (asset " +
-                      QString::number(asset->id) + ") is missing from this model. Nothing was written.";
         }
     }
     fact("Texture", texture, "exportTexture");
@@ -558,7 +570,7 @@ StyleExportDialog::StyleExportDialog(Document &doc, QWidget *parent)
 
     error_ = errorLabel("exportError");
     layout->addWidget(error_);
-    showError(error_, missing);
+    showError(error_, missingTextureRefusal(doc, "Export", "written"));
 
     auto *footer = new QHBoxLayout;
     footer->addWidget(muted("A new file is created. An existing file is never replaced."), 1);
@@ -581,6 +593,8 @@ void StyleExportDialog::exportFile() {
         metadata.description = description_->text();
         // The bytes are built before the file dialog, so a refusal names the texture and writes
         // nothing (UX_DESIGN §18.6).
+        if (const auto refusal = missingTextureRefusal(doc_, "Export", "written"); !refusal.isEmpty())
+            throw std::runtime_error(refusal.toUtf8().constData());
         const auto bytes = exportStyleBundle(doc_, metadata);
         QFileDialog file(this, "Export style");
         file.setObjectName("exportStyleFileDialog");
@@ -692,6 +706,8 @@ StyleSaveDialog::StyleSaveDialog(Document &doc, const QString &folder, QWidget *
                                           "replaced; choose a new name.")
                                              .toUtf8()
                                              .constData());
+            if (const auto refusal = missingTextureRefusal(doc_, "Save", "saved"); !refusal.isEmpty())
+                throw std::runtime_error(refusal.toUtf8().constData());
             StyleMetadata metadata;
             metadata.name = name;
             metadata.description = description_->text();

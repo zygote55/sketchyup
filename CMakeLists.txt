@@ -1569,6 +1569,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R100.f1 (UX_DESIGN §18.3): the edge stroke's dash, opacity, texture tiling and missing-texture hatch.
   sketchyup_native_fixture(edge_stroke_viewport_tests tests/edge_stroke_viewport_tests.cpp)
   target_link_libraries(edge_stroke_viewport_tests PRIVATE sketchyup_desktop Qt6::Test)
+  # R100.f2 (UX_DESIGN §18.1 to §18.3, §18.6, §18.7): the Styles tab, the style library, Import and Export style.
+  sketchyup_native_fixture(style_catalog_input_tests tests/style_catalog_input_tests.cpp)
+  target_link_libraries(style_catalog_input_tests PRIVATE sketchyup_desktop Qt6::Test)
   sketchyup_native_fixture(texture_input_tests tests/texture_input_tests.cpp)
     target_link_libraries(texture_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     target_compile_definitions(texture_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

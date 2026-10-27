@@ -226,6 +226,26 @@ void writeStyleBundle(const QByteArray &bytes, const QString &newPath) {
     publishNewFile(newPath, bytes);
 }
 
+bool styleAlreadyInDocument(const Document &doc, const StyleBundle &bundle) {
+    if (bundle.textureStatus == StyleTextureStatus::Missing ||
+        bundle.textureStatus == StyleTextureStatus::HashMismatch)
+        return false;
+    ModelStyle next = bundle.style;
+    if (bundle.textureStatus == StyleTextureStatus::Present) {
+        Id target{};
+        for (const auto &[id, asset] : doc.assets())
+            if (asset->payload && asset->mediaType == bundle.texture.mediaType &&
+                asset->payload->bytes() == bundle.texture.payload->bytes()) {
+                target = id;
+                break;
+            }
+        if (!target)
+            return false;
+        next.edgeStroke->texture = target;
+    }
+    return next == doc.style();
+}
+
 QByteArray exportStyleBundle(const Document &doc, const StyleMetadata &metadata) {
     StyleBundle bundle{metadata, doc.style(), {}, StyleTextureStatus::None};
     if (doc.style().edgeStroke && doc.style().edgeStroke->texture) {

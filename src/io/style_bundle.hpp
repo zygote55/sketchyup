@@ -46,6 +46,11 @@ StyleBundle decodeStyleBundle(const QByteArray &bytes);
 StyleBundle loadStyleBundle(const QString &path);
 void writeStyleBundle(const QByteArray &bytes, const QString &newPath);
 
+// True when applying the style would change nothing: the record equals the document's, and its
+// texture is the document's asset with the same media type and bytes (ADR 0131), or there is none.
+// A missing or mismatched texture is never equal, so it is not reported as applied.
+bool styleAlreadyInDocument(const Document &doc, const StyleBundle &bundle);
+
 // Captures the document's style and its edge texture. A missing texture refuses the export (the
 // file would depend on a resource it does not hold). The result is decoded again before return.
 QByteArray exportStyleBundle(const Document &doc, const StyleMetadata &metadata);
