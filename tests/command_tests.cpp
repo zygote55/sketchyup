@@ -2,28 +2,29 @@
 #include "automation/presentation_commands.hpp"
 #include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
-#include "io/model_style_io.hpp"
-#include "io/style_bundle.hpp"
 #include "catalog_fixtures.hpp"
-#include "io/solar_io.hpp"
-#include "io/scenes_io.hpp"
-#include "core/scenes.hpp"
-#include "core/drawing_sheets.hpp"
-#include "core/drawing_item_records.hpp"
-#include "core/sections.hpp"
 #include "core/annotations.hpp"
 #include "core/assets.hpp"
-#include "core/reference_images.hpp"
-#include "core/components.hpp"
 #include "core/component_parameters.hpp"
+#include "core/components.hpp"
+#include "core/drawing_item_records.hpp"
+#include "core/drawing_sheets.hpp"
 #include "core/face_orientation.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
+#include "core/reference_images.hpp"
+#include "core/scenes.hpp"
+#include "core/sections.hpp"
 #include "core/tags.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_edit.hpp"
-#include "terrain_edit_test_kinds.hpp"
+#include "geo/geographic.hpp"
 #include "io/document_io.hpp"
+#include "io/model_style_io.hpp"
+#include "io/scenes_io.hpp"
+#include "io/solar_io.hpp"
+#include "io/style_bundle.hpp"
+#include "terrain_edit_test_kinds.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <iostream>
@@ -1166,6 +1167,10 @@ int main(int argc, char **argv) {
         parameterCase("site.set", {{"easting", 512300}, {"northing", 5234500},
                                    {"elevation", 12}, {"crs", "EPSG:32633"}});
         parameterCase("site.reanchor", {{"easting", 512000}, {"northing", 5234000}});
+        // R107.a (ADR 0181 §2.1): the origin's own UTM position in zone 30 (London).
+        parameterCase("site.set_geographic",
+                      {{"latitude", 51.5}, {"longitude", -0.1}, {"zone", 30}});
+        parameterCase("site.clear_geographic", {});
         parameterCase("terrain.explode", {{"body", "1"}});
         // Terrain import (R095.c): a small point file in metres, far from the model.
         const auto terrainPoints =
@@ -1458,6 +1463,22 @@ int main(int argc, char **argv) {
                 doc.addFace({{{.5, 0, -1}, {.5, 1, -1}, {.5, 1, 1}, {.5, 0, 1}}});
             if (command["command"] == "site.reanchor")
                 setSiteOrigin(doc, SiteOrigin{512300, 5234500, 0, {}, {}});
+            if (command["command"] == "site.set_geographic" ||
+                command["command"] == "site.clear_geographic") {
+                const auto grid = geoToUtm({51.5, -0.1}, 30);
+                setSiteOrigin(doc, SiteOrigin{grid.easting, grid.northing, 0, {}, {}});
+            }
+            if (command["command"] == "site.clear_geographic") {
+                const GeoPosition london{51.5, -0.1};
+                setSiteGeographic(doc, SiteGeographic{51.5,
+                                                      -0.1,
+                                                      "WGS84",
+                                                      30,
+                                                      true,
+                                                      utmGridConvergence(london, 30),
+                                                      "unknown",
+                                                      {"typed", "", ""}});
+            }
             if (command["command"] == "terrain.explode" ||
                 command["command"] == "terrain.set_display") {
                 TerrainMesh mesh{{{0, 0, -3}, {2, 0, -3}, {2, 2, -2}, {0, 2, -3}},

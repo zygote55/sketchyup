@@ -18,10 +18,12 @@
 #include "automation/commands.hpp"
 #include "core/terrain.hpp"
 #include "core/terrain_display.hpp"
+#include "geo/geographic.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFrame>
 #include <QJsonArray>
@@ -29,6 +31,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSettings>
+#include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -164,6 +167,105 @@ QImage frame(Window &window) {
     if (!view->rendererReady())
         return {};
     return view->grabFramebuffer();
+}
+
+// ---- Site location and the sun study (R107.a, ADR 0181 §2.1, §2.6) -------------------------
+void siteLocation(Window &window) {
+    fresh(window);
+    auto &doc = window.document();
+    // London in zone 30: the origin's own UTM position, so a typed location agrees with it.
+    const auto grid = geoToUtm({51.5, -0.1}, 30);
+    setSiteOrigin(doc, SiteOrigin{grid.easting, grid.northing, 0, "EPSG:32630", {"", ""}});
+    changed(window);
+    const bool opened = drive(
+        "siteSettingsDialog",
+        [&](QWidget &dialog) {
+            check(child<QFrame>(dialog, "siteNoGeographic")->isVisible() &&
+                      !child<QFrame>(dialog, "siteGeographic")->isVisible(),
+                  "Without a location the dialog offers Set location");
+            shot(dialog, "site-location-none");
+            const bool set = drive(
+                "siteGeographicDialog",
+                [&](QWidget &location) {
+                    child<QDoubleSpinBox>(location, "siteGeoLatitudeField")->setValue(51.5);
+                    child<QDoubleSpinBox>(location, "siteGeoLongitudeField")->setValue(-0.1);
+                    child<QSpinBox>(location, "siteGeoZoneField")->setValue(30);
+                    QTest::qWait(300);
+                    check(child<QPushButton>(location, "siteGeoApply")->isEnabled(),
+                          "The location agrees with the origin and can be saved");
+                    click(location, "siteGeoApply");
+                },
+                [&] { click(dialog, "siteSetGeographic"); });
+            check(set, "Set location opens its dialog");
+            check(doc.site() && doc.site()->geographic &&
+                      lastLabel(doc) == "Set site geographic location",
+                  "Set location is one site edit");
+            check(child<QFrame>(dialog, "siteGeographic")->isVisible() &&
+                      child<QLabel>(dialog, "siteGeoConvergence")->text().contains("read only") &&
+                      child<QLabel>(dialog, "siteGeoLatitude")->text().contains("51.5"),
+                  "The location and its read-only convergence show");
+            check(!child<QLabel>(dialog, "siteGeoWarning")->text().contains("NAD83"),
+                  "A WGS84 location has no datum warning");
+            shot(dialog, "site-location");
+            // A position away from the origin is refused in the dialog and changes nothing.
+            const auto revision = doc.revision();
+            drive(
+                "siteGeographicDialog",
+                [&](QWidget &location) {
+                    child<QDoubleSpinBox>(location, "siteGeoLatitudeField")->setValue(51.6);
+                    QTest::qWait(300);
+                    check(!child<QPushButton>(location, "siteGeoApply")->isEnabled() &&
+                              child<QLabel>(location, "siteGeoProblem")->isVisible(),
+                          "A location away from the origin is refused in the dialog");
+                    click(location, "siteGeoCancel");
+                },
+                [&] { click(dialog, "siteChangeGeographic"); });
+            check(doc.revision() == revision, "A refused location changes nothing");
+            click(dialog, "siteSettingsClose");
+        },
+        [&] { action(window, "file.siteSettings")->trigger(); });
+    check(opened, "File > Site settings opens with the location");
+    // The sun study: Use site location is one edit, and a difference shows a warning.
+    check(window.findChild<QPushButton *>("solarUseSite") &&
+              window.findChild<QPushButton *>("solarUseSite")->isEnabled(),
+          "The sun study offers Use site location");
+    SolarSettings solar = doc.solar();
+    solar.latitude = 40;
+    solar.longitude = -105;
+    doc.setSolar(solar);
+    changed(window);
+    auto *warning = window.findChild<QLabel *>("solarSiteWarning");
+    check(warning && !warning->isHidden() && warning->text().contains("site location"),
+          "A sun study away from the site shows the warning");
+    check(window.findChild<QLabel *>("solarConvergence")->text().contains("Grid north is"),
+          "The sun study shows the grid convergence, read only");
+    const auto before = doc.revision();
+    click(window, "solarUseSite");
+    check(doc.revision() == before + 1 && std::abs(doc.solar().latitude - 51.5) < 1e-9 &&
+              std::abs(doc.solar().longitude + 0.1) < 1e-9,
+          "Use site location sets the sun study's latitude and longitude in one edit");
+    check(window.findChild<QLabel *>("solarSiteWarning")->isHidden(),
+          "The warning clears once the locations agree");
+    // Use grid north is an explicit action in the sun editor; Cancel keeps the rotation.
+    const auto north = doc.solar().northDegrees;
+    drive(
+        "solarDialog",
+        [&](QWidget &dialog) {
+            click(dialog, "solarGridNorth");
+            check(std::abs(child<QLineEdit>(dialog, "solarNorth")->text().toDouble() +
+                           utmGridConvergence({51.5, -0.1}, 30)) < 1e-9,
+                  "Use grid north fills the north rotation with the negated convergence");
+            static_cast<QDialog &>(dialog).reject();
+        },
+        [&] { window.findChild<QPushButton *>("solarEditButton")->click(); });
+    check(doc.solar().northDegrees == north, "Cancel keeps the north rotation");
+    // 0.0001 degree of latitude is about 11 m, which is more than the 1 m tolerance.
+    solar.latitude = 51.5 + 0.0001;
+    doc.setSolar(solar);
+    changed(window);
+    check(!window.findChild<QLabel *>("solarSiteWarning")->isHidden(),
+          "A sun study 11 m from the site shows the warning");
+    shot(window, "solar-site-warning");
 }
 
 // ---- Entity info: Display ------------------------------------------------------------------
@@ -667,6 +769,10 @@ int main(int argc, char **argv) {
         if (only.isEmpty() || only == "entityInfoSite") {
             entityInfoSite(window);
             std::cout << "entity info site\n" << std::flush;
+        }
+        if (only.isEmpty() || only == "siteLocation") {
+            siteLocation(window);
+            std::cout << "site location and sun study\n" << std::flush;
         }
         if (only.isEmpty() || only == "siteOriginToggle") {
             siteOriginToggle(window);

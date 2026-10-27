@@ -197,9 +197,11 @@ int main(int argc, char **argv) {
             const auto sheets = !loaded.drawingSheets().empty();
             const auto presentation = !loaded.cameraPaths().empty() || !loaded.renderPresets().empty();
             const auto edgeStroke = bool(loaded.style().edgeStroke);
+            const auto geographic = bool(loaded.site() && loaded.site()->geographic);
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (edgeStroke     ? nativeDocumentVersion
+                          (geographic     ? nativeDocumentVersion
+                           : edgeStroke   ? nativeEdgeStylesDocumentVersion
                            : presentation ? nativePresentationDocumentVersion
                            : parametric   ? nativeTerrainFreeDocumentVersion
                            : sheets       ? nativeParameterFreeDocumentVersion

@@ -217,8 +217,11 @@ bool usesEdgeStrokes(const Document &document) {
 } // namespace
 
 int nativeDocumentVersionFor(const Document &document) {
+    // Schema 32 (ADR 0181 §2.1): the site origin carries a geographic record.
+    if (document.site() && document.site()->geographic)
+        return nativeGeographicSiteDocumentVersion;
     if (usesEdgeStrokes(document))
-        return nativeDocumentVersion;
+        return nativeEdgeStylesDocumentVersion;
     if (!document.cameraPaths().empty() || !document.renderPresets().empty())
         return nativePresentationDocumentVersion;
     if (document.site())
