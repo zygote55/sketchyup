@@ -1502,6 +1502,8 @@ void QuantitiesPanel::exportFile(bool csv, const QString &schedule) {
     const auto suggested = (path.isEmpty() ? QString() : QFileInfo(path).absolutePath() + "/") +
                            modelName() + (csv ? "-takeoff.csv" : "-takeoff.json");
     // No overwrite prompt: an existing file is refused after the dialog, and nothing is replaced (§19.8).
+    // The system Save dialog (§19.8), as the file choosers of the other panels are opened. No overwrite
+    // prompt: an existing file is refused after the dialog, and nothing is replaced.
     const auto chosen = QFileDialog::getSaveFileName(
         this, csv ? "Export CSV" : "Export JSON", suggested,
         csv ? "CSV files (*.csv)" : "JSON files (*.json)", nullptr, QFileDialog::DontConfirmOverwrite);

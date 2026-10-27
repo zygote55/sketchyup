@@ -73,11 +73,18 @@ ScheduleNameDialog::ScheduleNameDialog(QWidget *parent, bool rename, const QStri
     error_->setWordWrap(true);
     layout->addWidget(error_);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
+    // Cancel is never the Enter button: with Save disabled, Enter does nothing (§19.10).
+    auto *cancel = buttons->button(QDialogButtonBox::Cancel);
+    cancel->setAutoDefault(false);
+    cancel->setFocusPolicy(Qt::StrongFocus);
     save_ = buttons->addButton(rename ? "Rename" : "Save", QDialogButtonBox::AcceptRole);
     save_->setObjectName("scheduleSave");
     save_->setDefault(true);
     save_->setAutoDefault(true);
     layout->addWidget(buttons);
+    // Tab walks the name, Cancel, then Save, in the order the buttons are read.
+    setTabOrder(name_, cancel);
+    setTabOrder(cancel, save_);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(save_, &QPushButton::clicked, this, &QDialog::accept);
     connect(name_, &QLineEdit::textChanged, this, [this] { check(); });
