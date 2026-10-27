@@ -8,8 +8,14 @@
 #include "app/report_sheet.hpp"
 #include "io/import_refusal.hpp"
 #include <QJsonObject>
+#include <QString>
 #include <functional>
+class QVBoxLayout;
 namespace sketchy {
+// The accounting identity's segment bar (ADR 0171 section 4, UX_DESIGN 16.5), shared with the
+// catalog report (R100.f3). Zero parts add no segment, and nothing is added when all three are zero.
+void addSegmentBar(QVBoxLayout *into, qint64 a, qint64 b, qint64 c,
+                   const QString &objectName = QStringLiteral("ifcReportBar"));
 // The IFC import's report face (ADR 0171 section 16.5) and the STEP import's (ADR 0172
 // section 8) are the faces of the one shared report builder (showImportReport, in this
 // file); a new format (R102.c, the .skp import) plugs in with its own face.
