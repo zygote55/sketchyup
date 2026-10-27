@@ -12,6 +12,8 @@ void Window::presentationsDialog() {
         presentations_ = new PresentationsDialog(
             doc_, *viewport_,
             [this] { return render_ ? render_->setupSettings() : RenderSettings{}; }, this);
+    // R099.d3: the footer's Export batch… opens the batch dialog, as the palette entry does.
+    presentations_->setExportBatch([this] { render_->showBatchDialog(); });
     presentations_->showCameraPaths();
 }
 

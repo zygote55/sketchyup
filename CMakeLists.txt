@@ -1311,6 +1311,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog (camera paths and render
   # presets, non-modal) and its scene picker; the Camera menu opens it.
   target_sources(sketchyup_desktop PRIVATE src/app/presentations_dialog.cpp src/app/presentation_scene_picker.cpp src/app/window_presentations.cpp)
+  # R099.d3 (ADR 0173 section 7, UX_DESIGN 17.4 to 17.7): the batch controller (no widgets), the batch
+  # dialog with its live budget, and the results sheet.
+  target_sources(sketchyup_desktop PRIVATE src/app/presentation_batches.cpp src/app/presentation_batch_dialog.cpp src/app/presentation_results.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)

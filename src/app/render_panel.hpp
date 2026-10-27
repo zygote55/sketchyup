@@ -17,6 +17,12 @@ class RenderPanel : public QObject {
     // R099.d2: the render sheet's current settings, for a presentation preset.
     RenderSettings setupSettings() const;
     void showJobs();
+    // R099.d3 (UX_DESIGN §17.4, §17.7, §17.12): the batch dialog, a batch's results sheet, and the
+    // running batch the quit prompt stops.
+    void showBatchDialog();
+    void showBatchResults(const QString &id);
+    bool batchRunning() const;
+    void stopBatch();
     void refreshProvenance();
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView);
     void exportAnimation(std::vector<Id> scenes, CameraPathTiming timing, RenderOptions settings,

@@ -891,6 +891,9 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     cameraMenu->addAction(action("camera.render", "Render…", {}, [this] { render_->showSetup(); }));
     cameraMenu->addAction(
         action("camera.presentations", "Presentations…", {}, [this] { presentationsDialog(); }));
+    // R099.d3 (UX_DESIGN §17.1): a command-search entry only. It opens the batch dialog directly.
+    action("camera.presentationBatch", "Export presentation batch…", {},
+           [this] { render_->showBatchDialog(); });
     auto *extensions = menuBar()->addMenu("E&xtensions");
     extensions->addAction(
         action("extensions.manage", "Manage extensions…", {}, [this] { extensionsDialog(); }));
@@ -1850,7 +1853,31 @@ void Window::openPath(const QString &path) {
     sync();
 }
 void Window::closeEvent(QCloseEvent *e) {
-    if (closePending_ || !canReplace()) {
+    if (closePending_) {
+        e->ignore();
+        return;
+    }
+    // R099.d3 (UX_DESIGN §17.12 choice 5): a running batch is asked about first. Closing stops it, and
+    // it is left Interrupted and resumable with its finished frames; declining keeps the window open.
+    // The stop waits until the close is certain, so a cancelled close leaves the batch running.
+    const bool stopBatch = render_ && render_->batchRunning();
+    if (stopBatch) {
+        QMessageBox ask(this);
+        ask.setObjectName("presentationQuitPrompt");
+        ask.setWindowTitle("Presentation batch running");
+        ask.setIcon(QMessageBox::Question);
+        ask.setText("Closing stops the batch. Finished frames are kept, and you can resume it later.");
+        auto *close = ask.addButton("Stop batch and close", QMessageBox::AcceptRole);
+        auto *keep = ask.addButton("Keep running", QMessageBox::RejectRole);
+        ask.setDefaultButton(keep);
+        ask.setEscapeButton(keep);
+        ask.exec();
+        if (ask.clickedButton() != close) {
+            e->ignore();
+            return;
+        }
+    }
+    if (!canReplace()) {
         e->ignore();
         return;
     }
@@ -1888,6 +1915,8 @@ void Window::closeEvent(QCloseEvent *e) {
         }
     }
 #endif
+    if (stopBatch)
+        render_->stopBatch();
     e->accept();
 }
 void Window::resizeEvent(QResizeEvent *e) {

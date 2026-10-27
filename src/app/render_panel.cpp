@@ -1,9 +1,12 @@
 #include "app/render_panel.hpp"
 #include "app/accessible_names.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/presentation_batch_dialog.hpp"
+#include "app/presentation_results.hpp"
 #include "app/render_jobs.hpp"
 #include "core/scenes.hpp"
 #include "integrations/animation_export.hpp"
+#include <QAccessible>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -110,6 +113,13 @@ struct RenderPanel::Impl {
     QPlainTextEdit *logs{};
     QPointer<BlenderJob> probe, handoff;
     std::unique_ptr<RenderQueue> queue;
+    // R099.d3: the presentation batches. The store opens on first use, so none is made until a batch
+    // dialog starts a batch or the Jobs list asks for them.
+    std::unique_ptr<PresentationBatches> batches;
+    QPointer<PresentationBatchDialog> batchDialog;
+    // The status chip's batch text, and whether its click opens a batch's results (after the batch).
+    QString batchChip;
+    QString batchChipJob;
     QPointer<RenderJobsDialog> jobsDialog;
     QPointer<QProgressDialog> handoffProgress, animationProgress;
     QPointer<AnimationExport> animation;
@@ -143,7 +153,9 @@ struct RenderPanel::Impl {
             } else if (handoffProgress) {
                 handoffProgress->show();
                 handoffProgress->raise();
-            } else
+            } else if (!batchChipJob.isEmpty() && !(batches && batches->running()))
+                showBatchResults(batchChipJob);
+            else
                 showJobs();
         });
         QObject::connect(&tabs, &QTabWidget::tabCloseRequested, &owner, [this](int index) {
@@ -185,6 +197,7 @@ struct RenderPanel::Impl {
         if (jobsDialog)
             delete jobsDialog;
         queue.reset();
+        batches.reset();
         if (dialog)
             delete dialog;
     }
@@ -241,14 +254,113 @@ struct RenderPanel::Impl {
             text += " · model has changed since";
         return text;
     }
+    // R099.d3: the batches of this process. Store and engine open on first use.
+    PresentationBatches &ensureBatches() {
+        if (!batches) {
+            batches = std::make_unique<PresentationBatches>(
+                document, QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
+                              "/presentation-jobs");
+            QObject::connect(batches.get(), &PresentationBatches::changed, &owner, [this] {
+                refreshBatchChip();
+                publish();
+            });
+            QObject::connect(batches.get(), &PresentationBatches::announced, &owner,
+                             [this](const QString &text) {
+                                 // A screen reader hears each milestone once (UX_DESIGN 17.10).
+                                 QAccessibleAnnouncementEvent event(&window, text);
+                                 QAccessible::updateAccessibility(&event);
+                             });
+        }
+        return *batches;
+    }
+    // The chip's words for the batch: the running one, or the last one's result (UX_DESIGN 17.6).
+    void refreshBatchChip() {
+        batchChip.clear();
+        batchChipJob.clear();
+        if (!batches)
+            return;
+        if (batches->running()) {
+            batchChip = batches->summary() + " · Show jobs";
+            return;
+        }
+        const auto last = batches->lastJob();
+        if (last.isEmpty())
+            return;
+        try {
+            for (const auto &job : batches->jobs()) {
+                if (job.id != last)
+                    continue;
+                batchChipJob = job.id;
+                batchChip = job.state == PresentationJobState::Completed
+                                ? QString("Presentation ready · Show results")
+                                : QString("Batch %1: %2 · Show results")
+                                      .arg(job.plan.path, presentationJobStateName(job.state));
+            }
+        } catch (const std::exception &) {
+            // The store cannot be read, so no chip is shown; the Jobs list reports why.
+        }
+    }
+    QString batchProvenanceText(const StoredPresentationJob &job) const {
+        QString text = "Revision " + job.revision;
+        if (!batches || !batches->started(job.id))
+            text += " · restored capture";
+        else if (job.documentId != QString::fromStdString(document.identity()))
+            text += " · another model session";
+        else if (!batches->modelUnchanged(job))
+            text += " · model has changed since";
+        return text;
+    }
+    // Camera > Export presentation batch…, the render sheet's button and the Presentations footer.
+    void showBatchDialog() {
+        checkOwner();
+        try {
+            auto &store = ensureBatches();
+            auto *batch = new PresentationBatchDialog(store, document, view, &window);
+            batch->setAttribute(Qt::WA_DeleteOnClose);
+            batchDialog = batch;
+            QObject::connect(batch, &PresentationBatchDialog::started, &owner,
+                             [this](const QString &id) { showJobsFor(id); });
+            // open() returns at once: the dialog never waits on a nested event loop (UX_DESIGN 17.5).
+            batch->open();
+        } catch (const std::exception &error) {
+            status = "Presentation batch unavailable";
+            details = QString::fromUtf8(error.what());
+            elapsed.start();
+            publish();
+        }
+    }
+    void showBatchResults(const QString &id) {
+        checkOwner();
+        try {
+            auto *results = new PresentationResultsDialog(ensureBatches(), id, &window);
+            results->setAttribute(Qt::WA_DeleteOnClose);
+            results->show();
+            results->raise();
+            results->activateWindow();
+        } catch (const std::exception &error) {
+            status = "Presentation results unavailable";
+            details = QString::fromUtf8(error.what());
+            elapsed.start();
+            publish();
+        }
+    }
+    void showJobsFor(const QString &id) {
+        showJobs();
+        if (jobsDialog)
+            jobsDialog->selectJob(id);
+    }
     void showJobs() {
         checkOwner();
         try {
             ensureQueue();
-            if (!jobsDialog)
+            if (!jobsDialog) {
                 jobsDialog = new RenderJobsDialog(
                     *queue, [this](const StoredRenderJob &job) { return provenance(job); },
-                    [this](const QString &id) { openResult(id); }, &window);
+                    [this](const QString &id) { openResult(id); }, &window, &ensureBatches(),
+                    [this](const StoredPresentationJob &job) { return batchProvenanceText(job); });
+                QObject::connect(jobsDialog, &RenderJobsDialog::batchResults, &owner,
+                                 [this](const QString &id) { showBatchResults(id); });
+            }
             jobsDialog->refresh();
             jobsDialog->show();
             jobsDialog->raise();
@@ -282,9 +394,12 @@ struct RenderPanel::Impl {
                 chipText = QString::number(running) + " rendering · " + QString::number(waiting) +
                            " queued";
         }
+        // A batch's chip replaces the render chip while it runs and after it ends (UX_DESIGN 17.6).
+        if (!batchChip.isEmpty())
+            chipText = batchChip;
         chip.setText(chipText);
-        chip.setVisible(elapsed.isValid());
-        chip.setAccessibleName("Render jobs: " + chipText);
+        chip.setVisible(elapsed.isValid() || !batchChip.isEmpty());
+        chip.setAccessibleName(batchChip.isEmpty() ? "Render jobs: " + chipText : chipText);
         if (dialog) {
             const auto seconds = elapsed.isValid() ? elapsed.elapsed() / 1000 : 0;
             jobStatus->setText(status + (active() ? " · " + QString::number(seconds) + " s" : "") +
@@ -475,14 +590,15 @@ struct RenderPanel::Impl {
         layout->addWidget(animationButton);
         QObject::connect(animationButton, &QPushButton::clicked, &owner,
                          [this] { chooseAnimation(); });
-        // R099.d2 (UX_DESIGN §17.1): the batch's button sits beside the one-shot export. Its dialog
-        // is the batch dialog (R099.d3), so the button stays disabled until that slice lands.
+        // R099.d2 (UX_DESIGN §17.1, §17.9): the batch's button sits beside the one-shot export, which is
+        // unchanged. Its dialog is the batch dialog (R099.d3).
         auto *batchButton = new QPushButton("Export presentation batch…");
         batchButton->setObjectName("exportPresentationBatch");
-        batchButton->setEnabled(false);
-        batchButton->setToolTip("Presentation batches are not available in this version yet.");
+        batchButton->setToolTip("Renders several named presets of a camera path, with an optional video "
+                                "and resume. For one set of frames, use Export scene animation above.");
         batchButton->setAccessibleDescription(batchButton->toolTip());
         layout->addWidget(batchButton);
+        QObject::connect(batchButton, &QPushButton::clicked, &owner, [this] { showBatchDialog(); });
         auto *buttons = new QHBoxLayout;
         renderButton = new QPushButton("Render");
         renderButton->setObjectName("startRender");
@@ -1100,6 +1216,17 @@ RenderPanel::~RenderPanel() = default;
 void RenderPanel::showSetup() { impl_->show(); }
 RenderSettings RenderPanel::setupSettings() const { return impl_->currentSettings(); }
 void RenderPanel::showJobs() { impl_->showJobs(); }
+void RenderPanel::showBatchDialog() { impl_->showBatchDialog(); }
+void RenderPanel::showBatchResults(const QString &id) { impl_->showBatchResults(id); }
+bool RenderPanel::batchRunning() const {
+    impl_->checkOwner();
+    return impl_->batches && impl_->batches->running();
+}
+void RenderPanel::stopBatch() {
+    impl_->checkOwner();
+    if (impl_->batches)
+        impl_->batches->stop();
+}
 void RenderPanel::refreshProvenance() {
     impl_->checkOwner();
     impl_->refresh();
