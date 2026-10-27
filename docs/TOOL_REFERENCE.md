@@ -118,6 +118,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `component.selection` | Make component from selected entities | `entities`, `command` |
 | `geometry.delete` | Delete context | `body`, `command` |
 | `style.apply` | Apply a packaged style (base64 .sketchystyle bytes) in one edit | `data`, `command` |
+| `catalog.import` | Import named catalog entries into the document in one edit | `entries`, `command` |
 | `asset.import` | Import managed asset bytes | `name`, `mediaType`, `data`, `command` |
 | `asset.missing` | Record missing asset | `name`, `mediaType`, `command` |
 | `asset.replace` | Replace or resolve asset bytes | `asset`, `data`, `command` |
@@ -198,7 +199,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scene.visibility` |  | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `camera_path.describe` |  | `path`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `render_preset.describe` |  | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
-| `catalog.list` |  | `catalog`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.list` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.library` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.export` |  | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `presentation.describe` |  | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `style.export` |  | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -280,7 +283,9 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scene.visibility` | saved_scene.visibility: shared versioned SketchyUp operation | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `camera_path.describe` | camera_path.describe: shared versioned SketchyUp operation | `path`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `render_preset.describe` | render_preset.describe: shared versioned SketchyUp operation | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
-| `catalog.list` | catalog.list: shared versioned SketchyUp operation | `catalog`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.list` | catalog.list: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.library` | catalog.library: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.export` | catalog.export: shared versioned SketchyUp operation | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `presentation.describe` | presentation.describe: shared versioned SketchyUp operation | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `style.export` | style.export: shared versioned SketchyUp operation | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` | drawing_sheets.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |

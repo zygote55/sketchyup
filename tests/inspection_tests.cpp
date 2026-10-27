@@ -81,6 +81,9 @@ bool near(QJsonValue value, Vec3 expected) {
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    // R100.d: the catalog library is read from the user's data folder, so this run gets its own.
+    QTemporaryDir dataHome;
+    qputenv("XDG_DATA_HOME", dataHome.path().toUtf8());
     try {
         auto room = loadDocument(QString(SOURCE_DIR) + "/examples/m4-room-study.sketchyup");
         Id roomRoot{}, window{};
@@ -565,6 +568,14 @@ int main(int argc, char **argv) {
             check(listing["entryCount"] == 5 && listing["importableCount"] == 3 &&
                       listing["missingAssets"] == 1,
                   "catalog.list lists each entry with its importable state");
+            // R100.d (ADR 0174 sections 4 and 7): the library starts empty in a fresh home, and
+            // the export query captures the document style without changing the document.
+            const auto library = run(catalogDocument, "catalog.library");
+            check(library["catalogCount"] == 0, "catalog.library lists nothing in a fresh home");
+            const auto exported = run(catalogDocument, "catalog.export",
+                                      {{"name", "Style kit"}, {"style", true}});
+            check(exported["command"] == "catalog.export" && !exported["data"].toString().isEmpty(),
+                  "catalog.export captures the document style as base64url");
         }
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&

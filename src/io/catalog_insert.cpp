@@ -7,7 +7,6 @@
 #include "io/document_io.hpp"
 #include "io/library_bundle.hpp"
 #include "io/model_style_io.hpp"
-#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <array>

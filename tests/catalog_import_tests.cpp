@@ -19,9 +19,13 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <array>
+#include <initializer_list>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace sketchy;
 using namespace catalog_fixture;
