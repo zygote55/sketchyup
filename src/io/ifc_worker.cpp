@@ -26,8 +26,8 @@ constexpr qint64 maxFileBytes = 128 * 1024 * 1024;
 constexpr qint64 maxPackageBytes = 24 + qint64(IfcPackageLimits::manifestBytes) + qint64(IfcPackageLimits::meshBytes);
 constexpr qint64 maxLogBytes = 2048;
 const char *const privatePrefix = "sketchyup-ifc-";
-// The helper's exit code for a layer of its sandbox that could not be installed (ADR 0183 section 7). It is a
-// refusal, like exit 3, and it names the layer in its R line.
+// The helper's exit code for a layer of its sandbox that could not be installed (ADR 0183 section
+// 7). It is a refusal, like exit 3, and it names the layer in its R line.
 constexpr int sandboxUnavailableExit = 70;
 
 [[noreturn]] void refuse(const std::string &code, const std::string &message) { throw IfcImportError(code, message); }
@@ -277,14 +277,15 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
         return run;
     }
     const bool refusedExit = run.exitCode == 3 || run.exitCode == sandboxUnavailableExit;
-    if (process.exitStatus() == QProcess::NormalExit && refusedExit && run.result["status"] == "refused") {
+    if (process.exitStatus() == QProcess::NormalExit && refusedExit &&
+        run.result["status"] == "refused") {
         run.kind = RunResult::Refused;
         return run;
     }
     run.kind = RunResult::Stopped;
-    // The seccomp filter kills a helper that makes a call its policy does not allow, with SIGSYS, and QProcess
-    // reports the signal as the exit code of a crash (ADR 0183 section 4.6). It is not a crash: a violation is a
-    // reason of its own, and the restart path does not run for it.
+    // The seccomp filter kills a helper that makes a call its policy does not allow, with SIGSYS,
+    // and QProcess reports the signal as the exit code of a crash (ADR 0183 section 4.6). It is not
+    // a crash: a violation is a reason of its own, and the restart path does not run for it.
     if (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS)
         run.reason = "sandboxViolation";
     else if (process.exitStatus() == QProcess::CrashExit)
@@ -415,15 +416,23 @@ IfcImport importIfcFile(const QString &path, const IfcImportOptions &options, co
         if (run.kind == RunResult::Cancelled)
             throw IfcImportError("cancelled", "The import was cancelled.");
         if (run.reason == "sandboxViolation") {
-            // ADR 0183 sections 4.6 and 7: the helper was stopped for an action its policy does not allow. No element is
-            // at fault, so nothing is left out and the helper is not restarted.
-            throw IfcImportError("sandboxViolation",
-                                 "The IFC helper (sketchyup-ifc-worker) was stopped by its sandbox: the seccomp filter "
-                                 "ended it for an action its policy does not allow. Nothing was imported.",
-                                 QJsonObject{{"apiVersion", 1}, {"format", "IFC"}, {"direction", "import"},
-                                             {"helper", QJsonObject{{"completed", false}, {"stop", run.reason}, {"phase", run.phase}}},
-                                             {"source", QJsonObject{{"sha256", QString::fromLatin1(hash.result().toHex())},
-                                                                   {"bytes", QFileInfo(input).size()}, {"schema", schema}}}});
+            // ADR 0183 sections 4.6 and 7: the helper was stopped for an action its policy does not
+            // allow. No element is at fault, so nothing is left out and the helper is not
+            // restarted.
+            throw IfcImportError(
+                "sandboxViolation",
+                "The IFC helper (sketchyup-ifc-worker) was stopped by its sandbox: the seccomp "
+                "filter "
+                "ended it for an action its policy does not allow. Nothing was imported.",
+                QJsonObject{
+                    {"apiVersion", 1},
+                    {"format", "IFC"},
+                    {"direction", "import"},
+                    {"helper",
+                     QJsonObject{{"completed", false}, {"stop", run.reason}, {"phase", run.phase}}},
+                    {"source", QJsonObject{{"sha256", QString::fromLatin1(hash.result().toHex())},
+                                           {"bytes", QFileInfo(input).size()},
+                                           {"schema", schema}}}});
         }
         stops.append(run.reason + " (" + run.phase + ")");
         lastReason = run.reason;

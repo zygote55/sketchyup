@@ -17,9 +17,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <sched.h>
 #include <functional>
 #include <iostream>
+#include <sched.h>
 #include <string>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -231,8 +231,9 @@ void testThreadOnlyClone() {
 }
 
 void testForkOrThreadClone() {
-    // ADR 0183 decision 5: a fork-like clone runs (the IFC diagnosis children), and its child inherits the filter.
-    // A clone that asks for a new namespace is EPERM: a namespace gives the process capabilities inside it.
+    // ADR 0183 decision 5: a fork-like clone runs (the IFC diagnosis children), and its child
+    // inherits the filter. A clone that asks for a new namespace is EPERM: a namespace gives the
+    // process capabilities inside it.
     const ChildResult forked = inChild([] {
         Policy policy;
         policy.syscalls = withReporting({{"clone", Action::forkOrThread},
@@ -265,21 +266,24 @@ void testForkOrThreadClone() {
         policy.syscalls = withReporting({{"clone", Action::forkOrThread}});
         if (apply(policy))
             return 3;
-        const long userNamespace = syscall(SYS_clone, static_cast<long>(CLONE_NEWUSER | SIGCHLD), 0L, 0L, 0L, 0L);
+        const long userNamespace =
+            syscall(SYS_clone, static_cast<long>(CLONE_NEWUSER | SIGCHLD), 0L, 0L, 0L, 0L);
         if (userNamespace != -1 || errno != EPERM)
             return 1;
-        const long netNamespace = syscall(SYS_clone, static_cast<long>(CLONE_NEWNET | SIGCHLD), 0L, 0L, 0L, 0L);
+        const long netNamespace =
+            syscall(SYS_clone, static_cast<long>(CLONE_NEWNET | SIGCHLD), 0L, 0L, 0L, 0L);
         return (netNamespace == -1 && errno == EPERM) ? 0 : 2;
     });
     check(!namespaced.signaled && namespaced.code == 0,
-          "a clone with CLONE_NEWUSER or CLONE_NEWNET under the forkOrThread entry returns EPERM (code " +
+          "a clone with CLONE_NEWUSER or CLONE_NEWNET under the forkOrThread entry returns EPERM "
+          "(code " +
               std::to_string(namespaced.code) + ")");
 }
 
 void testLandlockReadExecute() {
-    // The exec right is granted by readExecute and not by readOnly: an executable's open fails with EACCES
-    // under readOnly, and under readExecute it gets past the open (the file is not a program, so execve
-    // answers ENOEXEC).
+    // The exec right is granted by readExecute and not by readOnly: an executable's open fails with
+    // EACCES under readOnly, and under readExecute it gets past the open (the file is not a
+    // program, so execve answers ENOEXEC).
     const std::string directory = "/tmp/sketchyup-sandbox-exec-" + std::to_string(getpid());
     mkdir(directory.c_str(), 0700);
     const std::string script = directory + "/script";
@@ -305,8 +309,9 @@ void testLandlockReadExecute() {
         });
     };
     const ChildResult readOnly = execUnder(FileAccess::readOnly);
-    check(!readOnly.signaled && readOnly.code == 10, "readOnly does not grant the exec right (EACCES, code " +
-                                                         std::to_string(readOnly.code) + ")");
+    check(!readOnly.signaled && readOnly.code == 10,
+          "readOnly does not grant the exec right (EACCES, code " + std::to_string(readOnly.code) +
+              ")");
     const ChildResult readExecute = execUnder(FileAccess::readExecute);
     check(!readExecute.signaled && readExecute.code == 0,
           "readExecute grants the exec right (the file is refused as a program, ENOEXEC, code " +

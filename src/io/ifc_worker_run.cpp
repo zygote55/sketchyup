@@ -11,7 +11,8 @@
 
 namespace sketchy {
 namespace {
-// The helper's exit code for a layer of its sandbox that could not be installed (ADR 0183 section 7).
+// The helper's exit code for a layer of its sandbox that could not be installed (ADR 0183 section
+// 7).
 constexpr int sandboxUnavailableExit = 70;
 } // namespace
 
@@ -92,16 +93,19 @@ IfcWorkerRun runIfcWorker(const QString &worker, const QString &directory, const
         run.reason = "error";
     } else if (process.exitStatus() == QProcess::NormalExit && run.exitCode == 0 && run.result["status"] == "ok") {
         run.kind = IfcWorkerRun::Finished;
-    } else if (process.exitStatus() == QProcess::NormalExit && (run.exitCode == 3 || run.exitCode == sandboxUnavailableExit) &&
+    } else if (process.exitStatus() == QProcess::NormalExit &&
+               (run.exitCode == 3 || run.exitCode == sandboxUnavailableExit) &&
                run.result["status"] == "refused") {
         run.kind = IfcWorkerRun::Refused;
     } else {
-        // A call the sandbox's policy does not allow is SIGSYS, which QProcess reports as the exit code of a crash
-        // (ADR 0183 section 4.6): a violation, not a crash.
-        run.reason = (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS) ? "sandboxViolation"
+        // A call the sandbox's policy does not allow is SIGSYS, which QProcess reports as the exit
+        // code of a crash (ADR 0183 section 4.6): a violation, not a crash.
+        run.reason = (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS)
+                         ? "sandboxViolation"
                      : process.exitStatus() == QProcess::CrashExit ? "crash"
-                     : (run.logTail.contains("bad_alloc") || run.logTail.contains("length_error")) ? "memory"
-                                                                                                   : "error";
+                     : (run.logTail.contains("bad_alloc") || run.logTail.contains("length_error"))
+                         ? "memory"
+                         : "error";
     }
     return run;
 }

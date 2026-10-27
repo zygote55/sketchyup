@@ -526,7 +526,8 @@ StepExportResult exportStepFile(const Document &document, const QString &path, c
     }
     if (run.kind != IfcWorkerRun::Finished) {
         if (run.reason == "sandboxViolation")
-            refuse("sandboxViolation", "The IFC helper was stopped by its sandbox; nothing was written.", report);
+            refuse("sandboxViolation",
+                   "The IFC helper was stopped by its sandbox; nothing was written.", report);
         const QFileInfo produced(outputPath);
         if (produced.exists() && produced.size() >= kMaxStepBytes)
             refuse("outputTooLarge", "The STEP file would be larger than 256 MiB; nothing was written.", report);

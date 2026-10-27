@@ -1,8 +1,8 @@
 // The seccomp-bpf layer (ADR 0183 sections 3 and 4.3): a raw BPF program, with no library. The
 // program checks the architecture, loads the call number and compares it with each named call in
-// turn. A match runs that call's block: one return for allow, EPERM or ENOSYS, for a thread-only clone a
-// test of CLONE_THREAD, and for a clone that may fork a test of the namespace flags. Any other call falls
-// through to the kill default.
+// turn. A match runs that call's block: one return for allow, EPERM or ENOSYS, for a thread-only
+// clone a test of CLONE_THREAD, and for a clone that may fork a test of the namespace flags. Any
+// other call falls through to the kill default.
 #include "sandbox/layers.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
 
@@ -19,8 +19,9 @@ namespace sketchyup::sandbox {
 namespace {
 
 constexpr std::uint32_t kCloneThread = 0x00010000; // CLONE_THREAD
-// The namespace flags of clone: CLONE_NEWNS, CLONE_NEWCGROUP, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWUSER,
-// CLONE_NEWPID and CLONE_NEWNET. A child in a new namespace gets capabilities inside it, so such a clone is refused.
+// The namespace flags of clone: CLONE_NEWNS, CLONE_NEWCGROUP, CLONE_NEWUTS, CLONE_NEWIPC,
+// CLONE_NEWUSER, CLONE_NEWPID and CLONE_NEWNET. A child in a new namespace gets capabilities inside
+// it, so such a clone is refused.
 constexpr std::uint32_t kCloneNewNamespaces = 0x7E020000;
 constexpr std::uint32_t kSeccompDataNr = 0; // seccomp_data.nr, the call number
 
@@ -33,7 +34,8 @@ sock_filter jump(std::uint16_t code, std::uint32_t k, std::uint8_t ifTrue, std::
 }
 
 // The instructions that answer for one call. A jump over a block takes its length, so each block is
-// short: the longest are the clone, the own-process signal and the argument test, at four instructions.
+// short: the longest are the clone, the own-process signal and the argument test, at four
+// instructions.
 std::vector<sock_filter> blockFor(const SyscallRule &rule, std::uint32_t self) {
     switch (rule.action) {
     case Action::allow:
@@ -49,7 +51,8 @@ std::vector<sock_filter> blockFor(const SyscallRule &rule, std::uint32_t self) {
                 statement(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
                 statement(BPF_RET | BPF_K, SECCOMP_RET_ALLOW)};
     case Action::forkOrThread:
-        // flags & CLONE_NEW*: EPERM; otherwise allow (a thread, or a fork-like child that inherits this filter).
+        // flags & CLONE_NEW*: EPERM; otherwise allow (a thread, or a fork-like child that inherits
+        // this filter).
         return {statement(BPF_LD | BPF_W | BPF_ABS, kSeccompDataArg0),
                 jump(BPF_JMP | BPF_JSET | BPF_K, kCloneNewNamespaces, 0, 1),
                 statement(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),

@@ -27,7 +27,8 @@ enum class Action {
     denied,         // the call returns EPERM and does nothing
     notImplemented, // the call returns ENOSYS (glibc then falls back to clone)
     threadOnly,     // clone: runs when it creates a thread (CLONE_THREAD), returns EPERM otherwise
-    forkOrThread,   // clone: runs with any flags except a new namespace (CLONE_NEW*), else EPERM (ADR 0183 decision 5)
+    forkOrThread, // clone: runs with any flags except a new namespace (CLONE_NEW*), else EPERM (ADR
+                  // 0183 decision 5)
     ownProcessOnly, // tgkill: runs when its first argument is this process (abort signals itself)
     whenArgument,   // runs when one argument has the given value (the low 32 bits), else EPERM
 };
@@ -35,8 +36,9 @@ enum class Action {
 struct SyscallRule {
     std::string_view name; // a name in syscalls_x86_64.hpp
     Action action;
-    // whenArgument only: the argument compared (0 to 5) and the value it must have. For example prctl's
-    // option (argument 0) must be PR_SET_PDEATHSIG, and ioctl's request (argument 1) must be TCGETS.
+    // whenArgument only: the argument compared (0 to 5) and the value it must have. For example
+    // prctl's option (argument 0) must be PR_SET_PDEATHSIG, and ioctl's request (argument 1) must
+    // be TCGETS.
     unsigned argumentIndex = 0;
     std::uint32_t argumentValue = 0;
 };
@@ -44,7 +46,8 @@ struct SyscallRule {
 // What the Landlock ruleset grants on one path. A path that does not exist is not granted.
 enum class FileAccess {
     readOnly,    // read the file, or list and read the directory
-    readExecute, // read, and execute: a library directory the helper loads its plugins from (ADR 0183 section 4.2)
+    readExecute, // read, and execute: a library directory the helper loads its plugins from (ADR
+                 // 0183 section 4.2)
     readWrite,   // read, write and create (a directory: every right except execute)
 };
 
