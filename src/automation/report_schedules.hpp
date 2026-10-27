@@ -38,6 +38,9 @@ class ReportScheduleStore {
 
     // The schedules saved for one document identity, in name order.
     std::vector<ReportSchedule> schedules(const std::string &documentId) const;
+    // R101.e2 (UX_DESIGN §19.7): how many schedules the other documents hold. The panel shows the
+    // count and never their names.
+    std::size_t schedulesOutside(const std::string &documentId) const;
 
     // The identity guard (V11): a name saved for this document is returned; a name saved only for
     // another document is refused with WRONG_DOCUMENT, and a name saved nowhere with NOT_FOUND.

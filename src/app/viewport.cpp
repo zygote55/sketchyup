@@ -209,12 +209,15 @@ uniform vec3 offset;
 uniform int instanced;
 uniform vec2 pixelOffset;
 uniform int screenStroke;
+// Stroke quads carry their distance along the edge and across the stroke (R100.f1) in
+// coordinates.zw, interpolated in screen space so that tiles keep their size at any depth.
+noperspective out vec2 edgeCoords;
 out vec4 tint;
 out vec4 backTint;
 flat out vec2 faceOpacity;
 out vec3 worldPosition;
 void main() {
-  uv=coordinates;previewShading=shading;
+  uv=coordinates;previewShading=shading;edgeCoords=coordinates.zw;
   vec3 p=position+offset;
   if(instanced!=0) p+=vec3(float(gl_InstanceID%1000)*1.2,float(gl_InstanceID/1000)*1.2,0);
   gl_Position=mvp*vec4(p,1.0);
@@ -246,6 +249,11 @@ uniform int clipEnabled;
 uniform vec4 clipPlane;
 uniform int stipple;
 uniform float pixelRatio;
+// Edge stroke (R100.f1): 0 plain, 1 the edge texture tiled along the edge, 2 hatched in the warning
+// colour where the texture is missing.
+uniform int edgeMode;
+uniform vec3 edgeHatchColor;
+noperspective in vec2 edgeCoords;
 out vec4 fragment;
 vec3 toLinear(vec3 c) {
   return mix(c/12.92,pow((c+0.055)/1.055,vec3(2.4)),greaterThan(c,vec3(0.04045)));
@@ -287,6 +295,19 @@ void main() {
   // Opacity is constant per face; interpolating 1 can round below 1 and discard opaque fragments.
   color.a=gl_FrontFacing ? faceOpacity.x : faceOpacity.y;
   bool hasImage=gl_FrontFacing ? textured.x>0.0 : textured.y>0.0;
+  // The edge texture carries its own colour, so the edge colour is not multiplied into it. Its
+  // alpha is the stroke opacity times the texel alpha. A hatch leaves gaps, which show the faces.
+  if(edgeMode==1) {
+    // Not uploaded yet: nothing is drawn in place of the texture, never the edge colour.
+    if(textured.y<=0.0) discard;
+    vec4 texel=sampleImage(backImage,edgeCoords/vec2(textureSize(backImage,0)));
+    color.rgb=toSrgb(texel.rgb);
+    color.a*=texel.a;
+  }
+  if(edgeMode==2) {
+    if(mod(edgeCoords.x+edgeCoords.y,4.0)>=2.0) discard;
+    color.rgb=edgeHatchColor;
+  }
   if(hasImage && surfacePass!=0) {
     vec4 imageColor=gl_FrontFacing ? sampleImage(frontImage,uv.xy) : sampleImage(backImage,uv.zw);
     color.a*=imageColor.a;
@@ -1792,6 +1813,7 @@ void Viewport::paintScene(QPaintDevice *device) {
     shader_->setUniformValue("groundPass", 0);
     shader_->setUniformValue("styleTextureColor", 1);
     shader_->setUniformValue("screenStroke", 0);
+    shader_->setUniformValue("edgeMode", 0);
     shader_->setUniformValue("strokeColor", QVector4D{});
     shader_->setUniformValue("pixelOffset", QVector2D{});
     shader_->setUniformValue("clipEnabled", clipPlane_ ? 1 : 0);

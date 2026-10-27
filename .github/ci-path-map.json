@@ -135,8 +135,10 @@
       "paths": [
         "third_party/openskp/**",
         "src/skp/**",
+        "src/sandbox/**",
         "src/io/skp_*",
         "tests/skp*",
+        "tests/sandbox*",
         "tests/fixtures/skp/**",
         "scripts/vendor-openskp.py",
         "scripts/verify-skp-library.py"
@@ -237,6 +239,11 @@
       "areas": ["build", "native"]
     },
     {
+      "why": "R100.f1 (ADR 0174 section 10, UX_DESIGN §18.3): the edge stroke's viewport drawing (dash runs, opacity, texture tiling and the missing-texture hatch), its status chip and the document.style edits. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/app/viewport_styles*", "src/app/viewport_textures*", "tests/edge_stroke_viewport*", "tests/model_style*", "src/core/model_style*", "src/io/model_style_io*"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "R100.b2 (ADR 0174 section 3): the material texture size, schema 32 with material-texture-size-v1, and its fixture. Tested by material_texture_size_tests, which the build and native lines run; the mapping and exporter checks are in texture_export_tests and the carriers in skp_mapping_tests and catalog_import_tests.",
       "paths": ["tests/material_texture_size_tests*", "tests/fixtures/material-texture-size-v32.sketchyup"],
       "areas": ["build", "native"]
@@ -268,6 +275,22 @@
         "src/app/presentations_dialog.*",
         "src/app/presentation_scene_picker.*",
         "src/app/window_presentations.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "R101.e2 (UX_DESIGN section 19): the Quantities section of the Model Tray, its off-thread runs, schedules and exports, driven through the main window offscreen and on the native display lines. Its dialogs are in the native dialog audit's quantities group.",
+      "paths": [
+        "src/app/quantities_job.cpp",
+        "src/app/quantities_job.hpp",
+        "src/app/quantities_panel.cpp",
+        "src/app/quantities_panel.hpp",
+        "src/app/quantities_dialogs.cpp",
+        "src/app/quantities_dialogs.hpp",
+        "tests/quantities_input_tests.cpp"
       ],
       "areas": [
         "build",

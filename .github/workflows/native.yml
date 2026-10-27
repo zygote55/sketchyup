@@ -522,9 +522,22 @@ jobs:
     # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
     container:
       image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
-      options: --cap-add=SYS_PTRACE
+      # The runner host's preinstalled SDKs are mounted so the first step can delete them, as
+      # the sanitized job does: the debug build's last link ran out of disk on the runner
+      # (PR #484, run 40580506813), with every test binary carrying full debug information.
+      options: >-
+        --cap-add=SYS_PTRACE
+        -v /usr/share/dotnet:/host/usr/share/dotnet
+        -v /usr/local/lib/android:/host/usr/local/lib/android
+        -v /opt/ghc:/host/opt/ghc
+        -v /opt/hostedtoolcache/CodeQL:/host/opt/hostedtoolcache/CodeQL
     timeout-minutes: 150
     steps:
+      - name: Free runner disk space
+        run: |
+          df -h /
+          rm -rf /host/usr/share/dotnet/* /host/usr/local/lib/android/* /host/opt/ghc/* /host/opt/hostedtoolcache/CodeQL/*
+          df -h /
       - uses: actions/checkout@v6
       - name: Prepare the package cache
         id: package-cache-key
@@ -809,6 +822,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=1 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_stroke_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
@@ -824,6 +838,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_state_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/component_acceptance_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/quantities_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
@@ -972,6 +987,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/section_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/style_viewport_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_stroke_viewport_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/texture_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/material_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/edge_input_tests
@@ -987,6 +1003,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_state_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/component_acceptance_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/quantities_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
@@ -1128,6 +1145,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/section_viewport_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/style_input_tests
           SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/style_viewport_tests
+          SKETCHYUP_TEST_SCALE=1 scripts/test-wayland.sh build/dev/edge_stroke_viewport_tests
           scripts/test-wayland.sh build/dev/texture_input_tests
           scripts/test-wayland.sh build/dev/material_input_tests
           scripts/test-wayland.sh build/dev/edge_input_tests
@@ -1143,6 +1161,7 @@ jobs:
           scripts/test-wayland.sh build/dev/component_parameter_state_input_tests
           scripts/test-wayland.sh build/dev/component_acceptance_input_tests
           scripts/test-wayland.sh build/dev/organization_input_tests
+          scripts/test-wayland.sh build/dev/quantities_input_tests
           scripts/test-wayland.sh build/dev/component_input_tests
           scripts/test-wayland.sh build/dev/hosted_input_tests
           scripts/test-wayland.sh build/dev/hosted_array_input_tests
@@ -1281,6 +1300,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/section_viewport_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/style_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/style_viewport_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/edge_stroke_viewport_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/texture_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/material_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/edge_input_tests
@@ -1296,6 +1316,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_parameter_state_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_acceptance_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/organization_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/quantities_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_array_input_tests
@@ -1707,7 +1728,7 @@ jobs:
         run: |
           export SKETCHYUP_WAYLAND_CLIENT_LIBRARY="$PWD/build/ci-wayland-client/lib"
           cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_DESKTOP=ON
-          cmake --build --preset sanitize --target file_operation_input_tests shortcut_input_tests keyboard_modeling_input_tests preference_input_tests extension_input_tests library_input_tests measured_input_tests dxf_input_tests stl_input_tests obj_input_tests gltf_input_tests m7_presentation_input_tests navigation_input_tests reference_image_input_tests raster_export_input_tests solar_input_tests text_input_tests annotation_input_tests annotation_viewport_tests section_input_tests section_viewport_tests scene_input_tests style_input_tests style_viewport_tests texture_input_tests texture_cache_tests texture_viewport_tests material_viewport_tests m6_workflow_input_tests viewport_precision_tests site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests theme_input_tests text_size_input_tests narrow_layout_input_tests keyboard_outliner_input_tests component_parameter_input_tests component_authoring_input_tests component_parameter_state_input_tests assembly_library_input_tests component_acceptance_input_tests --parallel 4
+          cmake --build --preset sanitize --target file_operation_input_tests shortcut_input_tests keyboard_modeling_input_tests preference_input_tests extension_input_tests library_input_tests measured_input_tests dxf_input_tests stl_input_tests obj_input_tests gltf_input_tests m7_presentation_input_tests navigation_input_tests reference_image_input_tests raster_export_input_tests solar_input_tests text_input_tests annotation_input_tests annotation_viewport_tests section_input_tests section_viewport_tests scene_input_tests style_input_tests style_viewport_tests edge_stroke_viewport_tests texture_input_tests texture_cache_tests texture_viewport_tests material_viewport_tests m6_workflow_input_tests viewport_precision_tests site_recipe_input_tests furniture_recipe_input_tests stair_recipe_input_tests roof_recipe_input_tests recipe_hosted_input_tests hosted_array_input_tests hosted_input_tests diagnostics_input_tests edge_input_tests smooth_viewport_tests assistant_panel_tests assistant_preview_tests render_input_tests native_mcp_tests theme_input_tests text_size_input_tests narrow_layout_input_tests keyboard_outliner_input_tests component_parameter_input_tests component_authoring_input_tests component_parameter_state_input_tests assembly_library_input_tests component_acceptance_input_tests --parallel 4
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/hosted_array_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/recipe_hosted_input_tests
@@ -1749,6 +1770,7 @@ jobs:
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/section_viewport_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/style_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/style_viewport_tests
+          QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/edge_stroke_viewport_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/texture_input_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/texture_viewport_tests
           QT_WAYLAND_DISABLE_WINDOWDECORATION=1 QT_QPA_PLATFORMTHEME=generic QT_STYLE_OVERRIDE=Fusion QT_IM_MODULE=compose SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/sanitize/material_viewport_tests
@@ -1994,8 +2016,11 @@ jobs:
         # the import into the native model (R102.b, S1 to S5 and the undo), the Dynamic Component
         # metadata (R104.a, ADR 0178 D1.1 to D1.9, with its source scan of the import for network code),
         # and the owner-file checks (skipped on a machine without the corpus). The helper's linkage (only the helper
-        # links the parser, its runtime closure) and the notices and source record (R102.d).
-        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_dc|skp_dc_real|skp_library_install|skp_library_source)$' --output-on-failure --no-tests=error
+        # links the parser, its runtime closure) and the notices and source record (R102.d). The helper's
+        # sandbox (ADR 0183, R109 S0 and S1): the library's own checks, and the helper under its policy
+        # (every fixture identical to the unsandboxed run, the attacks refused, the refusals named). Landlock
+        # must be on the runner's kernel: the checks fail, not skip, without it.
+        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_dc|skp_dc_real|skp_library_install|skp_library_source|sandbox|skp_sandbox)$' --output-on-failure --no-tests=error
       - name: Helper and package tests under the sanitizers
         # The helper's own code, the package decoder and the import under ASan and UBSan, against an
         # instrumented library: the IFC helper's sanitizer line (ADR 0176 section 7, S7). Full tier only.
@@ -2005,7 +2030,7 @@ jobs:
         run: |
           cmake --preset skp-sanitize
           cmake --build --preset skp-sanitize --parallel "$(nproc)"
-          ctest --test-dir build/skp-sanitize -R '^(skp_package|skp_import|skp_mapping|skp_dc)$' --output-on-failure --no-tests=error
+          ctest --test-dir build/skp-sanitize -R '^(skp_package|skp_import|skp_mapping|skp_dc|skp_sandbox)$' --output-on-failure --no-tests=error
       - name: Package decoder fuzz smoke, Clang with libFuzzer, ASan and UBSan
         # S7 (ADR 0176 section 7): the SKSKPP01 decoder under libFuzzer for a fixed number of runs, from
         # the packages the helper writes for five synthetic fixtures. The Clang fuzz build instruments

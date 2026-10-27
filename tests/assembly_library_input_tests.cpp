@@ -1,4 +1,4 @@
-// R094.f (ADR 0166 §6.3, §10): the Tray's Components tab. The tab (index 12) and its View
+// R094.f (ADR 0166 §6.3, §10): the Tray's Components tab. The tab (index 13) and its View
 // action, the Show filter, the cards by keyboard and their accessible text, the values form
 // (live validation, Use defaults, Cancel and Esc), the placing ghost and opening outline,
 // placing a 1000 mm door on a wall face with the opening cut in one entry and re-cut from
@@ -152,11 +152,11 @@ struct Fixture {
     }
 };
 void tabAndCards(Fixture &f) {
-    check(f.tabs->count() == 13 && f.tabs->tabText(12) == "Components" &&
-              f.tabs->widget(12) == f.tab,
-          "Components is the Tray's tab 12");
+    check(f.tabs->count() == 14 && f.tabs->tabText(13) == "Components" &&
+              f.tabs->widget(13) == f.tab,
+          "Components is the Tray's tab 13, after Quantities");
     f.window.findChild<QAction *>("view.components")->trigger();
-    check(QTest::qWaitFor([&] { return f.tabs->currentIndex() == 12 && f.tab->isVisible(); }),
+    check(QTest::qWaitFor([&] { return f.tabs->currentIndex() == 13 && f.tab->isVisible(); }),
           "View → Components shows the tab");
     check(QTest::qWaitFor([&] { return f.tab->isAncestorOf(QApplication::focusWidget()); }),
           "View → Components moves focus into the tab");

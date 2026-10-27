@@ -32,6 +32,9 @@ constexpr qint64 maxPackageBytes = 32 + qint64(SkpPackageLimits::manifestBytes) 
                                    qint64(SkpPackageLimits::textureChunkBytes);
 constexpr qint64 maxLogBytes = 2048;
 const char *const privatePrefix = "sketchyup-skp-";
+// The helper's exit code for a layer of its sandbox that could not be installed (ADR 0183 section
+// 7). It is a refusal, like exit 3, and it names the layer in its R line.
+constexpr int sandboxUnavailableExit = 70;
 
 [[noreturn]] void refuse(const std::string &code, const std::string &message, QJsonObject report = {}) {
     throw IfcImportError(code, message, std::move(report));
@@ -175,12 +178,19 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
         run.kind = RunResult::Finished;
         return run;
     }
-    if (process.exitStatus() == QProcess::NormalExit && run.exitCode == 3 && run.result["status"] == "refused") {
+    const bool refusedExit = run.exitCode == 3 || run.exitCode == sandboxUnavailableExit;
+    if (process.exitStatus() == QProcess::NormalExit && refusedExit &&
+        run.result["status"] == "refused") {
         run.kind = RunResult::Refused;
         return run;
     }
     run.kind = RunResult::Stopped;
-    if (process.exitStatus() == QProcess::CrashExit)
+    // The seccomp filter kills a helper that makes a call its policy does not allow, with SIGSYS,
+    // and QProcess reports the signal as the exit code of a crash (ADR 0183 section 4.6). It is not
+    // a crash: a crash restarts nothing here, and a violation is a named reason of its own.
+    if (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS)
+        run.reason = "sandboxViolation";
+    else if (process.exitStatus() == QProcess::CrashExit)
         run.reason = "crash";
     else if (run.logTail.contains("bad_alloc") || run.logTail.contains("std::length_error"))
         run.reason = "memory";
@@ -308,6 +318,19 @@ SkpImport importSkpFile(const QString &path, const SkpWorkerOptions &worker) {
     const QJsonObject envelope{{"apiVersion", 1}, {"format", "SketchUp"}, {"direction", "import"}, {"source", source}};
     if (run.kind == RunResult::Cancelled)
         throw IfcImportError("cancelled", "The import was cancelled.");
+    if (run.kind == RunResult::Stopped && run.reason == "sandboxViolation") {
+        // ADR 0183 section 4.6: the message names the helper and the layer, never the call that was
+        // refused.
+        QJsonObject report = envelope;
+        report["helper"] =
+            QJsonObject{{"completed", false}, {"stop", run.reason}, {"phase", run.phase}};
+        throw IfcImportError(
+            "sandboxViolation",
+            "The SketchUp helper (sketchyup-skp-worker) was stopped by its sandbox: the seccomp "
+            "filter "
+            "ended it for an action its policy does not allow. Nothing was imported.",
+            report);
+    }
     if (run.kind == RunResult::Stopped) {
         QJsonObject report = envelope;
         report["helper"] = QJsonObject{{"completed", false}, {"stop", run.reason}, {"phase", run.phase}, {"logTail", run.logTail}};

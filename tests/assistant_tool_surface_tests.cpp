@@ -163,6 +163,12 @@ int main(int argc, char **argv) {
             QStringList found;
             discriminators(request["tools"], found);
             check(!found.isEmpty(), name + ": discriminators found");
+            // R100.f1 (ADR 0174 decision 9): the edge stroke stays off every assistant schema, so
+            // the pinned bytes below do not move when the shared style schema gains it.
+            check(!QJsonDocument(request["tools"].toArray())
+                       .toJson(QJsonDocument::Compact)
+                       .contains("edgeStroke"),
+                  name + ": assistant sees the edge stroke");
             for (const auto &entry : found)
                 check(!isDrawing(entry) &&
                           (!isSiteOrTerrain(entry) || terrainVisible.contains(entry)) &&
@@ -266,6 +272,11 @@ int main(int argc, char **argv) {
                   "terrain.set_display", "terrain.explode"})
                 check(nested.contains(command),
                       std::string("MCP transaction.apply accepts ") + command);
+            // R100.f1: MCP's document.style takes the optional edge stroke.
+            check(QJsonDocument(commandDescription("document.style"))
+                      .toJson(QJsonDocument::Compact)
+                      .contains("edgeStroke"),
+                  "MCP document.style accepts the edge stroke");
         }
         // R100.b2: MCP's material commands take the texture size. They are nested in the
         // transaction tools' schemas, so count the field across every MCP tool.

@@ -26,6 +26,7 @@ const PanelTab kTabs[] = {
     {"Tags", "view.tags", "Tags and folders"},
     {"Info", "view.info", "Entity info"},
     {"Materials", "view.materials", "Materials"},
+    {"Quantities", "view.quantities", "Quantities"},
     {"History", "view.history", "History"},
     {"Styles", "view.styles", "Model styles"},
     {"Scenes", "view.scenes", "Saved scenes"},
