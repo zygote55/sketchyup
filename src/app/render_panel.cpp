@@ -1227,6 +1227,10 @@ void RenderPanel::stopBatch() {
     if (impl_->batches)
         impl_->batches->stop();
 }
+PresentationBatches &RenderPanel::batches() {
+    impl_->checkOwner();
+    return impl_->ensureBatches();
+}
 void RenderPanel::refreshProvenance() {
     impl_->checkOwner();
     impl_->refresh();

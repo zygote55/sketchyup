@@ -1,4 +1,5 @@
 #pragma once
+#include "app/presentation_batches.hpp"
 #include "app/viewport.hpp"
 #include "core/render_settings.hpp"
 #include "integrations/animation_capture.hpp"
@@ -23,6 +24,7 @@ class RenderPanel : public QObject {
     void showBatchResults(const QString &id);
     bool batchRunning() const;
     void stopBatch();
+    PresentationBatches &batches();
     void refreshProvenance();
     void start(RenderOptions settings, BlenderJob::Options worker, bool currentView);
     void exportAnimation(std::vector<Id> scenes, CameraPathTiming timing, RenderOptions settings,

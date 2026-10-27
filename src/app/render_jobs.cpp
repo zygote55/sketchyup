@@ -279,6 +279,17 @@ void RenderJobsDialog::addBatch(const StoredPresentationJob &job) {
     parent->setExpanded(true);
     // One child row per preset, in plan order. Presets render one after another (UX_DESIGN 17.6).
     const int fps = std::max(1, job.plan.timing.framesPerSecond);
+    // Presets render in order, and the manifest names a preset's state only once a frame verifies. So
+    // while the batch runs, the first preset not yet complete is the one rendering.
+    const bool live = job.state == PresentationJobState::Running || job.state == PresentationJobState::Canceling;
+    int active = -1;
+    for (int p = 0; live && p < int(job.plan.presets.size()) && p < presets.size(); ++p) {
+        const auto entry = presets.at(p).toObject();
+        if (entry.value("state").toString() != "completed") {
+            active = p;
+            break;
+        }
+    }
     for (int p = 0; p < int(job.plan.presets.size()); ++p) {
         const auto &preset = job.plan.presets[size_t(p)];
         const auto name = preset.name;
@@ -290,7 +301,7 @@ void RenderJobsDialog::addBatch(const StoredPresentationJob &job) {
         bool bar = false;
         if (entry.contains("video")) {
             text = QString("%1 · video written, %2 s").arg(name).arg(double(kept) / fps, 0, 'f', 1);
-        } else if (stateName == "running") {
+        } else if (p == active) {
             text = QString("%1 · frame %2 of %3 · Running").arg(name).arg(kept + 1).arg(planned);
             bar = true;
         } else if (stateName == "completed") {

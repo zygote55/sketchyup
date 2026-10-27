@@ -98,9 +98,10 @@ struct PresentationBatches::Impl {
                                   .arg(manifest.value("totalFrames").toInt());
             emit owner.announced(text);
         }
-        for (const auto &value : presets) {
-            const auto preset = value.toObject();
-            const auto name = preset.value("directory").toString();
+        // The preset's name, not its folder, is what a screen reader hears.
+        for (int p = 0; p < presets.size() && p < int(job.plan.presets.size()); ++p) {
+            const auto preset = presets.at(p).toObject();
+            const auto name = job.plan.presets[size_t(p)].name;
             if (preset.value("state").toString() == "completed" &&
                 !announcedPresets.contains(name)) {
                 announcedPresets.insert(name);
@@ -259,17 +260,21 @@ QString PresentationBatches::summary() {
     for (const auto &[id, job] : impl_->store->jobs()) {
         if (job.state != PresentationJobState::Running && job.state != PresentationJobState::Canceling)
             continue;
+        // Presets render in order; the first one not yet complete is the one rendering (the manifest
+        // names it only once one of its frames verifies).
         const auto manifest = presentationManifest(job.output);
         const auto total = manifest.value("framesPerPreset").toInt();
-        for (const auto &value : manifest.value("presets").toArray()) {
-            const auto preset = value.toObject();
-            if (preset.value("state").toString() == "running")
-                return QString("Batch %1 · %2 %3 of %4")
-                    .arg(job.plan.path, preset.value("directory").toString())
-                    .arg(preset.value("frames").toArray().size())
-                    .arg(total);
+        const auto presets = manifest.value("presets").toArray();
+        for (int p = 0; p < presets.size() && p < int(job.plan.presets.size()); ++p) {
+            const auto preset = presets.at(p).toObject();
+            if (preset.value("state").toString() == "completed")
+                continue;
+            return QString("Batch %1 · %2 %3 of %4")
+                .arg(job.plan.path, job.plan.presets[size_t(p)].name)
+                .arg(preset.value("frames").toArray().size())
+                .arg(total);
         }
-        return QString("Batch %1 · starting").arg(job.plan.path);
+        return QString("Batch %1 · encoding video").arg(job.plan.path);
     }
     return {};
 }

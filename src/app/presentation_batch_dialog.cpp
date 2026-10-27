@@ -141,6 +141,7 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     outer->addLayout(columns_, 1);
     auto *left = new QVBoxLayout;
     auto *leftPane = new QWidget;
+    leftPane->setObjectName("batchLeft");
     leftPane->setLayout(left);
     columns_->addWidget(leftPane, 3);
 
@@ -265,6 +266,7 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     // The live budget (§17.4), on the right.
     auto *right = new QVBoxLayout;
     auto *rightPane = new QWidget;
+    rightPane->setObjectName("batchRight");
     rightPane->setLayout(right);
     columns_->addWidget(rightPane, 2);
     auto *budgetHeading = new QLabel("What the batch will do");

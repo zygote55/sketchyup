@@ -1600,6 +1600,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME presentation_input COMMAND presentation_input_tests)
     set_tests_properties(presentation_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                     TIMEOUT 600)
+    # R099.d3 (UX_DESIGN 17.4 to 17.10, 17.12): the batch dialog, the Jobs batch rows, the results sheet
+    # and the quit prompt, offscreen. Blender is blender_job_tests run as the worker (its --fake modes),
+    # so that binary sits beside this one.
+    add_executable(presentation_batch_input_tests tests/presentation_batch_input_tests.cpp)
+    target_link_libraries(presentation_batch_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(presentation_batch_input_tests PRIVATE tests)
+    add_dependencies(presentation_batch_input_tests blender_job_tests)
+    add_test(NAME presentation_batch_input COMMAND presentation_batch_input_tests)
+    set_tests_properties(presentation_batch_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                          TIMEOUT 900)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.
