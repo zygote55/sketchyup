@@ -63,7 +63,7 @@ sandbox::Policy ifcSandboxPolicy(const IfcSandboxScope& scope) {
         {"mprotect", Action::allow},
         {"madvise", Action::allow},
         {"munmap", Action::allow},
-        {"mremap", Action::allow},  // no trace reaches it: kept for large buffers, as ADR 0183 section 6.9 notes for the SKP helper
+        {"mremap", Action::allow},  // no trace reaches it: kept for large buffers (the SKP helper's note in ADR 0183)
         // threads: a thread, or a fork-like child for the diagnosis (decision 5); clone3 is ENOSYS so that glibc falls
         // back to clone; a child in a new namespace is EPERM
         {"clone", Action::forkOrThread},
@@ -96,6 +96,15 @@ sandbox::Policy ifcSandboxPolicy(const IfcSandboxScope& scope) {
         {"socketpair", Action::denied},
         {"bind", Action::denied},
         {"connect", Action::denied},
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+        // The sanitizer builds (ASan and UBSan, the global flag of the top CMakeLists.txt): their runtimes make these calls
+        // after main. UBSan's type cache opens a pipe on a first-time vptr check; ASan gives each thread an alternate signal
+        // stack and reads the affinity of the thread pool; a release helper does not carry them (ADR 0183 section 5).
+        {"pipe2", Action::allow},
+        {"sigaltstack", Action::allow},
+        {"sched_getaffinity", Action::allow},
+        {"fcntl", Action::allow},
+#endif
         // no exec, no ptrace, no other clone flags: a call not listed here kills the helper (ADR 0183 section 5)
     };
     return policy;
