@@ -1457,7 +1457,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R101 — Add quantities, reports and schedules
 
-**Status:** Planned; design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). Slices R101.a–f; R101.a (merged, #450): the report engine, the request model with its refusals, the counting pass (§2), units, precision and the revision stamp, the session `report.run` query kept off the assistant, and the Q1–Q4 fixtures with checks V1–V4, V6, V8 and V9 (ADR 0175 §1–§4, §11; implementation notes R101.a). R101.b (merged, #452): the CSV file of record and the JSON form (§6), `sketchyup-cli --report` without the schedule flags (§8), the quantities-a fixture with hash-pinned goldens (V10), the CLI and session parity (V12), and the budgets of §12 confirmed in a Release build on quantities-b (implementation notes R101.b). R101.c (merged, #453): the user-level schedule store keyed by document identity (§7, option b), save, describe and delete with the identity guard and the stale-ID refusal, no document schema change (V11), the flags `--schedule`, `--list-schedules`, `--save-schedule` and `--delete-schedule` (§8), and the session `report.schedule` kept off the assistant (implementation notes R101.c). R101.d (this PR, awaiting merge): `report.run` and `report.schedule` on MCP under their registry names, with no `reports.*` alias, parity with the session, the refusals, store isolation, and the assistant still off (ADR 0175 §9; implementation notes R101.d). R101.e–f (desktop, acceptance record) are planned. **Track:** Automation. **Scope:** F07. **UX:** —.
+**Status:** Planned; design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). Slices R101.a–f; R101.a (merged, #450): the report engine, the request model with its refusals, the counting pass (§2), units, precision and the revision stamp, the session `report.run` query kept off the assistant, and the Q1–Q4 fixtures with checks V1–V4, V6, V8 and V9 (ADR 0175 §1–§4, §11; implementation notes R101.a). R101.b (merged, #452): the CSV file of record and the JSON form (§6), `sketchyup-cli --report` without the schedule flags (§8), the quantities-a fixture with hash-pinned goldens (V10), the CLI and session parity (V12), and the budgets of §12 confirmed in a Release build on quantities-b (implementation notes R101.b). R101.c (merged, #453): the user-level schedule store keyed by document identity (§7, option b), save, describe and delete with the identity guard and the stale-ID refusal, no document schema change (V11), the flags `--schedule`, `--list-schedules`, `--save-schedule` and `--delete-schedule` (§8), and the session `report.schedule` kept off the assistant (implementation notes R101.c). R101.d (merged, #455): `report.run` and `report.schedule` on MCP under their registry names, with no `reports.*` alias, parity with the session, the refusals, store isolation, and the assistant still off (ADR 0175 §9; implementation notes R101.d). R101.e–f (desktop, acceptance record) are planned. **Track:** Automation. **Scope:** F07. **UX:** [UX_DESIGN §19](UX_DESIGN.md#19-quantities-and-schedules) (approved by the owner on 2026-10-27).
 
 **Requires:** [R089](#r089), [R060](#r060); milestone gate rule above.
 
@@ -1481,7 +1481,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R103 — Investigate and conditionally implement Ruby extension compatibility
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Automation. **Scope:** C02. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0177](decisions/0177-ruby-extension-feasibility.md), accepted: not viable for 1.x; C02 stays unsupported). **Track:** Automation. **Scope:** C02. **UX:** —.
 
 **Requires:** [R089](#r089), [R080](#r080); milestone gate rule above.
 
@@ -1493,7 +1493,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R104 — Investigate Dynamic and Live Component interoperability
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C03. **UX:** —.
+**Status:** Design accepted ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md), owner decisions 1–5, 7 and 9 approved 2026-10-27): Dynamic Component attributes imported as read-only metadata (R104.a, with self-authored fixtures), Live Components labelled service-dependent with a no-network test (R104.c), and the public wording (R104.d) next; formula mapping (R104.b) deferred indefinitely. **Track:** Interchange. **Scope:** C03. **UX:** —.
 
 **Requires:** [R094](#r094), [R102](#r102); milestone gate rule above.
 
@@ -1505,7 +1505,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R105 — Investigate supported hosted asset access
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C04. **UX:** —.
+**Status:** Design accepted ([ADR 0179](decisions/0179-hosted-asset-access-feasibility.md), owner decisions 2026-10-27): user-mediated downloads only for 1.x (R105.a: the user guide page and named refusals for `.zip`, `.dae`, `.usdz` and `.fbx`) next; the Poly Haven CC0 adapter and its cache (R105.b, R105.c) approved as design only, after 1.x; Sketchfab (R105.d) deferred; network stance N1–N9 adopted. **Track:** Interchange. **Scope:** C04. **UX:** —.
 
 **Requires:** [R089](#r089), [R079](#r079); milestone gate rule above.
 
@@ -1517,7 +1517,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R106 — Deliver DWG support only after feasibility passes
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C05. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0180](decisions/0180-dwg-feasibility.md), accepted: DWG import not needed; DWG stays unsupported, DXF unchanged). **Track:** Interchange. **Scope:** C05. **UX:** —.
 
 **Requires:** [R089](#r089), [R005](#r005), [R077](#r077); milestone gate rule above.
 
