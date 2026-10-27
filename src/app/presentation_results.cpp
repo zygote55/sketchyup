@@ -20,14 +20,12 @@ namespace {
 
 QString frameText(int index) { return QString("frame %1").arg(index + 1, 4, 10, QChar('0')); }
 
-QString bold(const QString &text) {
-    return QString("<b>%1</b>").arg(text.toHtmlEscaped());
-}
+QString bold(const QString &text) { return QString("<b>%1</b>").arg(text.toHtmlEscaped()); }
 
 } // namespace
 
-PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batches, const QString &id,
-                                                     QWidget *parent)
+PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batches,
+                                                     const QString &id, QWidget *parent)
     : QDialog(parent), batches_(batches), id_(id) {
     setObjectName("presentationResults");
     setWindowTitle("Presentation results");
@@ -52,8 +50,8 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
     const auto manifest = presentationManifest(job.output);
     const auto presets = manifest.value("presets").toArray();
     const bool completed = job.state == PresentationJobState::Completed;
-    const bool running = job.state == PresentationJobState::Running ||
-                         job.state == PresentationJobState::Canceling;
+    const bool running =
+        job.state == PresentationJobState::Running || job.state == PresentationJobState::Canceling;
     const bool unchanged = batches_.modelUnchanged(job);
     int videos = 0;
     for (const auto &value : presets)
@@ -62,9 +60,10 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
     const int totalFrames = manifest.value("totalFrames").toInt();
 
     // The title, with its state as a word (UX_DESIGN 17.10: never colour alone).
-    auto *title = new QLabel(QString("%1 · presentation results %2")
-                                 .arg(bold(job.plan.path))
-                                 .arg(completed ? "<span>✓ Completed</span>" : "<span>⚠ Not finished</span>"));
+    auto *title = new QLabel(
+        QString("%1 · presentation results %2")
+            .arg(bold(job.plan.path))
+            .arg(completed ? "<span>✓ Completed</span>" : "<span>⚠ Not finished</span>"));
     title->setObjectName("resultsTitle");
     title->setTextFormat(Qt::RichText);
     outer->addWidget(title);
@@ -82,14 +81,16 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
     banner_->setWordWrap(true);
     banner_->setTextFormat(Qt::PlainText);
     if (completed)
-        banner_->setText(QString("✓ Completed. %1 presets, %2 frames, %3 %4. %5")
-                             .arg(job.plan.presets.size())
-                             .arg(frames)
-                             .arg(videos)
-                             .arg(videos == 1 ? "video" : "videos")
-                             .arg(unchanged ? "The model is unchanged." : "The model has changed since."));
+        banner_->setText(
+            QString("✓ Completed. %1 presets, %2 frames, %3 %4. %5")
+                .arg(job.plan.presets.size())
+                .arg(frames)
+                .arg(videos)
+                .arg(videos == 1 ? "video" : "videos")
+                .arg(unchanged ? "The model is unchanged." : "The model has changed since."));
     else
-        banner_->setText(QString("⚠ Not finished. %1 Its frames are kept. Resume continues the batch at its first unfinished frame.")
+        banner_->setText(QString("⚠ Not finished. %1 Its frames are kept. Resume continues the "
+                                 "batch at its first unfinished frame.")
                              .arg(job.message));
     outer->addWidget(banner_);
 
@@ -104,11 +105,14 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
     auto *madeHeading = new QLabel(bold("Made from"));
     left->addWidget(madeHeading);
     auto *made = new QFormLayout;
-    const auto device = presets.isEmpty() ? QJsonObject{}
-                                          : presets.first().toObject().value("device").toObject();
-    const QString modelState = unchanged ? QString("model unchanged") : QString("model has changed since");
+    const auto device =
+        presets.isEmpty() ? QJsonObject{} : presets.first().toObject().value("device").toObject();
+    const QString modelState =
+        unchanged ? QString("model unchanged") : QString("model has changed since");
     made->addRow("Model", new QLabel(QString("Revision %1 · %2").arg(job.revision, modelState)));
-    made->addRow("Render", new QLabel(QString("Device %1").arg(device.value("backend").toString("not recorded"))));
+    made->addRow(
+        "Render",
+        new QLabel(QString("Device %1").arg(device.value("backend").toString("not recorded"))));
     made->addRow("Frames", new QLabel(QString("%1 kept of %2").arg(frames).arg(totalFrames)));
     left->addLayout(made);
     left->addWidget(new QLabel(bold("Presets")));
@@ -134,12 +138,13 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
             const auto frameCount = entry.value("frames").toArray().size();
             const auto seconds = fps > 0 ? double(frameCount) / fps : 0.0;
             const auto megabytes = double(QFileInfo(videoPath).size()) / 1000000.0;
-            cardLayout->addWidget(new QLabel(QString("✓ Video %1 s · %2 MP4 · %3 MB")
-                                                 .arg(seconds, 0, 'f', 1)
-                                                 .arg(presentationVideoCodecName(job.plan.videoCodec) == "mpeg4"
-                                                          ? QString("MPEG-4 Part 2")
-                                                          : QString("H.264"))
-                                                 .arg(megabytes, 0, 'f', 1)));
+            cardLayout->addWidget(
+                new QLabel(QString("✓ Video %1 s · %2 MP4 · %3 MB")
+                               .arg(seconds, 0, 'f', 1)
+                               .arg(presentationVideoCodecName(job.plan.videoCodec) == "mpeg4"
+                                        ? QString("MPEG-4 Part 2")
+                                        : QString("H.264"))
+                               .arg(megabytes, 0, 'f', 1)));
             auto *play = new QPushButton("Play video");
             play->setObjectName("resultPlayVideo");
             play->setAccessibleName("Play video, " + preset.name);
@@ -189,8 +194,9 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
     left->addWidget(tree);
     left->addStretch();
 
-    // The right column: the stills grid. Rows are the keyframes in path order, and columns the presets,
-    // so each still is a frame flagged as a keyframe in its own preset's sequence (ADR 0173 §4).
+    // The right column: the stills grid. Rows are the keyframes in path order, and columns the
+    // presets, so each still is a frame flagged as a keyframe in its own preset's sequence (ADR
+    // 0173 §4).
     auto *right = new QVBoxLayout;
     auto *rightPane = new QWidget;
     rightPane->setLayout(right);
@@ -215,7 +221,8 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
                 keyframes[size_t(p)].push_back(frame);
         }
     for (int k = 0; k < int(job.plan.keyframes.size()); ++k) {
-        grid->addWidget(new QLabel(QString("%1. %2").arg(k + 1).arg(batches_.sceneName(job.plan.keyframes[size_t(k)]))),
+        grid->addWidget(new QLabel(QString("%1. %2").arg(k + 1).arg(
+                            batches_.sceneName(job.plan.keyframes[size_t(k)]))),
                         k + 1, 0);
         for (int p = 0; p < int(keyframes.size()); ++p) {
             if (size_t(k) >= keyframes[size_t(p)].size()) {
@@ -224,20 +231,23 @@ PresentationResultsDialog::PresentationResultsDialog(PresentationBatches &batche
             }
             const auto frame = keyframes[size_t(p)][size_t(k)];
             const auto text = frameText(frame.value("index").toInt());
-            const auto path = job.output + "/" + presets.at(p).toObject().value("directory").toString() +
-                              "/frames/" + frame.value("file").toString();
+            const auto path = job.output + "/" +
+                              presets.at(p).toObject().value("directory").toString() + "/frames/" +
+                              frame.value("file").toString();
             auto *still = new QPushButton(text);
             still->setObjectName("resultStill");
             still->setAutoDefault(true);
-            still->setAccessibleName(QString("%1, %2, %3").arg(batches_.sceneName(job.plan.keyframes[size_t(k)]),
-                                                              job.plan.presets[p].name, text));
+            still->setAccessibleName(QString("%1, %2, %3")
+                                         .arg(batches_.sceneName(job.plan.keyframes[size_t(k)]),
+                                              job.plan.presets[p].name, text));
             connect(still, &QPushButton::clicked, this,
                     [path] { QDesktopServices::openUrl(QUrl::fromLocalFile(path)); });
             grid->addWidget(still, k + 1, p + 1);
         }
     }
-    auto *note = new QLabel("Each still is the frame flagged as a keyframe in its preset's sequence. "
-                            "Activating a still opens its PNG in the system viewer.");
+    auto *note =
+        new QLabel("Each still is the frame flagged as a keyframe in its preset's sequence. "
+                   "Activating a still opens its PNG in the system viewer.");
     note->setWordWrap(true);
     right->addWidget(note);
 

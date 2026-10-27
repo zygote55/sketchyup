@@ -1,7 +1,7 @@
 #include "app/presentation_batch_dialog.hpp"
 #include "app/viewport.hpp"
-#include "integrations/blender_job.hpp"
 #include "core/presentation_records.hpp"
+#include "integrations/blender_job.hpp"
 #include "io/presentation_io.hpp"
 #include <QBoxLayout>
 #include <QCheckBox>
@@ -40,7 +40,9 @@ constexpr qint64 diskReserve = 256 * mib;
 
 const QStringList cycleBackends{"CPU", "CUDA", "OPTIX", "HIP", "ONEAPI", "METAL"};
 
-QString gib(qint64 bytes) { return QString::number(double(bytes) / double(gibibyte), 'f', 2) + " GiB"; }
+QString gib(qint64 bytes) {
+    return QString::number(double(bytes) / double(gibibyte), 'f', 2) + " GiB";
+}
 
 QString mibText(qint64 bytes) { return QLocale().toString(bytes / mib) + " MiB"; }
 
@@ -130,9 +132,10 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     heading.setPointSizeF(heading.pointSizeF() * 1.3);
     title->setFont(heading);
     outer->addWidget(title);
-    auto *subline = new QLabel("Renders one image sequence per preset along a camera path, into a new "
-                               "folder. The model is not changed. For one set of frames from the "
-                               "current settings, use Export scene animation…");
+    auto *subline =
+        new QLabel("Renders one image sequence per preset along a camera path, into a new "
+                   "folder. The model is not changed. For one set of frames from the "
+                   "current settings, use Export scene animation…");
     subline->setObjectName("batchSubline");
     subline->setWordWrap(true);
     outer->addWidget(subline);
@@ -235,7 +238,8 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     chooseFolder_->setObjectName("batchChooseFolder");
     outputForm->addRow({}, chooseFolder_);
     groupLayout->addLayout(outputForm);
-    folderNote_ = new QLabel("A new folder inside an existing one. An existing folder is never used or changed.");
+    folderNote_ = new QLabel(
+        "A new folder inside an existing one. An existing folder is never used or changed.");
     folderNote_->setObjectName("batchFolderNote");
     folderNote_->setWordWrap(true);
     groupLayout->addWidget(folderNote_);
@@ -281,8 +285,9 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     QLabel *timeValue{}, *timeDetail{};
     right->addWidget(card("Time", "batchTime", timeValue, timeDetail));
     timeValue->setText("Not estimated");
-    timeDetail->setText("Each frame is a separate Blender render. In R099.b's measurement a 1024 × 768 "
-                        "frame at 32 samples took about 26 s on CPU.");
+    timeDetail->setText(
+        "Each frame is a separate Blender render. In R099.b's measurement a 1024 × 768 "
+        "frame at 32 samples took about 26 s on CPU.");
     blenderCard_ = card("Blender", "batchBlender", blenderValue_, blenderDetail_);
     right->addWidget(blenderCard_);
     right->addStretch();
@@ -295,8 +300,9 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     refusal_->hide();
     outer->addWidget(refusal_);
     auto *footer = new QHBoxLayout;
-    footerNote_ = new QLabel("Start checks Blender again, then renders. The batch works from a copy of the "
-                             "model as it is now: no save prompt.");
+    footerNote_ =
+        new QLabel("Start checks Blender again, then renders. The batch works from a copy of the "
+                   "model as it is now: no save prompt.");
     footerNote_->setObjectName("batchFooterNote");
     footerNote_->setWordWrap(true);
     footer->addWidget(footerNote_, 1);
@@ -313,7 +319,8 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     start_->setDefault(true);
     footer->addWidget(start_);
     // Start is the dialog's default, even while it is disabled. A button that is not Start is not
-    // auto-default, so Qt does not give the default to a setup button when Start is disabled (§17.10).
+    // auto-default, so Qt does not give the default to a setup button when Start is disabled
+    // (§17.10).
     for (auto *button : {chooseFolder_, recheckVideo_, chooseBlender_, checkBlender_})
         button->setAutoDefault(false);
     outer->addLayout(footer);
@@ -433,8 +440,7 @@ void PresentationBatchDialog::fillPaths() {
         item->setData(QVariant::fromValue<qulonglong>(id), Qt::UserRole);
         const auto found = broken.find(id);
         if (found != broken.end()) {
-            item->setText(text + " · ✕ broken: " +
-                          brokenReason(found->second, record.keyframes));
+            item->setText(text + " · ✕ broken: " + brokenReason(found->second, record.keyframes));
             item->setEnabled(false);
         } else {
             item->setText(text);
@@ -480,12 +486,14 @@ QString PresentationBatchDialog::presetMismatch(const Choice &selected) const {
         const auto &preset = *doc_.renderPresets().at(id);
         const auto name = QString::fromStdString(preset.name);
         if (isEevee(preset.settings) && backend != "OPENGL")
-            return QString("%1 uses Eevee, which needs the OpenGL device. The batch uses %2. Uncheck %1, "
+            return QString("%1 uses Eevee, which needs the OpenGL device. The batch uses %2. "
+                           "Uncheck %1, "
                            "or choose OPENGL.")
                 .arg(name, backend);
         if (!isEevee(preset.settings) && backend == "OPENGL")
-            return QString("%1 uses Cycles, which needs the CPU or a compute device. The batch uses "
-                           "OPENGL. Uncheck %1, or choose a Cycles device.")
+            return QString(
+                       "%1 uses Cycles, which needs the CPU or a compute device. The batch uses "
+                       "OPENGL. Uncheck %1, or choose a Cycles device.")
                 .arg(name);
     }
     return {};
@@ -540,7 +548,8 @@ void PresentationBatchDialog::probeDevices() {
     }
     const auto found = executable();
     const QFileInfo file(found);
-    blenderMissing_ = found.isEmpty() || !file.isAbsolute() || !file.isFile() || !file.isExecutable();
+    blenderMissing_ =
+        found.isEmpty() || !file.isAbsolute() || !file.isFile() || !file.isExecutable();
     if (blenderMissing_) {
         setBlenderState();
         updateAll();
@@ -575,7 +584,8 @@ void PresentationBatchDialog::devicesFinished() {
         }
         devicesReady_ = device_->count() > 0;
         if (!devicesReady_)
-            blenderFailure_ = "No device is available for this backend. Choose CPU or another backend.";
+            blenderFailure_ =
+                "No device is available for this backend. Choose CPU or another backend.";
     } else {
         blenderFailure_ = "Blender check did not finish. " + report.value("message").toString();
     }
@@ -588,13 +598,16 @@ void PresentationBatchDialog::setBlenderState() {
     setup_->setVisible(problem);
     group_->setEnabled(!problem);
     if (blenderMissing_) {
-        const auto configured = QSettings("SketchyUp", "SketchyUp").value("render/blenderPath").toString();
-        const auto detected = configured.trimmed().isEmpty()
-                                  ? QString("Detected: Not found on PATH")
-                                  : QString("Detected: %1 is not an executable file").arg(configured);
-        setupText_->setText("Presentation batches render each frame with Blender 5.2 LTS and encode video "
-                            "with its FFmpeg. Renders and the one-shot export use the same Blender.\n" +
-                            detected + "\nOn Arch, install the blender package, then check again.");
+        const auto configured =
+            QSettings("SketchyUp", "SketchyUp").value("render/blenderPath").toString();
+        const auto detected =
+            configured.trimmed().isEmpty()
+                ? QString("Detected: Not found on PATH")
+                : QString("Detected: %1 is not an executable file").arg(configured);
+        setupText_->setText(
+            "Presentation batches render each frame with Blender 5.2 LTS and encode video "
+            "with its FFmpeg. Renders and the one-shot export use the same Blender.\n" +
+            detected + "\nOn Arch, install the blender package, then check again.");
     } else if (!blenderFailure_.isEmpty()) {
         setupText_->setText(blenderFailure_ + "\nChoose Blender 5.2 LTS and check again.");
     }
@@ -652,7 +665,8 @@ void PresentationBatchDialog::videoFinished() {
 void PresentationBatchDialog::updatePathNote() const {
     const auto selected = choice();
     if (!doc_.cameraPaths().contains(selected.path)) {
-        pathNote_->setText("Only valid paths are listed; a broken one is shown disabled, with its reason.");
+        pathNote_->setText(
+            "Only valid paths are listed; a broken one is shown disabled, with its reason.");
         return;
     }
     const auto &record = *doc_.cameraPaths().at(selected.path);
@@ -696,10 +710,11 @@ void PresentationBatchDialog::updateVideoState() {
         h264 = answer->codecs.contains("H264");
         mpeg4 = answer->codecs.contains("MPEG4");
     }
-    const auto version = blenderVersion_.isEmpty() ? QString("this Blender") : "Blender " + blenderVersion_;
+    const auto version =
+        blenderVersion_.isEmpty() ? QString("this Blender") : "Blender " + blenderVersion_;
     if (!checking && !notChecked) {
-        // The codec list chooses the video's codec: H.264 by default, and MPEG-4 Part 2 only when H.264
-        // is missing and the owner has chosen it (UX_DESIGN 17.12 choice 1).
+        // The codec list chooses the video's codec: H.264 by default, and MPEG-4 Part 2 only when
+        // H.264 is missing and the owner has chosen it (UX_DESIGN 17.12 choice 1).
         const auto previous = codec_->currentData().isValid() ? codec_->currentData().toInt()
                                                               : int(PresentationVideoCodec::H264);
         QSignalBlocker blocker(codec_);
@@ -707,17 +722,22 @@ void PresentationBatchDialog::updateVideoState() {
         codec_->addItem("H.264", int(PresentationVideoCodec::H264));
         setComboItemEnabled(codec_, 0, h264);
         if (!h264 && mpeg4)
-            codec_->addItem("MPEG-4 Part 2 in MP4 (explicit fallback)", int(PresentationVideoCodec::MPEG4));
+            codec_->addItem("MPEG-4 Part 2 in MP4 (explicit fallback)",
+                            int(PresentationVideoCodec::MPEG4));
         const int restored = codec_->findData(previous);
-        codec_->setCurrentIndex(restored >= 0 && codec_->itemData(restored).isValid() ? restored : (h264 ? 0 : codec_->count() - 1));
+        codec_->setCurrentIndex(restored >= 0 && codec_->itemData(restored).isValid()
+                                    ? restored
+                                    : (h264 ? 0 : codec_->count() - 1));
         const bool chosenH264 = codec_->currentData().toInt() == int(PresentationVideoCodec::H264);
         const bool available = chosenH264 ? h264 : mpeg4;
         if (available) {
             const auto name = chosenH264 ? QString("H.264") : QString("MPEG-4 Part 2");
-            text = QString("✓ %1 available in %2. Each video encode stops after 15:00.").arg(name, version);
+            text = QString("✓ %1 available in %2. Each video encode stops after 15:00.")
+                       .arg(name, version);
             accessible = QString("Video encoder: available, %1").arg(name);
         } else {
-            text = QString("⚠ H.264 is not in this Blender's FFmpeg build. Frames still render; video is off.%1")
+            text = QString("⚠ H.264 is not in this Blender's FFmpeg build. Frames still render; "
+                           "video is off.%1")
                        .arg(mpeg4 ? " MPEG-4 Part 2 is available: choose it under Codec." : "");
             accessible = "Video encoder: unavailable, H.264 not in this Blender";
         }
@@ -738,14 +758,17 @@ void PresentationBatchDialog::updateVideoState() {
         QSignalBlocker blocker(video_);
         video_->setChecked(false);
     }
-    const auto codecName = selected.codec == PresentationVideoCodec::MPEG4 ? QString("MPEG-4 Part 2")
-                                                                           : QString("H.264");
+    const auto codecName = selected.codec == PresentationVideoCodec::MPEG4
+                               ? QString("MPEG-4 Part 2")
+                               : QString("H.264");
     video_->setText(selected.codec == PresentationVideoCodec::MPEG4
                         ? "Write MPEG-4 Part 2 video for each preset (MP4, one per preset)"
                         : "Write H.264 video for each preset (MP4, one per preset)");
     video_->setToolTip(chosenAvailable ? QString() : videoState_->text());
-    blenderDetail_->setText(QString("Video: %1").arg(
-        checking ? QString("checking") : (chosenAvailable ? codecName + " available." : "not available.")));
+    blenderDetail_->setText(
+        QString("Video: %1")
+            .arg(checking ? QString("checking")
+                          : (chosenAvailable ? codecName + " available." : "not available.")));
 }
 
 int PresentationBatchDialog::plannedFrames(const Choice &selected) const {
@@ -811,20 +834,20 @@ void PresentationBatchDialog::updateBudget(const Choice &selected) {
                               .arg(selected.presets.size() == 1 ? "preset" : "presets"));
     const auto ceiling = outputCeiling(selected);
     outputValue_->setText(gib(ceiling));
-    outputDetail_->setText(selected.video
-                               ? "Largest possible, with video: the 2.0 GiB budget caps it."
-                               : "Largest possible; real frames are usually smaller. The batch stops "
-                                 "when its output reaches 2.0 GiB.");
+    outputDetail_->setText(
+        selected.video ? "Largest possible, with video: the 2.0 GiB budget caps it."
+                       : "Largest possible; real frames are usually smaller. The batch stops "
+                         "when its output reaches 2.0 GiB.");
     const auto folder = folder_->text().trimmed();
     const auto where = folder.isEmpty() ? defaultFolder() : QFileInfo(folder).absolutePath();
     const auto available = QStorageInfo(where).bytesAvailable();
     const auto needed = ceiling + diskReserve;
     spaceValue_->setText(gib(available));
-    spaceDetail_->setText(available >= needed
-                              ? QString("Enough: the batch needs about %1, with a 256 MiB reserve.")
-                                    .arg(gib(needed))
-                              : QString("Not enough: the batch needs about %1, with a 256 MiB reserve.")
-                                    .arg(gib(needed)));
+    spaceDetail_->setText(
+        available >= needed
+            ? QString("Enough: the batch needs about %1, with a 256 MiB reserve.").arg(gib(needed))
+            : QString("Not enough: the batch needs about %1, with a 256 MiB reserve.")
+                  .arg(gib(needed)));
     if (blenderMissing_) {
         blenderValue_->setText("Not found");
     } else if (devicesChecking_) {
@@ -882,7 +905,8 @@ void PresentationBatchDialog::updateAll() {
 void PresentationBatchDialog::updateStart() {
     const auto problem = startProblem();
     start_->setEnabled(problem.isEmpty());
-    startLine_->setText(problem.isEmpty() ? QString("Start checks Blender again, then renders.") : problem);
+    startLine_->setText(problem.isEmpty() ? QString("Start checks Blender again, then renders.")
+                                          : problem);
     startLine_->setStyleSheet(problem.isEmpty() ? QString() : QString("color: #9b2c2c;"));
 }
 
@@ -899,9 +923,10 @@ void PresentationBatchDialog::startBatch() {
         return;
     const auto selected = choice();
     const auto batchOptions = options();
-    // Start re-checks the encoder when the Blender changed since the dialog opened (UX_DESIGN 17.5). The
-    // check runs in the background, and the batch starts when its answer arrives. One re-check is
-    // made per Start, so an answer that never arrives cannot start a loop of probes.
+    // Start re-checks the encoder when the Blender changed since the dialog opened
+    // (UX_DESIGN 17.5). The check runs in the background, and the batch starts when its answer
+    // arrives. One re-check is made per Start, so an answer that never arrives cannot start a loop
+    // of probes.
     if (selected.video && !batches_.videoChecks().cached(batchOptions)) {
         if (waiting) {
             showRefusal("The video encoder has not been checked yet. Check again, then Start.");
@@ -912,7 +937,8 @@ void PresentationBatchDialog::startBatch() {
         return;
     }
     try {
-        const auto plan = batches_.planFor(selected.path, selected.presets, selected.video, selected.codec);
+        const auto plan =
+            batches_.planFor(selected.path, selected.presets, selected.video, selected.codec);
         const auto id = batches_.start(plan, folder_->text().trimmed(), batchOptions);
         emit started(id);
         accept();

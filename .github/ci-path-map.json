@@ -265,6 +265,20 @@
       ]
     },
     {
+      "why": "The R099.d3 batch dialog, the Jobs batch rows, the results sheet and the quit prompt (UX_DESIGN 17.4 to 17.7, 17.12): the batch controller, the dialog and the results sheet, with the input suite that drives them and the native display lines that run it. The suite links the desktop and runs the fake worker of blender_job_tests, so it runs in the fast tier as well.",
+      "paths": [
+        "tests/presentation_batch_input_tests.cpp",
+        "src/app/presentation_batches.*",
+        "src/app/presentation_batch_dialog.*",
+        "src/app/presentation_results.*",
+        "src/app/render_jobs.*"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
       "why": "The R097.e1 import screens suite (ADR 0171), its R098.a3 STEP twin (ADR 0172), the R102.c SketchUp twin (ADR 0176) the R097.e2 export screens suite (ADR 0171) and its R098.c2 STEP export twin (ADR 0172 section 8): the options dialog, the progress sheet, the report and the refusal and unavailable sheets, offscreen and driven by a stand-in helper. They link the desktop but not the IFC library, so they run in the fast tier (build and the native display lines) as well as the IFC job the generic IFC rule selects.",
       "paths": [
         "tests/ifc_import_dialog_tests.cpp",

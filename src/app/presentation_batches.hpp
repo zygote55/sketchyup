@@ -1,8 +1,8 @@
 #pragma once
 // R099.d3 (UX_DESIGN §17.4 to §17.7, §17.10; ADR 0173 §4, §7): the desktop's presentation batches.
 // It owns the job store, the batch engine and the video probe cache, and it holds no widgets. The
-// batch dialog, the Jobs list, the results sheet and the quit prompt all go through it. The store is
-// opened on first use, so a window that never shows batches creates no folder.
+// batch dialog, the Jobs list, the results sheet and the quit prompt all go through it. The store
+// is opened on first use, so a window that never shows batches creates no folder.
 #include "core/model.hpp"
 #include "integrations/blender_job.hpp"
 #include "integrations/presentation_batch.hpp"
@@ -21,18 +21,18 @@ QJsonObject presentationManifest(const QString &outputDirectory);
 class PresentationBatches : public QObject {
     Q_OBJECT
   public:
-    // `directory` is the private job store. The desktop passes its app data folder; tests pass a temp
-    // folder, so no user data is read or written.
+    // `directory` is the private job store. The desktop passes its app data folder; tests pass a
+    // temp folder, so no user data is read or written.
     PresentationBatches(Document &document, QString directory, QObject *parent = nullptr);
     ~PresentationBatches() override;
     // The plan of one camera path and its presets, as the document holds them now.
     PresentationPlan planFor(Id path, const std::vector<Id> &presets, bool video,
                              PresentationVideoCodec codec) const;
-    // Starts a batch from the document as it is now. A refusal throws before any folder or job exists.
-    QString start(const PresentationPlan &plan, const QString &folder,
-                  BlenderJob::Options options);
-    // Continues a stopped, failed or canceled batch at its first unfinished frame. Its device is the
-    // one its finished frames used; a batch with no finished frame on a device cannot resume.
+    // Starts a batch from the document as it is now. A refusal throws before any folder or job
+    // exists.
+    QString start(const PresentationPlan &plan, const QString &folder, BlenderJob::Options options);
+    // Continues a stopped, failed or canceled batch at its first unfinished frame. Its device is
+    // the one its finished frames used; a batch with no finished frame on a device cannot resume.
     void resume(const QString &id);
     // Cancels the running batch at once, discarding its in-flight frame. Finished frames stay.
     void cancel();
@@ -49,7 +49,8 @@ class PresentationBatches : public QObject {
     std::vector<StoredPresentationJob> jobs();
     // The job was started or resumed by this process, so its document is this model's session.
     bool started(const QString &id) const;
-    // The model is the one the batch captured, unchanged since (the "model has changed since" test).
+    // The model is the one the batch captured, unchanged since (the "model has changed since"
+    // test).
     bool modelUnchanged(const StoredPresentationJob &job) const;
     // A saved scene's name, or a note that the scene no longer exists.
     QString sceneName(Id scene) const;
@@ -61,8 +62,8 @@ class PresentationBatches : public QObject {
   signals:
     // Every change of the store or the running batch.
     void changed();
-    // One sentence per milestone: the start, each finished preset, each written video and each final
-    // state. Never one per frame (UX_DESIGN §17.10).
+    // One sentence per milestone: the start, each finished preset, each written video and each
+    // final state. Never one per frame (UX_DESIGN §17.10).
     void announced(const QString &text);
 
   private:

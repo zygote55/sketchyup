@@ -1857,16 +1857,18 @@ void Window::closeEvent(QCloseEvent *e) {
         e->ignore();
         return;
     }
-    // R099.d3 (UX_DESIGN §17.12 choice 5): a running batch is asked about first. Closing stops it, and
-    // it is left Interrupted and resumable with its finished frames; declining keeps the window open.
-    // The stop waits until the close is certain, so a cancelled close leaves the batch running.
+    // R099.d3 (UX_DESIGN §17.12 choice 5): a running batch is asked about first. Closing stops it,
+    // and it is left Interrupted and resumable with its finished frames; declining keeps the window
+    // open. The stop waits until the close is certain, so a cancelled close leaves the batch
+    // running.
     const bool stopBatch = render_ && render_->batchRunning();
     if (stopBatch) {
         QMessageBox ask(this);
         ask.setObjectName("presentationQuitPrompt");
         ask.setWindowTitle("Presentation batch running");
         ask.setIcon(QMessageBox::Question);
-        ask.setText("Closing stops the batch. Finished frames are kept, and you can resume it later.");
+        ask.setText(
+            "Closing stops the batch. Finished frames are kept, and you can resume it later.");
         auto *close = ask.addButton("Stop batch and close", QMessageBox::AcceptRole);
         auto *keep = ask.addButton("Keep running", QMessageBox::RejectRole);
         ask.setDefaultButton(keep);

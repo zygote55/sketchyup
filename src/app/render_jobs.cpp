@@ -39,11 +39,10 @@ QString elapsedText(qint64 createdMs, qint64 endMs) {
 
 } // namespace
 
-RenderJobsDialog::RenderJobsDialog(RenderQueue &queue,
-                                   std::function<QString(const StoredRenderJob &)> provenance,
-                                   std::function<void(const QString &)> open, QWidget *parent,
-                                   PresentationBatches *batches,
-                                   std::function<QString(const StoredPresentationJob &)> batchProvenance)
+RenderJobsDialog::RenderJobsDialog(
+    RenderQueue &queue, std::function<QString(const StoredRenderJob &)> provenance,
+    std::function<void(const QString &)> open, QWidget *parent, PresentationBatches *batches,
+    std::function<QString(const StoredPresentationJob &)> batchProvenance)
     : QDialog(parent), queue_(queue), provenance_(std::move(provenance)), open_(std::move(open)),
       batches_(batches), batchProvenance_(std::move(batchProvenance)) {
     setObjectName("renderJobs");
@@ -92,8 +91,9 @@ RenderJobsDialog::RenderJobsDialog(RenderQueue &queue,
     auto *footer = new QHBoxLayout;
     clear_ = new QPushButton("Remove all finished jobs");
     clear_->setObjectName("clearStoredRenders");
-    clear_->setToolTip("Renders: deletes captures, logs and images. Batches: deletes records and logs; "
-                       "output folders stay.");
+    clear_->setToolTip(
+        "Renders: deletes captures, logs and images. Batches: deletes records and logs; "
+        "output folders stay.");
     footer->addWidget(clear_);
     footer->addStretch();
     auto *close = new QPushButton("Close");
@@ -155,7 +155,8 @@ void RenderJobsDialog::selectJob(const QString &id) {
     refresh();
     for (int i = 0; i < list_->topLevelItemCount(); ++i) {
         auto *row = list_->topLevelItem(i);
-        if (row->data(0, Qt::UserRole).toString() == id && row->data(0, kindRole).toString() == "batch") {
+        if (row->data(0, Qt::UserRole).toString() == id &&
+            row->data(0, kindRole).toString() == "batch") {
             list_->setCurrentItem(row);
             break;
         }
@@ -254,7 +255,8 @@ void RenderJobsDialog::addBatch(const StoredPresentationJob &job) {
         state = QString("● Canceling · discarding frame %1 of %2").arg(done + 1).arg(total);
         break;
     case PresentationJobState::Completed:
-        state = QString("✓ Completed · %1 presets · %2 frames").arg(job.plan.presets.size()).arg(total);
+        state =
+            QString("✓ Completed · %1 presets · %2 frames").arg(job.plan.presets.size()).arg(total);
         break;
     case PresentationJobState::Canceled:
         state = QString("■ Canceled · %1 of %2 kept, no video").arg(done).arg(total);
@@ -279,9 +281,10 @@ void RenderJobsDialog::addBatch(const StoredPresentationJob &job) {
     parent->setExpanded(true);
     // One child row per preset, in plan order. Presets render one after another (UX_DESIGN 17.6).
     const int fps = std::max(1, job.plan.timing.framesPerSecond);
-    // Presets render in order, and the manifest names a preset's state only once a frame verifies. So
-    // while the batch runs, the first preset not yet complete is the one rendering.
-    const bool live = job.state == PresentationJobState::Running || job.state == PresentationJobState::Canceling;
+    // Presets render in order, and the manifest names a preset's state only once a frame verifies.
+    // So while the batch runs, the first preset not yet complete is the one rendering.
+    const bool live =
+        job.state == PresentationJobState::Running || job.state == PresentationJobState::Canceling;
     int active = -1;
     for (int p = 0; live && p < int(job.plan.presets.size()) && p < presets.size(); ++p) {
         const auto entry = presets.at(p).toObject();
@@ -328,15 +331,18 @@ void RenderJobsDialog::addBatch(const StoredPresentationJob &job) {
             progress->setRange(0, std::max(1, planned));
             progress->setValue(kept);
             progress->setTextVisible(false);
-            progress->setAccessibleName(QString("%1, frame %2 of %3").arg(name).arg(kept + 1).arg(planned));
+            progress->setAccessibleName(
+                QString("%1, frame %2 of %3").arg(name).arg(kept + 1).arg(planned));
             list_->setItemWidget(child, 1, progress);
         } else {
             const auto device = entry.value("device").toObject();
-            child->setText(1, QString("%1 × %2 · %3 samples%4")
-                                  .arg(preset.settings.width)
-                                  .arg(preset.settings.height)
-                                  .arg(preset.settings.samples)
-                                  .arg(device.isEmpty() ? QString() : " · " + device.value("backend").toString()));
+            child->setText(1,
+                           QString("%1 × %2 · %3 samples%4")
+                               .arg(preset.settings.width)
+                               .arg(preset.settings.height)
+                               .arg(preset.settings.samples)
+                               .arg(device.isEmpty() ? QString()
+                                                     : " · " + device.value("backend").toString()));
         }
     }
 }
@@ -348,11 +354,16 @@ void RenderJobsDialog::selection() {
     openButton_->setText(batch ? "Show results…" : "Open image");
     cancel_->setText(batch ? "Cancel batch" : "Cancel");
     retry_->setText(batch ? "Resume" : "Retry capture");
-    cancel_->setToolTip(batch ? "Stops the frame in progress and discards it. Finished frames stay." : QString());
-    retry_->setToolTip(batch ? "Continues at the first unfinished frame. Frames already kept are not rendered again."
-                             : QString());
-    remove_->setToolTip(batch ? "Removes this job's record and log. Your frames and videos stay in the output folder."
+    cancel_->setToolTip(batch ? "Stops the frame in progress and discards it. Finished frames stay."
                               : QString());
+    retry_->setToolTip(
+        batch
+            ? "Continues at the first unfinished frame. Frames already kept are not rendered again."
+            : QString());
+    remove_->setToolTip(
+        batch
+            ? "Removes this job's record and log. Your frames and videos stay in the output folder."
+            : QString());
     folder_->setVisible(batch);
     openButton_->setEnabled(false);
     cancel_->setEnabled(false);
@@ -386,7 +397,8 @@ void RenderJobsDialog::selectionBatch(const QString &id) {
         QString device = "not recorded";
         for (const auto &value : manifest.value("presets").toArray()) {
             const auto entry = value.toObject();
-            kept << QString("%1 %2").arg(entry.value("directory").toString())
+            kept << QString("%1 %2")
+                        .arg(entry.value("directory").toString())
                         .arg(entry.value("frames").toArray().size());
             if (device == "not recorded" && entry.contains("device"))
                 device = entry.value("device").toObject().value("backend").toString() + " / " +
@@ -398,13 +410,14 @@ void RenderJobsDialog::selectionBatch(const QString &id) {
                            .arg(preset.settings.width)
                            .arg(preset.settings.height)
                            .arg(preset.settings.samples);
-        const auto captured = QDateTime::fromMSecsSinceEpoch(job.createdMs).toLocalTime().toString(Qt::ISODate);
-        const auto text = (batchProvenance_ ? batchProvenance_(job) : QString()) + "\nCaptured " + captured +
-                          "\nOutput: " + job.output + "\nPresets: " + presets.join("; ") +
-                          "\nDevice: " + device + "\nFrames kept: " + kept.join(", ") +
-                          "\nCapture: " + job.captureSha256.left(12) + "… (the model as it was at revision " +
-                          job.revision + ")\n" + job.message + "\n\n" +
-                          QString::fromUtf8(QJsonDocument(manifest).toJson());
+        const auto captured =
+            QDateTime::fromMSecsSinceEpoch(job.createdMs).toLocalTime().toString(Qt::ISODate);
+        const auto text =
+            (batchProvenance_ ? batchProvenance_(job) : QString()) + "\nCaptured " + captured +
+            "\nOutput: " + job.output + "\nPresets: " + presets.join("; ") + "\nDevice: " + device +
+            "\nFrames kept: " + kept.join(", ") + "\nCapture: " + job.captureSha256.left(12) +
+            "… (the model as it was at revision " + job.revision + ")\n" + job.message + "\n\n" +
+            QString::fromUtf8(QJsonDocument(manifest).toJson());
         if (details_->toPlainText() != text)
             details_->setPlainText(text);
         return;

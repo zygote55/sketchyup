@@ -1587,9 +1587,9 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          "Esc closes it. The model is empty here, so the editor's controls are disabled."});
     // ------------------------------------------------- presentation batches ----------
-    // R099.d3 (UX_DESIGN §17.1, §17.4, §17.10): the batch dialog, opened from the palette or from the
-    // render sheet's button. It is modal. Start is the default, but it is disabled until the path, the
-    // presets, the folder and Blender are valid, so Enter does nothing here. Esc cancels.
+    // R099.d3 (UX_DESIGN §17.1, §17.4, §17.10): the batch dialog, opened from the palette or from
+    // the render sheet's button. It is modal. Start is the default, but it is disabled until the
+    // path, the presets, the folder and Blender are valid, so Enter does nothing here. Esc cancels.
     // presentation_batch_input_tests drives it.
     add({"presentation-batch",
          "presentations",

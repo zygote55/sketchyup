@@ -113,11 +113,12 @@ struct RenderPanel::Impl {
     QPlainTextEdit *logs{};
     QPointer<BlenderJob> probe, handoff;
     std::unique_ptr<RenderQueue> queue;
-    // R099.d3: the presentation batches. The store opens on first use, so none is made until a batch
-    // dialog starts a batch or the Jobs list asks for them.
+    // R099.d3: the presentation batches. The store opens on first use, so none is made until a
+    // batch dialog starts a batch or the Jobs list asks for them.
     std::unique_ptr<PresentationBatches> batches;
     QPointer<PresentationBatchDialog> batchDialog;
-    // The status chip's batch text, and whether its click opens a batch's results (after the batch).
+    // The status chip's batch text, and whether its click opens a batch's results (after the
+    // batch).
     QString batchChip;
     QString batchChipJob;
     QPointer<RenderJobsDialog> jobsDialog;
@@ -320,7 +321,8 @@ struct RenderPanel::Impl {
             batchDialog = batch;
             QObject::connect(batch, &PresentationBatchDialog::started, &owner,
                              [this](const QString &id) { showJobsFor(id); });
-            // open() returns at once: the dialog never waits on a nested event loop (UX_DESIGN 17.5).
+            // open() returns at once: the dialog never waits on a nested event loop
+            // (UX_DESIGN 17.5).
             batch->open();
         } catch (const std::exception &error) {
             status = "Presentation batch unavailable";
@@ -590,12 +592,13 @@ struct RenderPanel::Impl {
         layout->addWidget(animationButton);
         QObject::connect(animationButton, &QPushButton::clicked, &owner,
                          [this] { chooseAnimation(); });
-        // R099.d2 (UX_DESIGN §17.1, §17.9): the batch's button sits beside the one-shot export, which is
-        // unchanged. Its dialog is the batch dialog (R099.d3).
+        // R099.d2 (UX_DESIGN §17.1, §17.9): the batch's button sits beside the one-shot export,
+        // which is unchanged. Its dialog is the batch dialog (R099.d3).
         auto *batchButton = new QPushButton("Export presentation batch…");
         batchButton->setObjectName("exportPresentationBatch");
-        batchButton->setToolTip("Renders several named presets of a camera path, with an optional video "
-                                "and resume. For one set of frames, use Export scene animation above.");
+        batchButton->setToolTip(
+            "Renders several named presets of a camera path, with an optional video "
+            "and resume. For one set of frames, use Export scene animation above.");
         batchButton->setAccessibleDescription(batchButton->toolTip());
         layout->addWidget(batchButton);
         QObject::connect(batchButton, &QPushButton::clicked, &owner, [this] { showBatchDialog(); });

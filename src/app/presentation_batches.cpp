@@ -113,7 +113,8 @@ struct PresentationBatches::Impl {
             }
         }
         if (state != announcedState && job.state != PresentationJobState::Running &&
-            job.state != PresentationJobState::Canceling && job.state != PresentationJobState::Queued) {
+            job.state != PresentationJobState::Canceling &&
+            job.state != PresentationJobState::Queued) {
             switch (job.state) {
             case PresentationJobState::Completed:
                 emit owner.announced(QString("Batch completed: %1.").arg(path));
@@ -258,10 +259,11 @@ QString PresentationBatches::summary() {
     if (!impl_->store)
         return {};
     for (const auto &[id, job] : impl_->store->jobs()) {
-        if (job.state != PresentationJobState::Running && job.state != PresentationJobState::Canceling)
+        if (job.state != PresentationJobState::Running &&
+            job.state != PresentationJobState::Canceling)
             continue;
-        // Presets render in order; the first one not yet complete is the one rendering (the manifest
-        // names it only once one of its frames verifies).
+        // Presets render in order; the first one not yet complete is the one rendering (the
+        // manifest names it only once one of its frames verifies).
         const auto manifest = presentationManifest(job.output);
         const auto total = manifest.value("framesPerPreset").toInt();
         const auto presets = manifest.value("presets").toArray();

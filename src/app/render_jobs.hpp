@@ -13,7 +13,8 @@ class QTreeWidgetItem;
 namespace sketchy {
 
 // The Jobs list (UX_DESIGN §9, §17.6): the render jobs and the presentation batches. A batch is one
-// parent row with one child row per preset. Renders read RenderQueue; batches read PresentationBatches.
+// parent row with one child row per preset. Renders read RenderQueue; batches read
+// PresentationBatches.
 class RenderJobsDialog : public QDialog {
     Q_OBJECT
   public:

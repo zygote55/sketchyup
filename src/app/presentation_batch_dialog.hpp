@@ -1,9 +1,9 @@
 #pragma once
-// R099.d3 (UX_DESIGN §17.4, §17.5, §17.8, §17.10): the batch dialog. It chooses a camera path, up to
-// four presets of one device family, a device, a new folder and, optionally, a video. On the right it
-// shows the live budget and whether Start is possible, with the reason. Start is the only action that
-// starts a batch, and it re-checks Blender and the video encoder first. The dialog never runs a nested
-// event loop: its probes report through signals.
+// R099.d3 (UX_DESIGN §17.4, §17.5, §17.8, §17.10): the batch dialog. It chooses a camera path, up
+// to four presets of one device family, a device, a new folder and, optionally, a video. On the
+// right it shows the live budget and whether Start is possible, with the reason. Start is the only
+// action that starts a batch, and it re-checks Blender and the video encoder first. The dialog
+// never runs a nested event loop: its probes report through signals.
 #include "app/presentation_batches.hpp"
 #include "core/model.hpp"
 #include <QDialog>
@@ -32,7 +32,8 @@ class PresentationBatchDialog : public QDialog {
     ~PresentationBatchDialog() override;
     // The reason Start is disabled, or empty when it can start (the first failing rule of §17.4).
     QString startProblem() const;
-    // Whether the video encoder check's answer for the chosen Blender is known and says it can encode.
+    // Whether the video encoder check's answer for the chosen Blender is known and says it can
+    // encode.
     bool videoAvailable() const;
 
   signals:
@@ -71,12 +72,14 @@ class PresentationBatchDialog : public QDialog {
     bool devicesReady_{}, devicesChecking_{}, videoChecking_{}, pendingStart_{};
     bool blenderMissing_{};
     QString blenderFailure_;
-    // The folder the dialog suggested, so a path change replaces it and never a folder typed by hand.
+    // The folder the dialog suggested, so a path change replaces it and never a folder typed by
+    // hand.
     QString suggestion_;
 
     Choice choice() const;
     BlenderJob::Options options() const;
-    // Blender options for a device probe: the device is not chosen, so the probe names only the list.
+    // Blender options for a device probe: the device is not chosen, so the probe names only the
+    // list.
     BlenderJob::Options probeOptions() const;
     QString executable() const;
     void fillPaths();

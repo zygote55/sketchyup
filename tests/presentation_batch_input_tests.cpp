@@ -1,7 +1,8 @@
 // R099.d3 (UX_DESIGN §17.4 to §17.8, §17.10, §17.12): the batch dialog, the Jobs rows for batches,
 // the results sheet and the quit prompt, driven the way a person drives them. Blender is a fake: a
-// launcher script runs blender_job_tests as the worker, so the probe, the frames and the encode behave
-// as the worker does. Every file is made in a temporary folder; HOME and the XDG folders point there.
+// launcher script runs blender_job_tests as the worker, so the probe, the frames and the encode
+// behave as the worker does. Every file is made in a temporary folder; HOME and the XDG folders
+// point there.
 #include "app/presentation_batch_dialog.hpp"
 #include "app/presentation_batches.hpp"
 #include "app/presentation_results.hpp"
@@ -15,13 +16,13 @@
 #include "io/scenes_io.hpp"
 #include <QAction>
 #include <QApplication>
-#include <QComboBox>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDialog>
 #include <QDir>
 #include <QFile>
-#include <QFileInfo>
 #include <QFileDevice>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -55,8 +56,8 @@ void checkText(const QString &actual, const QString &expected, const char *messa
 
 QWidget *focused() { return QApplication::focusWidget(); }
 
-// Makes `dialog` the active window and gives `first` focus, as the first Tab of a keyboard user would
-// find it. Offscreen, nothing gives focus back on its own.
+// Makes `dialog` the active window and gives `first` focus, as the first Tab of a keyboard user
+// would find it. Offscreen, nothing gives focus back on its own.
 void focusIn(QWidget *dialog, QWidget *first) {
     QApplication::setActiveWindow(dialog);
     dialog->activateWindow();
@@ -102,7 +103,8 @@ void answerPrompt(const QString &text) {
 }
 
 // A launcher script that runs blender_job_tests as the worker. The probe always answers; a render
-// request answers with `renderMode` ("success", or "hang" to keep a frame running until it is canceled).
+// request answers with `renderMode` ("success", or "hang" to keep a frame running until it is
+// canceled).
 QString launcher(const QTemporaryDir &files, const QString &name, const QString &binary,
                  const QString &renderMode) {
     const auto path = files.filePath(name);
@@ -119,7 +121,9 @@ QString launcher(const QTemporaryDir &files, const QString &name, const QString 
     return path;
 }
 
-void setBlender(const QString &path) { QSettings("SketchyUp", "SketchyUp").setValue("render/blenderPath", path); }
+void setBlender(const QString &path) {
+    QSettings("SketchyUp", "SketchyUp").setValue("render/blenderPath", path);
+}
 
 QLabel *label(QWidget &root, const char *name) {
     auto *found = root.findChild<QLabel *>(name);
@@ -163,44 +167,42 @@ void makeModel(Window &window) {
     QJsonArray keyframes;
     for (const char *name : {"Front", "Entrance", "Side"})
         keyframes.append(QString::number(qulonglong(sceneNamed(doc, name))));
-    view.editPresentations(
-        QJsonArray{QJsonObject{{"command", "camera_path.create"},
-                               {"name", "Tour"},
-                               {"keyframes", keyframes},
-                               {"timing", QJsonObject{{"framesPerSecond", 24},
-                                                      {"transitionSteps", 1},
-                                                      {"holdSteps", 1}}}}},
-        "Create camera path");
-    view.editPresentations(
-        QJsonArray{QJsonObject{{"command", "render_preset.create"},
-                               {"name", "Final"},
-                               {"width", 64},
-                               {"height", 64},
-                               {"samples", 2},
-                               {"seed", 0},
-                               {"engine", "cycles"}},
-                   QJsonObject{{"command", "render_preset.create"},
-                               {"name", "Draft"},
-                               {"width", 96},
-                               {"height", 64},
-                               {"samples", 1},
-                               {"seed", 0},
-                               {"engine", "cycles"}},
-                   QJsonObject{{"command", "render_preset.create"},
-                               {"name", "Preview"},
-                               {"width", 64},
-                               {"height", 64},
-                               {"samples", 1},
-                               {"seed", 0},
-                               {"engine", "eevee"}},
-                   QJsonObject{{"command", "render_preset.create"},
-                               {"name", "Odd"},
-                               {"width", 65},
-                               {"height", 64},
-                               {"samples", 1},
-                               {"seed", 0},
-                               {"engine", "cycles"}}},
-        "Create render presets");
+    view.editPresentations(QJsonArray{QJsonObject{{"command", "camera_path.create"},
+                                                  {"name", "Tour"},
+                                                  {"keyframes", keyframes},
+                                                  {"timing", QJsonObject{{"framesPerSecond", 24},
+                                                                         {"transitionSteps", 1},
+                                                                         {"holdSteps", 1}}}}},
+                           "Create camera path");
+    view.editPresentations(QJsonArray{QJsonObject{{"command", "render_preset.create"},
+                                                  {"name", "Final"},
+                                                  {"width", 64},
+                                                  {"height", 64},
+                                                  {"samples", 2},
+                                                  {"seed", 0},
+                                                  {"engine", "cycles"}},
+                                      QJsonObject{{"command", "render_preset.create"},
+                                                  {"name", "Draft"},
+                                                  {"width", 96},
+                                                  {"height", 64},
+                                                  {"samples", 1},
+                                                  {"seed", 0},
+                                                  {"engine", "cycles"}},
+                                      QJsonObject{{"command", "render_preset.create"},
+                                                  {"name", "Preview"},
+                                                  {"width", 64},
+                                                  {"height", 64},
+                                                  {"samples", 1},
+                                                  {"seed", 0},
+                                                  {"engine", "eevee"}},
+                                      QJsonObject{{"command", "render_preset.create"},
+                                                  {"name", "Odd"},
+                                                  {"width", 65},
+                                                  {"height", 64},
+                                                  {"samples", 1},
+                                                  {"seed", 0},
+                                                  {"engine", "cycles"}}},
+                           "Create render presets");
 }
 
 // The batch dialog's path combo, presets and folder are set by the same keyboard a person uses; the
@@ -222,7 +224,8 @@ QTreeWidget *jobList(Window &window) {
 QTreeWidgetItem *batchRow(QTreeWidget *list, const QString &id) {
     for (int i = 0; i < list->topLevelItemCount(); ++i) {
         auto *row = list->topLevelItem(i);
-        if (row->data(0, Qt::UserRole).toString() == id && row->data(0, Qt::UserRole + 1).toString() == "batch")
+        if (row->data(0, Qt::UserRole).toString() == id &&
+            row->data(0, Qt::UserRole + 1).toString() == "batch")
             return row;
     }
     return nullptr;
@@ -290,10 +293,11 @@ int main(int argc, char **argv) {
             makeModel(window);
             setBlender(success);
 
-            // §17.5: the dialog runs the probes when it opens. The encoder check and the Blender line
-            // arrive later; until they do, Start waits and Write video is disabled.
+            // §17.5: the dialog runs the probes when it opens. The encoder check and the Blender
+            // line arrive later; until they do, Start waits and Write video is disabled.
             auto *dialog = openBatchDialog(window);
-            // Start closes the dialog, which then deletes itself: the test watches it through a pointer.
+            // Start closes the dialog, which then deletes itself: the test watches it through a
+            // pointer.
             QPointer<QDialog> dialogPointer(dialog);
             check(dialog->isModal(), "The batch dialog is modal");
             auto *video = dialog->findChild<QCheckBox *>("batchVideo");
@@ -301,13 +305,17 @@ int main(int argc, char **argv) {
             check(!video->isEnabled() && !start->isEnabled(), "Start waits for the probe");
             checkText(label(*dialog, "batchVideoState")->text(), "Checking the video encoder",
                       "The probe is in progress");
-            waitFor([&] { return label(*dialog, "batchVideoState")->text().contains("available") &&
-                                 label(*dialog, "batchBlenderValue")->text().contains("ready"); },
-                    60000, "The encoder check and the device check arrive");
+            waitFor(
+                [&] {
+                    return label(*dialog, "batchVideoState")->text().contains("available") &&
+                           label(*dialog, "batchBlenderValue")->text().contains("ready");
+                },
+                60000, "The encoder check and the device check arrive");
             checkText(label(*dialog, "batchVideoState")->text(),
                       "✓ H.264 available in Blender 5.2.2. Each video encode stops after 15:00.",
                       "The available state wording");
-            checkText(label(*dialog, "batchBlenderValue")->text(), "Blender 5.2.2 · CPU device ready",
+            checkText(label(*dialog, "batchBlenderValue")->text(),
+                      "Blender 5.2.2 · CPU device ready",
                       "The Blender line names the version and the device");
             check(video->isEnabled(), "Write video is enabled once H.264 is available");
             check(!dialog->findChild<QPushButton *>("batchVideoRecheck")->isVisible(),
@@ -320,7 +328,8 @@ int main(int argc, char **argv) {
             auto *folder = dialog->findChild<QLineEdit *>("batchFolder");
             folder->setText(files.path());
             checkText(label(*dialog, "batchStartLine")->text(),
-                      "Choose a new batch folder that does not exist yet.", "An existing folder is refused");
+                      "Choose a new batch folder that does not exist yet.",
+                      "An existing folder is refused");
             folder->setText(files.path() + "/missing-parent/out");
             checkText(label(*dialog, "batchStartLine")->text(),
                       "Choose a new batch folder within an existing directory.",
@@ -345,17 +354,24 @@ int main(int argc, char **argv) {
             checkText(label(*dialog, "batchPresetNote")->text(),
                       "Off: Final needs the CPU or a compute device, and the device is OPENGL.",
                       "A Cycles preset is off on the OpenGL device");
-            check(!start->isEnabled(), "Start stays disabled while the presets mismatch the device");
+            check(!start->isEnabled(),
+                  "Start stays disabled while the presets mismatch the device");
             // A new backend asks Blender for its devices again, and Start waits for that answer.
             dialog->findChild<QComboBox *>("batchBackend")->setCurrentText("CPU");
-            waitFor([&] { return label(*dialog, "batchBlenderValue")->text().contains("ready") && start->isEnabled(); },
-                    60000, "The device check after a backend change finishes");
+            waitFor(
+                [&] {
+                    return label(*dialog, "batchBlenderValue")->text().contains("ready") &&
+                           start->isEnabled();
+                },
+                60000, "The device check after a backend change finishes");
 
             // The live budget (§17.4): frames, the worst-case ceiling, and "Time: not estimated".
-            checkText(label(*dialog, "batchFramesValue")->text(), "12", "Two presets of six frames");
-            checkText(label(*dialog, "batchTimeDetail")->text(), "Each frame is a separate Blender render.",
-                      "Time is not estimated");
-            checkText(label(*dialog, "batchOutputDetail")->text(), "Largest possible; real frames are usually smaller.",
+            checkText(label(*dialog, "batchFramesValue")->text(), "12",
+                      "Two presets of six frames");
+            checkText(label(*dialog, "batchTimeDetail")->text(),
+                      "Each frame is a separate Blender render.", "Time is not estimated");
+            checkText(label(*dialog, "batchOutputDetail")->text(),
+                      "Largest possible; real frames are usually smaller.",
                       "The output is the largest possible");
 
             // Keyboard only (§17.10): Tab reaches Start, and Enter starts the batch.
@@ -369,28 +385,36 @@ int main(int argc, char **argv) {
             const auto started = onlyJob(window.renderPanel()->batches());
             check(started.plan.presets.size() == 2 && started.plan.keyframes.size() == 3,
                   "The batch has the chosen path and presets");
-            waitFor([&] { return onlyJob(window.renderPanel()->batches()).state ==
-                                     PresentationJobState::Completed; },
-                    120000, "The batch completes");
+            waitFor(
+                [&] {
+                    return onlyJob(window.renderPanel()->batches()).state ==
+                           PresentationJobState::Completed;
+                },
+                120000, "The batch completes");
 
             // §17.6: the Jobs list opened with the batch selected, and its rows say what happened.
             auto *list = jobList(window);
             auto *row = batchRow(list, started.id);
             check(row, "The batch has a parent row");
-            checkText(row->text(0), "✓ Completed · 2 presets · 12 frames", "The parent row names the state");
+            checkText(row->text(0), "✓ Completed · 2 presets · 12 frames",
+                      "The parent row names the state");
             check(row->childCount() == 2, "One child row per preset");
-            checkText(row->child(0)->text(0), "Final · 6 frames finished, no video", "Final's child row");
-            checkText(row->child(1)->text(0), "Draft · 6 frames finished, no video", "Draft's child row");
+            checkText(row->child(0)->text(0), "Final · 6 frames finished, no video",
+                      "Final's child row");
+            checkText(row->child(1)->text(0), "Draft · 6 frames finished, no video",
+                      "Draft's child row");
             checkText(row->text(1), "Revision", "The captured-model column names the revision");
 
             // §17.7: the results sheet is not opened by itself; Show results… opens it.
-            check(!window.findChild<QDialog *>("presentationResults"), "Results do not open by themselves");
+            check(!window.findChild<QDialog *>("presentationResults"),
+                  "Results do not open by themselves");
             list->setCurrentItem(row);
             button(*window.findChild<QDialog *>("renderJobs"), "openStoredRender")->click();
             auto *results = window.findChild<QDialog *>("presentationResults");
             check(results && results->isVisible(), "Show results… opens the results sheet");
             checkText(results->findChild<QLabel *>("resultsBanner")->text(),
-                      "✓ Completed. 2 presets, 12 frames, 0 videos. The model is unchanged.", "The banner");
+                      "✓ Completed. 2 presets, 12 frames, 0 videos. The model is unchanged.",
+                      "The banner");
             check(results->findChildren<QPushButton *>("resultStill").size() == 6,
                   "The stills grid has one cell per keyframe and preset");
             check(results->findChildren<QPushButton *>("resultPlayVideo").isEmpty(),
@@ -401,7 +425,8 @@ int main(int argc, char **argv) {
             list->setCurrentItem(batchRow(list, started.id));
             button(*window.findChild<QDialog *>("renderJobs"), "removeStoredRender")->click();
             check(window.renderPanel()->batches().jobs().empty(), "Remove drops the batch record");
-            check(QFileInfo(started.output).isDir() && QFileInfo(started.output + "/manifest.json").exists(),
+            check(QFileInfo(started.output).isDir() &&
+                      QFileInfo(started.output + "/manifest.json").exists(),
                   "Remove keeps the output folder and its frames");
         }
 
@@ -416,32 +441,36 @@ int main(int argc, char **argv) {
             setBlender(success);
             auto &batches = window.renderPanel()->batches();
             auto *dialog = openBatchDialog(window);
-            waitFor([&] { return label(*dialog, "batchVideoState")->text().contains("available"); }, 60000,
-                    "The encoder check arrives");
-            waitFor([&] { return label(*dialog, "batchBlenderValue")->text().contains("ready"); }, 60000,
-                    "The device check arrives");
+            waitFor([&] { return label(*dialog, "batchVideoState")->text().contains("available"); },
+                    60000, "The encoder check arrives");
+            waitFor([&] { return label(*dialog, "batchBlenderValue")->text().contains("ready"); },
+                    60000, "The device check arrives");
             dialog->findChild<QLineEdit *>("batchFolder")->setText(files.path() + "/with-video");
             dialog->findChild<QCheckBox *>("batchVideo")->setChecked(true);
             dialog->findChild<QPushButton *>("batchStart")->click();
-            waitFor([&] { return !batches.jobs().empty() && batches.jobs().front().state ==
-                                     PresentationJobState::Completed; },
-                    120000, "The video batch completes");
+            waitFor(
+                [&] {
+                    return !batches.jobs().empty() &&
+                           batches.jobs().front().state == PresentationJobState::Completed;
+                },
+                120000, "The video batch completes");
             const auto job = onlyJob(batches);
             window.renderPanel()->showBatchResults(job.id);
             auto *results = window.findChild<QDialog *>("presentationResults");
             check(results, "The results sheet opens");
             check(results->findChildren<QPushButton *>("resultPlayVideo").size() == 2,
                   "Each preset with a written video offers Play video");
-            checkText(results->findChild<QLabel *>("resultsBanner")->text(), "2 videos", "Two videos are counted");
+            checkText(results->findChild<QLabel *>("resultsBanner")->text(), "2 videos",
+                      "Two videos are counted");
             check(QFileInfo(job.output + "/01-Final/video.mp4").isFile() &&
                       QFileInfo(job.output + "/02-Draft/video.mp4").isFile(),
                   "Each video file is written in its preset's folder");
             results->deleteLater();
         }
 
-        // §17.6 Cancel and Resume, and the announcements: one per milestone, never per frame (§17.10).
-        // The batch is started through the controller, so the frames can be made to hang and then be
-        // canceled; the Jobs list drives Cancel and Resume.
+        // §17.6 Cancel and Resume, and the announcements: one per milestone, never per frame
+        // (§17.10). The batch is started through the controller, so the frames can be made to hang
+        // and then be canceled; the Jobs list drives Cancel and Resume.
         {
             isolateStore(files, "store-3");
             Window window;
@@ -455,7 +484,8 @@ int main(int argc, char **argv) {
                              [&](const QString &text) { announced << text; });
             PresentationPlan plan;
             {
-                // The plan of the path and both presets, read from the model as the dialog reads it.
+                // The plan of the path and both presets, read from the model as the dialog reads
+                // it.
                 auto &document = window.document();
                 Id path{}, presetFinal{}, presetDraft{};
                 for (const auto &[id, record] : document.cameraPaths())
@@ -467,7 +497,8 @@ int main(int argc, char **argv) {
                     if (record->name == "Draft")
                         presetDraft = id;
                 }
-                plan = batches.planFor(path, {presetFinal, presetDraft}, false, PresentationVideoCodec::H264);
+                plan = batches.planFor(path, {presetFinal, presetDraft}, false,
+                                       PresentationVideoCodec::H264);
             }
             const auto output = files.filePath("cancel-resume");
             const auto id = batches.start(plan, output, batchOptions(hanging));
@@ -479,16 +510,20 @@ int main(int argc, char **argv) {
             auto *list = jobList(window);
             waitFor([&] { return batchRow(list, id) != nullptr; }, 5000, "The batch has a row");
             list->setCurrentItem(batchRow(list, id));
-            check(button(*jobs, "cancelStoredRender")->isEnabled() && button(*jobs, "cancelStoredRender")->text() == "Cancel batch",
+            check(button(*jobs, "cancelStoredRender")->isEnabled() &&
+                      button(*jobs, "cancelStoredRender")->text() == "Cancel batch",
                   "A running batch offers Cancel batch");
-            check(!button(*jobs, "retryStoredRender")->isEnabled(), "A running batch cannot Resume");
-            check(!button(*jobs, "removeStoredRender")->isEnabled(), "A running batch cannot be removed");
-            check(batchRow(list, id)->child(0)->childCount() == 0 && list->itemWidget(batchRow(list, id)->child(0), 1),
+            check(!button(*jobs, "retryStoredRender")->isEnabled(),
+                  "A running batch cannot Resume");
+            check(!button(*jobs, "removeStoredRender")->isEnabled(),
+                  "A running batch cannot be removed");
+            check(batchRow(list, id)->child(0)->childCount() == 0 &&
+                      list->itemWidget(batchRow(list, id)->child(0), 1),
                   "The running preset has a progress bar");
             // Cancel stops the frame in flight and discards it (§17.6); finished frames stay.
             button(*jobs, "cancelStoredRender")->click();
-            waitFor([&] { return jobNamed(batches, id).state == PresentationJobState::Canceled; }, 20000,
-                    "Cancel ends the batch");
+            waitFor([&] { return jobNamed(batches, id).state == PresentationJobState::Canceled; },
+                    20000, "Cancel ends the batch");
             checkText(batchRow(list, id)->text(0), "■ Canceled · 0 of 12 kept, no video",
                       "The canceled parent row");
             check(button(*jobs, "retryStoredRender")->isEnabled(), "A canceled batch can Resume");
@@ -498,19 +533,22 @@ int main(int argc, char **argv) {
             setBlender(success);
             list->setCurrentItem(batchRow(list, id));
             button(*jobs, "retryStoredRender")->click();
-            waitFor([&] { return jobNamed(batches, id).state == PresentationJobState::Completed; }, 120000,
-                    "Resume completes the batch");
+            waitFor([&] { return jobNamed(batches, id).state == PresentationJobState::Completed; },
+                    120000, "Resume completes the batch");
             checkText(batchRow(list, id)->text(0), "✓ Completed", "The resumed batch is complete");
             check(announced.count() >= 3, "Announcements name the start, each preset and the end");
             check(announced.count() <= 8, "Announcements never come once per frame");
-            checkText(announced.join("\n"), "Batch started: Tour, 2 presets, 12 frames", "The start is announced");
-            checkText(announced.join("\n"), "Frames finished for Final.", "A finished preset is announced by name");
-            checkText(announced.join("\n"), "Batch completed: Tour.", "The completion is announced");
+            checkText(announced.join("\n"), "Batch started: Tour, 2 presets, 12 frames",
+                      "The start is announced");
+            checkText(announced.join("\n"), "Frames finished for Final.",
+                      "A finished preset is announced by name");
+            checkText(announced.join("\n"), "Batch completed: Tour.",
+                      "The completion is announced");
             (void)id;
         }
 
-        // §17.12 choice 5: closing with a batch running asks first. Declining keeps the batch and the
-        // window; confirming stops the batch, which is left Interrupted and resumable.
+        // §17.12 choice 5: closing with a batch running asks first. Declining keeps the batch and
+        // the window; confirming stops the batch, which is left Interrupted and resumable.
         {
             isolateStore(files, "store-4");
             Window window;
@@ -540,7 +578,8 @@ int main(int argc, char **argv) {
             check(window.isVisible(), "Declining the prompt keeps the window open");
             check(batches.running(), "Declining the prompt keeps the batch running");
 
-            // The unsaved-changes prompt is answered as well: the model was edited, so Discard closes.
+            // The unsaved-changes prompt is answered as well: the model was edited, so Discard
+            // closes.
             answerPrompt("Stop batch and close");
             QTimer::singleShot(600, [] {
                 if (auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
@@ -568,14 +607,18 @@ int main(int argc, char **argv) {
             makeModel(window);
             setBlender(files.path() + "/absent");
             auto *dialog = openBatchDialog(window);
-            check(label(*dialog, "batchSetupText")->parentWidget()->isVisible(), "The setup card is shown");
+            check(label(*dialog, "batchSetupText")->parentWidget()->isVisible(),
+                  "The setup card is shown");
             checkText(label(*dialog, "batchSetupText")->text(), "is not an executable file",
                       "The setup card says the configured Blender is not an executable file");
             checkText(label(*dialog, "batchStartLine")->text(),
-                      "Presentation batches need an installed Blender 5.2 LTS; install it or choose its executable.",
+                      "Presentation batches need an installed Blender 5.2 LTS; install it or "
+                      "choose its executable.",
                       "Start names the missing Blender");
-            check(!dialog->findChild<QPushButton *>("batchStart")->isEnabled(), "Start is disabled");
-            checkText(label(*dialog, "batchVideoState")->text(), "No Blender found, so video cannot be checked",
+            check(!dialog->findChild<QPushButton *>("batchStart")->isEnabled(),
+                  "Start is disabled");
+            checkText(label(*dialog, "batchVideoState")->text(),
+                      "No Blender found, so video cannot be checked",
                       "The video line says no Blender was found");
             check(dialog->findChild<QPushButton *>("batchVideoRecheck")->isVisible(),
                   "Check again is offered for the video");
@@ -594,12 +637,18 @@ int main(int argc, char **argv) {
             qputenv("SKETCHYUP_FAKE_CODECS", "no-h264");
             setBlender(noH264);
             auto *dialog = openBatchDialog(window);
-            waitFor([&] { return label(*dialog, "batchVideoState")->text().contains("unavailable") ||
-                                 label(*dialog, "batchVideoState")->text().contains("not in this Blender"); },
-                    60000, "The probe reports H.264 missing");
-            checkText(label(*dialog, "batchVideoState")->text(),
-                      "⚠ H.264 is not in this Blender's FFmpeg build. Frames still render; video is off.",
-                      "The unavailable wording");
+            waitFor(
+                [&] {
+                    return label(*dialog, "batchVideoState")->text().contains("unavailable") ||
+                           label(*dialog, "batchVideoState")
+                               ->text()
+                               .contains("not in this Blender");
+                },
+                60000, "The probe reports H.264 missing");
+            checkText(
+                label(*dialog, "batchVideoState")->text(),
+                "⚠ H.264 is not in this Blender's FFmpeg build. Frames still render; video is off.",
+                "The unavailable wording");
             auto *codec = dialog->findChild<QComboBox *>("batchCodec");
             check(codec->count() == 2 && codec->itemText(1).startsWith("MPEG-4 Part 2"),
                   "MPEG-4 Part 2 is offered when H.264 is missing");
@@ -613,7 +662,8 @@ int main(int argc, char **argv) {
             setBlender(success);
         }
 
-        // UX_DESIGN 17.10: at 200% text the batch dialog's columns stack, the budget under the form.
+        // UX_DESIGN 17.10: at 200% text the batch dialog's columns stack, the budget under the
+        // form.
         {
             isolateStore(files, "store-7");
             QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 200);
@@ -627,8 +677,10 @@ int main(int argc, char **argv) {
             auto *left = dialog->findChild<QWidget *>("batchLeft");
             auto *right = dialog->findChild<QWidget *>("batchRight");
             check(left && right, "The two columns are named");
-            check(right->mapTo(dialog, QPoint(0, 0)).y() >= left->mapTo(dialog, QPoint(0, 0)).y() + left->height() - 2 ||
-                      right->mapTo(dialog, QPoint(0, 0)).x() > left->mapTo(dialog, QPoint(0, 0)).x(),
+            check(right->mapTo(dialog, QPoint(0, 0)).y() >=
+                          left->mapTo(dialog, QPoint(0, 0)).y() + left->height() - 2 ||
+                      right->mapTo(dialog, QPoint(0, 0)).x() >
+                          left->mapTo(dialog, QPoint(0, 0)).x(),
                   "The columns lay out for 200% text");
             check(!dialog->findChild<QPushButton *>("batchStart")->geometry().isEmpty(),
                   "The footer stays inside the dialog at 200%");
