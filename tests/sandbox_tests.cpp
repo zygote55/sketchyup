@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <sched.h>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -229,6 +230,91 @@ void testThreadOnlyClone() {
           "a thread can be created under the thread-only entry");
 }
 
+void testForkOrThreadClone() {
+    // ADR 0183 decision 5: a fork-like clone runs (the IFC diagnosis children), and its child inherits the filter.
+    // A clone that asks for a new namespace is EPERM: a namespace gives the process capabilities inside it.
+    const ChildResult forked = inChild([] {
+        Policy policy;
+        policy.syscalls = withReporting({{"clone", Action::forkOrThread},
+                                         {"clone3", Action::notImplemented},
+                                         {"wait4", Action::allow},
+                                         {"rt_sigprocmask", Action::allow},
+                                         {"rt_sigaction", Action::allow},
+                                         {"set_robust_list", Action::allow},
+                                         {"rseq", Action::allow},
+                                         {"futex", Action::allow},
+                                         {"getpid", Action::allow},
+                                         {"gettid", Action::allow}});
+        if (apply(policy))
+            return 3;
+        const pid_t pid = fork();
+        if (pid == 0)
+            _exit(0);
+        if (pid == -1)
+            return 1;
+        int status = 0;
+        if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+            return 2;
+        return 0;
+    });
+    check(!forked.signaled && forked.code == 0,
+          "a fork-like clone under the forkOrThread entry runs and its child exits 0");
+
+    const ChildResult namespaced = inChild([] {
+        Policy policy;
+        policy.syscalls = withReporting({{"clone", Action::forkOrThread}});
+        if (apply(policy))
+            return 3;
+        const long userNamespace = syscall(SYS_clone, static_cast<long>(CLONE_NEWUSER | SIGCHLD), 0L, 0L, 0L, 0L);
+        if (userNamespace != -1 || errno != EPERM)
+            return 1;
+        const long netNamespace = syscall(SYS_clone, static_cast<long>(CLONE_NEWNET | SIGCHLD), 0L, 0L, 0L, 0L);
+        return (netNamespace == -1 && errno == EPERM) ? 0 : 2;
+    });
+    check(!namespaced.signaled && namespaced.code == 0,
+          "a clone with CLONE_NEWUSER or CLONE_NEWNET under the forkOrThread entry returns EPERM (code " +
+              std::to_string(namespaced.code) + ")");
+}
+
+void testLandlockReadExecute() {
+    // The exec right is granted by readExecute and not by readOnly: an executable's open fails with EACCES
+    // under readOnly, and under readExecute it gets past the open (the file is not a program, so execve
+    // answers ENOEXEC).
+    const std::string directory = "/tmp/sketchyup-sandbox-exec-" + std::to_string(getpid());
+    mkdir(directory.c_str(), 0700);
+    const std::string script = directory + "/script";
+    {
+        const int fd = open(script.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755);
+        if (fd >= 0) {
+            const char text[] = "not a program\n";
+            check(write(fd, text, sizeof text - 1) > 0, "the exec test's script is written");
+            close(fd);
+        }
+    }
+    const auto execUnder = [&](FileAccess access) {
+        return inChild([&, access] {
+            Policy policy;
+            policy.files = {{directory, access}};
+            policy.syscalls = withReporting({{"execve", Action::allow}});
+            if (apply(policy))
+                return 3;
+            char *const argv[] = {const_cast<char *>(script.c_str()), nullptr};
+            char *const envp[] = {nullptr};
+            execve(script.c_str(), argv, envp);
+            return errno == EACCES ? 10 : (errno == ENOEXEC ? 0 : 11);
+        });
+    };
+    const ChildResult readOnly = execUnder(FileAccess::readOnly);
+    check(!readOnly.signaled && readOnly.code == 10, "readOnly does not grant the exec right (EACCES, code " +
+                                                         std::to_string(readOnly.code) + ")");
+    const ChildResult readExecute = execUnder(FileAccess::readExecute);
+    check(!readExecute.signaled && readExecute.code == 0,
+          "readExecute grants the exec right (the file is refused as a program, ENOEXEC, code " +
+              std::to_string(readExecute.code) + ")");
+    unlink(script.c_str());
+    rmdir(directory.c_str());
+}
+
 void testLandlockGrants() {
     const std::string directory = "/tmp/sketchyup-sandbox-tests-" + std::to_string(getpid());
     mkdir(directory.c_str(), 0700);
@@ -326,6 +412,8 @@ int main() {
     testOwnProcessSignal();
     testExplicitDenials();
     testThreadOnlyClone();
+    testForkOrThreadClone();
+    testLandlockReadExecute();
     testLandlockGrants();
     testUnknownNameFailsClosed();
     testInjectedFailures();

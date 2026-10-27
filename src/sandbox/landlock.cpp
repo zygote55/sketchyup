@@ -61,6 +61,8 @@ std::uint64_t grantedRights(FileAccess access, bool directory, int abi) {
     const std::uint64_t handled = handledFilesystemRights(abi);
     if (access == FileAccess::readOnly)
         return directory ? (kAccessReadFile | kAccessReadDir) : kAccessReadFile;
+    if (access == FileAccess::readExecute)
+        return (directory ? (kAccessReadFile | kAccessReadDir) : kAccessReadFile) | kAccessExecute;
     if (directory)
         return handled & ~kAccessExecute;
     return kAccessReadFile | kAccessWriteFile | (abi >= 3 ? kAccessTruncate : 0);
