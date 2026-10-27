@@ -10,6 +10,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QtEndian>
+#include <algorithm>
 #include <optional>
 #include <set>
 namespace sketchy {
@@ -92,8 +93,12 @@ QByteArray encodeContainer(const Document &doc) {
     // applies the same policy to the payload.
     const auto version = nativeDocumentVersionFor(doc);
     const bool drawingSheets = version >= 27, componentParameters = version >= 28,
-               terrain = version >= 29, presentation = version >= 30, edgeStyles = version >= 31,
-               textureSizes = version >= 32;
+               terrain = version >= 29, presentation = version >= 30, edgeStyles = version >= 31;
+    // Schemas 32 and 33 are independent: each feature is written only when the document has it.
+    const bool geographicSite = bool(doc.site() && doc.site()->geographic);
+    const bool textureSizes = std::any_of(
+        doc.materials().begin(), doc.materials().end(),
+        [](const auto &entry) { return entry.second->textureSize.has_value(); });
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
@@ -145,6 +150,8 @@ QByteArray encodeContainer(const Document &doc) {
         features.append("presentation-v1");
     if (edgeStyles)
         features.append("edge-styles-v1");
+    if (geographicSite)
+        features.append("geographic-site-v1");
     if (textureSizes)
         features.append("material-texture-size-v1");
     const auto manifest =
@@ -191,10 +198,13 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    // Schema 32 (R100.b2) adds material-texture-size-v1 to the schema-31 set. The schema-31
-    // comparison below runs without that feature, and a file that has it must match that set.
+    // Schemas 32 and 33 add geographic-site-v1 (ADR 0181 §2.1) and material-texture-size-v1
+    // (ADR 0174 section 3). Each is optional and the two are independent, so the schema-31 set is
+    // compared with both taken out, and a file with either feature must have that set.
+    const bool geographicSite = features.contains("geographic-site-v1");
     const bool textureSizes = features.contains("material-texture-size-v1");
     auto schema31 = features;
+    schema31.erase("geographic-site-v1");
     schema31.erase("material-texture-size-v1");
     const bool edgeStyles = schema31 == std::set<QString>{"scene-v2",
                                                           "topology-v1",
@@ -226,7 +236,7 @@ Document decodeContainer(const QByteArray &bytes) {
                                                           "terrain-v1",
                                                           "presentation-v1",
                                                           "edge-styles-v1"};
-    if (textureSizes && !edgeStyles)
+    if ((geographicSite || textureSizes) && !edgeStyles)
         throw std::runtime_error("Invalid required features");
     const bool presentation = edgeStyles || features == std::set<QString>{"scene-v2",
                                                                           "topology-v1",
@@ -411,7 +421,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (textureSizes          ? "json-v32"
+        chunk["encoding"] != (textureSizes          ? "json-v33"
+                              : geographicSite      ? "json-v32"
                               : edgeStyles          ? "json-v31"
                               : presentation        ? "json-v30"
                               : terrain             ? "json-v29"
@@ -488,7 +499,8 @@ Document decodeContainer(const QByteArray &bytes) {
     QJsonParseError payloadError;
     const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
     const auto payloadTree = parsedPayload.object();
-    if (payloadTree["version"] != (textureSizes          ? 32
+    if (payloadTree["version"] != (textureSizes          ? 33
+                                   : geographicSite      ? 32
                                    : edgeStyles          ? 31
                                    : presentation        ? 30
                                    : terrain             ? 29

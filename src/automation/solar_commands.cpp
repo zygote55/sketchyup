@@ -1,4 +1,5 @@
 #include "automation/solar_commands.hpp"
+#include "core/terrain.hpp"
 #include "io/solar_io.hpp"
 #include <QJsonArray>
 namespace sketchy {
@@ -35,9 +36,21 @@ QJsonObject solarSettingsSchema() {
              "daylight-saving adjustment; invalid calendar dates reject."}};
 }
 QJsonObject solarDescription(const Document &document) {
-    return {
+    QJsonObject description{
         {"settings", encodeSolarSettings(document.solar())},
         {"position", describeSolarPosition(document.solar())},
         {"timeZonePolicy", "Explicit fixed UTC offset; no OS zone or daylight-saving inference"}};
+    // ADR 0181 §2.1: the solar location and the site's geographic record are separate until the
+    // user uses the site location. A distance over 1 m is a warning, not a refusal.
+    if (const auto distance = solarSiteDistance(document)) {
+        const bool agrees = *distance <= siteGeographicToleranceMetres;
+        description["siteDistanceMetres"] = *distance;
+        description["siteAgrees"] = agrees;
+        if (!agrees)
+            description["warnings"] = QJsonArray{
+                "The solar latitude and longitude differ from the site's geographic location; "
+                "use the site location to match them"};
+    }
+    return description;
 }
 } // namespace sketchy

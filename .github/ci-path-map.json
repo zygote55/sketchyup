@@ -160,8 +160,9 @@
       ]
     },
     {
-      "why": "Native document schema (R099.a, ADR 0173; R100.a, ADR 0174): schema 30 with presentation-v1, schema 31 with edge-styles-v1, the record decoders and the .sketchystyle envelope. A format change runs the full tier, including the package acceptance's prior-release check and the Qt 6.8 compile.",
+      "why": "Native document schema (R099.a, ADR 0173; R100.a, ADR 0174; R107.a, ADR 0181): schema 30 with presentation-v1, schema 31 with edge-styles-v1, schema 32 with geographic-site-v1, the record decoders and the .sketchystyle envelope. A format change runs the full tier, including the package acceptance's prior-release check and the Qt 6.8 compile.",
       "paths": [
+        "src/core/site_origin.hpp",
         "src/io/container.cpp",
         "src/io/document_io.cpp",
         "src/io/drawing_sheets_io.cpp",
@@ -178,6 +179,8 @@
         "tests/style_bundle*",
         "tests/fixtures/presentation-v30.sketchyup",
         "tests/fixtures/edge-styles-v31.sketchyup",
+        "tests/geographic_site*",
+        "tests/fixtures/geographic-site-v32.sketchyup",
         "tests/fixtures/edge-style-v1.sketchystyle",
         "docs/api/native-format-v1.json"
       ],
@@ -186,6 +189,22 @@
         "native",
         "slow-core",
         "full"
+      ]
+    },
+    {
+      "why": "R107.a (ADR 0181 section 2): the offline WGS84 and UTM conversion (src/geo, Krueger series, no PROJ), the site's geographic record and its commands and dialogs, and the solar location action and warning.",
+      "paths": [
+        "src/geo/**",
+        "src/app/solar_panel*",
+        "src/automation/solar_commands*",
+        "tests/geo_coordinates*",
+        "tests/geographic_site*",
+        "tests/fixtures/geo/**"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
       ]
     },
     {

@@ -201,10 +201,12 @@ int main(int argc, char **argv) {
             const auto textureSized = std::any_of(
                 loaded.materials().begin(), loaded.materials().end(),
                 [](const auto &entry) { return entry.second->textureSize.has_value(); });
+            const auto geographic = bool(loaded.site() && loaded.site()->geographic);
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (textureSized   ? nativeDocumentVersion
-                           : edgeStroke   ? nativeEdgeStyleDocumentVersion
+                          (textureSized   ? nativeMaterialTextureSizeDocumentVersion
+                           : geographic   ? nativeGeographicSiteDocumentVersion
+                           : edgeStroke   ? nativeEdgeStylesDocumentVersion
                            : presentation ? nativePresentationDocumentVersion
                            : parametric   ? nativeTerrainFreeDocumentVersion
                            : sheets       ? nativeParameterFreeDocumentVersion

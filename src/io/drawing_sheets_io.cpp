@@ -205,7 +205,7 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
     return {std::move(sheets), std::move(views)};
 }
 namespace {
-// Schema 32 (ADR 0174 section 3): a material has a real-world texture size.
+// Schema 33 (ADR 0174 section 3): a material has a real-world texture size.
 bool usesTextureSizes(const Document &document) {
     for (const auto &[id, material] : document.materials())
         if (material->textureSize)
@@ -224,10 +224,14 @@ bool usesEdgeStrokes(const Document &document) {
 } // namespace
 
 int nativeDocumentVersionFor(const Document &document) {
+    // Schema 33 (ADR 0174 section 3): a material has a real-world texture size.
     if (usesTextureSizes(document))
-        return nativeDocumentVersion;
+        return nativeMaterialTextureSizeDocumentVersion;
+    // Schema 32 (ADR 0181 §2.1): the site origin carries a geographic record.
+    if (document.site() && document.site()->geographic)
+        return nativeGeographicSiteDocumentVersion;
     if (usesEdgeStrokes(document))
-        return nativeEdgeStyleDocumentVersion;
+        return nativeEdgeStylesDocumentVersion;
     if (!document.cameraPaths().empty() || !document.renderPresets().empty())
         return nativePresentationDocumentVersion;
     if (document.site())

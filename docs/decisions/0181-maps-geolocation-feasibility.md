@@ -531,3 +531,41 @@ Each source was read on 2026-10-26 unless marked otherwise. "Date shown" is the 
 - The accuracy of any real DEM tile against control points. This needs an owner-supplied sample and was not run.
 - Google Elevation and other commercial DEM services. Not researched.
 - Counsel's view on every point in §10, and owner decision 11.
+
+## Implementation notes (R107.a)
+
+What R107.a built, and what it measured. Plain record of this slice; the sections above stay as the design.
+
+**Coordinates (§2.2, §2.11 V3 and V4).** `src/geo/geographic.cpp` is an in-house Krüger series to order six, in the form Karney (2011) evaluates to nanometres. It uses no PROJ, no grid file and no network. The forward series uses Krüger's α coefficients and the inverse uses β. The first attempt used the wrong pair and was 4 m out; the reference test caught it. The reference values are Karney's published test data (Zenodo doi:10.5281/zenodo.32470, file TMcoords.dat, MD5 91b817eae34aef3cd8d67b5a4e8e798f, CC0 1.0). The fixture `tests/fixtures/geo/karney-tm-reference.txt` holds 25 published rows, with longitudes taken from the central meridian.
+
+| Check | Result | Bound |
+|---|---|---|
+| Forward grid, published rows, zone 20 (63°W) | 1.9 nm (1.86e-9 m) | 5 nm (Karney 2011, within 3,900 km) |
+| Forward grid, same rows in zones 31, 32 and 33 outside the exceptions | within the same 1.9 nm | 5 nm |
+| Southern grid, mirrored rows in zone 56 | within the same 1.9 nm | 5 nm |
+| Grid convergence against the published values | 1.3e-14 degrees | 1e-9 degrees |
+| Round trip, published rows and a zone grid (zones 1, 31, 32, 33, 56, 60; latitudes 79.9°S to 83.9°N) | 3.7 nm (3.73e-9 m) | 1 µm |
+
+- **Southern values are derived.** Karney's dataset has no southern row within 3° of a central meridian, so the southern cases mirror the northern rows (the UTM definition of the southern grid). The southern false northing of 10,000,000 m is therefore checked by construction, not against EPSG:32700. It is still unverified against that source.
+- **Zone exceptions.** Norway (56° to 64°N, 3° to 12°E) and Svalbard (72° to 84°N, 0° to 42°E) are refused by name in both directions. Their boundaries here are rectangles drawn around the exception areas, not the exact zone outlines, so the refusal covers a little more ground than the real exceptions. The §2.2 note that the exceptions are unverified still holds.
+- **Latitude band.** 80°S to 84°N is the standard limit, as §2.2 says. Its source was not read in this run.
+- **Convergence sign.** Grid north lies γ clockwise (east) of true north. The sign was fixed by reasoning and then confirmed against the signed published values.
+- **Ground distance.** `geoGroundDistance` uses the local radii at the midpoint, which is accurate for the 1 m test and for short separations. It is approximate over long distances.
+
+**Datums (§2.3, decision 5).** WGS84 is accepted. NAD83 is accepted and warned as a labelled approximation. OSGB36 and ETRS89 are refused by name at the core and command level. The desktop dialog offers only WGS84 and NAD83, so the two refusals are reachable through the command interface, not the dialog.
+
+**The geographic record (§2.1, decision 7).** The site origin may carry a `geographic` object, written only as schema 32 with required feature `geographic-site-v1`. Its fields are latitude, longitude, datum, UTM zone and hemisphere, the grid convergence (checked on read to 1e-6 degrees), a vertical reference and provenance (typed, geocoded or imported; imported needs a SHA-256). The record must sit at the origin's own UTM position, to 1 m (`siteGeographicToleranceMetres`). Re-anchor recomputes the record's position from the new origin in the same zone. A re-anchor that leaves the zone is refused by name.
+
+**Schema 32 (§2.1, §9, V9).** A document without the record writes what it wrote before. A site without the record stays schema 29, and the bytes are unchanged. The schema-32 fixture `tests/fixtures/geographic-site-v32.sketchyup` reopens bit for bit. The released 1.3.0 reader (`/usr/bin/sketchyup-cli`, version 1.3.0) refuses it: exit 1, `Unsupported container field`, and the file's SHA-256 is unchanged. The schema-31 and schema-30 fixtures get the same refusal. The fuzz target `geographic-site` has four accepted and eleven rejected seeds. The seed generator was built with the dev toolchain and run, and every seed passed. The libFuzzer build was not run.
+
+**Vertical reference (§2.7, decision 4).** §2.7 puts the vertical-reference label on the site origin's elevation. This slice puts it on the geographic record, because schema 32 is only written with that record. A site without a record has no label, as before. Mixing references and the terrain Z label belong to R107.b (V5).
+
+**Commands and the solar study (§2.1, §2.6, decisions 6 and 7).** `site.set_geographic` and `site.clear_geographic` are one edit each. `site.describe` reports the record with its read-only convergence, and warns about NAD83. `solar.describe` reports the distance from the site location and warns beyond 1 m. In the sun panel, "Use site location" is one undoable edit. "Use grid north" is an explicit action in the sun editor that fills the north rotation with the negated convergence, and Save applies it. The sign follows from the solar rotation's clockwise convention. It was not checked against a sun path.
+
+**Scale (decision 13).** Grid coordinates are stored. No geometry is scaled by the UTM factor. The site origin is still a translation.
+
+**Verification run.** `geo_coordinates` (CTest), `geographic_site`, `native_format`, `style_bundle`, `terrain_io`, `component_parameter_io`, `drawing_sheet_io`, `presentation_io`, `command_tests`, `solar_command`, `inspection`, `terrain_tests`, `parser_fault_corpus`, `assistant_tool_surface`, `report_schedule`, `optional_capabilities`, `shipped_recipes` and `tool_reference_drift` all pass locally. The desktop `terrain_site_desktop` and `solar_input` binaries pass offscreen. `ci-plan.py check` and `ci-line-inventory.py check` pass.
+
+**Gaps.** The sanitizer and libFuzzer builds ran only in CI, if at all. The full CI tier has not run for this PR. The site location dialog takes only WGS84 and NAD83 from the user. The solar sign has no sun-path check. Terrain Z labels and the mixed-reference refusal (V5) wait for R107.b. The geocoding and attribution slices are not started.
+
+**Inventory (risk 12).** `dependencies.json` on `main` already lists Manifold and cgltf, so no change was needed here.
