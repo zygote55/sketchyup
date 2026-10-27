@@ -975,8 +975,8 @@ placing. A card reads "Interior door, cuts opening, 4 parameters", and adds
   opening; a later width change re-cuts it in one entry. An assembly already
   in the model is reused, so all its placements share one definition. After
   placing, the Tray shows Entity info.
-- SketchUp Dynamic Components are not imported or converted, and the tab
-  says so.
+- Dynamic Components: attributes read as read-only properties; formulas and
+  behaviour are not run. The tab says so.
 
 ### 14.5 Accessibility
 
