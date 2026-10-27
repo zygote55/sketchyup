@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SketchyUp presentation batch mockups (UX_DESIGN section 17)</title>
+<!-- Static illustrations of docs/UX_DESIGN.md section 17, not application code.
+     Open presentation.html for every screen, or presentation.html?screen=<name> for one 1280 x 860 frame:
+     menu, render, paths, pick, limit, presets, batch, device, video, unavailable, running, resume, results, broken.
+     Add &text=200 to any of them to double every text size: a check of wrapping and overlap, not a second design.
+     Colours are the light theme of src/app/theme.hpp, as in ifc.html. The example is invented: a house with five
+     saved scenes (Front, Entrance, Side, Garden, Roof), a path "Tour" and two presets. Planned frames, output
+     ceilings and free-space figures are computed with the engine's formulas (camera_motion.cpp,
+     presentation_records.cpp, presentation_batch.cpp); they are not measurements. Engine wording is quoted from
+     the R099.a to R099.c code. -->
+<style>
+:root {
+  --surface: #f7f7f2; --ink: #263a32; --border: #c9d4c5; --selected: #dce7dc; --hover: #e6ebdf;
+  --input: #ffffff; --accent: #547858; --muted: #617266; --canvas: #f0f1ec;
+  --sel: #5b5bd6; --warn: #7a4f00; --warn-bg: #fdf3dc; --warn-line: #e3b75c;
+  --fail: #a8322b; --fail-bg: #fbf1f0; --info: #2c5aa0; --info-bg: #eef3fb; --ok: #547858; --ok-bg: #dce7dc;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #d9dcd3; font: 12px/1.35 "DejaVu Sans", "Noto Sans", "Liberation Sans", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
+body.one { background: var(--surface); }
+.gallery { padding: 24px; display: flex; flex-direction: column; gap: 28px; align-items: center; }
+.gallery h2 { margin: 0 0 6px; font-size: 15px; }
+.gallery p { margin: 0 0 10px; max-width: 1280px; color: #3d4a42; }
+.frame { width: 1280px; height: 860px; position: relative; overflow: hidden; background: var(--surface); box-shadow: 0 4px 24px rgba(0,0,0,.18); display: grid; grid-template-rows: 34px 48px 1fr 50px; }
+kbd { font: inherit; font-size: 11px; padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; background: var(--input); color: var(--muted); }
+u { text-decoration: underline; }
+
+/* Application chrome (as ifc.html) */
+.menubar { display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--border); }
+.menubar span { padding: 4px 9px; border-radius: 4px; }
+.menubar span.open { background: var(--selected); }
+.header { display: flex; align-items: center; gap: 10px; padding: 0 9px 0 25px; border-bottom: 1px solid var(--border); }
+.wordmark { font-weight: 700; letter-spacing: 2.4px; font-size: 12px; margin-right: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: var(--input); }
+.seg span { padding: 3px 14px; border-left: 1px solid var(--border); white-space: nowrap; }
+.seg span:first-child { border-left: 0; }
+.seg span.on { background: var(--accent); color: #fff; font-weight: 700; }
+.doc i { font-style: normal; color: var(--muted); }
+.cmd { margin-left: auto; border: 1px solid var(--border); border-radius: 5px; padding: 6px 11px; background: var(--input); }
+main { display: grid; grid-template-columns: 88px 1fr 8px 246px; min-height: 0; }
+.rail { border-right: 1px solid var(--border); padding: 5px 6px; display: flex; flex-direction: column; }
+.rail span { height: 41px; display: grid; place-items: center; border-radius: 5px; }
+.rail span.on { background: var(--selected); }
+.rail span.grp { margin-top: 6px; border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; height: 46px; }
+.viewport { position: relative; background: var(--canvas); overflow: hidden; }
+.viewport svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+.crumb { position: absolute; left: 24px; top: 14px; color: var(--accent); text-decoration: underline; }
+.splitter { border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--hover); }
+.side { padding: 12px 8px 8px; display: flex; flex-direction: column; min-height: 0; }
+.side .caps { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; padding: 6px 4px 8px; }
+.side .selsum { padding: 0 1px 8px; }
+.tabs { display: flex; gap: 2px; padding-bottom: 2px; }
+.tabs span { padding: 5px 12px; border-radius: 4px; }
+.tabs span.on { background: var(--selected); }
+.panel { border: 1px solid var(--border); border-radius: 2px; flex: 1; min-height: 0; overflow: hidden; padding: 4px 0; background: var(--surface); }
+.trow { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 4px 11px; border-top: 1px solid #edf0ea; }
+.trow:first-of-type { border-top: 0; }
+.trow .c { color: var(--muted); }
+.hint2 { color: var(--muted); font-size: 11px; padding: 6px 4px 0; }
+.status { display: flex; align-items: center; gap: 10px; padding: 0 9px; border-top: 1px solid var(--border); white-space: nowrap; }
+.status .msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status .meas { display: flex; align-items: center; gap: 7px; }
+.status .meas span.box { width: 150px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 3px; background: var(--input); color: #9aa49b; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 14px; }
+.chip b { color: var(--warn); }
+.chip .link { color: var(--accent); text-decoration: underline; }
+.chip.ok { border-color: var(--accent); background: var(--ok-bg); }
+.menu { position: absolute; top: 31px; background: var(--input); border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 8px 26px rgba(30,45,35,.18); padding: 4px 0; min-width: 300px; z-index: 5; }
+.menu div { display: flex; justify-content: space-between; gap: 24px; padding: 3px 14px 3px 26px; position: relative; }
+.menu div.on { background: var(--selected); }
+.menu div.new { background: var(--hover); }
+.menu div.new::after { content: "new"; position: absolute; left: 4px; top: 5px; font-size: 8px; color: var(--ink); font-weight: 700; letter-spacing: .4px; }
+.menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+.palette { position: absolute; z-index: 5; left: 560px; top: 31px; width: 420px; background: var(--input); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 26px rgba(30,45,35,.18); }
+.palette .q { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.palette .q i { font-style: normal; border-right: 1.5px solid var(--ink); margin-left: 1px; }
+.palette .r { display: flex; justify-content: space-between; padding: 5px 12px; }
+.palette .r.on { background: var(--selected); }
+.palette .r span:last-child { color: var(--muted); }
+.mocknote { position: absolute; z-index: 6; padding: 3px 8px; border: 1px dashed var(--muted); border-radius: 3px; background: var(--surface); color: var(--muted); font-size: 11px; max-width: 420px; }
+
+/* Dialogs */
+.scrim { position: absolute; inset: 0; background: rgba(38,58,50,.38); z-index: 10; }
+.dlg { position: absolute; z-index: 11; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 18px 60px rgba(20,35,28,.38); overflow: hidden; }
+.dh { padding: 16px 22px 10px; }
+.dt { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.ds { color: var(--muted); margin-top: 3px; }
+.dtabs { display: flex; gap: 4px; padding: 0 22px; border-bottom: 1px solid var(--border); }
+.dtabs span { padding: 6px 14px; border: 1px solid transparent; border-bottom: 0; border-radius: 5px 5px 0 0; margin-bottom: -1px; }
+.dtabs span.on { background: var(--input); border-color: var(--border); font-weight: 700; }
+.dbn { margin: 0 22px 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 5px; display: flex; gap: 10px; align-items: flex-start; }
+.dbn.fail { background: var(--fail-bg); border-color: var(--fail); } .dbn.fail .k { color: var(--fail); }
+.dbn.warn { background: var(--warn-bg); border-color: var(--warn-line); } .dbn.warn .k { color: var(--warn); }
+.dbn.info { background: var(--info-bg); border-color: #9db8dd; } .dbn.info .k { color: var(--info); }
+.dbn.ok { background: var(--ok-bg); border-color: var(--accent); } .dbn.ok .k { color: var(--ink); }
+.dbn .k { font-weight: 700; white-space: nowrap; }
+.rule { border-top: 1px solid var(--border); }
+.dbody { flex: 1; min-height: 0; display: flex; }
+.col { padding: 14px 22px; overflow: hidden; min-width: 0; }
+.col + .col { border-left: 1px solid var(--border); }
+.hd { font-weight: 700; margin: 12px 0 6px; }
+.hd:first-child { margin-top: 0; }
+.fld { display: grid; grid-template-columns: 150px 1fr; gap: 6px 10px; padding: 3px 0; align-items: start; }
+.fld > label { color: var(--muted); padding-top: 3px; }
+.in { display: inline-block; padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--input); min-width: 120px; }
+.in.dd::after { content: "  ▾"; color: var(--muted); }
+.in.off { color: #9aa49b; background: var(--surface); }
+.in.foc { border: 2px solid var(--accent); padding: 2px 7px; }
+.in.bad { border: 2px solid var(--fail); padding: 2px 7px; }
+.cap { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.rb { position: relative; padding: 1px 0 1px 22px; margin: 2px 0; }
+.rb::before { content: ""; position: absolute; left: 2px; top: 3px; width: 12px; height: 12px; border: 1.5px solid var(--muted); border-radius: 50%; background: var(--input); }
+.rb.on::before { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 3.5px, var(--input) 4px); }
+.rb.off { color: #9aa49b; }
+.rb.off::before { border-color: #b9c3b6; }
+.rb b { font-weight: 700; }
+.ck { position: relative; padding: 1px 0 1px 22px; margin: 3px 0; }
+.ck::before { content: ""; position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; border: 1.5px solid var(--muted); border-radius: 2px; background: var(--input); }
+.ck.on::before { background: var(--accent); border-color: var(--accent); }
+.ck.on::after { content: "✓"; position: absolute; left: 4px; top: 0px; color: #fff; font-size: 11px; font-weight: 700; }
+.ck.off { color: #9aa49b; } .ck.off::before { border-color: #b9c3b6; background: var(--surface); }
+.ck.off.on::before { background: #b9c3b6; }
+.ok { color: var(--ok); } .bad { color: var(--fail); } .wr { color: var(--warn); }
+.df { display: flex; align-items: center; gap: 10px; padding: 10px 22px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.df .st { flex: 1; color: var(--muted); min-width: 200px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--input); white-space: nowrap; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.btn.off { color: #9aa49b; background: var(--surface); }
+.btn.def { outline: 2px solid var(--surface); outline-offset: -4px; }
+.btn.flat { border-color: transparent; background: none; color: var(--accent); text-decoration: underline; padding: 2px 4px; }
+.pill { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 11px; font-weight: 700; border: 1px solid; vertical-align: 1px; }
+.pill.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+.pill.fail { color: var(--fail); border-color: var(--fail); background: var(--fail-bg); }
+.pill.info { color: var(--info); border-color: #9db8dd; background: var(--info-bg); }
+.pill.ok { color: var(--ink); border-color: var(--border); background: var(--hover); }
+.newtag { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .4px; border: 1px solid var(--ink); border-radius: 3px; padding: 0 4px; vertical-align: 1px; }
+ol.steps { margin: 4px 0 0; padding-left: 20px; } ol.steps li { margin: 5px 0; }
+ul.plain { margin: 4px 0 0; padding-left: 18px; } ul.plain li { margin: 3px 0; }
+.mono { font-family: "DejaVu Sans Mono", monospace; font-size: 11px; }
+.sfx { color: var(--muted); font-size: 11px; }
+.btnrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+.bigv { font-size: 20px; font-weight: 700; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 2px 0; }
+.kv span:last-child { text-align: right; }
+.kvl { display: grid; grid-template-columns: 130px 1fr; gap: 0 10px; padding: 2px 0; }
+.kvl > span:first-child { color: var(--muted); }
+.codebox { margin: 6px 0; padding: 6px 10px; border: 1px solid var(--border); background: var(--input); border-radius: 4px; }
+
+/* Lists, rows and bars */
+.lst { border: 1px solid var(--border); background: var(--input); }
+.lst .it { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 6px 10px; border-top: 1px solid #edf0ea; }
+.lst .it:first-child { border-top: 0; }
+.lst .it.sel { background: color-mix(in srgb, var(--sel) 13%, white); box-shadow: inset 3px 0 var(--sel); }
+.lst .it.bad b { color: var(--fail); }
+.lst .it .sub { color: var(--muted); font-size: 11px; }
+.kfl { border: 1px solid var(--border); background: var(--input); }
+.kf { display: grid; grid-template-columns: 30px 1fr auto; gap: 8px; padding: 3px 10px; border-top: 1px solid #edf0ea; align-items: center; }
+.kf:first-child { border-top: 0; }
+.kf .pos { color: var(--muted); text-align: right; }
+.kf.sel { background: color-mix(in srgb, var(--sel) 13%, white); box-shadow: inset 3px 0 var(--sel); }
+.kf .st { color: var(--muted); font-size: 11px; }
+.kf.bad .st { color: var(--fail); font-weight: 700; }
+.kf.bad { background: var(--fail-bg); }
+.kf.draft { font-style: italic; color: var(--muted); }
+.bar { height: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--input); overflow: hidden; margin-top: 4px; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.jr { display: grid; grid-template-columns: minmax(0, 1fr) 230px 64px 76px; gap: 10px; padding: 6px 10px; border-top: 1px solid #edf0ea; align-items: center; }
+.jr.head { font-weight: 700; background: var(--hover); border-top: 0; }
+.jr.par { font-weight: 700; }
+.jr.child { padding-left: 34px; }
+.jr.sel { background: color-mix(in srgb, var(--sel) 13%, white); box-shadow: inset 3px 0 var(--sel); }
+.jr .c1, .jr .c2, .jr .c3 { color: var(--muted); }
+.jr .c2 { font-size: 11px; }
+.jr .w { width: 170px; }
+.details { border: 1px solid var(--border); background: var(--input); padding: 8px 12px; margin-top: 8px; }
+.sgrid { display: grid; gap: 6px; }
+.sg { display: grid; grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+.sg.hd2 { font-weight: 700; color: var(--muted); }
+.sc { display: block; border: 1px solid var(--border); background: var(--input); padding: 4px; border-radius: 4px; min-width: 0; }
+.sc .th { display: block; height: 46px; border-radius: 3px; margin-bottom: 3px; border: 1px solid #c9d4c5; }
+.sc.sel { outline: 2px solid var(--sel); outline-offset: 1px; }
+.pcard { border: 1px solid var(--border); background: var(--input); padding: 8px 10px; margin-bottom: 8px; border-radius: 4px; }
+.pcard .t { font-weight: 700; }
+.setup { border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 6px; padding: 10px 12px; }
+.budget { border: 1px solid var(--border); background: var(--input); border-radius: 5px; padding: 8px 12px; margin-bottom: 10px; }
+.budget .l { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+.errline { color: var(--fail); font-weight: 700; }
+
+/* Paths and presets */
+.draftnote { color: var(--muted); }
+.pathlist { width: 300px; display: flex; flex-direction: column; gap: 8px; }
+.ed { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+/* 200% text: the same content, with the fixed frame and dialog sizes released */
+.x2 .frame { height: 2200px; grid-template-rows: auto auto 1fr auto; }
+.x2 .dlg { height: auto !important; max-height: none !important; top: 24px !important; }
+.x2 .dbody { flex-direction: column; }
+.x2 .col { width: auto !important; flex: none !important; }
+.x2 .col + .col { border-left: 0; border-top: 1px solid var(--border); }
+.x2 .fld { grid-template-columns: 1fr; }
+.x2 .jr { grid-template-columns: minmax(0, 1fr) 150px; }
+.x2 .jr .c3, .x2 .jr .c4 { display: none; }
+.x2 .sg { grid-template-columns: 1fr 1fr; }
+.x2 .sg > span.sn { grid-column: 1 / -1; }
+.x2 .pathlist { width: auto; }
+.x2 .main-cols { flex-direction: column !important; }
+.x2 .main-cols > * { width: auto !important; }
+.x2 main { grid-template-columns: 88px 1fr 8px 300px; }
+.x2 .status { flex-wrap: wrap; height: auto; padding: 6px 9px; }
+</style>
+</head>
+<body>
+<script>
+(() => {
+const f1 = n => n.toFixed(1);
+const MiB = 1024 * 1024, GiB = 1024 * MiB;
+// The engine's per-frame bound (presentation_batch.cpp frameBudget): the PNG bound plus the 1 MiB metadata cap.
+const frameBound = (w, h) => Math.min(64, (w * h * 5) / MiB + 1) + 1;
+// The planned frame count (presentation_records.cpp cameraPathFrameCount): 1 + N x hold + (N - 1) x transition.
+const planned = (n, hold, tr) => 1 + n * hold + (n - 1) * tr;
+const FPS = 24, TR = 24, HOLD = 12;             // 1.00 s transition, 0.50 s hold at 24 frames per second
+const TOUR = 5, TOUR_FRAMES = planned(TOUR, HOLD, TR); // 157
+const FINAL = { w: 1280, h: 720, eng: 'Cycles', samples: 128 }, DRAFT = { w: 640, h: 360, eng: 'Cycles', samples: 16 };
+const BATCH_FRAMES = TOUR_FRAMES * 2;
+const CEIL = (TOUR_FRAMES * frameBound(FINAL.w, FINAL.h) + TOUR_FRAMES * frameBound(DRAFT.w, DRAFT.h)); // MiB
+const CEIL_TXT = (CEIL / 1024).toFixed(2) + ' GiB';
+const CEIL_VIDEO_TXT = (Math.min(2 * CEIL, 2048) / 1024).toFixed(1) + ' GiB';
+const NEED_MIB = Math.round(Math.min(CEIL, 2048) + 1 + 256);   // ceiling + capture (about 1 MiB) + 256 MiB reserve
+// The model behind the dialogs: a small isometric house (viewport 938 x 728).
+const S = 21, OX = 433, OY = 262;
+const P = (x, y, z = 0) => [(x - y) * 0.866 * S + OX, (x + y) * 0.5 * S - z * S + OY];
+const pt = (x, y, z) => P(x, y, z).map(f1).join(',');
+const poly = (a, fill, stroke = '#263a32', sw = 1, extra = '') => `<polygon points="${a.map(p => pt(...p)).join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" ${extra}/>`;
+const rectFront = (x, w, z1, z2, y = 8) => [[x, y, z1], [x + w, y, z1], [x + w, y, z2], [x, y, z2]];
+const rectRight = (y, w, z1, z2, x = 12) => [[x, y, z1], [x, y + w, z1], [x, y + w, z2], [x, y, z2]];
+// The five keyframes of Tour, in playing order, at their real positions around the house.
+const KEYS = [[-2.5, -2.5, 1.6], [6, -3.5, 1.6], [14, 3, 1.6], [9, 12, 1.6], [3, 12, 4.8]];
+function scene(o = {}) {
+  let s = '';
+  for (let x = -4; x <= 18; x += 2) s += `<polyline points="${pt(x, -4, 0)} ${pt(x, 14, 0)}" fill="none" stroke="#dfe2d9"/>`;
+  for (let y = -4; y <= 14; y += 2) s += `<polyline points="${pt(-4, y, 0)} ${pt(18, y, 0)}" fill="none" stroke="#dfe2d9"/>`;
+  s += poly([[0, 0, 0], [12, 0, 0], [12, 8, 0], [0, 8, 0]], '#e6e6dc', '#9aa49b');
+  s += poly([[12, 0, 0], [12, 8, 0], [12, 8, 3], [12, 0, 3]], '#dcdfd6');
+  s += poly([[0, 8, 0], [12, 8, 0], [12, 8, 3], [0, 8, 3]], '#eceee7');
+  for (const x of [1.0, 4.6, 10.0]) s += poly(rectFront(x, 1.4, 1, 2.2), '#b6cbd6');
+  for (const y of [1.2, 5.2]) s += poly(rectRight(y, 1.4, 1, 2.2), '#b6cbd6');
+  s += poly(rectFront(7.8, 1.0, 0, 2.1), '#c9bfae');
+  s += poly([[12.5, -0.5, 3], [12.5, 8.5, 3], [12.5, 8.5, 3.3], [12.5, -0.5, 3.3]], '#d2d5ca');
+  s += poly([[-0.5, 8.5, 3], [12.5, 8.5, 3], [12.5, 8.5, 3.3], [-0.5, 8.5, 3.3]], '#e0e2d8');
+  s += poly([[-0.5, -0.5, 3.3], [12.5, -0.5, 3.3], [12.5, 8.5, 3.3], [-0.5, 8.5, 3.3]], '#fbfbf8');
+  if (o.path) {
+    const pts = KEYS.map(k => P(...k).map(f1).join(',')).join(' ');
+    s += `<polyline points="${pts}" fill="none" stroke="#5b5bd6" stroke-width="2" stroke-dasharray="7 5"/>`;
+    KEYS.forEach((k, i) => {
+      const [cx, cy] = P(...k);
+      s += `<g class="kfm"><circle cx="${f1(cx)}" cy="${f1(cy)}" r="11" fill="#ffffff" stroke="#5b5bd6" stroke-width="1.5"/><text x="${f1(cx)}" y="${f1(cy + 4)}" text-anchor="middle" font-size="11" font-weight="700" fill="#263a32">${i + 1}</text></g>`;
+    });
+  }
+  return `<svg class="scene" viewBox="0 0 938 728" preserveAspectRatio="xMidYMid meet"><style>
+    .kfm text { font-family: "DejaVu Sans", sans-serif; }</style>${s}</svg>`;
+}
+
+// ---------- Chrome ----------
+const MENUS = ['<u>F</u>ile', '<u>E</u>dit', '<u>D</u>raw', '<u>T</u>errain', '<u>C</u>amera', 'E<u>x</u>tensions', '<u>V</u>iew'];
+const menubar = open => `<div class="menubar">${MENUS.map((m, n) => `<span class="${n === open ? 'open' : ''}">${m}</span>`).join('')}</div>`;
+const header = (name, state) => `<div class="header"><span class="wordmark">SKETCHYUP</span><span class="seg"><span class="on">Model</span><span>Sheets</span></span>
+  <span class="doc">${name} &nbsp;·&nbsp; <i>${state}</i></span><span class="cmd">Commands &nbsp;Ctrl+K</span></div>`;
+const RAIL = ['Select', 'Paint', 'Line', 'Rect', 'Circle', 'Push/pull', 'Offset', 'Follow', 'Intersect', 'Solids', 'Orient', 'Move', 'Rotate', 'Scale', 'Tape'];
+const rail = `<nav class="rail">${RAIL.map((t, n) => `<span class="${n === 0 ? 'on' : ''}">${t}</span>`).join('')}<span class="grp">Terrain ▸</span></nav>`;
+const status = (msg, extra = '') => `<div class="status"><span class="msg">${msg}</span>${extra}<span class="meas">Measurements · m<span class="box">distance</span></span></div>`;
+const side = (sum, tab, panel) => `<aside class="side"><div class="caps">MODEL</div><div class="selsum">${sum}</div>
+  <div class="tabs"><span class="${tab === 'Outliner' ? 'on' : ''}">Outliner</span><span class="${tab === 'Tags' ? 'on' : ''}">Tags</span><span class="${tab === 'Info' ? 'on' : ''}">Info</span><span>M ‹ ›</span></div><div class="panel">${panel}</div>
+  <div class="hint2">Middle drag: orbit<br>Right drag: pan · Wheel: zoom</div></aside>`;
+const outliner = items => items.map(([d, n, k]) => `<div class="trow" style="padding-left:${11 + d * 14}px"><span>${d === 0 ? '▾ ' : ''}${n}</span><span class="c">${k}</span><span></span></div>`).join('');
+const OUT_HOUSE = outliner([[0, 'House', 'Group'], [1, 'Walls', 'Group'], [1, 'Roof', 'Group'], [1, 'Windows', 'Group'], [1, 'Door', 'Component']]);
+const frame = (menuOpen, name, state, view, sidebar, stat, overlay = '') =>
+  `<div class="frame">${menubar(menuOpen)}${header(name, state)}<main>${rail}<section class="viewport">${view}<div class="crumb">Model</div></section><div class="splitter"></div>${sidebar}</main>${stat}${overlay}</div>`;
+const dlg = (w, h, inner, o = {}) => `<div class="scrim" style="z-index:${o.z ?? 10};${o.light ? 'background:rgba(38,58,50,.2)' : ''}"></div><div class="dlg" role="dialog" aria-modal="${o.modal === false ? 'false' : 'true'}" ${o.name ? `aria-label="${o.name}"` : ''} style="z-index:${(o.z ?? 10) + 1};width:${w}px;height:${h}px;left:${(1280 - w) / 2}px;top:${o.top ?? (860 - h) / 2}px">${inner}</div>`;
+const head = (title, sub, pill = '') => `<div class="dh"><div class="dt">${title}${pill}</div><div class="ds">${sub}</div></div>`;
+const banner = (kind, key, html) => `<div class="dbn ${kind}" role="${kind === 'fail' ? 'alert' : 'status'}"><span class="k">${key}</span><span>${html}</span></div>`;
+const foot = (st, buttons) => `<div class="df"><span class="st">${st}</span>${buttons}</div>`;
+const btn = (t, c = '') => `<span class="btn ${c}" role="button">${t}</span>`;
+const ck = (t, on, off = false) => `<div class="ck${on ? ' on' : ''}${off ? ' off' : ''}" role="checkbox" aria-checked="${!!on}"${off ? ' aria-disabled="true"' : ''}>${t}</div>`;
+const rb = (t, on, off = false) => `<div class="rb${on ? ' on' : ''}${off ? ' off' : ''}" role="radio" aria-checked="${!!on}">${t}</div>`;
+const fld = (label, html, cls = '') => `<div class="fld ${cls}"><label>${label}</label><span>${html}</span></div>`;
+const hint = t => `<div class="cap">${t}</div>`;
+const engine = t => `<div class="codebox mono">${t}</div>`;
+
+// Presentations dialog: the two tabs of the owner-facing editor (17.2, 17.3)
+function presDialog(tab, body, footer, o = {}) {
+  const tabs = `<div class="dtabs" role="tablist"><span role="tab" aria-selected="${tab === 0}" class="${tab === 0 ? 'on' : ''}">Camera paths</span><span role="tab" aria-selected="${tab === 1}" class="${tab === 1 ? 'on' : ''}">Render presets</span></div>`;
+  const inner = head('Presentations', 'Camera paths and render presets for this model. Each change is one undo step; the model stays open behind this window.') + tabs + body + footer;
+  return dlg(o.w ?? 1100, o.h ?? 740, inner, { name: 'Presentations', top: o.top ?? 50, z: o.z });
+}
+const pathItem = (name, sub, o = {}) => `<div class="it${o.sel ? ' sel' : ''}${o.bad ? ' bad' : ''}" role="option" aria-selected="${!!o.sel}"><span><b>${name}</b><br><span class="sub">${sub}</span></span><span class="sfx">${o.tag || ''}</span></div>`;
+const kfRows = (rows) => `<div class="kfl" role="list" aria-label="Keyframes, in playing order">${rows.map((k, i) => `<div class="kf${k.cls ? ' ' + k.cls : ''}" role="listitem" aria-label="${k.aria || ''}"><span class="pos">${i + 1}</span><span>${k.name}</span><span class="st">${k.st}</span></div>`).join('')}</div>`;
+const timingRows = (fps, tr, hold, bad = false) => `
+  ${fld('Frames per second', `<span class="in" style="min-width:70px">${fps}</span> <span class="sfx">1 to 60</span>`)}
+  ${fld('Transition between scenes', `<span class="in" style="min-width:90px">${f1(tr)} s</span> <span class="sfx">= ${Math.max(1, Math.round(tr * fps))} steps · 0.05 to 10 s</span>`)}
+  ${fld('Hold each scene', `<span class="in" style="min-width:90px">${f1(hold)} s</span> <span class="sfx">= ${Math.round(hold * fps)} steps · 0 to 5 s</span>`)}`;
+const liveLine = (n, frames, fps, cls = 'ok', extra = '') => `<div class="dbn ${cls}" style="margin:8px 0 0" role="status"><span class="k">${cls === 'fail' ? '✕ Too long' : '✓ Plans'}</span><span>${frames} of 240 frames · ${n} scenes · ${f1(frames / fps)} s at ${fps} fps. ${extra}</span></div>`;
+const pathsEditorSaved = `
+  <div class="ed">
+    ${fld('Name', `<span class="in" style="min-width:220px">Tour</span> <span class="sfx">unique · up to 1024 bytes</span>`)}
+    <div class="hd" style="margin-top:6px">Keyframes <span class="sfx">(scenes play in this order; a scene may repeat)</span></div>
+    ${kfRows([{ name: 'Front', st: 'camera' }, { name: 'Entrance', st: 'camera' }, { name: 'Side', st: 'camera' }, { name: 'Garden', st: 'camera' }, { name: 'Roof', st: 'camera', aria: 'Keyframe 5 of 5, Roof, has a camera' }])}
+    <div class="btnrow"><span class="btn" role="button">Add scene…</span><span class="btn" role="button">Move earlier</span><span class="btn" role="button">Move later</span><span class="btn" role="button">Remove</span><span class="sfx">Alt+↑ / Alt+↓ move · Delete removes</span></div>
+    <div class="hd">Timing</div>
+    ${timingRows(FPS, 1, 0.5)}
+    ${liveLine(TOUR, TOUR_FRAMES, FPS, 'ok', 'At this timing, up to <b>7</b> scenes fit in 240 frames.')}
+    <div class="cap" style="margin-top:6px">A pan takes the shorter turn. For a longer turn, add a scene between the two. A switch between perspective and orthographic is a cut at its keyframe.</div>
+  </div>`;
+
+// ---------- Screens ----------
+const SCREENS = {};
+
+SCREENS.menu = {
+  title: '1 · Where the tools live: the Camera menu and command search',
+  note: 'Camera gets one entry, <b>Presentations…</b>, after Render…. It opens the Presentations dialog (camera paths and render presets, with <b>Export batch…</b> in its footer). Command search (Ctrl+K) lists it too, with <b>Export presentation batch…</b>, which opens the batch dialog directly. Neither has a default shortcut. The Camera menu\'s other entries keep their order. The "new" tag is an annotation of this mockup, not part of the interface.',
+  html: () => {
+    const row = (t, o = {}) => `<div class="${o.cls || ''}"><span>${t}</span>${o.k ? `<kbd>${o.k}</kbd>` : ''}</div>`;
+    const menu = `<div class="menu" style="left:224px;min-width:300px">${row('Look around')}${row('Walk')}<hr>${row('Render…')}${row('Presentations…', { cls: 'new on' })}</div>`;
+    const pal = `<div class="palette"><div class="q">present<i>&nbsp;</i></div>
+      <div class="r on"><span>Presentations…</span><span>Camera</span></div><div class="r"><span>Export presentation batch…</span><span>Camera</span></div></div>
+      <div class="mocknote" style="left:572px;top:150px">Ctrl+K lists both entries; each opens its dialog directly.</div>`;
+    return frame(4, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Presentations: camera paths and render presets'), menu + pal);
+  },
+};
+
+SCREENS.render = {
+  title: '2 · The render sheet: the new batch button beside the one-shot export',
+  note: 'The Render with Blender sheet (UX_DESIGN §9) keeps its fields, its Jobs button and its Render button. It gains one button, <b>Export presentation batch…</b>, beside <b>Export scene animation…</b>. The one-shot export is unchanged (ADR 0107): one preset, the sheet\'s current settings, PNG frames, no video and no resume. The batch is for several named presets, an optional video and resume (§17.9). Both buttons open their own dialog; neither replaces the other. Fields are abbreviated here.',
+  html: () => {
+    const inner = head('Render with Blender', 'Blender renders a captured model while you keep working.') +
+      `<div class="rule"></div><div class="col" style="flex:1;padding:12px 22px">
+        ${fld('Blender executable', '<span class="in" style="min-width:230px">/usr/bin/blender</span>')}
+        ${fld('Render engine', '<span class="in dd">Cycles</span>')}
+        ${fld('Camera', '<span class="in dd">Current view</span>')}
+        ${fld('Width (pixels)', '<span class="in">1024</span>')}
+        ${fld('Height (pixels)', '<span class="in">768</span>')}
+        ${fld('Samples', '<span class="in">32</span>')}
+        <div class="hd" style="margin-top:14px">Animation and presentation output</div>
+        <div class="btnrow"><span class="btn" role="button" style="min-width:230px">Export scene animation…</span><span class="sfx">unchanged: one set of frames, from these settings</span></div>
+        <div class="btnrow"><span class="btn" role="button" style="min-width:230px;border-color:var(--ink)">Export presentation batch…</span><span class="newtag">new</span><span class="sfx">several presets, optional video, resume</span></div>
+      </div>` + foot('Ready. Blender is checked when the sheet opens.', btn('Cancel job') + btn('Jobs…') + btn('Close') + btn('Render', 'primary def'));
+    return frame(-1, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Render with Blender'), dlg(460, 640, inner, { name: 'Render with Blender', top: 60 }));
+  },
+};
+
+SCREENS.paths = {
+  title: '3 · The path editor: the Camera paths tab',
+  note: 'The Presentations dialog is non-modal, like the Jobs list, so each edit is one undo step and the model stays usable behind it. On the left, the paths (name, scene count, planned frames); a broken path is shown with its reason and is not hidden. On the right, the selected path: its name, its keyframes in playing order (a scene may repeat; Alt+↑ and Alt+↓ move it, as in Saved scenes), and its timing in seconds with the step count beside it. The planned frame count and the 240 cap update on every change, before anything is refused. The unit names say "between scenes" so the Scenes panel\'s viewport transition (milliseconds) is not confused with this one.',
+  html: () => {
+    const list = `<div class="pathlist"><div class="lst" role="listbox" aria-label="Camera paths">
+        ${pathItem('Tour', '5 scenes · 157 frames · 6.5 s', { sel: true, tag: '' })}
+        ${pathItem('Orbit', '4 scenes · 121 frames · 5.0 s')}
+        ${pathItem('Courtyard', '✕ broken: keyframe 2 names a missing scene', { bad: true })}
+      </div>
+      <div class="btnrow"><span class="btn" role="button">New path</span><span class="btn" role="button">Delete path</span></div>
+      <div class="cap">A document holds up to 64 paths. At 64, New path is disabled and says why.</div>
+      <div class="cap" style="margin-top:6px">Help: a path plays its scenes in the order listed. The keyframe\'s own camera is the view that was saved in its scene.</div></div>`;
+    const body = `<div class="dbody" style="flex:1"><div class="col" style="width:330px">${list}</div><div class="col" style="flex:1">${pathsEditorSaved}</div></div>`;
+    const foot_ = foot('Each change is one undo step (Ctrl+Z, or History).', btn('Export batch…') + btn('Close', 'primary def'));
+    return frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Presentations · Tour selected'), presDialog(0, body, foot_, { top: 50 }));
+  },
+};
+
+SCREENS.pick = {
+  title: '4 · Create flow: a new path, and Add scene…',
+  note: 'New path opens a <b>draft</b> named "Path 1" (the name is selected, so typing replaces it). The engine stores only valid paths, and a path needs two to thirty-two scenes, so the draft stays in the dialog until <b>Create path</b> is enabled. Add scene… opens this picker: camera scenes in their saved order; Enter or double-click adds one, and the picker stays open for more. A saved scene without a camera is listed dimmed with the reason, because it cannot be a keyframe. Done returns; Esc does the same. Creating the path is one undoable edit.',
+  html: () => {
+    const picker = `<div class="dh" style="padding-bottom:6px"><div class="dt">Add scenes to Path 1</div><div class="ds">Enter adds a scene. Scenes are listed in their saved order.</div></div>
+      <div style="padding:0 22px 10px"><div class="lst" role="listbox" aria-label="Saved scenes with a camera">
+        ${pathItem('Front', 'camera · in path 1×', { sel: true })}${pathItem('Entrance', 'camera · in path 1×')}${pathItem('Side', 'camera')}
+        ${pathItem('Garden', 'camera')}${pathItem('Roof', 'camera')}${pathItem('Overview', 'camera')}
+        <div class="it" style="color:#9aa49b" aria-disabled="true"><span><b>Section study</b><br><span class="sub">no camera: give it a camera in Saved scenes first</span></span><span class="sfx">not selectable</span></div>
+      </div></div>
+      <div class="df"><span class="st">Enter adds · Esc is Done</span>${btn('Done', 'primary def')}</div>`;
+    const draft = `<div class="ed" style="flex:1">
+        ${fld('Name', '<span class="in foc" style="min-width:220px">Path 1</span>')}
+        <div class="hd" style="margin-top:6px">Keyframes <span class="sfx">(a draft: not in the model yet)</span></div>
+        ${kfRows([{ name: 'Front', st: 'camera' }, { name: 'Entrance', st: 'camera' }])}
+        <div class="btnrow"><span class="btn" role="button">Add scene…</span><span class="sfx">two to thirty-two scenes to create the path</span></div>
+        <div class="hd">Timing</div>${timingRows(FPS, 1, 0.5)}
+        <div class="dbn info" style="margin:8px 0 0" role="status"><span class="k">Draft</span><span>Path 1 is not saved. It has 2 scenes, 37 frames. Create path becomes enabled at 2 scenes.</span></div>
+      </div>`;
+    const body = `<div class="dbody" style="flex:1"><div class="col" style="width:330px"><div class="lst" role="listbox">${pathItem('Path 1', 'draft · not saved', { sel: true })}${pathItem('Tour', '5 scenes · 157 frames')}${pathItem('Orbit', '4 scenes · 121 frames')}</div></div><div class="col" style="flex:1">${draft}</div></div>`;
+    const foot_ = foot('Cancel discards the draft; nothing in the model changes.', btn('Cancel') + btn('Create path', 'primary'));
+    const pickDlg = dlg(520, 470, picker, { name: 'Add scenes to Path 1', top: 170, z: 12, light: true });
+    return frame(-1, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Presentations · Path 1 draft'), presDialog(0, body, foot_, { top: 50 }) + pickDlg);
+  },
+};
+
+SCREENS.limit = {
+  title: '5 · Over the frame limit: refused while the path is edited',
+  note: 'The count is live. Eight keyframes at this timing would plan 265 frames, and the engine refuses any path over 240 (<span class="mono">presentation_records.cpp</span>). The draft cannot be created, and the line says why in words, with the formula in small type. Its last sentence names the way out: at 24 frames per second, a 1.00 s transition and a 0.50 s hold, seven scenes is the most. The planner\'s own text ("Camera path exceeds 240 captured frames") is never shown, because the editor checks the same rule first. The repeated keyframes (Garden, Front) are legal; only the count is refused.',
+  html: () => {
+    const rows = [{ name: 'Front', st: 'camera' }, { name: 'Entrance', st: 'camera' }, { name: 'Side', st: 'camera' }, { name: 'Garden', st: 'camera' }, { name: 'Roof', st: 'camera' }, { name: 'Overview', st: 'camera' }, { name: 'Garden', st: 'camera (repeat)' }, { name: 'Front', st: 'camera (repeat)' }];
+    const ed = `<div class="ed" style="flex:1">
+        ${fld('Name', '<span class="in" style="min-width:220px">Path 1</span>')}
+        <div class="hd" style="margin-top:6px">Keyframes</div>
+        ${kfRows(rows)}
+        <div class="btnrow"><span class="btn" role="button">Add scene…</span><span class="sfx">Remove a keyframe to make room</span></div>
+        <div class="hd">Timing</div>${timingRows(FPS, 1, 0.5)}
+        <div class="dbn fail" style="margin:8px 0 0" role="alert"><span class="k">✕ Too long</span><span>Path 1 would render <b>265 frames</b>; the limit is <b>240</b>. At this timing, <b>7 scenes</b> is the most. Remove a scene, or shorten the transition or the hold.</span></div>
+        <div class="mono cap" style="margin-top:6px">Camera path would plan 265 frames (1 + 8 x 12 + 7 x 24); the limit is 240</div>
+      </div>`;
+    const body = `<div class="dbody" style="flex:1"><div class="col" style="width:330px"><div class="lst">${pathItem('Path 1', '8 scenes · 265 frames · not created', { sel: true, bad: true })}${pathItem('Tour', '5 scenes · 157 frames')}</div></div><div class="col" style="flex:1">${ed}</div></div>`;
+    const foot_ = foot('Create path is disabled until the count is 240 or less.', btn('Cancel') + btn('Create path', 'off'));
+    return frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Presentations · Path 1 is too long'), presDialog(0, body, foot_, { top: 50 }));
+  },
+};
+
+SCREENS.presets = {
+  title: '6 · Preset management: the Render presets tab',
+  note: 'A preset is a name and the render settings the setup sheet already offers (engine, width, height, samples), plus a seed that matters only for Cycles. It has no device and no HDR panorama: the batch chooses the device once, and an environment is not part of a preset (ADR decision 3). <b>New from current settings</b> fills a preset from the render sheet\'s values, which is the only bridge between the two. The footer says what differs: a preset is part of this model and travels with it, undoably; the sheet\'s values remain this computer\'s preferences. Sixteen is the limit. Even sizes are asked for because a batch that writes video needs them.',
+  html: () => {
+    const list = `<div class="lst" role="listbox" aria-label="Render presets">
+        ${pathItem('Final', 'Cycles · 1280 × 720 · 128 samples')}${pathItem('Draft', 'Cycles · 640 × 360 · 16 samples', { sel: true })}${pathItem('Preview', 'Eevee preview · 960 × 540 · 32 samples')}
+      </div>
+      <div class="btnrow"><span class="btn" role="button">New preset</span><span class="btn" role="button">Duplicate</span><span class="btn" role="button">Delete</span></div>
+      <div class="btnrow"><span class="btn" role="button">New from current settings</span></div>
+      <div class="cap">3 of 16 presets. At 16, New preset is disabled and says why.</div>`;
+    const ed = `<div class="ed" style="flex:1">
+        ${fld('Name', '<span class="in" style="min-width:220px">Draft</span> <span class="sfx">unique · up to 1024 bytes</span>')}
+        ${fld('Engine', rb('<b>Cycles</b>', true) + rb('Eevee preview <span class="sfx">needs the OpenGL device</span>', false))}
+        ${fld('Width (pixels)', '<span class="in">640</span> <span class="sfx">64 to 4096 · even for video</span>')}
+        ${fld('Height (pixels)', '<span class="in">360</span> <span class="sfx">64 to 4096 · even for video</span>')}
+        ${fld('Samples', '<span class="in">16</span> <span class="sfx">1 to 1024</span>')}
+        ${fld('Seed', '<span class="in">0</span> <span class="sfx">Cycles only; Eevee ignores the seed</span>')}
+        <div class="dbn info" style="margin:10px 0 0" role="status"><span class="k">Saved with this model</span><span>Presets travel with the file and undo like any edit. The render sheet\'s values stay on this computer.</span></div>
+        <div class="cap" style="margin-top:8px">A batch keeps the settings it started with. Changing or deleting a preset later does not change a batch already run.</div>
+      </div>`;
+    const body = `<div class="dbody" style="flex:1"><div class="col" style="width:400px">${list}</div><div class="col" style="flex:1">${ed}</div></div>`;
+    const foot_ = foot('Edits are one undo step each.', btn('Export batch…') + btn('Close', 'primary def'));
+    return frame(-1, 'house', 'Edited', scene(), side('House', 'Outliner', OUT_HOUSE), status('Presentations · render presets'), presDialog(1, body, foot_, { top: 50 }));
+  },
+};
+
+// ---------- Batch dialog (17.4, 17.5, 17.8) ----------
+// state: ok | device | noblender | video (H.264 unavailable)
+function batchDialog(state = 'ok') {
+  const off = state === 'noblender';
+  const conflict = state === 'device';
+  const noVideo = state === 'video';
+  const videoBlock = off
+    ? `<div class="cap">Needs Blender 5.2 LTS. See the card on the right.</div>`
+    : noVideo
+      ? `<div class="dbn warn" style="margin:4px 0 0" role="status"><span class="k">⚠ Unavailable</span><span>H.264 is not in this Blender's FFmpeg build. Frames still render; video is off. Checked just now, against Blender 5.2.2.</span></div>
+         ${ck('Write H.264 video for each preset', false, true)}`
+      : `${ck('Write H.264 video for each preset (MP4, one per preset)', false)}
+         <div class="cap ok" style="margin-left:22px">✓ H.264 available in Blender 5.2.2. Each video encode stops after 15:00.</div>`;
+  const presetRow = (name, desc, on, bad = false) => `<div class="ck${on ? ' on' : ''}${bad ? ' off' : ''}" role="checkbox" aria-checked="${!!on}" style="padding:4px 0 4px 22px"><b>${name}</b> <span class="sfx">${desc}</span>${bad ? `<div class="errline" style="font-weight:400;font-size:11px;margin-top:2px">✕ Preview uses Eevee, which needs the OpenGL device. The batch uses CPU. Uncheck Preview, or choose OPENGL.</div>` : ''}</div>`;
+  const left = `<div class="col" style="width:470px${off ? ';opacity:.55' : ''}">
+      <div class="hd">Camera path</div>
+      <div class="fld"><label>Path</label><span><span class="in dd" style="min-width:260px${off ? ';color:#9aa49b' : ''}">Tour · 5 scenes · 157 frames</span><div class="cap">6.5 s at 24 fps. Only valid paths are listed; a broken one is shown disabled, with its reason.</div></span></div>
+      <div class="hd">Presets <span class="sfx">(up to 4 · one device family)</span></div>
+      ${presetRow('Final', '· Cycles · 1280 × 720 · 128 samples', true)}
+      ${presetRow('Draft', '· Cycles · 640 × 360 · 16 samples', true)}
+      ${conflict ? presetRow('Preview', '· Eevee preview · 960 × 540 · 32 samples', true, true) : presetRow('Preview', '· Eevee preview · 960 × 540 · 32 samples', false, false).replace('class="ck', 'class="ck off') + (off ? '' : '<div class="cap" style="margin-left:22px">Off: Preview needs the OpenGL device, and the device is CPU.</div>')}
+      <div class="hd">Device</div>
+      <div class="fld"><label>Device backend</label><span><span class="in dd">${conflict ? 'CPU' : 'CPU'}</span> <span class="sfx">as the render sheet</span></span></div>
+      <div class="fld"><label>Device</label><span><span class="in dd" style="min-width:160px">CPU</span></span></div>
+      ${ck('Retry once on CPU if a GPU fails (per frame)', true)}
+      <div class="hd">Output</div>
+      <div class="fld"><label>New folder</label><span><span class="in" style="display:block;min-width:0">/home/keith/Videos/Tour</span><div style="margin-top:4px">${btn('Choose parent folder…')}</div></span></div>
+      <div class="cap" style="margin-left:160px">A new folder inside an existing one. An existing folder is never used or changed.</div>
+      <div class="hd">Video</div>
+      ${videoBlock}
+    </div>`;
+  const cost = `<div class="col" style="flex:1">
+      <div class="hd">What the batch will do</div>
+      <div class="budget"><div class="l">Frames</div><div class="bigv">${BATCH_FRAMES}</div><div class="sfx">${TOUR_FRAMES} frames × 2 presets</div></div>
+      <div class="budget"><div class="l">Output, at most</div><div class="bigv">${off ? '—' : CEIL_TXT}</div><div class="sfx">${noVideo || off ? 'Largest possible; real frames are usually smaller. The batch stops at 2.0 GiB.' : `Largest possible; real frames are usually smaller. With video: ${CEIL_VIDEO_TXT}, the budget caps it.`}</div></div>
+      <div class="budget"><div class="l">Free space on this disk</div><div class="bigv">${off ? '—' : '812 GiB'}</div><div class="sfx">${off ? '' : `Enough: the batch needs about ${(NEED_MIB / 1024).toFixed(1)} GiB, with a 256 MiB reserve.`}</div></div>
+      <div class="budget"><div class="l">Time</div><div class="sfx">Not estimated. Each frame is a separate Blender render. In R099.b's measurement a 1024 × 768 frame at 32 samples took about 26 s on CPU.</div></div>
+      ${off ? `<div class="setup" role="region" aria-label="Blender is needed">
+          <div class="hd" style="margin-top:0">Blender is needed for presentation batches</div>
+          <div>Presentation batches render each frame with Blender 5.2 LTS and encode video with its FFmpeg. Renders and the one-shot export use the same Blender.</div>
+          <div class="kvl" style="margin-top:6px"><span>Detected</span><span class="bad">Not found on PATH</span></div>
+          <div class="btnrow" style="margin-top:6px">${btn('Choose executable…')}${btn('Check again')}</div>
+          <div class="cap">On Arch, install the blender package, then check again.</div></div>`
+        : `<div class="budget"><div class="l">Blender</div><div>${noVideo ? '<span class="ok">✓</span> Blender 5.2.2 · CPU device ready' : '<span class="ok">✓</span> Blender 5.2.2 · CPU device ready'}</div><div class="sfx">${noVideo ? 'Video: unavailable here (H.264 missing).' : 'Video: H.264 available.'}</div></div>`}
+    </div>`;
+  let st = 'Start checks Blender again, then renders. The batch works from a copy of the model as it is now: no save prompt.';
+  if (off) st = 'Start is unavailable until Blender 5.2 LTS is found. Your model is not changed.';
+  if (conflict) st = 'Start is unavailable: Preview and CPU do not match. Nothing is rendered.';
+  if (noVideo) st = 'Video is unavailable on this Blender. Start renders the frames only.';
+  const startBtn = off || conflict ? btn('Start batch', 'primary off') : btn('Start batch', 'primary def');
+  const inner = head('Export presentation batch', 'Renders one image sequence per preset along a camera path, into a new folder. The model is not changed.') +
+    `<div class="rule"></div><div class="dbody" style="flex:1">${left}${cost}</div>` + foot(st, btn('Cancel') + startBtn);
+  return dlg(1040, 740, inner, { name: 'Export presentation batch', top: 30 });
+}
+SCREENS.batch = {
+  title: '7 · The batch dialog and its live budget',
+  note: 'The batch dialog is modal, like the one-shot sheet, and it starts from the model as it is now. On the left, what to render: one path, up to four presets, one device family (the render sheet\'s own controls), a new output folder and the video choice. On the right, what it will cost, updated as each choice changes: the frame count (frames × presets), the largest possible output, the free space on the output disk, and an honest time note. The output figure is the engine\'s worst-case bound, the number its disk check uses, so the batch cannot start without room for it. With video on, the ceiling is doubled before the 2.0 GiB cap (R099.c). The engine\'s "Frames" figures are exact; the budget is the bound, not a forecast.',
+  html: () => frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Export presentation batch'), batchDialog('ok')),
+};
+SCREENS.device = {
+  title: '8 · A preset that cannot use the device: refused before Start',
+  note: 'Eevee preview needs the OpenGL device, and Cycles needs the CPU or a GPU. The engine refuses a batch that mixes them, after the path and folder checks, with the text "Presets must match the selected device". The dialog shows the same rule at the moment of choice, on the row that conflicts, with the fix in words. Start is disabled and its line says why. Nothing is rendered, and no folder is created.',
+  html: () => frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Export presentation batch'), batchDialog('device')),
+};
+SCREENS.unavailable = {
+  title: '9 · Blender is absent: the setup card, and Start unavailable',
+  note: 'Without Blender 5.2 LTS the batch dialog opens, but its path and preset controls are greyed out (they stay visible) and Start is disabled. The card on the right is the render sheet\'s existing setup card (UX_DESIGN §9): what Blender is used for, the detected state, the choose and check buttons, and the install hint. The engine\'s refusal, "Presentation batches need an installed Blender 5.2 LTS; install it or choose its executable", is the same text as the card\'s first sentence in the Start line.',
+  html: () => frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Export presentation batch'), batchDialog('noblender')),
+};
+SCREENS.video = {
+  title: '10 · Video availability: the probe, before any frame',
+  note: 'Today the engine finds out that a Blender has no H.264 encoder only after every frame has rendered (R099.c refuses with <span class="mono">codec_unavailable</span>). The dialog therefore probes when it opens, as the render sheet already checks Blender. Here the probe says H.264 is absent, so <b>Write video</b> is greyed with its reason, and the frames still render. Start checks again, so a Blender that changed after the dialog opened is caught before frame one. The probe has four states: checking (Start waits), available, unavailable (above) and not checked (no Blender, or the probe timed out). A fallback codec is an owner choice (§17.12, question 1).',
+  html: () => frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Export presentation batch · video unavailable'), batchDialog('video')),
+};
+
+SCREENS.running = {
+  title: '11 · The Jobs list: a batch row with per-preset progress',
+  note: 'The batch is one row in the Jobs list, with one child row per preset. Each child names its state in words and draws a bar only where there is a count (frames), as on IFC progress. <b>Cancel batch</b> stops the frame in progress and discards it; finished frames stay, and no video is written. <b>Resume</b> is disabled while running. The provenance line is the render wording ("Revision 42 · model has changed since"). The status-bar chip shows the batch while it runs. The window title becomes "Jobs", because it now lists two kinds of job.',
+  html: () => {
+    const rows = `<div class="jr head" role="row"><span>State / progress</span><span>Captured model</span><span class="c3">Attempts</span><span class="c4">Elapsed</span></div>
+      <div class="jr par sel" role="row"><span>▾ <b>Running</b> · Tour, 2 presets</span><span class="c2">Revision 42 · model has changed since</span><span class="c3">1</span><span class="c4">6:12</span></div>
+      <div class="jr child" role="row"><span><b>Final</b> · frame 58 of 157 · Running<div class="bar" role="progressbar" aria-label="Final, frame 58 of 157" aria-valuemin="0" aria-valuemax="157" aria-valuenow="58"><i style="width:37%"></i></div></span><span class="c2">1280 × 720 · Cycles · CPU</span><span></span><span></span></div>
+      <div class="jr child" role="row"><span><b>Draft</b> · waiting for Final</span><span class="c2">640 × 360 · Cycles · CPU</span><span></span><span></span></div>
+      <div class="jr par" role="row"><span>✓ <b>Completed</b> · Orbit, 2 presets</span><span class="c2">Revision 40 · restored capture</span><span class="c3">1</span><span class="c4">14:05</span></div>
+      <div class="jr par" role="row"><span>■ <b>Canceled</b> · Entrance</span><span class="c2">Revision 41 · another model session</span><span class="c3">1</span><span class="c4">3:20</span></div>`;
+    const btns = btn('Cancel batch', '') + btn('Resume', 'off') + btn('Show folder') + btn('Remove', '');
+    const details = `<div class="details" role="region" aria-label="Batch details"><div class="kvl"><span>Output</span><span class="mono">/home/keith/Videos/Tour</span></div>
+      <div class="kvl"><span>Presets</span><span>Final 1280 × 720 · Cycles 128 samples · Draft 640 × 360 · Cycles 16 samples</span></div>
+      <div class="kvl"><span>Device</span><span>CPU · retry once on CPU if a GPU fails (per frame)</span></div>
+      <div class="kvl"><span>Frames kept</span><span>Final 57 · Draft 0 · output so far 37 MiB of 2.0 GiB</span></div>
+      <div class="kvl"><span>Capture</span><span class="mono">4f2a…9c1e · the model as it was at revision 42</span></div></div>`;
+    const inner = head('Jobs', 'Renders and presentation batches keep what they captured. Resume continues a batch from its first unfinished frame. Up to one batch and two renders run at once.') +
+      `<div class="rule"></div><div style="padding:10px 22px 0;flex:1;min-height:0"><div class="lst" style="border-radius:3px">${rows}</div>
+        <div class="btnrow" style="margin-top:8px">${btns}</div>${details}</div>` +
+      foot('Remove leaves your frames and videos in the output folder.', btn('Remove all finished jobs') + btn('Close', 'primary def'));
+    const chip = `<span class="chip" role="button" aria-label="Batch Tour, Final frame 58 of 157. Show jobs"><b>◐</b> Batch Tour · Final 58 of 157 · <span class="link">Show jobs</span></span>`;
+    return frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Batch Tour is running · Modeling continues', chip), dlg(1040, 660, inner, { name: 'Jobs', top: 36 }));
+  },
+};
+
+SCREENS.resume = {
+  title: '12 · Failed, interrupted and canceled batches: the Resume wording',
+  note: 'Each finished state names what was kept and what Resume will do, in the same order as the engine\'s own sentence. <b>Resume</b> (the engine\'s "retry") is enabled for Failed, Canceled and Interrupted batches, not for Completed ones. A failed video says the frames are kept and that Resume encodes the video only. The output-budget row is honest: the next frame may or may not fit, so Resume is allowed, and the line gives the room left and the other way out, a new folder with fewer frames or a smaller size. <b>Remove</b> never deletes the output folder, and the tooltip says so.',
+  html: () => {
+    const rows = `<div class="jr head" role="row"><span>State / progress</span><span>Captured model</span><span class="c3">Attempts</span><span class="c4">Elapsed</span></div>
+      <div class="jr par" role="row"><span>✕ <b>Failed</b> · Tour: video not written for Draft</span><span class="c2">Revision 42 · model has changed since</span><span class="c3">1</span><span class="c4">9:40</span></div>
+      <div class="jr par sel" role="row"><span>✕ <b>Failed</b> · Orbit: output budget reached</span><span class="c2">Revision 40 · restored capture</span><span class="c3">2</span><span class="c4">22:10</span></div>
+      <div class="jr par" role="row"><span>✕ <b>Failed</b> · Garden: frame 12 failed</span><span class="c2">Revision 39 · another model session</span><span class="c3">1</span><span class="c4">2:10</span></div>
+      <div class="jr par" role="row"><span>⚠ <b>Interrupted</b> · Courtyard</span><span class="c2">Revision 42 · restored capture</span><span class="c3">1</span><span class="c4">1:05:33</span></div>
+      <div class="jr par" role="row"><span>■ <b>Canceled</b> · Entrance</span><span class="c2">Revision 41</span><span class="c3">1</span><span class="c4">3:20</span></div>
+      <div class="jr par" role="row"><span>✓ <b>Completed</b> · Side, 2 presets</span><span class="c2">Revision 38</span><span class="c3">1</span><span class="c4">11:02</span></div>`;
+    const sel = `<div class="details" role="region" aria-label="Selected batch: Orbit"><div class="kvl"><span>What was kept</span><span>Final 58 of 121 frames · Draft not started · no video written</span></div>
+      <div class="kvl"><span>Why it stopped</span><span class="errline">✕ Frame 59 of 121 would pass the 2 GiB output budget (12 MiB remain). Finished frames are kept.</span></div>
+      <div class="kvl"><span>Resume</span><span class="wr">⚠ Resume adds frames only while they fit in the budget. If the next frame does not fit, it stops again and keeps what it has.</span></div>
+      <div class="kvl"><span>Other way</span><span>Start a new batch in a new folder with fewer frames, a shorter path or a smaller size.</span></div></div>`;
+    const btns = btn('Resume', 'primary def') + btn('Show folder') + btn('Show results…') + btn('Remove');
+    const inner = head('Jobs', 'Renders and presentation batches keep what they captured.') +
+      `<div class="rule"></div><div style="padding:10px 22px 0;flex:1;min-height:0"><div class="lst" style="border-radius:3px">${rows}</div>
+        <div class="btnrow" style="margin-top:8px">${btns}</div>${sel}</div>` +
+      foot('Remove leaves your frames and videos in the output folder.', btn('Remove all finished jobs') + btn('Close', 'primary'));
+    return frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Jobs: 4 batches need attention'), dlg(1040, 700, inner, { name: 'Jobs', top: 36 }));
+  },
+};
+
+SCREENS.results = {
+  title: '13 · Results: stills and video from a batch',
+  note: 'A finished batch is not opened by itself: its status-bar chip shows "Presentation ready · Show results", so a sheet does not take focus during other work. Each preset has a card. A video appears only when it is verified and written; Play video opens the system player (there is no player in the app). The stills grid is the scene × preset grid from ADR 0173 §4: each cell is the keyframe-flagged frame of its preset, so nothing renders twice. Arrow keys move in the grid, Enter opens a still. The banner states this batch\'s outcome. Here Draft\'s video failed, so the batch is Failed, not Completed, and Resume encodes only that video.',
+  html: () => {
+    const banner_ = banner('warn', '⚠ Not finished', 'Final is complete. Draft\'s video was not written: Blender stopped while encoding (15:00 limit). Its frames are kept, and <b>Resume</b> encodes that video only. The model is unchanged.');
+    const left = `<div class="col" style="width:380px">
+        <div class="hd">Made from</div>
+        <div class="kvl"><span>Model</span><span>Revision 42 · model has changed since</span></div>
+        <div class="kvl"><span>Render</span><span>Blender 5.2.2 · CPU · CPU fallback on 3 frames</span></div>
+        <div class="kvl"><span>Frames</span><span>314 kept, 0 missing</span></div>
+        <div class="hd">Presets</div>
+        <div class="pcard"><div class="t">Final</div><div class="sfx">1280 × 720 · Cycles · 128 samples · 157 frames</div>
+          <div style="margin-top:6px">✓ <b>Video</b> 6.5 s · H.264 MP4 · 4.2 MB</div>
+          <div class="btnrow" style="margin:6px 0 0">${btn('Play video', 'primary def')}${btn('Show in folder')}</div></div>
+        <div class="pcard"><div class="t">Draft</div><div class="sfx">640 × 360 · Cycles · 16 samples · 157 frames</div>
+          <div class="errline" style="margin-top:6px">✕ Video not written</div><div class="sfx">Blender stopped while encoding (15:00 limit). Frames kept.</div>
+          <div class="btnrow" style="margin:6px 0 0">${btn('Resume: encode video', 'primary')}${btn('Show in folder')}</div></div>
+        <div class="hd">Folder layout</div>
+        <div class="mono cap" style="font-size:11px;line-height:1.5">Tour/<br>&nbsp;&nbsp;manifest.json<br>&nbsp;&nbsp;01-Final/frames/frame-0001.png …<br>&nbsp;&nbsp;01-Final/video.mp4<br>&nbsp;&nbsp;02-Draft/frames/frame-0001.png …</div>
+      </div>`;
+    const K = [['Front', '0001'], ['Entrance', '0037'], ['Side', '0073'], ['Garden', '0109'], ['Roof', '0145']];
+    const tints = ['#d3dfd0', '#c7d8e0', '#dcd6c7', '#cfd9c4', '#d9d0dc'];
+    const grid = `<div class="hd" style="margin-top:0">Keyframe stills <span class="sfx">(scene × preset)</span></div>
+      <div class="sgrid" role="grid" aria-label="Keyframe stills: five scenes by two presets">
+        <div class="sg hd2" role="row"><span>Scene</span><span>Final</span><span>Draft</span></div>
+        ${K.map(([n, f], i) => `<div class="sg" role="row"><span class="sn">${i + 1}. ${n}</span>
+          <span class="sc${i === 0 ? ' sel' : ''}" role="gridcell" aria-label="${n}, Final, frame ${f}"><span class="th" style="background:linear-gradient(160deg,${tints[i]},#f7f7f2)"></span>frame ${f}</span>
+          <span class="sc" role="gridcell" aria-label="${n}, Draft, frame ${f}"><span class="th" style="background:linear-gradient(160deg,${tints[i]},#eef3fb)"></span>frame ${f}</span></div>`).join('')}
+      </div>
+      <div class="cap" style="margin-top:8px">Each still is the frame flagged as a keyframe in its preset\'s sequence. Activating a cell opens that PNG in the system viewer.</div>`;
+    const right = `<div class="col" style="flex:1">${grid}</div>`;
+    const inner = head('Tour · presentation results', '<span class="mono">/home/keith/Videos/Tour</span> · 2 presets · 314 frames', '<span class="pill warn" style="font-size:12px">Not finished</span>') + banner_ +
+      `<div class="rule"></div><div class="dbody" style="flex:1">${left}${right}</div>` +
+      foot('Arrow keys move in the grid · Enter opens a still', btn('Copy report') + btn('Show output folder') + btn('Close', 'primary def'));
+    return frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Batch Tour: Draft video not written · Show results', ''), dlg(1040, 740, inner, { name: 'Presentation results', top: 40 }));
+  },
+};
+
+SCREENS.broken = {
+  title: '14 · Refused: a camera path with a missing scene and a scene without a camera',
+  note: 'A batch on a broken path is refused before anything is captured or created. The sheet says first that nothing was rendered and the model is unchanged, then names each problem by keyframe position and scene (the engine reports the scene ID of a deleted scene, so the UI shows the keyframe and its old ID). The engine\'s two sentences are shown in small type. The next steps are numbered and point to the two places that repair a path: Presentations, and Saved scenes. A broken path can still be renamed and retimed; its keyframes can be removed only so that every keyframe left is valid (ADR 0173 §2).',
+  html: () => {
+    const inner = head('Batch not started: Courtyard needs repair', 'Export presentation batch · path Courtyard', '<span class="pill fail" style="font-size:12px">Refused</span>') +
+      banner('fail', '✕ Nothing was rendered', 'No folder was created, and your model is unchanged.') + '<div class="rule"></div>' +
+      `<div class="dbody"><div class="col" style="flex:1">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Courtyard has two problems.</div>
+        <div class="lst" style="margin-top:8px">
+          <div class="it"><span><b>Keyframe 2</b> · a saved scene that no longer exists<br><span class="sub">scene 17 was deleted; its name is not kept</span></span><span class="sfx">missing</span></div>
+          <div class="it"><span><b>Keyframe 4</b> · Roof · has no camera<br><span class="sub">a saved scene without a camera cannot be a keyframe</span></span><span class="sfx">no camera</span></div>
+        </div>
+        <div class="hd">What to do next</div>
+        <ol class="steps"><li>In Presentations, Camera paths, remove keyframe 2 from Courtyard, or replace it with another saved scene.</li>
+          <li>In Saved scenes, give Roof a camera (update its view), or remove keyframe 4 from the path.</li>
+          <li>Start the batch again.</li></ol>
+        <div class="hd">Engine text</div>
+        ${engine('Camera path \'Courtyard\' names saved scenes that no longer exist (17); repair the path before exporting')}
+        ${engine('Camera path \'Courtyard\' has a keyframe scene without a camera; give it a camera before exporting')}
+      </div></div>` +
+      foot('Esc closes.', btn('Copy details') + btn('Open Presentations…') + btn('Close', 'primary def'));
+    return frame(-1, 'house', 'Edited', scene({ path: true }), side('House', 'Outliner', OUT_HOUSE), status('Batch not started: Courtyard needs repair'), dlg(720, 600, inner, { name: 'Batch not started', top: 60 }));
+  },
+};
+
+// ---------- Gallery and single-screen switch ----------
+const ORDER = ['menu', 'render', 'paths', 'pick', 'limit', 'presets', 'batch', 'device', 'video', 'unavailable', 'running', 'resume', 'results', 'broken'];
+const params = new URLSearchParams(location.search);
+const one = params.get('screen');
+if (one && SCREENS[one]) { document.body.className = 'one'; document.body.innerHTML = SCREENS[one].html(); }
+else document.body.innerHTML = `<div class="gallery">` + ORDER.map(k => `<div><h2>${SCREENS[k].title}</h2><p>${SCREENS[k].note}</p>${SCREENS[k].html()}</div>`).join('') + '</div>';
+// ?text=200: double every font size, then let the frames grow (x2 CSS), to check wrapping and overlap.
+if (params.get('text') === '200') {
+  const els = [...document.querySelectorAll('body *')];
+  const sizes = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+  els.forEach((e, i) => { if (e.closest('svg') === null) e.style.fontSize = (sizes[i] * 2) + 'px'; });
+  document.body.classList.add('x2');
+}
+})();
+</script>
+</body>
+</html>
