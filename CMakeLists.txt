@@ -121,6 +121,8 @@ if(SKETCHYUP_BUILD_IFC)
   # R097.a (ADR 0171): IfcOpenShell as private shared libraries and the helper that links them.
   add_subdirectory(src/ifc)
 endif()
+# R109.a (ADR 0183): the helper process sandbox, shared by the file-parsing helpers. No dependency.
+add_subdirectory(src/sandbox)
 # R102.a (ADR 0176): the .skp helper. Built by default, with no Qt: the parser subset is plain
 # C++17, and the helper is the one executable that links it (decision 2).
 add_subdirectory(src/skp)
