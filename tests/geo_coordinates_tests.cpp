@@ -189,6 +189,14 @@ void referencePoints() {
                 projectReference(row, true, 56, metres, convergence);
         }
     }
+    // Zones 31, 32 and 33 (central meridians 3°E, 9°E and 15°E), with the rows outside the Norway
+    // and Svalbard exceptions, which the zone rules refuse by name.
+    for (const int zone : {31, 32, 33})
+        for (const auto &row : rows) {
+            const double longitude = -183 + 6.0 * zone + row.longitude;
+            if (row.latitude > 0 && !inExceptionArea(row.latitude, longitude, 0))
+                projectReference(row, false, zone, metres, convergence);
+        }
     std::cout << "Karney reference points: largest grid error " << metres << " m, largest "
               << "convergence error " << convergence << " degrees\n";
     check(metres <= referenceMetres,
