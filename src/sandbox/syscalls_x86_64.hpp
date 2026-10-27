@@ -37,6 +37,7 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"mremap", 25},
     {"madvise", 28},
     {"nanosleep", 35},
+    {"alarm", 37},
     {"getpid", 39},
     {"socket", 41},
     {"connect", 42},
@@ -58,6 +59,7 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"fcntl", 72},
     {"fsync", 74},
     {"getcwd", 79},
+    {"uname", 63},
     {"readlink", 89},
     // R109 S4: the names fontconfig calls when it cannot write its cache (a user font folder);
     // the text policy refuses them with EPERM (denied). No policy allows them.
@@ -65,6 +67,7 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"chmod", 90},
     {"unlink", 87},
     {"getuid", 102},
+    {"times", 100},
     {"getgid", 104},
     {"geteuid", 107},
     {"getegid", 108},
@@ -130,7 +133,8 @@ inline std::optional<long> syscallNumber(std::string_view name) {
 inline constexpr unsigned kAuditArchX86_64 = 0xC000003EU;
 inline constexpr std::size_t kSeccompDataArch = 4;
 inline constexpr std::size_t kSeccompDataArg0 = 16; // the low 32 bits of args[0], little-endian
-inline constexpr std::size_t kSeccompDataArg1 = 24; // the low 32 bits of args[1], little-endian
+// The low 32 bits of args[index]: each argument is 8 bytes, and the first is at kSeccompDataArg0.
+inline constexpr std::size_t seccompDataArg(unsigned index) { return kSeccompDataArg0 + 8 * index; }
 
 // Numbers the sandbox calls itself (the kernel's ABI; the C library does not define the Landlock
 // ones).

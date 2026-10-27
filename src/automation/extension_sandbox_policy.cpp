@@ -22,15 +22,16 @@ constexpr std::uint32_t kTcgets2 = 0x802C542A;
 sketchyup::sandbox::Policy extensionSandboxPolicy() {
     using sketchyup::sandbox::Action;
     using sketchyup::sandbox::FileAccess;
+    using sketchyup::sandbox::oneOfArgument;
 
     sketchyup::sandbox::Policy policy;
-    // ADR 0183 section 5 (extension), re-derived from gdb traces of the worker on the panel fixture under
-    // the stdio setups (pipes, files, a pseudo-terminal and /dev/null for stdout), and on a request padded
-    // to 300 KiB. The host gives the worker a clean environment with LANG set to C.UTF-8, so glibc reads
-    // that locale from /usr/lib/locale, and that is the only grant. The trace also opened the gconv
-    // modules, the locale message catalogue and OpenSSL's configuration; a run with those denied gave the
-    // same bytes, so they are not granted (ADR 0183 implementation notes, S3 and S4). Read only. A path
-    // that does not exist grants nothing.
+    // ADR 0183 section 5 (extension), re-derived from gdb traces of the worker on the panel fixture
+    // under the stdio setups (pipes, files, a pseudo-terminal and /dev/null for stdout), and on a
+    // request padded to 300 KiB. The host gives the worker a clean environment with LANG set to
+    // C.UTF-8, so glibc reads that locale from /usr/lib/locale, and that is the only grant. The
+    // trace also opened the gconv modules, the locale message catalogue and OpenSSL's
+    // configuration; a run with those denied gave the same bytes, so they are not granted (ADR 0183
+    // implementation notes, S3 and S4). Read only. A path that does not exist grants nothing.
     const QStringList readOnly{QStringLiteral("/usr/lib/locale")};
     for (const QString &path : readOnly)
         policy.files.push_back({path.toStdString(), FileAccess::readOnly});
@@ -62,10 +63,10 @@ sketchyup::sandbox::Policy extensionSandboxPolicy() {
         {"tgkill", Action::ownProcessOnly},
         // fcntl: the file status flags of stdin (a pipe or a file). F_SETOWN would let the kernel
         // signal another process, so it is refused with EPERM.
-        {"fcntl", Action::argumentOneOf, {F_GETFL, F_SETFL}},
+        oneOfArgument("fcntl", 1, {F_GETFL, F_SETFL}),
         // ioctl: the terminal queries of the stdout check (ADR 0183 section 6.5, item 2), and
         // nothing else
-        {"ioctl", Action::argumentOneOf, {kTcgets, kTcgets2}},
+        oneOfArgument("ioctl", 1, {kTcgets, kTcgets2}),
 #ifdef SKP_WORKER_NO_ADDRESS_LIMIT
         // The sanitizer builds (ASan and UBSan): their runtimes make these calls after main (see
         // the text policy).

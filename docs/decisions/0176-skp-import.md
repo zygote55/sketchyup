@@ -104,6 +104,11 @@ implementation has started.
   - It reuses ADR 0171 §1.6's isolation: a private 0700 copy, a scrubbed environment,
     `setsid` and `PR_SET_PDEATHSIG`, `RLIMIT_AS`, `RLIMIT_CPU` and `RLIMIT_FSIZE`, a
     wall-clock deadline, cooperative cancel, and the `P`/`R` line protocol.
+  - It is sandboxed (ADR 0183, R109 S1, merged in #481). Every mode that reads its input applies
+    `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset and a seccomp-bpf allow-list before it opens the file,
+    the developer probe (`--probe`) included. The resource limits above
+    are not a sandbox by themselves. A call outside the allow-list kills the helper, which the host
+    reports as `sandboxViolation`; a layer that cannot be installed is the refusal `sandboxUnavailable`.
   - It writes a bounded package (§3) that the application decodes with a checked decoder.
 - **Packaging.** The helper ships in the **main package**, not in the optional
   `sketchyup-ifc` component.
@@ -275,8 +280,8 @@ sample locations per kind). It records:
 1. **Reader:** vendor OpenSKP's C++ parser (MIT), pinned. *Chosen by the owner on
    2026-10-25.*
 2. **Isolation and packaging:** run the parser only in a new `sketchyup-skp-worker` helper
-   (sandboxed as in ADR 0171 §1.6), shipped in the main package, not the optional IFC
-   component. *Approved 2026-10-25.*
+   (sandboxed as in ADR 0183, R109 S1; the resource limits of ADR 0171 §1.6 are not a sandbox), shipped in the
+   main package, not the optional IFC component. *Approved 2026-10-25.*
 3. **Versions:** 2021+ supported; 2013–2020 best effort with a clear refusal on failure;
    before 2013 refused. *Approved 2026-10-25.*
 4. **Package:** a new polygon-face package `SKSKPP01`, not triangles in `SKIFCP01`.
@@ -486,6 +491,10 @@ trademark note (§8) is a footnote under the grouped list, with the wording of �
 and `parse` come from the helper, and each gives the advice to save the file again from SketchUp 2021 or
 later. A helper stop (crash, memory, error, start) and a deadline (the helper's own `deadline` refusal, or
 the application's timeout) are "helper stopped" refusals. `workerMissing` is the availability sheet.
+The sandbox adds two: `sandboxUnavailable` (a layer could not be installed; the helper read nothing) and
+`sandboxViolation` (the seccomp filter killed the helper for a call its policy does not allow; this is not
+a crash, and the helper is not restarted). A denied open used to be reported as `tooLarge`; PR #470 fixed
+that, and a denied open is `unreadable` now.
 
 **The deadline.** The default is 120 s, as §6. The window has a test hook for it
 (`setSkpDeadlineSeconds`); the CLI's `--skp-deadline` is the public option.

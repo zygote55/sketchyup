@@ -11,6 +11,8 @@
 #include <fcntl.h>
 #include <iostream>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace sketchy {
 namespace {
@@ -56,6 +58,7 @@ std::optional<std::string> parseTextFontArguments(int argc, char **argv, TextFon
 sketchyup::sandbox::Policy textSandboxPolicy(const TextFontGrants &fonts) {
     using sketchyup::sandbox::Action;
     using sketchyup::sandbox::FileAccess;
+    using sketchyup::sandbox::oneOfArgument;
 
     sketchyup::sandbox::Policy policy;
     // ADR 0183 section 5 (text), re-derived from gdb traces of the helper on the Latin fixtures and
@@ -140,9 +143,9 @@ sketchyup::sandbox::Policy textSandboxPolicy(const TextFontGrants &fonts) {
         {"tgkill", Action::ownProcessOnly},
         // fcntl: the descriptor and file status flags of stdin (a pipe or a file). F_SETOWN would
         // let the kernel signal another process, so it is refused with EPERM.
-        {"fcntl", Action::argumentOneOf, {F_SETFD, F_GETFL, F_SETFL}},
+        oneOfArgument("fcntl", 1, {F_SETFD, F_GETFL, F_SETFL}),
         // ioctl: the terminal queries of the stdout check, and nothing else
-        {"ioctl", Action::argumentOneOf, {kTcgets, kTcgets2}},
+        oneOfArgument("ioctl", 1, {kTcgets, kTcgets2}),
 #ifdef SKP_WORKER_NO_ADDRESS_LIMIT
         // The sanitizer builds (ASan and UBSan): their runtimes make these calls after main. UBSan
         // opens a

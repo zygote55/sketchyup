@@ -1,0 +1,202 @@
+{
+  "layer": "R101.f",
+  "date": "2026-10-27",
+  "branch": "docs/r101f-quantities-acceptance",
+  "base": {
+    "main": "6dcea44a"
+  },
+  "commits": {
+    "productCodeRunAt": "6dcea44a",
+    "prHeadRunAt": "6c371a5e",
+    "recordCommit": "the head of docs/r101f-quantities-acceptance"
+  },
+  "ciRuns": {
+    "mainFastTier": {
+      "run": "40580430398",
+      "url": "https://github.com/zygote55/sketchyup/actions/runs/40580430398",
+      "commit": "6dcea44a",
+      "verdictJob": "122461448626",
+      "conclusion": "success"
+    },
+    "mainNightlyFullTier": {
+      "run": "40503622529",
+      "url": "https://github.com/zygote55/sketchyup/actions/runs/40503622529",
+      "commit": "61b2018b",
+      "conclusion": "success",
+      "note": "predates R101.e1 and R101.e2 (#478, #480); it has no Quantities panel test"
+    },
+    "prFullCi": {
+      "run": "40563748036",
+      "url": "https://github.com/zygote55/sketchyup/actions/runs/40563748036",
+      "commit": "6c371a5e",
+      "pullRequest": "#480",
+      "label": "full-ci",
+      "conclusion": "success",
+      "note": "the full-tier run that carries quantities_input_tests on X11 and Wayland, because no full-tier main run has it yet"
+    }
+  },
+  "build": {
+    "timedBuild": "Release (CMAKE_BUILD_TYPE=Release, GCC 16.2.1, -O3 -DNDEBUG), build/release, BFD linker, SKETCHYUP_BUILD_DESKTOP=OFF, SKETCHYUP_BUILD_CLI=ON, Qt 6.12.0",
+    "machine": "22 CPU threads, 30 GB RAM; other workers built and tested during several runs; the 1-minute load average is recorded with each series",
+    "fixture": "quantities-b, 10,000 placements, 30,257 records, written by report_benchmark --write-fixture (12,531,874 bytes for the CLI runs)",
+    "v7Build": "Debug (the dev preset: CMAKE_BUILD_TYPE=Debug, build/dev, CLI off, GCC 16.2.1, Qt 6.12.0), offscreen (QT_QPA_PLATFORM=offscreen), 99,996 faces, 24,999 records, 8,333 placements; the brief asked for Debug"
+  },
+  "status": "met: all twelve clauses pass; V7 passes on the redesigned large-model test (computing-phase UI gap 13.6 to 25.5 ms, the section's share of an edit 13.5 and 38.2 ms, cancel 10.8 to 65.3 ms; bounds 250, 250 and 100 ms); the panel re-run budget is met, marginal (p95 at most 985 ms in six of seven series)",
+  "verifyLine": "partial",
+  "checks": {
+    "V1": "pass: report components() V1 asserts; CLI definition and tag groups (BoxP 3, Table 12 placements, Boxes 3 / 12 m3 / 48 m2)",
+    "V2": "pass: report components() V2 asserts; CLI --definition 2 gives 8 Post placements, --definition 3 gives 2 Top",
+    "V3": "pass: report quantitiesA(); report_output metadataMatrix; CLI default 82.4 m3 and 40,259.20 m2, visible 79.4 m3 and 40,241.20 m2, #filters.visibility=visible",
+    "V4": "pass with the ADR chain area corrected from 9 m2 to 54 m2 (owner decision 4): report transforms(); the default CSV equals its golden",
+    "V5": "pass: report quantitiesA() (Stash x2 adds 7 m3 and 18 m2; revision advances; undo restores under a higher revision); not scripted (no CLI edit command)",
+    "V6": "pass: report invalidSolids() covers open_boundary, non_manifold and analysis_limit; the degenerate row is dropped (decision 3: no public-API body reaches it); CLI invalid rows and unvalidated 2 verified",
+    "V7": "pass: Debug build (build/dev), offscreen, on the redesigned test (§8 item 8): seven local runs. Computing phase: the longest UI gap after the first tick is 13.6 to 25.5 ms (bound 250 ms). The section's share of an edit's synchronous work: 13.5 and 38.2 ms with the faster of two edits each side (hidden 295 and 327 ms, shown 334 and 341 ms); single-sample runs before that gave −3.7 to 104 ms (bound 250 ms). Cancel: the computing line goes 10.8 to 65.3 ms after the click (bound 100 ms). The computing line shows 0.95 to 1.47 s after the trigger, on the panel's 1 s tick. The edit's own synchronous work, the same with the section hidden, is 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce; it is printed, not bounded (finding 22). CI at a0913c9c (fast tier, X11 1× on xcb with software GL, Debug, job 122528438312): computing phase 49.9 ms, the section's share 156.1 ms (hidden 573.8 ms, shown 729.8 ms), cancel 51.2 ms; the edit's own work 1,053 ms. The CI share leaves 94 ms of margin, so a slower runner could approach the bound",
+    "V8": "pass: report unitsAndPrecision() and report_output metadataMatrix(); CLI header #units.length=m, #units.area=m2, #units.volume=m3, #precision=full; mm and ft-in in-process only",
+    "V9": "pass: report quantitiesA(); CLI header #documentId and #revision; repeated run identical",
+    "V10": "pass: report_output csvDialect, quoting, goldens (repeat runs identical), pins (SHA-256); CLI reproduces all four goldens byte for byte",
+    "V11": "pass: report_schedule storeRoundTrip, bitIdenticalSave, identityGuard; report_schedule_cli flags, identityGuard; CLI save leaves the model SHA-256 unchanged, scheduled CSV equals ad-hoc except the marker line, WRONG_DOCUMENT refusal writes nothing",
+    "V12": "pass: report_cli writesNewFileOnly and refusesBadFlags; report_output sessionParity; report_mcp runParity; CLI FILE_EXISTS and format refusals verified. The CSV is byte-identical to the session's CSV; the JSON file is the session's data less the session-only body IDs (decision 2; the clause is amended to this wording)"
+  },
+  "testRuns": {
+    "localRelease": "ctest report, report_output, report_schedule, report_cli, report_schedule_cli, report_mcp: 6 of 6 pass (18.6 s)",
+    "mainFastTier": "report suites in fast-tier shards 3, 4 and 5 pass; quantities_input_tests X11 1x (fast shard 1/2) all checks passed",
+    "mainNightly": "Development build and checks: 262 of 262 CTest tests pass, including the six report suites, mcp and assistant_tool_surface",
+    "prFullCi": "Development build and checks: 266 of 266 CTest tests pass",
+    "localDebug": "quantities_large_input_tests: five runs (three final, two earlier); report_tests, report_output_tests and report_schedule_tests pass; quantities_input_tests all checks passed (offscreen)"
+  },
+  "nativeMatrix": {
+    "scope": "Linux x86_64 only, as docs/SUPPORT_MATRIX.md states; Windows and macOS not run, as R098d did",
+    "quantities_input_tests": {
+      "x11_1x": "all checks passed (PR #480 job 122422259215; main fast shard 1/2 job 122459106272)",
+      "x11_2x": "all checks passed (PR #480 job 122422259068)",
+      "wayland_1x": "all checks passed (PR #480 job 122422259026); Qt warning about a grabbing popup for quantitiesTagsPopupWindow",
+      "wayland_2x": "all checks passed (PR #480 job 122422259125); same Qt warning"
+    },
+    "reportSuites": "headless; no display, so no native cell; run once in the Development build job",
+    "audit": "PR #480 job 122422259086: quantities-save-schedule and quantities-delete-schedule audited; Rename, Export CSV and Export JSON not audited",
+    "notRun": [
+      "Windows and macOS (not in the support matrix)",
+      "200 % text (UX_DESIGN section 19.10)",
+      "a Release build of the large-model UI run (the V7 numbers are Debug, as the brief asked)",
+      "the desktop panel's own timing (the re-run is measured on the engine pass it calls)",
+      "the quantities-b shape with terrain under the panel re-run (outside the 100,000-face row)"
+    ],
+    "quantities_large_input_tests": {
+      "x11_1x": "new line in the X11 1x job, run by the fast tier and the full tier; Debug local run: cancel met, UI gap not met (see checks.V7)"
+    },
+    "x11_1x": null
+  },
+  "sanitizers": {
+    "prFullCi": "Sanitized builds job 122400019710: 137 of 137 CTest tests pass, including the six report suites; no sanitizer report in the log",
+    "nightly": "Sanitized builds job 122187330352: 137 of 137 pass, including the six report suites; no sanitizer report in the log",
+    "local": "not run (CI covers the sanitize preset)"
+  },
+  "fuzzing": {
+    "reportOrCsv": "none: no fuzz campaign exists for the report engine, the CSV writer or the schedule store; ADR 0175 does not require one"
+  },
+  "scriptedRuns": [
+    "S1 default CSV reproduced byte for byte from its golden; a second run identical (V10)",
+    "S2 existing report path refused, FILE_EXISTS, exit 1, file unchanged (V12)",
+    "S3 --format against the file extension refused, INVALID_REQUEST (V12)",
+    "S4 material grouping, visible, precision 3 reproduces quantities-a-material.csv (V10, V3)",
+    "S5 default JSON reproduces quantities-a-default.json (V10, V12)",
+    "S6 save schedule leaves the model SHA-256 unchanged; list; scheduled CSV equals the ad-hoc golden except the marker line; delete (V11)",
+    "S7 schedule against another document refused WRONG_DOCUMENT, nothing written (V11)",
+    "S8 schedule name with a comma refused, INVALID_REQUEST (V11)",
+    "S9 definition, tag and visibility groups match the hand values (V1, V2, V3)",
+    "S10 drawing-sheets-v27 metadata: sheets 2, views 3, items 9; totals not compared (sheet row not built as written)"
+  ],
+  "budgets": {
+    "countsQuantitiesB": {
+      "budget": "<= 2 s",
+      "measured": "0.290 s median of 5 (0.267 to 0.334 s)",
+      "verdict": "pass"
+    },
+    "areasQuantitiesB": {
+      "budget": "<= 5 s (cumulative with counts)",
+      "measured": "areas 0.315 s median of 5 (0.285 to 0.355 s); all four tables 0.827 s median (0.754 to 0.931 s), which bounds the cumulative reading",
+      "verdict": "pass"
+    },
+    "solidVolumesQuantitiesB": {
+      "budget": "<= 30 s, async with progress; cancel <= 100 ms; stop <= 5 s",
+      "measured": "solid volumes 0.848 s median of 5 (0.735 to 0.928 s); cancel returned 0.05 to 2.80 ms over 12 samples in 3 runs; longest gap between records 1.81 ms",
+      "verdict": "pass"
+    },
+    "panelRerun100kFaces": {
+      "budget": "p95 <= 1 s, off the UI thread (owner change of 2026-10-27)",
+      "measured": "99,996 faces, seven series of 200 runs, run and description p95: 965.3, 1096.7, 569.4, 800.0, 985.2, 725.8, 837.7 ms; medians 549.6, 849.7, 501.7, 501.4, 482.3, 476.2, 684.3 ms; engine-only p95 942.9, 995.4, 561.0, 786.9, 954.8, 725.5, 844.5 ms; load at start 3.8, 6.5, 2.8, 1.8, 1.42, 1.24, 1.44; the first four are the first draft's, the last three the parent's (14:38, 15:10, 15:15)",
+      "verdict": "met, marginal (decision 1): six of seven series under 1 s (569 to 985 ms); the one miss, 1,096.7 ms, started at load 6.5; the headroom is small"
+    },
+    "csvWrite100kRows": {
+      "budget": "<= 10 s for 100,000 rows; output <= 256 MiB",
+      "measured": "100,002 rows: 0.081 s median of 5 (0.075 to 0.113 s); 3,989,304 bytes; the 256 MiB refusal not exercised",
+      "verdict": "pass"
+    },
+    "scheduleRerun": {
+      "budget": "the matching report budget, no extra pass",
+      "measured": "CLI wall time, five alternating pairs on quantities-b: scheduled median 2.25 s, ad-hoc median 2.30 s (load 2.4 to 2.6); the CSVs differ only at the marker line",
+      "verdict": "pass"
+    },
+    "engineMemory": {
+      "budget": "peak <= 512 MiB; no cross-run cache",
+      "measured": "VmHWM median 282,824 kB of 5 (282,200 to 284,280 kB), about 276 MiB; VmRSS before the runs 226,108 kB; no cache is a design property, not measured",
+      "verdict": "pass"
+    },
+    "uiGapV7": {
+      "budget": "longest gap of a 10 ms UI timer while the run computes (from the first tick after the edit to the result) < 250 ms; the section's share of the edit's synchronous work < 250 ms (faster of two edits, hidden against shown)",
+      "measured": "computing phase 13.6 to 25.5 ms over seven local Debug runs; the section's share 13.5 and 38.2 ms (faster of two; single samples -3.7 to 104 ms); the edit's own synchronous work 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce, the same with the section hidden (finding 22); CI at a0913c9c (X11 1x, software GL): computing phase 49.9 ms, share 156.1 ms (hidden 573.8, shown 729.8)",
+      "verdict": "met (record section 8 item 8 defines the measurement)"
+    },
+    "cancelV7": {
+      "budget": "<= 100 ms from the click until the computing state is gone (ADR 0175 V7 and section 5)",
+      "measured": "10.8 to 65.3 ms over seven local Debug runs; 22.4 ms on the CI runner at 39d8c1ce; Debug, offscreen; CI at a0913c9c: 51.2 ms",
+      "verdict": "met"
+    }
+  },
+  "findings": [
+    "Finding 22 (outside V7 and R101): one edit on the 99,996-face model holds the UI thread for 0.30 to 0.42 s locally and 0.85 s on the CI runner (Debug), in the synchronous Viewport::changed slots, the same with the Quantities section hidden; carried for the defect triage, Release measurement first.",
+    "The large-model suite fails its gap assertion as committed; the bound is not changed (brief: report the number and stop)",
+    "The panel re-run p95 is 1,096.7 ms in one of seven series (load 6.5), and 569 to 985 ms in the other six; headroom is small (decision 1: met, marginal)",
+    "The 250 ms gap bound is the brief's; ADR 0175 gives no number for the UI gap, and 250 ms is the superseded re-run budget",
+    "ADR 0175 has no section 14; the record and the R101.e1 notes cite a '§14 trigger' for a per-body cache (stale reference, flagged)",
+    "Qt prints a grabbing-popup warning for quantitiesTagsPopupWindow in both Wayland cells; the cause is not investigated",
+    "Two compiler warnings in the desktop build: quantities_panel.cpp:882 (missing field initializers) and quantities_input_tests.cpp:100 (ignored qWaitFor result)",
+    "The 200 % text check and the Rename, Export CSV and Export JSON keyboard audit are not run (R101.e2)",
+    "The 256 MiB CSV refusal is not exercised (R101.b)",
+    "The sheet row of ADR section 11 is not built as written; the drawing-sheets-v27 metadata is checked instead",
+    "No fuzz campaign exists for the report engine or the CSV writer",
+    "The budgets are not enforced in CI (decision 5: measured records, re-measured at each release)",
+    "No CHANGELOG entry for the Quantities panel (decision 6: one R101 entry at the release that carries it)"
+  ],
+  "ownerDecisions": [
+    "1 Panel re-run budget: decided by measurement, met marginal (seven series; p95 at most 985 ms in six; 1,097 ms in one, under load). Decided 2026-10-27; the owner can reopen it",
+    "2 V12: decided as recommended on 2026-10-27; the clause is amended to byte-identical to the session's data less the session-only body IDs",
+    "3 V6: decided as recommended on 2026-10-27; the degenerate row is dropped",
+    "4 ADR section 11 corrections: decided as recommended on 2026-10-27; approved and applied (chain 54 m2, area 40,259.2 m2, 40,241.2 m2 visible, 120 contexts, 2 unvalidated)",
+    "5 Budgets in CI: decided as recommended on 2026-10-27; measured records, re-measured at each release that carries R101, not CI checks",
+    "6 CHANGELOG entry: decided as recommended on 2026-10-27; one entry for R101 at the release that carries it, by the release preparation",
+    "7 Platform scope: decided as recommended on 2026-10-27; Linux x86_64 only, and the ADR's Implementation split text is amended"
+  ],
+  "publication": {
+    "adr0175": "status line, section 11 corrections and V6 and V12 wording, section 12 table with the seven series and the verdict, the Implementation split (Linux only), Implementation notes (R101.f)",
+    "supportMatrix": "row 'Quantities, reports and schedules (F07, not in the 1.3.0 declaration)' in Exchange boundaries",
+    "userGuide": "section 'Quantities, reports and schedules' after 'Terrain and site tools'",
+    "roadmap": "R101 status: Accepted (R101.f)",
+    "changelog": "none in this record; decision 6 gives one R101 entry at the release that carries it"
+  },
+  "testsAdded": [
+    "tests/quantities_large_input_tests.cpp: the V7 large-model suite (new fast-tier line in the X11 1x job, native.yml, 120 s deadline)",
+    "tests/report_fixtures.hpp: buildPartsModel, the re-run model moved from tests/report_benchmark.cpp; buildQuantitiesB calls it (same steps, same model)"
+  ],
+  "productCodeChanged": false,
+  "notRun": [
+    "Windows and macOS builds and tests",
+    "200 % text check on screen",
+    "a large-model UI run of the computing and Cancel states",
+    "the desktop panel's own timing (the re-run is measured on the engine pass it calls)",
+    "a local sanitizer build (CI sanitize job ran)",
+    "a report or CSV fuzz campaign (none exists)",
+    "the 256 MiB CSV refusal",
+    "the quantities-b shape with terrain under the panel re-run (outside the 100,000-face row)"
+  ]
+}
