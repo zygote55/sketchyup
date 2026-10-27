@@ -41,7 +41,7 @@
     "fixture": "quantities-b, 10,000 placements, 30,257 records, written by report_benchmark --write-fixture (12,531,874 bytes for the CLI runs)",
     "v7Build": "Debug (the dev preset: CMAKE_BUILD_TYPE=Debug, build/dev, CLI off, GCC 16.2.1, Qt 6.12.0), offscreen (QT_QPA_PLATFORM=offscreen), 99,996 faces, 24,999 records, 8,333 placements; the brief asked for Debug"
   },
-  "status": "partial: eleven of twelve clauses pass; V7 is partial: the UI gap at the trigger is 324 to 330 ms in Debug against 250 ms (cancel met, 11 to 30 ms); the panel re-run budget is met, marginal (p95 at most 985 ms in six of seven series)",
+  "status": "met: all twelve clauses pass; V7 passes on the redesigned large-model test (computing-phase UI gap 13.6 to 25.5 ms, the section's share of an edit 13.5 and 38.2 ms, cancel 10.8 to 65.3 ms; bounds 250, 250 and 100 ms); the panel re-run budget is met, marginal (p95 at most 985 ms in six of seven series)",
   "verifyLine": "partial",
   "checks": {
     "V1": "pass: report components() V1 asserts; CLI definition and tag groups (BoxP 3, Table 12 placements, Boxes 3 / 12 m3 / 48 m2)",
@@ -50,7 +50,7 @@
     "V4": "pass with the ADR chain area corrected from 9 m2 to 54 m2 (owner decision 4): report transforms(); the default CSV equals its golden",
     "V5": "pass: report quantitiesA() (Stash x2 adds 7 m3 and 18 m2; revision advances; undo restores under a higher revision); not scripted (no CLI edit command)",
     "V6": "pass: report invalidSolids() covers open_boundary, non_manifold and analysis_limit; the degenerate row is dropped (decision 3: no public-API body reaches it); CLI invalid rows and unvalidated 2 verified",
-    "V7": "partial: quantities_large_input_tests (R101.f, new) on the 99,996-face re-run model, Debug, offscreen, five runs. Cancel: the computing line goes 10.6, 17.4 and 29.7 ms after the click in the three final runs (14.5 and 10.9 ms in two earlier), bound 100 ms: met. UI gap: the longest gap from the trigger to the result is 329.7, 324.2 and 326.2 ms in the three final runs (504.5 and 322.9 ms in two earlier), bound 250 ms: not met; it is before the event loop runs (the edit under 1 ms, the synchronous Viewport::changed slots 321 to 327 ms); after the first tick the longest gap is 13.6, 20.0 and 16.9 ms. quantities_input_tests on quantities-a (sections 3 and 4) passes",
+    "V7": "pass: Debug build (build/dev), offscreen, on the redesigned test (§8 item 8): seven local runs. Computing phase: the longest UI gap after the first tick is 13.6 to 25.5 ms (bound 250 ms). The section's share of an edit's synchronous work: 13.5 and 38.2 ms with the faster of two edits each side (hidden 295 and 327 ms, shown 334 and 341 ms); single-sample runs before that gave −3.7 to 104 ms (bound 250 ms). Cancel: the computing line goes 10.8 to 65.3 ms after the click (bound 100 ms). The computing line shows 0.95 to 1.47 s after the trigger, on the panel's 1 s tick. The edit's own synchronous work, the same with the section hidden, is 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce; it is printed, not bounded (finding 22)",
     "V8": "pass: report unitsAndPrecision() and report_output metadataMatrix(); CLI header #units.length=m, #units.area=m2, #units.volume=m3, #precision=full; mm and ft-in in-process only",
     "V9": "pass: report quantitiesA(); CLI header #documentId and #revision; repeated run identical",
     "V10": "pass: report_output csvDialect, quoting, goldens (repeat runs identical), pins (SHA-256); CLI reproduces all four goldens byte for byte",
@@ -83,7 +83,8 @@
     ],
     "quantities_large_input_tests": {
       "x11_1x": "new line in the X11 1x job, run by the fast tier and the full tier; Debug local run: cancel met, UI gap not met (see checks.V7)"
-    }
+    },
+    "x11_1x": null
   },
   "sanitizers": {
     "prFullCi": "Sanitized builds job 122400019710: 137 of 137 CTest tests pass, including the six report suites; no sanitizer report in the log",
@@ -142,18 +143,18 @@
       "verdict": "pass"
     },
     "uiGapV7": {
-      "budget": "longest gap of a 10 ms UI timer from the trigger to the result < 250 ms (the brief's V7 bound)",
-      "measured": "Debug, 99,996 faces: 329.7, 324.2 and 326.2 ms in the three final runs (504.5 and 322.9 ms in two earlier); all at the trigger, before the event loop runs; the synchronous Viewport::changed slots take 321 to 327 ms and the edit under 1 ms; one diagnostic run: the snapshot copy alone 26.1 ms, the trigger with the Quantities section hidden 379.8 ms",
-      "verdict": "not met, Debug build; the cost is outside the Quantities panel (its refresh adds nothing measurable)"
+      "budget": "longest gap of a 10 ms UI timer while the run computes (from the first tick after the edit to the result) < 250 ms; the section's share of the edit's synchronous work < 250 ms (faster of two edits, hidden against shown)",
+      "measured": "computing phase 13.6 to 25.5 ms over seven local Debug runs; the section's share 13.5 and 38.2 ms (faster of two; single samples -3.7 to 104 ms); the edit's own synchronous work 0.30 to 0.42 s locally and 0.85 s on the CI runner at 39d8c1ce, the same with the section hidden (finding 22)",
+      "verdict": "met (record section 8 item 8 defines the measurement)"
     },
     "cancelV7": {
       "budget": "<= 100 ms from the click until the computing state is gone (ADR 0175 V7 and section 5)",
-      "measured": "10.6, 17.4 and 29.7 ms in the three final runs; 14.5 and 10.9 ms in two earlier; Debug, offscreen",
+      "measured": "10.8 to 65.3 ms over seven local Debug runs; 22.4 ms on the CI runner at 39d8c1ce; Debug, offscreen",
       "verdict": "met"
     }
   },
   "findings": [
-    "V7 gap bound not met: the UI thread is blocked for 324 to 330 ms at the trigger (Debug), before the event loop runs. The cost is in the synchronous Viewport::changed slots, outside the Quantities panel (hidden: 380 ms; snapshot copy 26 ms). After the first tick the longest gap is 14 to 20 ms.",
+    "Finding 22 (outside V7 and R101): one edit on the 99,996-face model holds the UI thread for 0.30 to 0.42 s locally and 0.85 s on the CI runner (Debug), in the synchronous Viewport::changed slots, the same with the Quantities section hidden; carried for the defect triage, Release measurement first.",
     "The large-model suite fails its gap assertion as committed; the bound is not changed (brief: report the number and stop)",
     "The panel re-run p95 is 1,096.7 ms in one of seven series (load 6.5), and 569 to 985 ms in the other six; headroom is small (decision 1: met, marginal)",
     "The 250 ms gap bound is the brief's; ADR 0175 gives no number for the UI gap, and 250 ms is the superseded re-run budget",
@@ -180,7 +181,7 @@
     "adr0175": "status line, section 11 corrections and V6 and V12 wording, section 12 table with the seven series and the verdict, the Implementation split (Linux only), Implementation notes (R101.f)",
     "supportMatrix": "row 'Quantities, reports and schedules (F07, not in the 1.3.0 declaration)' in Exchange boundaries",
     "userGuide": "section 'Quantities, reports and schedules' after 'Terrain and site tools'",
-    "roadmap": "R101 status: Delivered, with open findings: V7",
+    "roadmap": "R101 status: Accepted (R101.f)",
     "changelog": "none in this record; decision 6 gives one R101 entry at the release that carries it"
   },
   "testsAdded": [

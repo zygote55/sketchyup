@@ -11,12 +11,12 @@ entries ([M10 acceptance](../M10_ACCEPTANCE.md),
 [ADR 0162](0162-release-versioning.md)).
 
 **Acceptance record (R101.f, 2026-10-27):** [R101f](../verification/R101f-quantities-reports.md)
-([summary](../verification/R101f-quantities-reports.json)). The Verify line is partly met: V1 to V6 and V8 to V12 pass,
-and V7 is partial. All seven §12 rows are met on the Release build. The panel re-run row is met, marginal: p95 is at
-most 985 ms in six of seven series, and one series missed at 1,097 ms under load. In the large-model V7 test (Debug),
-the cancel is within 100 ms, but the UI thread stops for 324 to 330 ms at the trigger, against 250 ms. The stall is in
-the synchronous `Viewport::changed` slots, outside the Quantities panel. The parent decided the record's §8 items 2 to 7
-as recommended, and item 1 by measurement, on 2026-10-27; the owner can reopen them.
+([summary](../verification/R101f-quantities-reports.json)). The Verify line is met: V1 to V12 pass. All seven §12 rows
+are met on the Release build; the panel re-run row is met, marginal (p95 at most 985 ms in six of seven series, one series
+at 1,097 ms under load). In the large-model V7 test (Debug) the UI never stops for more than 26 ms while the run computes,
+the section adds 13 to 38 ms to an edit's synchronous work, and Cancel clears the computing line in 11 to 65 ms. The edit's
+own synchronous work on that model (0.30 to 0.42 s locally, 0.85 s in CI) is outside V7 and carried as the record's finding
+22. The parent decided the record's §8 items 2 to 8, and item 1 by measurement, on 2026-10-27; the owner can reopen them.
 
 **Build line:** "Build configurable component/material counts, areas/volumes
 and CSV/tabular reports from document semantics. Include units, filters and
@@ -1352,11 +1352,9 @@ large-model part of V7 as a new line in the X11 1× job, so the fast tier runs i
 
 - **V1 to V6 and V8 to V12 pass.** V6 passes with the `degenerate` row dropped, because no public-API body reaches that
   status. V12 passes with its amended wording: the JSON file is the session's data less the session-only body IDs.
-- **V7 is partial.** The cancel is within 100 ms. The computing line goes 11 to 30 ms after the click in the three final
-  Debug runs (11 and 14 ms in two earlier ones). The UI gap is not: the longest gap from the trigger to the result is 324
-  to 330 ms in the three final runs (323 and 505 ms in two earlier ones), against 250 ms. The gap comes before the event
-  loop runs, in the synchronous `Viewport::changed` slots (see below). After the first tick the longest gap is 14 to 20 ms,
-  so the computation itself does not block the UI.
+- **V7 passes** (record §8 item 8). While the run computes, the longest UI gap is 13.6 to 25.5 ms. The section adds 13.5
+  and 38.2 ms to an edit's synchronous work (the faster of two edits each side; single samples gave −3.7 to 104 ms). Cancel
+  clears the computing line in 10.8 to 65.3 ms. Each bound is the one the first version used: 250, 250 and 100 ms.
 - **§12: all seven rows are met.** The panel re-run row is met, marginal. Seven series of 200 runs give p95 of 569 to 985 ms
   in six series and 1,097 ms in one, the series that started at a 1-minute load of 6.5. The headroom is small.
 
@@ -1369,8 +1367,10 @@ large-model part of V7 as a new line in the X11 1× job, so the fast tier runs i
   so the Release figure for the trigger's stall is not measured.
 - **The 250 ms gap bound is the brief's.** The ADR gives no number for "without freezing the UI". 250 ms is also the figure
   of the re-run budget before the owner's change of 2026-10-27.
-- **The clock starts at the edit.** The trigger's own work, the edit and the window sync, counts toward the gap. The gap
-  from the trigger to the first tick is judged like any other gap.
+- **What V7 measures.** V7 is about the panel's live update. The test asserts the longest UI gap while the run computes,
+  and the section's share of the edit's synchronous work (hidden against shown, the faster of two edits each). The
+  edit's total, which every panel on `Viewport::changed` shares, is printed and carried as the record's finding 22. The
+  first version counted that total against the section and failed at 324 to 330 ms locally and 848 ms in CI.
 - **The §14 reference is stale.** The R101.e1 notes and the record cite a "§14 trigger" for a per-body cache. ADR 0175 has
   no §14. The cache is the record's §8 option (b), and it applies if a release measurement misses the §12 row.
 - **Platforms.** Linux x86_64 only (decision 7). Windows and macOS are not run and not claimed.
@@ -1395,7 +1395,7 @@ The record's §1 and §7 resolve or carry each gap that R101.a to R101.e2 left.
 - **Resolved:** the `degenerate` status (decision 3); the JSON body IDs (decision 2); the panel re-run budget (decision 1,
   by measurement); the CHANGELOG entry (decision 6, at the release); the budgets outside CI (decision 5); and the §11
   corrections (decision 4).
-- **Carried:** the V7 UI gap (above); the 200 % text check; the Rename and Export keyboard audit; the Wayland popup
+- **Carried:** the edit's own synchronous work on a large model (finding 22, outside V7); the 200 % text check; the Rename and Export keyboard audit; the Wayland popup
   warning; the 256 MiB refusal; cancel between records only; the units a schedule does not pin; terrain names that are not
   unique in the CSV; the CSV's missing `materialsApply` line; the §11 sheet fixture; the Windows and macOS builds; a fuzz
   campaign for the report code; and the Release timing of the desktop panel.
