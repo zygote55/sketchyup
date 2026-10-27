@@ -73,6 +73,8 @@ Id allocateLibraryId(Id &next) {
         throw std::runtime_error("Library resource identity space exhausted");
     return next++;
 }
+} // namespace
+
 std::string uniqueLibraryName(const std::string &name, std::set<std::string> &used,
                               size_t &renamed) {
     if (used.insert(name).second)
@@ -88,6 +90,8 @@ std::string uniqueLibraryName(const std::string &name, std::set<std::string> &us
     }
     throw std::runtime_error("Library resource name space exhausted");
 }
+
+namespace {
 QByteArray assetDigest(const AssetRecord &asset) {
     if (!asset.payload)
         return {};

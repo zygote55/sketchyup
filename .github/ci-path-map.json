@@ -222,6 +222,11 @@
       "areas": ["build", "native"]
     },
     {
+      "why": "R100.d (ADR 0174 sections 4, 5 and 7): the catalog library reference, catalog.import, catalog.export and their refusal, relocation, appearance and save checks. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/io/catalog_insert*", "src/automation/catalog_commands*", "src/io/component_library*", "tests/catalog_import*"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
       "paths": [
         "tests/**"

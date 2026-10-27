@@ -4,6 +4,7 @@
 #include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
 #include "io/style_bundle.hpp"
+#include "catalog_fixtures.hpp"
 #include "io/solar_io.hpp"
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
@@ -1226,6 +1227,12 @@ int main(int argc, char **argv) {
             cases.append(QJsonObject{{"command", "style.apply"},
                                      {"data", QString::fromLatin1(bytes.toBase64())}});
         }
+        // R100.d: one textured material imported from the generated basic catalog, inline.
+        cases.append(QJsonObject{
+            {"command", "catalog.import"},
+            {"catalog", QString::fromLatin1(catalog_fixture::basic().toBase64(
+                            QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))},
+            {"entries", QJsonArray{"Oak"}}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {

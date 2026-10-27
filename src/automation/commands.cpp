@@ -3,6 +3,7 @@
 #include "automation/component_parameter_commands.hpp"
 #include "automation/presentation_commands.hpp"
 #include "automation/style_commands.hpp"
+#include "automation/catalog_commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/drawing_sheet_commands.hpp"
 #include "automation/entity_info.hpp"
@@ -654,7 +655,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     const auto baseRevision = doc.revision();
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
-        solidOperations, assertionCommands, terrainOperations, styleOperations;
+        solidOperations, assertionCommands, terrainOperations, styleOperations, catalogOperations;
     std::vector<std::pair<Id, Id>> createdFaceIds;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
@@ -755,6 +756,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             executePresentationCommand(staged, command);
         } else if (isStyleCommand(name)) {
             styleOperations.append(executeStyleCommand(staged, command));
+        } else if (isCatalogCommand(name)) {
+            catalogOperations.append(executeCatalogCommand(staged, command));
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (isComponentParameterCommand(name)) {
@@ -1905,6 +1908,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"recipeOperations", recipeOperations},
                 {"terrainOperations", terrainOperations},
                 {"styleOperations", styleOperations},
+                {"catalogOperations", catalogOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
                 {"booleans", survivingBooleans},
@@ -1977,6 +1981,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"recipeOperations", recipeOperations},
                        {"terrainOperations", terrainOperations},
                        {"styleOperations", styleOperations},
+                       {"catalogOperations", catalogOperations},
                        {"assertions", assertions},
                        {"sweeps", survivingSweeps},
                        {"booleans", survivingBooleans},

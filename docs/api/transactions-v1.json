@@ -7299,6 +7299,47 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Import named catalog entries into the document in one edit",
+                                    "properties": {
+                                        "catalog": {
+                                            "maxLength": 65536,
+                                            "type": "string"
+                                        },
+                                        "command": {
+                                            "const": "catalog.import"
+                                        },
+                                        "entries": {
+                                            "items": {
+                                                "maxLength": 256,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "maxItems": 32,
+                                            "minItems": 1,
+                                            "type": "array"
+                                        },
+                                        "library": {
+                                            "maxLength": 64,
+                                            "minLength": 1,
+                                            "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+                                            "type": "string"
+                                        },
+                                        "parent": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^(0|[1-9][0-9]*)$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "entries",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Import managed asset bytes",
                                     "properties": {
                                         "command": {
@@ -11077,12 +11118,122 @@
                                         "pattern": "^(0|[1-9][0-9]*)$",
                                         "type": "string"
                                     },
+                                    "library": {
+                                        "maxLength": 64,
+                                        "minLength": 1,
+                                        "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+                                        "type": "string"
+                                    },
                                     "query": {
                                         "const": "catalog.list"
                                     }
                                 },
                                 "required": [
-                                    "catalog",
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "catalog.library"
+                                    }
+                                },
+                                "required": [
+                                    "apiVersion",
+                                    "documentId",
+                                    "expectedRevision",
+                                    "query"
+                                ],
+                                "type": "object"
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "additionalProperties": false,
+                                "properties": {
+                                    "apiVersion": {
+                                        "const": 1
+                                    },
+                                    "components": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 64,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "description": {
+                                        "maxLength": 4096,
+                                        "type": "string"
+                                    },
+                                    "documentId": {
+                                        "maxLength": 128,
+                                        "type": "string"
+                                    },
+                                    "expectedRevision": {
+                                        "maxLength": 20,
+                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                        "type": "string"
+                                    },
+                                    "labels": {
+                                        "items": {
+                                            "maxLength": 64,
+                                            "type": "string"
+                                        },
+                                        "maxItems": 32,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "license": {
+                                        "maxLength": 64,
+                                        "type": "string"
+                                    },
+                                    "materials": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 64,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "name": {
+                                        "maxLength": 256,
+                                        "type": "string"
+                                    },
+                                    "query": {
+                                        "const": "catalog.export"
+                                    },
+                                    "style": {
+                                        "type": "boolean"
+                                    },
+                                    "version": {
+                                        "maxLength": 64,
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "name",
                                     "apiVersion",
                                     "documentId",
                                     "expectedRevision",

@@ -19,6 +19,7 @@
 #include "automation/hosted_commands.hpp"
 #include "automation/presentation_commands.hpp"
 #include "automation/style_commands.hpp"
+#include "automation/catalog_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
@@ -92,6 +93,8 @@ enum class Operation {
     Presentation,
     StyleExport,
     CatalogList,
+    CatalogLibrary,
+    CatalogExport,
     DrawingSheets,
     DrawingSheet,
     DrawingViewsStatus,
@@ -171,8 +174,29 @@ const std::vector<Spec> &registry() {
             spec("render_preset.describe", Operation::RenderPreset, {{"preset", idSchema()}},
                  {"preset"}),
             // R100.c (ADR 0174 section 4.1): the bytes travel inline, so the query reads no path.
+            // R100.d: or `library` names a catalog in the catalog library folder. Exactly one is
+            // required; catalogReference refuses both or neither.
             spec("catalog.list", Operation::CatalogList,
-                 {{"catalog", textSchema(inspectionRequestBytes)}}, {"catalog"}),
+                 {{"catalog", textSchema(inspectionRequestBytes)},
+                  {"library",
+                   QJsonObject{{"type", "string"},
+                               {"minLength", 1},
+                               {"maxLength", 64},
+                               {"pattern", "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$"}}}},
+                 {}),
+            spec("catalog.library", Operation::CatalogLibrary, {}, {}),
+            // R100.d (ADR 0174 section 7): captures the chosen records as a catalog, and changes
+            // nothing.
+            spec("catalog.export", Operation::CatalogExport,
+                 {{"name", textSchema(256)},
+                  {"description", textSchema(4096)},
+                  {"labels", list(textSchema(64), 0, 32)},
+                  {"version", textSchema(64)},
+                  {"license", textSchema(64)},
+                  {"components", list(idSchema(), 0, 64)},
+                  {"materials", list(idSchema(), 0, 64)},
+                  {"style", QJsonObject{{"type", "boolean"}}}},
+                 {"name"}),
             spec("presentation.describe", Operation::Presentation,
                  {{"path", idSchema()},
                   {"presets", list(idSchema(), 1, 4)},
@@ -791,19 +815,27 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
     case Operation::RenderPreset:
         data = renderPresetDescription(doc, decimal(request["preset"]));
         break;
-    case Operation::CatalogList: {
-        const auto bytes = request["catalog"].toString().toLatin1();
-        const auto decoded = QByteArray::fromBase64(bytes, QByteArray::Base64UrlEncoding);
-        if (decoded.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals) !=
-            bytes)
-            fail("INVALID_REQUEST", "catalog must be unpadded base64url");
+    case Operation::CatalogList:
         try {
-            data = encodeCatalogListing(decodeCatalog(decoded));
+            data = encodeCatalogListing(catalogReference(request));
         } catch (const std::exception &error) {
             fail("INVALID_REQUEST", error.what());
         }
         break;
-    }
+    case Operation::CatalogLibrary:
+        try {
+            data = encodeCatalogLibrary(scanCatalogLibrary(catalogLibraryFolder()));
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    case Operation::CatalogExport:
+        try {
+            data = catalogExportQuery(doc, request);
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
     case Operation::Presentation: {
         std::vector<Id> presets;
         for (const auto &item : request["presets"].toArray())
