@@ -1445,7 +1445,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R100 — Add custom styles and richer asset authoring
 
-**Status:** In progress: R100.a (the optional edge stroke, schema 31 with `edge-styles-v1`, the `.sketchystyle` envelope, `style.apply` and the `style.export` query) is merged in [PR #457](https://github.com/zygote55/sketchyup/pull/457); R100.c (the `.sketchycat` catalog format and `catalog.list`) in [PR #456](https://github.com/zygote55/sketchyup/pull/456); R100.d (the catalog library reference, `catalog.import`, `catalog.export` and `catalog.library`; component-definition deduplication not done) in [PR #458](https://github.com/zygote55/sketchyup/pull/458); R100.e (the style and catalog CLI flags) in [PR #459](https://github.com/zygote55/sketchyup/pull/459). See the ADR 0174 implementation notes. R100.b (textured presets; Q1 answered 2026-10-27: procedural or CC0 only, list for owner sign-off) and R100.f (desktop, per the approved §18) next; R100.g planned. Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23). **Track:** Desktop. **Scope:** F06. **UX:** [UX_DESIGN §18](UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs) (approved by the owner on 2026-10-27).
+**Status:** In progress: R100.a (the optional edge stroke, schema 31 with `edge-styles-v1`, the `.sketchystyle` envelope, `style.apply` and the `style.export` query) is merged in [PR #457](https://github.com/zygote55/sketchyup/pull/457); R100.c (the `.sketchycat` catalog format and `catalog.list`) in [PR #456](https://github.com/zygote55/sketchyup/pull/456); R100.d (the catalog library reference, `catalog.import`, `catalog.export` and `catalog.library`; component-definition deduplication not done) in [PR #458](https://github.com/zygote55/sketchyup/pull/458); R100.e (the style and catalog CLI flags) in [PR #459](https://github.com/zygote55/sketchyup/pull/459). See the ADR 0174 implementation notes. R100.b (textured presets; Q1 answered 2026-10-27: procedural or CC0 only; the 15-preset list in ADR 0174 signed off by the owner on 2026-10-27, not yet bundled) and R100.f (desktop, per the approved §18) next; R100.g planned. Design accepted ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md), owner decisions approved 2026-10-23). **Track:** Desktop. **Scope:** F06. **UX:** [UX_DESIGN §18](UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs) (approved by the owner on 2026-10-27).
 
 **Requires:** [R089](#r089), [R062](#r062), [R079](#r079); milestone gate rule above.
 
@@ -1457,7 +1457,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R101 — Add quantities, reports and schedules
 
-**Status:** Planned; design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). Slices R101.a–f; R101.a (merged, #450): the report engine, the request model with its refusals, the counting pass (§2), units, precision and the revision stamp, the session `report.run` query kept off the assistant, and the Q1–Q4 fixtures with checks V1–V4, V6, V8 and V9 (ADR 0175 §1–§4, §11; implementation notes R101.a). R101.b (merged, #452): the CSV file of record and the JSON form (§6), `sketchyup-cli --report` without the schedule flags (§8), the quantities-a fixture with hash-pinned goldens (V10), the CLI and session parity (V12), and the budgets of §12 confirmed in a Release build on quantities-b (implementation notes R101.b). R101.c (merged, #453): the user-level schedule store keyed by document identity (§7, option b), save, describe and delete with the identity guard and the stale-ID refusal, no document schema change (V11), the flags `--schedule`, `--list-schedules`, `--save-schedule` and `--delete-schedule` (§8), and the session `report.schedule` kept off the assistant (implementation notes R101.c). R101.d (merged, #455): `report.run` and `report.schedule` on MCP under their registry names, with no `reports.*` alias, parity with the session, the refusals, store isolation, and the assistant still off (ADR 0175 §9; implementation notes R101.d). R101.e–f (desktop, acceptance record) are planned. **Track:** Automation. **Scope:** F07. **UX:** [UX_DESIGN §19](UX_DESIGN.md#19-quantities-and-schedules) (approved by the owner on 2026-10-27).
+**Status:** Planned; design accepted ([ADR 0175](decisions/0175-quantities-reports-schedules.md), owner decisions approved 2026-10-23). Slices R101.a–f; R101.a (merged, #450): the report engine, the request model with its refusals, the counting pass (§2), units, precision and the revision stamp, the session `report.run` query kept off the assistant, and the Q1–Q4 fixtures with checks V1–V4, V6, V8 and V9 (ADR 0175 §1–§4, §11; implementation notes R101.a). R101.b (merged, #452): the CSV file of record and the JSON form (§6), `sketchyup-cli --report` without the schedule flags (§8), the quantities-a fixture with hash-pinned goldens (V10), the CLI and session parity (V12), and the budgets of §12 confirmed in a Release build on quantities-b (implementation notes R101.b). R101.c (merged, #453): the user-level schedule store keyed by document identity (§7, option b), save, describe and delete with the identity guard and the stale-ID refusal, no document schema change (V11), the flags `--schedule`, `--list-schedules`, `--save-schedule` and `--delete-schedule` (§8), and the session `report.schedule` kept off the assistant (implementation notes R101.c). R101.d (merged, #455): `report.run` and `report.schedule` on MCP under their registry names, with no `reports.*` alias, parity with the session, the refusals, store isolation, and the assistant still off (ADR 0175 §9; implementation notes R101.d). R101.e1 (#478, awaiting merge): the engine, schedule-store and command support the Quantities panel needs, with no UI: progress and cancel (the cancel latency and the re-run measured against their budgets), schedule rename and update with the pinned precision, body IDs on invalid rows in the session, the selection file export, and the shared "Not a solid" words (ADR 0175 §12; implementation notes R101.e1). R101.e2 (the panel) and R101.f (the acceptance record) are planned. **Track:** Automation. **Scope:** F07. **UX:** [UX_DESIGN §19](UX_DESIGN.md#19-quantities-and-schedules) (approved by the owner on 2026-10-27).
 
 **Requires:** [R089](#r089), [R060](#r060); milestone gate rule above.
 
@@ -1517,7 +1517,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R106 — Deliver DWG support only after feasibility passes
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C05. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0180](decisions/0180-dwg-feasibility.md), accepted: DWG import not needed; DWG stays unsupported, DXF unchanged). **Track:** Interchange. **Scope:** C05. **UX:** —.
 
 **Requires:** [R089](#r089), [R005](#r005), [R077](#r077); milestone gate rule above.
 
@@ -1529,7 +1529,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R107 — Investigate and conditionally add maps/geolocation services
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C06. **UX:** —.
+**Status:** Design accepted ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md), owner 2026-10-27): R107.a (offline WGS84/UTM coordinates, the site's geographic record at schema 32, the solar "Use site location" action) next, then R107.b (user-downloaded 3DEP and GLO-30 GeoTIFF elevation import), R107.c (credits in exports) and R107.e (docs); R107.b2 (orthophoto placement) optional; R107.d (Nominatim geocoding) held. **Track:** Interchange. **Scope:** C06. **UX:** —.
 
 **Requires:** [R089](#r089), [R067](#r067), [R095](#r095); milestone gate rule above.
 
@@ -1541,13 +1541,25 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R108 — Specify and prototype multi-user document collaboration
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Core. **Scope:** C07. **UX:** —.
+**Status:** Deferred indefinitely by the owner on 2026-10-27 ([ADR 0182](decisions/0182-collaboration-feasibility.md), accepted: concurrent editing is not needed; models are shared as files). **Track:** Core. **Scope:** C07. **UX:** —.
 
 **Requires:** [R089](#r089), [R041](#r041); milestone gate rule above.
 
 **Build:** First decide conflict/ownership semantics, identity, transport and service operations. Prototype concurrent edits and recovery before breaking production delivery into follow-up PRs; this item does not promise a complete hosted service.
 
 **Verify:** Two-client fixtures demonstrate defined conflict handling, disconnection and recovery without lost updates; publish the feasibility decision and subsequent delivery scope before implementation claims.
+
+<a id="r109"></a>
+
+#### R109 — Sandbox the file-parsing helper processes
+
+**Status:** Design accepted ([ADR 0183](decisions/0183-helper-process-sandbox.md), owner decisions approved 2026-10-27); planned before the next release. The `.skp` helper's refusal-code fix from the measurements is merged (PR #470). **Track:** Core. **Scope:** — (hardening of shipped helpers). **UX:** —.
+
+**Requires:** [R070](#r070), [R097](#r097), [R098](#r098), [R102](#r102); milestone gate rule above.
+
+**Build:** A shared in-tree sandbox library (no new dependency): `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset confined to the input and a private directory, and a raw seccomp-bpf allow-list with a kill default. Apply it, fail closed, in the SKP, IFC/STEP, text and extension workers and the Blender job (offline, private home, exec of its own binary only), including the developer probe modes. Report a sandbox kill as `sandboxViolation`, never as a crash to restart.
+
+**Verify:** Each helper's committed fixtures produce output identical to an unsandboxed run; a sandboxed helper cannot open a socket, exec another program or read outside its directory; an unavailable layer refuses with a named reason; the required `sandbox_available` CI check passes on the runner images.
 
 ## Scope-to-PR coverage
 

@@ -537,11 +537,11 @@ int main(int argc, char **argv) {
             auto &doc = window.document();
             check(!doc.bodies().empty(), "the model has bodies");
             check(doc.history().total == history + 1, "the import is one edit");
-            check(doc.history().entries.back().label == "Import SketchUp", "the edit is labelled Import SketchUp");
+            check(doc.history().entries.back().label == "Import .skp file", "the edit is labelled Import .skp file");
             check(contains(status->text(), "Imported an unsaved SketchUp model") &&
                       contains(status->text(), "Source file unchanged"),
                   "the status names the outcome: " + status->text().toStdString());
-            check(chip->isVisible() && contains(chip->text(), "SketchUp import report"),
+            check(chip->isVisible() && contains(chip->text(), ".skp import report"),
                   "the chip offers the report: " + chip->text().toStdString());
             check(reportAction->isEnabled(), "the report action is enabled after an import");
             check(driver.sheets.contains("skpImportReport"), "the report sheet was shown");
@@ -626,7 +626,7 @@ int main(int argc, char **argv) {
             check(contains(status->text(), "cancelled"), "the status says the import was cancelled: " + status->text().toStdString());
             check(encodeContainer(window.document()) == encoded && window.document().history().total == history,
                   "the model is byte for byte unchanged");
-            check(chip->isVisible() && contains(chip->text(), "SketchUp import"), "the previous import's chip stays: " + chip->text().toStdString());
+            check(chip->isVisible() && contains(chip->text(), ".skp import"), "the previous import's chip stays: " + chip->text().toStdString());
         }
         // S11: Escape is Cancel during the import, as the Cancel button is.
         {
@@ -690,10 +690,10 @@ int main(int argc, char **argv) {
             driver.stop();
             check(driver.confirmations == 2, "both prompts were answered");
             auto &doc = window.document();
-            check(doc.history().total == 1 && doc.history().entries.back().label == "Import SketchUp",
+            check(doc.history().total == 1 && doc.history().entries.back().label == "Import .skp file",
                   "the replacement is one labelled edit");
             check(contains(status->text(), "Imported an unsaved SketchUp model"), "the status names the outcome");
-            check(chip->isVisible() && contains(chip->text(), "SketchUp import report"),
+            check(chip->isVisible() && contains(chip->text(), ".skp import report"),
                   "the chip offers the report of the replaced model");
         }
         // S15: a new model ends the SketchUp chip's lifetime, as it ends the STEP chip's.

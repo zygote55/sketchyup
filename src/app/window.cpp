@@ -487,10 +487,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                                  [this] { showStepImportReport(); });
     stepReportAction_->setEnabled(false);
     file->addAction(stepReportAction_);
-    // R102.c (ADR 0176 section 9): SketchUp import. Import SketchUp (.skp)… after the STEP pair; Show
-    // SketchUp import report… directly below it (enabled only after a SketchUp import).
-    file->addAction(action("file.importSkp", "Import SketchUp (.skp)…", {}, [this] { importSkp(); }));
-    skpReportAction_ = action("file.skpImportReport", "Show SketchUp import report…", {},
+    // R102.c (ADR 0176 section 9): .skp import. Import .skp file… after the STEP pair; Show
+    // .skp import report… directly below it (enabled only after a .skp import).
+    file->addAction(action("file.importSkp", "Import .skp file…", {}, [this] { importSkp(); }));
+    skpReportAction_ = action("file.skpImportReport", "Show .skp import report…", {},
                               [this] { showSkpImportReport(); });
     skpReportAction_->setEnabled(false);
     file->addAction(skpReportAction_);

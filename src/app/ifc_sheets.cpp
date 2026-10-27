@@ -889,10 +889,10 @@ QString skpNotCarriedLabel(const QString &key) {
 ImportReportFace skpImportReportFace() {
     ImportReportFace face;
     face.sheetName = "skpImportReport";
-    face.title = "SketchUp import report";
+    face.title = ".skp import report";
     face.prefix = "skpReport";
     face.identitySubject = "faces";
-    face.chipWord = "SketchUp";
+    face.chipWord = ".skp";
     face.restarts = false; // the helper has no restart protocol (ADR 0176 section 1)
     face.attention = [](const ImportReportState &state) {
         // What the import omitted (the native validator's refusals and the caps), summed over the kinds.
@@ -1011,7 +1011,7 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
     const bool helperWords = !message.isEmpty() && message != reason && codeText != "workerFailed" && codeText != "deadline";
     RefusalSheet face;
     face.sheetName = "skpRefusal";
-    face.title = "SketchUp import refused";
+    face.title = ".skp import refused";
     face.width = 680;
     face.height = 480;
     face.prefix = "skpRefusal";
@@ -1058,10 +1058,10 @@ void showImportRefusal(QWidget *parent, const QString &fileName, const ImportRef
 void showSkpUnavailable(QWidget *parent) {
     AvailabilitySheet face;
     face.sheetName = "skpUnavailable";
-    face.title = "SketchUp import";
+    face.title = ".skp import";
     face.prefix = "skpUnavailable";
     face.text = QStringLiteral(
-        "SketchUp import is not installed.\n\n"
+        "The .skp import is not installed.\n\n"
         "The sketchyup-skp-worker helper is not installed on this machine.\n"
         "Everything else is unaffected: the open model, the sheets, the assistant, your settings and "
         "recovery all work as before.\n\n"

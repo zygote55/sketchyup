@@ -221,13 +221,40 @@ void ReportScheduleStore::add(const std::string &documentId, ReportSchedule sche
     auto &schedules = replacement[documentId];
     if (schedules.contains(schedule.name))
         fail("INVALID_REQUEST", "A report schedule named '" + schedule.name +
-                                    "' already exists for this document; delete it first");
+                                    "' already exists for this document. Choose another name.");
     if (int(schedules.size()) >= scheduleLimit)
         fail("LIMIT_EXCEEDED", "A document holds at most 32 report schedules; delete one first");
     if (replacement.size() > documentLimit)
         fail("LIMIT_EXCEEDED", "The report schedule store holds at most 64 documents; delete the "
                                "schedules of another document first");
     schedules.emplace(schedule.name, std::move(schedule));
+    commit(std::move(replacement));
+}
+
+void ReportScheduleStore::rename(const std::string &documentId, const QString &name,
+                                 const QString &newName) {
+    lookup(documentId, name); // Refuses a name saved for another document, or saved nowhere.
+    requireName(newName);
+    auto replacement = documents_;
+    auto &schedules = replacement[documentId];
+    if (schedules.contains(newName))
+        fail("INVALID_REQUEST", "A report schedule named '" + newName +
+                                    "' already exists for this document. Choose another name.");
+    // The entry moves under its new key; its request and creation time come with it.
+    auto entry = schedules.extract(name);
+    entry.key() = newName;
+    entry.mapped().name = newName;
+    schedules.insert(std::move(entry));
+    commit(std::move(replacement));
+}
+
+void ReportScheduleStore::update(const std::string &documentId, const QString &name,
+                                 QJsonObject request) {
+    lookup(documentId, name); // Refuses a name saved for another document, or saved nowhere.
+    if (QJsonDocument(request).toJson(QJsonDocument::Compact).size() > inspectionRequestBytes)
+        fail("LIMIT_EXCEEDED", "A saved report request is at most 16 KiB");
+    auto replacement = documents_;
+    replacement[documentId][name].request = std::move(request);
     commit(std::move(replacement));
 }
 
@@ -330,8 +357,10 @@ QJsonObject reportScheduleSchema() {
                  {"documentId",
                   QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", identityLimit}}},
                  {"action", QJsonObject{{"type", "string"},
-                                        {"enum", QJsonArray{"save", "describe", "delete"}}}},
+                                        {"enum", QJsonArray{"save", "describe", "delete", "rename",
+                                                            "update"}}}},
                  {"name", QJsonObject{{"type", "string"}, {"maxLength", nameLimit}}},
+                 {"newName", QJsonObject{{"type", "string"}, {"maxLength", nameLimit}}},
                  {"request", reportRequestSchema()}}},
             {"required", QJsonArray{"apiVersion", "operation", "documentId", "action"}},
             {"additionalProperties", false}};
@@ -346,14 +375,28 @@ QJsonObject reportScheduleOperation(const Document &doc, const QJsonObject &requ
              QJsonObject{{"sessionDocumentId", QString::fromStdString(doc.identity())}});
     const auto action = request["action"].toString();
     const auto name = request["name"].toString();
+    const auto newName = request["newName"].toString();
     const bool hasRequest = request.contains("request");
-    if (action == "save") {
+    const bool hasNewName = request.contains("newName");
+    if (action == "save" || action == "update") {
         if (name.isEmpty() || !hasRequest)
-            fail("INVALID_REQUEST", "Save needs a name and a request");
-        return saveReportSchedule(doc, storePath, name, request["request"].toObject());
+            fail("INVALID_REQUEST", action == "save" ? "Save needs a name and a request"
+                                                     : "Update needs a name and a request");
+        if (hasNewName)
+            fail("INVALID_REQUEST", "Only rename takes a new name");
+        const auto saved = request["request"].toObject();
+        return action == "save" ? saveReportSchedule(doc, storePath, name, saved)
+                                : updateReportSchedule(doc, storePath, name, saved);
     }
     if (hasRequest)
-        fail("INVALID_REQUEST", "Only save takes a request");
+        fail("INVALID_REQUEST", "Only save and update take a request");
+    if (action == "rename") {
+        if (name.isEmpty() || newName.isEmpty())
+            fail("INVALID_REQUEST", "Rename needs the schedule's name and its new name");
+        return renameReportSchedule(doc, storePath, name, newName);
+    }
+    if (hasNewName)
+        fail("INVALID_REQUEST", "Only rename takes a new name");
     if (action == "delete") {
         if (name.isEmpty())
             fail("INVALID_REQUEST", "Delete needs the schedule's name");
@@ -364,19 +407,36 @@ QJsonObject reportScheduleOperation(const Document &doc, const QJsonObject &requ
     return describeReportSchedules(doc, storePath, name);
 }
 
+namespace {
+
+// ADR 0175 §7 and owner choice 4: a saved request pins the precision it was saved with. A request
+// that names none takes the document's precision now, so a later change to the display setting does
+// not change the saved report. The selection is refused here, because a schedule runs without one.
+QJsonObject pinnedRequest(const Document &doc, QJsonObject request) {
+    if (request["filters"].toObject()["selection"].toBool())
+        fail("INVALID_REQUEST", "A saved schedule cannot use the session selection; name its "
+                                "tags, materials or definitions instead");
+    if (!request.contains("precision")) {
+        const auto precision = doc.displayPrecision();
+        request["precision"] =
+            precision == fullDisplayPrecision ? QJsonValue("full") : QJsonValue(precision);
+    }
+    return request;
+}
+
+} // namespace
+
 QJsonObject saveReportSchedule(const Document &doc, const QString &storePath, const QString &name,
                                const QJsonObject &request) {
     const auto documentId = doc.identity();
     requireIdentity(documentId);
     requireName(name);
-    if (request["filters"].toObject()["selection"].toBool())
-        fail("INVALID_REQUEST", "A saved schedule cannot use the session selection; name its "
-                                "tags, materials or definitions instead");
-    requireResolvedScheduleIds(doc, request);
-    reportRequestFrom(doc, request, false); // The same validation a run applies.
+    const auto pinned = pinnedRequest(doc, request);
+    requireResolvedScheduleIds(doc, pinned);
+    reportRequestFrom(doc, pinned, false); // The same validation a run applies.
     ReportScheduleStore store(storePath);
     const ReportSchedule schedule{name, QDateTime::currentDateTimeUtc().toString(Qt::ISODate),
-                                  request};
+                                  pinned};
     store.add(documentId, schedule);
     return {{"status", "saved"},
             {"documentId", QString::fromStdString(documentId)},
@@ -410,6 +470,37 @@ QJsonObject deleteReportSchedule(const Document &doc, const QString &storePath,
     store.remove(documentId, name);
     return {
         {"status", "deleted"}, {"documentId", QString::fromStdString(documentId)}, {"name", name}};
+}
+
+QJsonObject renameReportSchedule(const Document &doc, const QString &storePath, const QString &name,
+                                 const QString &newName) {
+    const auto documentId = doc.identity();
+    requireIdentity(documentId);
+    requireName(name);
+    requireName(newName);
+    ReportScheduleStore store(storePath);
+    store.rename(documentId, name, newName);
+    return {{"status", "renamed"},
+            {"documentId", QString::fromStdString(documentId)},
+            {"name", name},
+            {"newName", newName},
+            {"schedule", encodeSchedule(store.lookup(documentId, newName))}};
+}
+
+QJsonObject updateReportSchedule(const Document &doc, const QString &storePath, const QString &name,
+                                 const QJsonObject &request) {
+    const auto documentId = doc.identity();
+    requireIdentity(documentId);
+    requireName(name);
+    ReportScheduleStore store(storePath);
+    store.lookup(documentId, name); // Refused first when the name is not this document's.
+    const auto pinned = pinnedRequest(doc, request);
+    requireResolvedScheduleIds(doc, pinned);
+    reportRequestFrom(doc, pinned, false);
+    store.update(documentId, name, pinned);
+    return {{"status", "updated"},
+            {"documentId", QString::fromStdString(documentId)},
+            {"schedule", encodeSchedule(store.lookup(documentId, name))}};
 }
 
 } // namespace sketchy
