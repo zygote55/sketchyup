@@ -18,6 +18,7 @@
 #include "automation/report_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
+#include "automation/style_catalog_cli.hpp"
 #include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/texture_commands.hpp"
@@ -199,6 +200,7 @@ QJsonObject capabilities() {
         {"measurementAssertions", measurementAssertionCapabilities()},
         {"presentation", presentationExportCapabilities()},
         {"reportExport", reportExportCapabilities()},
+        {"styleCatalog", styleCatalogCliCapabilities()},
         {"units", "m"},
         {"up", "Z"},
         {"commands",
