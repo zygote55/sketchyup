@@ -305,6 +305,17 @@ struct RenderPanel::Impl {
         }
         emit owner.changed();
     }
+    // R099.d2 ("New from current settings"): the sheet's live width, height, samples and engine
+    // once the sheet has been built, else the values it saved last. The sheet keeps no seed.
+    RenderSettings currentSettings() const {
+        if (width)
+            return {width->value(), height->value(), samples->value(), 0,
+                    engine->currentIndex() == 1 ? RenderEngine::Eevee : RenderEngine::Cycles};
+        QSettings preferences("SketchyUp", "SketchyUp");
+        return {preferences.value("render/width", 1024).toInt(),
+                preferences.value("render/height", 768).toInt(),
+                preferences.value("render/samples", 32).toInt(), 0, RenderEngine::Cycles};
+    }
     void invalidate() {
         verified = false;
         device->clear();
@@ -464,6 +475,14 @@ struct RenderPanel::Impl {
         layout->addWidget(animationButton);
         QObject::connect(animationButton, &QPushButton::clicked, &owner,
                          [this] { chooseAnimation(); });
+        // R099.d2 (UX_DESIGN §17.1): the batch's button sits beside the one-shot export. Its dialog
+        // is the batch dialog (R099.d3), so the button stays disabled until that slice lands.
+        auto *batchButton = new QPushButton("Export presentation batch…");
+        batchButton->setObjectName("exportPresentationBatch");
+        batchButton->setEnabled(false);
+        batchButton->setToolTip("Presentation batches are not available in this version yet.");
+        batchButton->setAccessibleDescription(batchButton->toolTip());
+        layout->addWidget(batchButton);
         auto *buttons = new QHBoxLayout;
         renderButton = new QPushButton("Render");
         renderButton->setObjectName("startRender");
@@ -1079,6 +1098,7 @@ RenderPanel::RenderPanel(Document &document, Viewport &view, QTabWidget &tabs, Q
     : QObject(&window), impl_(std::make_unique<Impl>(*this, document, view, tabs, chip, window)) {}
 RenderPanel::~RenderPanel() = default;
 void RenderPanel::showSetup() { impl_->show(); }
+RenderSettings RenderPanel::setupSettings() const { return impl_->currentSettings(); }
 void RenderPanel::showJobs() { impl_->showJobs(); }
 void RenderPanel::refreshProvenance() {
     impl_->checkOwner();

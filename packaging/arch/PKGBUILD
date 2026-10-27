@@ -17,7 +17,7 @@ pkgrel=1
 arch=('x86_64')
 url='https://github.com/zygote55/sketchyup'
 # The licences of everything the two packages carry; each package function narrows it.
-license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause' 'LGPL-3.0-or-later' 'LGPL-2.1-or-later')
+license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause' 'LGPL-3.0-or-later' 'LGPL-2.1-or-later' 'CC0-1.0')
 # CMake configures Python-based recipe/reference checks when BUILD_TESTING is on. boost, eigen,
 # opencascade and patchelf build IfcOpenShell (third_party/ifcopenshell) and copy the OpenCASCADE
 # libraries its kernel needs; opencascade pulls vtk, tcl and tk into the build environment only.
@@ -57,7 +57,7 @@ check() {
 
 package_sketchyup() {
   pkgdesc='Native Linux face modeler'
-  license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause')
+  license=('MIT' 'BSL-1.0' 'Apache-2.0' 'MPL-2.0' 'BSD-3-Clause' 'CC0-1.0')
   depends=('openssl' 'qt6-base' 'qt6-wayland' 'wayland' 'shared-mime-info' 'ttf-dejavu')
   optdepends=('libsecret: OpenAI credential storage through the desktop Secret Service'
               'blender: optional rendered images, animation frames and Blender handoff'

@@ -118,7 +118,7 @@ get_target_property(sketchyup_core_sources sketchyup_core SOURCES)
 add_library(sketchyup_core_benchmark_limits STATIC EXCLUDE_FROM_ALL ${sketchyup_core_sources})
 target_include_directories(sketchyup_core_benchmark_limits PUBLIC src)
 target_compile_definitions(sketchyup_core_benchmark_limits PUBLIC SKETCHYUP_BENCHMARK_LIMIT_SCALE=8)
-target_link_libraries(sketchyup_core_benchmark_limits PRIVATE clipper2 sketchyup_manifold PUBLIC sketchyup_solar sketchyup_parameter_expression sketchyup_terrain_triangulation)
+target_link_libraries(sketchyup_core_benchmark_limits PRIVATE clipper2 sketchyup_manifold PUBLIC sketchyup_solar sketchyup_parameter_expression sketchyup_terrain_triangulation sketchyup_geo)
 add_executable(component_placement_scaling_raised_limits EXCLUDE_FROM_ALL tests/component_placement_scaling.cpp)
 target_link_libraries(component_placement_scaling_raised_limits PRIVATE sketchyup_core_benchmark_limits)
 include(CTest)
@@ -401,12 +401,16 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_test(NAME text_geometry COMMAND text_geometry_tests)
     set_tests_properties(text_geometry PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME=generic;QT_IM_MODULE=compose")
   endif()
-  add_library(sketchyup_io src/io/skp_package.cpp src/io/skp_import.cpp src/io/import_refusal.cpp src/io/skp_worker.cpp src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/step_worker.cpp src/io/step_export.cpp src/io/ifc_worker_run.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/presentation_export.cpp src/automation/presentation_export.hpp src/automation/extension_worker.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/catalog_io.cpp src/io/catalog_insert.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/report_csv.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/presentation_commands.cpp src/automation/style_commands.cpp src/automation/catalog_commands.cpp src/automation/style_catalog_cli.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/presentation_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/io/style_bundle.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/report_commands.cpp src/automation/report_schedules.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
+  add_library(sketchyup_io src/io/skp_package.cpp src/io/skp_import.cpp src/io/import_refusal.cpp src/io/skp_worker.cpp src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/step_worker.cpp src/io/step_export.cpp src/io/ifc_worker_run.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/presentation_export.cpp src/automation/presentation_export.hpp src/automation/extension_worker.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/catalog_io.cpp src/io/catalog_insert.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/report_csv.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/presentation_commands.cpp src/automation/style_commands.cpp src/automation/catalog_commands.cpp src/automation/style_catalog_cli.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/presentation_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/io/style_bundle.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/report_commands.cpp src/automation/report_schedules.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/procedural_textures.cpp src/io/texture_presets.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
   target_link_libraries(sketchyup_io PRIVATE sketchyup_cgltf)
   # R095.c terrain import uses the triangulation adapter.
   target_link_libraries(sketchyup_io PUBLIC sketchyup_terrain_triangulation)
   target_link_libraries(sketchyup_io PUBLIC sketchyup_core sketchyup_environment sketchyup_version Qt6::Core PRIVATE Qt6::Gui)
   target_compile_options(sketchyup_io PRIVATE -Wall -Wextra -Wpedantic)
+  # R100.b (ADR 0174 Q1): the nine CC0 texture presets, embedded as the bytes of managed assets.
+  qt_add_resources(sketchyup_io texture_presets PREFIX "/sketchyup/textures" BASE resources/textures FILES resources/textures/asphalt.jpg resources/textures/fabric-wool-herringbone.jpg resources/textures/grass.jpg resources/textures/gravel.jpg resources/textures/metal-corrugated.jpg resources/textures/roof-tiles-clay.jpg resources/textures/stone-rubble-wall.jpg resources/textures/wood-dark-oak.jpg resources/textures/wood-light-ash.jpg)
+  # The generated presets must give the same bytes on every compiler: no contraction, no fast math (as sketchyup_parameter_expression).
+  set_source_files_properties(src/io/procedural_textures.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off;-fno-fast-math")
   if(SKETCHYUP_BUILD_FUZZERS)
     add_executable(parser_fuzz_seeds EXCLUDE_FROM_ALL tests/fuzz/parser_seeds.cpp)
     target_link_libraries(parser_fuzz_seeds PRIVATE sketchyup_io sketchyup_parameter_expression)
@@ -954,6 +958,10 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_executable(texture_image_tests tests/texture_image_tests.cpp)
     target_link_libraries(texture_image_tests PRIVATE sketchyup_io Qt6::Gui)
     add_test(NAME texture_image COMMAND texture_image_tests)
+    add_executable(texture_preset_tests tests/texture_preset_tests.cpp)
+    target_link_libraries(texture_preset_tests PRIVATE sketchyup_io Qt6::Gui)
+    target_compile_definitions(texture_preset_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME texture_presets COMMAND texture_preset_tests)
     add_executable(face_texture_tests tests/face_texture_tests.cpp)
     target_link_libraries(face_texture_tests PRIVATE sketchyup_io)
     target_compile_definitions(face_texture_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -1323,6 +1331,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # on a worker thread), the report, the refusal and the availability sheets, and the File menu flow;
   # the helper is sketchyup-skp-worker, which the application finds beside it and never links.
   target_sources(sketchyup_desktop PRIVATE src/app/skp_import_runner.cpp src/app/skp_progress_sheet.cpp src/app/window_skp.cpp)
+  # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog (camera paths and render
+  # presets, non-modal) and its scene picker; the Camera menu opens it.
+  target_sources(sketchyup_desktop PRIVATE src/app/presentations_dialog.cpp src/app/presentation_scene_picker.cpp src/app/window_presentations.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1599,6 +1610,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME ifc_export_dialog COMMAND ifc_export_dialog_tests)
     set_tests_properties(ifc_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                     TIMEOUT 600)
+    # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog: the Camera menu entry,
+    # the path editor and its draft create flow, the scene picker, the preset editor, the keyboard,
+    # the refusals and the broken-path display, and the text size, offscreen and on the native displays.
+    add_executable(presentation_input_tests tests/presentation_input_tests.cpp)
+    target_link_libraries(presentation_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(presentation_input_tests PRIVATE tests)
+    target_compile_definitions(presentation_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME presentation_input COMMAND presentation_input_tests)
+    set_tests_properties(presentation_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.
@@ -1772,6 +1793,8 @@ install(FILES docs/api/native-format-v1.json DESTINATION share/doc/sketchyup/api
 install(FILES docs/decisions/0108-public-native-format.md DESTINATION share/doc/sketchyup/decisions)
 
 install(FILES third_party/cgltf/LICENSE DESTINATION share/licenses/sketchyup RENAME cgltf-LICENSE)
+# The Poly Haven CC0 texture presets (ADR 0174 Q1, R100.b). The line stays unindented: scripts/release-artifacts.sh collects it.
+install(FILES third_party/textures/PolyHaven-CC0.txt DESTINATION share/licenses/sketchyup RENAME Textures-PolyHaven-CC0)
 
 install(FILES docs/decisions/0109-bounded-gltf-packages.md DESTINATION share/doc/sketchyup/decisions)
 

@@ -251,6 +251,11 @@
       "areas": ["build", "native"]
     },
     {
+      "why": "R100.b (ADR 0174 Q1): the textured material presets, their generated textures and embedded CC0 files, and the Poly Haven notice. The Textured group of the Materials library is tested by material_input_tests, which the build and native lines run.",
+      "paths": ["src/io/procedural_textures*", "src/io/texture_presets*", "tests/texture_preset_tests*", "resources/textures/**", "third_party/textures/**"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
       "paths": [
         "tests/**"
@@ -264,6 +269,19 @@
       "paths": [
         "@native-fixture-sources",
         "tests/*.hpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "The R099.d2 Presentations dialog (UX_DESIGN 17): the dialog, its scene picker and the Camera menu entry, with the input suite that drives them and the native display lines that run it. The suite links the desktop, so it runs in the fast tier as well.",
+      "paths": [
+        "tests/presentation_input_tests.cpp",
+        "src/app/presentations_dialog.*",
+        "src/app/presentation_scene_picker.*",
+        "src/app/window_presentations.cpp"
       ],
       "areas": [
         "build",
@@ -689,6 +707,7 @@
     "report_schedule": 15,
     "report_schedule_cli": 23,
     "report_mcp": 4,
-    "style_catalog_cli": 1
+    "style_catalog_cli": 1,
+    "texture_presets": 2
   }
 }
