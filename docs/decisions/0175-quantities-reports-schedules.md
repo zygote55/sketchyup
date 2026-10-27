@@ -1260,3 +1260,74 @@ The spread between runs is wide, so read the re-run figures as a range, not one 
 - **Store tests on Windows and macOS.** The rename and update checks on the store follow R101.c:
   the isolation of the store path is Linux-only, and the store-level checks use temporary folders on
   every platform.
+
+## Implementation notes (R101.e2)
+
+R101.e2 is the Quantities panel (UX_DESIGN §19, approved 2026-10-27). The section is a Tray tab in
+`src/app/quantities_panel.{hpp,cpp}`. Its pass and its export run on a `ReportJob`
+(`src/app/quantities_job.{hpp,cpp}`), and its dialogs are in `src/app/quantities_dialogs.{hpp,cpp}`. The
+schedule store gains `schedulesOutside` (the other models' count, §19.7). The tests are
+`tests/quantities_input_tests.cpp` (the main window, offscreen) and the `quantities` group of the
+native dialog audit (`tests/native_dialog_cases.hpp`).
+
+### Decisions where the ADR was silent
+
+- **Place in the Tray.** The tab sits right before History, after Materials. The Info tab keeps index
+  2, so the existing index-based tests do not move. The mock draws the sections in another order, so
+  the tab is "between Tags and History" in the mock's order and after Materials in the tab order.
+- **Snapshots.** Every pass and every export runs on a `Document::readSnapshot()` copy. The model stays
+  editable while the pass runs, and nothing the person does later changes what is computed.
+- **One job at a time.** Exports wait for the totals, and the totals do not start while a file is
+  written. The Export buttons are disabled while a job runs.
+- **Superseded runs.** A newer revision, filter or selection cancels the pass in progress. Its numbers
+  are dropped, and a pass starts for the newest request. Cancel stands until the revision, the filters
+  or the selection change, so a refresh after Cancel does not start the pass again.
+- **Totals.** The engine emits an `All` row in every grouping, and the totals come from that row. The
+  areas table has a row per material in each group, so a group's area is the sum of its rows.
+- **Empty model.** With nothing to count, the engine emits no rows for a measure. The All row shows
+  zeros, as §19.1 asks. A report that does not ask for a measure shows a dash.
+- **Exports.** The system Save dialog, with no overwrite prompt. The suggested name is
+  "<model>-takeoff.csv" (or ".json") in the model's folder. A file that exists is refused after the
+  dialog, and nothing is replaced.
+- **Schedules.** Save and Rename go through the engine's actions, so the precision is pinned and the
+  request and creation time survive a rename. Stale rows are recomputed when the revision changes.
+  A refused Run leaves a red row until the schedule runs again or is deleted. View → Quantities
+  re-reads the store, so another model's count is current even when the section was already open.
+- **Focus.** Keyboard focus lands on Group by. Each row's Run and Actions controls are not Tab stops:
+  Enter runs a schedule, F2 renames, Delete asks first, and Shift+F10 opens Actions (§19.10).
+
+### Measured
+
+- **Cancel.** In `quantities_input_tests` (offscreen, Debug build, quantities-a, the pass held in a
+  test gate until Cancel), the section reports "Not updated: cancelled" 23 to 30 ms after the button
+  is pressed. The engine's budget is 100 ms (R101.e1 measured 1 to 2 ms per record boundary).
+  Escape cancels the same way.
+- **Re-run the panel shows.** Not measured on a 100,000-face model. The pass is `reportDescription` on
+  a snapshot, so R101.e1's figures stand for it: p95 582 ms on an idle machine and 968 ms under load,
+  against the 250 ms budget. **The budget is not met.** It is not changed here. The panel shows the
+  result when the pass ends, and the totals stay readable, dimmed, until then.
+
+### Gaps and what was not run
+
+- **The re-run budget is not met** (above). The options R101.e1 listed still stand.
+- **Keyboard audit.** `Save as schedule…` and `Delete…` are audited in the `quantities` group, and the
+  inventory's `uncoveredEllipsisActions` is empty. **Rename, Export CSV… and Export JSON… are not
+  audited.** Their keyboard checks fail offscreen: the rename dialog's Tab walk does not reach Cancel,
+  and the file choosers did not behave as the audit expects. The input test covers their flows. This
+  needs a follow-up before the audit covers them.
+- **Not built:** the status-bar job chip ("Quantities 0:03 · Cancel"; the computing line with Cancel
+  is in the section), and Ctrl+C on a totals row.
+- **Group rows** show name, area and volume. Each group's instance, context and definition counts are
+  in the row's tooltip and accessible text, not on a second line as the mock draws them.
+- **Pickers.** Tags show bodies per tag (folders include their tags). Definitions show placements.
+  Materials show names only, not the muted counts the design asks for.
+- **Export report.** "Needs your attention" and the notices come from the totals on screen, and only
+  when those were computed at the exported revision. Otherwise the sheet shows the file's facts only.
+- **200 % text.** The section scrolls and its labels wrap. Not checked on screen at 200 %.
+- **Platforms.** Offscreen only, on Qt 6.12 (not 6.8). X11 and Wayland run in CI's native lines. No
+  sanitizer, Windows or macOS build was run.
+
+### Terrain and the mock (UX_DESIGN §19.11 item 15)
+
+The terrain's area is reported under its Terrain material, as R101.e1 records. `docs/mockups/quantities.html`
+is not redrawn here, so it still draws the terrain under "No material".

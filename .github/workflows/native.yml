@@ -824,6 +824,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_state_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/component_acceptance_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/quantities_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
@@ -986,6 +987,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/component_parameter_state_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/component_acceptance_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/quantities_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb QT_SCALE_FACTOR=2 LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
@@ -1141,6 +1143,7 @@ jobs:
           scripts/test-wayland.sh build/dev/component_parameter_state_input_tests
           scripts/test-wayland.sh build/dev/component_acceptance_input_tests
           scripts/test-wayland.sh build/dev/organization_input_tests
+          scripts/test-wayland.sh build/dev/quantities_input_tests
           scripts/test-wayland.sh build/dev/component_input_tests
           scripts/test-wayland.sh build/dev/hosted_input_tests
           scripts/test-wayland.sh build/dev/hosted_array_input_tests
@@ -1293,6 +1296,7 @@ jobs:
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_parameter_state_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_acceptance_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/organization_input_tests
+          SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/quantities_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/component_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_input_tests
           SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/hosted_array_input_tests
