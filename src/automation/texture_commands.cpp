@@ -80,13 +80,13 @@ TextureMapping projection(const QJsonValue &value) {
     throw std::runtime_error("Choose planar, pins or affine texture projection");
 }
 } // namespace
-QJsonObject faceTextureDescription(const Body &body, Id face) {
+QJsonObject faceTextureDescription(const Body &body, Id face, const MaterialRecords &materials) {
     const auto stored = faceTextureMappings(body, face);
     auto side = [&](bool back) {
         const auto &record = back ? stored.back : stored.front;
         return QJsonObject{
             {"stored", record ? QJsonValue(mapping(*record)) : QJsonValue(QJsonValue::Null)},
-            {"effective", mapping(effectiveFaceTextureMapping(body, face, back))}};
+            {"effective", mapping(effectiveFaceTextureMapping(body, face, back, materials))}};
     };
     return {{"space", "local"},
             {"lengthUnit", "m"},

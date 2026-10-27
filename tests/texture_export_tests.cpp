@@ -7,6 +7,7 @@
 #include "integrations/glb_export.hpp"
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
+#include "io/obj_export.hpp"
 #include "io/texture_image.hpp"
 #include <QBuffer>
 #include <QCoreApplication>
@@ -92,23 +93,26 @@ void implicitAndPacking() {
     Document doc;
     const auto horizontal = doc.addFace({{{2, 3, 4}, {4, 3, 4}, {4, 5, 4}, {2, 5, 4}}});
     const auto face = doc.bodies().at(horizontal)->surface.faces.begin()->first;
-    const auto implicit = effectiveFaceTextureMapping(*doc.bodies().at(horizontal), face);
+    const auto implicit =
+        effectiveFaceTextureMapping(*doc.bodies().at(horizontal), face, false, doc.materials());
     check(implicit == TextureMapping{}, "Horizontal default is body-local XY at one metre/repeat");
     reverseSelectedFaces(doc, {{horizontal, SelectionKind::Face, face}}, 0);
-    check(effectiveFaceTextureMapping(*doc.bodies().at(horizontal), face) == implicit &&
-              effectiveFaceTextureMapping(*doc.bodies().at(horizontal), face, true) == implicit,
+    check(effectiveFaceTextureMapping(*doc.bodies().at(horizontal), face, false, doc.materials()) ==
+                  implicit &&
+              effectiveFaceTextureMapping(*doc.bodies().at(horizontal), face, true,
+                                          doc.materials()) == implicit,
           "Implicit image axes remain unchanged through winding reversal");
     const auto wall = doc.addFace({{{2, 3, 4}, {4, 3, 4}, {4, 3, 6}, {2, 3, 6}}});
     const auto wf = doc.bodies().at(wall)->surface.faces.begin()->first;
-    const auto uv =
-        effectiveFaceTextureMapping(*doc.bodies().at(wall), wf).coordinates({2.5, 3, 5.5});
+    const auto uv = effectiveFaceTextureMapping(*doc.bodies().at(wall), wf, false, doc.materials())
+                        .coordinates({2.5, 3, 5.5});
     near(uv.u, 2.5);
     near(uv.v, -5.5);
     for (const auto loop : {std::vector<Vec3>{{2, 3, 4}, {4, 3, 4}, {4, 5, 4}},
                             std::vector<Vec3>{{2, 3, 4}, {4, 5, 4}, {2, 5, 4}}}) {
         Body part;
         const auto id = part.surface.addFace({loop});
-        check(effectiveFaceTextureMapping(part, id) == implicit,
+        check(effectiveFaceTextureMapping(part, id, false, doc.materials()) == implicit,
               "Coplanar subdivisions do not change default phase or basis");
     }
     const auto packed = floatTextureCoordinates(
@@ -341,6 +345,61 @@ void aggregateBudget() {
           "One pixel beyond aggregate image budget rejects atomically");
 }
 
+// R100.b2 (ADR 0174 section 3): the GLB and OBJ exporters repeat a sized material over its
+// size. A horizontal 2 m square with a 0.5 m by 0.25 m tile has u = x / 0.5 and v = y / 0.25; GLB
+// keeps v, and OBJ writes 1 - v.
+void sizedUVs() {
+    Document doc;
+    const auto body = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+    const auto face = doc.bodies().at(body)->surface.faces.begin()->first;
+    const auto asset = createAsset(doc, "Tile", "image/png", assetPayload(checker(0)));
+    const auto tile = createMaterial(doc, "Tile", {1, 1, 1}, 1, asset, TextureSize{.5, .25});
+    assignMaterial(doc, body, face, tile, true, false);
+    const auto oracle = [](double x, double y) { return TextureCoordinate{x / .5, y / .25}; };
+
+    const auto scene = exportGlb(RenderSnapshot::capture(doc));
+    const Parsed parsed(scene);
+    int textured = 0;
+    for (auto mesh : parsed.root["meshes"].toArray()) {
+        for (auto value : mesh.toObject()["primitives"].toArray()) {
+            const auto attrs = value.toObject()["attributes"].toObject();
+            if (!attrs.contains("TEXCOORD_0"))
+                continue;
+            ++textured;
+            const auto positions = parsed.attribute(attrs["POSITION"].toInt(), 3);
+            const auto uv = parsed.attribute(attrs["TEXCOORD_0"].toInt(), 2);
+            check(positions.size() * 2 == uv.size() * 3, "GLB sized UV count");
+            for (size_t start = 0; start + 3 <= positions.size() / 3; start += 3) {
+                // The packing removes one integer repeat per triangle, taken from its first corner.
+                const auto anchor = oracle(positions[start * 3], positions[start * 3 + 1]);
+                for (size_t i = start; i < start + 3; ++i) {
+                    const auto expected = oracle(positions[i * 3], positions[i * 3 + 1]);
+                    near(uv[i * 2], expected.u - std::floor(anchor.u));
+                    near(uv[i * 2 + 1], expected.v - std::floor(anchor.v));
+                }
+            }
+        }
+    }
+    check(textured > 0, "A sized textured face exports UVs");
+
+    const auto package = exportObj(doc, {.001, ObjUpAxis::Y});
+    QList<std::pair<double, double>> coordinates;
+    for (const auto &line : package.obj.split('\n'))
+        if (line.startsWith("vt ")) {
+            const auto parts = line.split(' ');
+            coordinates.append({parts[1].toDouble(), parts[2].toDouble()});
+        }
+    check(coordinates.size() == 4, "OBJ writes one UV per corner");
+    for (const auto &[x, y] :
+         std::vector<std::pair<double, double>>{{0, 0}, {2, 0}, {2, 2}, {0, 2}}) {
+        const auto want = oracle(x, y);
+        bool found = false;
+        for (const auto &[u, v] : coordinates)
+            found = found || (std::abs(u - want.u) < 1e-6 && std::abs(v - (1 - want.v)) < 1e-6);
+        check(found, "OBJ UV is the sized repeat with v flipped");
+    }
+}
+
 } // namespace
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -350,6 +409,7 @@ int main(int argc, char **argv) {
             argc > 1 ? QString::fromLocal8Bit(argv[1]) : temporary.path() + "/fixtures";
         check(QDir().mkdir(root), "Fresh texture fixture directory");
         implicitAndPacking();
+        sizedUVs();
         for (int variant = 0; variant < 12; ++variant)
             fixture(root + "/texture-" + QString::number(variant), variant);
         failures();
