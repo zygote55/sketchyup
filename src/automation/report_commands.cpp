@@ -1,6 +1,7 @@
 #include "automation/report_commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/report_schedules.hpp"
+#include "core/solid_words.hpp"
 #include "core/units.hpp"
 #include "io/new_file.hpp"
 #include "io/report_csv.hpp"
@@ -196,10 +197,10 @@ ReportRequest reportRequestFrom(const Document &doc, const QJsonObject &request,
 }
 
 QJsonObject reportDescription(const Document &doc, const ReportRequest &request,
-                              const std::set<Id> *selectedBodies) {
+                              const std::set<Id> *selectedBodies, const ReportHooks &hooks) {
     ReportResult result;
     try {
-        result = runReport(doc, request, selectedBodies);
+        result = runReport(doc, request, selectedBodies, hooks);
     } catch (const std::invalid_argument &error) {
         fail("INVALID_REQUEST", error.what());
     }
@@ -255,9 +256,17 @@ QJsonObject reportDescription(const Document &doc, const ReportRequest &request,
                                    {"name", QString::fromStdString(row.name)},
                                    {"volume", measureText(row.volume, 3, unit, precision)},
                                    {"unvalidated", int(row.unvalidated)}});
-    for (const auto &row : result.invalid)
-        invalid.append(QJsonObject{{"status", QString::fromStdString(row.status)},
-                                   {"contexts", int(row.contexts)}});
+    for (const auto &row : result.invalid) {
+        QJsonArray bodies;
+        for (const auto body : row.bodies)
+            bodies.append(QString::number(body));
+        invalid.append(
+            QJsonObject{{"status", QString::fromStdString(row.status)},
+                        {"contexts", int(row.contexts)},
+                        {"bodies", bodies},
+                        {"truncated", row.truncated},
+                        {"label", QString::fromStdString(solidStatusWords(row.status))}});
+    }
     for (const auto &row : result.terrain)
         terrain.append(QJsonObject{{"terrain", QString::number(row.terrain)},
                                    {"name", QString::fromStdString(row.name)},
@@ -275,6 +284,22 @@ QJsonObject reportDescription(const Document &doc, const ReportRequest &request,
         data["invalid"] = invalid;
     }
     return data;
+}
+
+QJsonObject reportFileData(const QJsonObject &data) {
+    if (!data.contains("invalid"))
+        return data;
+    QJsonArray invalid;
+    for (const auto &value : data["invalid"].toArray()) {
+        auto row = value.toObject();
+        row.remove("bodies");
+        row.remove("truncated");
+        row.remove("label");
+        invalid.append(row);
+    }
+    auto file = data;
+    file["invalid"] = invalid;
+    return file;
 }
 
 namespace {
@@ -303,10 +328,14 @@ QJsonObject reportRequestFor(const ReportFileOptions &options) {
             result.append(value);
         return result;
     };
-    request["filters"] = QJsonObject{{"visibility", options.visible ? "visible" : "all"},
-                                     {"tags", ids(options.tags)},
-                                     {"materials", ids(options.materials)},
-                                     {"definitions", ids(options.definitions)}};
+    QJsonObject filters{{"visibility", options.visible ? "visible" : "all"},
+                        {"tags", ids(options.tags)},
+                        {"materials", ids(options.materials)},
+                        {"definitions", ids(options.definitions)}};
+    // Written only when set, so the stored request of a flags-only schedule keeps its shape.
+    if (options.selection)
+        filters["selection"] = true;
+    request["filters"] = filters;
     if (options.precision == "full") {
         request["precision"] = "full";
     } else if (!options.precision.isEmpty()) {
@@ -319,7 +348,8 @@ QJsonObject reportRequestFor(const ReportFileOptions &options) {
     return request;
 }
 
-QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &options) {
+QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &options,
+                            const std::set<Id> *selectedBodies, const ReportHooks &hooks) {
     const auto extension = QFileInfo(options.path).suffix().toLower();
     if (extension != "csv" && extension != "json")
         throw InspectionError("INVALID_REQUEST", "A report file ends in .csv or .json");
@@ -333,6 +363,9 @@ QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &option
     // A scheduled run takes its request from the user-level store, after the identity guard and the
     // stale-ID refusal (ADR 0175 §7). It runs the same report pass as the flags.
     const auto scheduled = !options.schedule.isEmpty();
+    if (scheduled && options.selection)
+        throw InspectionError("INVALID_REQUEST",
+                              "A saved schedule cannot use the selection; it runs without it");
     QString storePath;
     QJsonObject request;
     if (scheduled) {
@@ -345,7 +378,9 @@ QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &option
         request = reportRequestFor(options);
     auto data = [&] {
         try {
-            return reportDescription(doc, reportRequestFrom(doc, request, false), nullptr);
+            return reportDescription(doc,
+                                     reportRequestFrom(doc, request, selectedBodies != nullptr),
+                                     selectedBodies, hooks);
         } catch (const InspectionError &error) {
             if (!scheduled)
                 throw;
@@ -359,8 +394,9 @@ QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &option
         metadata["schedule"] = options.schedule;
         data["metadata"] = metadata;
     }
-    const auto bytes =
-        extension == "csv" ? reportCsv(data) : QJsonDocument(data).toJson(QJsonDocument::Compact);
+    const auto bytes = extension == "csv"
+                           ? reportCsv(data)
+                           : QJsonDocument(reportFileData(data)).toJson(QJsonDocument::Compact);
     if (bytes.size() > reportFileBytes)
         throw InspectionError("LIMIT_EXCEEDED", "A report over 256 MiB is refused");
     publishNewFile(options.path, bytes);

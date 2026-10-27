@@ -47,6 +47,14 @@ class ReportScheduleStore {
     void add(const std::string &documentId, ReportSchedule schedule);
     void remove(const std::string &documentId, const QString &name);
 
+    // R101.e1 (ADR 0175 §7, gaps 2 and 3). Each is one commit, so a refusal or a failed write
+    // leaves the file and this store as they were: the name and the request are never lost in
+    // between. rename keeps the request and createdAt; update keeps the name and createdAt. Both
+    // refuse a name saved for another document (WRONG_DOCUMENT) or nowhere (NOT_FOUND), and rename
+    // refuses a name already in use for this document (INVALID_REQUEST).
+    void rename(const std::string &documentId, const QString &name, const QString &newName);
+    void update(const std::string &documentId, const QString &name, QJsonObject request);
+
   private:
     using Schedules = std::map<QString, ReportSchedule>;
     QString path_;
@@ -68,13 +76,20 @@ QJsonObject reportScheduleSchema();
 QJsonObject reportScheduleOperation(const Document &doc, const QJsonObject &request,
                                     const QString &storePath);
 
-// The three actions, shared by the session and the CLI flags. Describe without a name lists the
-// document's schedules.
+// The actions, shared by the session and the CLI flags. Describe without a name lists the
+// document's schedules. Save and update pin the precision: a request that names none takes the
+// document's precision at that moment (R101.e1, owner choice 4).
 QJsonObject saveReportSchedule(const Document &doc, const QString &storePath, const QString &name,
                                const QJsonObject &request);
 QJsonObject describeReportSchedules(const Document &doc, const QString &storePath,
                                     const QString &name = {});
 QJsonObject deleteReportSchedule(const Document &doc, const QString &storePath,
                                  const QString &name);
+// R101.e1: rename keeps the request and its creation time; update replaces the request and keeps
+// the name and its creation time (how a stale schedule is fixed).
+QJsonObject renameReportSchedule(const Document &doc, const QString &storePath, const QString &name,
+                                 const QString &newName);
+QJsonObject updateReportSchedule(const Document &doc, const QString &storePath, const QString &name,
+                                 const QJsonObject &request);
 
 } // namespace sketchy

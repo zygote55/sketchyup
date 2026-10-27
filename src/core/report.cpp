@@ -117,7 +117,7 @@ constexpr std::array<std::string_view, 10> invalidOrder{"empty",
 } // namespace
 
 ReportResult runReport(const Document &doc, const ReportRequest &request,
-                       const std::set<Id> *selectedBodies) {
+                       const std::set<Id> *selectedBodies, const ReportHooks &hooks) {
     if (!request.counts && !request.areas && !request.volumes)
         throw std::invalid_argument("A report needs at least one metric");
     if (request.selection && !selectedBodies)
@@ -138,10 +138,16 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
     std::map<GroupKey, CountAccumulator> counts{{allGroup, {}}};
     std::map<std::pair<GroupKey, Id>, double> areas;
     std::map<GroupKey, VolumeAccumulator> volumes;
-    std::map<std::string, std::size_t> invalid;
     std::map<Id, ReportTerrainRow> terrain;
+    std::map<std::string, ReportInvalidRow> invalidRows;
 
-    for (const auto &[id, record] : doc.bodies()) {
+    // R101.e1: a set cancel flag stops the run before the next record, so the check runs once per
+    // record (ADR 0175 §12). The flag is read with acquire, so a canceller's writes are seen too.
+    const auto cancelled = [&] {
+        return hooks.cancel && hooks.cancel->load(std::memory_order_acquire);
+    };
+    // One body record. Each early exit returns, so the progress count below counts every record.
+    const auto visit = [&](Id id, const auto &record) {
         const auto &body = *record;
         const auto chain = ancestorsOrSelf(doc, id);
 
@@ -150,12 +156,12 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
         // set is not part of it).
         if (request.visibility == ReportVisibility::Visible &&
             persisted.hidden(doc, {id, SelectionKind::Body, 0}))
-            continue;
+            return;
         // A record carries its own tag and every ancestor's (inheritedTags, ADR 0175 §1).
         const auto carried = inheritedTags(doc, id);
         if (filterTags && std::none_of(carried.begin(), carried.end(),
                                        [&](Id tag) { return tagScope.contains(tag); }))
-            continue;
+            return;
         bool placed = false, matchesDefinition = request.definitions.empty();
         Id outerDefinition = 0;
         for (const auto ancestor : chain)
@@ -166,13 +172,13 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
                 matchesDefinition |= request.definitions.contains(outerDefinition);
             }
         if (!matchesDefinition)
-            continue;
+            return;
         if (request.selection) {
             bool selected = false;
             for (const auto ancestor : chain)
                 selected |= selectedBodies->contains(ancestor);
             if (!selected)
-                continue;
+                return;
         }
 
         // The group memberships of this record (ADR 0175 §1 groupBy). A nested placement falls
@@ -269,7 +275,7 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
             }
         }
         if (body.terrainTile)
-            continue; // Terrain is not a solid (ADR 0175 §2.5).
+            return; // Terrain is not a solid (ADR 0175 §2.5).
 
         // Volumes and invalid solids (ADR 0175 §2.3, §2.4). Containers (groups, placement roots,
         // terrain containers, reference images) hold no solid of their own and are not listed.
@@ -280,12 +286,27 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
                 for (const auto &group : groups)
                     volumes[group].volume += known;
             } else {
-                ++invalid[report.status];
+                auto &row = invalidRows[report.status];
+                ++row.contexts;
+                if (row.bodies.size() < reportInvalidBodyLimit)
+                    row.bodies.push_back(id);
                 for (const auto &group : groups)
                     ++volumes[group].unvalidated;
             }
         }
+    };
+
+    const auto total = doc.bodies().size();
+    std::size_t done = 0;
+    for (const auto &[id, record] : doc.bodies()) {
+        if (cancelled())
+            throw ReportCancelled();
+        visit(id, record);
+        if (hooks.progress)
+            hooks.progress(++done, total);
     }
+    if (cancelled())
+        throw ReportCancelled();
 
     ReportResult result;
     result.documentId = doc.identity();
@@ -304,12 +325,17 @@ ReportResult runReport(const Document &doc, const ReportRequest &request,
             volumes.try_emplace(group);
         for (const auto &[group, volume] : volumes)
             result.volumes.push_back({group.key, group.name, volume.volume, volume.unvalidated});
+        const auto addInvalid = [&](const std::string &status, const ReportInvalidRow &row) {
+            result.invalid.push_back(
+                {status, row.contexts, row.bodies, row.contexts > row.bodies.size()});
+        };
         for (const auto status : invalidOrder)
-            if (const auto found = invalid.find(std::string(status)); found != invalid.end())
-                result.invalid.push_back({found->first, found->second});
-        for (const auto &[status, contexts] : invalid)
+            if (const auto found = invalidRows.find(std::string(status));
+                found != invalidRows.end())
+                addInvalid(found->first, found->second);
+        for (const auto &[status, row] : invalidRows)
             if (std::find(invalidOrder.begin(), invalidOrder.end(), status) == invalidOrder.end())
-                result.invalid.push_back({status, contexts});
+                addInvalid(status, row);
     }
     for (const auto &[id, row] : terrain)
         result.terrain.push_back(row);

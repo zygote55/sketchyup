@@ -287,7 +287,7 @@ sample locations per kind). It records:
 6. **Budgets:** a 256 MiB input file and the §6 limits. *Approved 2026-10-25.*
 7. **Corpus:** CI uses synthetic fixtures only. The owner's files stay local
    (`.local/skp-corpus/`) and are never committed. *Approved 2026-10-25 (the owner's rule for BanyanHarbor.skp).*
-8. **Wording:** "Import SketchUp (.skp)…", with the trademark and non-affiliation note.
+8. **Wording:** "Import SketchUp (.skp)…", with the trademark and non-affiliation note. *Renamed by the owner on 2026-10-27 to "Import .skp file…" (and "Show .skp import report…", the undo label "Import .skp file"): no product or feature name contains "SketchUp". The descriptive text and the non-affiliation note are unchanged.*
    *Approved 2026-10-25.*
 9. **Import only:** no `.skp` export. OpenSKP writes only the pre-2021 container, so an
    export would produce old files. *Approved 2026-10-25.*

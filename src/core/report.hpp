@@ -2,9 +2,13 @@
 // R101.a (ADR 0175 §1–§4): the report engine. A report is a pure function of its request and the
 // materialized document at one revision; it never mutates the document and keeps no state.
 #include "core/model.hpp"
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -50,9 +54,15 @@ struct ReportVolumeRow {
     std::size_t unvalidated{};
 };
 
+// R101.e1 (UX_DESIGN §19.4, owner choice 3): the bodies behind each status, so the panel can select
+// them. At most this many body IDs per status, the lowest IDs first.
+inline constexpr std::size_t reportInvalidBodyLimit = 64;
+
 struct ReportInvalidRow {
     std::string status;
     std::size_t contexts{};
+    std::vector<Id> bodies; // The first reportInvalidBodyLimit bodies with this status, by ID.
+    bool truncated{};       // More bodies have this status than `bodies` lists.
 };
 
 struct ReportTerrainRow {
@@ -76,10 +86,27 @@ struct ReportResult {
     std::size_t sheets{}, views{}, items{};
 };
 
+// R101.e1 (ADR 0175 §5, §12): the optional progress and cancel of a run. A run with no hooks is the
+// same pass, with the same result.
+struct ReportHooks {
+    // Set from another thread to stop the run. Checked before each body record and once more at the
+    // end; a set flag throws ReportCancelled and no result is returned.
+    const std::atomic<bool> *cancel{};
+    // Called on the calling thread after each body record: the records visited so far and the
+    // document's record count.
+    std::function<void(std::size_t done, std::size_t total)> progress;
+};
+
+// Thrown by runReport when ReportHooks::cancel was set during the run.
+class ReportCancelled : public std::runtime_error {
+  public:
+    ReportCancelled() : std::runtime_error("The report was cancelled") {}
+};
+
 // `selectedBodies` is the session's selection expanded to bodies; it is required when
 // request.selection is set and ignored otherwise. Throws std::invalid_argument for a request the
 // caller must not have made (no metric, or a selection without editor state).
 ReportResult runReport(const Document &doc, const ReportRequest &request,
-                       const std::set<Id> *selectedBodies = nullptr);
+                       const std::set<Id> *selectedBodies = nullptr, const ReportHooks &hooks = {});
 
 } // namespace sketchy

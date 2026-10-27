@@ -71,6 +71,10 @@ class Window : public QMainWindow {
     QJsonObject inspect(const QJsonObject &request);
     void demo();
     void openPath(const QString &path);
+    // R105.a (ADR 0179 section 7.3): a file the user picked that is a refused type (a ZIP archive,
+    // COLLADA, USDZ or FBX) is named and refused before any importer runs; true when the import
+    // must stop.
+    bool refuseUnsupportedImport(const QString &path);
     void importFormlinePath(const QString &path);
     void importGltfPath(const QString &path);
     void importObjPath(const QString &path, ObjImportOptions options);
@@ -115,7 +119,7 @@ class Window : public QMainWindow {
     // thread from a copy of the document (the same helper; ADR 0172 section 8). Export needs the helper,
     // not the kernel: a missing or broken helper is the availability sheet, a Limited one is not.
     void exportStep();
-    // R102.c: File › Import SketchUp (.skp)… (window_skp.cpp, ADR 0176 section 9). The parser runs only
+    // R102.c: File › Import .skp file… (window_skp.cpp, ADR 0176 section 9). The parser runs only
     // in sketchyup-skp-worker; the import runs on a worker thread (SkpImportRunner). A missing helper is
     // the availability sheet. The import has no options, so the file picker leads to the progress sheet.
     void importSkp();

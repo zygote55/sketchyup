@@ -8,7 +8,7 @@
 //   S4: the hidden tag is hidden, the soft and smooth edges keep their flags, the holed face has two loops;
 //   S5: the two-materials faces carry the right materials, the textured face carries a texture and
 //       the UV mapping the exporter's formula gives, and a mirrored placement keeps its faces outward.
-// Plus: one undo removes the whole import, its label is "Import SketchUp", and the report's
+// Plus: one undo removes the whole import, its label is "Import .skp file", and the report's
 // accounting adds up. With --real and SKETCHYUP_SKP_CORPUS, the owner's file is checked too (its
 // counts and its import time); it is never copied into the repository, and the test exits 77
 // (skipped) when the variable is unset or the file is absent.
@@ -300,7 +300,7 @@ void checkUndo(const char *name, SkpImport &imported) {
     const std::string label = name;
     check(doc.canUndo(), label + ": the import is undoable");
     const auto history = doc.history(0, 10);
-    check(!history.entries.empty() && history.entries.front().label == "Import SketchUp", label + ": the history label is \"Import SketchUp\"");
+    check(!history.entries.empty() && history.entries.front().label == "Import .skp file", label + ": the history label is \"Import .skp file\"");
     check(history.entries.size() == 1, label + ": the import is one history entry");
     doc.undo();
     check(doc.bodies().empty() && doc.definitions().empty() && doc.instances().empty() && doc.tags().empty() &&
@@ -417,7 +417,7 @@ int main(int argc, char **argv) {
         }
         // The edit is its own history entry: one undo takes it back, a second takes the whole import.
         const auto history = doc.history(0, 10);
-        check(history.entries.size() == 2 && history.entries.front().label == "Import SketchUp",
+        check(history.entries.size() == 2 && history.entries.front().label == "Import .skp file",
               "S3: the import is the first of two history entries");
         doc.undo();
         doc.undo();
