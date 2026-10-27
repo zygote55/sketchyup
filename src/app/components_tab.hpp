@@ -26,7 +26,8 @@ class ParameterValueField;
 //   bundle's definition, checked through component_parameters.evaluate on the bundle's
 //   document; Use defaults resets them and Cancel (Esc) ends placement. Values equal to the
 //   defaults are not stored as overrides.
-// - "About these assemblies": the note on Dynamic Components (read-only attributes; formulas and behaviour
+// - "About these assemblies": the note on Dynamic Components (read-only attributes; formulas and
+// behaviour
 //   are not run; ADR 0178).
 // The configurable assemblies are the bundles in share/sketchyup/assemblies beside the
 // executable; All components adds the user library folder's component bundles.

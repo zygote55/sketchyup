@@ -119,13 +119,14 @@ void coordinate(double v, const char *what) {
             std::string(what) + " is not finite or beyond 1e6 m");
 }
 
-// One attribute entry of a manifest list (R102.b, R104.a): an instance's, or a definition's. The kinds
-// are checked here, once, for both lists.
+// One attribute entry of a manifest list (R102.b, R104.a): an instance's, or a definition's. The
+// kinds are checked here, once, for both lists.
 SkpPackageAttribute decodeAttribute(const QJsonValue &entry) {
     const auto a = object(entry, "attribute");
     onlyKeysOr(a, {"dictionary", "key", "type", "value"}, {"truncated"}, "attribute");
     SkpPackageAttribute attribute;
-    attribute.dictionary = text(a["dictionary"], SkpPackageLimits::nameBytes, "attribute dictionary");
+    attribute.dictionary =
+        text(a["dictionary"], SkpPackageLimits::nameBytes, "attribute dictionary");
     attribute.key = text(a["key"], SkpPackageLimits::nameBytes, "attribute key");
     require(!attribute.key.empty(), "attribute key is empty");
     const auto type = text(a["type"], 16, "attribute type");
@@ -149,8 +150,8 @@ SkpPackageAttribute decodeAttribute(const QJsonValue &entry) {
     } else if (type == "unsupported") {
         attribute.kind = SkpPackageAttribute::Kind::Unsupported;
         attribute.text = text(a["value"], 16, "attribute value");
-        require(attribute.text == "vector" || attribute.text == "array" || attribute.text == "null" ||
-                    attribute.text == "notFinite",
+        require(attribute.text == "vector" || attribute.text == "array" ||
+                    attribute.text == "null" || attribute.text == "notFinite",
                 "an unsupported attribute names no known kind of value");
     } else {
         fail("attribute type is unknown");
@@ -620,7 +621,8 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
         }
         // R104.a: the definition's own dynamic_attributes values (optional, as the instances' are).
         if (d.contains("attributes")) {
-            const auto list = array(d["attributes"], SkpPackageLimits::attributesPerInstance, "definition attributes");
+            const auto list = array(d["attributes"], SkpPackageLimits::attributesPerInstance,
+                                    "definition attributes");
             for (const auto &entry : list) {
                 definition.attributes.push_back(decodeAttribute(entry));
                 attributesTotal++;
