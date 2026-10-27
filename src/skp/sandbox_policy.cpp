@@ -18,12 +18,12 @@ sandbox::Policy skpSandboxPolicy(const std::string& input, const std::string& ou
         policy.files.push_back({directory.empty() ? std::string(".") : directory.string(), FileAccess::readWrite});
     }
 
-    // ADR 0183 section 5 (SKP): 19 calls measured in the traces, from main onward (see the notes in
-    // the ADR for the calls removed and added). The calls below are the ones a fixture run makes, with
-    // the deadline thread (clone, the thread's stack and guard, its robust list and its sleep) and the
-    // memory calls glibc makes for a large buffer. The last group is added without a trace: the
-    // fixtures are at most 10 KB, so no buffer reaches the mmap threshold, and the frees of such a buffer
-    // need munmap and mremap (ADR 0183 section 6.9).
+    // ADR 0183 section 5 (SKP). The calls a fixture makes from main onward were traced: read, write,
+    // writev, close, fstat, lseek, openat, brk, prlimit64 and exit_group. The deadline's watch thread
+    // needs the thread calls that follow (a driver showed each one necessary; the ADR's implementation
+    // notes). mremap is listed for large buffers, which no fixture reaches, so it has no trace. abort()
+    // signals and reads the IDs of its own process, so a parser abort is a crash (tgkill is for this
+    // process only).
     policy.syscalls = {
         // reading the file and writing the package
         {"read", Action::allow},
