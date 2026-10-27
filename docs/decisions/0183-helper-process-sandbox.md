@@ -1,0 +1,359 @@
+# 0183 — Helper process sandbox
+
+**Status: Proposed (2026-10-26).** This ADR decides how the file-parsing helpers are sandboxed. It also lists the corrections owed to ADRs 0171, 0176 and 0136, which call those helpers "sandboxed" or describe them loosely, and to ADR 0180, which needs two corrections of its own. It is design and measurement only. No product code and no dependency change is part of it. The owner decides on the verdict and on the [owner decisions](#owner-decisions). Until one is accepted and implemented, the helpers have resource limits and, in some modes, `PR_SET_NO_NEW_PRIVS`. They keep the user's file and network access, as [ADR 0171 §1.6](0171-ifc-exchange-subset.md) says.
+
+## Verdict in brief
+
+- **Sandbox every helper that reads an untrusted file, before it opens that file.** The layers, in order: `PR_SET_NO_NEW_PRIVS`; a Landlock ruleset that allows only a private directory and the read-only system paths the helper needs; a seccomp-bpf allow-list whose default action kills the process. A few calls a helper may meet (sockets in Blender, fork in the IFC diagnosis path) are refused with an explicit `EPERM` entry instead of being left to the kill.
+- **Namespaces and bubblewrap are not the primary mechanism.** In the pinned CI image, under Docker's default seccomp profile, `unshare(CLONE_NEWUSER)` and `unshare(CLONE_NEWNET)` return `EPERM` (measured). Namespaces also leave `exec`, `fork`, `ptrace` and socket creation open. They only cut off the network.
+- **Fail closed.** If a layer cannot be installed, the helper refuses with a named `sandboxUnavailable` before it parses anything. Fail-open was measured too: it runs the parser with resource limits only and prints a warning.
+- **Measured.** Every helper class parses to the same output under the kill allow-list as it does unsandboxed: 74 IFC and STEP fixtures, 12 SKP fixtures, the text worker (2 of 3 requests exact; the third varies between unsandboxed runs), 1 extension request, and 2 Blender probes plus 1 Cycles render. This ran on kernel 7.2.8 (Landlock ABI 10) and inside the pinned CI image. Negative controls are refused as designed.
+- **The measurements found real defects.** A syscall that a trace did not show was refused: the extension worker's `fcntl`, which appears only when stdin is a pipe. Glibc's `isatty` path issues `ioctl` when stdout is `/dev/null`. Blender's startup opens a socket that a kill policy would kill it for. A refused `fork` silently changed the IFC diagnosis result. The Blender exec path needs the dynamic loader's own calls. The design below handles each of these.
+
+## Context
+
+- ADR 0180 (branch `docs/r106-dwg-feasibility`, commit `5c3edcf0`, Proposed 2026-10-26) proposes a seccomp and Landlock layer for the DWG helper. Its §3.6 and owner decision 8 ask for a separate ADR to retrofit the other helpers. This is that ADR.
+- ADR 0171 §1.6 (line 409) says the helper "contains accidents and resource exhaustion; it is not a sandbox." ADR 0176 decision 2 (line 278) calls the SKP helper "sandboxed as in ADR 0171 §1.6". ADR 0136 says its child is "not an OS sandbox". Those three statements are the ones to correct.
+- The supported platform is Arch Linux on x86_64 ([`docs/SUPPORT_MATRIX.md`](../SUPPORT_MATRIX.md), line 12). CI runs on a GitHub-hosted `ubuntu-latest` host, inside an Arch container pinned by digest ([`.github/workflows/native.yml`](../../.github/workflows/native.yml), lines 114–116). The pinned image is `sketchyup-ci-pinned:r097a-ifc`.
+- A grep of `src/` on 2026-10-26 finds no `seccomp`, `landlock`, `unshare` or `CLONE_NEW*` call. The only isolation is `setsid`, `PR_SET_PDEATHSIG` and `setrlimit`, plus `PR_SET_NO_NEW_PRIVS` in some helper mains.
+
+## 1. Current state, per helper
+
+Line numbers are in this worktree at `d65a617d` (main, 2026-10-26).
+
+| Helper | Binary | Launched by | Isolation today | Input and output |
+|---|---|---|---|---|
+| SKP | `sketchyup-skp-worker` | `src/io/skp_worker.cpp:69–88` | `setsid` and `PDEATHSIG` (86–87); rlimits as arguments (75–76); `PR_SET_NO_NEW_PRIVS` in `--import` only (`src/skp/worker_main.cpp:92`) | Private copy in, `SKSKPP01` package out |
+| IFC and STEP import, export, check | `sketchyup-ifc-worker` | `src/io/ifc_worker.cpp:129–171` (import), `ifc_worker_run.cpp:16–28` (export, check), `step_worker.cpp:240–262` (STEP import) | `setsid` and `PDEATHSIG` (`ifc_worker.cpp:162–163`, `ifc_worker_run.cpp:26–27`, `step_worker.cpp:260–261`); rlimits as arguments; `PR_SET_NO_NEW_PRIVS` in import, check, export and STEP package modes (`src/ifc/worker_main.cpp:123, 138, 155, 219, 246`) | Private copy in, package out |
+| IFC and STEP probes | same binary | `src/app/ifc_availability.cpp:44` runs `--probe` with no file | None for the probe modes: `--probe-api`, `--probe-step`, `--probe-write` and `--write-step` (`src/ifc/worker_main.cpp:158–203, 222–225`), and `--import-step` without `--output` (245) return before `PR_SET_NO_NEW_PRIVS` | Developer modes that read a named file |
+| SKP probe | `sketchyup-skp-worker --probe` | Not called by the application | None: `--probe` returns at lines 70–73, before `PR_SET_NO_NEW_PRIVS` (92) and before any limit is applied; `runProbe` then reads up to 1 GiB (`src/skp/import.cpp:118`) | Developer mode |
+| Text | `sketchyup-text-worker` | `src/text/text_worker.cpp:176–238`, from `src/automation/text_commands.cpp:191` | None. The child gets `systemEnvironment()` (`text_worker.cpp:188`), so `HOME` and `XDG_*` point at the user's home. No `setsid`, no `PDEATHSIG`, no rlimit, no `NO_NEW_PRIVS` | Protocol JSON on stdin and stdout; reads system fonts through fontconfig and Qt |
+| Extension | `sketchyup-extension-worker` | `src/automation/extension_worker.cpp:72–140` | Environment scrubbed to `PATH` and `LANG` (`extension_worker.cpp:93–99`); the parent enforces the deadline. No `setsid`, `PDEATHSIG`, rlimit or `NO_NEW_PRIVS` | Protocol JSON on stdin; the manifest travels inside the request |
+| Blender | `/usr/bin/blender` (external) | `src/integrations/blender_job.cpp:568–602` | Environment: `BLENDER_*`, `PYTHONPATH`, `PYTHONHOME`, `DISPLAY` and `WAYLAND_DISPLAY` removed; `BLENDER_USER_CONFIG` and `BLENDER_USER_SCRIPTS` set to the attempt directory (570–578). The child gets `PDEATHSIG` and a `getppid` check (597–601, Linux only). No `setsid`, rlimit or `NO_NEW_PRIVS`. `HOME`, `XDG_*`, `TMPDIR`, `ALSOFT_DRIVERS` and `--offline-mode` are not set | Scene snapshot in, `result.json` and PNG or video out |
+
+Two more facts about the current code affect the design:
+
+- **Crash handling reads a sandbox kill as a crash.** A helper killed by a signal is classed `crash` (`src/io/ifc_worker.cpp:281–282`) and enters the restart and element-exclusion path (`ifc_worker.cpp:391–440`). A policy violation would then be retried as if the parser had faulted.
+- **The IFC diagnosis path forks.** When a geometry stop happens on several threads, the helper restarts on one thread and bisects the remaining tasks in child processes (`ifc_worker.cpp:391–431`; `src/ifc/geometry.cpp:393–401`). Each child calls `prctl`, `alarm` and `_exit`. Refusing `fork` is therefore a behaviour change, not only a tightening (section 6.5).
+
+## 2. Threat model
+
+**Assets.** The user's other files, including other documents and credentials. The network. Other processes of the user (signals, `ptrace`, sockets reachable from the user's session). The GPU device, for Blender only. The application's document, which the helper must not be able to alter outside its output package.
+
+**Adversary.** A crafted `.skp`, `.ifc`, `.step`, font request, extension manifest or Blender snapshot. Its goal is to corrupt the helper's memory, then use that to read or write other files, open a connection, run a program, or reach another process.
+
+**What the sandbox has to stop.** Those steps after the corruption: reading outside the private copy, writing outside the output directory, creating any socket or reaching the network, executing a program, using `ptrace`, `process_vm_*`, `io_uring`, `bpf`, `mount` and the other calls that cross process or privilege boundaries. The 2026 CVE history of the parsers (ADR 0180 §1) is mostly out-of-bounds reads. A sandbox turns many of them into a crash. Only a parser that can run code can use the sandbox's holes, so the sandbox is the second line of defence, behind the checked decoders and fuzzing (ADR 0176 §3, ADR 0180 §3.3).
+
+**Out of scope.** Kernel bugs in Landlock or seccomp. Denial of service within the existing limits. Corruption of the helper's own output, which the application's checked decoder must reject. Attacks on the application process itself.
+
+## 3. Mechanisms compared
+
+| Mechanism | Denies | Needs | Unsupported | Measured here | Verdict |
+|---|---|---|---|---|---|
+| **seccomp-bpf, raw** (no library) | Any syscall, by number and by some arguments. Filters see the argument registers, not the memory they point to (an inference: the man page does not state it). | `no_new_privs` or `CAP_SYS_ADMIN`; Linux 3.17 or later ([seccomp(2)](https://man7.org/linux/man-pages/man2/seccomp.2.html), read 2026-10-26) | The `seccomp()` call fails with `EINVAL`, `ENOSYS` or `EPERM` | Works. Allow-list and deny-list both tested (§6.3) | **Primary** |
+| **libseccomp** | As raw BPF, with an architecture table | A library (LGPL-2.1). Upstream 2.6.1 is dated 2026-07-01; Arch packages 2.6.0-1 ([libseccomp releases](https://github.com/seccomp/libseccomp/releases/tag/v2.6.1), [Arch core](https://archlinux.org/packages/core/x86_64/libseccomp/), both read 2026-10-26) | Same as raw | Installed on this host (2.6.0), not used | Alternative if the owner prefers the library (decision 2) |
+| **Landlock** | Filesystem access by path (read, write, execute, create, remove, rename, truncate, refer). Later ABIs add TCP bind and connect (ABI 4), device ioctl (ABI 5), abstract UNIX sockets and signals (ABI 6), and more | Kernel 5.13 or later with `CONFIG_SECURITY_LANDLOCK` and `landlock` in the boot LSM list. `no_new_privs` for unprivileged use ([kernel docs](https://docs.kernel.org/userspace-api/landlock.html), read 2026-10-26) | `landlock_create_ruleset` returns `EOPNOTSUPP` when disabled at boot, `ENOSYS` on older kernels | ABI 10 on this kernel. Restricts reads, writes and execs (§6.2) | **Primary** |
+| **User and network namespaces** | Network reachability (only loopback is present), and what the mount table shows | Unprivileged user namespaces. `unshare -n` without `-U` needs `CAP_SYS_ADMIN` and fails with `EPERM` (measured, §6.2) | `EPERM` under Docker's default profile (measured) | `unshare -Urn` works on the host. `connect` to 8.8.8.8 returns `ENETUNREACH` inside bwrap (§6.8). Does not deny `fork`, `exec`, `ptrace`, `io_uring` or socket creation (§6.8) | Not primary. Optional extra layer where available |
+| **`PR_SET_NO_NEW_PRIVS`** | Setuid and file capabilities gaining privilege across `exec` | Nothing (Linux 3.5+) | Not applicable | Works. Required by seccomp for unprivileged use, and by Landlock | **Required, first** |
+| **bubblewrap** (`bwrap` 0.13.1) | Mount visibility, namespaces (as above) | A user namespace when not root. No setuid mode any more ([README](https://github.com/containers/bubblewrap), read 2026-10-26) | Does not start where user namespaces are denied | Works on the host, with 3.0 ms median startup (§6.8). Not run in the container; the namespace calls it needs return `EPERM` there | Not primary. A new external dependency for little extra |
+
+Two facts decide the mechanism choice. The first is that CI cannot use namespaces. The second is that namespaces leave the calls that matter most open. Landlock and seccomp are available in the pinned image under the default profile, and that is what the design needs.
+
+## 4. Design
+
+### 4.1 Order and place
+
+1. **In the helper, before the first input byte is opened.** The helper's `main` calls one function that installs the layers in this order: `PR_SET_NO_NEW_PRIVS`; the Landlock ruleset; the seccomp filter. Landlock is installed before seccomp so that the ruleset's own syscalls are allowed to run. Every mode that opens a user file is covered, including the probe modes (decision 7).
+2. **In the parent, for an external program (Blender).** The job's `setChildProcessModifier` runs in the forked child, before `exec`. Only async-signal-safe calls are allowed there, so the parent builds the BPF program and opens the Landlock path descriptors before the fork. The child then issues the `prctl`, `landlock_restrict_self` and `seccomp` syscalls and calls `exec`. The `exec` happens under the filter (§4.4).
+3. **Glibc startup and the dynamic loader are outside the first layer.** They run before `main`. The measured preload runs also began after the constructor. For helpers that install their own filter, that is correct. For the Blender exec, the loader's calls must be on the allow-list (§4.4, §6.6).
+
+### 4.2 Filesystem rules
+
+- The helper's private directory is read and written. It holds the input copy and the output package. It is never a system path. The mode is `0700`, as ADR 0171 §1.6 already requires.
+- System paths are read-only. Executable library directories are read and execute. The helper's own plugin directory counts as a library directory (IfcOpenShell loads its kernels and plugins from it during the parse).
+- No rule grants write access to anything outside the private directory. `/dev/null` is granted read and write for the helpers that redirect to it (measured for Blender).
+- Landlock's `LANDLOCK_ACCESS_FS_IOCTL_DEV` (ABI 5) is not used. The Blender GPU path needs `ioctl` on `/dev/dri`. Device `ioctl` is therefore not filtered by this design.
+
+### 4.3 Syscall policy
+
+- **Allow-list, default `KILL_PROCESS`.** An unlisted call kills the helper. A missing entry becomes a visible failure, not a silent one. The measurements show why this matters (§6.5).
+- **Explicit `EPERM` entries** for calls the helper may legitimately make and must not complete: `socket`, `socketpair`, `bind`, `connect` and friends for helpers that need no network. Blender's `urllib3` import probes IPv6 with `socket` and `bind`. Under a kill default that probe kills Blender, so those two calls return `EPERM` (§6.4).
+- **Process creation.** A `clone` with `CLONE_THREAD` is allowed. A `clone` without it returns `EPERM` (fork-like). `clone3` returns `ENOSYS`, so glibc falls back to `clone` (measured: `pthread_create` succeeds under the policy, and Docker's default profile also returns `ENOSYS`). glibc's `fork` and `posix_spawn` use `clone`, so they get `EPERM`. The raw `fork` (57) and `vfork` (58) are not on the list, so the default action applies: the kill in production, `EPERM` in the errno test. The IFC policy allows fork-like `clone` (decision 5). `execve` and `execveat` are not on any list except Blender's, and there only for its own binary.
+- **Always allowed:** `exit`, `exit_group`, `rt_sigreturn`.
+- **Never allowed for any helper:** `ptrace`, `process_vm_readv`, `process_vm_writev`, `io_uring_*`, `bpf`, `mount`, `umount2`, `pivot_root`, `chroot`, `unshare`, `setns`, `perf_event_open`, `keyctl` and `add_key`. The allow-list omits them, so they are killed.
+- **Architecture check.** The filter kills the process if the architecture is not `AUDIT_ARCH_X86_64`. The platform is x86_64 only (section 1). An aarch64 table is needed only if that platform is supported.
+
+### 4.4 The Blender exec path
+
+Blender is started by `fork` and `exec`, so the policy is also in force for the program's own startup. Three findings from the measurements set the list:
+
+- The dynamic loader and libc startup make calls that a trace started after the constructor never sees: `open`, `brk`, `writev`, `arch_prctl`, `set_tid_address` and `getrandom` (§6.6). The list adds them, with `execve`, to the 51 calls measured in the trace.
+- Blender links `libsycl` from the Intel oneAPI tree under `/opt/intel`. The loader needs read and execute there, and the trace could not show that because the loader ran before the constructor.
+- Landlock limits the `exec` itself. With `rx /usr/bin/blender` as the only executable rule, `exec` of `/bin/sh` returns `EACCES` (measured, rc 127). In a run without seccomp, Blender's start-up tried a shell, which failed on the `/dev/null` redirection (the rule was missing). Under seccomp no such message appeared, which fits a refused fork-like `clone`. The spawner was not identified.
+
+### 4.5 Deriving the allow-lists
+
+Each allow-list is the union of the calls seen in traces of the helper, taken under every I/O setup the helper meets in production:
+
+- standard input as a pipe (the application's `QProcess`), as a file and as a terminal or `/dev/null`;
+- standard output and standard error as pipes, as files and as `/dev/null`;
+- each input class in the corpus and the fault paths (for IFC, `--diagnose-from` with `--test-fault`).
+
+A record filter traps each call, logs its number and any path argument, and runs it through a trampoline. The trampoline is exempt from the trap by instruction pointer. An observe mode does the same without a fixed list: it logs every call outside the list and runs it, so a missing entry shows up in the log and the run still finishes. Both modes are test-only. They are not in release builds (decision 13).
+
+Two gaps in trace-derived lists were found and are the reason for the rule. The first is that a list taken from one I/O setup misses calls that another setup makes (`fcntl` appeared only with a pipe on stdin). The second is that a trace which starts after the constructor misses the loader and libc startup. Both are covered by the union rule and by the CI check in §8.
+
+### 4.6 Failure reporting
+
+A sandbox kill is reported as `sandboxViolation`, a named reason separate from `crash`. The IFC restart path does not treat it as a parser fault, so it does not restart with element exclusions (§1). The SKP launcher and the Blender job should treat it the same way (proposed). The message names the helper and the layer, not the syscall, to keep the report bounded.
+
+## 5. Per-helper policy
+
+Filesystem paths are the rules measured in the prototype. `{private}` is the helper's private directory. The syscall counts are the allow-list sizes that were measured, before the CI check and the corpus extension in §8.
+
+| Helper | Filesystem | Network | Exec | Process and threads | Syscalls (allow-list) |
+|---|---|---|---|---|---|
+| SKP (`--import`, `--probe`) | `rw {private}` (input copy, output package). Nothing else | None: no `socket` entry | None | Single thread in the traces. Thread `clone` allowed, fork-like `clone` `EPERM` | 19 measured: read, write, close, fstat, lseek, mmap, brk, rt_sigaction, rt_sigprocmask, writev, madvise, prctl, futex, clock_nanosleep, exit_group, openat, set_robust_list, prlimit64, rseq |
+| IFC and STEP import (`--import`, `--import-step`) | `rx /usr/lib/sketchyup` (helper and its IfcOpenShell plugins, in production); `rx /usr/lib` (OCCT libraries, opened during the parse); `ro /etc`, `ro /proc`, `ro /sys`; `rw {private}` | None | None | Threads (`--threads` is at most 4). Fork-like `clone` allowed for diagnosis children, which inherit the policy and do not exec | 31 measured (25 for import, plus 6 for diagnosis: alarm, getpid, wait4, getppid, gettid, tgkill) |
+| IFC and STEP export and check | Same as import, plus the export package read. Not measured (§6.9) | None | None | As import | Not measured. Expected to be the import list, plus any calls the export path uses |
+| Text | `rx /usr/lib/qt6`; `ro /usr/share/qt6`, `/usr/share/fonts`, `/usr/share/fontconfig`, `/etc/fonts`, `/var/cache/fontconfig`, `/etc/xdg`, `/etc/ssl`, `/usr/lib/locale`, `/usr/share/locale`, `/usr/lib/gconv`; `rw {private}` as `HOME`, `XDG_CACHE_HOME`, `XDG_CONFIG_HOME` and `TMPDIR` | None | None | Threads (Qt) | 27 measured (adds eventfd2, getrandom, statx, newfstatat, fstatfs, readlink, getdents64 and others to the SKP-style set) |
+| Extension | `ro /usr/lib/locale`, `/usr/lib/gconv`, `/usr/share/locale`, `/etc/ssl`. No write rule | None | None | None observed | 17 measured (read, write, close, fstat, lseek, mmap, brk, getpid, fcntl, getuid, geteuid, gettid, futex, exit_group, openat, eventfd2, statx) |
+| Blender (CPU and GPU, render or probe) | `rx /usr/lib`, `rx /opt/intel`, `rx /usr/bin/blender`; `ro /usr/share`, `/etc`, `/sys`, `/proc`, `/dev/dri`; `rw /dev/dri/renderD128`, `rw /dev/null`; `rw {private}` as `HOME`, `XDG_*`, `TMPDIR` and `BLENDER_USER_*` | `socket` and `bind` `EPERM`. `--offline-mode` passed (§6.6) | `execve` allowed only for `/usr/bin/blender` by the Landlock rule; `/bin/sh` `EACCES`. Fork-like `clone` `EPERM` | Threads (`--threads 4`) | 58 measured in the exec flow: the 51 from the trace, plus execve, open, brk, writev, arch_prctl, set_tid_address and getrandom |
+
+## 6. Measured results
+
+All measurements ran on 2026-10-26 on this machine: kernel `7.2.8-9-omarchy`, x86_64, Omarchy 4.0.6 on Arch. Docker 29.9.2 ran the pinned image `sketchyup-ci-pinned:r097a-ifc`, which has Arch packages for OCCT 7.9.3, Qt 6.11.2, GCC 16.2.1 and Blender 5.2.2. The IfcOpenShell prefix (0.9.0, pinned commit `7ba70197`) was built from a clean `git archive` of `d65a617d` inside that image. The prototype was throwaway and is not committed. Its scripts are described here, not published. Its size is listed in §6.10.
+
+### 6.1 Method
+
+- A preload library (`libsbox.so`, about 420 lines of C, not committed) applies the policy named in an environment variable from a constructor, before `main`. It implements the record filter, the allow-list and deny-list filters, the observe mode, the Landlock rules, the failure policy and the launcher used in §6.6.
+- Helpers ran unmodified. Each input was copied into one private directory, reused by every configuration, so the output packages record the same source path.
+- Seven configurations per input: unsandboxed baseline; `PR_SET_NO_NEW_PRIVS` only; seccomp allow-list only; Landlock only; allow-list with errno default plus Landlock; allow-list with kill default plus Landlock; deny-list (ADR 0180 style) plus Landlock.
+- Output identity is a SHA-256 of the package or of the normalised JSON. The text worker's `documentId` is random per run, so it is removed before hashing.
+
+### 6.2 Mechanism facts
+
+| Check | Host | Pinned image, default profile | Pinned image, `seccomp=unconfined` |
+|---|---|---|---|
+| Landlock ABI (`landlock_create_ruleset`, version flag) | 10 | 10 | 10 |
+| `clone3(NULL, 0)` | `EINVAL` (reached the kernel) | `ENOSYS` | `EINVAL` |
+| `unshare(CLONE_NEWUSER)` | ok | `EPERM` | ok |
+| `unshare(CLONE_NEWNET)` | ok | `EPERM` | ok |
+| `seccomp(GET_ACTION_AVAIL)` | ok | ok | ok |
+| `PR_SET_NO_NEW_PRIVS` | ok | ok | ok |
+| `socket(AF_INET)` | ok | ok | ok |
+
+Also on the host: `unshare -n true` fails with `EPERM`, and `unshare -Urn true` succeeds. This settles the question ADR 0180 §3.5 left open: the failure was not the session's sandbox. `unshare -n` needs `CAP_SYS_ADMIN` in the initial user namespace. The pinned image has no `/sys/kernel/security`, so its LSM list cannot be read from inside. The CI check has to use the Landlock ABI call (§8).
+
+### 6.3 Helper matrices
+
+Each cell is "identical output as the unsandboxed baseline / inputs run".
+
+| Configuration | SKP (12) | Text (3) | Extension (1) | Blender (2 probes and 1 render) | IFC and STEP (9) |
+|---|---|---|---|---|---|
+| Baseline | 12 / 12 | 3 / 3 | 1 / 1 | 2 / 2, render ok | 9 / 9 |
+| NNP only | 12 / 12 | 3 / 3 | 1 / 1 | 2 / 2, render ok | 9 / 9 |
+| Seccomp allow-list only | 12 / 12 | 2 / 3 * | 1 / 1 | 2 / 2, render ok | 9 / 9 |
+| Landlock only | 12 / 12 | 3 / 3 | 1 / 1 | 2 / 2, render ok | 9 / 9 |
+| Allow-list, errno default, + Landlock | 12 / 12 | 2 / 3 * | 1 / 1 | 2 / 2, render ok | 9 / 9 |
+| **Allow-list, kill default, + Landlock** | **12 / 12** | **2 / 3 ***  | **1 / 1** | **2 / 2, render ok** | **9 / 9** |
+| Deny-list (ADR 0180), + Landlock | 12 / 12 | 2 / 3 * | 1 / 1 | 2 / 2, render ok | 9 / 9 |
+
+\* The third text request (mixed Latin, CJK and Greek, which triggers font fallback) produces different output between two unsandboxed runs, so its baseline is not reproducible. It returns rc 0 in every configuration. The other two requests match in every configuration.
+
+Blender's render output is a PNG that differs between two unsandboxed runs of the same scene. The render therefore counts as successful when it exits 0 and writes a PNG.
+
+**IFC and STEP coverage.** All 74 committed fixtures (60 IFC, 14 STEP) run under the kill allow-list with Landlock. Every return code and every package matches the unsandboxed baseline: 52 IFC succeed, 6 IFC are refused, 2 IFC crash with SIGSEGV in both runs, 13 STEP succeed and 1 STEP is refused. The 9-input matrix above used the allow-list derived from the trace of those 9. The coverage run is a stronger test than the matrix alone.
+
+**Extension worker.** Its first list was missing `fcntl`. With stdin as a pipe, the trace shows `fcntl`. A trace taken with a file on stdin did not. The kill default killed the worker, while the errno default passed silently, because the call returned `EPERM` and the worker did not depend on it. The corrected list passes in every configuration.
+
+### 6.4 Negative controls
+
+- **SKP without the Landlock rule.** The helper refuses with rc 3, and the message is "The file could not be opened" under the code `tooLarge` (the failed read's message is set at `src/skp/import.cpp:30`, and `src/skp/import.cpp:228` reports every failed read as `tooLarge`). The denial works, and the reason is reported wrongly (§6.5).
+- **SKP without `openat` on the allow-list.** Refused the same way, rc 3, `tooLarge`.
+- **Blender under the kill default without the explicit `socket` and `bind` entries.** The process dies with SIGSYS (shell status 159). The urllib3 probe is the cause: the trace shows `socket` and `bind` immediately before urllib3 is imported (the link to urllib3's IPv6 check is an inference). With the entries, Blender completes.
+- **Attack probe in the pinned image.** Under an errno allow-list with Landlock, inside the pinned image and with Docker's default profile: `socket(AF_INET)`, `socket(AF_UNIX)`, `socketpair`, `fork`, `ptrace`, `io_uring_setup` and `execve` all return `EPERM`. Reading `/etc/hostname` succeeds, and creating a file in `/tmp` returns `EACCES`. Creating a file in the granted private directory succeeds.
+- **Exec of `/bin/sh` through the Blender launcher.** `EACCES`, rc 127 (`execv: Permission denied`).
+
+### 6.5 Defects the method found
+
+1. **The extension worker's `fcntl`** (§6.3). A trace under one I/O setup missed it.
+2. **`ioctl` through `isatty` when stdout is `/dev/null`.** Glibc calls `isatty` for a character device, which issues `ioctl(TCGETS)`. A regular file or a pipe does not. This was found by comparing outputs, not by the trace.
+3. **IFC diagnosis changes its result when `fork` is refused.** With `--test-fault crash:42` and `--diagnose-from 0`, the unsandboxed run excludes element 42 and writes 4156 bytes. A run with `fork` refused, and with the other calls allowed, completes and writes 4527 bytes, which includes element 42. The helper does not stop, so the culprit is silently kept. The kill policy without `fork` killed it (SIGSYS), and the list needed `alarm`, `getpid`, `wait4` and `getppid` (from the diagnosis trace), and `gettid` and `tgkill` (from the observe run). With fork allowed and the 31-entry list, the output matches the unsandboxed run exactly.
+4. **The SKP refusal code.** An open refused by the sandbox is reported as `tooLarge`: `src/skp/import.cpp:228` gives every failed read that code. The denial is correct and the message is wrong. An open failure should be `unreadable` or `sandboxViolation`.
+5. **Blender's startup socket.** Under a kill default, the urllib3 IPv6 probe at import kills the process (§6.4).
+6. **Blender's loader and libc startup.** `open`, `brk`, `writev`, `arch_prctl`, `set_tid_address` and `getrandom` were not in the trace, because the trace began after the constructor. The exec flow needs them (§6.6).
+7. **Blender's `libsycl` under `/opt/intel`.** The same cause: it is read by the loader before any constructor runs (§6.6).
+
+### 6.6 Blender through the launcher (apply, then exec)
+
+The production flow applies the policy in the forked child and then `exec`s Blender. The prototype's launcher does the same. It applies the policy from a constructor and then calls `execv`.
+
+- Policy: 58 allow entries (the 51 from the trace, plus `execve`, `open`, `brk`, `writev`, `arch_prctl`, `set_tid_address` and `getrandom`), `deny 41`, `deny 49`, `deny 57`, the kill default, and the Landlock rules in §5.
+- Result under the **kill** default: `blender --background --offline-mode` runs the CPU probe and writes `result.json` (rc 0). Run twice, the output hash is `d25616d7e90c33be`, the same as the unsandboxed probe. The Cycles render also completes under the same policy, and writes a 3055-byte PNG (the same size as the unsandboxed render).
+- The launcher's `exec` of `/bin/sh` returns `EACCES` under this policy.
+- Blender's trace under the errno default, taken with gdb (which is outside the filter), shows exactly which calls the loader and libc startup need. gdb catches each syscall entry, so the kill policy is not needed for the trace. Seven calls are added to the 51 traced ones: `execve`, `open`, `brk`, `writev`, `arch_prctl`, `set_tid_address` and `getrandom`. The gdb trace shows the first five and the last two in the loader and libc start-up.
+
+### 6.7 Failure policy
+
+The four cases were run in the pinned image. The layer's failure was simulated by a custom seccomp profile: Landlock syscalls return `ENOSYS`, or `seccomp()` returns `EPERM`.
+
+| Case | Result |
+|---|---|
+| Landlock unavailable, fail closed | rc 70. `sandboxUnavailable: landlock (Function not implemented)`. No parse. |
+| Landlock unavailable, fail open | rc 0. Warning: "running with limits only". Output as the baseline. |
+| `seccomp()` refused, fail closed | rc 70. `sandboxUnavailable: seccomp filter (Operation not permitted)`. |
+| `seccomp()` refused, fail open | rc 0. Warning: "running with limits only". |
+
+Fail-open is the choice that runs a parser with no sandbox while the user sees nothing but a warning. The measurements show that it is cheap to make closed (one exit code), and that the closed path can be tested in CI (§8).
+
+### 6.8 Namespaces and bubblewrap
+
+- `bwrap --unshare-all` (bwrap 0.13.1, host) with the probe: `socket(AF_INET)`, `socket(AF_UNIX)`, `socketpair`, `fork`, `ptrace` and `io_uring_setup` all succeed. The probe's `execve` printed no error, so it was not refused. Files outside the mounts return `ENOENT`. `connect` to 8.8.8.8:53 returns `ENETUNREACH`, and to 127.0.0.1:9 returns `ECONNREFUSED`.
+- Startup: `bwrap --unshare-all ... /usr/bin/true` has a median of 3.0 ms over 50 runs.
+- In the pinned image, `unshare(CLONE_NEWUSER)` returns `EPERM` under the default profile (§6.2). bwrap needs a user namespace when it is not root, so it cannot start there. This was inferred from the syscall result, and bwrap itself was not run in the container.
+
+### 6.9 Not measured
+
+- IFC and STEP export and check modes. The same policy is expected to apply, with a list to be derived.
+- Blender video encoding (`encode`) and the handoff operation. Only the probe and the render were run.
+- Landlock ABI 5 and 6 features. Device `ioctl` and abstract-socket scoping were not tested.
+- `aarch64`. Not supported (section 1).
+- Larger inputs. The largest SKP fixture is 10 KB (`attribute_reporting.skp`) and the largest IFC is about 1 MB (`bsi-ifc4-landscaping.ifc`, inside the 74-fixture coverage run). Allow-lists may grow on larger files (mremap, munmap, mprotect were absent from the SKP trace).
+- Ubuntu 24.04 and 26.04 hosts. See §10.
+
+### 6.10 Prototype size
+
+About 309 MB at the end of the work, mostly build output (IfcOpenShell 110 MB, the host build 89 MB, a source copy 93 MB, the run outputs 17 MB). It was deleted after the measurements. It was never committed.
+
+## 7. Failure policy
+
+1. **Fail closed, for every layer.** A layer that cannot be installed causes a named refusal before any input is read: `sandboxUnavailable`, with the layer name and the errno. The helper exits with a dedicated code (the prototype uses 70).
+2. **The refusal goes to the application as a failed import or run that leaves the document unchanged.** That is the existing contract (ADR 0171 §1.6, ADR 0136), now with a named reason.
+3. **A sandbox kill is `sandboxViolation`, not `crash`.** It does not trigger the element-exclusion restart (§4.6, §1).
+4. **Fail open is not offered in 1.x** (decision 1). If the owner wants it, it must be a visible per-installation setting, shown as a named notice, and it cannot be the default.
+5. **Blender's job fails before the process starts** when the child policy cannot be prepared. It reports `PREPARE_FAILED` with the layer named.
+6. **A probe that cannot run sandboxed** reports itself unavailable. It does not run unsandboxed.
+
+## 8. Tests and the CI check
+
+Two tiers, matching ADR 0170 and the CI time directive in the owner's notes (merge on the single `CI verdict` check; full tier at release and nightly). The fast tier is seconds. The full tier is minutes.
+
+**Fast tier (in the pinned image, default profile):**
+
+- `sandbox_available`: calls `landlock_create_ruleset` with the version flag, requires ABI 1 or more, and checks `seccomp(GET_ACTION_AVAIL)` and `PR_SET_NO_NEW_PRIVS`. A failure is a named refusal, and the job is red. It does not read `/sys/kernel/security/lsm`, which the container does not have.
+- `sandbox_attack_probe`: the attack set in §6.4, run under the errno policy. It requires `EPERM` for socket, socketpair, fork, ptrace, io_uring and execve, and `EACCES` for files outside the granted paths, while granted paths still work.
+- `sandbox_one_per_helper`: one fixture per helper under the kill allow-list, identical output to the unsandboxed run. Text: the Latin request only. Blender: the CPU probe through the launcher.
+
+**Full tier (nightly and release):**
+
+- Every corpus file for each helper under the kill allow-list (74 IFC and STEP; 12 SKP; the text Latin requests; the extension panel; the Blender probes and the render), identical output and identical return codes.
+- The IFC diagnosis case (`--test-fault crash:<id>`, `--diagnose-from 0`), identical to the unsandboxed run.
+- **Trace coverage.** Observe-mode runs over the corpus, under each I/O setup in §4.5, must report no call outside the allow-list. A stale list fails the job, which is how the `fcntl` and `isatty` cases would have been caught.
+- **Negative controls.** Blender's kill policy without the socket entries must die with SIGSYS, which shows the kill default is active. A missing Landlock rule must refuse.
+
+**Kernel requirements, pinned image.** The image provides Landlock, seccomp, `no_new_privs` and the `clone3` fallback. It does not provide user namespaces. Landlock is a kernel feature: the runner's kernel must have `CONFIG_SECURITY_LANDLOCK` and `landlock` in its boot LSM list. That is not verified for `ubuntu-latest` (§10).
+
+**Where the checks run.** The fast tier runs in the pinned image, which has Blender 5.2.2 and libseccomp, so the Blender checks run in CI as well. The Blender binary is at `/usr/sbin/blender` in the image, so the rule path in §5 is `/usr/sbin/blender` there.
+
+## 9. Budgets
+
+| Item | Measured | Proposed budget |
+|---|---|---|
+| Install, per helper process (preload, `/bin/true`, median) | Empty filter with NNP: 0.67 ms, against 0.44 ms with no preload. 51-entry allow-list with NNP: 0.84 ms. Three Landlock rules with NNP: 0.59 ms | ≤ 1 ms, measured in CI |
+| Per syscall, allowed call (`getpid`, 2M iterations) | 106–116 ns without a policy, 127–137 ns with the 51-entry list (+~20 ns) | ≤ 50 ns added per call |
+| BPF program size | About two instructions per allowed call (8 bytes each). The 58-entry Blender list is about 1 KB | Below the kernel limit of 4096 instructions, with a CI check |
+| Wall time on the corpus | SKP: 5 ms with and without. Blender probe: 0.7–0.9 s with and without (noise). IFC import: 0.33 s baseline, 0.37 s kill (inside Docker, so noise is large) | No more than 3% on the full corpus, within run-to-run noise |
+| Landlock ruleset | One to twelve path rules, opened as `O_PATH` in the parent | Negligible; the rule count is checked in CI |
+
+The per-syscall cost matters most for helpers that make many calls, such as the IFC import with four threads. At +20 ns per call, a helper making one million calls pays about 20 ms, which is small beside the 120-second deadline.
+
+## 10. Risks
+
+1. **An allow-list is incomplete for a path the corpus does not exercise.** The effect is a SIGSYS, which is visible, and the CI trace check (§8) is meant to catch it before merge. Corpus coverage is still limited: 12 SKP files, 9 IFC files in the matrix (74 in the coverage run), 3 text requests, 1 extension request, and 3 Blender tasks.
+2. **The CI host kernel may not have Landlock.** `ubuntu-latest` is moving from Ubuntu 24.04 to 26.04. The runner-images issue says the rollout begins on 19 October 2026 and completes by 19 November 2026 ([actions/runner-images#14748](https://github.com/actions/runner-images/issues/14748), read through the GitHub API on 2026-10-26). Neither image's `CONFIG_SECURITY_LANDLOCK` or LSM list has been checked. The required check is the way to find out.
+3. **The Docker default profile may change.** The profile (moby, `profiles/seccomp/default.json`, read 2026-10-26 through the research pass) allows the Landlock syscalls, and has done since a commit dated 2022-01-31 (`0d25e436f8`). Future changes could block them. The fast tier fails in that case, and it does not fall back.
+4. **Landlock ABI differences.** The design uses ABI 1 rules only. The scoping, TCP and device rules that later ABIs add are optional and were not measured.
+5. **Device ioctl is not filtered.** Blender's GPU path opens `/dev/dri/renderD128` and calls `ioctl`. A bug in a driver can be reached through that. Landlock's device ioctl right (ABI 5) would limit it, and is a candidate for a later change.
+6. **The sandbox does not stop memory corruption.** A corrupted parser can still write its output and return a crafted package. The checked decoders (ADR 0176 §3), the bounded packages and fuzzing remain the defence.
+7. **Seccomp is per thread.** The filter must be installed before any helper thread is created. The designs in §4.1 install it before the threads start. A thread created earlier would not have it.
+8. **The text worker's output is not reproducible for mixed-script text.** Its tests must use Latin requests for byte equality. The mixed-script request checks only the return code.
+9. **Blender's own children.** The policy refuses fork-like `clone`, so Blender cannot start a shell or helper program. That is intended, but a Blender feature that needs a subprocess will then fail. The probe and render do not use one.
+10. **Export and check modes are not measured.** The IFC export and check paths call the same binary with the same restrictions expected. Their allow-lists are not derived.
+11. **Developer probe modes ship in release binaries.** Under this design they are sandboxed (decision 7). Removing them from release builds is the other option.
+12. **Unknown Ubuntu default for the AppArmor userns restriction.** Not relevant to this design, which uses no user namespace. It would matter if bubblewrap were adopted. The Ubuntu 24.04 release notes say the restriction was "not enabled by default" in 23.10 ([release notes](https://discourse.ubuntu.com/t/noble-numbat-release-notes/39890), read 2026-10-26). Its default for 24.04 was not verified.
+
+## 11. Implementation split
+
+One slice per helper, after a shared slice. Each slice records its measured numbers in an implementation-notes section of this ADR, as ADR 0176 does.
+
+- **S0, shared library (`src/sandbox/`).** NNP, the Landlock ruleset builder and ABI probe, the raw BPF assembler with the x86_64 table, the allow-list and explicit-entry model, the kill default, clone and clone3 rules, the failure reporter (`sandboxUnavailable` and `sandboxViolation`), the record and observe modes (test-only), and `sandbox_available`. Gate: the attack probe and `sandbox_available` pass in the pinned image and on the host.
+- **S1, SKP (`src/skp/worker_main.cpp`).** Apply before `runImport` and `runProbe`. Allow-list of 19, `rw {private}`. Fix the `tooLarge` code for a failed read (`src/skp/import.cpp:228`). Gate: 12 fixtures identical under kill; probe modes sandboxed.
+- **S2, IFC and STEP (`src/ifc/worker_main.cpp`, `src/io/ifc_worker.cpp`).** Apply before every mode that opens a file: import, export, check, STEP import and export, and the probe modes. Allow-list of 31, with fork-like `clone` for diagnosis. `rx` on the plugin directory and `/usr/lib`. Classify a sandbox kill as `sandboxViolation` (`ifc_worker.cpp:281–282`). Gate: 74 fixtures identical; diagnosis case identical; export and check measured.
+- **S3, text (`src/text/worker_main.cpp`, `src/text/text_worker.cpp`).** Apply in `main` before `QGuiApplication`. Set `HOME`, `XDG_*` and `TMPDIR` to the private directory (`text_worker.cpp:188–190`). Allow-list of 27. Gate: Latin requests identical; the mixed request returns 0.
+- **S4, extension (`src/automation/extension_worker_main.cpp`).** Apply at the top of `main`. Allow-list of 17, no write rule. Gate: panel fixture identical under all three stdio setups.
+- **S5, Blender job (`src/integrations/blender_job.cpp`).** Build the BPF program and the Landlock descriptors before the fork. The child modifier issues only syscalls, then `exec`s Blender. Environment: `ALSOFT_DRIVERS=null`, `HOME`, `XDG_*` and `TMPDIR` to the attempt directory (`blender_job.cpp:568–578`). Add `--offline-mode` (line 583–586). Allow-list of 58 and the rules in §5. Gate: probes identical and the render writes a PNG through the launcher path; `/bin/sh` refused; the negative control dies.
+- **S6, CI.** The required `sandbox_available` check, the fast-tier probe and one-per-helper checks, and the nightly coverage and trace check. Decide the 24.04 and 26.04 behaviour after the first run on each.
+
+No slice starts before the owner accepts this ADR. Slices S1 to S5 can run in any order after S0. S6 needs at least S0.
+
+## Corrections owed
+
+The brief asks for corrections to ADRs 0171, 0176 and 0136. They are listed here, not edited. ADR 0180 is listed as well, because the measurements contradict two of its statements.
+
+**ADR 0171, §1.6 and decision 19 (`docs/decisions/0171-ifc-exchange-subset.md`).**
+- Line 410: "A real sandbox … is possible on current kernels with a fallback to resource limits only." The fallback to limits is the fail-open choice. This ADR proposes fail closed (decision 1). Replace the sentence with a pointer to this ADR, and say the fallback is not part of the design.
+- Lines 404–406: the list of isolation layers, including `PR_SET_NO_NEW_PRIVS`, is true for import, check, export and STEP package only. The probe modes and `--import-step` without `--output` do not set it (`src/ifc/worker_main.cpp:85–88, 158–203, 245`). Say so.
+- Line 409, "it is not a sandbox": correct. Keep.
+- Line 1062 ("until the Landlock and seccomp hardening of decision 19 exists") and lines 1161, 1249 and 1354 ("later hardening"): add the status, "ADR 0183, proposed".
+
+**ADR 0176 (`docs/decisions/0176-skp-import.md`).**
+- Line 104 (§1): the list of isolation layers is right for `--import`, but not for `--probe`, which runs with no `PR_SET_NO_NEW_PRIVS` and no limits (`src/skp/worker_main.cpp:70–73`; `src/skp/import.cpp:118`). Add that.
+- Line 278 (decision 2): "run the parser only in a new `sketchyup-skp-worker` helper (sandboxed as in ADR 0171 §1.6)". The helper is not sandboxed. Replace "sandboxed" with "resource-limited, as in ADR 0171 §1.6, and not a sandbox until ADR 0183 is implemented".
+- The import refusal for a sandbox-denied open is reported as `tooLarge` (`src/skp/import.cpp:228`). The reason code needs to change when S1 lands. This is a defect, not only a wording change.
+
+**ADR 0136 (`docs/decisions/0136-bounded-extension-worker.md`).**
+- Lines 24–27: "The child uses a minimal environment … This is a process-failure and command-validation boundary, not an OS sandbox for the installed application binary." The environment scrub limits what the child inherits: credentials and plugin configuration. It does not limit files or sockets. The child keeps the user's file and network access. It has no rlimit, `setsid`, `PDEATHSIG` or `NO_NEW_PRIVS` (`src/automation/extension_worker.cpp:90–131`). Say that plainly.
+- Lines 10–17 (protocol, bounded reads, deadline): accurate; no change.
+
+**ADR 0180 (branch `docs/r106-dwg-feasibility`, commit `5c3edcf0`).**
+- §3.3 (line 171): "the helper's own shared libraries are loaded before the restriction is applied." True for libraries loaded at start-up. Not true for plugins loaded during the parse: the IFC helper opened `/build/ifc-prefix/lib` and `/usr/lib/libTK*.so.7.9` after start-up (§6.3 trace). The DWG helper needs a read and execute rule for any library it loads lazily.
+- §3.5 (line 191): the cause of `unshare -n` failing is not known in that ADR. It is now known: `unshare -n` without `-U` needs `CAP_SYS_ADMIN`, and `unshare -Urn` works (§6.2).
+- §3.2 point 2 (lines 156–162): "Its architecture is checked first (x86_64 and aarch64)". The supported platform is x86_64 (`docs/SUPPORT_MATRIX.md`, line 12). An aarch64 table is needed only if that platform is added.
+
+## Owner decisions
+
+Each has a recommended default. The owner accepts or changes each.
+
+1. **Failure policy: fail closed for every layer, in every helper, with no fail-open setting in 1.x.** *Recommended: yes.* (§7, §6.7.)
+2. **Mechanism: `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset, and a seccomp-bpf allow-list written as a raw BPF program in-tree, with no new library.** *Recommended: yes.* The alternative is libseccomp (LGPL-2.1), which removes the per-architecture table but adds a licensed dependency to the helper's build and package notices. (§3.)
+3. **Namespaces and bubblewrap are not used.** *Recommended: yes.* They are unavailable in the CI container under the default profile (§6.2) and they do not deny exec or socket creation (§6.8). Keeping them out of 1.x also avoids the Ubuntu userns policy question.
+4. **Kill default, with explicit `EPERM` entries only for the calls named in §4.3.** *Recommended: yes.* The alternative, errno default, passes silently when a call is missing (§6.3, extension worker).
+5. **IFC allows fork-like `clone` for diagnosis children, which inherit the policy.** *Recommended: yes.* Refusing `fork` changes the IFC output (§6.5, item 3). Exec stays denied.
+6. **Blender: sockets refused, `ALSOFT_DRIVERS=null`, `--offline-mode`, private `HOME` and XDG directories, and an exec flow that allows only Blender's own binary.** *Recommended: yes.* All of these were measured (§6.4 to §6.6).
+7. **Developer probe modes (`--probe`, `--probe-api`, `--probe-step`, `--probe-write`, `--write-step`) are sandboxed too, not removed.** *Recommended: yes, and keep them.* The alternative is to remove them from release builds. That is a smaller binary and less surface, and the owner may prefer it.
+8. **A sandbox kill is reported as `sandboxViolation` and does not trigger the crash-restart path.** *Recommended: yes.* (§4.6, §1.)
+9. **CI: `sandbox_available` is a required check. It fails when the runner has no Landlock, and nothing skips it.** *Recommended: yes.* Test on both `ubuntu-latest` images as they roll out (§10, item 2).
+10. **Retrofit scope: one shared slice (S0), then one slice per helper (S1 to S5), and CI (S6).** *Recommended: yes.* This is the split ADR 0180 §3.6 asked for.
+11. **Landlock scope features (abstract UNIX sockets and signals, ABI 6) are added when available, and not required.** *Recommended: yes.* They were not measured here. The design does not depend on them.
+12. **Roadmap ID.** No roadmap row exists for this work. *Owner to assign an ID (R10x) if the ADR is accepted.* This PR does not add one.
+
+## Sources
+
+Every source was read on 2026-10-26 unless noted. Dates in brackets are the page's own date where the page shows one.
+
+- ADR 0180, `docs/decisions/0180-dwg-feasibility.md` on branch `docs/r106-dwg-feasibility`, commit `5c3edcf0`, Proposed 2026-10-26 (read with `git show`).
+- ADR 0171, 0176 and 0136, and the code cited, in this worktree at `d65a617d` (main), 2026-10-26.
+- `docs/SUPPORT_MATRIX.md` (line 12) and `.github/workflows/native.yml` (lines 62, 114–116, 38 and 47), this worktree, 2026-10-26.
+- Landlock kernel documentation, <https://docs.kernel.org/userspace-api/landlock.html> [page dated 2026-08 by the research pass], read through the research pass and ADR 0180.
+- seccomp(2), man-pages, <https://man7.org/linux/man-pages/man2/seccomp.2.html> [footer 2026-06-05, per ADR 0180], read through the research pass.
+- Docker default seccomp profile, moby profiles, <https://github.com/moby/profiles/blob/main/seccomp/default.json>, pinned commit `6fe7deb1b9` [committed 2026-09-17], and the Landlock addition <https://github.com/moby/profiles/commit/0d25e436f8> [2022-01-31]. Read through the GitHub API by the research pass. The measured container results in §6.2 agree with it.
+- GitHub runner images, Ubuntu 24.04 image readme, <https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md> (Docker Server 28.0.4), read through the research pass.
+- actions/runner-images issue 14748, <https://github.com/actions/runner-images/issues/14748>, read through the GitHub API, updated 2026-10-26.
+- ArchWiki, Security, <https://wiki.archlinux.org/title/Security> (unprivileged user namespaces enabled by default on official kernels except linux-hardened), read through the research pass.
+- bubblewrap, <https://github.com/containers/bubblewrap> (README and `bwrap.xml`), release v0.13.1 [2026-10-14], read through the research pass. The installed version here is 0.13.1.
+- libseccomp, release v2.6.1 <https://github.com/seccomp/libseccomp/releases/tag/v2.6.1> [2026-07-01], licence LGPL-2.1, and Arch core package 2.6.0-1 <https://archlinux.org/packages/core/x86_64/libseccomp/> (read through the research pass). The installed version here is 2.6.0.
+- Ubuntu 24.04 release notes, <https://discourse.ubuntu.com/t/noble-numbat-release-notes/39890>, read through the research pass. The default for 24.04 is not verified.
+- Blender 5.2 manual, command-line options and preferences, read through the research pass (branch `blender-v5.2-release` of the manual repository, <https://projects.blender.org/blender/blender-manual>). `--offline-mode`, `--factory-startup`, `--disable-autoexec` and `--background` were then run on the installed Blender 5.2.2 LTS.
+- Blender system requirements, <https://www.blender.org/download/requirements/>, read through the research pass.
+- Measurements in §6 were taken on this machine on 2026-10-26, with the prototype described in §6.1 and §6.10. The prototype is not committed. The numbers are the only copy of its results.
