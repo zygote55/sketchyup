@@ -12,6 +12,7 @@
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QThread>
+#include <algorithm>
 #include <functional>
 #include <iostream>
 using namespace sketchy;
@@ -91,7 +92,7 @@ PresentationPlan plan(const std::vector<Id> &keyframes, CameraPathTiming timing 
 }
 // Each preset's video record matches its file and its inputs, and the batch total counts every
 // byte written: the frames, their metadata and the videos.
-void verifyVideos(const QString &output, int expectedFrames) {
+void verifyVideos(const QString &output, int expectedFrames, const char *codec = "h264") {
     const auto manifest = QJsonDocument::fromJson(read(output + "/manifest.json")).object();
     qint64 total = 0;
     for (const auto &presetValue : manifest.value("presets").toArray()) {
@@ -102,7 +103,7 @@ void verifyVideos(const QString &output, int expectedFrames) {
         check(video.value("file") == "video.mp4" &&
                   video.value("bytes").toInteger() == mp4.size() &&
                   video.value("sha256").toString() == digest(mp4) &&
-                  video.value("codec") == "h264" && video.value("container") == "mp4" &&
+                  video.value("codec") == codec && video.value("container") == "mp4" &&
                   video.value("frames").toInteger() == expectedFrames &&
                   video.value("framesPerSecond").toInteger() == 24 &&
                   video.value("encoder").toString().startsWith("blender-") &&
@@ -584,7 +585,9 @@ int main(int argc, char **argv) {
             wait(batch);
             check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
                   "A video batch completes every frame before it encodes");
-            check(launches(counter) == 14, "Each preset encodes once after its twelve frames");
+            check(
+                launches(counter) == 15,
+                "The start probe runs once, then each preset encodes once after its twelve frames");
             check(jobs.jobs().at(id).plan.video, "The store keeps the video request");
             verifyVideos(output, 6);
             verifyManifest(output, 12);
@@ -601,7 +604,7 @@ int main(int argc, char **argv) {
                     canceled.cancel();
                 }
             });
-            const auto canceledId = canceled.start(capture, canceledOutput, blender(stalled, 13));
+            const auto canceledId = canceled.start(capture, canceledOutput, blender(stalled, 14));
             wait(canceled);
             check(canceled.state() == PresentationJobState::Canceled &&
                       canceled.completedFrames() == 12,
@@ -617,24 +620,29 @@ int main(int argc, char **argv) {
             resumed.retry(canceledId, blender(resumeCounter));
             wait(resumed);
             check(resumed.state() == PresentationJobState::Completed &&
-                      launches(resumeCounter) == 2,
-                  "Retry encodes both presets and renders no verified frame");
+                      launches(resumeCounter) == 3,
+                  "Retry probes once, encodes both presets and renders no verified frame");
             verifyVideos(canceledOutput, 6);
             verifyManifest(canceledOutput, 12);
 
-            // A Blender without H.264 refuses the video with its reason; the frames stay.
+            // A Blender whose encoder refuses at encode time, though its probe listed it, fails the
+            // batch with its reason and no code in the text; the frames stay and no second encode
+            // starts.
             const auto refused = files.filePath("video-refused");
             const auto refusedCounter = files.filePath("count-video-refused");
-            qputenv("SKETCHYUP_FAKE_CODEC", "missing");
+            qputenv("SKETCHYUP_FAKE_ENCODE", "codec_unavailable");
             PresentationExport withoutCodec(jobs);
-            withoutCodec.start(capture, refused, blender(refusedCounter));
+            const auto refusedId = withoutCodec.start(capture, refused, blender(refusedCounter));
             wait(withoutCodec);
-            qunsetenv("SKETCHYUP_FAKE_CODEC");
+            qunsetenv("SKETCHYUP_FAKE_ENCODE");
             check(withoutCodec.state() == PresentationJobState::Failed &&
-                      withoutCodec.message().contains("codec_unavailable") &&
-                      withoutCodec.message().contains("H.264"),
-                  "A Blender without H.264 refuses the video with its named reason");
-            check(withoutCodec.completedFrames() == 12 && launches(refusedCounter) == 13,
+                      withoutCodec.message() ==
+                          "Video not written for Draft: This Blender's FFmpeg "
+                          "build has no H.264 encoder. The finished frames are kept.",
+                  "A video refused at encode time names its reason, with no code, in its message");
+            check(jobs.jobs().at(refusedId).report.value("code") == "codec_unavailable",
+                  "The stored report keeps the worker's code apart from the text");
+            check(withoutCodec.completedFrames() == 12 && launches(refusedCounter) == 14,
                   "The refusal keeps every frame and starts no second encode");
             for (const auto &preset : presets)
                 check(!QFileInfo::exists(refused + "/" + preset + "/video.mp4"),
@@ -650,8 +658,10 @@ int main(int argc, char **argv) {
             wait(changedFrame);
             qunsetenv("SKETCHYUP_FAKE_DAMAGE");
             check(changedFrame.state() == PresentationJobState::Failed &&
-                      changedFrame.message().contains("invalid_frame"),
-                  "A frame that changes before its encode blocks the video");
+                      changedFrame.message().contains("A frame changed before encoding") &&
+                      !changedFrame.message().contains("invalid_frame"),
+                  "A frame that changes before its encode blocks the video, with no code in the "
+                  "text");
             check(!QFileInfo::exists(damaged + "/01-Draft/video.mp4"),
                   "A blocked video writes no file");
 
@@ -688,6 +698,206 @@ int main(int argc, char **argv) {
                       tight.message().contains("budget") && tight.completedFrames() == 12,
                   "The video counts against the output budget and keeps the frames");
             check(videoBytes(tightOutput, presets) == 0, "An over-budget video is not written");
+        }
+
+        // A video checks the Blender's codec list before anything is written (UX_DESIGN 17.5). A
+        // build without the chosen encoder, or a probe that cannot be read, refuses with its
+        // reason; no folder, job or frame exists, and only the probe ran. The refusal names no
+        // code.
+        {
+            PresentationJobStore jobs(files.filePath("probe-store"), limits);
+            const auto jobsBefore = jobs.jobs().size();
+            auto videoPlan = plan(keyframes);
+            videoPlan.video = true;
+            const auto refuse = [&](const char *build, PresentationVideoCodec codec,
+                                    const QString &name) {
+                auto chosen = videoPlan;
+                chosen.videoCodec = codec;
+                const auto counter = files.filePath("count-" + name);
+                qputenv("SKETCHYUP_FAKE_CODECS", build);
+                std::string message;
+                PresentationExport batch(jobs);
+                try {
+                    batch.start(PresentationCapture::capture(doc, chosen), files.filePath(name),
+                                blender(counter));
+                } catch (const std::exception &error) {
+                    message = error.what();
+                }
+                qunsetenv("SKETCHYUP_FAKE_CODECS");
+                check(!message.empty() && !QFileInfo::exists(files.filePath(name)) &&
+                          jobs.jobs().size() == jobsBefore,
+                      "A refused video leaves no folder and no job");
+                check(launches(counter) == 1, "Only the codec probe runs before a video refusal");
+                return message;
+            };
+            check(refuse("no-h264", PresentationVideoCodec::H264, "refuse-h264") ==
+                      "Video is not available in this Blender: its FFmpeg build has no H.264 "
+                      "encoder. "
+                      "No frames were rendered. Clear Write video to render the frames only.",
+                  "A build without H.264 refuses an H.264 video with the 17.5 wording, before a "
+                  "frame");
+            check(
+                refuse("no-mpeg4", PresentationVideoCodec::MPEG4, "refuse-mpeg4") ==
+                    "Video is not available in this Blender: its FFmpeg build has no MPEG-4 Part 2 "
+                    "encoder. No frames were rendered. Clear Write video to render the frames "
+                    "only.",
+                "A build without MPEG-4 refuses an explicit MPEG-4 video with the same wording");
+            check(refuse("absent", PresentationVideoCodec::H264, "refuse-absent") ==
+                      "The video check did not report this Blender's codecs. No frames were "
+                      "rendered. "
+                      "Check again, or clear Write video to render the frames only.",
+                  "A probe that reports no codec list refuses rather than assuming a codec");
+            check(refuse("malformed", PresentationVideoCodec::H264, "refuse-malformed") ==
+                      "The video check did not finish. No frames were rendered. Check again, or "
+                      "clear "
+                      "Write video to render the frames only.",
+                  "A malformed codec list refuses the video");
+        }
+
+        // An explicit MPEG-4 Part 2 batch on a build without H.264: the codec is used only because
+        // it was named. Each preset encodes as mpeg4, and the manifest and the store record the
+        // choice.
+        {
+            PresentationJobStore jobs(files.filePath("mpeg4-store"), limits);
+            auto mpeg4Plan = plan(keyframes);
+            mpeg4Plan.video = true;
+            mpeg4Plan.videoCodec = PresentationVideoCodec::MPEG4;
+            const auto output = files.filePath("video-mpeg4");
+            const auto counter = files.filePath("count-video-mpeg4");
+            qputenv("SKETCHYUP_FAKE_CODECS", "no-h264");
+            PresentationExport batch(jobs);
+            const auto id =
+                batch.start(PresentationCapture::capture(doc, mpeg4Plan), output, blender(counter));
+            wait(batch);
+            qunsetenv("SKETCHYUP_FAKE_CODECS");
+            check(batch.state() == PresentationJobState::Completed &&
+                      batch.completedFrames() == 12 && launches(counter) == 15,
+                  "An explicit MPEG-4 batch completes on a build without H.264");
+            check(jobs.jobs().at(id).plan.videoCodec == PresentationVideoCodec::MPEG4,
+                  "The store keeps the MPEG-4 choice");
+            verifyVideos(output, 6, "mpeg4");
+            verifyManifest(output, 12);
+            check(QJsonDocument::fromJson(read(output + "/manifest.json"))
+                          .object()
+                          .value("videoCodec") == "mpeg4",
+                  "The manifest names the video codec");
+        }
+
+        // The frame limit is refused with the record's one message, formula included
+        // (UX_DESIGN 17.11).
+        {
+            std::string message;
+            try {
+                PresentationCapture::capture(doc, plan(keyframes, {24, 24, 80}));
+            } catch (const std::exception &error) {
+                message = error.what();
+            }
+            check(message ==
+                      "Camera path would plan 289 frames (1 + 3 x 80 + 2 x 24); the limit is 240",
+                  "A path over the frame limit is refused with the record's one message");
+        }
+
+        // The per-frame metadata keeps one copy of the attempt log (UX_DESIGN 17.11, gap 7). A
+        // worker whose log reaches the 64 KiB cap, as a large scene's does, gives frames within one
+        // copy of it.
+        {
+            PresentationJobStore jobs(files.filePath("metadata-store"), limits);
+            const auto output = files.filePath("metadata");
+            qputenv("SKETCHYUP_FAKE_LOG", "64k");
+            PresentationExport batch(jobs);
+            batch.start(PresentationCapture::capture(doc, plan({first, second}, {24, 1, 0})),
+                        output, blender(files.filePath("count-metadata")));
+            wait(batch);
+            qunsetenv("SKETCHYUP_FAKE_LOG");
+            check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 4,
+                  "The metadata batch completes its four frames");
+            qint64 largest = 0;
+            for (const auto *preset : {"01-Draft", "02-Check"})
+                for (const auto *number : {"0001", "0002"}) {
+                    const auto text =
+                        read(output + "/" + preset + "/frames/frame-" + number + ".json");
+                    const auto metadata = QJsonDocument::fromJson(text).object();
+                    largest = std::max<qint64>(largest, text.size());
+                    check(QString::fromUtf8(text).count(QStringLiteral("\"logTail\"")) == 1,
+                          "One copy of the attempt log is kept per frame");
+                    check(!metadata.value("result").toObject().contains("attempts") &&
+                              metadata.value("diagnostics")
+                                      .toObject()
+                                      .value("attempts")
+                                      .toArray()
+                                      .size() == 1,
+                          "The attempt log sits under diagnostics, and the result keeps none");
+                    check(text.size() <= 80 * 1024,
+                          "A frame's metadata stays within one log's size");
+                }
+            std::cout << "Per-frame metadata with a 64 KiB attempt log: " << largest << " bytes\n";
+        }
+
+        // Stop (UX_DESIGN 17.12 choice 5): the batch stops now. The worker dies, its frame is
+        // discarded, the record reads interrupted at once, and a retry resumes at the first
+        // unverified frame.
+        {
+            PresentationJobStore jobs(files.filePath("stop-store"), limits);
+            const auto stopped = files.filePath("stop-now");
+            const auto counter = files.filePath("count-stop-now");
+            PresentationExport batch(jobs);
+            const auto id = batch.start(PresentationCapture::capture(doc, plan(keyframes)), stopped,
+                                        blender(counter, 2));
+            waitUntil([&] { return launches(counter) == 2; }, "The second frame worker starts");
+            waitUntil([&] { return batch.completedFrames() == 1; }, "The first frame is kept");
+            batch.stop();
+            check(batch.done() && batch.state() == PresentationJobState::Interrupted &&
+                      jobs.jobs().at(id).state == PresentationJobState::Interrupted,
+                  "Stop records the batch interrupted at once");
+            check(batch.message().contains("Resume") && !batch.message().contains("Retry"),
+                  "The interrupted message names Resume, in the interface's words");
+            check(QFileInfo::exists(stopped + "/01-Draft/frames/frame-0001.png") &&
+                      !QFileInfo::exists(stopped + "/01-Draft/frames/frame-0002.png") &&
+                      !QFileInfo::exists(stopped + "/01-Draft/frames/frame-0002.json"),
+                  "Stop keeps the finished frame and writes none of the one in flight");
+            check(
+                QJsonDocument::fromJson(read(stopped + "/manifest.json")).object().value("state") ==
+                    "interrupted",
+                "The manifest records the stop");
+            verifyManifest(stopped, 1);
+            const auto frozen = launches(counter);
+            QThread::msleep(300);
+            check(launches(counter) == frozen, "A stopped batch starts no further worker");
+            PresentationExport resumed(jobs);
+            const auto retryCounter = files.filePath("count-stop-now-retry");
+            resumed.retry(id, blender(retryCounter));
+            wait(resumed);
+            check(resumed.state() == PresentationJobState::Completed &&
+                      resumed.completedFrames() == 12 && launches(retryCounter) == 11,
+                  "Retry resumes at the first unverified frame and renders the other eleven");
+            verifyManifest(stopped, 12);
+        }
+
+        // Closing the engine while a batch runs records it interrupted before anything reopens the
+        // store.
+        {
+            const auto storeDirectory = files.filePath("close-store");
+            const auto closed = files.filePath("closed");
+            const auto counter = files.filePath("count-closed");
+            QString id;
+            {
+                PresentationJobStore jobs(storeDirectory, limits);
+                PresentationExport batch(jobs);
+                id = batch.start(PresentationCapture::capture(doc, plan(keyframes)), closed,
+                                 blender(counter, 2));
+                waitUntil([&] { return launches(counter) == 2; }, "The second frame worker starts");
+                waitUntil([&] { return batch.completedFrames() == 1; }, "The first frame is kept");
+            }
+            check(QJsonDocument::fromJson(read(storeDirectory + "/" + id + "/job.json"))
+                          .object()
+                          .value("state") == "interrupted",
+                  "Closing a running batch writes it interrupted at once");
+            PresentationJobStore reopened(storeDirectory, limits);
+            PresentationExport batch(reopened);
+            batch.retry(id, blender(files.filePath("count-closed-retry")));
+            wait(batch);
+            check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
+                  "A batch closed while it ran resumes to completion");
         }
 
         // Real Blender, when the explicit opt-in is set: one batch from one capture.
@@ -733,6 +943,24 @@ int main(int argc, char **argv) {
                 check(probeVideo(files.filePath("real-video") + "/" + preset + "/video.mp4") ==
                           "h264,6",
                       "ffprobe reports H.264 with every planned frame");
+
+            // The explicit MPEG-4 Part 2 fallback (UX_DESIGN 17.12 choice 1) is read back as mpeg4.
+            auto mpeg4Plan = plan(keyframes);
+            mpeg4Plan.video = true;
+            mpeg4Plan.videoCodec = PresentationVideoCodec::MPEG4;
+            PresentationJobStore mpeg4Jobs(files.filePath("real-mpeg4-store"), limits);
+            PresentationExport mpeg4Batch(mpeg4Jobs);
+            mpeg4Batch.start(PresentationCapture::capture(doc, mpeg4Plan),
+                             files.filePath("real-mpeg4"), real);
+            wait(mpeg4Batch);
+            check(mpeg4Batch.state() == PresentationJobState::Completed &&
+                      mpeg4Batch.completedFrames() == 12,
+                  "Real Blender completes every frame of an MPEG-4 batch");
+            verifyVideos(files.filePath("real-mpeg4"), 6, "mpeg4");
+            for (const auto *preset : {"01-Draft", "02-Check"})
+                check(probeVideo(files.filePath("real-mpeg4") + "/" + preset + "/video.mp4") ==
+                          "mpeg4,6",
+                      "ffprobe reports MPEG-4 with every planned frame");
 
             // The worker's own hash check refuses a frame that does not match its digest.
             BlenderVideoRequest wrong;
