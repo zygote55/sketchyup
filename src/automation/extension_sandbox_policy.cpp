@@ -24,13 +24,13 @@ sketchyup::sandbox::Policy extensionSandboxPolicy() {
     using sketchyup::sandbox::FileAccess;
 
     sketchyup::sandbox::Policy policy;
-    // ADR 0183 section 5 (extension), re-derived from gdb traces of the worker on the panel fixture
-    // under the stdio setups (pipes, files, a pseudo-terminal and /dev/null for stdout), and on a
-    // request padded to 300 KiB. The host sets LANG and LC_ALL to C.UTF-8, so glibc reads that
-    // locale from /usr/lib/locale, and that is the only grant. The trace also opened the gconv
-    // modules, the locale message catalogue and OpenSSL's configuration; a run with those denied
-    // gave the same bytes, so they are not granted (ADR 0183 implementation notes, S3 and S4). Read
-    // only. A path that does not exist grants nothing.
+    // ADR 0183 section 5 (extension), re-derived from gdb traces of the worker on the panel fixture under
+    // the stdio setups (pipes, files, a pseudo-terminal and /dev/null for stdout), and on a request padded
+    // to 300 KiB. The host gives the worker a clean environment with LANG set to C.UTF-8, so glibc reads
+    // that locale from /usr/lib/locale, and that is the only grant. The trace also opened the gconv
+    // modules, the locale message catalogue and OpenSSL's configuration; a run with those denied gave the
+    // same bytes, so they are not granted (ADR 0183 implementation notes, S3 and S4). Read only. A path
+    // that does not exist grants nothing.
     const QStringList readOnly{QStringLiteral("/usr/lib/locale")};
     for (const QString &path : readOnly)
         policy.files.push_back({path.toStdString(), FileAccess::readOnly});
