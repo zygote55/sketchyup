@@ -839,6 +839,7 @@ jobs:
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/component_acceptance_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/organization_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/quantities_input_tests
+          xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 120 build/dev/quantities_large_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 50 build/dev/component_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_input_tests
           xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 scripts/test-deadline.sh 90 build/dev/hosted_array_input_tests
