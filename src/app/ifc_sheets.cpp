@@ -1,5 +1,6 @@
 #include "app/ifc_sheets.hpp"
 #include "app/step_export_dialog.hpp"
+#include "io/import_refusal.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
@@ -1024,6 +1025,30 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
             .arg(whatToDo);
     face.report = report;
     face.copyDetails = true;
+    face.closeIsDefault = true;
+    showRefusalSheet(parent, face);
+}
+
+// R105.a (ADR 0179 section 7.3): the named refusal for a downloaded file of a type the import
+// cannot read (a ZIP archive, COLLADA, USDZ or FBX). The reason names the format; the advice says
+// what to do next. The model is unchanged, and nothing was written.
+void showImportRefusal(QWidget *parent, const QString &fileName, const ImportRefusal &refusal) {
+    RefusalSheet face;
+    face.sheetName = "importRefusal";
+    face.title = "Import refused";
+    face.width = 640;
+    face.height = 400;
+    face.prefix = "importRefusal";
+    face.refusedLine = "Refused: " + QString::fromStdString(refusal.code);
+    face.summary =
+        QString(
+            "%1\n\nThe model was not changed. Nothing was written.\n\n%2%3\n\n"
+            "Not affected: the open model, the sheets, the assistant, your settings and recovery.")
+            .arg(QFileInfo(fileName).fileName())
+            .arg(refusal.message)
+            .arg(refusal.whatToDo.isEmpty()
+                     ? QString()
+                     : QStringLiteral("\n\nWhat to do next:\n%1").arg(refusal.whatToDo));
     face.closeIsDefault = true;
     showRefusalSheet(parent, face);
 }

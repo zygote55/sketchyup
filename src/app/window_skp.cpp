@@ -36,6 +36,10 @@ void Window::importSkp() {
                                                       ".skp files (*.skp *.SKP);;All files (*.*)");
     if (path.isEmpty())
         return;
+    // R105.a: a downloaded file of a refused type (a ZIP archive, COLLADA, USDZ or FBX) is named
+    // before the helper.
+    if (refuseUnsupportedImport(path))
+        return;
     // The confirm phase: before the helper starts, ask about unsaved changes (16.3).
     if (!canReplace())
         return;

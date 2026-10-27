@@ -620,6 +620,69 @@ The reader is OpenSKP, an independent open-source implementation (MIT licence) t
 studying the file format. It is not affiliated with or endorsed by Trimble either, so some files may
 not import exactly as they look in SketchUp.
 
+## Getting models from online libraries
+
+SketchyUp does not connect to any online model library. It does not search one, sign in to one or
+download from one. To use a model from a library, download the file yourself in a browser, then
+import it. The import makes a new, unsaved model, and the downloaded file is never changed.
+
+### The 3D Warehouse website
+
+The 3D Warehouse website is run by Trimble Inc. SketchyUp is not affiliated with or endorsed by
+Trimble Inc. The 3D Warehouse website is named here only to say where to find models.
+
+1. Open the model's page on the 3D Warehouse website in your browser. Sign in to your own account if
+   the download needs it. The Download Policy on the 3D Warehouse website sets a daily download limit for
+   each plan.
+   SketchyUp does not set it, and it does not count your downloads.
+2. If the page offers a choice of formats, choose one in the table below. The download may arrive as
+   a ZIP archive.
+3. If it is a ZIP archive, extract it first, in your file manager. SketchyUp refuses a ZIP archive and
+   does not extract it for you. Then import the model file inside it.
+4. Import the file from the File menu entry for its type.
+
+| File | In this version |
+|---|---|
+| `.skp` | Not released yet. When it is, the versions in [the .skp section](#importing-sketchup-skp-files) apply. |
+| `.glb`, `.gltf` | Imported with a conversion report, from File › Import GLB/glTF… |
+| `.obj`, `.stl`, `.dxf`, `.ifc`, `.step` | Imported with their own reports, from their File › Import entries. |
+| `.zip` | Refused, with the advice to extract the archive and import the file inside it. |
+| `.dae` (COLLADA) | Refused, with the reason. Where the page offers a newer `.skp` version of the model, download that instead. The `.skp` import is not released yet. |
+| `.usdz`, `.fbx` | Refused, with the reason. Where the source offers a glTF or GLB version of the model, download that instead. |
+
+Every import shows a report. A `.skp` report gives the format version and container, the file's
+SHA-256, the units, the counts of what came across, the notices, and a plain line for a file read
+best effort. A glTF or GLB report gives the triangle, instance and camera counts, the unit and axis
+conversion, what was kept, and a notice for each loss. Nothing is dropped without a notice.
+
+**Trademarks.** SketchUp is a trademark of Trimble Inc. SketchyUp is not affiliated with or endorsed
+by Trimble Inc. The 3D Warehouse website is named in this section only to say where to find models.
+
+### Licences and credit
+
+- Each model has its own licence. Models on the 3D Warehouse website are licensed under the General
+  Model License, which its Terms of Use set out. The Terms we read did not require credit to the uploader. They do
+  forbid claiming to own a model you did not create, and removing its copyright or trademark notices.
+  Keep those notices in the file.
+- The Terms bar selling a model on its own or as a stand-alone item, and gathering models into a
+  collection for redistribution.
+- Read the Terms of Use on the 3D Warehouse website before you publish or sell work that uses a model.
+  This section is not legal advice.
+
+### Poly Haven and Sketchfab
+
+Some sites offer glTF or GLB files, for example Poly Haven and Sketchfab. Check the format on each
+asset's page. Each asset has its own licence, shown on its page. That licence governs the asset's use,
+and SketchyUp does not grant one. Poly Haven and Sketchfab are named here only to say where to find
+glTF and GLB files. SketchyUp is not affiliated with or endorsed by Poly Haven or Sketchfab, and it
+does not connect to either site.
+
+### What this is not
+
+This is not a service integration. SketchyUp sends no request to an online library for this, and it
+does not search, sign in, download or keep a copy. Only the downloads you make in your browser leave
+your computer. The import reads the file on your computer, and no network request is made for it.
+
 ## Terrain and site tools
 
 **File → Import terrain…** adds a terrain to the open model from a DXF with contours
