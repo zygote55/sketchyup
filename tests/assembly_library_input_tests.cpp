@@ -188,8 +188,9 @@ void tabAndCards(Fixture &f) {
     auto *about = f.tab->findChild<QLabel *>("assembliesAboutText");
     check(about && about->isVisible() &&
               about->text() == "Bundled with SketchyUp and saved into your model when placed. "
-                               "SketchUp Dynamic Components are not imported or converted.",
-          "About these assemblies says Dynamic Components are not imported");
+                               "Dynamic Components: attributes read as read-only properties; formulas and "
+                               "behaviour are not run.",
+          "About these assemblies says Dynamic Components are read-only and not run");
     // One Tab stop: Tab from the filter reaches the cards, Tab again leaves them.
     f.focus(filter);
     QTest::keyClick(filter, Qt::Key_Tab);

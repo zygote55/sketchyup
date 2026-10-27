@@ -241,7 +241,8 @@ ComponentsTab::ComponentsTab(Document &doc, Viewport &view, QWidget *parent)
     auto *aboutTitle = new QLabel("About these assemblies");
     aboutTitle->setObjectName("assembliesAboutTitle");
     auto *aboutText = new QLabel("Bundled with SketchyUp and saved into your model when placed. "
-                                 "SketchUp Dynamic Components are not imported or converted.");
+                                 "Dynamic Components: attributes read as read-only properties; formulas and "
+                                 "behaviour are not run.");
     aboutText->setObjectName("assembliesAboutText");
     aboutText->setWordWrap(true);
     aboutLayout->addWidget(aboutTitle);

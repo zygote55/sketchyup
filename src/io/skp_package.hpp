@@ -82,14 +82,18 @@ struct SkpPackageFace {
   std::array<double, 9> uvBack{};  // when hasUvBack
 };
 
-// One attribute of an instance (R102.b, ADR 0176 section 4): a value of SketchUp's attribute
-// dictionaries, of the three kinds the import keeps (a Length, a vector or a nested value is not kept).
+// One attribute of an instance or definition (R102.b, ADR 0176 section 4; R104.a for the
+// dynamic_attributes values of a definition): a value of SketchUp's attribute dictionaries. Outside
+// dynamic_attributes the package keeps the three kinds ADR 0176 section 4 names (a Length, a vector or a
+// nested value is not kept there).
 struct SkpPackageAttribute {
-  enum class Kind : std::uint8_t { String, Number, Boolean };
+  // Length: a dynamic_attributes length, in metres (R104.a). Unsupported: a value the package carries
+  // without a value (a vector, an array, a null or a number that is not finite); text names which.
+  enum class Kind : std::uint8_t { String, Number, Boolean, Length, Unsupported };
   std::string dictionary;
   std::string key;
   Kind kind{Kind::String};
-  std::string text;  // String
+  std::string text;  // String; Unsupported (the kind of value)
   double number{};   // Number (finite)
   bool flag{};       // Boolean
   bool truncated{};  // String: the worker cut it to the package bound (the import counts the cut to
@@ -116,6 +120,7 @@ struct SkpPackageDefinition {
   std::vector<SkpPackageEdge> edges;
   std::vector<SkpPackageFace> faces;
   std::vector<SkpPackageInstance> instances;
+  std::vector<SkpPackageAttribute> attributes;  // R104.a: the definition's dynamic_attributes values
 };
 
 struct SkpPackageLocation {
