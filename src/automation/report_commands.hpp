@@ -18,9 +18,17 @@ ReportRequest reportRequestFrom(const Document &doc, const QJsonObject &request,
                                 bool editorAvailable);
 
 // The `data` of report.run: the metadata block (the stamp, units, precision, applied filters) and
-// the tables. Measures are decimal strings, counts are integers (ADR 0175 §6.2).
+// the tables. Measures are decimal strings, counts are integers (ADR 0175 §6.2). An invalid row
+// also carries its body IDs (at most 64), whether it is truncated, and its words (R101.e1); the
+// file's JSON leaves those out (reportFileData). `hooks` is the run's progress and cancel
+// (R101.e1); a cancelled run throws ReportCancelled.
 QJsonObject reportDescription(const Document &doc, const ReportRequest &request,
-                              const std::set<Id> *selectedBodies);
+                              const std::set<Id> *selectedBodies, const ReportHooks &hooks = {});
+
+// The JSON file's data: the report.run data without the session-only fields of the invalid rows
+// (their body IDs, truncation and words). The file keeps the R101.b shape, so its golden bytes do
+// not change (R101.e1).
+QJsonObject reportFileData(const QJsonObject &data);
 
 // `sketchyup-cli --report` (ADR 0175 §8, R101.b): the flags as they were typed. Metrics and
 // precision are validated by reportRequestFrom, so the CLI and the session refuse the same things.
@@ -35,17 +43,24 @@ struct ReportFileOptions {
     // R101.c: --schedule NAME runs a saved schedule instead of the flags above, which must then be
     // unset. Empty means the flags are the request.
     QString schedule;
+    // R101.e1: the desktop's selection, with its bodies passed to writeReportFile. The CLI never
+    // sets it, and a saved schedule cannot use it.
+    bool selection{};
 };
 
 // The §1 request object the flags make (`report.run` shape). Shared with --save-schedule.
 QJsonObject reportRequestFor(const ReportFileOptions &options);
 
 // Writes the report to a new file: CSV (the file of record) or the JSON `data` object, compact and
-// without a final newline, so it is byte-identical to the session's report.run data. A scheduled
-// run writes `#schedule=NAME` in the CSV metadata instead of `#ad-hoc=1` (ADR 0175 §6.1) and
-// `"schedule": NAME` in the JSON metadata; the rest of the bytes are the ad-hoc run's. Returns the
-// export report. The model is read, never changed.
-QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &options);
+// without a final newline, so it is byte-identical to the session's report.run data, less the
+// session-only fields (reportFileData). A scheduled run writes `#schedule=NAME` in the CSV metadata
+// instead of `#ad-hoc=1` (ADR 0175 §6.1) and `"schedule": NAME` in the JSON metadata; the rest of
+// the bytes are the ad-hoc run's. `selectedBodies` is the desktop's selection, required when
+// options.selection is set (R101.e1). Returns the export report. The model is read, never changed.
+// A cancelled run throws ReportCancelled before anything is published.
+QJsonObject writeReportFile(const Document &doc, const ReportFileOptions &options,
+                            const std::set<Id> *selectedBodies = nullptr,
+                            const ReportHooks &hooks = {});
 
 QJsonObject reportExportCapabilities();
 QJsonObject reportExportDescription();

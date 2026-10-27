@@ -17,7 +17,7 @@ void SkpImportRunner::begin(const QString &path, SkpWorkerOptions worker) {
             result.document = std::move(imported.document);
             return result;
         },
-        "The SketchUp import failed.");
+        "The .skp import failed.");
 }
 
 } // namespace sketchy

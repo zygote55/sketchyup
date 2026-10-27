@@ -550,11 +550,11 @@ note appears above 100,000 triangles, before a model of triangle faces reaches t
 
 ## Importing SketchUp (.skp) files
 
-**File → Import SketchUp (.skp)…** opens a SketchUp model as a new, unsaved SketchyUp model. Choose
+**File → Import .skp file…** opens a SketchUp model as a new, unsaved SketchyUp model. Choose
 the file; there are no options to set. The file is read by a separate helper process,
 `sketchyup-skp-worker`, with a progress sheet and Cancel. A file that cannot be imported is refused
 and nothing is created. The report lists what came across, what did not and anything that needs
-your attention; **Show SketchUp import report…** shows it again. The .skp file itself is never
+your attention; **Show .skp import report…** shows it again. The .skp file itself is never
 changed, and Save chooses where the new model goes.
 
 On the command line, `sketchyup-cli --import-skp FILE.skp` validates the file and prints the report

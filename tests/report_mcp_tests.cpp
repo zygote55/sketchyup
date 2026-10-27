@@ -6,6 +6,7 @@
 // store. That isolation holds on Linux only, so the store and CLI checks run there and are skipped
 // elsewhere.
 #include "automation/mcp.hpp"
+#include "automation/report_commands.hpp"
 #include "automation/report_schedules.hpp"
 #include "automation/session.hpp"
 #include <QCoreApplication>
@@ -162,9 +163,11 @@ void runParity(const QTemporaryDir &dir) {
         check(!mcp.failed, "MCP report.run succeeds");
         check(compact(mcp.content) == compact(session.execute(args)),
               "MCP report.run is the session's report.run, byte for byte");
-        check(compact(mcp.content["data"].toObject()) ==
+        // The session's data less its session-only invalid-row fields is the file's shape, which
+        // is the committed golden (R101.e1, reportFileData).
+        check(compact(reportFileData(mcp.content["data"].toObject())) ==
                   readFile(sourcePath("tests/fixtures/reports/" + golden)),
-              "MCP report.run data is the committed golden");
+              "MCP report.run data is the committed golden, less the session-only fields");
     }
     // A stale revision, a foreign document and an out-of-bounds request are refused with the
     // session's codes.
@@ -273,6 +276,28 @@ void scheduleParity(const QTemporaryDir &dir) {
     check(!list.failed && schedules.size() == 2 && schedules[0].toObject()["name"] == "Kinds" &&
               schedules[1].toObject()["name"] == "Session Tags",
           "MCP lists the schedules of both surfaces in name order");
+
+    // R101.e1: MCP renames and updates; the session describes the same records, and the rename
+    // keeps the request while the update keeps the name.
+    const auto renamed = invoke(server, toolCall(5, "report.schedule",
+                                                 scheduleCall({{"action", "rename"},
+                                                               {"name", "Session Tags"},
+                                                               {"newName", "Tags Renamed"}})));
+    check(!renamed.failed && renamed.content["status"] == "renamed", "MCP renames a schedule");
+    const auto renamedView =
+        session.execute(scheduleCall({{"action", "describe"}, {"name", "Tags Renamed"}}));
+    check(compact(renamed.content["schedule"].toObject()) ==
+              compact(renamedView["schedule"].toObject()),
+          "The session describes the schedule MCP renamed, identically");
+    check(renamedView["schedule"].toObject()["request"].toObject()["groupBy"] == "tag",
+          "A rename keeps the saved request");
+    const auto updated = invoke(server, toolCall(6, "report.schedule",
+                                                 scheduleCall({{"action", "update"},
+                                                               {"name", "Tags Renamed"},
+                                                               {"request", kindRequest()}})));
+    check(!updated.failed && updated.content["status"] == "updated" &&
+              updated.content["schedule"].toObject()["name"] == "Tags Renamed",
+          "MCP updates a schedule's request and keeps its name");
 
     // MCP deletes; the session no longer finds the schedule.
     const auto deleted =
@@ -408,9 +433,9 @@ void stdio(const QTemporaryDir &dir) {
                                                             {"expectedRevision", info["revision"]},
                                                             {"request", defaultRequest()}})));
     check(run["isError"] == false &&
-              compact(run["structuredContent"].toObject()["data"].toObject()) ==
+              compact(reportFileData(run["structuredContent"].toObject()["data"].toObject())) ==
                   readFile(sourcePath("tests/fixtures/reports/quantities-a-default.json")),
-          "The CLI's MCP report.run data is the committed golden");
+          "The CLI's MCP report.run data is the committed golden, less the session-only fields");
     process.closeWriteChannel();
     check(process.waitForFinished(10000) && process.exitStatus() == QProcess::NormalExit &&
               process.exitCode() == 0,

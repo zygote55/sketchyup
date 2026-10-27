@@ -1,6 +1,6 @@
 #pragma once
 // R102.b (ADR 0176 section 4): the application's side of the SketchUp (.skp) import. A decoded
-// SKSKPP01 package becomes one new unsaved document in one edit labelled "Import SketchUp". The
+// SKSKPP01 package becomes one new unsaved document in one edit labelled "Import .skp file". The
 // package is data: nothing in it is trusted beyond the checked decoder's guarantees, and every
 // element the native model cannot take is refused with a notice and counted in the report.
 #include "core/model.hpp"
@@ -25,7 +25,7 @@ struct SkpConversionHooks {
     std::function<bool()> cancelled;
 };
 
-// One document, one "Import SketchUp" edit. The root's geometry goes into a top-level group named
+// One document, one "Import .skp file" edit. The root's geometry goes into a top-level group named
 // after the file; each definition becomes a component definition and each placement an instance.
 // Throws IfcImportError for a refusal (an unusable package) or a cancel.
 SkpImport importSkpPackage(const SkpPackage &package, const SkpImportOptions &options = {},

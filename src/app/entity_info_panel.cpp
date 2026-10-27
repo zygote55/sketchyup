@@ -8,6 +8,7 @@
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "core/groups.hpp"
+#include "core/solid_words.hpp"
 #include <QAction>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -25,31 +26,6 @@ QString vector(Vec3 value, DisplayUnit unit, int precision) {
            displayLength(value.y, unit, precision) + " · " + displayLength(value.z, unit, precision);
 }
 QJsonArray point(Vec3 value) { return {value.x, value.y, value.z}; }
-QString unavailable(const std::string &status) {
-    if (status == "open_boundary")
-        return "Not a solid: open boundary";
-    if (status == "non_manifold")
-        return "Not a solid: non-manifold boundary";
-    if (status == "inconsistent_winding")
-        return "Not a solid: inconsistent face winding";
-    if (status == "loose_geometry")
-        return "Not a solid: loose geometry";
-    if (status == "self_intersection")
-        return "Not a solid: intersecting faces";
-    if (status == "degenerate")
-        return "Not a solid: degenerate shell";
-    if (status == "multiple_records")
-        return "Unavailable: multiple geometry records";
-    if (status == "multiple_shells")
-        return "Unavailable: multiple shells";
-    if (status == "ambiguous_containment")
-        return "Unavailable: ambiguous shell containment";
-    if (status == "analysis_limit")
-        return "Unavailable: analysis limit";
-    if (status == "not_a_context")
-        return "Select a whole entity for volume";
-    return "No closed surface";
-}
 // The Info tab's stack of sections (ADR 0166 §1.1). Its height for a width counts each
 // section as the box layout places it: at no less than its minimum height, and at the height
 // for its width bounded by its minimum width (a section wider than a narrow Tray). So the
@@ -290,9 +266,10 @@ void EntityInfoPanel::refresh() {
                                               : displayLength(frame.length, doc_.displayUnits(),
                                                               doc_.displayPrecision()));
         area_->setText(displayMeasure(frame.area, 2, doc_.displayUnits(), doc_.displayPrecision()));
-        volume_->setText(frame.volume ? displayMeasure(*frame.volume, 3, doc_.displayUnits(),
-                                                     doc_.displayPrecision())
-                                      : unavailable(measured.solid.status));
+        volume_->setText(
+            frame.volume
+                ? displayMeasure(*frame.volume, 3, doc_.displayUnits(), doc_.displayPrecision())
+                : QString::fromStdString(solidStatusWords(measured.solid.status)));
         QStringList properties;
         for (const auto &[key, property] : body.properties) {
             if (properties.size() == 4) {
