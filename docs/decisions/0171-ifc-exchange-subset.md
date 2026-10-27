@@ -405,11 +405,12 @@ follows ADR 0033 (`blender_job.cpp` already uses `QProcess::setChildProcessModif
   because four geometry threads use CPU time four times as fast as the wall clock) and `RLIMIT_FSIZE`,
   a wall-clock deadline enforced by the parent (terminate, then kill after one second), at most four
   geometry threads and `PR_SET_NO_NEW_PRIVS`. A crash, an out-of-memory kill or a timeout is a failed
-  import that leaves the application and the current document untouched. **This contains accidents
-  and resource exhaustion; it is not a sandbox.** The worker keeps the user's file and network access.
-  A real sandbox (Landlock restricting it to the private directory, and seccomp denying network
-  sockets) is possible on current kernels with a fallback to resource limits only; it is part of
-  decision 19's recommendation as a hardening step, not a requirement of R097.b.
+  import that leaves the application and the current document untouched. **The resource limits contain
+  accidents and resource exhaustion; they are not a sandbox.** The sandbox is ADR 0183 (R109): from
+  R109 S2 every mode of the worker that reads or writes a file applies `PR_SET_NO_NEW_PRIVS`, a Landlock
+  ruleset (the private directory, and the read-only library paths) and a seccomp-bpf allow-list before it
+  opens that file, and fails closed: a layer that cannot be installed is a refusal (`sandboxUnavailable`,
+  exit 70), not a fallback to limits alone. The worker has no network access under the sandbox.
 - **Crashes and hangs are per import, not per element.** The library has no per-element timeout (the
   iterator uses `std::async`), so one hanging or crashing Boolean ends the whole run. The worker
   reports the element it is on through a progress pipe; when it crashes or times out, the application
@@ -1059,8 +1060,9 @@ limits prove tight); MCP and assistant exposure.
   geometry is not fuzzed upstream. Mitigation: the process boundary and resource limits (1.6), restart
   with the culprit excluded, a bounded decoder in the application, and our own fuzz and crash tests. A
   defect can still crash the helper or consume its limits; it cannot, by design, touch the document. It
-  is **not** a sandbox: the helper has the user's file and network access until the Landlock and seccomp
-  hardening of decision 19 exists, and one hung element costs a restart.
+  is **not** a sandbox on its own: the resource limits do not restrict files or sockets. The Landlock and
+  seccomp hardening of decision 19 is ADR 0183 (accepted 2026-10-27; R109 S2 implements it for this helper), and one
+  hung element costs a restart.
 - **The library's silent behaviours.** Found in the prototype and the source: output units that differed
   between files declaring the same unit; a warning-only fallback to metres for missing units; no
   per-face colours; the pass-through kernel returning empty geometry for an extruded wall without
@@ -1159,7 +1161,8 @@ points) was confirmed by the owner the same day.
 19. **Process isolation:** run IfcOpenShell only inside a separate helper process
     (`sketchyup-ifc-worker`) with resource limits, restart-on-crash with the culprit element excluded,
     and a bounded package format; a Landlock and seccomp sandbox as a later hardening where the kernel
-    allows it. *Decided 2026-10-22: "Approve all".*
+    allows it. *Decided 2026-10-22: "Approve all".* The sandbox is ADR 0183 (accepted 2026-10-27; R109
+    S2 implements it for this helper; a layer that cannot be installed fails closed, with no fallback).
 20. **Build time and CI:** accept the extra package-build time; give the fast tier a cached prefix
     keyed by the vendored tree; build from source in the full tier and the package job. *Decided 2026-10-22: "Approve all".*
 21. **Version policy:** pin `ifcopenshell-v0.9.0`; upgrade only by an explicit change that re-runs
@@ -1351,7 +1354,7 @@ An `src/app`-only pull request (a comment in `src/app/window_terrain.cpp`, narro
 - Package acceptance builds IfcOpenShell once (the preceding package skips it): the acceptance job took 43 min 46 s in its first run (the preceding package with its 229 CTest tests 25.5 minutes, the current package with IfcOpenShell 16 minutes, then the install checks), against about 30 minutes for the same job before this slice (run 39707993131).
 - The prefix cache lives only as long as GitHub keeps it (seven days without use); `main` keeps it warm only when an IFC path changes or the nightly full tier runs, and the first IFC pull request after an eviction pays about 15 minutes.
 - Check L2 shows the replacement mechanism with a copy of the libraries, not a rebuild from source in a scratch directory (a 13-minute build); the packaging README documents the real procedure.
-- Not done here, by design: the helper's resource limits, the conversion package, the Landlock/seccomp sandbox and every import or export code path (R097.b to d); fuzz target J3 (the vendored `src/ifcfuzz` is in the tree and not built).
+- Not done here, by design: the helper's resource limits, the conversion package, the Landlock/seccomp sandbox (ADR 0183, R109 S2) and every import or export code path (R097.b to d); fuzz target J3 (the vendored `src/ifcfuzz` is in the tree and not built).
 
 ## Implementation notes (R097.b)
 
@@ -1405,7 +1408,7 @@ node), every index, finiteness and the 1e6 m coordinate bound, the digest, and t
 `sketchyup-ifc-worker --import FILE --output PACKAGE` (options: `--kernel`, `--threads`, `--deflection METRES`,
 `--angular-deflection`, `--length-unit`, `--skip-spaces`, `--max-voids`, `--max-entities`, `--exclude-step N`, `--max-nodes N`,
 `--diagnose-from TASK`, `--diagnose-seconds N`, `--rlimit-as`, `--rlimit-cpu`, `--rlimit-fsize`, `--dry-run`, and the
-test faults `--test-fault crash|abort|hang|alloc:N`). It sets `PR_SET_NO_NEW_PRIVS` and its own resource limits first,
+test faults `--test-fault crash|abort|hang|alloc:N`). It applies its sandbox (ADR 0183, R109 S2: `PR_SET_NO_NEW_PRIVS`, Landlock and seccomp) before it opens its input, in every mode, and then its own resource limits;
 prints progress as short lines on stdout (`P phase NAME`, `P tasks N`, `P threads N`, `P at TASK`, `P next STEP...`,
 `P excluded STEP...`, `P done N`) and one result line (`R {"status":"ok"}` or
 `R {"status":"refused","code":...}`, exit 0 or 3). The reading is name-based through IfcParse's schema-independent
