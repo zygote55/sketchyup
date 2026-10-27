@@ -1129,8 +1129,8 @@ timing modes (`--cancel`, `--rerun`). No test file is new, so no registration ch
 - **The file's JSON and the CSV keep their R101.b shape.** The session's invalid rows carry the
   body IDs, the truncation flag and the Not a solid words; `reportFileData` leaves those out of the
   file's JSON, and the CSV never had them. So the R101.b goldens (both CSV and JSON, hash-pinned)
-  are byte-identical. UX_DESIGN §19.4 and owner choice 3 ask for body IDs "in JSON and session
-  results". Putting them in the file's JSON changes the JSON golden pins, which the brief says to
+  are byte-identical. The brief asked for body IDs "in JSON and session results". Putting them in
+  the file's JSON changes the JSON golden pins, which the brief says to
   stop on. **Decision (parent, 2026-10-27):** the exported JSON file does not carry the body IDs.
   They exist so the panel can select bodies, the file is a report, and the R101.b golden pins stay
   unchanged.
@@ -1156,7 +1156,8 @@ timing modes (`--cancel`, `--rerun`). No test file is new, so no registration ch
   the same path.
 - **Session actions.** `report.schedule` gains `rename` (with `newName`) and `update` (with
   `request`). The API JSON (headless session and MCP) and the tool reference are regenerated. No
-  other artifact changed, and `--check` was not run against the desktop binary (see below).
+  other artifact changed. `scripts/generate-api-schemas.py --check` passed against the built
+  `sketchyup-cli` and `sketchyup` (10 artifacts), the same invocation as `native.yml`.
 - **The CLI has no rename or update flag.** The brief allowed flags only if trivial; a rename flag
   needs a new flag pair and a refusal set, so none was added.
 
@@ -1168,9 +1169,9 @@ creation adds the material "Terrain" and gives every tile that material on its f
 40,000.001 m² is the `areas,Terrain,,3,,area` row of the golden (`quantities-a-material.csv`). The
 terrain container has no faces, so it has no material and its one context counts under the
 no-material row. `terrainMaterialRow` in `tests/report_tests.cpp` checks both. UX_DESIGN §19.11 item
-15 says the Material view shows the terrain under "No material", and the mock in
-`mockups/quantities.html` draws it so; the code does not. The design text and the mock need correcting
-before R101.e2.
+15 said the Material view shows the terrain under "No material", and the mock draws it so; the code
+does not. Item 15 is corrected in this change. The mock, `docs/mockups/quantities.html`, is not
+redrawn here, so it still draws the old way. R101.e2 should redraw it.
 
 ### Budgets measured in R101.e1
 
@@ -1209,6 +1210,13 @@ with R101.b, which measured the four tables on quantities-b at 0.71 s. The cost 
 reused between runs. See "Gaps" below for the options. The budget and the no-cache decision are
 not changed here.
 
+Two more runs of the same Release build (`build/rel`, `report_benchmark --cancel` and
+`--rerun 40`) were made on 2026-10-27, at a load average of 4 to 7 on a 22-thread machine. The
+cancel returned within 1.25 ms at its worst, and the longest gap between two records was 1.47 ms.
+The 99,996-face re-run had a p95 of 968 ms (engine) and 975 ms (run and description) in the first
+run, under the higher load, and 616 ms and 606 ms in the second. Every run misses the 250 ms budget.
+The spread between runs is wide, so read the re-run figures as a range, not one number.
+
 ### Gaps and what was not run
 
 - **The panel re-run budget is not met (§12).** The 100,000-face case takes about 0.6 s at p95 on an
@@ -1219,7 +1227,10 @@ not changed here.
   but would not shorten it.
 - **The file's JSON carries no body IDs.** Owner choice 3 asks for them in JSON and in the session.
   The file's JSON golden pins would change if they were in the file, so they are kept to the session
-  (see the decisions above). The owner should decide.
+  (see the decisions above). This follows the parent's decision of 2026-10-27: the exported JSON
+  file does not carry the body IDs. The brief asked for them "in JSON and session results", and
+  UX_DESIGN §19.12 item 3 says "to the query"; neither names the exported file. Confirm the file's
+  exclusion with the owner before R101.e2.
 - **A pinned precision can be refused after a units change.** A schedule saved at precision 5 in
   metres is refused at run time with `LIMIT_EXCEEDED`, naming the schedule and the store, once the
   document is in feet (maximum 3). Units are not pinned (§19.11 item 9). Schedules saved before
@@ -1228,17 +1239,21 @@ not changed here.
   body (`inspectSolid`) runs to its end. The longest gap measured here, 1.98 ms, is on quantities-b,
   whose bodies are small. A document with one very large body is not measured.
 - **The desktop panel is not built.** R101.e1 has no UI. The desktop build here is the `sketchyup`
-  executable and `entity_info_input_tests`, which passed offscreen. The native display tests
+  executable. `entity_info_input_tests`, `inspection_tests`, `mcp_tests` and
+  `assistant_tool_surface_tests` passed offscreen. The native display tests
   (X11, Wayland) were not run, and neither were the sanitizers, Windows or macOS.
-- **The desktop binaries were built by a process I did not start.** Ninja's log shows the
-  `sketchyup` and `entity_info_input_tests` targets linked at 14:11 UTC in this build directory,
-  while my chained build was waiting. Their sources had not changed since 13:21 UTC, so the binaries
-  match the tree, and `generate-api-schemas.py --check` against them passed (10 artifacts). The cause
-  of the build was not found.
+- **Build provenance.** The desktop binaries in `build/dev` (`sketchyup` and the desktop test
+  binaries) were linked after their last source change, and `ninja -n` reports no work for them, so
+  the test runs match the tree. The `generate-api-schemas.py --check` run above used the same
+  binaries.
 - **The generated API artifacts.** The headless session, MCP and tool-reference files were
   regenerated by the registries (`scripts/generate-tool-reference.py` and the CLI discovery of
   `scripts/generate-api-schemas.py`). The desktop-backed files were checked, not regenerated; they
   already matched.
+- **Qt version.** The build here used Qt 6.12.0 (`pkg-config`), not the Qt 6.8 that the brief names.
+  No Qt 6.8 compile was run here, so the 6.8 build is left to CI.
+- **Sanitizers and CI registration.** No sanitizer build was run. No test file was added, so no CI
+  registration changed, and the `ci-line-inventory.py` and `ci-plan.py` checks were not run.
 - **No CLI flag for rename or update.** The brief allowed flags only if trivial. A rename flag needs
   its own refusal set, so none was added.
 - **Store tests on Windows and macOS.** The rename and update checks on the store follow R101.c:
