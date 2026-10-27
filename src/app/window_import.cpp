@@ -1,7 +1,9 @@
+#include "app/ifc_sheets.hpp"
 #include "app/report_sheet.hpp"
 #include "app/window.hpp"
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
+#include "io/import_refusal.hpp"
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -9,6 +11,15 @@
 #include <QPlainTextEdit>
 #include <QVBoxLayout>
 namespace sketchy {
+// R105.a (ADR 0179 section 7.3): the file the user chose is checked before any importer runs. A
+// refused type shows its named sheet and changes nothing.
+bool Window::refuseUnsupportedImport(const QString &path) {
+    const auto refusal = refusedImportFile(path);
+    if (!refusal)
+        return false;
+    showImportRefusal(this, path, *refusal);
+    return true;
+}
 void Window::importGltfPath(const QString &path) {
     auto imported = loadGltf(path);
     if (!canReplace())

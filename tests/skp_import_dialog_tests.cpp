@@ -702,6 +702,31 @@ int main(int argc, char **argv) {
             check(!chip->isVisible() && !reportAction->isEnabled(),
                   "a new model clears the SketchUp chip and its report");
         }
+        // S16 (R105.a, ADR 0179 section 7.3): a downloaded ZIP chosen in the picker is named before
+        // the helper runs, and the model is unchanged. The picker's "All files" filter lets it be
+        // chosen.
+        {
+            window.setSkpWorkerPath(available);
+            const auto encoded = encodeContainer(window.document());
+            Driver driver;
+            driver.choose =
+                QStringLiteral(SOURCE_DIR "/tests/fixtures/import-refusal/wrapped-box.zip");
+            driver.start();
+            importAction->trigger();
+            driver.stop();
+            check(driver.sheets == (QStringList{"importRefusal"}),
+                  "the ZIP refusal sheet was shown");
+            check(contains(
+                      driver.summaries["importRefusal"],
+                      "This is a ZIP archive. Extract it, then import the model file inside it."),
+                  "the sheet names the archive and the step: " +
+                      driver.summaries["importRefusal"].toStdString());
+            check(contains(driver.summaries["importRefusal"], "The model was not changed"),
+                  "the sheet says the model was not changed");
+            check(encodeContainer(window.document()) == encoded,
+                  "the model is byte for byte unchanged");
+            check(!chip->isVisible(), "a refused file shows no chip");
+        }
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;
