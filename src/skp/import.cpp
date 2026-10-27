@@ -350,6 +350,67 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
   }
   report.counts_.tags = static_cast<long long>(package.tags.size());
 
+  // Every attribute value the file holds (ADR 0176 section 4): attributes read = kept on instances
+  // + omitted (the kinds below). A value is counted once, in the scope that holds it.
+  long long attributesPresent = 0;
+  const auto noteNotCarried = [&](const char *code, const char *kind, long long count) {
+      if (count <= 0)
+          return;
+      report.notice(code, count);
+      report.omitted(kind, count);
+  };
+  // Layers (tags) hold attribute dictionaries only in legacy files; the import carries none of
+  // them.
+  long long layerValues = 0;
+  for (const auto &layer : model.layers)
+      for (const auto &[dictionary, values] : layer.attribute_dictionaries)
+          for (const auto &[key, value] : values) {
+              (void)value;
+              attributesPresent++;
+              layerValues++;
+              report.locate("layerAttributesNotCarried", clip(layer.name, 64),
+                            "dictionary \"" + clip(dictionary, 64) + "\", key \"" + clip(key, 64) +
+                                "\": not imported");
+          }
+  noteNotCarried("layerAttributesNotCarried", "layerAttribute", layerValues);
+  // The model's own attribute dictionaries: not mapped in this version, so every value is reported
+  // (the samples name the dictionary and the key).
+  long long modelValues = 0;
+  for (const auto &[dictionary, values] : model.attribute_dictionaries)
+      for (const auto &[key, value] : values) {
+          (void)value;
+          attributesPresent++;
+          modelValues++;
+          report.locate("modelAttributesNotCarried", "Model",
+                        "dictionary \"" + clip(dictionary, 64) + "\", key \"" + clip(key, 64) +
+                            "\": not imported");
+      }
+  noteNotCarried("modelAttributesNotCarried", "modelAttribute", modelValues);
+  // What the file holds that the package does not carry, counted (ADR 0176 sections 4 and 5:
+  // "counted in the report"). A part the file does not hold is no notice.
+  const auto countOf = [&](auto member) {
+      long long total = static_cast<long long>((model.root().*member).size());
+      for (const auto &[id, definition] : model.definitions) {
+          (void)id;
+          total += static_cast<long long>((definition.*member).size());
+      }
+      return total;
+  };
+  const auto noteCount = [&](const char *code, long long count) {
+      if (count > 0)
+          report.notice(code, count);
+  };
+  noteCount("omittedScenes", static_cast<long long>(model.pages.size()));
+  noteCount("omittedStyles", static_cast<long long>(model.styles.size()));
+  noteCount("omittedSectionPlanes", countOf(&openskp::Definition::section_planes));
+  noteCount("omittedTexts", countOf(&openskp::Definition::texts));
+  noteCount("omittedDimensions", countOf(&openskp::Definition::dimensions) +
+                                     static_cast<long long>(model.dimensions.size()));
+  noteCount("omittedConstructionLines", countOf(&openskp::Definition::construction_lines));
+  noteCount("omittedConstructionPoints", countOf(&openskp::Definition::construction_points));
+  if (model.camera)
+      report.notice("omittedCamera");
+
   // Definitions: the model's root first, then the file's definitions in id order. Every id is
   // resolvable before any instance is read, so an instance's reference is never dropped on the
   // way to a definition that is added later.
@@ -375,10 +436,22 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
     totalOf(definition);
   }
   const long long sourceMaterials = static_cast<long long>(model.materials.size());
+  long long definitionValues = 0;
   auto addDefinition = [&](const openskp::Definition& source, const std::string& name, const std::string& guid) {
     SkpPackageDefinition definition;
     definition.name = clip(name, SkpPackageLimits::nameBytes);
     definition.guid = clip(guid, SkpPackageLimits::stringBytes);
+    // The definition's own attribute dictionaries: the import does not map them, so each value is
+    // reported.
+    for (const auto &[dictionary, values] : source.attribute_dictionaries)
+        for (const auto &[key, value] : values) {
+            (void)value;
+            attributesPresent++;
+            definitionValues++;
+            report.locate("definitionAttributesNotCarried", definition.name,
+                          "dictionary \"" + clip(dictionary, 64) + "\", key \"" + clip(key, 64) +
+                              "\": not imported");
+        }
     definitionIndex[source.id] = static_cast<long long>(package.definitions.size());
     const auto materialOf = [&](std::optional<openskp::EntityId> id) {
       if (!id) return -1LL;
@@ -537,12 +610,29 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
       // R102.b: the instance's name, and its attribute dictionaries of the three kinds the import keeps
       // (a string, a number or a boolean; a Length, a vector, an array or a null is not kept).
       out.name = clip(instance.name, SkpPackageLimits::nameBytes);
+      // R102.b, and ADR 0176 section 4 (the follow-up "attribute reporting"): the instance's
+      // attributes the import keeps (a string, a number or a boolean, at most attributesPerInstance
+      // of them), and each one it does not, counted as omitted and named in the samples (the
+      // dictionary and the key). A string longer than the package bound is cut and flagged; the
+      // mapping cuts it again to the 2,048-byte property cap and counts that too.
       for (const auto& [dictionary, values] : instance.attribute_dictionaries) {
         for (const auto& [key, value] : values) {
-          if (key.empty()) continue;
+            attributesPresent++;
+            const std::string named =
+                "dictionary \"" + clip(dictionary, 64) + "\", key \"" + clip(key, 64) + "\"";
+            const auto dropInstance = [&](const char *code, const std::string &why) {
+                report.notice(code);
+                report.omitted("attribute");
+                report.locate(code, definition.name, named + ": " + why);
+            };
+            if (key.empty()) {
+                dropInstance("attributeNotImported", "the key is empty, so it is not imported");
+                continue;
+            }
           if (out.attributes.size() >= SkpPackageLimits::attributesPerInstance) {
-            report.notice("attributesOverLimit");
-            break;
+              dropInstance("attributesOverLimit",
+                           "the instance holds more attributes than the package keeps");
+              continue;
           }
           SkpPackageAttribute attribute;
           attribute.dictionary = clip(dictionary, SkpPackageLimits::nameBytes);
@@ -551,6 +641,7 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
             case openskp::ParsedAttribute::Kind::String:
               attribute.kind = SkpPackageAttribute::Kind::String;
               attribute.text = clip(value.text, SkpPackageLimits::stringBytes);
+              attribute.truncated = value.text.size() > SkpPackageLimits::stringBytes;
               break;
             case openskp::ParsedAttribute::Kind::Integer:
               attribute.kind = SkpPackageAttribute::Kind::Number;
@@ -558,8 +649,9 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
               break;
             case openskp::ParsedAttribute::Kind::Float:
               if (!std::isfinite(value.number)) {
-                report.notice("attributeNotImported");
-                continue;
+                  dropInstance("attributeNotImported",
+                               "a number that is not finite is not imported");
+                  continue;
               }
               attribute.kind = SkpPackageAttribute::Kind::Number;
               attribute.number = value.number;
@@ -568,9 +660,18 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
               attribute.kind = SkpPackageAttribute::Kind::Boolean;
               attribute.flag = value.integer != 0;
               break;
+            case openskp::ParsedAttribute::Kind::Length:
+                dropInstance("attributeNotImported", "a length is not imported");
+                continue;
+            case openskp::ParsedAttribute::Kind::Vec:
+                dropInstance("attributeNotImported", "a vector is not imported");
+                continue;
+            case openskp::ParsedAttribute::Kind::Array:
+                dropInstance("attributeNotImported", "a nested array is not imported");
+                continue;
             default:
-              report.notice("attributeNotImported");
-              continue;
+                dropInstance("attributeNotImported", "an empty value is not imported");
+                continue;
           }
           out.attributes.push_back(std::move(attribute));
         }
@@ -609,11 +710,17 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
   addDefinition(model.root(), "ROOT", "");
   for (const auto& [id, definition] : model.definitions) (void)id, addDefinition(definition, definition.name, definition.guid);
 
+  // The definitions' own attribute dictionaries are counted before the report block is copied out.
+  noteNotCarried("definitionAttributesNotCarried", "definitionAttribute", definitionValues);
+
   // The report block.
   for (const auto& [code, count] : report.notices_) package.notices[code] = count;
   package.omitted = report.omitted_;
-  package.sourceTotals = {{"edges", sourceEdges}, {"faces", sourceFaces},
-                          {"instances", sourceInstances}, {"materials", sourceMaterials}};
+  package.sourceTotals = {{"edges", sourceEdges},
+                          {"faces", sourceFaces},
+                          {"instances", sourceInstances},
+                          {"materials", sourceMaterials},
+                          {"attributes", attributesPresent}};
   package.locations = report.locations_;
   package.locationTotals = report.locationsPerKind_;
   package.counts = report.counts_;
