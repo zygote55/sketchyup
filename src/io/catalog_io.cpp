@@ -4,10 +4,14 @@
 #include "io/model_style_io.hpp"
 #include "io/new_file.hpp"
 #include <QCryptographicHash>
+#include <QDir>
+#include <QDirIterator>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QtEndian>
 #include <algorithm>
 #include <cmath>
@@ -16,9 +20,9 @@
 namespace sketchy {
 namespace {
 using namespace library_envelope;
-const QRegularExpression catalogIdPattern("^[A-Za-z0-9._-]{1,64}$");
-const QRegularExpression mediaTypePattern("^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$");
-const QRegularExpression digestPattern("^[0-9a-f]{64}$");
+const QRegularExpression catalogIdPattern("\\A[A-Za-z0-9._-]{1,64}\\z");
+const QRegularExpression mediaTypePattern("\\A[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*\\z");
+const QRegularExpression digestPattern("\\A[0-9a-f]{64}\\z");
 QString nonemptyText(const QString &value, std::size_t maximum) {
     const auto checked = text(QJsonValue(value), qsizetype(maximum));
     require(!checked.trimmed().isEmpty(), "Catalog text must not be empty");
@@ -152,7 +156,24 @@ EntryFailure entryFailure(const std::vector<CatalogEntryReport> &entries, std::s
             const auto parsed = QJsonDocument::fromJson(payload, &error);
             require(error.error == QJsonParseError::NoError && parsed.isObject(),
                     "style record is not a JSON object");
-            decodeModelStyle(parsed.object());
+            const auto style = decodeModelStyle(parsed.object(), true);
+            // An edge texture names a catalog asset, which must be a declared dependency (ADR 0131:
+            // no asset is taken from the document or from a bare id).
+            if (style.edgeStroke && style.edgeStroke->texture) {
+                const auto texture = style.edgeStroke->texture;
+                const auto declared = std::any_of(
+                    entry.dependencies.begin(), entry.dependencies.end(),
+                    [&](const CatalogDependency &d) {
+                        return d.kind == CatalogDependency::Kind::Asset && d.id == texture;
+                    });
+                if (!declared)
+                    return {QStringLiteral("style edge texture asset %1 is not a dependency")
+                                .arg(QString::number(qulonglong(texture))),
+                            CatalogDependency{
+                                CatalogDependency::Kind::Asset,
+                                std::uint32_t(std::min<Id>(
+                                    texture, std::numeric_limits<std::uint32_t>::max()))}};
+            }
             break;
         }
         case CatalogEntryKind::Material:
@@ -592,5 +613,108 @@ QJsonObject encodeCatalogListing(const CatalogPackage &package) {
             {"missingAssets", int(missingAssets)},
             {"assets", assets},
             {"entries", entries}};
+}
+
+QString catalogLibraryFolder() {
+    const auto root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return root.isEmpty() ? QString() : QDir(root).filePath(QStringLiteral("catalogs"));
+}
+
+bool isCatalogLibraryName(const QString &name) {
+    // \A and \z, not ^ and $: a dollar sign also matches before a final newline.
+    static const QRegularExpression pattern(
+        QStringLiteral("\\A[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?\\z"));
+    return pattern.match(name).hasMatch();
+}
+
+CatalogPackage loadCatalogLibraryEntry(const QString &folder, const QString &name) {
+    require(isCatalogLibraryName(name),
+            "Catalog library names are 1 to 64 letters, digits, spaces, dots, underscores or "
+            "hyphens, starting and ending with a letter, digit, underscore or hyphen");
+    require(!folder.isEmpty(), "This platform has no catalog library folder");
+    const QFileInfo info(QDir(folder).filePath(name + QStringLiteral(".sketchycat")));
+    require(info.exists(), "No catalog with that name is in the catalog library");
+    require(!info.isSymLink() && info.isFile(),
+            "Catalog library entries must be regular files, not links or folders");
+    return loadCatalog(info.absoluteFilePath());
+}
+
+CatalogLibrary scanCatalogLibrary(const QString &folder) {
+    constexpr qsizetype scanByteLimit = 256 * 1024 * 1024;
+    CatalogLibrary result;
+    if (folder.isEmpty() || !QFileInfo::exists(folder))
+        return result;
+    const QFileInfo directory(folder);
+    require(directory.isDir() && directory.isReadable(),
+            "Choose a readable catalog library folder");
+    qsizetype readBytes{};
+    std::size_t visited{};
+    QDirIterator files(directory.absoluteFilePath(), QDir::Files | QDir::NoDotAndDotDot);
+    while (files.hasNext()) {
+        files.next();
+        if (++visited > 4096) {
+            result.notices.append(
+                "Stopped after 4096 folder entries. Use a smaller catalog library.");
+            break;
+        }
+        const auto fileInfo = files.fileInfo();
+        if (fileInfo.suffix().compare(QStringLiteral("sketchycat"), Qt::CaseInsensitive) != 0)
+            continue;
+        if (result.entries.size() == 128) {
+            result.notices.append(
+                "Showing at most 128 catalogs. Split this folder into smaller ones.");
+            break;
+        }
+        CatalogLibraryEntry entry;
+        entry.name = fileInfo.completeBaseName();
+        try {
+            require(!fileInfo.isSymLink() && fileInfo.isFile(),
+                    "Catalog entries must be regular files, not links or folders");
+            require(isCatalogLibraryName(entry.name),
+                    "This file name cannot be used as a catalog library reference");
+            require(fileInfo.size() >= qsizetype(headerSize) &&
+                        fileInfo.size() <= qsizetype(libraryBundleLimit),
+                    "Catalog file exceeds size limits");
+            require(fileInfo.size() <= scanByteLimit - readBytes,
+                    "Catalog scan reached its 256 MiB read budget. Use a smaller catalog library.");
+            const auto package = loadCatalog(fileInfo.absoluteFilePath());
+            readBytes += package.file.size();
+            entry.catalogId = package.metadata.catalogId;
+            entry.version = package.metadata.version;
+            entry.entryCount = qsizetype(package.entries.size());
+            for (const auto &item : package.entries)
+                entry.importableCount += item.importable ? 1 : 0;
+        } catch (const std::exception &error) {
+            entry.error = QString::fromUtf8(error.what()).left(512);
+        }
+        result.entries.push_back(std::move(entry));
+    }
+    std::sort(result.entries.begin(), result.entries.end(), [](const auto &a, const auto &b) {
+        const auto comparison = QString::compare(a.name, b.name, Qt::CaseInsensitive);
+        return comparison ? comparison < 0 : a.name < b.name;
+    });
+    return result;
+}
+
+QJsonObject encodeCatalogLibrary(const CatalogLibrary &library) {
+    QJsonArray catalogs;
+    for (const auto &entry : library.entries) {
+        QJsonObject record{{"name", entry.name}};
+        if (entry.error.isEmpty()) {
+            record["catalogId"] = entry.catalogId;
+            record["version"] = entry.version;
+            record["entryCount"] = int(entry.entryCount);
+            record["importableCount"] = int(entry.importableCount);
+        } else {
+            record["error"] = entry.error;
+        }
+        catalogs.append(record);
+    }
+    QJsonArray notices;
+    for (const auto &notice : library.notices)
+        notices.append(notice);
+    return {{"catalogCount", int(library.entries.size())},
+            {"catalogs", catalogs},
+            {"notices", notices}};
 }
 } // namespace sketchy

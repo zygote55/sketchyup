@@ -77,11 +77,29 @@ inline QByteArray flipPayloadByte(QByteArray file, qsizetype payloadOffset) {
     file[24 + manifestSize + payloadOffset] = char(file[24 + manifestSize + payloadOffset] ^ 0x5a);
     return file;
 }
+// R100.d: a textured material and an edge-textured style that share one asset, and a block. The
+// component has a fixed identity, so the bytes are reproducible and the committed file matches.
+inline QByteArray edgeTexture() {
+    const auto s = source();
+    CatalogBuilder builder(metadata());
+    const auto oak = builder.addAsset("Oak texture", "image/png", texture());
+    auto style = s.document.style();
+    style.profiles = true;
+    style.profileWidth = 2;
+    style.edgeStroke = EdgeStroke{3, 0.5, EdgeDash::Dashed, oak};
+    builder.addStyle("Edge style", "Dashed edges", style, {{CatalogDependency::Kind::Asset, oak}});
+    builder.addMaterial("Oak", "Textured oak", {"Oak", {0.6f, 0.45f, 0.3f}, 0.8f, oak});
+    builder.addComponent("Block", "One block", s.document, s.definition, {},
+                         "0123456789abcdef0123456789abcdef");
+    return builder.encode();
+}
+
 inline QMap<QString, QByteArray> fixtures() {
     const auto good = basic();
     const auto decoded = decodeCatalog(good);
     QMap<QString, QByteArray> result;
     result.insert("basic", good);
+    result.insert("edge-texture", edgeTexture());
     // The "Oak" material (entry 1) names asset 9, which the catalog does not hold.
     result.insert("missing-dependency", withManifest(good, [](QJsonObject &m) {
                       auto entries = m["entries"].toArray();

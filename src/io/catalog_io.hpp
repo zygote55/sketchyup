@@ -129,4 +129,29 @@ QByteArray catalogAssetBytes(const CatalogPackage &package, const CatalogAssetRe
 QByteArray catalogEntryPayload(const CatalogPackage &package, const CatalogEntryReport &entry);
 // The read-only listing shape of `catalog.list`: kind, name and importable state per entry.
 QJsonObject encodeCatalogListing(const CatalogPackage &package);
+
+// The catalog library (ADR 0174 section 4, the R100.d reference decision): a user-level folder of
+// `.sketchycat` files, beside the style folder of R100.a. A catalog is named, never given as a
+// path: MCP and the session pass `{"library": "<name>"}`, and the name is the file's base name.
+// The folder is `catalogLibraryFolder()`; its files are bounded like the style folder scan.
+QString catalogLibraryFolder();
+// A name is 1 to 64 letters, digits, spaces, dots, underscores or hyphens. It starts and ends with
+// a letter, digit, underscore or hyphen, so no separator, dot-prefix or link can be named.
+bool isCatalogLibraryName(const QString &name);
+// Loads `<folder>/<name>.sketchycat`. A missing file, a link or a non-file is refused by name.
+CatalogPackage loadCatalogLibraryEntry(const QString &folder, const QString &name);
+
+struct CatalogLibraryEntry {
+    QString name, catalogId, version;
+    qsizetype entryCount{}, importableCount{};
+    QString error; // empty when the file decodes; the name then cannot be referenced if refused
+};
+struct CatalogLibrary {
+    std::vector<CatalogLibraryEntry> entries;
+    QStringList notices;
+};
+// Scans a flat folder: at most 4096 folder entries and 128 catalogs, each fully decoded, within a
+// 256 MiB read budget. A folder that does not exist is an empty library.
+CatalogLibrary scanCatalogLibrary(const QString &folder);
+QJsonObject encodeCatalogLibrary(const CatalogLibrary &library);
 } // namespace sketchy

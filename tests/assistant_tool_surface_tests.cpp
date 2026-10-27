@@ -45,13 +45,13 @@ std::vector<ToolSurface> surfaces() {
     QStringList every;
     for (const auto &entry : commandCatalog()) {
         const auto name = entry.toObject()["name"].toString();
-        // Drawing-sheet, component parameter, site, terrain, camera path, render preset and style
-        // commands are never assistant-authorizable (ADR 0164, ADR 0165 §6, ADR 0168 §5, ADR 0173
-        // §7, ADR 0174 decision 9).
+        // Drawing-sheet, component parameter, site, terrain, camera path, render preset, style and
+        // catalog commands are never assistant-authorizable (ADR 0164, ADR 0165 §6, ADR 0168 §5,
+        // ADR 0173 §7, ADR 0174 decision 9 and section 7).
         if (!name.startsWith("drawing_") && !name.startsWith("component_parameter") &&
             !name.startsWith("site.") && !name.startsWith("terrain.") &&
             !name.startsWith("camera_path.") && !name.startsWith("render_preset.") &&
-            !name.startsWith("style."))
+            !name.startsWith("style.") && !name.startsWith("catalog."))
             every.append(name);
     }
     return {{"inspection-only", {}, false},
