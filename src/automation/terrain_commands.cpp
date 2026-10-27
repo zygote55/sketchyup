@@ -1,18 +1,19 @@
 #include "automation/terrain_commands.hpp"
-#include "core/terrain.hpp"
+#include "core/component_validation.hpp"
 #include "core/document_limits.hpp"
+#include "core/groups.hpp"
+#include "core/material_records.hpp"
+#include "core/terrain.hpp"
 #include "core/terrain_display.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_mesh_view.hpp"
 #include "core/terrain_sculpt.hpp"
-#include "core/terrain_stamp.hpp"
-#include "core/terrain_drape.hpp"
-#include "core/component_validation.hpp"
-#include "core/groups.hpp"
-#include "core/material_records.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sources.hpp"
+#include "core/terrain_stamp.hpp"
+#include "geo/geographic.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_io.hpp"
 #include <QElapsedTimer>
@@ -49,6 +50,47 @@ void onlyFields(const QJsonObject &command, std::initializer_list<const char *> 
         if (std::none_of(allowed.begin(), allowed.end(),
                          [&](const char *name) { return it.key() == name; }))
             reject("INVALID_REQUEST", "Unknown command parameter");
+}
+// A JSON string array of the names in a schema enumeration.
+template <class Names> QJsonArray stringList(const Names &names) {
+    QJsonArray values;
+    for (const auto name : names)
+        values.append(QString::fromLatin1(name.data(), qsizetype(name.size())));
+    return values;
+}
+// The geographic record of a site.set_geographic command (ADR 0181 §2.1, R107.a). The zone
+// defaults to the zone of the longitude; the position is checked against the origin by
+// setSiteGeographic, so the refusals name the datum, the band or the origin.
+SiteGeographic geographicFromCommand(const QJsonObject &command) {
+    auto number = [&](const char *key) {
+        if (!command.contains(key) || !command[key].isDouble())
+            reject("INVALID_REQUEST", std::string("Expected a number for ") + key);
+        return command[key].toDouble();
+    };
+    SiteGeographic record;
+    record.latitude = number("latitude");
+    record.longitude = number("longitude");
+    record.datum = command.contains("datum") ? text(command, "datum") : "WGS84";
+    record.verticalReference =
+        command.contains("verticalReference") ? text(command, "verticalReference") : "unknown";
+    record.provenance = {command.contains("provenance") ? text(command, "provenance") : "typed",
+                         text(command, "source"), text(command, "sha256")};
+    try {
+        if (command.contains("zone")) {
+            const double zone = number("zone");
+            if (zone != std::floor(zone))
+                reject("INVALID_REQUEST", "The UTM zone is a whole number");
+            record.utmZone = int(zone);
+        } else {
+            record.utmZone = utmZoneOfLongitude(record.longitude);
+        }
+        const GeoPosition position{record.latitude, record.longitude};
+        record.utmNorth = geoToUtm(position, record.utmZone).north;
+        record.convergence = utmGridConvergence(position, record.utmZone);
+    } catch (const std::runtime_error &error) {
+        reject("INVALID_REQUEST", error.what());
+    }
+    return record;
 }
 QJsonObject origin(const SiteOrigin &site) {
     return {{"easting", site.easting},
@@ -2410,7 +2452,8 @@ QJsonObject terrainDisplayJson(const TerrainDisplay &display) {
                                                                           : "material"}};
 }
 bool isTerrainCommand(const QString &name) {
-    return name == "site.set" || name == "site.reanchor" || name == "terrain.explode" ||
+    return name == "site.set" || name == "site.reanchor" || name == "site.set_geographic" ||
+           name == "site.clear_geographic" || name == "terrain.explode" ||
            name == "terrain.import" || name == "terrain.create_from_edges" ||
            name == "terrain.set_parameters" || name == "terrain.regenerate" ||
            name == "terrain.set_display" || name == "terrain.reset_edits" ||
@@ -2619,6 +2662,17 @@ ChangeReport executeTerrainCommand(Document &doc, const QJsonObject &command,
         return reanchorSite(doc, coordinate(command["easting"]), coordinate(command["northing"]),
                             command.contains("elevation") ? coordinate(command["elevation"])
                                                           : doc.site()->elevation);
+    }
+    if (name == "site.set_geographic") {
+        onlyFields(command, {"command", "latitude", "longitude", "zone", "datum",
+                             "verticalReference", "provenance", "source", "sha256"});
+        setSiteGeographic(doc, geographicFromCommand(command));
+        return {};
+    }
+    if (name == "site.clear_geographic") {
+        onlyFields(command, {"command"});
+        setSiteGeographic(doc, std::nullopt);
+        return {};
     }
     if (name == "terrain.explode") {
         onlyFields(command, {"command", "body"});
@@ -2839,6 +2893,36 @@ QJsonArray terrainCommandSpecs() {
               {"northing", metres("New projected northing of the model origin, metres")},
               {"elevation", metres("New site elevation of model Z = 0; default unchanged")}},
              {"easting", "northing"}),
+        // ADR 0181 §2.1 (R107.a): the origin's WGS84 position, which must be its UTM position.
+        spec("site.set_geographic", "Set site geographic location",
+             {{"latitude", QJsonObject{{"type", "number"},
+                                       {"minimum", -80},
+                                       {"maximum", 84},
+                                       {"description", "WGS84 latitude in degrees, within the "
+                                                       "UTM band (80°S to 84°N)"}}},
+              {"longitude", QJsonObject{{"type", "number"},
+                                        {"minimum", -180},
+                                        {"maximum", 180},
+                                        {"description", "WGS84 longitude in degrees"}}},
+              {"zone", QJsonObject{{"type", "integer"},
+                                   {"minimum", 1},
+                                   {"maximum", 60},
+                                   {"description", "UTM zone; default the zone of the longitude"}}},
+              {"datum", QJsonObject{{"type", "string"},
+                                    {"maxLength", 16},
+                                    {"description", "WGS84; NAD83 as a labelled approximation "
+                                                    "(warned); other datums are refused"}}},
+              {"verticalReference",
+               QJsonObject{{"type", "string"},
+                           {"enum", stringList(siteVerticalReferences)},
+                           {"description", "Vertical reference of the origin's elevation"}}},
+              {"provenance",
+               QJsonObject{{"type", "string"}, {"enum", stringList(siteProvenanceKinds)}}},
+              {"source", QJsonObject{{"type", "string"}, {"maxLength", 256}}},
+              {"sha256",
+               QJsonObject{{"type", "string"}, {"pattern", "^[0-9a-f]{64}$"}, {"maxLength", 64}}}},
+             {"latitude", "longitude"}),
+        spec("site.clear_geographic", "Clear site geographic location", {}, {}),
         spec("terrain.explode", "Explode terrain",
              {{"body", QJsonObject{{"type", "string"},
                                    {"pattern", "^[1-9][0-9]*$"},
@@ -2904,8 +2988,8 @@ QJsonArray terrainCommandSpecs() {
                                  {"description", "Model [x, y] choosing the nearest contour line "
                                                  "when several lie at the level"}}}},
              {"terrain"}),
-        spec("terrain.remove_source", "Remove contour", {{"terrain", terrainId}, {"source", sourceId}},
-             {"terrain", "source"}),
+        spec("terrain.remove_source", "Remove contour",
+             {{"terrain", terrainId}, {"source", sourceId}}, {"terrain", "source"}),
         // R096.b (ADR 0169 §4.1): one of path (brush) or region; amount for raise, strength
         // and iterations for smooth.
         spec("terrain.sculpt", "Sculpt terrain",
@@ -2970,19 +3054,19 @@ QJsonArray terrainCommandSpecs() {
                     "{polygon}: model points [x, y] or [x, y, z] (at most 20,000, simple, no "
                     "holes)"},
                    {"properties",
-                    QJsonObject{{"body", idSchema},
-                                {"face", idSchema},
-                                {"edges", QJsonObject{{"type", "array"},
-                                                      {"maxItems", int(terrainEdgeLimit)},
-                                                      {"items", edgeSchema}}},
-                                {"polygon",
-                                 QJsonObject{{"type", "array"},
-                                             {"minItems", 3},
-                                             {"maxItems", int(terrainStampFootprintPoints) + 1},
-                                             {"items", QJsonObject{{"type", "array"},
-                                                                   {"items", coordinateSchema},
-                                                                   {"minItems", 2},
-                                                                   {"maxItems", 3}}}}}}},
+                    QJsonObject{
+                        {"body", idSchema},
+                        {"face", idSchema},
+                        {"edges", QJsonObject{{"type", "array"},
+                                              {"maxItems", int(terrainEdgeLimit)},
+                                              {"items", edgeSchema}}},
+                        {"polygon", QJsonObject{{"type", "array"},
+                                                {"minItems", 3},
+                                                {"maxItems", int(terrainStampFootprintPoints) + 1},
+                                                {"items", QJsonObject{{"type", "array"},
+                                                                      {"items", coordinateSchema},
+                                                                      {"minItems", 2},
+                                                                      {"maxItems", 3}}}}}}},
                    {"additionalProperties", false}}},
               {"elevation", metres("Pad elevation (model Z, metres); default the footprint's own "
                                    "height")},
@@ -3019,16 +3103,16 @@ QJsonArray terrainCommandSpecs() {
                                     {"description", "Model edges and curves {body, edge} in any "
                                                     "context, projected vertically; chained as "
                                                     "terrain.create_from_edges chains them"}}},
-              {"faces", QJsonObject{{"type", "array"},
-                                    {"maxItems", int(terrainDrapeFaceLimit)},
-                                    {"items", QJsonObject{{"type", "object"},
-                                                          {"properties",
-                                                           QJsonObject{{"body", idSchema},
-                                                                       {"face", idSchema}}},
-                                                          {"required", QJsonArray{"body", "face"}},
-                                                          {"additionalProperties", false}}},
-                                    {"description", "Model faces {body, face} in any context; "
-                                                    "every loop is draped"}}},
+              {"faces",
+               QJsonObject{{"type", "array"},
+                           {"maxItems", int(terrainDrapeFaceLimit)},
+                           {"items", QJsonObject{{"type", "object"},
+                                                 {"properties", QJsonObject{{"body", idSchema},
+                                                                            {"face", idSchema}}},
+                                                 {"required", QJsonArray{"body", "face"}},
+                                                 {"additionalProperties", false}}},
+                           {"description", "Model faces {body, face} in any context; "
+                                           "every loop is draped"}}},
               {"mode", QJsonObject{{"type", "string"},
                                    {"enum", QJsonArray{"imprint", "overlay"}},
                                    {"description", "imprint: split the terrain's triangles along "
@@ -3099,14 +3183,39 @@ QJsonObject siteDescription(const Document &doc) {
                 {"units", "m"},
                 {"conversion", "Set a site origin to convert between model and site coordinates"}};
     const auto &site = *doc.site();
-    return {{"established", true},
-            {"units", "m"},
-            {"origin", origin(site)},
-            {"crs", QString::fromStdString(site.crs)},
-            {"crsUse", "label only; coordinates are never reprojected"},
-            {"provenance", QJsonObject{{"source", QString::fromStdString(site.established.source)},
-                                       {"sha256", QString::fromStdString(site.established.sha256)}}},
-            {"conversion", "site = model + origin; model = site - origin"}};
+    QJsonObject description{
+        {"established", true},
+        {"units", "m"},
+        {"origin", origin(site)},
+        {"crs", QString::fromStdString(site.crs)},
+        {"crsUse", "label only; coordinates are never reprojected"},
+        {"provenance", QJsonObject{{"source", QString::fromStdString(site.established.source)},
+                                   {"sha256", QString::fromStdString(site.established.sha256)}}},
+        {"conversion", "site = model + origin; model = site - origin"}};
+    if (site.geographic) {
+        // ADR 0181 §2.1 and §2.6: the record, its read-only grid convergence, and the NAD83
+        // warning.
+        const auto &record = *site.geographic;
+        description["geographic"] = QJsonObject{
+            {"latitude", record.latitude},
+            {"longitude", record.longitude},
+            {"datum", QString::fromStdString(record.datum)},
+            {"utmZone", record.utmZone},
+            {"utmHemisphere", record.utmNorth ? "north" : "south"},
+            {"convergence", record.convergence},
+            {"convergenceUse",
+             "read only: grid north is this many degrees clockwise of true north; "
+             "the model is never rotated by it"},
+            {"verticalReference", QString::fromStdString(record.verticalReference)},
+            {"provenance",
+             QJsonObject{{"kind", QString::fromStdString(record.provenance.kind)},
+                         {"source", QString::fromStdString(record.provenance.source)},
+                         {"sha256", QString::fromStdString(record.provenance.sha256)}}}};
+        if (record.datum == "NAD83")
+            description["warnings"] =
+                QJsonArray{"NAD83 is treated as WGS84: a labelled approximation (ADR 0181 §2.3)"};
+    }
+    return description;
 }
 QJsonObject siteConversion(const Document &doc, const QString &to, const QJsonArray &points) {
     if (!doc.site())
