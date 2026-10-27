@@ -38,9 +38,10 @@
   "build": {
     "timedBuild": "Release (CMAKE_BUILD_TYPE=Release, GCC 16.2.1, -O3 -DNDEBUG), build/release, BFD linker, SKETCHYUP_BUILD_DESKTOP=OFF, SKETCHYUP_BUILD_CLI=ON, Qt 6.12.0",
     "machine": "22 CPU threads, 30 GB RAM; other workers built and tested during several runs; the 1-minute load average is recorded with each series",
-    "fixture": "quantities-b, 10,000 placements, 30,257 records, written by report_benchmark --write-fixture (12,531,874 bytes for the CLI runs)"
+    "fixture": "quantities-b, 10,000 placements, 30,257 records, written by report_benchmark --write-fixture (12,531,874 bytes for the CLI runs)",
+    "v7Build": "Debug (the dev preset: CMAKE_BUILD_TYPE=Debug, build/dev, CLI off, GCC 16.2.1, Qt 6.12.0), offscreen (QT_QPA_PLATFORM=offscreen), 99,996 faces, 24,999 records, 8,333 placements; the brief asked for Debug"
   },
-  "status": "partial: nine of twelve clauses pass; V6, V7 and V12 are partial; the panel re-run budget is missed in one of four series and is frozen as a fail",
+  "status": "partial: eleven of twelve clauses pass; V7 is partial: the UI gap at the trigger is 324 to 330 ms in Debug against 250 ms (cancel met, 11 to 30 ms); the panel re-run budget is met, marginal (p95 at most 985 ms in six of seven series)",
   "verifyLine": "partial",
   "checks": {
     "V1": "pass: report components() V1 asserts; CLI definition and tag groups (BoxP 3, Table 12 placements, Boxes 3 / 12 m3 / 48 m2)",
@@ -48,19 +49,20 @@
     "V3": "pass: report quantitiesA(); report_output metadataMatrix; CLI default 82.4 m3 and 40,259.20 m2, visible 79.4 m3 and 40,241.20 m2, #filters.visibility=visible",
     "V4": "pass with the ADR chain area corrected from 9 m2 to 54 m2 (owner decision 4): report transforms(); the default CSV equals its golden",
     "V5": "pass: report quantitiesA() (Stash x2 adds 7 m3 and 18 m2; revision advances; undo restores under a higher revision); not scripted (no CLI edit command)",
-    "V6": "partial: report invalidSolids() covers open_boundary, non_manifold and analysis_limit; degenerate cannot be built through the public API (owner decision 3); CLI invalid rows and unvalidated 2 verified",
-    "V7": "partial: quantities_input_tests computing, Cancel, supersede and Escape on quantities-a (CI X11 1x, 2x, Wayland 1x, 2x); engine cancel measured 0.05 to 2.80 ms in Release but not asserted in CI; no UI run on a large model",
+    "V6": "pass: report invalidSolids() covers open_boundary, non_manifold and analysis_limit; the degenerate row is dropped (decision 3: no public-API body reaches it); CLI invalid rows and unvalidated 2 verified",
+    "V7": "partial: quantities_large_input_tests (R101.f, new) on the 99,996-face re-run model, Debug, offscreen, five runs. Cancel: the computing line goes 10.6, 17.4 and 29.7 ms after the click in the three final runs (14.5 and 10.9 ms in two earlier), bound 100 ms: met. UI gap: the longest gap from the trigger to the result is 329.7, 324.2 and 326.2 ms in the three final runs (504.5 and 322.9 ms in two earlier), bound 250 ms: not met; it is before the event loop runs (the edit under 1 ms, the synchronous Viewport::changed slots 321 to 327 ms); after the first tick the longest gap is 13.6, 20.0 and 16.9 ms. quantities_input_tests on quantities-a (sections 3 and 4) passes",
     "V8": "pass: report unitsAndPrecision() and report_output metadataMatrix(); CLI header #units.length=m, #units.area=m2, #units.volume=m3, #precision=full; mm and ft-in in-process only",
     "V9": "pass: report quantitiesA(); CLI header #documentId and #revision; repeated run identical",
     "V10": "pass: report_output csvDialect, quoting, goldens (repeat runs identical), pins (SHA-256); CLI reproduces all four goldens byte for byte",
     "V11": "pass: report_schedule storeRoundTrip, bitIdenticalSave, identityGuard; report_schedule_cli flags, identityGuard; CLI save leaves the model SHA-256 unchanged, scheduled CSV equals ad-hoc except the marker line, WRONG_DOCUMENT refusal writes nothing",
-    "V12": "partial: report_cli writesNewFileOnly and refusesBadFlags; report_output sessionParity; report_mcp runParity; CLI FILE_EXISTS and format refusals verified. The CSV is byte-identical to the session's CSV; the JSON file omits the session-only body IDs (owner decision 2)"
+    "V12": "pass: report_cli writesNewFileOnly and refusesBadFlags; report_output sessionParity; report_mcp runParity; CLI FILE_EXISTS and format refusals verified. The CSV is byte-identical to the session's CSV; the JSON file is the session's data less the session-only body IDs (decision 2; the clause is amended to this wording)"
   },
   "testRuns": {
     "localRelease": "ctest report, report_output, report_schedule, report_cli, report_schedule_cli, report_mcp: 6 of 6 pass (18.6 s)",
     "mainFastTier": "report suites in fast-tier shards 3, 4 and 5 pass; quantities_input_tests X11 1x (fast shard 1/2) all checks passed",
     "mainNightly": "Development build and checks: 262 of 262 CTest tests pass, including the six report suites, mcp and assistant_tool_surface",
-    "prFullCi": "Development build and checks: 266 of 266 CTest tests pass"
+    "prFullCi": "Development build and checks: 266 of 266 CTest tests pass",
+    "localDebug": "quantities_large_input_tests: five runs (three final, two earlier); report_tests, report_output_tests and report_schedule_tests pass; quantities_input_tests all checks passed (offscreen)"
   },
   "nativeMatrix": {
     "scope": "Linux x86_64 only, as docs/SUPPORT_MATRIX.md states; Windows and macOS not run, as R098d did",
@@ -75,8 +77,13 @@
     "notRun": [
       "Windows and macOS (not in the support matrix)",
       "200 % text (UX_DESIGN section 19.10)",
-      "a large-model UI run of the computing and Cancel states"
-    ]
+      "a Release build of the large-model UI run (the V7 numbers are Debug, as the brief asked)",
+      "the desktop panel's own timing (the re-run is measured on the engine pass it calls)",
+      "the quantities-b shape with terrain under the panel re-run (outside the 100,000-face row)"
+    ],
+    "quantities_large_input_tests": {
+      "x11_1x": "new line in the X11 1x job, run by the fast tier and the full tier; Debug local run: cancel met, UI gap not met (see checks.V7)"
+    }
   },
   "sanitizers": {
     "prFullCi": "Sanitized builds job 122400019710: 137 of 137 CTest tests pass, including the six report suites; no sanitizer report in the log",
@@ -116,8 +123,8 @@
     },
     "panelRerun100kFaces": {
       "budget": "p95 <= 1 s, off the UI thread (owner change of 2026-10-27)",
-      "measured": "99,996 faces, run and description p95 per series of 200: 965.3, 1096.7, 569.4, 800.0 ms (medians 549.6, 849.7, 501.7, 501.4 ms); engine-only p95 942.9, 995.4, 561.0, 786.9 ms; load at start 3.8, 6.5, 2.8, 1.8",
-      "verdict": "fail at 1,096.7 ms (series 2, under load); three of four series met it; owner decision 1"
+      "measured": "99,996 faces, seven series of 200 runs, run and description p95: 965.3, 1096.7, 569.4, 800.0, 985.2, 725.8, 837.7 ms; medians 549.6, 849.7, 501.7, 501.4, 482.3, 476.2, 684.3 ms; engine-only p95 942.9, 995.4, 561.0, 786.9, 954.8, 725.5, 844.5 ms; load at start 3.8, 6.5, 2.8, 1.8, 1.42, 1.24, 1.44; the first four are the first draft's, the last three the parent's (14:38, 15:10, 15:15)",
+      "verdict": "met, marginal (decision 1): six of seven series under 1 s (569 to 985 ms); the one miss, 1,096.7 ms, started at load 6.5; the headroom is small"
     },
     "csvWrite100kRows": {
       "budget": "<= 10 s for 100,000 rows; output <= 256 MiB",
@@ -133,39 +140,53 @@
       "budget": "peak <= 512 MiB; no cross-run cache",
       "measured": "VmHWM median 282,824 kB of 5 (282,200 to 284,280 kB), about 276 MiB; VmRSS before the runs 226,108 kB; no cache is a design property, not measured",
       "verdict": "pass"
+    },
+    "uiGapV7": {
+      "budget": "longest gap of a 10 ms UI timer from the trigger to the result < 250 ms (the brief's V7 bound)",
+      "measured": "Debug, 99,996 faces: 329.7, 324.2 and 326.2 ms in the three final runs (504.5 and 322.9 ms in two earlier); all at the trigger, before the event loop runs; the synchronous Viewport::changed slots take 321 to 327 ms and the edit under 1 ms; one diagnostic run: the snapshot copy alone 26.1 ms, the trigger with the Quantities section hidden 379.8 ms",
+      "verdict": "not met, Debug build; the cost is outside the Quantities panel (its refresh adds nothing measurable)"
+    },
+    "cancelV7": {
+      "budget": "<= 100 ms from the click until the computing state is gone (ADR 0175 V7 and section 5)",
+      "measured": "10.6, 17.4 and 29.7 ms in the three final runs; 14.5 and 10.9 ms in two earlier; Debug, offscreen",
+      "verdict": "met"
     }
   },
   "findings": [
-    "The panel re-run p95 is 1,096.7 ms in one of four series, against the 1 s budget; the other three series (965, 569, 800 ms) met it (owner decision 1)",
-    "V6: no public-API body reaches the degenerate status (R101.a point 6); two statuses and the analysis_limit case are tested, not three",
-    "V7: the UI check runs on quantities-a, not on a large model; the 100 ms cancel is measured here, not asserted in CI",
-    "V12: the exported JSON omits the session-only body IDs, so it is not byte-identical to the session result (owner decision 2)",
+    "V7 gap bound not met: the UI thread is blocked for 324 to 330 ms at the trigger (Debug), before the event loop runs. The cost is in the synchronous Viewport::changed slots, outside the Quantities panel (hidden: 380 ms; snapshot copy 26 ms). After the first tick the longest gap is 14 to 20 ms.",
+    "The large-model suite fails its gap assertion as committed; the bound is not changed (brief: report the number and stop)",
+    "The panel re-run p95 is 1,096.7 ms in one of seven series (load 6.5), and 569 to 985 ms in the other six; headroom is small (decision 1: met, marginal)",
+    "The 250 ms gap bound is the brief's; ADR 0175 gives no number for the UI gap, and 250 ms is the superseded re-run budget",
+    "ADR 0175 has no section 14; the record and the R101.e1 notes cite a '§14 trigger' for a per-body cache (stale reference, flagged)",
     "Qt prints a grabbing-popup warning for quantitiesTagsPopupWindow in both Wayland cells; the cause is not investigated",
     "Two compiler warnings in the desktop build: quantities_panel.cpp:882 (missing field initializers) and quantities_input_tests.cpp:100 (ignored qWaitFor result)",
     "The 200 % text check and the Rename, Export CSV and Export JSON keyboard audit are not run (R101.e2)",
     "The 256 MiB CSV refusal is not exercised (R101.b)",
     "The sheet row of ADR section 11 is not built as written; the drawing-sheets-v27 metadata is checked instead",
     "No fuzz campaign exists for the report engine or the CSV writer",
-    "The budgets are not enforced in CI: report_benchmark is EXCLUDE_FROM_ALL and no CI job runs it",
-    "No CHANGELOG entry for the Quantities panel (R101.e1 and R101.e2); the acceptance precedents add none"
+    "The budgets are not enforced in CI (decision 5: measured records, re-measured at each release)",
+    "No CHANGELOG entry for the Quantities panel (decision 6: one R101 entry at the release that carries it)"
   ],
   "ownerDecisions": [
-    "1 Panel re-run budget: measure on the owner's own desktop first (recommended); else a per-body solid-analysis cache (ADR section 14), or change the budget",
-    "2 V12: accept the JSON file's omission of session-only body IDs and amend the V12 wording (recommended)",
-    "3 V6: drop the degenerate row, since no public-API body reaches it (recommended)",
-    "4 ADR section 11 corrections: chain 54 m2, area total 40,259.2 m2, 120 contexts, 2 unvalidated (recommended: approve)",
-    "5 Budgets in CI: keep them as measured records at each release (recommended)",
-    "6 CHANGELOG entry for the panel at the release that carries R101 (recommended)",
-    "7 Platform scope: Linux only, and amend the ADR's Implementation split text (recommended)"
+    "1 Panel re-run budget: decided by measurement, met marginal (seven series; p95 at most 985 ms in six; 1,097 ms in one, under load). Decided 2026-10-27; the owner can reopen it",
+    "2 V12: decided as recommended on 2026-10-27; the clause is amended to byte-identical to the session's data less the session-only body IDs",
+    "3 V6: decided as recommended on 2026-10-27; the degenerate row is dropped",
+    "4 ADR section 11 corrections: decided as recommended on 2026-10-27; approved and applied (chain 54 m2, area 40,259.2 m2, 40,241.2 m2 visible, 120 contexts, 2 unvalidated)",
+    "5 Budgets in CI: decided as recommended on 2026-10-27; measured records, re-measured at each release that carries R101, not CI checks",
+    "6 CHANGELOG entry: decided as recommended on 2026-10-27; one entry for R101 at the release that carries it, by the release preparation",
+    "7 Platform scope: decided as recommended on 2026-10-27; Linux x86_64 only, and the ADR's Implementation split text is amended"
   ],
   "publication": {
-    "adr0175": "status line, section 12 table with measured figures and verdicts, Implementation notes (R101.f)",
+    "adr0175": "status line, section 11 corrections and V6 and V12 wording, section 12 table with the seven series and the verdict, the Implementation split (Linux only), Implementation notes (R101.f)",
     "supportMatrix": "row 'Quantities, reports and schedules (F07, not in the 1.3.0 declaration)' in Exchange boundaries",
     "userGuide": "section 'Quantities, reports and schedules' after 'Terrain and site tools'",
-    "roadmap": "R101 status: Delivered, with open findings",
-    "changelog": "none; the acceptance precedents add none (finding)"
+    "roadmap": "R101 status: Delivered, with open findings: V7",
+    "changelog": "none in this record; decision 6 gives one R101 entry at the release that carries it"
   },
-  "testsAdded": [],
+  "testsAdded": [
+    "tests/quantities_large_input_tests.cpp: the V7 large-model suite (new fast-tier line in the X11 1x job, native.yml, 120 s deadline)",
+    "tests/report_fixtures.hpp: buildPartsModel, the re-run model moved from tests/report_benchmark.cpp; buildQuantitiesB calls it (same steps, same model)"
+  ],
   "productCodeChanged": false,
   "notRun": [
     "Windows and macOS builds and tests",
