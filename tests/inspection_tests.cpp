@@ -1,4 +1,6 @@
 #include "automation/inspection.hpp"
+#include "catalog_fixtures.hpp"
+#include "automation/presentation_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "core/components.hpp"
 #include "core/component_parameters.hpp"
@@ -79,6 +81,9 @@ bool near(QJsonValue value, Vec3 expected) {
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    // R100.d: the catalog library is read from the user's data folder, so this run gets its own.
+    QTemporaryDir dataHome;
+    qputenv("XDG_DATA_HOME", dataHome.path().toUtf8());
     try {
         auto room = loadDocument(QString(SOURCE_DIR) + "/examples/m4-room-study.sketchyup");
         Id roomRoot{}, window{};
@@ -357,6 +362,50 @@ int main(int argc, char **argv) {
                   ["snapshot"].toObject().contains("camera"), "Saved scene property inspection");
         check(all(sceneDocument, "saved_scene.visibility", {{"scene", QString::number(savedScene)}}).empty(),
               "Empty scene visibility query is a valid bounded page");
+        // Camera paths, render presets and the presentation plan check (ADR 0173 §7, decision 13).
+        auto pathView = savedView;
+        pathView.camera->yaw = 45;
+        const auto secondScene = createScene(sceneDocument, "View 2", pathView);
+        executePresentationCommand(
+            sceneDocument, QJsonObject{{"command", "camera_path.create"},
+                                       {"name", "Orbit"},
+                                       {"keyframes", QJsonArray{QString::number(savedScene),
+                                                                QString::number(secondScene)}},
+                                       {"timing", QJsonObject{{"framesPerSecond", 24},
+                                                              {"transitionSteps", 2},
+                                                              {"holdSteps", 1}}}});
+        const auto path = sceneDocument.cameraPaths().begin()->first;
+        check(run(sceneDocument, "camera_path.describe",
+                  {{"path", QString::number(path)}})["frames"] == 5,
+              "Camera path describe plans one plus hold and transition frames");
+        executePresentationCommand(sceneDocument, QJsonObject{{"command", "render_preset.create"},
+                                                              {"name", "Draft"},
+                                                              {"width", 64},
+                                                              {"height", 64},
+                                                              {"samples", 1},
+                                                              {"seed", 0},
+                                                              {"engine", "cycles"}});
+        const auto preset = sceneDocument.renderPresets().begin()->first;
+        check(run(sceneDocument, "render_preset.describe",
+                  {{"preset", QString::number(preset)}})["settings"]
+                      .toObject()["width"] == 64,
+              "Render preset describe reports its settings");
+        const auto plan = run(sceneDocument, "presentation.describe",
+                              {{"path", QString::number(path)},
+                               {"presets", QJsonArray{QString::number(preset)}},
+                               {"video", false}});
+        check(plan["framesPerPreset"] == 5 && plan["totalFrames"] == 5 &&
+                  plan["ready"].toBool() == plan["refusals"].toArray().isEmpty(),
+              "Presentation describe reports frames and ready only without refusals");
+        rejects("NOT_FOUND",
+                [&] { run(sceneDocument, "camera_path.describe", {{"path", "999"}}); });
+        // R100.a: the style export query names the file and changes nothing.
+        const auto styleRevision = sceneDocument.revision();
+        const auto styleFile = run(sceneDocument, "style.export", {{"name", "Scene style"}});
+        check(styleFile["name"] == "Scene style" && styleFile["bytes"].toDouble() > 0 &&
+                  sceneDocument.revision() == styleRevision,
+              "style.export returns the packaged style bytes and changes no revision");
+        rejects("INVALID_REQUEST", [&] { run(sceneDocument, "style.export", {}); });
         const auto drawingSheet = createDrawingSheet(sceneDocument, "Sheet", {420, 297});
         DrawingViewRecord drawingView;
         drawingView.name = "View";
@@ -507,6 +556,26 @@ int main(int argc, char **argv) {
             rejects("INVALID_REQUEST", [&] {
                 run(reported, "report.run", {{"request", QJsonObject{{"filters", QJsonObject{{"selection", true}}}}}});
             });
+        }
+        {
+            // R100.c (ADR 0174 section 4.1): catalog.list reads inline bytes and lists each entry.
+            Document catalogDocument;
+            const auto bytes = catalog_fixture::fixtures().value(QStringLiteral("tampered-asset"));
+            const auto listing = run(catalogDocument, "catalog.list",
+                                     {{"catalog", QString::fromLatin1(bytes.toBase64(
+                                                      QByteArray::Base64UrlEncoding |
+                                                      QByteArray::OmitTrailingEquals))}});
+            check(listing["entryCount"] == 5 && listing["importableCount"] == 3 &&
+                      listing["missingAssets"] == 1,
+                  "catalog.list lists each entry with its importable state");
+            // R100.d (ADR 0174 sections 4 and 7): the library starts empty in a fresh home, and
+            // the export query captures the document style without changing the document.
+            const auto library = run(catalogDocument, "catalog.library");
+            check(library["catalogCount"] == 0, "catalog.library lists nothing in a fresh home");
+            const auto exported = run(catalogDocument, "catalog.export",
+                                      {{"name", "Style kit"}, {"style", true}});
+            check(exported["command"] == "catalog.export" && !exported["data"].toString().isEmpty(),
+                  "catalog.export captures the document style as base64url");
         }
         QFile published(QString(SOURCE_DIR) + "/docs/api/inspection-v1.json");
         check(published.open(QIODevice::ReadOnly) &&

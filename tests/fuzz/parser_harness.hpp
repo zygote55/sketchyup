@@ -1,6 +1,8 @@
 #pragma once
 #include "automation/extension.hpp"
+#include "io/catalog_io.hpp"
 #include "io/dxf_source.hpp"
+#include "io/model_style_io.hpp"
 #include "io/gltf_import.hpp"
 #include "io/ifc_package.hpp"
 #include "io/library_bundle.hpp"
@@ -16,6 +18,7 @@
 #include <QtEndian>
 #include "parameter_expression_harness.hpp"
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QTemporaryDir>
 #include <cmath>
@@ -30,7 +33,7 @@ inline constexpr const char *formats[] = {
     "native-json", "native-container", "glb",       "stl-binary", "stl-ascii",           "obj",
     "dxf",         "template",         "component", "extension",  "parameter-expression",
     "terrain-mesh", "terrain-dxf",     "terrain-points", "terrain-edits", "ifc-package",
-    "skp-package",   "presentation"};
+    "skp-package",   "presentation",  "edge-style", "catalog"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -43,6 +46,35 @@ inline void coordinate(Vec3 point) {
     require(std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z) &&
                 std::abs(point.x) <= 1e6 && std::abs(point.y) <= 1e6 && std::abs(point.z) <= 1e6,
             "accepted coordinates satisfy native bounds");
+}
+// R100.c (ADR 0174 section 4): an accepted catalog agrees with its own verification. Every
+// asset and entry verdict matches its bytes, and an importable entry depends only on verified
+// assets and importable earlier entries.
+inline void catalogInvariants(const CatalogPackage &package) {
+    require(package.file.size() <= qsizetype(libraryBundleLimit), "accepted catalog within envelope");
+    const auto digest = [](const QByteArray &bytes) {
+        return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+    };
+    for (const auto &asset : package.assets)
+        require(asset.verified == (digest(catalogAssetBytes(package, asset)) == asset.sha256),
+                "asset verdict agrees with its bytes");
+    for (const auto &entry : package.entries) {
+        if (!entry.importable) {
+            require(!entry.reason.isEmpty(), "unimportable entry names its reason");
+            continue;
+        }
+        require(digest(catalogEntryPayload(package, entry)) == entry.sha256,
+                "importable entry matches its hash");
+        for (const auto &dependency : entry.dependencies) {
+            if (dependency.kind == CatalogDependency::Kind::Asset)
+                require(dependency.id <= package.assets.size() &&
+                            package.assets[dependency.id - 1].verified,
+                        "importable entry depends on verified assets");
+            else
+                require(dependency.id < entry.id && package.entries[dependency.id - 1].importable,
+                        "importable entry depends on importable earlier entries");
+        }
+    }
 }
 // R095.a: an accepted terrain-mesh chunk is within every limit and re-encodes to
 // exactly its input (the layout is canonical).
@@ -157,6 +189,12 @@ inline bool samePresentationTables(const PresentationTables &a, const Presentati
         if (!b.renderPresets.contains(id) || !(*b.renderPresets.at(id) == *preset))
             return false;
     return true;
+}
+// R100.a (ADR 0174 section 2): the width, opacity and dash bounds of an accepted edge stroke.
+inline void edgeStrokeInvariants(const EdgeStroke &stroke) {
+    require(std::isfinite(stroke.width) && stroke.width >= 1 && stroke.width <= 8 &&
+                std::isfinite(stroke.opacity) && stroke.opacity >= .01 && stroke.opacity <= 1,
+            "edge stroke within its width and opacity bounds");
 }
 inline void presentationInvariants(const PresentationTables &tables) {
     require(tables.cameraPaths.size() <= cameraPathCountLimit &&
@@ -394,6 +432,21 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             const auto again = decodePresentation(encoded);
             require(samePresentationTables(again, first) && encodePresentation(again) == encoded,
                     "accepted presentation re-encodes canonically");
+        } else if (format == "edge-style") {
+            // R100.a (ADR 0174 section 2): an accepted edge stroke is within its bounds,
+            // decodes the same way twice and re-encodes canonically.
+            const auto json = QJsonDocument::fromJson(bytes);
+            if (!json.isObject())
+                return false;
+            const auto first = decodeEdgeStroke(json.object());
+            require(first == decodeEdgeStroke(json.object()),
+                    "edge stroke decode is deterministic");
+            accepted = true;
+            edgeStrokeInvariants(first);
+            const auto encoded = encodeEdgeStroke(first);
+            require(decodeEdgeStroke(encoded) == first &&
+                        encodeEdgeStroke(decodeEdgeStroke(encoded)) == encoded,
+                    "accepted edge stroke re-encodes canonically");
         } else if (format == "parameter-expression") {
             // R093.a: one expression, checked and evaluated against the fixed table.
             bool expression = false;
@@ -437,6 +490,14 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             }
             require(!digestMatches || sameSkpPackageSummary(package, checked),
                     "digest-checked decode agrees");
+        } else if (format == "catalog") {
+            // A decode is deterministic: the same bytes give the same listing twice.
+            const auto first = decodeCatalog(bytes);
+            const auto again = decodeCatalog(bytes);
+            require(encodeCatalogListing(first) == encodeCatalogListing(again),
+                    "catalog decode is deterministic");
+            accepted = true;
+            catalogInvariants(first);
         } else if (format == "extension") {
             const auto result = parseExtensionManifest(bytes);
             accepted = true;

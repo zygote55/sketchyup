@@ -543,7 +543,7 @@ placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 **unvalidated 3** (one per status: `open_boundary`, `non_manifold`,
 `degenerate`); **area 40,174.2 m²** (169 m² non-terrain non-component +
 45.2 m² component + 40,000 m² terrain); under `visible`: volume 79.4 m³,
-area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain non-component + 45.2 m²
+area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain area outside the `Table` definitions + 45.2 m²
 component + 40,000 m² terrain), under `visible` **40,241.2 m²**; volumes unchanged (82.4 m³ and
 79.4 m³); the shared-face cubes are one context and the degenerate body cannot be built, so
 **unvalidated 2**; the terrain is 1 container + 81 tile contexts, so **contexts 120**. The same fixture in `ft-in`:
@@ -899,3 +899,205 @@ holds at most 1024 tags, and quantities-b placements share 1000 of them. The rea
 - the schedule re-run (the matching report budget): R101.c;
 - the refusal of a file over 256 MiB: the check runs before anything is published, but no report
   that large was built.
+
+## Implementation notes (R101.c)
+
+R101.c is the saved schedules (§7, option b), the schedule flags (§8), the session `report.schedule`
+and check V11. The store is `src/automation/report_schedules.{hpp,cpp}`. The flags are in
+`src/automation/main.cpp`, the scheduled run is `writeReportFile` in `src/automation/report_commands.cpp`
+(a `schedule` field on `ReportFileOptions`), and the CSV marker is in `src/io/report_csv.cpp`. Tests:
+`tests/report_schedule_tests.cpp` (in process: the store, the identity guard, the stale IDs, the
+bit-identical save, the run path and the session) and `tests/report_schedule_cli_tests.cpp` (the built
+`sketchyup-cli`). The R101.b CLI test no longer expects the schedule flags to be refused.
+
+### Decisions where the ADR was silent
+
+- **Store.** `AppLocalDataLocation/report-schedules.json`, beside the presentation jobs
+  (`SketchyUp/SketchyUp` on Linux). The ADR names the `QSettings` family as the place, but this is a
+  JSON file, so `QSettings` is not used. The layout is
+  `{"storeVersion":1,"documents":[{"documentId":…,"schedules":[{"name","createdAt","request"}]}]}`,
+  compact, with keys sorted. The file is written with `QSaveFile` (owner read and write only) under
+  a `QLockFile`. A commit refuses with `FILE_CHANGED` when the file changed since this process read it.
+  A missing file is an empty store.
+- **Corrupt or oversized store.** Refused with `INPUT_ERROR` and located by path, then by byte (for
+  JSON) or entry (for the layout: `documents[2].schedules[0]`). It is never reset and never rewritten.
+  A folder or link where the file should be is refused too.
+- **Bounds (§7).** Store file 1 MiB; 64 documents; 32 schedules per document; a name of 1 to 64
+  characters, made of letters, digits, spaces and `. _ ( ) -`, starting and ending with a letter or a
+  digit, so it never holds a comma, quote or line break (it is a plain value in the CSV's
+  `#schedule=` line); a saved request of 16 KiB at most (the inspection request bound). Each refusal
+  names the bound.
+- **Identity guard (V11).** A store entry is keyed by `Document::identity()`, the random identifier
+  the native file keeps (a save keeps it). A name saved only for another document is refused with
+  `WRONG_DOCUMENT`, and the refusal names both identities. A name saved nowhere is `NOT_FOUND`. A
+  session request whose `documentId` is not the session's document is refused with `WRONG_DOCUMENT`.
+  Names are unique per document, so the same name may exist for two documents.
+- **Stale IDs.** Checked at save and again at run, before the engine's own check. Every tag,
+  material and definition ID is looked up. The refusal (`NOT_FOUND`) names the missing IDs in its
+  message and in `details.missing`, and the run never proceeds with fewer filters.
+- **Selection.** A saved schedule cannot use `filters.selection`, because the CLI has no session
+  selection to run it with. A save that asks for it is refused by name.
+- **`report.schedule` is a session operation, not an inspection query.** The inspection registry is
+  read-only by its own contract (`inspection.hpp`), and `transaction.inspect` nests its queries, so
+  a write there could run inside a draft. The operation sits beside `document.save`:
+  `AutomationSession::execute` dispatches it, and `sessionCapabilities()` lists it with its schema and
+  side effect. Its request vocabulary is the one `report.run` validates, read from the registry. The
+  actions are `save` (a name and a request), `describe` (a name, or without one the document's list)
+  and `delete` (a name). **This departs from the brief's "registered like report.run"**: it is
+  registered in the session dispatch, not in the query registry.
+- **Not on MCP.** `mcpToolCatalog()` builds its list from the session operations, so the new
+  operation would have appeared there. It is skipped until R101.d adds `reports.schedules` (ADR §9).
+  `mcp-2026-07-28.json` is unchanged. The desktop's native MCP list takes only `session.describe` from
+  that catalog, so `mcp-native-2026-07-28.json` is unaffected.
+- **Assistant.** `assistantVisible` already hides the `report.` prefix. The operation is also in no
+  assistant catalog, and the native assistant takes only `transaction.*` operations and registry
+  queries. `assistant_tool_surface_tests` passes against the unchanged 1.0.1 baseline.
+- **Flags.** `--format` is one of the ad-hoc flags, as the §8 list has it, so `--schedule` and
+  `--save-schedule` refuse it. `--schedule` needs `--report`. The three management flags run one at a
+  time, and none combines with `--report` or `--schedule`. A flag that does not apply is refused by
+  name, and nothing is written.
+- **Metadata.** A scheduled run's CSV says `#schedule=NAME` in place of `#ad-hoc=1`, and the rest of
+  the bytes are the ad-hoc run's. Its JSON carries `metadata.schedule`. The ad-hoc JSON carries no
+  marker, so the R101.b goldens are unchanged. The CSV's marker line is therefore the only ad-hoc
+  marker, and the JSON agrees with the CSV on the data but not on the marker.
+- **Application names.** The store location needs the organization and application names. The CLI
+  sets them before any schedule or session work, as the presentation job path does, and the desktop
+  sets them in its `main`. A caller without them is refused (`INVALID_OPERATION`), never given a
+  guessed folder.
+- **Concurrency.** A second process that holds the store lock is refused with `OUTPUT_ERROR`. A file
+  that changed after this process read it is refused with `FILE_CHANGED`, and never merged.
+- **Timestamp.** `createdAt` is UTC, ISO 8601 (`Qt::ISODate`), written by save and checked on open.
+
+### Measured budget (§12, schedule re-run)
+
+A schedule re-run is the report's own pass: the store read, the identity lookup, the ID check and the
+same `reportDescription` the flags use. There is no extra pass over the document. Measured with the
+Release `sketchyup-cli` (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3`, `-DNDEBUG`) on the developer
+machine (Linux, 30 GB RAM), on quantities-b written by `report_benchmark --write-fixture` (12.5 MB).
+Each figure is the wall clock of one CLI process, from start to exit, with `--metrics all --group-by
+tag` and CSV output. The runs alternate, five of each:
+
+| Run | Wall time, five runs (s) | Median (s) |
+| --- | --- | --- |
+| Ad-hoc flags (`--report … --metrics all --group-by tag`) | 2.06, 2.08, 2.07, 2.07, 2.10 | 2.07 |
+| Saved schedule (`--report … --schedule Bench`) | 2.05, 2.08, 2.10, 2.08, 2.09 | 2.08 |
+
+Most of each run is loading the document (R101.b measured the CLI load at 1.99 s end to end on this
+machine class). The scheduled CSV equals the ad-hoc CSV byte for byte apart from the marker line. The
+schedule's own work (opening the store, the lookup, the ID check) was not timed alone; it sits inside
+the run-to-run spread of about 0.03 s. The schedule re-run therefore meets the matching report
+budget, and this is a measurement, not a proposal. The §12 budgets are unchanged.
+
+### Gaps and what was not run
+
+- **Windows and macOS.** `XDG_DATA_HOME` and `HOME` redirect the store on Linux only. There, the CLI
+  schedule test exits 77 (skipped) and the run-path and session checks in `report_schedule_tests`
+  are skipped. The store-level checks use temporary folders on every platform. Closing the gap needs
+  a test seam for the store path, which ADR 0175 does not define, so none was added.
+- **Atomic write.** The read-only folder check runs only where this process cannot write the folder;
+  as root it is skipped, and the test says so. A failure in the middle of `QSaveFile`'s commit is
+  covered by Qt's contract, not by a test.
+- **Sanitizer.** The schedule tests are registered in the sanitized CI lines but were not run under
+  sanitizers locally.
+- **Desktop artifacts.** The desktop binary was not built here, so `inspection-desktop-v1.json` and
+  `mcp-native-2026-07-28.json` were not regenerated and checked. Neither derives from a catalog this
+  change alters, so they should be unchanged; CI's check will confirm.
+- **Hand-edited requests.** A store entry edited by hand is checked when it runs, not when the store
+  opens, so an invalid request loads and refuses at run time, naming the schedule and the store.
+- **Desktop.** The desktop application does not yet call `reportScheduleStorePath` (R101.e).
+
+## Implementation notes (R101.d)
+
+R101.d is the MCP surface (§9). The CLI's MCP server lists `report.run` and `report.schedule`, the
+native MCP list is checked against its rule, and the assistant stays off. The catalogue is
+`mcpToolCatalog()` in `src/automation/mcp.cpp`, where the one `continue` that skipped
+`report.schedule` (R101.c) is removed. Tests: `tests/report_mcp_tests.cpp` (new, registered beside the
+other report tests under `SKETCHYUP_BUILD_CLI`), `tests/native_mcp_tests.cpp` and
+`tests/assistant_tool_surface_tests.cpp`. Generated: `docs/api/mcp-2026-07-28.json`,
+`docs/api/tool-reference-v1.json` and `docs/TOOL_REFERENCE.md`.
+
+### Naming: §9 as realised
+
+§9 names the MCP tools `reports.run` and `reports.schedules`. The names built are the registry
+names: `report.run` (an inspection query, listed on MCP since R101.a) and `report.schedule` (the
+session operation of R101.c, now listed). No `reports.*` alias exists, so each operation has one
+tool, in the `noun.verb` form of every other tool. The `reports.schedules` name in §9 is retired
+with that alias; the `schedules` noun is kept by the store and by the `--schedule` flags. The
+catalogue lists 63 tools against the 64-tool bound (`McpServer`), so one slot remains.
+
+### Decisions where the ADR was silent
+
+- **`report.schedule` is exposed on MCP.** ADR 0173 decision 12 keeps presentation execution off
+  MCP, because running a batch is an external effect. `report.schedule` only saves, describes and
+  deletes entries in the user-level store and never changes the model, so decision 12's "every
+  new command" applies. The precedent is `document.save`, a session write that is listed with
+  `destructiveHint`. It is listed the same way, and it is not a stop condition.
+- **The native list does not carry `report.schedule`.** The native endpoint is inspection-only
+  (`mutationAvailable` is false), and `nativeTools()` takes only `session.describe` from the session
+  operations. `report.run` reaches the native list through the query registry, as it did from R101.a.
+  `mcp-native-2026-07-28.json` is unchanged, and `--check` confirms it.
+- **The assistant stays off (decision 10).** `assistantVisible` hides every `report.` name, so both
+  are hidden. `assistant_tool_surface_tests` now also checks, on every surface, that neither name is
+  a top-level tool, and the baseline is unchanged. The native assistant takes only `transaction.*`
+  operations, so it cannot run `report.schedule` at all.
+- **Store isolation.** Each schedule test sets `HOME` and `XDG_DATA_HOME` to a temporary folder, with
+  the application names, before any store location is read. `report_mcp_tests` isolates the whole
+  process at the start, so no check reads the real user's store. The CLI child gets the same folder
+  through its environment.
+- **MCP errors.** A refusal is a tool result with `isError` and the session's code. A tool name that
+  is not registered, or that does not match the operation or query in its arguments, is a protocol
+  error (-32602), as before.
+
+### Verification
+
+Local build: Debug, `-g0`, shared libraries, Linux, GCC 16.2.1, Qt 6.12. Each test binary ran under
+`ulimit -v 8000000` with `timeout 600`, and each passed:
+
+- `report_mcp_tests` (new): the catalogue; `report.run` through MCP is the session's result byte
+  for byte, and its data is the committed golden for both quantities-a requests; a schedule saved by
+  MCP is described identically by the session and the reverse; the list order and delete; the
+  refusals (`WRONG_DOCUMENT`, `NOT_FOUND`, `INVALID_REQUEST`, `LIMIT_EXCEEDED` at 32, the stale
+  tag ID `NOT_FOUND`, the selection refusal); the protocol errors; and the built `sketchyup-cli`
+  over stdio, which saves a schedule and reports the golden, and whose store a later process reads.
+- `mcp_tests` (against the regenerated JSON), `assistant_tool_surface_tests` (baseline unchanged),
+  `report_tests`, `report_output_tests`, `report_cli_tests`, `report_schedule_tests`,
+  `report_schedule_cli_tests`, `automation_session_tests`, `terrain_io_tests`,
+  `terrain_import_tests`, `component_parameter_command_tests`.
+- `native_mcp_tests` (the native list): passed with `QT_QPA_PLATFORM=offscreen`, run from the
+  repository root.
+- `generate-api-schemas.py --check` (all 10 artifacts, against the built CLI and desktop binary) and
+  `generate-tool-reference.py --check`: both match the live registries.
+- `ci-plan.py check` and `ci-line-inventory.py check` pass after the registration.
+
+The first run of `report_mcp_tests` crashed in the test, not the product. `QJsonObject::operator[]` on a
+temporary returned a `QJsonValueRef` into it, and `const auto` kept that reference. Naming the type
+as `QJsonValue` fixed it. Two expectations were also corrected to the product's behaviour, and are
+recorded where they are tested: the wire schema refuses a 65-character name before the store does,
+and the fixture has no tag with ID 5.
+
+### Gaps and risks
+
+- **Long name over MCP.** The wire schema's `maxLength` refuses a 65-character schedule name as
+  `LIMIT_EXCEEDED` before the store's own `INVALID_REQUEST` runs. The session behaves the same way,
+  because it uses the same validator. The store's `INVALID_REQUEST` is still tested directly in
+  `report_schedule_tests`.
+- **Native assistant execution.** `NativeAssistantSession` runs any registry query it is sent (its
+  `query` path does not check the advertised list), so an assistant that sent `report.run` would get
+  an answer, although the assistant is not told the name. `report.run` is read-only. This is the
+  pre-existing gap from R101.a, not changed here. An execution-time filter would apply to every
+  query and is a separate change.
+- **Tool budget.** 63 of 64 slots are used. The next MCP tool needs the bound raised or a tool
+  removed.
+- **Generic description.** Session operations have no description, so MCP shows
+  "report.schedule: shared versioned SketchyUp operation", as it does for `document.save`. The
+  `sideEffects` text is in the session schema only.
+- **Platforms.** The schedule and CLI checks, and the isolation, are Linux only. On macOS and Windows
+  the test prints a skip line and runs the catalogue and `report.run` checks only. Closing the gap
+  needs the store-path seam that ADR 0175 does not define.
+- **Not run here.** The sanitizer lines (`report_mcp_tests` is in the `sanitize` target list and the
+  `ctest -R` pattern) were not built or run under a sanitizer. The native tests ran offscreen, not
+  under xvfb or Wayland as CI runs them. Windows and macOS were not built.
+- **§11 wording.** The corrected-totals paragraph in §11 now says "non-terrain area outside the
+  `Table` definitions", as the total requires (BoxP is a component). The first-written total in the
+  same section still says "non-terrain non-component", as it did in the original; it is left as
+  first written.

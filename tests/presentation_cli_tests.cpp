@@ -190,9 +190,9 @@ int main(int argc, char **argv) {
         check(!QFileInfo::exists(files.filePath("export/refused-1")),
               "A refused request makes no folder");
         refused("video.json",
-                R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"video":true,"output":")" +
+                R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"video":"yes","output":")" +
                     files.filePath("export/refused-2").toUtf8() + R"("})",
-                env, "A video request is refused until R099.c");
+                env, "A video flag that is not true or false is refused");
         refused("extra.json",
                 R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"preview":true,"output":")" +
                     files.filePath("export/refused-3").toUtf8() + R"("})",

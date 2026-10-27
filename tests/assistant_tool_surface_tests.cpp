@@ -45,10 +45,13 @@ std::vector<ToolSurface> surfaces() {
     QStringList every;
     for (const auto &entry : commandCatalog()) {
         const auto name = entry.toObject()["name"].toString();
-        // Drawing-sheet, component parameter, site and terrain commands are never
-        // assistant-authorizable (ADR 0164, ADR 0165 §6, ADR 0168 §5).
+        // Drawing-sheet, component parameter, site, terrain, camera path, render preset, style and
+        // catalog commands are never assistant-authorizable (ADR 0164, ADR 0165 §6, ADR 0168 §5,
+        // ADR 0173 §7, ADR 0174 decision 9 and section 7).
         if (!name.startsWith("drawing_") && !name.startsWith("component_parameter") &&
-            !name.startsWith("site.") && !name.startsWith("terrain."))
+            !name.startsWith("site.") && !name.startsWith("terrain.") &&
+            !name.startsWith("camera_path.") && !name.startsWith("render_preset.") &&
+            !name.startsWith("style.") && !name.startsWith("catalog."))
             every.append(name);
     }
     return {{"inspection-only", {}, false},
@@ -117,6 +120,14 @@ const QStringList terrainVisible{"site.describe", "terrain.describe", "terrain.e
 bool isSiteOrTerrain(const QString &name) {
     return name.startsWith("site.") || name.startsWith("terrain.");
 }
+// ADR 0173 decision 13: the three presentation queries are the only camera path, render preset
+// and presentation names the assistant sees; their commands stay hidden.
+const QStringList presentationVisible{"camera_path.describe", "render_preset.describe",
+                                      "presentation.describe"};
+bool isPresentation(const QString &name) {
+    return name.startsWith("camera_path.") || name.startsWith("render_preset.") ||
+           name.startsWith("presentation.");
+}
 } // namespace
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -126,6 +137,17 @@ int main(int argc, char **argv) {
             for (const auto &surface : surfaces())
                 result[surface.name] = describe(firstRequest(surface));
             std::cout << QJsonDocument(result).toJson().constData();
+            return 0;
+        }
+        // R099.c: write each surface's first provider request (the ChatGPT-plan wire form the
+        // corpus uses) to <dir>/<surface>.json, for the offline token measurement in the ADR notes.
+        if (argc == 3 && QByteArray(argv[1]) == "--requests") {
+            for (const auto &surface : surfaces()) {
+                QFile file(QString(argv[2]) + "/" + surface.name + ".json");
+                check(file.open(QIODevice::WriteOnly), "Open request dump");
+                file.write(QJsonDocument(OpenAiConversation(true).request(firstRequest(surface)))
+                               .toJson(QJsonDocument::Compact));
+            }
             return 0;
         }
         QFile file(SOURCE_DIR "/tests/assistant-tool-surface-baseline.json");
@@ -143,7 +165,8 @@ int main(int argc, char **argv) {
             check(!found.isEmpty(), name + ": discriminators found");
             for (const auto &entry : found)
                 check(!isDrawing(entry) &&
-                          (!isSiteOrTerrain(entry) || terrainVisible.contains(entry)),
+                          (!isSiteOrTerrain(entry) || terrainVisible.contains(entry)) &&
+                          (!isPresentation(entry) || presentationVisible.contains(entry)),
                       name + ": assistant sees " + entry.toStdString());
             // The three decision-10 queries are top-level tools on every surface.
             QStringList top;
@@ -151,6 +174,12 @@ int main(int argc, char **argv) {
                 top.append(tool.toObject()["name"].toString());
             for (const auto &query : terrainVisible)
                 check(top.contains(query), name + ": assistant lacks " + query.toStdString());
+            for (const auto &query : presentationVisible)
+                check(top.contains(query), name + ": assistant lacks " + query.toStdString());
+            // ADR 0175 decision 12 (R101.d): the report query and the report schedule operation
+            // stay off the provider surface on every surface, so the baseline is unchanged.
+            for (const auto *report : {"report.run", "report.schedule"})
+                check(!top.contains(report), name + ": assistant sees " + report);
             // 2. The surface equals the baseline byte for byte.
             const auto actual = describe(request);
             const auto want = expected[surface.name].toObject();
@@ -371,7 +400,7 @@ int main(int argc, char **argv) {
             check(doc.revision() == revision.toULongLong(), "The queries change nothing");
         }
         std::cout << "The assistant's provider tool list has no drawing-sheet tools, shows only "
-                     "the three decision-10 site and terrain queries and equals the baseline; "
+                     "the decision-10 site and terrain queries and the ADR 0173 presentation queries, and equals the baseline; "
                      "MCP still exposes every tool\n";
         return 0;
     } catch (const std::exception &error) {

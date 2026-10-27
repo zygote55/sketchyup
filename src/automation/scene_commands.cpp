@@ -42,11 +42,13 @@ bool isSavedSceneCommand(const QString &name) {
 void executeSavedSceneCommand(Document &doc, const QJsonObject &command) {
     const auto operation = command["command"].toString();
     if (operation == "saved_scene.create")
-        createScene(doc, name(command["name"]), decodeSceneSnapshot(command["snapshot"]));
+        createScene(doc, name(command["name"]),
+                    decodeSceneSnapshot(command["snapshot"], true, true, true));
     else if (operation == "saved_scene.rename")
         renameScene(doc, id(command["scene"]), name(command["name"]));
     else if (operation == "saved_scene.update")
-        updateScene(doc, id(command["scene"]), decodeSceneSnapshot(command["snapshot"]));
+        updateScene(doc, id(command["scene"]),
+                    decodeSceneSnapshot(command["snapshot"], true, true, true));
     else if (operation == "saved_scene.delete")
         eraseScene(doc, id(command["scene"]));
     else if (operation == "saved_scene.recall")

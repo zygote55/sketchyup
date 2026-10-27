@@ -1,6 +1,9 @@
 #include "automation/commands.hpp"
 #include "automation/annotation_commands.hpp"
 #include "automation/component_parameter_commands.hpp"
+#include "automation/presentation_commands.hpp"
+#include "automation/style_commands.hpp"
+#include "automation/catalog_commands.hpp"
 #include "automation/component_scope.hpp"
 #include "automation/drawing_sheet_commands.hpp"
 #include "automation/entity_info.hpp"
@@ -15,6 +18,7 @@
 #include "automation/report_commands.hpp"
 #include "automation/scene_commands.hpp"
 #include "automation/section_commands.hpp"
+#include "automation/style_catalog_cli.hpp"
 #include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "automation/texture_commands.hpp"
@@ -196,6 +200,7 @@ QJsonObject capabilities() {
         {"measurementAssertions", measurementAssertionCapabilities()},
         {"presentation", presentationExportCapabilities()},
         {"reportExport", reportExportCapabilities()},
+        {"styleCatalog", styleCatalogCliCapabilities()},
         {"units", "m"},
         {"up", "Z"},
         {"commands",
@@ -652,7 +657,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     const auto baseRevision = doc.revision();
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
-        solidOperations, assertionCommands, terrainOperations;
+        solidOperations, assertionCommands, terrainOperations, styleOperations, catalogOperations;
     std::vector<std::pair<Id, Id>> createdFaceIds;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
@@ -749,6 +754,12 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             executeSectionCommand(staged, command);
         } else if (isSavedSceneCommand(name)) {
             executeSavedSceneCommand(staged, command);
+        } else if (isPresentationCommand(name)) {
+            executePresentationCommand(staged, command);
+        } else if (isStyleCommand(name)) {
+            styleOperations.append(executeStyleCommand(staged, command));
+        } else if (isCatalogCommand(name)) {
+            catalogOperations.append(executeCatalogCommand(staged, command));
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (isComponentParameterCommand(name)) {
@@ -786,7 +797,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else if (name == "document.solar") {
             staged.setSolar(decodeSolarSettings(command["solar"]));
         } else if (name == "document.style") {
-            staged.setStyle(decodeModelStyle(command["style"]));
+            staged.setStyle(decodeModelStyle(command["style"], true));
         } else if (name == "document.units") {
             if (!command["units"].isString())
                 throw std::runtime_error("Document units must be a string");
@@ -1542,6 +1553,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     if (isHostedCommand(nested.toString()) ||
                         nested.toString().startsWith("assembly.") ||
                         nested.toString().startsWith("saved_scene.") ||
+                        nested.toString().startsWith("camera_path.") ||
+                        nested.toString().startsWith("render_preset.") ||
                         nested.toString().startsWith("drawing_sheet.") ||
                         nested.toString().startsWith("drawing_view.") ||
                         nested.toString().startsWith("drawing_item.") ||
@@ -1756,7 +1769,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     }
     if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site && edit.scenes.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site && edit.scenes.empty() && edit.cameraPaths.empty() && edit.renderPresets.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
         edit.drawingSheets.empty() && edit.drawingViews.empty() && edit.drawingItems.empty())
         throw std::runtime_error("Batch has no committed changes");
     if (sheetBatch) {
@@ -1896,6 +1909,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"parameterWarnings", parameterWarnings},
                 {"recipeOperations", recipeOperations},
                 {"terrainOperations", terrainOperations},
+                {"styleOperations", styleOperations},
+                {"catalogOperations", catalogOperations},
                 {"assertions", assertions},
                 {"sweeps", survivingSweeps},
                 {"booleans", survivingBooleans},
@@ -1967,6 +1982,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"componentOperations", componentOperations},
                        {"recipeOperations", recipeOperations},
                        {"terrainOperations", terrainOperations},
+                       {"styleOperations", styleOperations},
+                       {"catalogOperations", catalogOperations},
                        {"assertions", assertions},
                        {"sweeps", survivingSweeps},
                        {"booleans", survivingBooleans},

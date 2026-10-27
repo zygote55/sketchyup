@@ -80,3 +80,16 @@ The w question (ADR 0176 section 4): the writer can make a scaled and a mirrored
 scale and the mirror are the placement's 3x3; no separate scale is written) and always writes
 w = 1, so no writer-made file has w other than 1. The import's rule (divide the translation by w,
 with the scaledPlacement notice) is therefore exercised by no fixture.
+
+# ADR 0176 follow-up, attribute reporting (2026-10-26)
+
+  attribute_reporting.skp  10204 bytes (a legacy v17 container, from OpenSKP's writer, the same
+                           command as above; the component definition gets a random GUID, so a rerun
+                           changes the bytes). One definition, "Chair", with its own dictionary "Spec"
+                           (String, Float, Boolean and Length: four values, none of them carried). One
+                           instance, "Chair A", with a dictionary "Props" that holds a Length (not
+                           carried), a 130-byte key (over the 128-byte key cap) and 130 integers named
+                           Item000 to Item129 (the 128-property cap drops two of them). The writer refuses a
+                           string over 255 bytes in a legacy file, so the over-2,048-byte truncation is
+                           tested with an in-test package, not this file.
+  SHA-256: dfca2b93434f9d18378294012abb719fbd24f692e630928cf844c59cb0fb766f

@@ -19,6 +19,15 @@
   The saved-schedule flags, the MCP names and the desktop panel are not in this release (R101.c to
   R101.e).
 
+- Saved report schedules (R101.c, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
+  a named report request is saved for one document in a user-level file, beside the presentation
+  jobs, and never in the model. `sketchyup-cli --input MODEL --save-schedule NAME [report flags]`,
+  `--list-schedules` and `--delete-schedule NAME` manage them, and `--report FILE --schedule NAME`
+  runs one (its CSV says `#schedule=NAME`). A schedule runs only on the document it was saved for,
+  and a schedule whose tags, materials or definitions were removed refuses, naming them. A save leaves
+  the model file byte-identical. The session gains `report.schedule`. The MCP names and the desktop
+  panel are not in this release (R101.d and R101.e).
+
 - Camera paths and render presets (R099.a, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md)):
   named camera paths that keyframe saved scenes (2 to 32 keyframes, at most 240 planned frames,
   up to 64 per document) and named render presets (up to 16 per document). Both are saved with

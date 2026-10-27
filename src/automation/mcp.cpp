@@ -121,7 +121,7 @@ McpServer::McpServer(AutomationSession &session)
           [&] { session.close(); }, mcpToolCatalog()}) {}
 McpServer::McpServer(McpBackend backend) : backend_(std::move(backend)) {
     require(bool(backend_.call) && bool(backend_.state) && bool(backend_.close) &&
-                !backend_.tools.empty() && backend_.tools.size() <= 64,
+                !backend_.tools.empty() && backend_.tools.size() <= mcpToolLimit,
             "Invalid MCP backend");
     state_ = backend_.state();
     require(state_["documentId"].isString() && !state_["documentId"].toString().isEmpty(),

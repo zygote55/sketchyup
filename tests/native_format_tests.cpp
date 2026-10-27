@@ -196,12 +196,14 @@ int main(int argc, char **argv) {
                 parametric = parametric || definition->parameters;
             const auto sheets = !loaded.drawingSheets().empty();
             const auto presentation = !loaded.cameraPaths().empty() || !loaded.renderPresets().empty();
+            const auto edgeStroke = bool(loaded.style().edgeStroke);
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (presentation ? nativeDocumentVersion
-                           : parametric ? nativeTerrainFreeDocumentVersion
-                           : sheets   ? nativeParameterFreeDocumentVersion
-                                      : nativeSheetFreeDocumentVersion),
+                          (edgeStroke     ? nativeDocumentVersion
+                           : presentation ? nativePresentationDocumentVersion
+                           : parametric   ? nativeTerrainFreeDocumentVersion
+                           : sheets       ? nativeParameterFreeDocumentVersion
+                                          : nativeSheetFreeDocumentVersion),
                   "Migration report identifies public schema");
             check(read(source) == before && encodeDocument(loadDocument(output)) == model,
                   "Migration preserves source bytes and all model records");

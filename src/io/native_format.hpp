@@ -5,8 +5,11 @@ namespace sketchy {
 class Document;
 // Verify and atomically publish a new native container; never replace an existing path.
 QJsonObject createNativeFile(const Document &document, const QString &output);
-// The newest schema this build reads and can write.
-inline constexpr int nativeDocumentVersion = 30, nativeContainerVersion = 2;
+// The newest schema this build reads and can write (ADR 0174 §2): an optional edge stroke
+// on the style, with required feature edge-styles-v1.
+inline constexpr int nativeDocumentVersion = 31, nativeContainerVersion = 2;
+// The schema of the R099.a presentation records (ADR 0173 §3), the newest one before 31.
+inline constexpr int nativePresentationDocumentVersion = 30;
 // The newest schema SketchyUp 1.3 reads (sketchyup-document-v29).
 inline constexpr int nativeTerrainDocumentVersion = 29;
 // The newest schema SketchyUp 1.0 reads (sketchyup-document-v26).
@@ -22,8 +25,10 @@ inline constexpr int nativeTerrainFreeDocumentVersion = 28;
 // opens. Any parameter record (or override) is schema 28. A terrain or a site origin
 // is schema 29 with required feature terrain-v1 (ADR 0168 §2), which 1.2 refuses with
 // its newer-format error. A camera path or render preset is schema 30 with required
-// feature presentation-v1 (ADR 0173 §3); a 1.3 reader refuses it with the same error.
-// Allocator floors alone never raise the schema.
+// feature presentation-v1 (ADR 0173 §3); a 1.3 reader refuses it with the same error. An
+// edge stroke on the style is schema 31 with required feature edge-styles-v1 (ADR 0174 §2),
+// refused by 1.3 and 1.2 with the same newer-format path. Allocator floors alone never raise
+// the schema.
 int nativeDocumentVersionFor(const Document &document);
 // Fully decode and validate before reporting any file as valid. Never rewrite input.
 QJsonObject inspectNativeFile(const QString &path);

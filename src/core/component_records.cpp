@@ -36,6 +36,11 @@ void appendSceneMetadataChanges(Edit &edit, const Document &before, const Docume
         return change.before && change.after && *change.before == *change.after;
     });
     edit.nextSceneFloor = after.nextSceneId();
+    // Camera paths and render presets are ordinary model records (ADR 0173 §2, §3, decision 15).
+    difference(before.cameraPaths(), after.cameraPaths(), edit.cameraPaths);
+    edit.nextCameraPathFloor = after.nextCameraPathId();
+    difference(before.renderPresets(), after.renderPresets(), edit.renderPresets);
+    edit.nextRenderPresetFloor = after.nextRenderPresetId();
     difference(before.annotations(), after.annotations(), edit.annotations);
     std::erase_if(edit.annotations, [](const auto &change) {
         return change.before && change.after && *change.before == *change.after;

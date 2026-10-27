@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QTemporaryDir>
 #include <memory>
+#include <vector>
 namespace sketchy {
 class PreparedRender {
   public:
@@ -31,6 +32,24 @@ struct BlenderResult {
 struct BlenderSceneResult {
     QJsonObject manifest;
     QByteArray blend;
+};
+
+// One verified frame of a video, in playback order: its file, its SHA-256 and its byte count.
+struct BlenderVideoFrame {
+    QString path, sha256;
+    qint64 bytes{};
+};
+
+// The input of one video encode (ADR 0173 §4, decision 7). The worker re-hashes every frame.
+struct BlenderVideoRequest {
+    std::vector<BlenderVideoFrame> frames;
+    int width{}, height{}, framesPerSecond{};
+};
+
+// The encoded H.264 MP4 and its manifest record. Written to the output only after verification.
+struct BlenderVideoResult {
+    QJsonObject manifest;
+    QByteArray mp4;
 };
 void saveBlenderScene(const BlenderSceneResult &scene, const QString &path);
 class BlenderJob : public QObject {
@@ -61,6 +80,9 @@ class BlenderJob : public QObject {
     void probe(Options options);
     void start(std::shared_ptr<const PreparedRender> input, Options options);
     void handoff(std::shared_ptr<const PreparedRender> input, Options options);
+    // Encodes verified frames into one H.264 MP4 in the worker's private scratch. Refused with
+    // the reason `codec_unavailable` when this Blender has no H.264 encoder.
+    void encode(BlenderVideoRequest request, Options options);
     void cancel();
     Phase phase() const;
     bool done() const;
@@ -69,6 +91,7 @@ class BlenderJob : public QObject {
     QJsonObject report() const;
     std::shared_ptr<const BlenderResult> result() const;
     std::shared_ptr<const BlenderSceneResult> sceneResult() const;
+    std::shared_ptr<const BlenderVideoResult> videoResult() const;
   signals:
     void changed();
 

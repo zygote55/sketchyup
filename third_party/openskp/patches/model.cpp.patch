@@ -1,0 +1,10 @@
+--- a/model.cpp
++++ b/model.cpp
+@@ -120,6 +120,7 @@
+   d.always_faces_camera = r.always_faces_camera;
+   d.shadows_face_sun = r.shadows_face_sun;
+   d.is_image = r.is_image;
++  d.attribute_dictionaries = std::move(r.attribute_dicts);
+   for (auto& v : r.builder.vertices)
+     d.vertices.emplace(v.first, Vertex{v.first, v.second[0], v.second[1], v.second[2]});
+   for (auto& e : r.builder.edges) {

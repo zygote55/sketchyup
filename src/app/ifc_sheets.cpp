@@ -796,7 +796,37 @@ QString skpNoticeMessage(const QString &code) {
     if (code == "duplicateMaterialNamesRenamed")
         return QStringLiteral("Materials with the same name renamed to keep them apart");
     if (code == "propertiesDropped")
-        return QStringLiteral("Attributes over the property limits, or not a string, number or boolean: not imported");
+        return QStringLiteral("Attributes over the property limits (128 a body, names of 128 "
+                              "bytes), or a name another attribute already has: not imported");
+    if (code == "attributeNotImported")
+        return QStringLiteral("Attributes that are a length, a vector, a nested array, an empty "
+                              "value or a number that is not finite: not imported");
+    if (code == "attributesOverLimit")
+        return QStringLiteral("Attributes beyond the 256 one instance can hold: not imported");
+    if (code == "truncatedAttributes")
+        return QStringLiteral("Text attributes longer than 2,048 bytes: cut to 2,048 bytes");
+    if (code == "modelAttributesNotCarried")
+        return QStringLiteral("Model attributes: not imported");
+    if (code == "definitionAttributesNotCarried")
+        return QStringLiteral("Component definition attributes: not imported");
+    if (code == "layerAttributesNotCarried")
+        return QStringLiteral("Tag attributes: not imported");
+    if (code == "omittedScenes")
+        return QStringLiteral("Scenes: not imported");
+    if (code == "omittedStyles")
+        return QStringLiteral("Styles: not imported");
+    if (code == "omittedSectionPlanes")
+        return QStringLiteral("Section planes: not imported");
+    if (code == "omittedTexts")
+        return QStringLiteral("Texts: not imported");
+    if (code == "omittedDimensions")
+        return QStringLiteral("Dimensions: not imported");
+    if (code == "omittedCamera")
+        return QStringLiteral("The saved camera view: not imported");
+    if (code == "omittedConstructionLines")
+        return QStringLiteral("Construction lines: not imported");
+    if (code == "omittedConstructionPoints")
+        return QStringLiteral("Construction points: not imported");
     if (code == "textureMissing")
         return QStringLiteral("Textures named in the file with no image data: the faces are untextured");
     if (code == "textureUnreadable")
@@ -845,6 +875,12 @@ QString skpNotCarriedLabel(const QString &key) {
         return QStringLiteral("Construction lines");
     if (key == "constructionPoints")
         return QStringLiteral("Construction points");
+    if (key == "modelAttributes")
+        return QStringLiteral("Model attributes");
+    if (key == "definitionAttributes")
+        return QStringLiteral("Definition attributes");
+    if (key == "layerAttributes")
+        return QStringLiteral("Tag attributes");
     return key;
 }
 } // namespace
@@ -892,7 +928,7 @@ ImportReportFace skpImportReportFace() {
         // The accounting identity of ADR 0176 section 5, per kind: counted = imported + omitted.
         const QJsonObject accounting = state.report["accounting"].toObject();
         QStringList lines;
-        for (const char *kind : {"faces", "edges", "instances", "materials"}) {
+        for (const char *kind : {"faces", "edges", "instances", "materials", "attributes"}) {
             const QJsonObject item = accounting[kind].toObject();
             lines << QString("%1 read %2 = imported %3 + omitted %4")
                          .arg(QString::fromLatin1(kind))

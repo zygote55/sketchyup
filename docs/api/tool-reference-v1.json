@@ -2259,6 +2259,317 @@
       "validation": "Schema plus authoritative geometry, document and resource validation"
     },
     {
+      "category": "Camera paths",
+      "label": "Create a named camera path through two to thirty-two saved scenes",
+      "name": "camera_path.create",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Create a named camera path through two to thirty-two saved scenes",
+        "properties": {
+          "command": {
+            "const": "camera_path.create"
+          },
+          "keyframes": {
+            "items": {
+              "description": "Canonical uint64 decimal string",
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 2,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timing": {
+            "additionalProperties": false,
+            "properties": {
+              "framesPerSecond": {
+                "maximum": 60,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "holdSteps": {
+                "maximum": 600,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "transitionSteps": {
+                "maximum": 600,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "framesPerSecond",
+              "transitionSteps",
+              "holdSteps"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "keyframes",
+          "timing",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
+      "category": "Camera paths",
+      "label": "Rename a camera path or change its keyframes or timing",
+      "name": "camera_path.update",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Rename a camera path or change its keyframes or timing",
+        "properties": {
+          "command": {
+            "const": "camera_path.update"
+          },
+          "keyframes": {
+            "items": {
+              "description": "Canonical uint64 decimal string",
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 2,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "timing": {
+            "additionalProperties": false,
+            "properties": {
+              "framesPerSecond": {
+                "maximum": 60,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "holdSteps": {
+                "maximum": 600,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "transitionSteps": {
+                "maximum": 600,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "framesPerSecond",
+              "transitionSteps",
+              "holdSteps"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "path",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
+      "category": "Camera paths",
+      "label": "Delete a camera path",
+      "name": "camera_path.delete",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Delete a camera path",
+        "properties": {
+          "command": {
+            "const": "camera_path.delete"
+          },
+          "path": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
+      "category": "Render presets",
+      "label": "Create a named render preset (settings only)",
+      "name": "render_preset.create",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Create a named render preset (settings only)",
+        "properties": {
+          "command": {
+            "const": "render_preset.create"
+          },
+          "engine": {
+            "enum": [
+              "cycles",
+              "eevee"
+            ],
+            "type": "string"
+          },
+          "height": {
+            "maximum": 4096,
+            "minimum": 64,
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "samples": {
+            "maximum": 1024,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "seed": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "width": {
+            "maximum": 4096,
+            "minimum": 64,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "width",
+          "height",
+          "samples",
+          "seed",
+          "engine",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
+      "category": "Render presets",
+      "label": "Rename a render preset or change its settings",
+      "name": "render_preset.update",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Rename a render preset or change its settings",
+        "properties": {
+          "command": {
+            "const": "render_preset.update"
+          },
+          "engine": {
+            "enum": [
+              "cycles",
+              "eevee"
+            ],
+            "type": "string"
+          },
+          "height": {
+            "maximum": 4096,
+            "minimum": 64,
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "preset": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "samples": {
+            "maximum": 1024,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "seed": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "width": {
+            "maximum": 4096,
+            "minimum": 64,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "preset",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
+      "category": "Render presets",
+      "label": "Delete a render preset",
+      "name": "render_preset.delete",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Delete a render preset",
+        "properties": {
+          "command": {
+            "const": "render_preset.delete"
+          },
+          "preset": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
       "category": "Drawing sheets",
       "label": "Create a drawing sheet",
       "name": "drawing_sheet.create",
@@ -7563,6 +7874,80 @@
       "validation": "Schema plus authoritative geometry, document and resource validation"
     },
     {
+      "category": "Styles",
+      "label": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+      "name": "style.apply",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+        "properties": {
+          "command": {
+            "const": "style.apply"
+          },
+          "data": {
+            "maxLength": 22413344,
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
+      "category": "Catalog",
+      "label": "Import named catalog entries into the document in one edit",
+      "name": "catalog.import",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Import named catalog entries into the document in one edit",
+        "properties": {
+          "catalog": {
+            "maxLength": 65536,
+            "type": "string"
+          },
+          "command": {
+            "const": "catalog.import"
+          },
+          "entries": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "type": "array"
+          },
+          "library": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+            "type": "string"
+          },
+          "parent": {
+            "description": "Canonical uint64 decimal string",
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entries",
+          "command"
+        ],
+        "type": "object"
+      },
+      "undo": "one batch history item",
+      "validation": "Schema plus authoritative geometry, document and resource validation"
+    },
+    {
       "category": "Assets",
       "label": "Import managed asset bytes",
       "name": "asset.import",
@@ -11675,6 +12060,353 @@
       "sideEffects": "none"
     },
     {
+      "name": "camera_path.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "query": {
+            "const": "camera_path.describe"
+          }
+        },
+        "required": [
+          "path",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "render_preset.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "preset": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "query": {
+            "const": "render_preset.describe"
+          }
+        },
+        "required": [
+          "preset",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "catalog.list",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "catalog": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "library": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.list"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "catalog.library",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.library"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "catalog.export",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "components": {
+            "items": {
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 0,
+            "type": "array"
+          },
+          "description": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "license": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "materials": {
+            "items": {
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.export"
+          },
+          "style": {
+            "type": "boolean"
+          },
+          "version": {
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "presentation.describe",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "presets": {
+            "items": {
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "type": "array"
+          },
+          "query": {
+            "const": "presentation.describe"
+          },
+          "video": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "presets",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
+      "name": "style.export",
+      "paged": false,
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "description": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "query": {
+            "const": "style.export"
+          }
+        },
+        "required": [
+          "name",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "requiresRevision": true,
+      "sideEffects": "none"
+    },
+    {
       "name": "drawing_sheets.query",
       "paged": true,
       "parameters": {
@@ -13795,6 +14527,150 @@
     },
     {
       "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "description": "report.schedule: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "save",
+              "describe",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "operation": {
+            "const": "report.schedule"
+          },
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "filters": {
+                "additionalProperties": false,
+                "properties": {
+                  "definitions": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "materials": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "selection": {
+                    "type": "boolean"
+                  },
+                  "tags": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "visibility": {
+                    "enum": [
+                      "all",
+                      "visible"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              },
+              "groupBy": {
+                "enum": [
+                  "none",
+                  "kind",
+                  "tag",
+                  "material",
+                  "definition"
+                ],
+                "type": "string"
+              },
+              "metrics": {
+                "oneOf": [
+                  {
+                    "const": "all",
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "enum": [
+                        "counts",
+                        "areas",
+                        "volumes"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 3,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                ]
+              },
+              "precision": {
+                "oneOf": [
+                  {
+                    "const": "full",
+                    "type": "string"
+                  },
+                  {
+                    "maximum": 6,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                ]
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "operation",
+          "documentId",
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "report.schedule"
+    },
+    {
+      "annotations": {
         "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": false,
@@ -14511,6 +15387,416 @@
         "type": "object"
       },
       "name": "saved_scene.visibility"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "camera_path.describe: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "query": {
+            "const": "camera_path.describe"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "camera_path.describe"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "render_preset.describe: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "preset": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "query": {
+            "const": "render_preset.describe"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "render_preset.describe"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "catalog.list: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "catalog": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "library": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.list"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "catalog.list"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "catalog.library: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.library"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "catalog.library"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "catalog.export: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "components": {
+            "items": {
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 0,
+            "type": "array"
+          },
+          "description": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "license": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "materials": {
+            "items": {
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "query": {
+            "const": "catalog.export"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "style": {
+            "type": "boolean"
+          },
+          "version": {
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "catalog.export"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "presentation.describe: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$",
+            "type": "string"
+          },
+          "presets": {
+            "items": {
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "type": "array"
+          },
+          "query": {
+            "const": "presentation.describe"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "video": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "presets",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "presentation.describe"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "style.export: shared versioned SketchyUp operation",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          },
+          "description": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "documentId": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "expectedRevision": {
+            "maxLength": 20,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "query": {
+            "const": "style.export"
+          },
+          "snapshotId": {
+            "description": "Opaque snapshot identifier returned by snapshot.begin",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "apiVersion",
+          "documentId",
+          "expectedRevision",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "style.export"
     },
     {
       "annotations": {
@@ -19090,6 +20376,275 @@
                 {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
+                  "description": "Create a named camera path through two to thirty-two saved scenes",
+                  "properties": {
+                    "command": {
+                      "const": "camera_path.create"
+                    },
+                    "keyframes": {
+                      "items": {
+                        "description": "Canonical uint64 decimal string",
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "maxItems": 32,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "timing": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "framesPerSecond": {
+                          "maximum": 60,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "holdSteps": {
+                          "maximum": 600,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "transitionSteps": {
+                          "maximum": 600,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "framesPerSecond",
+                        "transitionSteps",
+                        "holdSteps"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "keyframes",
+                    "timing",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Rename a camera path or change its keyframes or timing",
+                  "properties": {
+                    "command": {
+                      "const": "camera_path.update"
+                    },
+                    "keyframes": {
+                      "items": {
+                        "description": "Canonical uint64 decimal string",
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "maxItems": 32,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "path": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "timing": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "framesPerSecond": {
+                          "maximum": 60,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "holdSteps": {
+                          "maximum": 600,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "transitionSteps": {
+                          "maximum": 600,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "framesPerSecond",
+                        "transitionSteps",
+                        "holdSteps"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Delete a camera path",
+                  "properties": {
+                    "command": {
+                      "const": "camera_path.delete"
+                    },
+                    "path": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Create a named render preset (settings only)",
+                  "properties": {
+                    "command": {
+                      "const": "render_preset.create"
+                    },
+                    "engine": {
+                      "enum": [
+                        "cycles",
+                        "eevee"
+                      ],
+                      "type": "string"
+                    },
+                    "height": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "samples": {
+                      "maximum": 1024,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "seed": {
+                      "maximum": 1000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "width": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "width",
+                    "height",
+                    "samples",
+                    "seed",
+                    "engine",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Rename a render preset or change its settings",
+                  "properties": {
+                    "command": {
+                      "const": "render_preset.update"
+                    },
+                    "engine": {
+                      "enum": [
+                        "cycles",
+                        "eevee"
+                      ],
+                      "type": "string"
+                    },
+                    "height": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "preset": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "samples": {
+                      "maximum": 1024,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "seed": {
+                      "maximum": 1000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "width": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "preset",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Delete a render preset",
+                  "properties": {
+                    "command": {
+                      "const": "render_preset.delete"
+                    },
+                    "preset": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "preset",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
                   "description": "Create a drawing sheet",
                   "properties": {
                     "command": {
@@ -23869,6 +25424,66 @@
                   },
                   "required": [
                     "body",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+                  "properties": {
+                    "command": {
+                      "const": "style.apply"
+                    },
+                    "data": {
+                      "maxLength": 22413344,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Import named catalog entries into the document in one edit",
+                  "properties": {
+                    "catalog": {
+                      "maxLength": 65536,
+                      "type": "string"
+                    },
+                    "command": {
+                      "const": "catalog.import"
+                    },
+                    "entries": {
+                      "items": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "library": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+                      "type": "string"
+                    },
+                    "parent": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^(0|[1-9][0-9]*)$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "entries",
                     "command"
                   ],
                   "type": "object"
@@ -27583,6 +29198,311 @@
                   "apiVersion": {
                     "const": 1
                   },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "path": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "camera_path.describe"
+                  }
+                },
+                "required": [
+                  "path",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "preset": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "render_preset.describe"
+                  }
+                },
+                "required": [
+                  "preset",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "catalog": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "library": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.list"
+                  }
+                },
+                "required": [
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.library"
+                  }
+                },
+                "required": [
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "components": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 64,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "labels": {
+                    "items": {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "license": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "materials": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 64,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.export"
+                  },
+                  "style": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "maxLength": 64,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "path": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "presets": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 4,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "query": {
+                    "const": "presentation.describe"
+                  },
+                  "video": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "path",
+                  "presets",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "labels": {
+                    "items": {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "style.export"
+                  }
+                },
+                "required": [
+                  "name",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
                   "cursor": {
                     "maxLength": 512,
                     "type": "string"
@@ -29886,6 +31806,144 @@
         "type": "object"
       },
       "sideEffects": "Explicitly bound model destination and its native backup"
+    },
+    {
+      "name": "report.schedule",
+      "parameters": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "save",
+              "describe",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "apiVersion": {
+            "const": 1
+          },
+          "documentId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "operation": {
+            "const": "report.schedule"
+          },
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "filters": {
+                "additionalProperties": false,
+                "properties": {
+                  "definitions": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "materials": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "selection": {
+                    "type": "boolean"
+                  },
+                  "tags": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "visibility": {
+                    "enum": [
+                      "all",
+                      "visible"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              },
+              "groupBy": {
+                "enum": [
+                  "none",
+                  "kind",
+                  "tag",
+                  "material",
+                  "definition"
+                ],
+                "type": "string"
+              },
+              "metrics": {
+                "oneOf": [
+                  {
+                    "const": "all",
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "enum": [
+                        "counts",
+                        "areas",
+                        "volumes"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 3,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                ]
+              },
+              "precision": {
+                "oneOf": [
+                  {
+                    "const": "full",
+                    "type": "string"
+                  },
+                  {
+                    "maximum": 6,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                ]
+              }
+            },
+            "required": [],
+            "type": "object"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "operation",
+          "documentId",
+          "action"
+        ],
+        "type": "object"
+      },
+      "sideEffects": "Writes only the user-level report schedule store; the model is never changed"
     }
   ],
   "transactions": [
@@ -32079,6 +34137,275 @@
                   },
                   "required": [
                     "scene",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Create a named camera path through two to thirty-two saved scenes",
+                  "properties": {
+                    "command": {
+                      "const": "camera_path.create"
+                    },
+                    "keyframes": {
+                      "items": {
+                        "description": "Canonical uint64 decimal string",
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "maxItems": 32,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "timing": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "framesPerSecond": {
+                          "maximum": 60,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "holdSteps": {
+                          "maximum": 600,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "transitionSteps": {
+                          "maximum": 600,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "framesPerSecond",
+                        "transitionSteps",
+                        "holdSteps"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "keyframes",
+                    "timing",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Rename a camera path or change its keyframes or timing",
+                  "properties": {
+                    "command": {
+                      "const": "camera_path.update"
+                    },
+                    "keyframes": {
+                      "items": {
+                        "description": "Canonical uint64 decimal string",
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "maxItems": 32,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "path": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "timing": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "framesPerSecond": {
+                          "maximum": 60,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "holdSteps": {
+                          "maximum": 600,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "transitionSteps": {
+                          "maximum": 600,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "framesPerSecond",
+                        "transitionSteps",
+                        "holdSteps"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Delete a camera path",
+                  "properties": {
+                    "command": {
+                      "const": "camera_path.delete"
+                    },
+                    "path": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Create a named render preset (settings only)",
+                  "properties": {
+                    "command": {
+                      "const": "render_preset.create"
+                    },
+                    "engine": {
+                      "enum": [
+                        "cycles",
+                        "eevee"
+                      ],
+                      "type": "string"
+                    },
+                    "height": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "samples": {
+                      "maximum": 1024,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "seed": {
+                      "maximum": 1000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "width": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "width",
+                    "height",
+                    "samples",
+                    "seed",
+                    "engine",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Rename a render preset or change its settings",
+                  "properties": {
+                    "command": {
+                      "const": "render_preset.update"
+                    },
+                    "engine": {
+                      "enum": [
+                        "cycles",
+                        "eevee"
+                      ],
+                      "type": "string"
+                    },
+                    "height": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "maxLength": 1024,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "preset": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "samples": {
+                      "maximum": 1024,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "seed": {
+                      "maximum": 1000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "width": {
+                      "maximum": 4096,
+                      "minimum": 64,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "preset",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Delete a render preset",
+                  "properties": {
+                    "command": {
+                      "const": "render_preset.delete"
+                    },
+                    "preset": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "preset",
                     "command"
                   ],
                   "type": "object"
@@ -36872,6 +39199,66 @@
                 {
                   "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "additionalProperties": false,
+                  "description": "Apply a packaged style (base64 .sketchystyle bytes) in one edit",
+                  "properties": {
+                    "command": {
+                      "const": "style.apply"
+                    },
+                    "data": {
+                      "maxLength": 22413344,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "Import named catalog entries into the document in one edit",
+                  "properties": {
+                    "catalog": {
+                      "maxLength": 65536,
+                      "type": "string"
+                    },
+                    "command": {
+                      "const": "catalog.import"
+                    },
+                    "entries": {
+                      "items": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "library": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+                      "type": "string"
+                    },
+                    "parent": {
+                      "description": "Canonical uint64 decimal string",
+                      "maxLength": 20,
+                      "pattern": "^(0|[1-9][0-9]*)$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "entries",
+                    "command"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
                   "description": "Import managed asset bytes",
                   "properties": {
                     "command": {
@@ -40555,6 +42942,311 @@
                 },
                 "required": [
                   "scene",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "path": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "camera_path.describe"
+                  }
+                },
+                "required": [
+                  "path",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "preset": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "render_preset.describe"
+                  }
+                },
+                "required": [
+                  "preset",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "catalog": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "library": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.list"
+                  }
+                },
+                "required": [
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.library"
+                  }
+                },
+                "required": [
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "components": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 64,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "labels": {
+                    "items": {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "license": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "materials": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 64,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "catalog.export"
+                  },
+                  "style": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "maxLength": 64,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "path": {
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "presets": {
+                    "items": {
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "maxItems": 4,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "query": {
+                    "const": "presentation.describe"
+                  },
+                  "video": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "path",
+                  "presets",
+                  "apiVersion",
+                  "documentId",
+                  "expectedRevision",
+                  "query"
+                ],
+                "type": "object"
+              },
+              {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "documentId": {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "type": "string"
+                  },
+                  "labels": {
+                    "items": {
+                      "maxLength": 64,
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "minItems": 0,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "query": {
+                    "const": "style.export"
+                  }
+                },
+                "required": [
+                  "name",
                   "apiVersion",
                   "documentId",
                   "expectedRevision",

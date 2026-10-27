@@ -1253,10 +1253,13 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
             : DisplayUnit::Meters,
         root["version"].toInt() >= 15 ? decodeHostedComponents(root["hosted"])
                                       : std::make_shared<const HostedComponents>(),
-        root["version"].toInt() >= 17 ? decodeModelStyle(root["style"]) : ModelStyle{},
+        root["version"].toInt() >= 17
+            ? decodeModelStyle(root["style"], root["version"].toInt() >= 31)
+            : ModelStyle{},
         root["version"].toInt() >= 18
             ? decodeScenes(root["scenes"], readId(root["nextSceneId"]),
-                           root["version"].toInt() >= 20, root["version"].toInt() >= 23)
+                           root["version"].toInt() >= 20, root["version"].toInt() >= 23,
+                           root["version"].toInt() >= 31)
             : SceneRecords{},
         root["version"].toInt() >= 18 ? readId(root["nextSceneId"]) : 1,
         root["version"].toInt() >= 19

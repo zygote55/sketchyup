@@ -417,8 +417,8 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
     // The geometry chunk: self-describing, walked with every count checked.
     const auto *cursor = geometryData;
     const auto *end = geometryData + geometryBytes;
-    long long verticesTotal = 0, edgesTotal = 0, facesTotal = 0, instancesTotal = 0,
-        holesTotal = 0, uvTotal = 0;
+    long long verticesTotal = 0, edgesTotal = 0, facesTotal = 0, instancesTotal = 0, holesTotal = 0,
+              uvTotal = 0, attributesTotal = 0;
     for (std::size_t i = 0; i < definitionEntries.size(); ++i) {
         const auto d = object(definitionEntries[i], "definition");
         onlyKeysOr(d, {"name", "guid", "vertices", "edges", "faces", "instances"},
@@ -575,12 +575,18 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
                 const auto list = array(lists[n], SkpPackageLimits::attributesPerInstance, "an instance's attributes");
                 for (const auto &entry : list) {
                     const auto a = object(entry, "attribute");
-                    onlyKeys(a, {"dictionary", "key", "type", "value"}, "attribute");
+                    onlyKeysOr(a, {"dictionary", "key", "type", "value"}, {"truncated"},
+                               "attribute");
                     SkpPackageAttribute attribute;
                     attribute.dictionary = text(a["dictionary"], SkpPackageLimits::nameBytes, "attribute dictionary");
                     attribute.key = text(a["key"], SkpPackageLimits::nameBytes, "attribute key");
                     require(!attribute.key.empty(), "attribute key is empty");
                     const auto type = text(a["type"], 16, "attribute type");
+                    if (a.contains("truncated")) {
+                        require(a["truncated"].isBool(),
+                                "attribute truncated flag must be a boolean");
+                        attribute.truncated = a["truncated"].toBool();
+                    }
                     if (type == "string") {
                         attribute.kind = SkpPackageAttribute::Kind::String;
                         attribute.text = text(a["value"], SkpPackageLimits::stringBytes, "attribute value");
@@ -595,6 +601,7 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
                         fail("attribute type is unknown");
                     }
                     definition.instances[n].attributes.push_back(std::move(attribute));
+                    attributesTotal++;
                 }
             }
         }
@@ -607,6 +614,20 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
             "counts disagree with the chunk");
     require(holesTotal == package.counts.holes, "hole count disagrees with the manifest");
     require(uvTotal == package.counts.uvTransforms, "uv count disagrees with the manifest");
+    // The attribute accounting (ADR 0176 section 5, the follow-up "attribute reporting"): the
+    // attributes the file holds are the ones kept on instances plus the ones the worker counted as
+    // omitted. A package without the total (one the earlier helper wrote) is not checked.
+    if (package.sourceTotals.count("attributes")) {
+        long long omittedAttributes = 0;
+        for (const char *kind :
+             {"attribute", "modelAttribute", "definitionAttribute", "layerAttribute"}) {
+            const auto it = package.omitted.find(kind);
+            if (it != package.omitted.end())
+                omittedAttributes += it->second;
+        }
+        require(attributesTotal + omittedAttributes == package.sourceTotals.at("attributes"),
+                "the attribute accounting does not add up");
+    }
     return package;
 }
 

@@ -1,7 +1,10 @@
 #include "automation/commands.hpp"
+#include "automation/presentation_commands.hpp"
 #include "automation/terrain_commands.hpp"
 #include "automation/text_commands.hpp"
 #include "io/model_style_io.hpp"
+#include "io/style_bundle.hpp"
+#include "catalog_fixtures.hpp"
 #include "io/solar_io.hpp"
 #include "io/scenes_io.hpp"
 #include "core/scenes.hpp"
@@ -810,6 +813,23 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "saved_scene.reorder"}, {"order", QJsonArray{"2", "1"}}},
             QJsonObject{{"command", "saved_scene.delete"}, {"scene", "1"}},
             QJsonObject{{"command", "saved_scene.recall"}, {"scene", "1"}},
+            QJsonObject{
+                {"command", "camera_path.create"},
+                {"name", "Orbit"},
+                {"keyframes", QJsonArray{"1", "2"}},
+                {"timing",
+                 QJsonObject{{"framesPerSecond", 24}, {"transitionSteps", 2}, {"holdSteps", 1}}}},
+            QJsonObject{{"command", "camera_path.update"}, {"path", "1"}, {"name", "Renamed"}},
+            QJsonObject{{"command", "camera_path.delete"}, {"path", "1"}},
+            QJsonObject{{"command", "render_preset.create"},
+                        {"name", "Draft"},
+                        {"width", 64},
+                        {"height", 64},
+                        {"samples", 1},
+                        {"seed", 0},
+                        {"engine", "cycles"}},
+            QJsonObject{{"command", "render_preset.update"}, {"preset", "1"}, {"width", 80}},
+            QJsonObject{{"command", "render_preset.delete"}, {"preset", "1"}},
             QJsonObject{{"command", "drawing_sheet.create"}, {"name", "Sheet"}, {"paper", QJsonObject{{"widthMm", 420}, {"heightMm", 297}}}},
             QJsonObject{{"command", "drawing_sheet.rename"}, {"sheet", "1"}, {"name", "Renamed"}},
             QJsonObject{{"command", "drawing_sheet.resize"}, {"sheet", "1"},
@@ -1197,6 +1217,22 @@ int main(int argc, char **argv) {
                                               {"contours", true},
                                               {"contourInterval", 0.5},
                                               {"shading", "elevationBands"}});
+        // R100.a: a packaged style (no texture) applied as one edit to the fixture document.
+        {
+            Document packaged;
+            auto style = packaged.style();
+            style.profiles = true;
+            packaged.setStyle(style);
+            const auto bytes = exportStyleBundle(packaged, StyleMetadata{"Packaged", {}, {}});
+            cases.append(QJsonObject{{"command", "style.apply"},
+                                     {"data", QString::fromLatin1(bytes.toBase64())}});
+        }
+        // R100.d: one textured material imported from the generated basic catalog, inline.
+        cases.append(QJsonObject{
+            {"command", "catalog.import"},
+            {"catalog", QString::fromLatin1(catalog_fixture::basic().toBase64(
+                            QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals))},
+            {"entries", QJsonArray{"Oak"}}});
         check(commandCatalog().size() == cases.size(),
               "All published commands have executable cases");
         for (auto value : cases) {
@@ -1242,6 +1278,39 @@ int main(int argc, char **argv) {
                 savedStyle.style = wireframeStyle;
                 createScene(doc, "First", savedStyle);
                 createScene(doc, "Second", savedStyle);
+            }
+            if (command["command"].toString().startsWith("camera_path.")) {
+                // Camera paths keyframe saved scenes with cameras.
+                SceneSnapshot pathView;
+                pathView.camera = SceneCamera{};
+                const auto front = createScene(doc, "Front", pathView);
+                pathView.camera->yaw = 90;
+                const auto side = createScene(doc, "Side", pathView);
+                if (command["command"] == "camera_path.create") {
+                    command["keyframes"] =
+                        QJsonArray{QString::number(front), QString::number(side)};
+                } else {
+                    executePresentationCommand(
+                        doc, QJsonObject{{"command", "camera_path.create"},
+                                         {"name", "Existing"},
+                                         {"keyframes", QJsonArray{QString::number(front),
+                                                                  QString::number(side)}},
+                                         {"timing", QJsonObject{{"framesPerSecond", 24},
+                                                                {"transitionSteps", 2},
+                                                                {"holdSteps", 1}}}});
+                    command["path"] = QString::number(doc.cameraPaths().begin()->first);
+                }
+            }
+            if (command["command"].toString().startsWith("render_preset.") &&
+                command["command"] != "render_preset.create") {
+                executePresentationCommand(doc, QJsonObject{{"command", "render_preset.create"},
+                                                            {"name", "Existing"},
+                                                            {"width", 64},
+                                                            {"height", 64},
+                                                            {"samples", 1},
+                                                            {"seed", 0},
+                                                            {"engine", "cycles"}});
+                command["preset"] = QString::number(doc.renderPresets().begin()->first);
             }
             if (command["command"].toString().startsWith("drawing_")) {
                 SceneSnapshot plan;

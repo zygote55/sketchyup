@@ -8,6 +8,7 @@
 #include "core/component_parameter_records.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
+#include "io/catalog_io.hpp"
 #include "io/display_precision_io.hpp"
 #include "io/sheet_export.hpp"
 #include "io/model_style_io.hpp"
@@ -16,6 +17,9 @@
 #include "automation/terrain_commands.hpp"
 #include "automation/report_commands.hpp"
 #include "automation/hosted_commands.hpp"
+#include "automation/presentation_commands.hpp"
+#include "automation/style_commands.hpp"
+#include "automation/catalog_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
@@ -84,6 +88,13 @@ enum class Operation {
     SavedScenes,
     SavedScene,
     SavedSceneVisibility,
+    CameraPath,
+    RenderPreset,
+    Presentation,
+    StyleExport,
+    CatalogList,
+    CatalogLibrary,
+    CatalogExport,
     DrawingSheets,
     DrawingSheet,
     DrawingViewsStatus,
@@ -159,6 +170,43 @@ const std::vector<Spec> &registry() {
             spec("saved_scenes.query", Operation::SavedScenes, {}, {}, true),
             spec("saved_scene.describe", Operation::SavedScene, {{"scene", idSchema()}}, {"scene"}),
             spec("saved_scene.visibility", Operation::SavedSceneVisibility, {{"scene", idSchema()}}, {"scene"}, true),
+            spec("camera_path.describe", Operation::CameraPath, {{"path", idSchema()}}, {"path"}),
+            spec("render_preset.describe", Operation::RenderPreset, {{"preset", idSchema()}},
+                 {"preset"}),
+            // R100.c (ADR 0174 section 4.1): the bytes travel inline, so the query reads no path.
+            // R100.d: or `library` names a catalog in the catalog library folder. Exactly one is
+            // required; catalogReference refuses both or neither.
+            spec("catalog.list", Operation::CatalogList,
+                 {{"catalog", textSchema(inspectionRequestBytes)},
+                  {"library",
+                   QJsonObject{{"type", "string"},
+                               {"minLength", 1},
+                               {"maxLength", 64},
+                               {"pattern", "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$"}}}},
+                 {}),
+            spec("catalog.library", Operation::CatalogLibrary, {}, {}),
+            // R100.d (ADR 0174 section 7): captures the chosen records as a catalog, and changes
+            // nothing.
+            spec("catalog.export", Operation::CatalogExport,
+                 {{"name", textSchema(256)},
+                  {"description", textSchema(4096)},
+                  {"labels", list(textSchema(64), 0, 32)},
+                  {"version", textSchema(64)},
+                  {"license", textSchema(64)},
+                  {"components", list(idSchema(), 0, 64)},
+                  {"materials", list(idSchema(), 0, 64)},
+                  {"style", QJsonObject{{"type", "boolean"}}}},
+                 {"name"}),
+            spec("presentation.describe", Operation::Presentation,
+                 {{"path", idSchema()},
+                  {"presets", list(idSchema(), 1, 4)},
+                  {"video", QJsonObject{{"type", "boolean"}}}},
+                 {"path", "presets"}),
+            spec("style.export", Operation::StyleExport,
+                 {{"name", textSchema(256)},
+                  {"description", textSchema(4096)},
+                  {"labels", list(textSchema(64), 0, 32)}},
+                 {"name"}),
             spec("drawing_sheets.query", Operation::DrawingSheets, {}, {}, true),
             spec("drawing_sheet.describe", Operation::DrawingSheet, {{"sheet", idSchema()}}, {"sheet"}),
             spec("drawing_views.status", Operation::DrawingViewsStatus, {{"sheet", idSchema()}}, {}, true),
@@ -760,6 +808,44 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         for (const auto id : orderedScenes(doc))
             page.append([&] { return savedSceneSummary(doc, id); });
         data = page.finish();
+        break;
+    case Operation::CameraPath:
+        data = cameraPathDescription(doc, decimal(request["path"]));
+        break;
+    case Operation::RenderPreset:
+        data = renderPresetDescription(doc, decimal(request["preset"]));
+        break;
+    case Operation::CatalogList:
+        try {
+            data = encodeCatalogListing(catalogReference(request));
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    case Operation::CatalogLibrary:
+        try {
+            data = encodeCatalogLibrary(scanCatalogLibrary(catalogLibraryFolder()));
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    case Operation::CatalogExport:
+        try {
+            data = catalogExportQuery(doc, request);
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    case Operation::Presentation: {
+        std::vector<Id> presets;
+        for (const auto &item : request["presets"].toArray())
+            presets.push_back(decimal(item));
+        data = presentationDescription(doc, decimal(request["path"]), presets,
+                                       request["video"].toBool());
+        break;
+    }
+    case Operation::StyleExport:
+        data = styleExport(doc, request);
         break;
     case Operation::SavedScene: {
         const auto id = decimal(request["scene"]);

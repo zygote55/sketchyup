@@ -352,12 +352,12 @@ int main(int argc, char **argv) {
         const QDir fixtures(QString(SOURCE_DIR) + "/tests/fixtures");
 
         // The policy constants: 28 is written for parameters (29 only adds terrain and
-        // the site origin, ADR 0168; 30 adds camera paths and presets, ADR 0173);
-        // parameter-free content stays 27 or 26.
-        static_assert(nativeDocumentVersion == 30 && nativeTerrainDocumentVersion == 29 &&
-                      nativeTerrainFreeDocumentVersion == 28 &&
-                      nativeParameterFreeDocumentVersion == 27 &&
-                      nativeSheetFreeDocumentVersion == 26);
+        // the site origin, ADR 0168; 30 adds camera paths and presets, ADR 0173; 31 adds
+        // an edge stroke on the style, ADR 0174); parameter-free content stays 27 or 26.
+        static_assert(
+            nativeDocumentVersion == 31 && nativePresentationDocumentVersion == 30 &&
+            nativeTerrainDocumentVersion == 29 && nativeTerrainFreeDocumentVersion == 28 &&
+            nativeParameterFreeDocumentVersion == 27 && nativeSheetFreeDocumentVersion == 26);
         check(nativeDocumentVersionFor(Document{}) == 26, "An empty document needs schema 26");
 
         auto t = makeTable();
@@ -1088,9 +1088,9 @@ int main(int argc, char **argv) {
                 fixtures.entryList({"*.sketchyup", "raw-*.json"}, QDir::Files, QDir::Name);
             int historical{}, exact{};
             for (const auto &name : names) {
-                // Schema-28 and schema-30 fixtures carry records this loop is not about.
+                // Schema-28, schema-30 and schema-31 fixtures carry records this loop is not about.
                 if (name == "component-parameters-v28.sketchyup" ||
-                    name == "presentation-v30.sketchyup")
+                    name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);

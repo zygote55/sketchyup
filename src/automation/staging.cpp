@@ -102,6 +102,8 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
     diff("material", live.materials(), snapshot.materials(), std::equal_to<>{});
     diff("asset", live.assets(), snapshot.assets(), std::equal_to<>{});
     diff("scene", live.scenes(), snapshot.scenes(), std::equal_to<>{});
+    diff("camera_path", live.cameraPaths(), snapshot.cameraPaths(), std::equal_to<>{});
+    diff("render_preset", live.renderPresets(), snapshot.renderPresets(), std::equal_to<>{});
     diff("annotation", live.annotations(), snapshot.annotations(), std::equal_to<>{});
     diff("section", live.sections(), snapshot.sections(), std::equal_to<>{});
     diff("active_section", live.activeSections(), snapshot.activeSections(), std::equal_to<>{});

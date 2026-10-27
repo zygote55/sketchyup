@@ -9,7 +9,7 @@ OpenSKP (MIT, an open-source SketchUp (.skp) reader, not affiliated with Trimble
   Vendored: the parser subset - the model, the VFF and MFC containers, the TLV and page/
   dimension decoding, the attribute and transform support, and the public headers - plus the
   miniz files it builds with. No exporters, no writer, no scene baker, no tinygltf, no
-  flatbuffers. Two files are patched (patches/, documented in PATCHES.md). The licence is in
+  flatbuffers. Six files are patched (patches/, documented in PATCHES.md). The licence is in
   LICENSE.
 
 miniz (MIT, the ZIP reader OpenSKP's VFF container uses)
@@ -23,21 +23,21 @@ SHA-256 of every vendored file (upstream bytes at the commit; the patched files 
 patched bytes, the result of applying their patch to the upstream file):
 c5fe106f01282725135e5dc0c5882cd6a3b8006378193d1a1ef95a53b73199c3  include/openskp/errors.hpp
 8ee5cca5d784f44e24bb4b0b1ae8465cc46b04217731919e8aa5315ab692093f  include/openskp/instanced_scene.hpp
-770f29965462629092cfc36656cdb2ae9bb560e5d2cef6ee07d0fd8b8792d11c  include/openskp/model.hpp
+f09cb704d29136b7fbcf0d6464b6e28b5c18ce5bd3d51535c7857923d1340567  include/openskp/model.hpp (patched)
 19549ee98625c4bc06a28f007c9d5dd70967b0e877945bc8a3f4f89b0956bc7c  include/openskp/observability.hpp
 e15dab77d56e1e89234c0a7e27928987e9d36e2a5e0ab778ab50984148760b8e  include/openskp/parser.hpp
 5156fd6392bd82215466cbdb85f9b99254d6f49de1404b1d35233b0693b2eeaf  include/openskp/scene.hpp
 2ec54496c29fdb7a7b3a16c0a0ed6a47772800d2381e3ea80c8c8af586d1c988  src/core.cpp
 2d21e1c0f4ac7c13720d2c685b4cefa1ce4f63ce058b9aee79a4f5305e324275  src/errors.cpp
-f059dae0444e7a6f59552a54b54ae7dbda7a1a2fbcc19194ac6eec6498a850e9  src/geometry.cpp
-b968d7ea8c2acb9e050049f096685653cddf534448d6feccf641394de9613993  src/legacy.cpp
-3e558ae3d3de24086eb33bbab107c308bd73d62e5ccd5ae985b648a479046a7b  src/model.cpp
+a6bbc9ff0476b1af040c26f6e5edf39dd9a8e05fdd2b92200f959eb2ada8f7c8  src/geometry.cpp (patched)
+03399c183d5314e03781faab2620413ec66d33c13eaee1291c272fe7eaa03fde  src/legacy.cpp (patched)
+4cef4ce625979ccb7c55361025b6c69b16e337d34b482e525076fdc147910c53  src/model.cpp (patched)
 e5767006b2bcd49fc3b0c3d1236050b1ad7cdb81345e894aa1fe4bbbfe0f9910  src/observability.cpp
 da296cc5522f1cf9bd53a93e140391628f046fb9918c7752f48233c52796d716  src/pages_dimensions.cpp
 f35a64bb92fb30c617e039b1128985591f9e5128413d8642d6d2316b0af00b61  src/tlv.cpp
 7a9b49d734e172c05015f36761b250f2ee0ec83346cefb7982e0984dadbf0e5f  src/transforms.cpp
 149d80a96df81aeaf08b24602a38270f1b2e9beedd4fb0e102a48539973e4f28  src/vff.cpp
-f4a29c095f7420a61f3a93bae3f1574521ba8441900f48d4ff6647c30606d653  src/internal.hpp (patched)
+2342a4b962814ff588b4d0c5115bc5f6a874eb134f7daf4ffbc3fa82b351299f  src/internal.hpp (patched)
 8ace9dc0b22a96c7ea45256be53e0f6a34e7e64c06b0ca4b14c06f3670ec621c  src/parser.cpp (patched)
 195259dc89fb3f83a96426a90ee03dc45acef113150cd3475ea9cfbf1f7784f3  cmake/miniz_export.h.in
 7c70ac0b7916390744a5f6361c59008cada08149a54348530b767953e050dbc6  LICENSE
