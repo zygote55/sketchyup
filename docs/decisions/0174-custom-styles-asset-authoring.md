@@ -1117,3 +1117,105 @@ test was not run; it reads only the presentation section, which did not change.
 
 **Not measured.** The section 9 budgets. The fixtures are small, and no CLI import of a 130 MiB
 catalog entry was timed.
+
+## Implementation notes (R100.f1)
+
+Recorded 2026-10-27 for branch `feat/r100f1-edge-stroke-rendering`, on `origin/main` at `fba4e54f`
+(R099.d1, #473). This is the first desktop slice of [UX_DESIGN §18](../UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs):
+the edge stroke's engine edits and its viewport drawing. The Styles tab controls (R100.f2) and the
+catalog dialog (R100.f3) are not in it.
+
+- **Edit surface (owner choice 3).** `document.style` takes the optional `edgeStroke` record
+  (`width` 1 to 8, `opacity` 0.01 to 1, `dash` as one of `solid`, `dashed`, `dotted`, `dashDot`, and
+  `texture` as a canonical asset id, `"0"` for none). The shared style schema (`modelStyleSchema()`)
+  carries it, so MCP, the transaction schemas and the saved-scene snapshot take it too; the
+  regenerated `docs/api` files and `tool-reference-v1.json` add only that object. The top-level
+  `required` lists are unchanged.
+- **Labelled edits.** `turnOnEdgeStroke`, `turnOffEdgeStroke`, `setEdgeStrokeWidth`,
+  `setEdgeStrokeOpacity`, `setEdgeStrokeDash` and `setEdgeStrokeTexture` (`src/io/model_style_io.hpp`)
+  each return the whole style with one control changed and the history label, so one
+  `document.style` batch with `history.label` is one undo step. The labels are "Turn on edge
+  stroke", "Turn off edge stroke", "Set edge width 2.5 px", "Set edge opacity 60 %", "Set edge dash
+  Dashed" (Solid, Dashed, Dotted, Dash-dot), "Set edge texture “Name”" and "Clear edge texture".
+  Turning the stroke on copies the profile width. A field edit on a style whose stroke is off is
+  refused, and so is a width outside 1 to 8.
+- **The assistant keeps the edge stroke off its schemas (decision 9, the preferred option).** The
+  assistant's `transaction.apply` builds its command schemas from the shared catalogue, so
+  `withoutEdgeStroke` removes the `edgeStroke` property from them, as `transaction.begin` already
+  drops `history`. The assistant's pinned surface does not move: every `toolsSha256` in
+  `tests/assistant-tool-surface-baseline.json` is unchanged, and `assistant_tool_surface_tests`
+  checks byte for byte that the assistant's tool list has no `edgeStroke`. No re-pin, no corpus
+  version and no token measurement were needed, because the assistant's bytes did not change. The
+  engine still accepts the field from any caller that sends it. The assistant cannot set the stroke
+  unless the owner asks for that later, and then the re-pin costs the measurement this record
+  describes for R095.g and R099.c.
+- **The viewport draws the stroke (UX_DESIGN §18.3).** `drawStyleProfiles` builds the profiles from
+  `profileStroke()`: while the stroke is on, its width replaces Profile width, its opacity is the
+  vertex alpha, and its dash and texture apply. With it off, the quads are the ones drawn before
+  R100.f1, and the pixels are the same: a stroke equal to Profile width (opaque, solid, untextured)
+  renders the same frame (`edge_stroke_viewport_tests`, check 1).
+  - **Dash.** `edgeDashRuns` (`src/core/model_style.hpp`) gives the on runs in logical pixels: dashed
+    8 on and 4 off, dotted 2 and 3, dash-dot 8, 3, 2, 3. Each run is one quad. Its world ends come
+    from the screen fraction σ of the visible span: t = σ·w0 / (w1 − σ·(w1 − w0)), where w0 and w1
+    are the clip-space w of the span's ends. Screen position is linear in σ, not in t, so this is
+    what makes the runs exact on screen. The pattern starts at the visible start of each edge (see
+    the gaps below).
+  - **Texture.** The edge texture is bound as the back image of every stroke vertex. Each vertex
+    carries its distance along the edge and its distance across the stroke, in logical pixels, in a
+    `noperspective` varying. The fragment shader divides by the texture's own size, so the texture
+    repeats at its own size in logical pixels and shows only the rows the stroke covers. The texel
+    colour is the edge colour (`toSrgb(texel)`, not multiplied by the edge colour), and its alpha is
+    the stroke opacity times the texel alpha.
+  - **Missing and refused textures.** A named asset with no bytes is hatched, and so is one the
+    decoder refused. The hatch is a 45° pattern (2 logical pixels on and 2 off along the stroke's
+    diagonal) in the theme's warning colour (`colors_.warning`, which is `#7a4f00` on a light model
+    background). A texture still decoding or uploading draws nothing, never a substitute colour.
+    No plain colour, default texture or other substitute is drawn anywhere.
+  - **Opacity.** Blending is on, with the framebuffer alpha kept as the transparent pass keeps it,
+    and depth writes are off, only while the stroke is translucent (opacity below 1, or a texture).
+    Opaque strokes draw exactly as before.
+  - **Chip.** The footer shows "⚠ Edge texture missing · Show in Styles" while the model's stroke
+    names a missing asset (`Viewport::edgeTextureMissing`). It opens the Styles tab through the View
+    action. The chip's text is the design's; the window's chip wiring has no test (see the gaps).
+  - **Exports.** The image export (`Viewport::exportRaster`), the measured PDF and SVG export (which
+    embeds the page raster) and the drawing-view rasters call `renderRaster`, and the sheet export's drawing-view rasters come from the same
+    viewport (`capturedRasters`, `window_sheet_export.cpp`). They all run `paintScene`, so they inherit
+    the stroke. The vector geometry path of the measured export has no profiles, as before, and no
+    vector writer reads them. None of these exports was run in this slice.
+- **Precedence of the two width fields (UX §18.8 item 2).** The stroke's width is the one drawn while
+  the stroke is on. `profileWidth` is drawn when it is off and is unchanged in the record. The
+  Colors and details control that dims it is the Styles tab's, which R100.f2 builds.
+- **Measured numbers.** The cost is one quad per visible dash run: 6 vertices of 76 bytes each. A dotted
+  edge costs about 91 bytes of vertex data for each visible pixel of its length, and dash-dot about 57.
+  The stats gained `profileSegments` (also in `sketchyup --benchmark` output). Nothing was timed at
+  scale, so the section 9 budgets remain unmeasured.
+- **Tests.**
+  - `model_style_command_tests`: each control is one labelled `document.style` edit, one undo
+    step, redone by Redo; turning the stroke off removes the sub-record; an unknown texture is
+    refused by name; the field edits refuse an off stroke.
+  - `model_style_tests`: the dash runs as pure geometry, including the clipped end and the
+    published lengths.
+  - `assistant_tool_surface_tests`: the assistant's surfaces equal the baseline, and no
+    `edgeStroke` appears in the assistant's tool list; MCP's `document.style` accepts it.
+  - `edge_stroke_viewport_tests` (new, native): a stroke equal to Profile width draws the same
+    frame; half opacity blends black over white to grey; dashed runs land where the proposed
+    lengths put them, on the screen, along each edge; the texture repeats every 8 logical pixels
+    and shows no row below its width; a missing texture hatches with no edge colour; the chip state.
+    Run locally offscreen (Mesa `swrast`) at device pixel ratio 1 and 2 (`QT_SCALE_FACTOR`): both
+    pass. The X11 and Wayland jobs run it at 1x and 2x.
+  - The existing `style_viewport_tests`, `command_tests`, `inspection_tests`,
+    `transaction_sequence_tests`, `transaction_dispatch_tests`, `automation_session_tests` and
+    `mcp_tests` pass locally.
+- **Gaps (honest).**
+  - The stroke-off path was not compared against a pre-change image. Its quads and shader branches
+    are the same as before by construction, and the equality check above covers the new code only.
+  - The dash and texture phase starts at each edge's visible start, after clipping at the screen
+    edge. An edge that is partly off screen therefore moves its pattern when the view pans. Anchoring
+    to the unclipped edge needs the projective relation over the whole edge, and an edge that crosses
+    the camera plane has no such relation.
+  - A texture that is present but refused by the decoder draws hatched. The status chip does not
+    show for it, which the design does not ask for. The viewport's "Some images are unavailable"
+    summary covers it.
+  - No window-level test covers the chip's visibility or its click.
+  - The Qt 6.8 reference build, the sanitizer job and the Wayland runs run only in CI.
+  - The §9 budget for dash runs is unmeasured, as above.
