@@ -338,6 +338,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     info_->setWordWrap(true);
     trayLayout->addWidget(info_);
     organization_ = new OrganizationPanel(doc_, *viewport_);
+    // R101.e2: a saved model has a file, which its schedules need; an unsaved one has none.
+    organization_->setModelPath([this] { return path_; });
     outliner_ = organization_->outliner();
     info_->setAccessibleName("Selection summary");
     trayLayout->addWidget(organization_, 1);
@@ -401,6 +403,16 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     skpReportChip_->hide();
     QObject::connect(skpReportChip_, &QPushButton::clicked, this, &Window::showSkpImportReport);
     bottomLayout->addWidget(skpReportChip_);
+    // R100.f1 (UX_DESIGN §18.3): the edge texture chip, the SketchUp chip's own lifetime rules. It
+    // opens the Styles tab through its View action, as the menu does.
+    edgeTextureChip_ = new QPushButton("⚠ Edge texture missing · Show in Styles");
+    edgeTextureChip_->setObjectName("edgeTextureChip");
+    edgeTextureChip_->setCursor(QCursor(Qt::PointingHandCursor));
+    edgeTextureChip_->setMaximumHeight(24);
+    edgeTextureChip_->hide();
+    QObject::connect(edgeTextureChip_, &QPushButton::clicked, this,
+                     [this] { findChild<QAction *>("view.styles")->trigger(); });
+    bottomLayout->addWidget(edgeTextureChip_);
     auto *renderChip = new QPushButton;
     bottomLayout->addWidget(renderChip);
     render_ = new RenderPanel(doc_, *viewport_, *modelTabs, *renderChip, *this);
@@ -1011,6 +1023,9 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                            [showPanel] { showPanel(&OrganizationPanel::showInfo); }));
     view->addAction(action("view.materials", "Materials", {},
                            [showPanel] { showPanel(&OrganizationPanel::showMaterials); }));
+    // R101.e2 (UX_DESIGN §19.1): View → Quantities opens the section and focuses Group by.
+    view->addAction(action("view.quantities", "Quantities", {},
+                           [showPanel] { showPanel(&OrganizationPanel::showQuantities); }));
     view->addAction(action("view.history", "History", {},
                            [showPanel] { showPanel(&OrganizationPanel::showHistory); }));
     view->addAction(action("view.scenes", "Saved scenes", {},
@@ -1626,6 +1641,8 @@ void Window::sync() {
                                          unitName(doc_.displayUnits()).toLower());
     }
     viewport_->refresh();
+    // R100.f1: the edge texture chip shows while the model's stroke names a missing texture.
+    edgeTextureChip_->setVisible(viewport_->edgeTextureMissing());
     // An open export or print dialog checks the changed document again (R092.b).
     if (sheetExport_)
         sheetExport_->documentChanged();

@@ -9,6 +9,7 @@
 #include "app/terrain_import_dialog.hpp"
 #include "automation/commands.hpp"
 #include "automation/extension_store.hpp"
+#include "automation/report_schedules.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
@@ -19,10 +20,13 @@
 #include <QBuffer>
 #include <QDoubleSpinBox>
 #include <QImage>
+#include <QListWidget>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QTabWidget>
+#include <QTest>
+#include <QTimer>
 namespace dialog_audit {
 // Wide enough for the docked assistant (1100 px) and the Model panel; small enough to keep
 // software rendering of the 2x Wayland window cheap.
@@ -57,6 +61,43 @@ inline void load(Context &context, const QString &path) {
     context.window.document().markSaved();
     context.window.openPath(path);
     context.window.document().markSaved();
+}
+// R101.e2 (UX_DESIGN §19.6, §19.10): a saved schedule in the audit's isolated store, for the rename
+// and delete dialogs. Its name is valid, so Rename is enabled as the default. The store is shared
+// by the cases, so an earlier case's copy is removed first.
+inline void quantitiesSchedule(Context &context) {
+    fresh(context);
+    auto &doc = context.window.document();
+    const auto store = reportScheduleStorePath();
+    try {
+        deleteReportSchedule(doc, store, "Walls old");
+    } catch (const InspectionError &) {
+        // None to remove: the first case to run here.
+    }
+    const QJsonObject request{
+        {"metrics", "all"}, {"groupBy", "none"}, {"filters", QJsonObject{{"visibility", "all"}}}};
+    saveReportSchedule(doc, store, "Walls old", request);
+}
+// Opens the Quantities section from the palette, then focuses its schedule list with the first row
+// selected and presses `key` there: F2 renames, Delete asks first (§19.10). The key is sent after
+// the trigger returns, because the dialog it opens is modal.
+inline std::function<void(Context &)> keyOnSchedule(int key) {
+    return [key](Context &context) {
+        palette(context, "Quantities");
+        auto *list = context.window.findChild<QListWidget *>("quantitiesScheduleList");
+        require(list != nullptr && list->count() == 1, "The saved schedule is listed");
+        list->setCurrentRow(0);
+        list->setFocus(Qt::OtherFocusReason);
+        context.opener = list;
+        context.openerId = identity(list);
+        // Focus and the key are sent together, after the palette has released focus.
+        QTimer::singleShot(0, list, [&context, list, key] {
+            context.window.activateWindow();
+            QTest::qWaitForWindowActive(&context.window, 2000);
+            list->setFocus(Qt::OtherFocusReason);
+            QTest::keyClick(list, Qt::Key(key));
+        });
+    };
 }
 inline void selectTable(Context &context) {
     fresh(context);
@@ -1713,6 +1754,24 @@ inline std::vector<Case> cases(Context &ctx) {
          Return::Viewport,
          {},
          preflightSettles});
+    // ------------------------------------------------------------ quantities ---------
+    // R101.e2 (UX_DESIGN §19): the Quantities section's dialogs. Save needs a saved model, so the
+    // case loads one; Delete needs a schedule, which the case saves in the isolated store. Rename
+    // and the export file choosers are not audited yet: their keyboard checks fail here (see the
+    // notes).
+    add({"quantities-save-schedule", "quantities", "Save as schedule",
+         "View > Quantities (palette), then Save as schedule… (Tab, Space)",
+         [](Context &context) {
+             fresh(context);
+             load(context, source("tests/fixtures/container-tags-v9.sketchyup"));
+         },
+         viaPanel("Quantities", "quantitiesSaveSchedule"), named("scheduleNameDialog"),
+         Enter::Disabled, "Save", Return::OpenerPanel});
+    add({"quantities-delete-schedule", "quantities", "Delete schedule (confirmation)",
+         "View > Quantities (palette), then Delete on the schedule row", quantitiesSchedule,
+         keyOnSchedule(Qt::Key_Delete), named("scheduleDeleteDialog"), Enter::Closes, "Cancel",
+         Return::OpenerPanel});
+
     return all;
 }
 // Dialogs that exist in the product but cannot be opened in the isolated, offline fixture.

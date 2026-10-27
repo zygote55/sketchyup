@@ -2,12 +2,17 @@
 #include "automation/component_scope.hpp"
 #include "automation/inspection.hpp"
 #include "automation/staging.hpp"
+#include "core/assets.hpp"
 #include "core/components.hpp"
 #include "io/document_io.hpp"
 #include "io/model_style_io.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
+#include <cstdint>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 using namespace sketchy;
 namespace {
 void check(bool value, const char *message) {
@@ -30,6 +35,17 @@ QJsonObject batch(const Document &doc, QJsonArray commands) {
 }
 QJsonObject command(const ModelStyle &style) {
     return {{"command", "document.style"}, {"style", encodeModelStyle(style)}};
+}
+// The batch carries the label the history names the edit with (R100.f1, UX_DESIGN §18.3).
+QJsonObject labelled(const Document &doc, QJsonArray commands, const std::string &label) {
+    auto request = batch(doc, commands);
+    request["history"] = QJsonObject{{"label", QString::fromStdString(label)}};
+    return request;
+}
+// The label of the newest applied edit (history lists the oldest first).
+std::string lastLabel(const Document &doc) {
+    const auto position = doc.history().position;
+    return doc.history(position - 1, 1).entries.front().label;
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -136,6 +152,64 @@ int main(int argc, char **argv) {
         });
         check(encodeContainer(doc) == scoped,
               "Shared component scope cannot mutate document style");
+        // R100.f1 (UX_DESIGN §18.3, owner choice 3): each edge stroke control is one labelled
+        // document.style edit. Each is one history step with its label, and Undo restores the
+        // style before it. The chain runs on the document, so each edit starts from the last.
+        const auto texture =
+            createAsset(doc, "Weave", "image/png",
+                        std::make_shared<AssetPayload>(std::vector<std::uint8_t>{1, 2, 3}));
+        const auto lost = createAsset(doc, "Lost weave", "image/png");
+        auto step = [&](const StyleEdit &edit, const char *expected) {
+            const auto before = doc.style();
+            const auto total = doc.history().total;
+            check(edit.label == expected, "Edit label names the control and its value");
+            executeBatch(doc, labelled(doc, {command(edit.style)}, edit.label));
+            check(doc.style() == edit.style && doc.history().total == total + 1 &&
+                      lastLabel(doc) == expected,
+                  "One labelled edit is one history step");
+            doc.undo();
+            check(doc.style() == before, "Undo restores the style before the edit");
+            doc.redo();
+            check(doc.style() == edit.style, "Redo restores the labelled edit");
+        };
+        rejects([&] { setEdgeStrokeWidth(doc.style(), 2.5); });
+        rejects([&] { turnOffEdgeStroke(doc.style()); });
+        step(turnOnEdgeStroke(doc.style()), "Turn on edge stroke");
+        check(doc.style().edgeStroke && doc.style().edgeStroke->width == doc.style().profileWidth &&
+                  doc.style().edgeStroke->opacity == 1 && doc.style().edgeStroke->texture == 0 &&
+                  doc.style().edgeStroke->dash == EdgeDash::Solid,
+              "Turning the stroke on copies the profile width and nothing else");
+        rejects([&] { turnOnEdgeStroke(doc.style()); });
+        step(setEdgeStrokeWidth(doc.style(), 2.5), "Set edge width 2.5 px");
+        rejects([&] { setEdgeStrokeWidth(doc.style(), 9); });
+        step(setEdgeStrokeOpacity(doc.style(), .6), "Set edge opacity 60 %");
+        step(setEdgeStrokeDash(doc.style(), EdgeDash::Dashed), "Set edge dash Dashed");
+        step(setEdgeStrokeDash(doc.style(), EdgeDash::DashDot), "Set edge dash Dash-dot");
+        step(setEdgeStrokeTexture(doc.style(), texture, "Weave"), "Set edge texture “Weave”");
+        step(setEdgeStrokeTexture(doc.style(), 0, ""), "Clear edge texture");
+        step(setEdgeStrokeTexture(doc.style(), lost, "Lost weave"),
+             "Set edge texture “Lost weave”");
+        try {
+            auto bad = doc.style();
+            bad.edgeStroke->texture = 999;
+            executeBatch(doc, batch(doc, {command(bad)}));
+            check(false, "An unknown edge texture is refused");
+        } catch (const std::runtime_error &error) {
+            check(std::string(error.what()).find("unknown asset") != std::string::npos,
+                  "The refusal names the unknown edge texture");
+        }
+        check(doc.style().edgeStroke->texture == lost, "The refused edit changes nothing");
+        const auto onStyle = doc.style();
+        const auto total = doc.history().total;
+        const auto off = turnOffEdgeStroke(onStyle);
+        executeBatch(doc, labelled(doc, {command(off.style)}, off.label));
+        check(!doc.style().edgeStroke && doc.history().total == total + 1 &&
+                  lastLabel(doc) == "Turn off edge stroke",
+              "Turning the stroke off removes the sub-record in one labelled edit");
+        check(!encodeModelStyle(doc.style()).contains("edgeStroke"),
+              "A style without the stroke is the 14-field record");
+        doc.undo();
+        check(doc.style() == onStyle, "Undo restores the whole stroke");
         std::cout << "Style command schema, preview, staging, queries, rollback, history and scope "
                      "passed\n";
     } catch (const std::exception &error) {

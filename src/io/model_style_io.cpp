@@ -20,6 +20,46 @@ double finite(const QJsonValue &value, const char *what) {
     return value.toDouble();
 }
 
+// The shortest text of at most `decimals` places: 2.5, 60, 0.25.
+std::string trimmed(double value, int decimals) {
+    auto text = QString::number(value, 'f', decimals);
+    if (text.contains('.')) {
+        while (text.endsWith('0'))
+            text.chop(1);
+        if (text.endsWith('.'))
+            text.chop(1);
+    }
+    return text.toStdString();
+}
+
+// The dash names the Styles tab lists (UX_DESIGN §18.3).
+std::string dashName(EdgeDash dash) {
+    switch (dash) {
+    case EdgeDash::Solid:
+        return "Solid";
+    case EdgeDash::Dashed:
+        return "Dashed";
+    case EdgeDash::Dotted:
+        return "Dotted";
+    case EdgeDash::DashDot:
+        return "Dash-dot";
+    }
+    throw std::runtime_error("Unknown edge dash pattern");
+}
+
+// Returns the style with its stroke changed, after the same validation the command applies.
+ModelStyle withStroke(ModelStyle style, EdgeStroke stroke) {
+    style.edgeStroke = stroke;
+    style.validate();
+    return style;
+}
+
+EdgeStroke requiredStroke(const ModelStyle &style) {
+    if (!style.edgeStroke)
+        throw std::runtime_error("Turn on the edge stroke before setting its fields");
+    return *style.edgeStroke;
+}
+
 } // namespace
 
 QJsonObject encodeEdgeStroke(const EdgeStroke &stroke) {
@@ -135,6 +175,47 @@ ModelStyle decodeModelStyle(const QJsonValue &value, bool edgeStrokes) {
         style.edgeStroke = decodeEdgeStroke(object["edgeStroke"]);
     style.validate();
     return style;
+}
+
+StyleEdit turnOnEdgeStroke(const ModelStyle &style) {
+    if (style.edgeStroke)
+        throw std::runtime_error("The edge stroke is already on");
+    EdgeStroke stroke;
+    stroke.width = style.profileWidth;
+    return {withStroke(style, stroke), "Turn on edge stroke"};
+}
+
+StyleEdit turnOffEdgeStroke(const ModelStyle &style) {
+    if (!style.edgeStroke)
+        throw std::runtime_error("The edge stroke is already off");
+    auto next = style;
+    next.edgeStroke.reset();
+    return {next, "Turn off edge stroke"};
+}
+
+StyleEdit setEdgeStrokeWidth(const ModelStyle &style, double width) {
+    auto stroke = requiredStroke(style);
+    stroke.width = width;
+    return {withStroke(style, stroke), "Set edge width " + trimmed(width, 2) + " px"};
+}
+
+StyleEdit setEdgeStrokeOpacity(const ModelStyle &style, double opacity) {
+    auto stroke = requiredStroke(style);
+    stroke.opacity = opacity;
+    return {withStroke(style, stroke), "Set edge opacity " + trimmed(opacity * 100, 2) + " %"};
+}
+
+StyleEdit setEdgeStrokeDash(const ModelStyle &style, EdgeDash dash) {
+    auto stroke = requiredStroke(style);
+    stroke.dash = dash;
+    return {withStroke(style, stroke), "Set edge dash " + dashName(dash)};
+}
+
+StyleEdit setEdgeStrokeTexture(const ModelStyle &style, Id texture, const std::string &name) {
+    auto stroke = requiredStroke(style);
+    stroke.texture = texture;
+    return {withStroke(style, stroke),
+            texture ? "Set edge texture “" + name + "”" : std::string("Clear edge texture")};
 }
 
 } // namespace sketchy
