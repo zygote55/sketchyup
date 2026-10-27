@@ -1,6 +1,7 @@
 #include "io/library_bundle.hpp"
 #include "core/components.hpp"
 #include "core/scenes.hpp"
+#include "io/library_envelope.hpp"
 #include "io/native_limits.hpp"
 #include "io/new_file.hpp"
 #include "io/texture_image.hpp"
@@ -11,31 +12,8 @@
 #include <set>
 namespace sketchy {
 namespace {
-const QByteArray magic("SKYLIB\0\1", 8);
-constexpr qsizetype headerSize = 24, manifestLimit = 32768, modelLimit = NativeLimits::fileBytes,
-                    thumbnailLimit = 4 * 1024 * 1024;
-void require(bool ok, const char *message) {
-    if (!ok)
-        throw std::runtime_error(message);
-}
-QString hash(const QByteArray &bytes) {
-    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
-}
-void fields(const QJsonObject &object, const QStringList &names) {
-    require(object.size() == names.size(), "Library manifest has missing or extra fields");
-    for (const auto &name : names)
-        require(object.contains(name), "Library manifest field missing");
-}
-QString text(const QJsonValue &value, qsizetype maximum, bool multiline = false) {
-    require(value.isString(), "Library metadata must be text");
-    const auto s = value.toString();
-    require(s.toUtf8().size() <= maximum && QString::fromUtf8(s.toUtf8()) == s,
-            "Library metadata exceeds UTF-8 limits");
-    for (auto c : s)
-        require(c.unicode() >= 32 || (multiline && (c == '\n' || c == '\t')),
-                "Library metadata contains control characters");
-    return s;
-}
+using namespace library_envelope;
+constexpr qsizetype modelLimit = NativeLimits::fileBytes;
 void validateMetadata(const TemplateMetadata &m, const Document &doc) {
     require(!text(m.name, 256).trimmed().isEmpty(), "Choose a template name");
     text(m.description, 4096, true);

@@ -518,18 +518,22 @@ default `visibility: all`):
 | Box P 2×2×1 m; definition `BoxP`; three placements on tag `Boxes` | 3 instances; 6 contexts (root + member each); 12 m³; 48 m² |
 | Scaled copy of P (plain geometry), scale (2,2,2) | 1 context; 32 m³; 64 m² |
 | Mirrored copy of P (plain geometry), scale (−1,1,1) | 1 context; 4 m³; 16 m² (identical to unscaled) |
-| Three-level transform chain: root group scale 1.5, child group scale 2, holding a 1×1×1 box | 3 contexts (2 groups + 1 box); 27 m³ (3.0 cubed); area ×(3.0)² = 9 m² |
+| Three-level transform chain: root group scale 1.5, child group scale 2, holding a 1×1×1 box | 3 contexts (2 groups + 1 box); 27 m³ (3.0 cubed); area 6 m² × (3.0)² = 54 m² (corrected in R101.a review; was 9 m²) |
 | Hidden group `Stash` holding a 1×1×1 box (1 m³; 6 m²) | included by default; excluded under `visible` |
 | Box on hidden tag `Off`, 2×2×0.5 (2 m³; 12 m²) | included by default; excluded under `visible` |
 | Open plate 1×2 m, single face | area 2 m² counted; volume absent; status `open_boundary` |
-| Two 1 m³ cubes sharing a face | area 12 m² counted; volume absent; status `non_manifold` |
-| Zero-thickness extrusion of a 1×2 face | area 0 m²; volume absent; status `degenerate` |
+| Two 1 m³ cubes sharing a face, as one body | 1 context; area 12 m² counted; volume absent; status `non_manifold` |
+| Zero-thickness extrusion of a 1×2 face | area 0 m²; volume absent; status `degenerate` (cannot be built: `Surface::extrude` refuses a zero distance; see the R101.a notes) |
 | Terrain T: 200 m × 200 m flat plane, 1 m grid | 80,000 triangles; area 40,000 m² (flat, tolerance ≤ 1e-6 relative); 1 container + tile contexts |
 | Definitions: `Post` (0.5×0.5×2 box: 0.5 m³; 4.5 m²), `Top` (2×1×0.1 box: 0.2 m³; 4.6 m²), `Table` (4 `Post` refs + 1 `Top` ref, no members of its own); two `Table` placements | 3 unique definitions; 12 materialized placements (2 `Table` + 8 `Post` + 2 `Top`); 22 contexts (root + placements + members); 4.4 m³; 45.2 m² |
-| Materials: `Post` painted `Steel`, `Top` painted `Wood` | Steel 36 m²; Wood 9.2 m²; unassigned 169 m² (of the 214.2 m² non-terrain) |
+| Materials: `Post` painted `Steel`, `Top` painted `Wood` | Steel 36 m²; Wood 9.2 m²; unassigned 214 m² (of the 259.2 m² non-terrain) |
 | One sheet, two views, three items | metadata only |
 
-Hand totals for the whole document: **contexts 80,041** (3 `BoxP`
+*Corrected in the R101.a review (2026-10-26): the chain area, the area totals, the shared-face and
+degenerate contexts and the terrain tile contexts below; the earlier figures did not follow from the
+rows above. The R101.a notes give the arithmetic.*
+
+Hand totals for the whole document as first written: **contexts 80,041** (3 `BoxP`
 placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 `Off` + 1 plate + 2 shared-face cubes + 1 degenerate + 80,001 terrain +
 22 component contexts = 80,041); **instances 15** (5 top-level: 3 `BoxP`
@@ -539,7 +543,10 @@ placements = 6 contexts + 1 scaled + 1 mirrored + 3 chain + 2 `Stash` + 1
 **unvalidated 3** (one per status: `open_boundary`, `non_manifold`,
 `degenerate`); **area 40,174.2 m²** (169 m² non-terrain non-component +
 45.2 m² component + 40,000 m² terrain); under `visible`: volume 79.4 m³,
-area 40,156.2 m². The same fixture in `ft-in`:
+area 40,156.2 m². **Corrected:** area **40,259.2 m²** (214 m² non-terrain area outside the `Table` definitions + 45.2 m²
+component + 40,000 m² terrain), under `visible` **40,241.2 m²**; volumes unchanged (82.4 m³ and
+79.4 m³); the shared-face cubes are one context and the degenerate body cannot be built, so
+**unvalidated 2**; the terrain is 1 container + 81 tile contexts, so **contexts 120**. The same fixture in `ft-in`:
 4 m³ = 141.2587 ft³ (tolerance ≤ 1e-4 relative), 16 m² = 172.2226 ft².
 
 Checks (each maps to the Verify line):
@@ -548,9 +555,9 @@ Checks (each maps to the Verify line):
 | --- | --- |
 | Shared components follow the explicit counting rules | V1: definitions = 4 counted once each; `Table` filter returns 2 placements + their 10 owned records; the `Boxes` group row equals 3 / 12 m³ / 48 m² |
 | Nested instances | V2: `Table` placements yield the 8 nested `Post` placements; a `definition=Post` filter counts exactly 8, no double count, members under the outer definition's group |
-| Hidden content and hidden tags are explicitly stated | V3: default totals include Stash and Off (82.4 m³ / 40,174.2 m²); `visible` excludes them (79.4 m³ / 40,156.2 m²); the metadata states the applied mode |
-| Nested and mirrored transforms | V4: the mirrored copy equals the unscaled box; the 2× scale is ×8 volume / ×4 area; the three-level chain is 27 m³ / 9 m² |
-| Geometry edits update totals | V5: scale `Stash` by 2 → its contribution ×8; the totals change by hand; the revision stamp increments; undo restores the previous totals and a lower revision |
+| Hidden content and hidden tags are explicitly stated | V3: default totals include Stash and Off (82.4 m³ / 40,259.2 m²); `visible` excludes them (79.4 m³ / 40,241.2 m²); the metadata states the applied mode |
+| Nested and mirrored transforms | V4: the mirrored copy equals the unscaled box; the 2× scale is ×8 volume / ×4 area; the three-level chain is 27 m³ / 54 m² |
+| Geometry edits update totals | V5: scale `Stash` by 2 → its contribution ×8; the totals change by hand; the revision stamp increments; undo restores the previous totals with a new, higher revision (§4: revisions only increase) |
 | Invalid solids are not counted as known volumes | V6: the three invalid contexts appear under their exact statuses; volume totals exclude them; an `analysis_limit` case (an over-budget shell) is also excluded from the total and listed |
 | Live update | V7: on a large model the panel shows "computing …" without freezing the UI; Cancel returns in ≤ 100 ms |
 | Units and precision are stated | V8: the header carries the unit codes and precision for each document unit setting (m, mm, ft-in) and each precision (`full`, 3) |
@@ -700,3 +707,397 @@ all" takes every recommendation.
 13. **Budgets.** Adopt the §12 table, confirmed by measurement in
     R101.b before being frozen. *Reason: the established 0168/0169/0171
     pattern; no full-document sweep has been benchmarked before R101.*
+
+## Implementation notes (R101.a)
+
+R101.a is the report engine, ADR §1–§4 and §11. The counting pass is `src/core/report.{hpp,cpp}`
+(one pure function over the materialized document). The request model, units, precision and the
+stamp are `src/automation/report_commands.{hpp,cpp}`. The `report.run` query is registered in
+`src/automation/inspection.cpp`. Tests: `tests/report_tests.cpp` (fixtures Q1–Q4; checks V1–V4, V6,
+V8, V9; refusals; determinism; the query). `tests/report_benchmark.cpp` is an `EXCLUDE_FROM_ALL`
+harness for the §12 timings. ADR 0175 does not name Q1–Q4; they are read as four documents, Q1
+the components, Q2 the transform copies and hidden content, Q3 the invalid solids and the
+analysis limit, Q4 the whole quantities-a document with the terrain.
+
+### Where the ADR's hand totals do not follow from its own rows
+
+The tests assert the corrected arithmetic and name the ADR value beside the check. The ADR text is
+unchanged here; these need the owner's decision before R101.b freezes the fixtures.
+
+1. **Three-level chain, area (§11, V4): 9 m² should be 54 m².** A 1 m cube has 6 m² of faces (the
+   Stash row of the same table counts it as 6 m²). Scaled by 3 in every direction, each face grows
+   by 3² = 9, so 6 × 9 = 54 m². The ADR's "area ×(3.0)² = 9 m²" applies the factor to 1 m² instead.
+2. **Area total (§11, V3): 40,174.2 m² should be 40,259.2 m².** The ADR's own rows give 169 m² of
+   non-terrain, non-component area (the chain at 9 m²), 45.2 m² of components and 40,000 m² of
+   terrain: 169 + 45.2 + 40,000 = 40,214.2 m², not 40,174.2 m² (off by 40). With the chain at 54 m²
+   and the zero-thickness row at the ADR's 0 m² (see 6): 48 + 64 + 16 + 54 + 6 + 12 + 2 + 12 + 0 =
+   214 m²; 214 + 45.2 + 40,000 = 40,259.2 m². Visible (minus Stash 6 m² and Off 12 m²) is
+   40,241.2 m², not 40,156.2 m². The materials line becomes "unassigned 214 m² (of 259.2 m²
+   non-terrain)", not 169 m² (of 214.2 m²).
+3. **Shared-face cubes (§11 context total): one context, not two.** The row describes one
+   non-manifold solid with no volume, and "unvalidated 3 (one per status)" needs one such context.
+   Two separate cubes would each be a valid solid with a known volume. The fixture is one body.
+4. **Terrain contexts (§11 "80,001 terrain"): one tile per triangle is assumed.** Tiles hold at most
+   2,048 triangles (`TerrainLimits::tileTriangles`), so the 80,000 triangles of the 200 m flat grid
+   are 81 tiles (measured). The whole-document total is 38 non-terrain + 1 container + 81 tiles = 120
+   contexts, not 80,041.
+5. **Undo and the revision (§11 V5, checked here through V9): "undo … a lower revision" contradicts
+   §4.** `Document::undo` and `redo` each increment the revision, as §4 says, so a state is never
+   stamped twice. The test checks that the totals come back and that the revision moves forward.
+6. **Zero-thickness extrusion (§11, the `degenerate` row): not buildable, so not verified.**
+   `Surface::extrude` refuses a distance of zero and one below tolerance. A closed prism with a
+   collinear base vertex is accepted and is a valid 1 m³ solid, not `degenerate`. Neither
+   construction gives `degenerate`. No body the public API can build gets `degenerate`, so the fixtures have two
+   invalid statuses (`open_boundary`, `non_manifold`) and the whole-document unvalidated count is 2,
+   not 3. The `analysis_limit` case (65 disjoint cubes, over the 64-shell limit) is tested on its own.
+   **Open:** either a construction the solid analysis reports as `degenerate`, or a different row.
+7. **Status count (§2.4).** The text says "the eleven above"; §0 and §6.1 list ten. `multiple_records`
+   and `not_a_context` are context-level cases. A context is one materialized body record (§2.1), so
+   `multiple_records` cannot arise and the invalid table has the ten statuses of §6.1.
+
+### Decisions where the ADR was silent
+
+- **Containers are not solid candidates.** Groups, placement roots, reference images and terrain
+  containers have no solid of their own. Only `Geometry` records are analysed and listed; otherwise
+  every placement root would be `empty` and the "unvalidated 3" of §11 could not hold. §2.4's
+  "contexts without geometry: empty" is read as a Geometry record with no faces.
+- **Tags are inherited.** A record carries its own tag and every ancestor's (`inheritedTags`), so the
+  members of a tagged placement count under its tag (V1's Boxes row needs this). A folder aggregates
+  the tags below it.
+- **Definitions.** A nested placement and its members fall under the outermost placement's
+  definition (§1). The `definitions` count of a group is the definitions with an in-scope placement in
+  that group.
+- **Material grouping** keys a record by the front material of its lowest-ID face. Areas are split
+  per face, so each area is counted once.
+- **A `precision` request field** (`"full"` or an integer) is added to §1. §3 says precision defaults
+  to `displayPrecision` and §8 has `--precision`, so the request needs it. Full precision is at most
+  eight decimals, trimmed, in the C locale. It is not `displayDecimal` or `displayMeasure`: those use
+  the default locale, and `displayMeasure`'s full form is eight significant digits. The engine uses
+  the factors of `unit_display.hpp` (mm ×1000, ft ÷0.3048); the ft-in example of §11 is checked
+  against `displayMeasure`'s own value.
+- **Selection** (editor sessions only) is the selected bodies and their descendants. A hidden body
+  cannot be selected, so a selection never brings in hidden content.
+- **Empty tables.** The All row is always in `counts` and `volumes`, zero when nothing is in scope.
+  The terrain table is always present. `volumes` also emits the invalid table (§1).
+- **No document format change.** The document stays at schema 29 (§7).
+
+### Surfaces
+
+- `report.run` is an inspection query, so it reaches the session, `transaction.inspect` and MCP
+  through the registry, like every query. **MCP:** `docs/api/mcp-2026-07-28.json` and
+  `docs/api/mcp-native-2026-07-28.json` now list `report.run`. §9 names the MCP tool `reports.run`
+  (R101.d). R101.a does not add that name, so R101.d must decide whether to rename or alias it.
+- **Assistant:** excluded by prefix in `assistantVisible` (decision 12). `assistant_tool_surface_tests`
+  passes against the unchanged baseline.
+- **Native assistant execution:** `NativeAssistantSession` runs any registry query it is given and
+  does not check the assistant's advertised list. It already does this for `drawing_*`,
+  `component_parameter*` and `site.*`. Advertising is what keeps the assistant from `report.run`; an
+  execution-time filter would apply to all of those queries and is a separate change.
+
+### Measured timings (§12)
+
+Build type: Release (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3`) for the Release column, and
+Debug (`-O0`, no debug info) for the second column. These are
+not the R101.b confirmation. Measured with `tests/report_benchmark.cpp` on the developer machine
+(Linux, 30 GB RAM): a 249,218-triangle terrain (256 tiles), 10,000 placements of a 12-face part (two
+6-face boxes in one component, the quantities-b shape), 30,257 records, 120,000 faces.
+
+| Work | Budget (§12) | Release | Debug |
+| --- | --- | --- | --- |
+| Counts (groupBy none) | ≤ 2 s | 0.36 s | 2.35 s |
+| + areas (areas run alone) | ≤ 5 s | 0.47 s | 2.89 s |
+| + solid volumes (volumes run alone) | ≤ 30 s | 1.31 s | 8.70 s |
+| All four tables | (the sum) | 1.32 s | 9.06 s |
+| Peak resident memory | ≤ 512 MiB | 233 MiB | 254 MiB |
+
+Each run computes the face areas as well, because the terrain table is always emitted, so the
+single-table rows are not cheaper than the whole pass. Building the fixture (the terrain, then the
+10,000 placements) took 0.96 s and 0.83 s in Release, and is not part of any budget. The §12 budgets
+are the ADR's proposals; on this machine every measured stage is well inside them.
+
+### Not covered by R101.a
+
+- The `degenerate` status (point 6 above).
+- V5 beyond V9's single edit and undo, V7 (live update and cancel), V10–V12 (outputs, schedules, CLI).
+- Sheets. The metadata reads the sheet, view and item tables, but no fixture has sheets, so the
+  "one sheet, two views, three items" row is not built.
+- The desktop selection path (`DesktopInspection`) is not run by a desktop test.
+- The §12 budgets on the full application, and on the other platforms of the acceptance record.
+
+## Implementation notes (R101.b)
+
+R101.b is the outputs and the CLI: the CSV file of record and the JSON form (§6), `sketchyup-cli
+--report` (§8, without the schedule flags), the quantities-a fixture with hash-pinned golden outputs
+(V10), the CLI and session parity (V12), and the §12 budgets confirmed in a Release build on
+quantities-b. The CSV is `src/io/report_csv.{hpp,cpp}`, a rendering of the `report.run` data object,
+so the CSV and the JSON cannot disagree. The file writer is `writeReportFile` in
+`src/automation/report_commands.cpp`, and it publishes through `publishNewFile` (`src/io/new_file.cpp`),
+the native "never replace" convention. Tests: `tests/report_output_tests.cpp` (the dialect, quoting,
+the metadata matrix, goldens, session parity and the fixture generator), `tests/report_cli_tests.cpp`
+(success, refusals, read-only input, the CSV and JSON agreeing, parity with the session), and
+`tests/report_fixtures.hpp` (the R101.a builders, now shared with `report_tests`, plus quantities-b).
+The goldens are `tests/fixtures/reports/quantities-a-{default,material}.{csv,json}`, generated from
+`tests/fixtures/reports/quantities-a.sketchyup` by `report_output_tests --write-goldens`.
+
+### Decisions where the ADR was silent
+
+- **The group column carries the group's name.** V10 asks for fixture names with commas and quotes
+  in the golden bytes, and the ADR's `group` column is where a name belongs. The fixture's Steel
+  material is named `Steel, "galvanised"` for that reason. The ID goes in the `tag`, `material` or
+  `definition` column when the report groups by that axis; a group with no ID (untagged, no
+  material, unplaced) has `—` there; every other row leaves the cell empty, and the All row never
+  has one. Areas rows always carry the material cell (its ID or `—`), in the order of §6.1.
+- **Invalid rows** use the status as the group and `contexts` as the metric. **Terrain rows** use
+  the terrain's name as the group, because the table has no axis column. Two terrains with the same
+  name are told apart only by their JSON `terrain` ID, which the CSV does not carry. This is a gap.
+- **Metadata lists are semicolon-joined** (`#metrics=counts;areas;volumes`, `#filters.tags=5;7`), so
+  that no metadata line holds a comma. The ADR named only the filter lists this way.
+- **The JSON file** is the compact `data` object with no final newline. It is byte-identical to the
+  session's `report.run` data, which is the V12 test. Qt writes the keys sorted, so `metadata` is not
+  first, as §6.2 lists it. The data is the same.
+- **The metadata has no `materialsApply` line.** The session's JSON states that counts and volumes
+  ignore the materials filter (§1). The CSV cannot state it without a `#` line the ADR does not list
+  ("no other `#` lines"). The JSON says it; the CSV does not. This needs the owner's decision.
+- **Session shape.** The count, area, volume and terrain rows gained a `name` field. `key` is
+  unchanged. The shape is additive, and no existing field moved. The generated tool reference
+  documents no response shape, so it is not changed for this.
+- **Format and paths.** The format comes from the `.csv` or `.json` extension. A `--format` that
+  disagrees with the extension is refused. `--tag`, `--material` and `--definition` repeat; they
+  do not take comma lists. An existing path is refused as `FILE_EXISTS` before any work, and
+  `publishNewFile` checks it again. The 256 MiB refusal comes before anything is published.
+- **Capabilities.** `--capabilities` lists `reportExport`, and `--describe-command report` describes
+  the command. Neither lists the schedule flags.
+
+### Confirmed budgets (§12)
+
+Release build (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3 -DNDEBUG`), on the developer machine
+(Linux, 22 threads, 30 GB RAM). `tests/report_benchmark.cpp` builds quantities-b in memory: a
+249,218-triangle terrain plus 10,000 placements of a 12-face part, 30,257 records. The file
+`tests/fixtures/reports/quantities-a.sketchyup` is committed; quantities-b (12.5 MB as a `.sketchyup`) is
+not, and is written to a scratch path when the CLI run is needed. The measured figures are the
+ones below; the budgets stand as the ADR proposed them.
+
+| Work (quantities-b) | Budget (§12) | Measured | Notes |
+| --- | --- | --- | --- |
+| Counts (groupBy none) | ≤ 2 s | 0.25 s | 30,257 contexts |
+| Areas (all world triangle areas) | ≤ 5 s | 0.27 s | with counts, the all-tables run is 0.71 s |
+| Solid volume analysis (`inspectSolid` per context) | ≤ 30 s | 0.69 s | synchronous; the async run and its cancel are R101.e |
+| All four tables | (the sum) | 0.71 s | R101.a measured 1.32 s on this machine class |
+| CSV write, 100,002 rows | ≤ 10 s | 0.070 s | a synthetic report: 33,334 count groups, 3,989,304 bytes |
+| CSV write, real report by tag | (part of the 10 s) | 0.005 s | 6,016 rows; about a thousand tag groups |
+| Output size | ≤ 256 MiB | 3.99 MB | the 100,002-row file; the refusal above 256 MiB is not exercised |
+| Engine memory, peak | ≤ 512 MiB | 284 MB | `VmHWM` of the whole process; the document alone is 225 MB before the runs |
+| CLI, end to end (load, report, write) | (no budget) | 1.99 s wall, 292 MB peak RSS | `--report` with all metrics, CSV and JSON; the load is most of the time |
+
+The 100,000-row case is synthetic because one document cannot hold 100,000 groups: a document
+holds at most 1024 tags, and quantities-b placements share 1000 of them. The real tag report
+(6,016 rows) is the largest real output measured here, and the synthetic case measures the writer.
+
+**Not measured in R101.b:**
+- the desktop re-run after one edit (p95 ≤ 250 ms), the cancel (≤ 100 ms) and the stop (≤ 5 s):
+  R101.e, with the desktop panel;
+- the schedule re-run (the matching report budget): R101.c;
+- the refusal of a file over 256 MiB: the check runs before anything is published, but no report
+  that large was built.
+
+## Implementation notes (R101.c)
+
+R101.c is the saved schedules (§7, option b), the schedule flags (§8), the session `report.schedule`
+and check V11. The store is `src/automation/report_schedules.{hpp,cpp}`. The flags are in
+`src/automation/main.cpp`, the scheduled run is `writeReportFile` in `src/automation/report_commands.cpp`
+(a `schedule` field on `ReportFileOptions`), and the CSV marker is in `src/io/report_csv.cpp`. Tests:
+`tests/report_schedule_tests.cpp` (in process: the store, the identity guard, the stale IDs, the
+bit-identical save, the run path and the session) and `tests/report_schedule_cli_tests.cpp` (the built
+`sketchyup-cli`). The R101.b CLI test no longer expects the schedule flags to be refused.
+
+### Decisions where the ADR was silent
+
+- **Store.** `AppLocalDataLocation/report-schedules.json`, beside the presentation jobs
+  (`SketchyUp/SketchyUp` on Linux). The ADR names the `QSettings` family as the place, but this is a
+  JSON file, so `QSettings` is not used. The layout is
+  `{"storeVersion":1,"documents":[{"documentId":…,"schedules":[{"name","createdAt","request"}]}]}`,
+  compact, with keys sorted. The file is written with `QSaveFile` (owner read and write only) under
+  a `QLockFile`. A commit refuses with `FILE_CHANGED` when the file changed since this process read it.
+  A missing file is an empty store.
+- **Corrupt or oversized store.** Refused with `INPUT_ERROR` and located by path, then by byte (for
+  JSON) or entry (for the layout: `documents[2].schedules[0]`). It is never reset and never rewritten.
+  A folder or link where the file should be is refused too.
+- **Bounds (§7).** Store file 1 MiB; 64 documents; 32 schedules per document; a name of 1 to 64
+  characters, made of letters, digits, spaces and `. _ ( ) -`, starting and ending with a letter or a
+  digit, so it never holds a comma, quote or line break (it is a plain value in the CSV's
+  `#schedule=` line); a saved request of 16 KiB at most (the inspection request bound). Each refusal
+  names the bound.
+- **Identity guard (V11).** A store entry is keyed by `Document::identity()`, the random identifier
+  the native file keeps (a save keeps it). A name saved only for another document is refused with
+  `WRONG_DOCUMENT`, and the refusal names both identities. A name saved nowhere is `NOT_FOUND`. A
+  session request whose `documentId` is not the session's document is refused with `WRONG_DOCUMENT`.
+  Names are unique per document, so the same name may exist for two documents.
+- **Stale IDs.** Checked at save and again at run, before the engine's own check. Every tag,
+  material and definition ID is looked up. The refusal (`NOT_FOUND`) names the missing IDs in its
+  message and in `details.missing`, and the run never proceeds with fewer filters.
+- **Selection.** A saved schedule cannot use `filters.selection`, because the CLI has no session
+  selection to run it with. A save that asks for it is refused by name.
+- **`report.schedule` is a session operation, not an inspection query.** The inspection registry is
+  read-only by its own contract (`inspection.hpp`), and `transaction.inspect` nests its queries, so
+  a write there could run inside a draft. The operation sits beside `document.save`:
+  `AutomationSession::execute` dispatches it, and `sessionCapabilities()` lists it with its schema and
+  side effect. Its request vocabulary is the one `report.run` validates, read from the registry. The
+  actions are `save` (a name and a request), `describe` (a name, or without one the document's list)
+  and `delete` (a name). **This departs from the brief's "registered like report.run"**: it is
+  registered in the session dispatch, not in the query registry.
+- **Not on MCP.** `mcpToolCatalog()` builds its list from the session operations, so the new
+  operation would have appeared there. It is skipped until R101.d adds `reports.schedules` (ADR §9).
+  `mcp-2026-07-28.json` is unchanged. The desktop's native MCP list takes only `session.describe` from
+  that catalog, so `mcp-native-2026-07-28.json` is unaffected.
+- **Assistant.** `assistantVisible` already hides the `report.` prefix. The operation is also in no
+  assistant catalog, and the native assistant takes only `transaction.*` operations and registry
+  queries. `assistant_tool_surface_tests` passes against the unchanged 1.0.1 baseline.
+- **Flags.** `--format` is one of the ad-hoc flags, as the §8 list has it, so `--schedule` and
+  `--save-schedule` refuse it. `--schedule` needs `--report`. The three management flags run one at a
+  time, and none combines with `--report` or `--schedule`. A flag that does not apply is refused by
+  name, and nothing is written.
+- **Metadata.** A scheduled run's CSV says `#schedule=NAME` in place of `#ad-hoc=1`, and the rest of
+  the bytes are the ad-hoc run's. Its JSON carries `metadata.schedule`. The ad-hoc JSON carries no
+  marker, so the R101.b goldens are unchanged. The CSV's marker line is therefore the only ad-hoc
+  marker, and the JSON agrees with the CSV on the data but not on the marker.
+- **Application names.** The store location needs the organization and application names. The CLI
+  sets them before any schedule or session work, as the presentation job path does, and the desktop
+  sets them in its `main`. A caller without them is refused (`INVALID_OPERATION`), never given a
+  guessed folder.
+- **Concurrency.** A second process that holds the store lock is refused with `OUTPUT_ERROR`. A file
+  that changed after this process read it is refused with `FILE_CHANGED`, and never merged.
+- **Timestamp.** `createdAt` is UTC, ISO 8601 (`Qt::ISODate`), written by save and checked on open.
+
+### Measured budget (§12, schedule re-run)
+
+A schedule re-run is the report's own pass: the store read, the identity lookup, the ID check and the
+same `reportDescription` the flags use. There is no extra pass over the document. Measured with the
+Release `sketchyup-cli` (`CMAKE_BUILD_TYPE=Release`, GCC 16.2.1, `-O3`, `-DNDEBUG`) on the developer
+machine (Linux, 30 GB RAM), on quantities-b written by `report_benchmark --write-fixture` (12.5 MB).
+Each figure is the wall clock of one CLI process, from start to exit, with `--metrics all --group-by
+tag` and CSV output. The runs alternate, five of each:
+
+| Run | Wall time, five runs (s) | Median (s) |
+| --- | --- | --- |
+| Ad-hoc flags (`--report … --metrics all --group-by tag`) | 2.06, 2.08, 2.07, 2.07, 2.10 | 2.07 |
+| Saved schedule (`--report … --schedule Bench`) | 2.05, 2.08, 2.10, 2.08, 2.09 | 2.08 |
+
+Most of each run is loading the document (R101.b measured the CLI load at 1.99 s end to end on this
+machine class). The scheduled CSV equals the ad-hoc CSV byte for byte apart from the marker line. The
+schedule's own work (opening the store, the lookup, the ID check) was not timed alone; it sits inside
+the run-to-run spread of about 0.03 s. The schedule re-run therefore meets the matching report
+budget, and this is a measurement, not a proposal. The §12 budgets are unchanged.
+
+### Gaps and what was not run
+
+- **Windows and macOS.** `XDG_DATA_HOME` and `HOME` redirect the store on Linux only. There, the CLI
+  schedule test exits 77 (skipped) and the run-path and session checks in `report_schedule_tests`
+  are skipped. The store-level checks use temporary folders on every platform. Closing the gap needs
+  a test seam for the store path, which ADR 0175 does not define, so none was added.
+- **Atomic write.** The read-only folder check runs only where this process cannot write the folder;
+  as root it is skipped, and the test says so. A failure in the middle of `QSaveFile`'s commit is
+  covered by Qt's contract, not by a test.
+- **Sanitizer.** The schedule tests are registered in the sanitized CI lines but were not run under
+  sanitizers locally.
+- **Desktop artifacts.** The desktop binary was not built here, so `inspection-desktop-v1.json` and
+  `mcp-native-2026-07-28.json` were not regenerated and checked. Neither derives from a catalog this
+  change alters, so they should be unchanged; CI's check will confirm.
+- **Hand-edited requests.** A store entry edited by hand is checked when it runs, not when the store
+  opens, so an invalid request loads and refuses at run time, naming the schedule and the store.
+- **Desktop.** The desktop application does not yet call `reportScheduleStorePath` (R101.e).
+
+## Implementation notes (R101.d)
+
+R101.d is the MCP surface (§9). The CLI's MCP server lists `report.run` and `report.schedule`, the
+native MCP list is checked against its rule, and the assistant stays off. The catalogue is
+`mcpToolCatalog()` in `src/automation/mcp.cpp`, where the one `continue` that skipped
+`report.schedule` (R101.c) is removed. Tests: `tests/report_mcp_tests.cpp` (new, registered beside the
+other report tests under `SKETCHYUP_BUILD_CLI`), `tests/native_mcp_tests.cpp` and
+`tests/assistant_tool_surface_tests.cpp`. Generated: `docs/api/mcp-2026-07-28.json`,
+`docs/api/tool-reference-v1.json` and `docs/TOOL_REFERENCE.md`.
+
+### Naming: §9 as realised
+
+§9 names the MCP tools `reports.run` and `reports.schedules`. The names built are the registry
+names: `report.run` (an inspection query, listed on MCP since R101.a) and `report.schedule` (the
+session operation of R101.c, now listed). No `reports.*` alias exists, so each operation has one
+tool, in the `noun.verb` form of every other tool. The `reports.schedules` name in §9 is retired
+with that alias; the `schedules` noun is kept by the store and by the `--schedule` flags. The
+catalogue lists 63 tools against the 64-tool bound (`McpServer`), so one slot remains.
+
+### Decisions where the ADR was silent
+
+- **`report.schedule` is exposed on MCP.** ADR 0173 decision 12 keeps presentation execution off
+  MCP, because running a batch is an external effect. `report.schedule` only saves, describes and
+  deletes entries in the user-level store and never changes the model, so decision 12's "every
+  new command" applies. The precedent is `document.save`, a session write that is listed with
+  `destructiveHint`. It is listed the same way, and it is not a stop condition.
+- **The native list does not carry `report.schedule`.** The native endpoint is inspection-only
+  (`mutationAvailable` is false), and `nativeTools()` takes only `session.describe` from the session
+  operations. `report.run` reaches the native list through the query registry, as it did from R101.a.
+  `mcp-native-2026-07-28.json` is unchanged, and `--check` confirms it.
+- **The assistant stays off (decision 10).** `assistantVisible` hides every `report.` name, so both
+  are hidden. `assistant_tool_surface_tests` now also checks, on every surface, that neither name is
+  a top-level tool, and the baseline is unchanged. The native assistant takes only `transaction.*`
+  operations, so it cannot run `report.schedule` at all.
+- **Store isolation.** Each schedule test sets `HOME` and `XDG_DATA_HOME` to a temporary folder, with
+  the application names, before any store location is read. `report_mcp_tests` isolates the whole
+  process at the start, so no check reads the real user's store. The CLI child gets the same folder
+  through its environment.
+- **MCP errors.** A refusal is a tool result with `isError` and the session's code. A tool name that
+  is not registered, or that does not match the operation or query in its arguments, is a protocol
+  error (-32602), as before.
+
+### Verification
+
+Local build: Debug, `-g0`, shared libraries, Linux, GCC 16.2.1, Qt 6.12. Each test binary ran under
+`ulimit -v 8000000` with `timeout 600`, and each passed:
+
+- `report_mcp_tests` (new): the catalogue; `report.run` through MCP is the session's result byte
+  for byte, and its data is the committed golden for both quantities-a requests; a schedule saved by
+  MCP is described identically by the session and the reverse; the list order and delete; the
+  refusals (`WRONG_DOCUMENT`, `NOT_FOUND`, `INVALID_REQUEST`, `LIMIT_EXCEEDED` at 32, the stale
+  tag ID `NOT_FOUND`, the selection refusal); the protocol errors; and the built `sketchyup-cli`
+  over stdio, which saves a schedule and reports the golden, and whose store a later process reads.
+- `mcp_tests` (against the regenerated JSON), `assistant_tool_surface_tests` (baseline unchanged),
+  `report_tests`, `report_output_tests`, `report_cli_tests`, `report_schedule_tests`,
+  `report_schedule_cli_tests`, `automation_session_tests`, `terrain_io_tests`,
+  `terrain_import_tests`, `component_parameter_command_tests`.
+- `native_mcp_tests` (the native list): passed with `QT_QPA_PLATFORM=offscreen`, run from the
+  repository root.
+- `generate-api-schemas.py --check` (all 10 artifacts, against the built CLI and desktop binary) and
+  `generate-tool-reference.py --check`: both match the live registries.
+- `ci-plan.py check` and `ci-line-inventory.py check` pass after the registration.
+
+The first run of `report_mcp_tests` crashed in the test, not the product. `QJsonObject::operator[]` on a
+temporary returned a `QJsonValueRef` into it, and `const auto` kept that reference. Naming the type
+as `QJsonValue` fixed it. Two expectations were also corrected to the product's behaviour, and are
+recorded where they are tested: the wire schema refuses a 65-character name before the store does,
+and the fixture has no tag with ID 5.
+
+### Gaps and risks
+
+- **Long name over MCP.** The wire schema's `maxLength` refuses a 65-character schedule name as
+  `LIMIT_EXCEEDED` before the store's own `INVALID_REQUEST` runs. The session behaves the same way,
+  because it uses the same validator. The store's `INVALID_REQUEST` is still tested directly in
+  `report_schedule_tests`.
+- **Native assistant execution.** `NativeAssistantSession` runs any registry query it is sent (its
+  `query` path does not check the advertised list), so an assistant that sent `report.run` would get
+  an answer, although the assistant is not told the name. `report.run` is read-only. This is the
+  pre-existing gap from R101.a, not changed here. An execution-time filter would apply to every
+  query and is a separate change.
+- **Tool budget.** 63 of 64 slots are used. The next MCP tool needs the bound raised or a tool
+  removed.
+- **Generic description.** Session operations have no description, so MCP shows
+  "report.schedule: shared versioned SketchyUp operation", as it does for `document.save`. The
+  `sideEffects` text is in the session schema only.
+- **Platforms.** The schedule and CLI checks, and the isolation, are Linux only. On macOS and Windows
+  the test prints a skip line and runs the catalogue and `report.run` checks only. Closing the gap
+  needs the store-path seam that ADR 0175 does not define.
+- **Not run here.** The sanitizer lines (`report_mcp_tests` is in the `sanitize` target list and the
+  `ctest -R` pattern) were not built or run under a sanitizer. The native tests ran offscreen, not
+  under xvfb or Wayland as CI runs them. Windows and macOS were not built.
+- **§11 wording.** The corrected-totals paragraph in §11 now says "non-terrain area outside the
+  `Table` definitions", as the total requires (BoxP is a component). The first-written total in the
+  same section still says "non-terrain non-component", as it did in the original; it is left as
+  first written.

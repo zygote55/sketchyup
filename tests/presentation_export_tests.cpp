@@ -9,6 +9,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QProcess>
 #include <QTemporaryDir>
 #include <QThread>
 #include <functional>
@@ -87,6 +88,51 @@ PresentationPlan plan(const std::vector<Id> &keyframes, CameraPathTiming timing 
     check.seed = 2;
     result.presets = {{"Draft", draft}, {"Check", check}};
     return result;
+}
+// Each preset's video record matches its file and its inputs, and the batch total counts every
+// byte written: the frames, their metadata and the videos.
+void verifyVideos(const QString &output, int expectedFrames) {
+    const auto manifest = QJsonDocument::fromJson(read(output + "/manifest.json")).object();
+    qint64 total = 0;
+    for (const auto &presetValue : manifest.value("presets").toArray()) {
+        const auto preset = presetValue.toObject();
+        const auto directory = output + "/" + preset.value("directory").toString();
+        const auto video = preset.value("video").toObject();
+        const auto mp4 = read(directory + "/video.mp4");
+        check(video.value("file") == "video.mp4" &&
+                  video.value("bytes").toInteger() == mp4.size() &&
+                  video.value("sha256").toString() == digest(mp4) &&
+                  video.value("codec") == "h264" && video.value("container") == "mp4" &&
+                  video.value("frames").toInteger() == expectedFrames &&
+                  video.value("framesPerSecond").toInteger() == 24 &&
+                  video.value("encoder").toString().startsWith("blender-") &&
+                  video.value("inputSha256").toArray().size() == expectedFrames,
+              "The video record matches its file and its input frames");
+        total += mp4.size();
+        for (const auto &entryValue : preset.value("frames").toArray()) {
+            const auto name = entryValue.toObject().value("file").toString();
+            total += read(directory + "/frames/" + name).size() +
+                     read(directory + "/frames/" + name.left(name.size() - 4) + ".json").size();
+        }
+    }
+    check(manifest.value("totalBytes").toInteger() == total,
+          "The batch total counts the videos and every frame");
+}
+qint64 videoBytes(const QString &output, const QStringList &presets) {
+    qint64 total = 0;
+    for (const auto &preset : presets)
+        total += QFileInfo(output + "/" + preset + "/video.mp4").size();
+    return total;
+}
+// The codec and frame count that ffprobe reads back from a video, as "codec,frames".
+QString probeVideo(const QString &path) {
+    QProcess probe;
+    probe.start("ffprobe",
+                {"-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+                 "stream=codec_name,nb_read_frames", "-of", "csv=p=0", path});
+    check(probe.waitForFinished(60000) && probe.exitCode() == 0,
+          "ffprobe reads the video; install ffmpeg to run the real video test");
+    return QString::fromUtf8(probe.readAllStandardOutput()).trimmed();
 }
 // Every manifest frame entry is checked against its image and its metadata.
 void verifyManifest(const QString &output, int expectedFrames) {
@@ -518,6 +564,132 @@ int main(int argc, char **argv) {
                   "The manifest records the budget failure");
         }
 
+        // Video (decision 7): every preset's verified frames encode to one MP4 after all frames are
+        // verified. The fake encoder writes a synthetic MP4 with the real sample table layout.
+        {
+            PresentationJobStore jobs(store, limits);
+            auto videoPlan = plan(keyframes);
+            videoPlan.video = true;
+            const auto capture = PresentationCapture::capture(doc, videoPlan);
+            auto odd = videoPlan;
+            odd.presets[1].settings.width = 81;
+            rejects([&] { PresentationCapture::capture(doc, odd); },
+                    "A video needs even preset dimensions");
+            const QStringList presets{"01-Draft", "02-Check"};
+
+            const auto output = files.filePath("video");
+            const auto counter = files.filePath("count-video");
+            PresentationExport batch(jobs);
+            const auto id = batch.start(capture, output, blender(counter));
+            wait(batch);
+            check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
+                  "A video batch completes every frame before it encodes");
+            check(launches(counter) == 14, "Each preset encodes once after its twelve frames");
+            check(jobs.jobs().at(id).plan.video, "The store keeps the video request");
+            verifyVideos(output, 6);
+            verifyManifest(output, 12);
+
+            // A cancel during an encode keeps every frame and writes no video.
+            const auto canceledOutput = files.filePath("video-canceled");
+            const auto stalled = files.filePath("count-video-canceled");
+            PresentationExport canceled(jobs);
+            bool stopped = false;
+            QObject::connect(&canceled, &PresentationExport::changed, &app, [&] {
+                if (!stopped && canceled.completedFrames() == 12 &&
+                    canceled.message().startsWith("Encoding video")) {
+                    stopped = true;
+                    canceled.cancel();
+                }
+            });
+            const auto canceledId = canceled.start(capture, canceledOutput, blender(stalled, 13));
+            wait(canceled);
+            check(canceled.state() == PresentationJobState::Canceled &&
+                      canceled.completedFrames() == 12,
+                  "Canceling during an encode keeps every verified frame");
+            for (const auto &preset : presets)
+                check(!QFileInfo::exists(canceledOutput + "/" + preset + "/video.mp4"),
+                      "A canceled batch writes no video");
+            verifyManifest(canceledOutput, 12);
+
+            // Retry encodes the canceled batch's presets without rendering any verified frame.
+            PresentationExport resumed(jobs);
+            const auto resumeCounter = files.filePath("count-video-resume");
+            resumed.retry(canceledId, blender(resumeCounter));
+            wait(resumed);
+            check(resumed.state() == PresentationJobState::Completed &&
+                      launches(resumeCounter) == 2,
+                  "Retry encodes both presets and renders no verified frame");
+            verifyVideos(canceledOutput, 6);
+            verifyManifest(canceledOutput, 12);
+
+            // A Blender without H.264 refuses the video with its reason; the frames stay.
+            const auto refused = files.filePath("video-refused");
+            const auto refusedCounter = files.filePath("count-video-refused");
+            qputenv("SKETCHYUP_FAKE_CODEC", "missing");
+            PresentationExport withoutCodec(jobs);
+            withoutCodec.start(capture, refused, blender(refusedCounter));
+            wait(withoutCodec);
+            qunsetenv("SKETCHYUP_FAKE_CODEC");
+            check(withoutCodec.state() == PresentationJobState::Failed &&
+                      withoutCodec.message().contains("codec_unavailable") &&
+                      withoutCodec.message().contains("H.264"),
+                  "A Blender without H.264 refuses the video with its named reason");
+            check(withoutCodec.completedFrames() == 12 && launches(refusedCounter) == 13,
+                  "The refusal keeps every frame and starts no second encode");
+            for (const auto &preset : presets)
+                check(!QFileInfo::exists(refused + "/" + preset + "/video.mp4"),
+                      "A refused video writes no file");
+            verifyManifest(refused, 12);
+
+            // A frame that changes before its own encode is refused by the worker's hash check.
+            const auto damaged = files.filePath("video-damaged");
+            qputenv("SKETCHYUP_FAKE_DAMAGE",
+                    (damaged + "/01-Draft/frames/frame-0001.png").toUtf8());
+            PresentationExport changedFrame(jobs);
+            changedFrame.start(capture, damaged, blender(files.filePath("count-video-damaged")));
+            wait(changedFrame);
+            qunsetenv("SKETCHYUP_FAKE_DAMAGE");
+            check(changedFrame.state() == PresentationJobState::Failed &&
+                      changedFrame.message().contains("invalid_frame"),
+                  "A frame that changes before its encode blocks the video");
+            check(!QFileInfo::exists(damaged + "/01-Draft/video.mp4"),
+                  "A blocked video writes no file");
+
+            // A frame of a later preset that changes during an earlier encode is caught before
+            // that preset's encode starts.
+            const auto later = files.filePath("video-later");
+            qputenv("SKETCHYUP_FAKE_DAMAGE", (later + "/02-Check/frames/frame-0001.png").toUtf8());
+            PresentationExport changedLater(jobs);
+            changedLater.start(capture, later, blender(files.filePath("count-video-later")));
+            wait(changedLater);
+            qunsetenv("SKETCHYUP_FAKE_DAMAGE");
+            check(changedLater.state() == PresentationJobState::Failed &&
+                      changedLater.message().contains("02-Check changed after it was verified"),
+                  "A later preset's frame that changes is named before its encode");
+            check(QFileInfo::exists(later + "/01-Draft/video.mp4") &&
+                      !QFileInfo::exists(later + "/02-Check/video.mp4"),
+                  "The earlier preset keeps its verified video; the later one has none");
+
+            // The video counts against the output budget: a limit that fits every frame but not the
+            // videos refuses the video and keeps the frames.
+            const auto frameBytes = QJsonDocument::fromJson(read(output + "/manifest.json"))
+                                        .object()
+                                        .value("totalBytes")
+                                        .toInteger() -
+                                    videoBytes(output, presets);
+            PresentationExport tight(jobs);
+            tight.setOutputLimit(frameBytes);
+            const auto tightOutput = files.filePath("video-budget");
+            // The frame metadata records the launcher's path, so this run uses the reference's
+            // launcher name and its frames are the same size as the reference frames.
+            tight.start(capture, tightOutput, blender(counter));
+            wait(tight);
+            check(tight.state() == PresentationJobState::Failed &&
+                      tight.message().contains("budget") && tight.completedFrames() == 12,
+                  "The video counts against the output budget and keeps the frames");
+            check(videoBytes(tightOutput, presets) == 0, "An over-budget video is not written");
+        }
+
         // Real Blender, when the explicit opt-in is set: one batch from one capture.
         if (real) {
             PresentationJobStore jobs(files.filePath("real-store"), limits);
@@ -533,7 +705,50 @@ int main(int argc, char **argv) {
                   "Real Blender completes every planned frame");
             verifyManifest(files.filePath("real"), 12);
             check(encodeDocument(doc) == before, "Real batch leaves the live document unchanged");
-            std::cout << "Real Blender presentation batch verified\n";
+            // Real video: an H.264 MP4 per preset that ffprobe reads back; a cancel writes none.
+            auto videoPlan = plan(keyframes);
+            videoPlan.video = true;
+            PresentationJobStore videoJobs(files.filePath("real-video-store"), limits);
+            PresentationExport video(videoJobs);
+            bool stopped = false;
+            QObject::connect(&video, &PresentationExport::changed, &app, [&] {
+                if (!stopped && video.completedFrames() >= 1) {
+                    stopped = true;
+                    video.cancel();
+                }
+            });
+            const auto videoId = video.start(PresentationCapture::capture(doc, videoPlan),
+                                             files.filePath("real-video"), real);
+            wait(video);
+            check(video.state() == PresentationJobState::Canceled &&
+                      videoBytes(files.filePath("real-video"), {"01-Draft", "02-Check"}) == 0,
+                  "A real canceled batch writes no video");
+            PresentationExport videoResume(videoJobs);
+            videoResume.retry(videoId, real);
+            wait(videoResume);
+            check(videoResume.state() == PresentationJobState::Completed,
+                  "Real retry completes the canceled video batch");
+            verifyVideos(files.filePath("real-video"), 6);
+            for (const auto *preset : {"01-Draft", "02-Check"})
+                check(probeVideo(files.filePath("real-video") + "/" + preset + "/video.mp4") ==
+                          "h264,6",
+                      "ffprobe reports H.264 with every planned frame");
+
+            // The worker's own hash check refuses a frame that does not match its digest.
+            BlenderVideoRequest wrong;
+            wrong.width = 64;
+            wrong.height = 64;
+            wrong.framesPerSecond = 24;
+            const auto frame = files.filePath("real-video") + "/01-Draft/frames/frame-0001.png";
+            wrong.frames.push_back({frame, "0000", QFileInfo(frame).size()});
+            BlenderJob encoder;
+            encoder.encode(wrong, real);
+            waitUntil([&] { return encoder.done(); }, "Encode refusal finishes");
+            check(encoder.phase() == BlenderJob::Phase::Failed &&
+                      encoder.report().value("code") == "invalid_frame",
+                  "The real worker refuses a frame whose hash does not match");
+
+            std::cout << "Real Blender presentation batch and video verified\n";
             return 0;
         }
         std::cout << "Presentation batch capture, frame sequence, cancellation, resume, damage and "

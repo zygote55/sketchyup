@@ -558,3 +558,402 @@ Each carries a recommended default and a one-line reason.
   list and, with counsel if you wish, that every bundled texture's licence is
   distributable, with attribution where the licence
   requires it.
+
+## Implementation notes (R100.a)
+
+Recorded 2026-10-26 for branch `feat/r100a-edge-styles`, on `de83e219`.
+
+- **Schema numbering (the reading the brief sets).** Schema 30 is R099.a's `presentation-v1`, so
+  this slice is schema 31 with `edge-styles-v1`. Read the ADR's "schema-30" sentences as schema
+  31: the round trip is at 31, a document without an edge stroke writes what it wrote before
+  (26 to 30 by content), and a document with one writes 31. Cumulative features follow R099.a: a
+  schema-31 container also carries `presentation-v1` and `terrain-v1`, and its payload is
+  `json-v31`. `nativeDocumentVersionFor` returns 31 for an edge stroke on the document style or on
+  a saved scene's style, 30 for presentation records, and the earlier ladder otherwise.
+  `nativePresentationDocumentVersion` names the 30 that the presentation branch returns.
+- **The `edge` sub-record is stored as `edgeStroke`.** §2 calls it `edge`, but the style already
+  has an `edge` key, the RGB edge colour. The two cannot share one object. The sub-record is the
+  optional `edgeStroke` field of the style, with `width` (1 to 8, `profileWidth` semantics),
+  `opacity` (0.01 to 1), `dash` and `texture` (a canonical decimal asset id, `"0"` for none).
+  `ModelStyle::edgeStroke` is an `std::optional`, so an absent stroke leaves the 14-field record
+  and its bytes unchanged. **Owner: confirm the key name** (`edgeStroke`) or choose another.
+- **Dash patterns.** §2 offers named patterns or a bounded on/off run list. This slice takes the
+  named set: `solid`, `dashed`, `dotted` and `dashDot`. The run list is not built.
+- **Missing or mismatched textures.** A texture asset must exist in the document (an unknown id
+  refuses the edit, as for materials). The same rule covers a saved scene's style, so the asset
+  cannot be deleted under a scene that names it. A missing asset is a valid state and is not
+  replaced.
+  `style.apply` refuses a style whose texture is missing or hash-mismatched and names it by id and
+  name in the error; the document, its revision and its history are unchanged. No fallback colour
+  or texture is produced.
+- **The `.sketchystyle` envelope (§1.2, a contradiction with the ADR text).** §1.2 says a style file
+  is the existing v1 manifest with `kind` `style`, and also that a style file cannot contain a
+  model. The `.sketchylib` envelope requires a model and a thumbnail, so both cannot hold. This
+  slice keeps the 24-byte header and the manifest, and drops `model` and `thumbnail` for styles.
+  The header's payload length is the texture's byte count (zero when there is none), and its
+  thumbnail length must be zero. The manifest carries `name`, `description`, `labels`, the `style`
+  record and a `texture` descriptor (`id`, `name`, `mediaType`, `missing`, `bytes`, `sha256`), or
+  `null`. The texture must be a PNG or JPEG that decodes as a complete supported image.
+  **Owner: confirm this layout.**
+- **Export publishes nothing in this slice (§1.3 and §7).** The style export returns the file as
+  base64 in `data`. `writeStyleBundle` publishes a file with the atomic new-file publisher, and
+  the CLI that calls it is R100.e.
+- **Commands (§7).** `style.apply` is a command. `style.export` is a query (`inspection`
+  registry), because the batch engine refuses a batch with no committed change, and an export
+  changes nothing. Neither reads or writes a path; the bytes travel as canonical base64 (the
+  `asset.import` rule). `style.apply` replaces the document style and adds its texture (or reuses
+  an asset with the same media type and byte-equal payload, ADR 0131) in one labelled edit. A
+  second apply of the same style changes nothing, so the batch is refused as every no-op batch is.
+- **Assistant (decision 9).** Every `style.` name is hidden from the in-app assistant, and the
+  `assistant_tool_surface_tests` authorization set excludes it. The assistant's baseline is
+  unchanged. The `document.style` and saved-scene schemas are also unchanged, so the edge stroke
+  cannot be set through a command. Only `style.apply` sets it in R100.a. **Owner: decide whether
+  the edge stroke joins the `document.style` schema now, which changes the assistant's pinned
+  tool bytes and so needs a re-pin under decision 9, or waits for R100.f.**
+- **Rendering is not in this slice.** The viewport still draws edges at the flat colour and
+  `profileWidth`. Edge opacity, dash and texture are stored and validated, but nothing draws them.
+  ADR 0174 §2 expects the texture to be drawn by the existing image path; that belongs to the
+  desktop slice.
+- **Released-reader refusal (measured, not assumed).** Both released CLIs refuse
+  `tests/fixtures/edge-styles-v31.sketchyup` with exit 1 and the same message as their refusal of
+  schema 30 in R099.a: `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`.
+  The file is byte-identical afterwards (`cmp`).
+  - `sketchyup-cli 1.3.0`, from `sketchyup-1.3.0-1-x86_64.pkg.tar.zst` (sha256
+    `5f5c0cf8…a833b`, from the release `SHA256SUMS`), downloaded into a scratch folder and
+    extracted there. It was not installed.
+  - `sketchyup-cli 1.2.0`, from `sketchyup-1.2.0-1-x86_64.pkg.tar.zst` (sha256 `b95fc189…31295d`).
+  - The in-repo test `style_bundle_tests` runs the 1.3.0 CLI when `SKETCHYUP_PRIOR_CLI` is set.
+  - A simulation of the package prior-release loop over `tests/fixtures`: 1.2.0 (reads 28) and
+    1.3.0 (reads 29) each refuse both newer fixtures, `presentation-v30` and `edge-styles-v31`,
+    with their bytes unchanged. The full package acceptance (`verify-package.sh` in its container)
+    was not run here.
+- **The refusal wording differs from §2 and §6 (contradiction).** §2 says 1.3.x and 1.2.x refuse
+  schema 31 "with the newer-format error (the terrain-v1 precedent, ADR 0168 §2)". Measured, they
+  refuse with `Unsupported container field`, which is the container's field check. That is the same
+  finding R099.a recorded for schema 30. The check still refuses and leaves the file unchanged.
+  `verify-package.sh` already checks by exit status and `status == failed`, so it needs no change.
+  Its prior stays `1.2.0-1` in CI. Adding `1.3.0-1` to `released_packages` is safe at the next
+  format release, as R099.a's note said.
+- **Contradictions for the owner.**
+  1. §2 and §6 say that a schema-30 document "migrates to the current record with the `edge`
+     fields dropped and a notice". A schema-30 document has no edge fields, because they arrive
+     in schema 31, so there is nothing to drop. No migration notice and no migration fixture were
+     built. A schema-29 reader refuses schema 30 at the container (measured above for 1.3.0).
+  2. §6 says the read range grows to "1–30". It is 1–31 under the numbering this slice takes.
+  3. §2 says a style that uses only the 14 fields "stays schema ≤ 29". It is ≤ 30 now that
+     presentation-v1 is schema 30; the R099.a numbering covers this.
+  4. §5 says the report reuses `assetStatus` and `missingAssets`, extended to name the entry.
+     Neither changed. `style.apply` names the missing texture in its refusal, and
+     `document.describe` does not report the edge texture's status yet.
+- **Not measured.** The §9 budgets (apply cost, decode of a 16 MiB texture, the import budget) are
+  not measured in this slice. A 4 x 4 texture is the only fixture, so the decode limits were not
+  stressed. No frame or screenshot evidence exists, because nothing draws the stroke yet.
+- **Fuzzing.** `parser_fuzz_edge_style` (format `edge-style`) decodes each input twice and requires
+  equal results. An accepted stroke is within its bounds and re-encodes canonically. Its seeds are
+  four accepted strokes (defaults, both bounds with a texture, dashed, dotted with the largest id)
+  and eight rejected inputs (a width of 0.5 and 8.5, an opacity of 0 and 1.5, an unknown dash, a
+  non-canonical id, a negative id and an unknown field). `parser_fuzz_seeds` was built and run
+  locally: all twelve seeds validate as the harness expects, and the harness compiles with
+  `-fsyntax-only`. The libFuzzer target was not built, because it needs clang and the fuzz
+  configuration.
+- **Tests.** `style_bundle_tests` (new): schema selection and the lowest-schema writer; the
+  schema-31 round trip, bit for bit, and the checked-in fixture; the decoder bounds; the style file
+  round trip, the header layout and the refusals (kind, thumbnail, trailing data, GIF, undecodable
+  bytes, a texture the file does not carry); missing and hash-mismatched textures (apply and
+  export); apply as one undoable edit with reuse by bytes; the export query; relocation to a new
+  folder with no external dependency; the style folder scan; the command path; and the 1.3.0
+  refusal. The existing sweeps (`native_format_tests`, `presentation_io_tests`,
+  `drawing_sheet_io_tests`, `component_parameter_io_tests`) name schema 31 and exempt its fixture.
+  `command_tests` and `inspection_tests` gained a case each, because each published command and
+  query must have one.
+- **Schema validation.** `docs/api/native-format-v1.json` names 31 and reads 1–31. The discovery
+  schemas were regenerated with `scripts/generate-api-schemas.py` and `generate-tool-reference.py`;
+  both `--check` runs pass against the built binaries.
+- **Not run here.** The Qt 6.8 reference compile, the sanitizer job, the native matrix and the
+  package acceptance run only in CI.
+
+## Implementation notes (R100.c)
+
+Recorded when the `.sketchycat` manifest, writer, verifying reader, `catalog.list`, fuzz
+target and fixtures were implemented (branch `feat/r100c-catalog-format`).
+
+**Format.** A catalog is the `.sketchylib` envelope with `kind = "catalog"`, the same 24-byte
+header and the same magic. The manifest is JSON of at most 32 KiB. The payload region holds
+every shared asset, then every entry payload, in id order and contiguous, and each record
+addresses its bytes by an offset from the region start. The envelope's thumbnail length must be
+zero, because a catalog has no thumbnail. Nothing is stored by absolute path, so a moved file
+resolves. The shared envelope helpers (header, hash, field and text checks) moved into
+`src/io/library_envelope.hpp`; the template and component readers use them unchanged.
+
+**Entries.** The four kinds are `component` (a native container with a captured definition),
+`template` (a native container), `style` (the record that `encodeModelStyle` writes, and
+`decodeModelStyle` reads, so R100.a's `edge` sub-record is carried once it merges) and `material`
+(a JSON record: name, colour, opacity and an asset id, with zero for none). Each entry carries a
+SHA-256 of its payload and a `dependencies` list whose kinds are `asset` and `entry`.
+
+**Bounds chosen** (`CatalogLimits` in `src/io/catalog_io.hpp`): manifest 32 KiB; payload region
+128 MiB; file 130 MiB; a style or material record 16 KiB; 128 entries; 256 assets; 64 assets total
+16 MiB each and 64 MiB together; 64 dependencies per entry; 32 labels of 64 bytes; names 256 bytes;
+descriptions 4 KiB; the author 256 bytes; the licence text 4 KiB and its identifier 64 bytes; the
+version 64 bytes; asset names 1 KiB; media types 128 bytes in lowercase `type/subtype` form; the
+catalog id 1 to 64 letters, digits, dots, underscores or hyphens. Every count and length is checked
+before its allocation, and the reader checks each record against the envelope before it keeps the
+record.
+
+**Decisions made here that the ADR did not settle:**
+
+- *Canonical layout.* Ids run from 1 in order, and offsets are contiguous. A layout fault refuses
+  the whole file.
+- *Unreferenced assets are refused* (a whole-file fault), so no padding can ride along.
+- *Dependencies name earlier entries only.* An entry dependency on itself or a later entry is not
+  importable, which rules out cycles without a recursion limit.
+- *A material declares exactly its asset.* Its payload asset id must match its one asset
+  dependency, or the entry is not importable.
+- *A material's asset is a dependency*, so the writer adds it and the reader requires it.
+- *The writer refuses output its own reader would not list as importable.*
+- *Deduplication* compares media type and bytes; the SHA-256 is only the index (ADR 0131). The
+  first name is kept.
+
+**Verification on read.** The reader checks each asset hash, then each entry hash, then each
+declared dependency (an asset that is absent or mismatched; an entry that is absent, not earlier,
+or not importable), then each payload decode. The first failure gives the entry's reason, and the
+entry keeps its name and the dependency it names. Component and template payloads are fully
+decoded, and the decoded document is then discarded. R100.d decodes again on import, so the
+reader keeps no document in memory. Nothing is substituted: a hash match never replaces a
+resource.
+
+**`catalog.list`.** A read-only inspection query. It takes the catalog as unpadded base64url
+in `catalog`, so the query reads no path (the MCP scope is "no arbitrary paths"). It is listed
+beside the other queries and is hidden from the in-app assistant, which the assistant
+tool-surface baseline pins. Its output lists each entry's kind, name, importable state, reason
+(when not importable) and dependency status, with `assetStatus` per asset and a `missingAssets`
+count. The inspection layer caps a request at 16 KiB and a response at 256 KiB, so the query
+lists catalogs of about 12 KiB or less. Larger catalogs need the file-based CLI surface of R100.e.
+
+**MCP bound (review).** `catalog.list` is the 64th MCP tool. The `McpServer` bound was a sanity
+check from the first MCP slice, not a client limit, and §7 exposes every new command on MCP, so the
+review raised it from 64 to 128. **Open for R100.d:** an inline catalog is capped near 12 KiB by
+the inspection request size, so `catalog.import` (and a useful `catalog.list`) over MCP need a
+catalog reference that is not inline bytes and not an arbitrary path, for example a name in the
+style/catalog library folder of §1. R100.d decides it.
+
+**Measured.** The generated `basic` fixture (one shared texture, a style, two materials that
+share the texture, a template and a component) is 10,246 bytes. The fuzz determinism test ran
+626 inputs twice each with the same result: 8 seeds, 106 truncations and 512 byte flips (102 accepted,
+524 rejected).
+
+**Gaps against the ADR:**
+
+- *Component definitions are not deduplicated at catalog level.* A component's container embeds
+  its own assets and definitions, so a texture used by two components is stored twice. The ADR's
+  "a nested component definition is stored once" is not met yet. Textures are shared only through
+  asset dependencies.
+- *No libFuzzer smoke step in CI.* `parser_fuzz_catalog` builds under
+  `SKETCHYUP_BUILD_FUZZERS` with Clang, as the other parser targets do. The sanitize job is GCC, and
+  the only libFuzzer job is the SKP job, which has no Qt. The determinism test runs in ctest and
+  under the sanitizers in CI.
+- *`catalog.list` is size-limited* as described above.
+- *Style edge fields* (R100.a) are not in the style record yet, so catalog style entries carry the
+  current 14 fields.
+
+## Implementation notes (R100.d)
+
+Recorded for branch `feat/r100d-catalog-import`, on `a8ef9eef` (origin/main).
+
+**Reference decision (the MCP bound left open by R100.c).** A catalog is named, never given
+as bytes or a path. `catalog.list` and `catalog.import` take `{"library": "<name>"}`, or the
+inline `catalog` form as before; exactly one is required. The library is one fixed user folder,
+`<AppDataLocation>/catalogs` (on Linux, `$XDG_DATA_HOME/SketchyUp/SketchyUp/catalogs`). A request
+cannot change the folder. A name is 1 to 64 characters: letters, digits, spaces, dots,
+underscores and hyphens, starting and ending with a letter, digit, underscore or hyphen. It is
+the file's base name without `.sketchycat`. The resolved file must be a regular file, not a link
+or a folder, and it is read through the bounded loader (130 MiB at most). The name check uses
+`\A`/`\z`, because `$` also matches before a final newline.
+
+Why this form: inline bytes are capped near 12 KiB by the inspection request, and a transaction
+request is capped at 64 KiB, so inline cannot carry real catalogs. A path breaks the MCP "no
+arbitrary paths" scope. The brief asked the catalog folder to mirror the style folder of R100.a,
+but R100.a has no fixed style folder: `scanStyleDirectory` takes a caller path, and no command
+names one. The catalog folder is therefore the first fixed user folder that MCP can name. R100.f
+should decide whether styles get the same reference.
+
+**Listing (added beyond the brief's list).** `catalog.library` lists the folder, so a name can be
+found over MCP. It is read-only, returns no paths, and scans at most 4096 folder entries and 128
+catalogs. Each catalog is fully decoded, within the 256 MiB read budget that `scanStyleDirectory`
+uses. A file that cannot be read, or whose name cannot be referenced, is listed with its error.
+
+**Import (ADR 0131).** `importCatalogEntries` matches each name to exactly one entry. A name that
+matches none, or several, is refused. An entry's entry dependencies come with it. A dependency
+always names an earlier entry, so the walk ends. Every entry in the closure is checked before the
+first change. A non-importable entry is refused with the reason, which names the missing or
+mismatched dependency id. A template is refused. The work runs on a snapshot and publishes one
+composed edit, so a refusal changes neither the document, its revision nor its history. A
+component goes through `insertLibraryComponent`, which gives fresh definition identities and
+places the component at the root or under `parent`. A material is reused only for the same name,
+colour, opacity and asset. An asset is reused only for the same media type and equal bytes. A
+clashing name takes the ADR 0131 suffix. A style replaces the document style, as `style.apply`
+does, and changes nothing when it is equal (ADR 0068). `catalog.import` is a transaction command
+and runs through the batch engine, so MCP and the session share its dry run, revision guard and
+error codes.
+
+Decisions the ADR did not settle:
+
+- *A refused request imports nothing.* If one named entry is refused, the whole request is
+  refused, so no partial state needs undoing. The brief's "refuses that entry only" is met by the
+  other entries of the same catalog staying importable, and by a second request for them.
+- *Templates are refused.* The brief said "a component or template inserted". A template is a
+  whole model: inserting its free geometry, scenes and tags into an open model is a separate
+  design. **Gap:** a template entry cannot be imported. It opens as a new model, as before.
+- *Placement.* Components are placed at the identity transform. No transform parameter exists yet.
+- *No-op requests.* A request that changes nothing (a style equal to the current one, or a
+  material that already exists) is refused with "Batch has no committed changes", the rule every
+  no-op batch follows.
+
+**Export.** `catalog.export` is a query, so it changes nothing and publishes nothing. It captures
+chosen components by definition id (the ADR 0130 closure, through `CatalogBuilder::addComponent`),
+chosen materials with their textures, and the document style with its edge texture. A texture
+shared by a material and by the style is stored once, by `CatalogBuilder`'s byte-equality rule.
+Entry names must be unique. A missing record, an asset with no bytes (never left out), a repeated
+name or an empty selection refuses the export and names what failed. The catalog id is derived
+from the name. The licence identifier defaults to `LicenseRef-Unspecified`, and the version to
+`1.0.0`. Both are defaults the owner may want changed. The catalog is returned as unpadded
+base64url in `data`, which is the form `catalog.list` accepts. The query response caps it at 192
+KiB. Writing an export to the library is not in this slice: no MCP path writes a file, so the
+file write belongs to R100.e (CLI) or R100.f (UI).
+
+**Reader change (the edge stroke).** R100.c's reader called `decodeModelStyle` without the
+edge-stroke flag, so no catalog style could carry an edge stroke. The reader now accepts it, and
+requires the edge texture to be a declared asset dependency of that style entry. Otherwise the
+entry is not importable, with the reason "style edge texture asset N is not a dependency". The
+layout is unchanged: the committed R100.c fixtures decode to the same entries. The R100.c
+`catalog_tests` pass against the committed bytes.
+
+**Component-definition deduplication: not done.** This is the one scope item the slice does not
+meet, and the brief asked for an explanation. A component entry's payload is a complete native
+container from `encodeContainer`. Its definitions sit in one JSON section, and the native reader
+requires the complete reference graph (ADR 0130). So a nested definition shared by two entries is
+stored in each container. Storing it once needs a partial container form that names definitions
+held by other entries, plus an import-time merge before the native reader runs. That changes the
+native container's definition encoding and its reader, which is a native-format decision (a
+schema question and an ADR addendum), not a catalog-layer change. The R100.c layout is unchanged,
+so this slice sets no `full-ci` label. Textures are shared, as R100.c already shares them.
+
+**Undo and save.** One undo removes every record an import adds. The test checks the records. It
+does not check the allocator floors (the next asset, material and definition ids). Those stay
+advanced after undo, as after any edit, so an id is never reused. Save and reopen gives the same
+container bytes, bit for bit.
+
+**Assistant and surface.** Every `catalog.` name stays hidden from the in-app assistant
+(`assistantVisible`). The pinned assistant baseline is unchanged. `assistant_tool_surface_tests`
+keeps its own copy of the hide rule, which drops `style.` from the "every command" set. It needed a
+`catalog.` line, and its baseline assertions are untouched. The batch response gained a
+`catalogOperations` array beside `styleOperations`. The generated API documents and
+`TOOL_REFERENCE` were regenerated (see the Validation note below).
+
+**Tests.** `catalog_import_tests` runs in 0.23 s with 34 MB peak resident memory. It covers the
+reference (name rules, traversal, links, folders, malformed files, the scan's bounds, and the
+query surface). It covers export then import, with materials, textures, style fields including
+`edgeStroke`, and one shared texture. It covers save and reopen, one undo step, relocation (a
+moved file read inline, and a library rename), and missing and tampered dependencies, where only
+the affected entry is refused and named. It also covers an undeclared style texture, a template,
+unknown and ambiguous names, and eight refusal kinds that leave the document unchanged, and export
+refusals. Every test writes only to a temporary home, redirected with `XDG_DATA_HOME` and `HOME`.
+The new fixture, `tests/fixtures/catalog/edge-texture.sketchycat` (5,869 bytes), comes from
+`catalog_fixtures.hpp` with fixed identities, and `catalog_tests` checks it byte for byte.
+
+**Not measured or not run here.** The §9 budgets (an import of one 130 MiB entry within 3 s, and
+resident memory) were not measured. The fixtures are small. The local toolchain is Qt 6.12 with
+GCC 16, not the CI image's Qt 6.8, so the code was checked against 6.12 only. The sanitizer job,
+the native matrix and the package acceptance run only in CI. The fuzz target
+`parser_fuzz_catalog` was not extended for edge-stroke style entries, and the libFuzzer target was
+not built. The style decode path now takes the edge flag. `catalog_fuzz_tests`, which runs the same
+seeds and mutations under ctest, passes.
+
+## Implementation notes (R100.e)
+
+Recorded for branch `feat/r100e-style-catalog-cli`, on origin/main `fdd18797`.
+
+**Shape.** The five flags are standalone operations in `src/automation/style_catalog_cli.cpp`.
+Each takes only the options it names, and refuses the rest by name. `--input` is read and never
+written. Each operation publishes at most one new file, through `publishNewFile`, after every
+check has passed. Their options are listed once, in `styleCatalogOptions()`. The same list
+registers the parser options, fills the `styleCatalog` section of `--capabilities`, and answers
+`--describe-command` for each operation. No command is added, so the command catalogue, the MCP
+surface and `assistant_tool_surface_tests` are unchanged.
+
+**Output precedent.** The import operations write their output with `createNativeFile`, as
+`--import-skp`, `--import-ifc`, `--import-stl` and `--import-obj` do: a new file only. The generic
+`--script ... --output` path overwrites an existing file (after a `.bak` copy), so it is not the
+precedent here. The five flags refuse an existing path, as the brief requires.
+
+**Errors.** Every refusal exits 1 with the usual `{status, code, error}` object on stderr.
+`INVALID_REQUEST`: a conflicting or missing flag, an existing or link path, a wrong suffix, an
+unknown or ambiguous entry name, an empty selection, a malformed ID, an invalid library name.
+`INPUT_ERROR`: an unreadable or malformed file, a missing or hash-mismatched texture (named by
+name and asset ID), an entry refused by the catalog reader or the insertion check (named by entry,
+with the reason, which names the dependency ID), and a template. `NOT_FOUND`: a catalog file or a
+library name that does not exist.
+
+**Decisions the ADR did not settle.**
+
+1. `--entries` repeats (`--entries A --entries B`). Entry names are free text, so one flag per name
+   is unambiguous.
+2. A catalog named on the command line is a file when its value contains a slash or ends in
+   `.sketchycat`. Any other value is a library name, under the R100.d name rule. An export to a
+   path must end in `.sketchycat`, and a style export to a path must end in `.sketchystyle`.
+3. `--to-library` writes `NAME.sketchycat` into the catalog library folder. R100.c and R100.d left
+   this write to R100.e. The folder is created on first use, after the bytes are built, and an
+   existing name is refused. A failed write can leave the empty folder, never a file.
+4. Metadata: `--name` (default: the file's base name), `--description`, `--label` (repeatable),
+   `--catalog-version` (default `1.0.0`) and `--catalog-license` (default
+   `LicenseRef-Unspecified`). The name `--version` belongs to Qt's parser.
+5. Selection follows `catalog.export`: `--catalog-component ID` and `--catalog-material ID`
+   (repeatable), and `--catalog-style`. The `catalog-` prefix keeps the flags apart from the
+   report's `--material` filter, which the same parser also holds.
+6. An import into a model that already has the style is not refused. The output is written, and
+   the style reports `unchanged`. The command refuses a no-op batch; the CLI writes a copy.
+7. `--import-catalog` has no `--parent`. Components are placed at the root, as the command does by
+   default.
+8. There is no style library option. R100.a has no fixed style folder, and R100.d left that choice
+   to R100.f.
+
+**Contradictions and gaps against the ADR.**
+
+- Section 7 says `--import-catalog` lists or imports "into the open or a new document". The CLI
+  imports into `--input` and writes a new file. Listing is `--list-catalog`. Importing a template
+  as a new model is not built: R100.d refuses templates, and that stands.
+- No file format changed. No schema, fixture or decoder changed. The damaged style files that the
+  test needs (a missing texture, a flipped texture byte) are made inside the test from the R100.a
+  fixture, so no new fixture was added.
+- The new files are written with mode `0600`. That is what `publishNewFile` does for every native
+  output, and the new flags do not change it.
+
+**Tests.** `style_catalog_cli_tests` is new. It runs the built `sketchyup-cli` and is registered
+under `SKETCHYUP_BUILD_CLI`. It skips with exit 77 off Linux, as `report_schedule_cli` does. It
+covers:
+
+- discovery: `--capabilities` and `--describe-command` list all five operations and every option,
+  and agree with each other;
+- every flag on success, and the refusals listed above, each checked with its code;
+- for every refusal, the folder's file names before and after, so a partial file would show;
+- that `--input` and the catalog are unchanged (SHA-256);
+- round trips: a style exported and imported again, and the document style carried in a catalog,
+  both keep their appearance, texture bytes included;
+- the library: a listing by name, an import by name, and `--to-library` with its refusals.
+
+`HOME` and `XDG_DATA_HOME` point into a `QTemporaryDir`, so the library the test writes to is its
+own. The test runs in 0.7 s locally (`style_catalog_cli: 1` in the path map's `test_seconds`).
+
+**Checks run here.** Local build: Debug, `SKETCHYUP_BUILD_CLI=ON`, `SKETCHYUP_BUILD_DESKTOP=OFF`,
+GCC 16 with Qt 6.12. Passed: `style_catalog_cli_tests`, `command_tests`, `catalog_import_tests`,
+`report_cli_tests`, `report_schedule_cli_tests`, `inspection_tests`, `mcp_tests` and
+`assistant_tool_surface_tests`. `generate-tool-reference.py --check` passes against the new CLI.
+`ci-plan.py check` and `ci-line-inventory.py check` pass.
+
+**Not run here.** The sanitizer job, the Qt 6.8 compile, and the package acceptance (they run in
+CI). `generate-api-schemas.py --check` needs the desktop binary, which this build leaves out. It
+reads only the existing `--capabilities` sections, and none of them changed. The `presentation_cli`
+test was not run; it reads only the presentation section, which did not change.
+
+**Not measured.** The section 9 budgets. The fixtures are small, and no CLI import of a 130 MiB
+catalog entry was timed.

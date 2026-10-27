@@ -7,7 +7,7 @@
 namespace sketchy {
 // The request file of --export-presentation (ADR 0173 §4, §7): at most 16 KiB of JSON. It names
 // one camera path by name, or an explicit list of saved scenes with timing, then one to four
-// render presets by name, and the new output folder.
+// render presets by name, the new output folder and the optional video flag.
 inline constexpr int presentationRequestBytes = 16 * 1024;
 struct PresentationRequest {
     QString path;                   // A camera path by name; empty with an explicit list.
@@ -17,10 +17,11 @@ struct PresentationRequest {
     bool explicitKeyframes{};
     std::vector<QString> presets;
     QString output;
+    bool video{}; // Encode each preset to video.mp4 (decision 7). Off unless requested.
 };
 // Refuses unknown fields, both or neither path forms, a wrong apiVersion, a non-object, a
-// preset list outside one to four, a duplicate preset, and any video request: video encoding
-// arrives with R099.c. Other limits are named by the batch engine when it resolves the request.
+// preset list outside one to four, a duplicate preset and a non-boolean video flag. Other limits
+// are named by the batch engine when it resolves the request.
 PresentationRequest parsePresentationRequest(const QByteArray &bytes);
 QJsonObject presentationExportCapabilities();
 QJsonObject presentationExportDescription();

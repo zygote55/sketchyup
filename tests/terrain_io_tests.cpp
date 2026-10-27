@@ -389,10 +389,9 @@ void decoderLimits(const QTemporaryDir &files) {
     const auto tampered = decodeContainer(withMesh(bytes, moved));
     check(terrainChangedSinceGenerated(tampered, f.terrain),
           "A mesh that no longer matches its digest loads as changed since generated");
-    // Schema 31 is newer than this build (schema 30 is camera paths, ADR 0173); a newer
-    // schema refuses with the newer-format error.
+    // A schema newer than this build refuses with the newer-format error.
     auto future = documentTree(bytes);
-    future["version"] = 31;
+    future["version"] = nativeDocumentVersion + 1;
     check(rejection([&] {
               decodeDocument(QJsonDocument(future).toJson(QJsonDocument::Compact));
           }).find("Unsupported document format, version") != std::string::npos,
@@ -528,7 +527,7 @@ void automation() {
         check(tools.contains(name), std::string("MCP exposes ") + name);
     for (const auto *name : {"site.set", "site.reanchor", "terrain.explode"})
         check(commands.contains(name), std::string("The command catalogue has ") + name);
-    check(mcpToolCatalog().size() <= 64, "The MCP tool list stays within its 64-tool bound");
+    check(mcpToolCatalog().size() <= mcpToolLimit, "The MCP tool list stays within its bound");
 }
 // Re-anchoring moves every stored world position by the same delta and leaves the
 // origin-independent records alone; Undo restores the exact encoding.

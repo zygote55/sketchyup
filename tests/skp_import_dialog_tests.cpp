@@ -558,6 +558,8 @@ int main(int argc, char **argv) {
                       contains(driver.identities[name], "materials read 1 = imported 1 + omitted 0") &&
                       contains(driver.identities[name], "edges read "),
                   "the accounting identity holds per kind: " + driver.identities[name].toStdString());
+            check(contains(driver.identities[name], "attributes read "),
+                  "the identity names the attributes: " + driver.identities[name].toStdString());
             check(driver.hows[name] ==
                       "Format: SketchUp 25.0.575, SketchUp 2021 and later (VFF container)\n"
                       "Units: Inches; the geometry is read in inches and converted to metres",

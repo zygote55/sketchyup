@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- Quantities report engine (R101.a, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
+  a pure counting pass over the materialized document, with the counting rules for shared
+  components, nested placements, hidden content, mirrored transforms, invalid solids and terrain.
+  It is served by the bounded `report.run` session query (counts, areas, volumes, the invalid
+  table and terrain, in the document's units, stamped with the document identity and revision).
+  The assistant does not see it. No CSV, CLI, saved schedules, MCP names or panel yet (R101.b to
+  R101.e).
+
+- Quantities report files (R101.b, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
+  `sketchyup-cli --input MODEL --report FILE.csv|FILE.json` writes a report of counts, areas,
+  volumes, the invalid table and terrain to a new file, with the metrics, grouping, visibility and
+  filters of the session query. The CSV is the file of record (UTF-8 without a BOM, LF line endings,
+  a `#key=value` metadata block and one tidy row per group and metric). The JSON is the session's
+  `report.run` data, byte for byte. An existing file is refused, and the model is never changed.
+  The saved-schedule flags, the MCP names and the desktop panel are not in this release (R101.c to
+  R101.e).
+
+- Saved report schedules (R101.c, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
+  a named report request is saved for one document in a user-level file, beside the presentation
+  jobs, and never in the model. `sketchyup-cli --input MODEL --save-schedule NAME [report flags]`,
+  `--list-schedules` and `--delete-schedule NAME` manage them, and `--report FILE --schedule NAME`
+  runs one (its CSV says `#schedule=NAME`). A schedule runs only on the document it was saved for,
+  and a schedule whose tags, materials or definitions were removed refuses, naming them. A save leaves
+  the model file byte-identical. The session gains `report.schedule`. The MCP names and the desktop
+  panel are not in this release (R101.d and R101.e).
+
 - Camera paths and render presets (R099.a, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md)):
   named camera paths that keyframe saved scenes (2 to 32 keyframes, at most 240 planned frames,
   up to 64 per document) and named render presets (up to 16 per document). Both are saved with

@@ -1559,9 +1559,9 @@ asks no dirty-document question.
 
 ## 17. Presentation batches
 
-Status: **proposed, awaiting owner approval.** Not implemented. R099.d builds this after R099.c
-(video and the command surface, on `feat/r099c-video-commands`); the records and the batch engine
-(R099.a and R099.b) are on main.
+Status: **approved by the owner on 2026-10-27**, with every §17.12 choice as recommended. Not implemented.
+R099.d builds this; the records, the batch engine, video and the command surface (R099.a to R099.c) are on
+main.
 
 This section designs the desktop side of camera paths and batch presentation output: where the path
 editor and the presets live, the batch dialog and its live budget, the Jobs row for a batch, results
@@ -1947,7 +1947,10 @@ is a note for R099.d or the owner, not a change made here.
 
 ### 17.12 Choices for the owner
 
-Each choice has a recommended default. R099.d builds the recommended default unless the owner says otherwise.
+Each choice has a recommended default. **The owner decided all five on 2026-10-27, each as recommended:**
+MPEG-4 Part 2 in MP4 as the explicit fallback when H.264 is missing; the 24 fps, 1.00 s and 0.50 s defaults with
+the cap shown live; no HDR panoramas in v1; the worst-case ceiling as the live budget; and ask before quitting
+with a batch running. R099.d builds these.
 
 1. **A fallback codec when H.264 is missing.** Options: none; MPEG-4 Part 2 in MP4 (lossy, plays everywhere);
    FFV1 in MKV (lossless). *Recommended: MPEG-4 Part 2 in MP4, offered only as an explicit choice when H.264 is

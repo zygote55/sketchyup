@@ -21,6 +21,11 @@ class WorkerError(Exception):
         self.code = code
 
 
+VIDEO_FRAME_LIMIT = 240
+VIDEO_OUTPUT_LIMIT = 512 * 1024 * 1024
+FRAME_IMAGE_LIMIT = 64 * 1024 * 1024
+
+
 def load_json(path, limit):
     if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
         raise WorkerError('invalid_snapshot', 'Expected a bounded regular JSON file')
@@ -633,6 +638,80 @@ def render(request, directory):
 
 
 
+def video_codecs():
+    return {item.identifier for item in bpy.types.FFmpegSettings.bl_rna.properties['codec'].enum_items}
+
+
+def encode_video(request, directory):
+    # Encodes one preset's frames as H.264 in MP4. Every frame is read once, hashed against the
+    # request, and copied into this attempt's private directory; Blender encodes only those copies.
+    video = request.get('video')
+    if not isinstance(video, dict):
+        raise WorkerError('invalid_request', 'Video encoding needs a video request')
+    frames = video.get('frames')
+    width, height, rate = video.get('width'), video.get('height'), video.get('framesPerSecond')
+    if (not isinstance(frames, list) or not 1 <= len(frames) <= VIDEO_FRAME_LIMIT or
+            any(type(value) is not int for value in (width, height, rate)) or
+            not 64 <= width <= 4096 or not 64 <= height <= 4096 or width % 2 or height % 2 or
+            not 1 <= rate <= 60):
+        raise WorkerError('invalid_request', 'Unsupported video request')
+    if 'H264' not in video_codecs():
+        raise WorkerError('codec_unavailable', 'H.264 is not in this Blender build\'s FFmpeg codec list, so no video was written')
+    staging = directory / 'frames'
+    staging.mkdir()
+    names = []
+    for index, frame in enumerate(frames):
+        if (type(frame) is not dict or type(frame.get('path')) is not str or
+                type(frame.get('sha256')) is not str or type(frame.get('bytes')) is not int):
+            raise WorkerError('invalid_request', 'Unsupported video frame entry')
+        source = Path(frame['path'])
+        if (not source.is_absolute() or source.is_symlink() or not source.is_file() or
+                source.stat().st_size > FRAME_IMAGE_LIMIT):
+            raise WorkerError('invalid_frame', f'Frame {index + 1} is missing, linked or too large')
+        data = source.read_bytes()
+        if sha(data) != frame['sha256'] or len(data) != frame['bytes']:
+            raise WorkerError('invalid_frame', f'Frame {index + 1} changed before encoding')
+        names.append(f'frame-{index + 1:04d}.png')
+        (staging / names[-1]).write_bytes(data)
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    scene = bpy.context.scene
+    scene.sequence_editor_create()
+    strip = scene.sequence_editor.strips.new_image(name='frames', filepath=str(staging / names[0]),
+                                                  channel=1, frame_start=1)
+    for name in names[1:]:
+        strip.elements.append(name)
+    strip.directory = str(staging)
+    scene.frame_start = 1
+    scene.frame_end = len(names)
+    scene.render.fps = rate
+    scene.render.fps_base = 1
+    scene.render.resolution_x = width
+    scene.render.resolution_y = height
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.media_type = 'VIDEO'
+    scene.render.image_settings.file_format = 'FFMPEG'
+    scene.render.ffmpeg.format = 'MPEG4'
+    scene.render.ffmpeg.codec = 'H264'
+    scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
+    scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
+    scene.render.ffmpeg.audio_codec = 'NONE'
+    scene.render.use_file_extension = True
+    scene.render.filepath = str(directory / 'video')
+    progress('encoding-video')
+    bpy.ops.render.render(animation=True)
+    produced = sorted(directory.glob('video*.mp4'))
+    if len(produced) != 1 or produced[0].is_symlink() or not produced[0].is_file():
+        raise WorkerError('render_error', 'Blender did not write exactly one video file')
+    path = directory / 'video.mp4'
+    os.replace(produced[0], path)
+    if path.is_symlink() or not 0 < path.stat().st_size <= VIDEO_OUTPUT_LIMIT:
+        raise WorkerError('render_error', 'Blender did not produce a bounded video')
+    data = path.read_bytes()
+    return {'status': 'succeeded',
+            'video': {'file': 'video.mp4', 'bytes': len(data), 'sha256': sha(data), 'codec': 'H264',
+                      'container': 'MP4', 'frames': len(names), 'framesPerSecond': rate}}
+
+
 def main():
     request_path = Path(sys.argv[sys.argv.index('--') + 1]).resolve()
     directory = request_path.parent
@@ -640,18 +719,21 @@ def main():
             'blenderVersionString': bpy.app.version_string,
             'blenderBuildHash': bpy.app.build_hash.decode('ascii', errors='replace')}
     try:
-        request, _ = load_json(request_path, 64 * 1024)
-        if (request.get('apiVersion') != 1 or request.get('operation') not in ('probe', 'render', 'handoff') or
+        request, _ = load_json(request_path, 1024 * 1024)
+        if (request.get('apiVersion') != 1 or request.get('operation') not in ('probe', 'render', 'handoff', 'encode') or
                 request.get('backend') not in BACKENDS or not isinstance(request.get('deviceId'), str) or
                 len(request['deviceId']) > 512):
             raise WorkerError('invalid_request', 'Unsupported worker request')
         if bpy.app.version[:2] != (5, 2):
             raise WorkerError('unsupported_version', 'This adapter supports Blender 5.2 LTS')
-        if request['backend'] != 'OPENGL' and (not bpy.app.build_options.cycles or 'cycles' not in bpy.context.preferences.addons):
+        if (request['operation'] != 'encode' and request['backend'] != 'OPENGL' and
+                (not bpy.app.build_options.cycles or 'cycles' not in bpy.context.preferences.addons)):
             raise WorkerError('cycles_unavailable', 'This Blender build does not include Cycles')
         if request['operation'] == 'probe':
             result = {'status': 'available', 'lightingPolicies': ['studio-v1', 'solar-v1', 'hdri-v1', 'solar-hdri-v1'],
                       **capabilities(request['backend'])}
+        elif request['operation'] == 'encode':
+            result = encode_video(request, directory)
         else:
             result = render(request, directory)
         publish(directory, {**base, **result})

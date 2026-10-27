@@ -554,7 +554,7 @@ void inspection() {
         commands.insert(command.toObject()["name"].toString());
     check(commands.contains("terrain.import") && commands.contains("terrain.inspect_source"),
           "the command catalogue has both commands");
-    check(mcpToolCatalog().size() <= 64, "the MCP tool list stays within its bound");
+    check(mcpToolCatalog().size() <= mcpToolLimit, "The MCP tool list stays within its bound");
     // Units are required for point files.
     check(refusal([&] {
               executeBatch(doc, batch(doc, {importCommand("1 2 3\n4 5 6\n7 8 9\n", "points")}));

@@ -777,6 +777,416 @@
                 "openWorldHint": false,
                 "readOnlyHint": true
             },
+            "description": "camera_path.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "path": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "camera_path.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "path",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "camera_path.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "render_preset.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "preset": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "render_preset.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "preset",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "render_preset.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "catalog.list: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "catalog": {
+                        "maxLength": 16384,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "library": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "catalog.list"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "catalog.list"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "catalog.library: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "catalog.library"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "catalog.library"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "catalog.export: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "components": {
+                        "items": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "maxItems": 64,
+                        "minItems": 0,
+                        "type": "array"
+                    },
+                    "description": {
+                        "maxLength": 4096,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "labels": {
+                        "items": {
+                            "maxLength": 64,
+                            "type": "string"
+                        },
+                        "maxItems": 32,
+                        "minItems": 0,
+                        "type": "array"
+                    },
+                    "license": {
+                        "maxLength": 64,
+                        "type": "string"
+                    },
+                    "materials": {
+                        "items": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "maxItems": 64,
+                        "minItems": 0,
+                        "type": "array"
+                    },
+                    "name": {
+                        "maxLength": 256,
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "catalog.export"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "style": {
+                        "type": "boolean"
+                    },
+                    "version": {
+                        "maxLength": 64,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "catalog.export"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "presentation.describe: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "path": {
+                        "maxLength": 20,
+                        "pattern": "^[1-9][0-9]*$",
+                        "type": "string"
+                    },
+                    "presets": {
+                        "items": {
+                            "maxLength": 20,
+                            "pattern": "^[1-9][0-9]*$",
+                            "type": "string"
+                        },
+                        "maxItems": 4,
+                        "minItems": 1,
+                        "type": "array"
+                    },
+                    "query": {
+                        "const": "presentation.describe"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    },
+                    "video": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "path",
+                    "presets",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "presentation.describe"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "style.export: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "description": {
+                        "maxLength": 4096,
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "labels": {
+                        "items": {
+                            "maxLength": 64,
+                            "type": "string"
+                        },
+                        "maxItems": 32,
+                        "minItems": 0,
+                        "type": "array"
+                    },
+                    "name": {
+                        "maxLength": 256,
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "style.export"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "style.export"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
             "description": "drawing_sheets.query: inspect the explicitly bound native window",
             "inputSchema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2911,6 +3321,148 @@
                 "type": "object"
             },
             "name": "terrain.elevation_at"
+        },
+        {
+            "annotations": {
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false,
+                "readOnlyHint": true
+            },
+            "description": "report.run: inspect the explicitly bound native window",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "apiVersion": {
+                        "const": 1
+                    },
+                    "documentId": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "expectedRevision": {
+                        "maxLength": 20,
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "type": "string"
+                    },
+                    "query": {
+                        "const": "report.run"
+                    },
+                    "request": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "filters": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "definitions": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "materials": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "selection": {
+                                        "type": "boolean"
+                                    },
+                                    "tags": {
+                                        "items": {
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        },
+                                        "maxItems": 128,
+                                        "minItems": 0,
+                                        "type": "array"
+                                    },
+                                    "visibility": {
+                                        "enum": [
+                                            "all",
+                                            "visible"
+                                        ],
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [],
+                                "type": "object"
+                            },
+                            "groupBy": {
+                                "enum": [
+                                    "none",
+                                    "kind",
+                                    "tag",
+                                    "material",
+                                    "definition"
+                                ],
+                                "type": "string"
+                            },
+                            "metrics": {
+                                "oneOf": [
+                                    {
+                                        "const": "all",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "items": {
+                                            "enum": [
+                                                "counts",
+                                                "areas",
+                                                "volumes"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "maxItems": 3,
+                                        "minItems": 1,
+                                        "type": "array"
+                                    }
+                                ]
+                            },
+                            "precision": {
+                                "oneOf": [
+                                    {
+                                        "const": "full",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "maximum": 6,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [],
+                        "type": "object"
+                    },
+                    "snapshotId": {
+                        "description": "Opaque snapshot identifier returned by snapshot.begin",
+                        "maxLength": 36,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "request",
+                    "apiVersion",
+                    "documentId",
+                    "expectedRevision",
+                    "query"
+                ],
+                "type": "object"
+            },
+            "name": "report.run"
         },
         {
             "annotations": {

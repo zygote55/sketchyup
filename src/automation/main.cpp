@@ -5,7 +5,10 @@
 #include "automation/mcp.hpp"
 #include "automation/optional_capabilities.hpp"
 #include "automation/recipe.hpp"
+#include "automation/report_commands.hpp"
+#include "automation/report_schedules.hpp"
 #include "automation/session.hpp"
+#include "automation/style_catalog_cli.hpp"
 #include "automation/terrain_commands.hpp"
 #include "integrations/glb_export.hpp"
 #include "integrations/presentation_request.hpp"
@@ -16,15 +19,15 @@
 #include "io/formline.hpp"
 #include "io/gltf_import.hpp"
 #include "io/ifc_export.hpp"
-#include "io/step_export.hpp"
 #include "io/ifc_worker.hpp"
 #include "io/measured_request.hpp"
-#include "io/new_file.hpp"
 #include "io/native_format.hpp"
+#include "io/new_file.hpp"
 #include "io/obj_export.hpp"
 #include "io/recovery.hpp"
 #include "io/sheet_export.hpp"
 #include "io/skp_worker.hpp"
+#include "io/step_export.hpp"
 #include "io/step_worker.hpp"
 #include "io/stl_export.hpp"
 #include "sketchyup/version.hpp"
@@ -34,12 +37,12 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QTimeZone>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QStandardPaths>
-#include <csignal>
+#include <QTimeZone>
 #include <cmath>
+#include <csignal>
 #include <cstdio>
 #include <iostream>
 #include <unistd.h>
@@ -48,6 +51,30 @@ namespace {
 // Set by SIGINT while --export-presentation runs; the batch cancels at its next frame boundary.
 volatile std::sig_atomic_t presentationInterrupted = 0;
 void interruptPresentation(int) { presentationInterrupted = 1; }
+
+// The report flags that a saved schedule replaces (ADR 0175 §8): --schedule runs alone.
+const QStringList reportFlagNames{"metrics",  "group-by",   "visible",   "tag",
+                                  "material", "definition", "precision", "format"};
+
+// The application's data names (ADR 0175 §7). The report schedules sit beside the presentation
+// jobs in SketchyUp/SketchyUp, as the desktop application's files do.
+void useApplicationDataNames() {
+    QCoreApplication::setOrganizationName("SketchyUp");
+    QCoreApplication::setApplicationName("SketchyUp");
+}
+
+// The report flags as the parser holds them. The caller sets the output path and format.
+sketchy::ReportFileOptions reportFlags(const QCommandLineParser &parser) {
+    sketchy::ReportFileOptions options;
+    options.metrics = parser.isSet("metrics") ? parser.value("metrics") : "all";
+    options.groupBy = parser.isSet("group-by") ? parser.value("group-by") : "none";
+    options.visible = parser.isSet("visible");
+    options.tags = parser.values("tag");
+    options.materials = parser.values("material");
+    options.definitions = parser.values("definition");
+    options.precision = parser.value("precision");
+    return options;
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -112,6 +139,29 @@ int main(int argc, char **argv) {
     parser.addOption({"session-capabilities", "Print the bounded session and transaction schemas"});
     parser.addOption(
         {"export-glb", "Export an immutable scene and manifest to a new directory", "directory"});
+    parser.addOption({"report",
+                      "Write a read-only quantities report of --input to a new .csv or .json file",
+                      "path"});
+    parser.addOption(
+        {"metrics", "Report metrics: counts,areas,volumes or all (default all)", "list"});
+    parser.addOption({"group-by",
+                      "Report grouping: none (default), kind, tag, material or definition",
+                      "grouping"});
+    parser.addOption({"visible", "Report only visible content (default includes hidden content)"});
+    parser.addOption({"tag", "Report filter: a tag or folder ID; repeat for several", "id"});
+    parser.addOption(
+        {"material", "Report filter: a material ID (areas rows only); repeat for several", "id"});
+    parser.addOption(
+        {"definition", "Report filter: a component definition ID; repeat for several", "id"});
+    parser.addOption({"precision", "Report precision: full (default) or an integer", "full|N"});
+    parser.addOption(
+        {"format", "Report format: csv or json (default from the file extension)", "format"});
+    parser.addOption(
+        {"schedule", "Report: run the saved schedule NAME instead of the report flags", "name"});
+    parser.addOption({"list-schedules", "List the report schedules saved for --input"});
+    parser.addOption(
+        {"save-schedule", "Save the report flags of --input as the schedule NAME", "name"});
+    parser.addOption({"delete-schedule", "Delete the report schedule NAME of --input", "name"});
     parser.addOption({"export-presentation",
                       "Render a camera path through render presets to a new folder with a batch manifest",
                       "request"});
@@ -241,6 +291,9 @@ int main(int argc, char **argv) {
                       "Build an assembly source into a new .sketchylib bundle given as the one "
                       "positional argument",
                       "source"});
+    // R100.e (ADR 0174 section 7): the style and catalog operations and the options they take.
+    for (const auto &option : sketchy::styleCatalogOptions())
+        parser.addOption({option.name, option.summary, option.argument});
     try {
         // Parse without QCommandLineParser's unstructured error exit.
         if (!parser.parse(measuredExport ? originalArguments : app.arguments()))
@@ -282,6 +335,17 @@ int main(int argc, char **argv) {
             std::cout << QJsonDocument(QJsonObject{{"status", "built"},
                                                    {"output", output},
                                                    {"bytes", double(bundle.size())}})
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
+        // R100.e (ADR 0174 section 7): the style and catalog operations. Each is standalone and
+        // refuses what it does not take. The catalog library is in the application's data folder,
+        // so the application names are set first.
+        if (const auto operation = sketchy::styleCatalogOperationOf(parser); !operation.isEmpty()) {
+            useApplicationDataNames();
+            std::cout << QJsonDocument(sketchy::runStyleCatalogCli(parser, operation))
                              .toJson(QJsonDocument::Compact)
                              .toStdString()
                       << '\n';
@@ -1027,6 +1091,86 @@ int main(int argc, char **argv) {
                 << '\n';
             return 0;
         }
+        // ADR 0175 §8 (R101.c): the saved schedules of --input. One operation at a time, and none
+        // with a report: each is standalone, reads or changes only the user-level store, and never
+        // the model.
+        const QStringList scheduleOperations{"list-schedules", "save-schedule", "delete-schedule"};
+        int scheduleOperationCount = 0;
+        for (const auto &option : scheduleOperations)
+            scheduleOperationCount += int(parser.isSet(option));
+        if (scheduleOperationCount > 0) {
+            if (scheduleOperationCount != 1 || parser.isSet("report") || parser.isSet("schedule"))
+                throw sketchy::InspectionError(
+                    "INVALID_REQUEST",
+                    "Choose one schedule operation, without --report or --schedule");
+            const QStringList allowed =
+                parser.isSet("save-schedule")
+                    ? QStringList{"input", "save-schedule", "metrics",    "group-by", "visible",
+                                  "tag",   "material",      "definition", "precision"}
+                    : QStringList{"input", "list-schedules", "delete-schedule"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError(
+                        "INVALID_REQUEST",
+                        "A schedule operation takes --input, its name and, for --save-schedule, "
+                        "the report flags");
+            if (!parser.positionalArguments().isEmpty() || !parser.isSet("input"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "A schedule operation requires --input");
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            useApplicationDataNames();
+            const auto store = sketchy::reportScheduleStorePath();
+            QJsonObject result;
+            if (parser.isSet("list-schedules"))
+                result = sketchy::describeReportSchedules(document, store);
+            else if (parser.isSet("save-schedule"))
+                result =
+                    sketchy::saveReportSchedule(document, store, parser.value("save-schedule"),
+                                                sketchy::reportRequestFor(reportFlags(parser)));
+            else
+                result =
+                    sketchy::deleteReportSchedule(document, store, parser.value("delete-schedule"));
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
+        if (parser.isSet("schedule") && !parser.isSet("report"))
+            throw sketchy::InspectionError(
+                "INVALID_REQUEST",
+                "--schedule runs a saved schedule into a report file; it needs --report");
+        if (parser.isSet("report")) {
+            // ADR 0175 §8 (R101.b): a standalone read-only report, written to a new file. R101.c:
+            // --schedule runs a saved schedule instead of the report flags.
+            const QStringList allowed{"report",     "input",     "schedule", "metrics",
+                                      "group-by",   "visible",   "tag",      "material",
+                                      "definition", "precision", "format"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError("INVALID_REQUEST",
+                                                   "Report is a standalone operation");
+            if (!parser.positionalArguments().isEmpty() || !parser.isSet("input"))
+                throw sketchy::InspectionError("INVALID_REQUEST",
+                                               "Report requires --input and a --report file");
+            if (parser.isSet("schedule")) {
+                if (parser.value("schedule").isEmpty())
+                    throw sketchy::InspectionError("INVALID_REQUEST", "--schedule needs a name");
+                for (const auto &flag : reportFlagNames)
+                    if (parser.isSet(flag))
+                        throw sketchy::InspectionError(
+                            "INVALID_REQUEST",
+                            "--schedule runs a saved schedule instead of the report flags");
+                useApplicationDataNames();
+            }
+            const auto document = sketchy::loadDocument(parser.value("input"));
+            auto options = reportFlags(parser);
+            options.path = parser.value("report");
+            options.format = parser.value("format");
+            options.schedule = parser.value("schedule");
+            std::cout << QJsonDocument(sketchy::writeReportFile(document, options))
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
         if (parser.isSet("export-presentation")) {
             if (!parser.isSet("input") || !parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",
@@ -1112,6 +1256,7 @@ int main(int argc, char **argv) {
             std::optional<sketchy::AutomationRecipe> recipe;
             if (parser.isSet("recipe"))
                 recipe = sketchy::AutomationRecipe::load(parser.value("recipe"));
+            useApplicationDataNames();
             sketchy::AutomationSession session({parser.value("input"), parser.value("output"),
                                                 parser.value("outcomes"), parser.isSet("new"),
                                                 parser.isSet("recover-latest")});
@@ -1177,6 +1322,19 @@ int main(int argc, char **argv) {
                 "Preview requires --script and cannot be combined with --output");
         if (parser.isSet("capabilities")) {
             std::cout << QJsonDocument(sketchy::capabilities()).toJson().toStdString();
+            return 0;
+        }
+        if (parser.isSet("describe-command") && parser.value("describe-command") == "report") {
+            std::cout << QJsonDocument(sketchy::reportExportDescription()).toJson().toStdString();
+            return 0;
+        }
+        // R100.e: the style and catalog operations describe themselves under their flag names.
+        if (parser.isSet("describe-command") &&
+            !sketchy::styleCatalogCliDescription(parser.value("describe-command")).isEmpty()) {
+            std::cout << QJsonDocument(
+                             sketchy::styleCatalogCliDescription(parser.value("describe-command")))
+                             .toJson()
+                             .toStdString();
             return 0;
         }
         if (parser.isSet("describe-command") &&

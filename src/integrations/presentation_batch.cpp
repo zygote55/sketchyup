@@ -2,6 +2,7 @@
 #include "core/presentation_records.hpp"
 #include "integrations/render_snapshot.hpp"
 #include "io/document_io.hpp"
+#include "io/presentation_io.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -21,8 +22,12 @@
 #include <stdexcept>
 namespace sketchy {
 namespace {
-constexpr qint64 mib = 1024 * 1024, outputLimit = 2048 * mib, diskReserve = 256 * mib;
-constexpr qint64 frameImageLimit = 64 * mib, metadataLimit = mib, manifestLimit = mib;
+constexpr qint64 mib = 1024 * 1024, outputLimit = presentationOutputLimit, diskReserve = 256 * mib;
+constexpr qint64 frameImageLimit = presentationFrameImageLimit,
+                 metadataLimit = presentationMetadataLimit, manifestLimit = mib;
+constexpr qint64 videoFileLimit = 512 * mib;
+// Encoding is one Blender run per preset; this bound stops a hung encoder, not a normal encode.
+constexpr int videoTimeoutMs = 900000;
 QString digest(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
 }
@@ -50,28 +55,11 @@ void publish(const QString &path, const QByteArray &bytes) {
         throw std::runtime_error("Could not save batch manifest");
 }
 QString frameName(size_t index) { return QString("frame-%1").arg(index + 1, 4, 10, QChar('0')); }
-// The preset folder is numbered, so folder names stay unique whatever the preset is called.
-QString presetDirectory(size_t index, const QString &name) {
-    QString safe;
-    for (const auto character : name.left(48)) {
-        const bool keep =
-            (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
-            (character >= '0' && character <= '9') || character == '-' || character == '_';
-        safe += keep ? character : QChar('-');
-    }
-    if (safe.isEmpty())
-        safe = "preset";
-    return QString("%1-%2").arg(index + 1, 2, 10, QChar('0')).arg(safe);
-}
-// The per-frame bound the animation export uses: the PNG cap plus the metadata cap.
-qint64 frameBudget(const RenderSettings &settings) {
-    return std::min<qint64>(frameImageLimit, qint64(settings.width) * settings.height * 5 + mib) +
-           metadataLimit;
-}
+// A video is bounded like the frame images it encodes, so the disk check counts it that way.
 qint64 plannedBudget(const PresentationPlan &plan, size_t frames) {
     qint64 total = 0;
     for (const auto &preset : plan.presets)
-        total += qint64(frames) * frameBudget(preset.settings);
+        total += qint64(frames) * presentationFrameBudget(preset.settings) * (plan.video ? 2 : 1);
     return total;
 }
 qint64 defaultFreeSpace(const QString &path) { return QStorageInfo(path).bytesAvailable(); }
@@ -163,6 +151,10 @@ struct PresentationExport::Impl {
     QPointer<BlenderJob> worker;
     std::future<std::shared_ptr<const PreparedRender>> preparing;
     std::shared_ptr<const PreparedRender> input;
+    // One verified video record per preset; empty until its encode is verified and written.
+    std::vector<QJsonObject> videos;
+    size_t videoPreset{};
+    bool encoding{};
     QTimer timer;
     std::function<qint64(const QString &)> freeSpace{defaultFreeSpace};
     qint64 limit{outputLimit};
@@ -186,9 +178,12 @@ struct PresentationExport::Impl {
         records.clear();
         preset = index = 0;
         bytes = 0;
+        encoding = false;
         lastAttempt = {};
+        videos.assign(frozen.plan().presets.size(), QJsonObject{});
         for (size_t p = 0; p < frozen.plan().presets.size(); ++p) {
-            presetDirectories.push_back(presetDirectory(p, frozen.plan().presets[p].name));
+            presetDirectories.push_back(
+                presentationPresetDirectory(p, frozen.plan().presets[p].name));
             records.emplace_back(frozen.frames().size());
         }
     }
@@ -227,6 +222,8 @@ struct PresentationExport::Impl {
                 {"frames", frames}};
             if (!device.isEmpty())
                 entry["device"] = device;
+            if (!videos[p].isEmpty())
+                entry["video"] = videos[p];
             presets.append(entry);
         }
         const auto &plan = capture->plan();
@@ -244,6 +241,7 @@ struct PresentationExport::Impl {
                                 {"revision", QString::number(capture->revision())},
                                 {"captureSha256", capture->sha256()},
                                 {"framesPerSecond", plan.timing.framesPerSecond},
+                                {"videoRequested", plan.video},
                                 {"framesPerPreset", int(capture->frames().size())},
                                 {"totalFrames", int(capture->frames().size() * records.size())},
                                 {"completedFrames", completed()},
@@ -251,28 +249,37 @@ struct PresentationExport::Impl {
                                 {"presets", presets}};
         publish(output + "/manifest.json", QJsonDocument(value).toJson());
     }
-    // Keeps a frame only when its image, its metadata and the manifest entry all agree.
-    bool verify(size_t p, size_t i, const QJsonObject &entry) {
+    // The record and the bytes of a frame whose image and metadata both agree with its manifest
+    // entry; empty otherwise. The files are read again, so a changed file never matches.
+    std::optional<std::pair<QJsonObject, qint64>> check(size_t p, size_t i,
+                                                        const QJsonObject &entry) const {
         try {
             const auto name = frameName(i);
             if (entry.value("file") != name + ".png" || !entry.value("sha256").isString())
-                return false;
+                return std::nullopt;
             const auto png = readFile(frameDirectory(p) + "/" + name + ".png", frameImageLimit);
             if (digest(png) != entry.value("sha256"))
-                return false;
+                return std::nullopt;
             const auto metadata = readFile(frameDirectory(p) + "/" + name + ".json", metadataLimit);
             const auto record = QJsonDocument::fromJson(metadata).object();
             if (record.value("file") != name + ".png" ||
                 record.value("sha256") != entry.value("sha256") ||
                 record.value("bytes").toInteger(-1) != png.size() ||
                 record.value("index").toInteger(-1) != qint64(i))
-                return false;
-            records[p][i] = record;
-            bytes += png.size() + metadata.size();
-            return true;
+                return std::nullopt;
+            return std::pair{record, qint64(png.size() + metadata.size())};
         } catch (const std::exception &) {
-            return false;
+            return std::nullopt;
         }
+    }
+    // Keeps a frame only when check() agrees with its manifest entry, and counts its bytes.
+    bool verify(size_t p, size_t i, const QJsonObject &entry) {
+        const auto found = check(p, i, entry);
+        if (!found)
+            return false;
+        records[p][i] = found->first;
+        bytes += found->second;
+        return true;
     }
     void resume() {
         const auto saved =
@@ -296,6 +303,37 @@ struct PresentationExport::Impl {
                 verify(p, size_t(i), frame);
             }
         }
+        // A video is kept only for a preset whose frames all verify and whose file still matches.
+        for (size_t p = 0; p < records.size() && capture->plan().video; ++p) {
+            const auto entry = presets[qsizetype(p)].toObject().value("video").toObject();
+            if (entry.isEmpty() || !presetComplete(p))
+                continue;
+            try {
+                const auto mp4 =
+                    readFile(output + "/" + presetDirectories[p] + "/video.mp4", videoFileLimit);
+                if (entry.value("file") != "video.mp4" || digest(mp4) != entry.value("sha256") ||
+                    entry.value("bytes").toInteger(-1) != mp4.size())
+                    continue;
+                videos[p] = entry;
+                bytes += mp4.size();
+            } catch (const std::exception &) {
+                // An unverified video is encoded again, after its file is removed.
+            }
+        }
+    }
+    bool presetComplete(size_t p) const {
+        for (const auto &record : records[p])
+            if (record.isEmpty())
+                return false;
+        return true;
+    }
+    // Removes a video file that has no verified record. A verified video is never reached here.
+    void removeStaleVideo(size_t p) {
+        const auto path = output + "/" + presetDirectories[p] + "/video.mp4";
+        if (QFileInfo(path).isSymLink())
+            throw std::runtime_error("A batch video file is a link; remove it to resume");
+        if (QFileInfo::exists(path) && !QFile::remove(path))
+            throw std::runtime_error("Cannot remove an unverified batch video");
     }
     // Removes only the files of a frame that is not verified; a verified frame is never touched.
     void removeUnverified(size_t p, size_t i) {
@@ -344,7 +382,10 @@ struct PresentationExport::Impl {
         }
         skipVerified();
         if (preset == records.size()) {
-            complete();
+            if (capture->plan().video)
+                encodeNext();
+            else
+                complete();
             return;
         }
         try {
@@ -363,6 +404,91 @@ struct PresentationExport::Impl {
         });
         timer.start();
         emit owner.changed();
+    }
+    // Encodes the first preset without a verified video, one Blender run at a time. The batch
+    // completes only when every preset has its video.
+    void encodeNext() {
+        size_t p = 0;
+        while (p < videos.size() && !videos[p].isEmpty())
+            ++p;
+        if (p == videos.size()) {
+            complete();
+            return;
+        }
+        const auto &settings = capture->plan().presets[p].settings;
+        try {
+            removeStaleVideo(p);
+            // Every frame is hashed again, on disk, before any of them is encoded.
+            for (size_t i = 0; i < records[p].size(); ++i)
+                if (!check(p, i, records[p][i]))
+                    throw std::runtime_error(
+                        QString(
+                            "Frame %1 of %2 changed after it was verified; no video was written")
+                            .arg(i + 1)
+                            .arg(presetDirectories[p])
+                            .toStdString());
+            BlenderVideoRequest request;
+            request.width = settings.width;
+            request.height = settings.height;
+            request.framesPerSecond = capture->plan().timing.framesPerSecond;
+            for (size_t i = 0; i < records[p].size(); ++i) {
+                const auto &record = records[p][i];
+                request.frames.push_back({frameDirectory(p) + "/" + frameName(i) + ".png",
+                                          record.value("sha256").toString(),
+                                          record.value("bytes").toInteger()});
+            }
+            // Encoding reads the verified frames only; it needs no GPU, so it runs on the CPU.
+            auto encode = options;
+            encode.backend = "CPU";
+            encode.deviceId = "CPU";
+            encode.allowCpuFallback = false;
+            encode.timeoutMs = videoTimeoutMs;
+            encoding = true;
+            videoPreset = p;
+            message = QString("Encoding video for %1").arg(presetDirectories[p]);
+            worker = new BlenderJob(&owner);
+            QObject::connect(worker, &BlenderJob::changed, &owner, [this] { workerChanged(); });
+            worker->encode(std::move(request), std::move(encode));
+            emit owner.changed();
+        } catch (const std::exception &error) {
+            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+        }
+    }
+    // Writes a verified video, and only then. A refused or failed encode keeps the frames.
+    void videoFinished(BlenderJob *finished) {
+        encoding = false;
+        if (canceling) {
+            terminal(PresentationJobState::Canceled,
+                     "Batch canceled; finished frames are retained");
+            return;
+        }
+        const auto video = finished->videoResult();
+        if (!video) {
+            const auto report = finished->report();
+            terminal(
+                PresentationJobState::Failed,
+                QString("Video not written (%1): %2. The finished frames are kept.")
+                    .arg(report.value("code").toString("ENCODE_FAILED"))
+                    .arg(report.value("message").toString("Blender did not encode the video")));
+            return;
+        }
+        try {
+            const auto cost = qint64(video->mp4.size());
+            if (cost > limit - bytes)
+                throw std::runtime_error(
+                    QString("Batch output would exceed its %1 MiB budget; %2 MiB remain")
+                        .arg(limit / mib)
+                        .arg((limit - bytes) / mib)
+                        .toStdString());
+            writeNew(output + "/" + presetDirectories[videoPreset] + "/video.mp4", video->mp4);
+            bytes += cost;
+            videos[videoPreset] = video->manifest;
+            manifest("running");
+            QTimer::singleShot(0, &owner, [this] { next(); });
+            emit owner.changed();
+        } catch (const std::exception &error) {
+            terminal(PresentationJobState::Failed, QString::fromUtf8(error.what()));
+        }
     }
     void poll() {
         if (!preparing.valid() ||
@@ -391,6 +517,13 @@ struct PresentationExport::Impl {
         if (!worker)
             return;
         if (!worker->done()) {
+            if (encoding) {
+                message = QString("Encoding video for %1 · %2")
+                              .arg(presetDirectories[videoPreset])
+                              .arg(worker->progress());
+                emit owner.changed();
+                return;
+            }
             message = QString("%1 frame %2 of %3 · %4")
                           .arg(presetDirectories[preset])
                           .arg(index + 1)
@@ -403,6 +536,10 @@ struct PresentationExport::Impl {
         worker.clear();
         finished->deleteLater();
         lastAttempt = finished->report();
+        if (encoding) {
+            videoFinished(finished.data());
+            return;
+        }
         if (canceling) {
             terminal(PresentationJobState::Canceled,
                      "Batch canceled; finished frames are retained");

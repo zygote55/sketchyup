@@ -2,6 +2,9 @@
 #include "automation/session.hpp"
 #include <thread>
 namespace sketchy {
+// The most tools one MCP catalogue may list: a sanity bound, not a client limit (raised from 64
+// to 128 for the R100 style and catalog commands, ADR 0174 §7).
+inline constexpr int mcpToolLimit = 128;
 inline constexpr const char *mcpProtocolVersion = "2026-07-28";
 QJsonArray mcpToolCatalog();
 QJsonObject mcpCapabilities();

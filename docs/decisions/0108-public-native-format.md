@@ -591,3 +591,16 @@ document chunk uses `json-v30`, and `requiredFeatures` appends `presentation-v1`
 A keyframe that names no scene is not a decode error: the path loads broken. A schema-29
 root refuses the object, and a schema-31 root refuses with the newer-format error. A document
 without camera paths or presets still writes its lower schema.
+
+**Schema 31 addendum: edge styles (R100.a).** 2026-10-26. The public schema advances to
+**sketchyup-document-v31** under container version 2; see
+[custom styles](0174-custom-styles-asset-authoring.md) §2. A document whose style carries an
+edge stroke writes schema 31, with `requiredFeatures` appending `edge-styles-v1` after
+`presentation-v1`, and its document chunk uses `json-v31`. The style record's optional field
+`edgeStroke` is an object of exactly four fields: `width` (a finite number from 1 to 8),
+`opacity` (a finite number from 0.01 to 1), `dash` (`solid`, `dashed`, `dotted` or `dashDot`)
+and `texture` (a canonical decimal asset id; `"0"` for none). A texture names an asset of the
+document. A schema-30 or older root refuses `edgeStroke`, and a saved scene's style follows the
+same rule. A document without an edge stroke still writes its lower schema. The read range is
+1 to 31. SketchyUp 1.3.0 and 1.2.0 refuse a schema-31 file unchanged with an
+`Unsupported container field` error, as they refuse schema 30.

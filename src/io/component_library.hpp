@@ -4,12 +4,19 @@
 #include "core/components.hpp"
 #include "io/assembly_placement.hpp"
 #include <optional>
+#include <set>
+#include <string>
 #include "io/library_bundle.hpp"
 namespace sketchy {
 struct LibraryInsertion {
     ComponentResult component;
     size_t reusedAssets{}, reusedMaterials{}, renamedResources{};
 };
+// The name a library resource takes in a destination where `used` names are taken: the name
+// itself when free, else a bounded " (library N)" suffix. `renamed` counts the suffixes given.
+std::string uniqueLibraryName(const std::string &name, std::set<std::string> &used,
+                              size_t &renamed);
+
 // One undoable edit. Imported definitions remain independent of prior insertions.
 LibraryInsertion insertLibraryComponent(Document &destination, const ComponentBundle &bundle,
                                         Transform placement = {}, Id parent = 0);

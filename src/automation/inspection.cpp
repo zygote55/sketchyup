@@ -8,13 +8,18 @@
 #include "core/component_parameter_records.hpp"
 #include "automation/section_commands.hpp"
 #include "automation/annotation_commands.hpp"
+#include "io/catalog_io.hpp"
 #include "io/display_precision_io.hpp"
 #include "io/sheet_export.hpp"
 #include "io/model_style_io.hpp"
 #include "io/solar_io.hpp"
 #include "automation/solar_commands.hpp"
 #include "automation/terrain_commands.hpp"
+#include "automation/report_commands.hpp"
 #include "automation/hosted_commands.hpp"
+#include "automation/presentation_commands.hpp"
+#include "automation/style_commands.hpp"
+#include "automation/catalog_commands.hpp"
 #include "automation/inspection_validation.hpp"
 #include "core/edge_appearance.hpp"
 #include "core/entity_measure.hpp"
@@ -44,6 +49,19 @@ QJsonObject idSchema(bool zero = false) {
             {"maxLength", 20},
             {"pattern", zero ? "^(0|[1-9][0-9]*)$" : "^[1-9][0-9]*$"}};
 }
+QJsonObject reportMetricsSchema() {
+    const auto all = QJsonObject{{"type", "string"}, {"const", "all"}};
+    const auto list = QJsonObject{{"type", "array"},
+                                  {"items", choices({"counts", "areas", "volumes"})},
+                                  {"minItems", 1},
+                                  {"maxItems", 3}};
+    return {{"oneOf", QJsonArray{all, list}}};
+}
+QJsonObject reportPrecisionSchema() {
+    const auto full = QJsonObject{{"type", "string"}, {"const", "full"}};
+    const auto digits = QJsonObject{{"type", "integer"}, {"minimum", 0}, {"maximum", 6}};
+    return {{"oneOf", QJsonArray{full, digits}}};
+}
 QJsonObject list(QJsonObject items, int minimum, int maximum) {
     return {{"type", "array"}, {"items", items}, {"minItems", minimum}, {"maxItems", maximum}};
 }
@@ -70,6 +88,13 @@ enum class Operation {
     SavedScenes,
     SavedScene,
     SavedSceneVisibility,
+    CameraPath,
+    RenderPreset,
+    Presentation,
+    StyleExport,
+    CatalogList,
+    CatalogLibrary,
+    CatalogExport,
     DrawingSheets,
     DrawingSheet,
     DrawingViewsStatus,
@@ -97,7 +122,8 @@ enum class Operation {
     SiteDescribe,
     SiteConvert,
     TerrainDescribe,
-    TerrainElevation
+    TerrainElevation,
+    Report
 };
 struct Spec {
     QString name;
@@ -144,6 +170,43 @@ const std::vector<Spec> &registry() {
             spec("saved_scenes.query", Operation::SavedScenes, {}, {}, true),
             spec("saved_scene.describe", Operation::SavedScene, {{"scene", idSchema()}}, {"scene"}),
             spec("saved_scene.visibility", Operation::SavedSceneVisibility, {{"scene", idSchema()}}, {"scene"}, true),
+            spec("camera_path.describe", Operation::CameraPath, {{"path", idSchema()}}, {"path"}),
+            spec("render_preset.describe", Operation::RenderPreset, {{"preset", idSchema()}},
+                 {"preset"}),
+            // R100.c (ADR 0174 section 4.1): the bytes travel inline, so the query reads no path.
+            // R100.d: or `library` names a catalog in the catalog library folder. Exactly one is
+            // required; catalogReference refuses both or neither.
+            spec("catalog.list", Operation::CatalogList,
+                 {{"catalog", textSchema(inspectionRequestBytes)},
+                  {"library",
+                   QJsonObject{{"type", "string"},
+                               {"minLength", 1},
+                               {"maxLength", 64},
+                               {"pattern", "^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$"}}}},
+                 {}),
+            spec("catalog.library", Operation::CatalogLibrary, {}, {}),
+            // R100.d (ADR 0174 section 7): captures the chosen records as a catalog, and changes
+            // nothing.
+            spec("catalog.export", Operation::CatalogExport,
+                 {{"name", textSchema(256)},
+                  {"description", textSchema(4096)},
+                  {"labels", list(textSchema(64), 0, 32)},
+                  {"version", textSchema(64)},
+                  {"license", textSchema(64)},
+                  {"components", list(idSchema(), 0, 64)},
+                  {"materials", list(idSchema(), 0, 64)},
+                  {"style", QJsonObject{{"type", "boolean"}}}},
+                 {"name"}),
+            spec("presentation.describe", Operation::Presentation,
+                 {{"path", idSchema()},
+                  {"presets", list(idSchema(), 1, 4)},
+                  {"video", QJsonObject{{"type", "boolean"}}}},
+                 {"path", "presets"}),
+            spec("style.export", Operation::StyleExport,
+                 {{"name", textSchema(256)},
+                  {"description", textSchema(4096)},
+                  {"labels", list(textSchema(64), 0, 32)}},
+                 {"name"}),
             spec("drawing_sheets.query", Operation::DrawingSheets, {}, {}, true),
             spec("drawing_sheet.describe", Operation::DrawingSheet, {{"sheet", idSchema()}}, {"sheet"}),
             spec("drawing_views.status", Operation::DrawingViewsStatus, {{"sheet", idSchema()}}, {}, true),
@@ -231,7 +294,24 @@ const std::vector<Spec> &registry() {
                                         {"maximum", coordinateLimit}},
                                        2, 2),
                                   1, int(terrainPointBatch))}},
-                 {"body", "points"})};
+                 {"body", "points"}),
+            // ADR 0175 §1, §8 (R101.a): the counting pass over the materialized document. The
+            // request's semantic checks (distinct metrics, existing IDs, precision, selection)
+            // are in reportRequestFrom; the schema covers the vocabulary and the bounds.
+            spec("report.run", Operation::Report,
+                 {{"request",
+                   object({{"metrics", reportMetricsSchema()},
+                           {"groupBy", choices({"none", "kind", "tag", "material", "definition"})},
+                           {"filters",
+                            object({{"visibility", choices({"all", "visible"})},
+                                    {"tags", list(idSchema(), 0, 128)},
+                                    {"materials", list(idSchema(), 0, 128)},
+                                    {"definitions", list(idSchema(), 0, 128)},
+                                    {"selection", QJsonObject{{"type", "boolean"}}}},
+                                   {})},
+                           {"precision", reportPrecisionSchema()}},
+                          {})}},
+                 {"request"})};
     }();
     return specs;
 }
@@ -729,6 +809,44 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
             page.append([&] { return savedSceneSummary(doc, id); });
         data = page.finish();
         break;
+    case Operation::CameraPath:
+        data = cameraPathDescription(doc, decimal(request["path"]));
+        break;
+    case Operation::RenderPreset:
+        data = renderPresetDescription(doc, decimal(request["preset"]));
+        break;
+    case Operation::CatalogList:
+        try {
+            data = encodeCatalogListing(catalogReference(request));
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    case Operation::CatalogLibrary:
+        try {
+            data = encodeCatalogLibrary(scanCatalogLibrary(catalogLibraryFolder()));
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    case Operation::CatalogExport:
+        try {
+            data = catalogExportQuery(doc, request);
+        } catch (const std::exception &error) {
+            fail("INVALID_REQUEST", error.what());
+        }
+        break;
+    case Operation::Presentation: {
+        std::vector<Id> presets;
+        for (const auto &item : request["presets"].toArray())
+            presets.push_back(decimal(item));
+        data = presentationDescription(doc, decimal(request["path"]), presets,
+                                       request["video"].toBool());
+        break;
+    }
+    case Operation::StyleExport:
+        data = styleExport(doc, request);
+        break;
     case Operation::SavedScene: {
         const auto id = decimal(request["scene"]);
         if (!doc.scenes().contains(id))
@@ -1201,6 +1319,18 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
             data["bounds"] = QJsonObject{{"minimum", point(frame.bounds->low)},
                                          {"maximum", point(frame.bounds->high)},
                                          {"dimensions", point(frame.bounds->dimensions())}};
+        break;
+    }
+    case Operation::Report: {
+        // The session's selection expands to its bodies; a file-only query has none (refused
+        // in reportRequestFrom when the request asks for it).
+        std::set<Id> selectedBodies;
+        if (editor)
+            for (const auto &entity : editor->entities())
+                selectedBodies.insert(entity.body);
+        const auto reportRequest =
+            reportRequestFrom(doc, request["request"].toObject(), editor != nullptr);
+        data = reportDescription(doc, reportRequest, editor ? &selectedBodies : nullptr);
         break;
     }
     case Operation::Distance:

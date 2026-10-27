@@ -158,7 +158,7 @@
       ]
     },
     {
-      "why": "Native document schema (R099.a, ADR 0173): schema 30 with presentation-v1 and the record decoders. A format change runs the full tier, including the package acceptance's prior-release check and the Qt 6.8 compile.",
+      "why": "Native document schema (R099.a, ADR 0173; R100.a, ADR 0174): schema 30 with presentation-v1, schema 31 with edge-styles-v1, the record decoders and the .sketchystyle envelope. A format change runs the full tier, including the package acceptance's prior-release check and the Qt 6.8 compile.",
       "paths": [
         "src/io/container.cpp",
         "src/io/document_io.cpp",
@@ -168,8 +168,15 @@
         "src/io/presentation_io*",
         "src/core/presentation*",
         "src/core/render_settings*",
+      "src/automation/presentation*",
+        "src/io/style_bundle*",
+        "src/automation/style_commands*",
+        "src/core/model_style*",
         "tests/presentation*",
+        "tests/style_bundle*",
         "tests/fixtures/presentation-v30.sketchyup",
+        "tests/fixtures/edge-styles-v31.sketchyup",
+        "tests/fixtures/edge-style-v1.sketchystyle",
         "docs/api/native-format-v1.json"
       ],
       "areas": [
@@ -208,6 +215,21 @@
         "build",
         "slow-assistant"
       ]
+    },
+    {
+      "why": "R100.c (ADR 0174 sections 4, 5 and 10): the .sketchycat catalog format on the shared envelope, its decoder, its fuzz determinism test and its generated fixtures. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/io/catalog_io*", "src/io/library_envelope.hpp", "tests/catalog*", "tests/fixtures/catalog/**"],
+      "areas": ["build", "native"]
+    },
+    {
+      "why": "R100.d (ADR 0174 sections 4, 5 and 7): the catalog library reference, catalog.import, catalog.export and their refusal, relocation, appearance and save checks. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/io/catalog_insert*", "src/automation/catalog_commands*", "src/io/component_library*", "tests/catalog_import*"],
+      "areas": ["build", "native"]
+    },
+    {
+      "why": "R100.e (ADR 0174 sections 7 and 10): the style and catalog CLI flags, their refusals, the --capabilities and --describe-command shapes and the library export. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/automation/style_catalog_cli*", "tests/style_catalog_cli*"],
+      "areas": ["build", "native"]
     },
     {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
@@ -640,6 +662,14 @@
     "terrain_desktop": 3,
     "terrain_edit_input": 14,
     "presentation_records": 2,
-    "presentation_io": 3
+    "presentation_io": 3,
+    "style_bundle": 3,
+    "report": 11,
+    "report_output": 21,
+    "report_cli": 15,
+    "report_schedule": 15,
+    "report_schedule_cli": 23,
+    "report_mcp": 4,
+    "style_catalog_cli": 1
   }
 }

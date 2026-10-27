@@ -37,6 +37,12 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scene.reorder` | Order all saved scenes | `order`, `command` |
 | `saved_scene.delete` | Delete a saved scene | `scene`, `command` |
 | `saved_scene.recall` | Recall saved model style, sun study, visibility and named sections | `scene`, `command` |
+| `camera_path.create` | Create a named camera path through two to thirty-two saved scenes | `name`, `keyframes`, `timing`, `command` |
+| `camera_path.update` | Rename a camera path or change its keyframes or timing | `path`, `command` |
+| `camera_path.delete` | Delete a camera path | `path`, `command` |
+| `render_preset.create` | Create a named render preset (settings only) | `name`, `width`, `height`, `samples`, `seed`, `engine`, `command` |
+| `render_preset.update` | Rename a render preset or change its settings | `preset`, `command` |
+| `render_preset.delete` | Delete a render preset | `preset`, `command` |
 | `drawing_sheet.create` | Create a drawing sheet | `name`, `paper`, `command` |
 | `drawing_sheet.rename` | Rename a drawing sheet | `sheet`, `name`, `command` |
 | `drawing_sheet.resize` | Change a drawing sheet's paper size | `sheet`, `paper`, `command` |
@@ -111,6 +117,8 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `group.selection` | Make group from selected entities | `entities`, `command` |
 | `component.selection` | Make component from selected entities | `entities`, `command` |
 | `geometry.delete` | Delete context | `body`, `command` |
+| `style.apply` | Apply a packaged style (base64 .sketchystyle bytes) in one edit | `data`, `command` |
+| `catalog.import` | Import named catalog entries into the document in one edit | `entries`, `command` |
 | `asset.import` | Import managed asset bytes | `name`, `mediaType`, `data`, `command` |
 | `asset.missing` | Record missing asset | `name`, `mediaType`, `command` |
 | `asset.replace` | Replace or resolve asset bytes | `asset`, `data`, `command` |
@@ -189,6 +197,13 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scenes.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.describe` |  | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.visibility` |  | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `camera_path.describe` |  | `path`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `render_preset.describe` |  | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.list` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.library` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.export` |  | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `presentation.describe` |  | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `style.export` |  | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheet.describe` |  | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_views.status` |  | `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -217,6 +232,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `site.convert` |  | `to`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.describe` |  | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.elevation_at` |  | `body`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `report.run` |  | `request`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 
 ## Transactions
 
@@ -241,6 +257,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `session.describe` |  | `apiVersion`, `operation` |
 | `session.capabilities` |  | `apiVersion`, `operation` |
 | `document.save` |  | `apiVersion`, `operation`, `documentId`, `expectedRevision` |
+| `report.schedule` |  | `apiVersion`, `operation`, `documentId`, `action` |
 
 ## MCP tools
 
@@ -249,6 +266,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `session.describe` | session.describe: shared versioned SketchyUp operation | `apiVersion`, `operation` |
 | `session.capabilities` | session.capabilities: shared versioned SketchyUp operation | `apiVersion`, `operation` |
 | `document.save` | document.save: shared versioned SketchyUp operation | `apiVersion`, `operation`, `documentId`, `expectedRevision` |
+| `report.schedule` | report.schedule: shared versioned SketchyUp operation | `apiVersion`, `operation`, `documentId`, `action` |
 | `document.describe` | document.describe: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `solar.describe` | solar.describe: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `reference_images.query` | reference_images.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -263,6 +281,13 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `saved_scenes.query` | saved_scenes.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.describe` | saved_scene.describe: shared versioned SketchyUp operation | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `saved_scene.visibility` | saved_scene.visibility: shared versioned SketchyUp operation | `scene`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `camera_path.describe` | camera_path.describe: shared versioned SketchyUp operation | `path`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `render_preset.describe` | render_preset.describe: shared versioned SketchyUp operation | `preset`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.list` | catalog.list: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.library` | catalog.library: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `catalog.export` | catalog.export: shared versioned SketchyUp operation | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `presentation.describe` | presentation.describe: shared versioned SketchyUp operation | `path`, `presets`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `style.export` | style.export: shared versioned SketchyUp operation | `name`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheets.query` | drawing_sheets.query: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_sheet.describe` | drawing_sheet.describe: shared versioned SketchyUp operation | `sheet`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `drawing_views.status` | drawing_views.status: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
@@ -291,6 +316,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `site.convert` | site.convert: shared versioned SketchyUp operation | `to`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.describe` | terrain.describe: shared versioned SketchyUp operation | `body`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `terrain.elevation_at` | terrain.elevation_at: shared versioned SketchyUp operation | `body`, `points`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
+| `report.run` | report.run: shared versioned SketchyUp operation | `request`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `snapshot.begin` | snapshot.begin: shared versioned SketchyUp operation | `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `snapshot.release` | snapshot.release: shared versioned SketchyUp operation | `snapshotId`, `apiVersion`, `documentId`, `expectedRevision`, `query` |
 | `transaction.begin` | Create an empty private draft at the current revision | `expectedRevision`, `apiVersion`, `documentId`, `operation` |
