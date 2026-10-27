@@ -129,7 +129,8 @@
         "ifc_step_tests",
         "ifc_step_export_tests",
         "step_import_tests",
-        "import_refusal_tests"
+        "import_refusal_tests",
+        "ifc_sandbox_tests"
       ]
     },
     {

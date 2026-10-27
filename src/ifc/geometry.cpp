@@ -339,8 +339,10 @@ void injectFault(const std::string& fault, const std::vector<int>& suspects) {
   if (std::find(suspects.begin(), suspects.end(), step) == suspects.end()) return;
   const std::string kind = fault.substr(0, colon);
   if (kind == "crash") {
-    std::signal(SIGSEGV, SIG_DFL);
-    std::raise(SIGSEGV);
+    // A real fault, not raise(): a diagnosis child is forked, and raise() signals the child's own process, which the
+    // sandbox allows only for the helper's process (ADR 0183 section 4.3). The kernel delivers SIGSEGV for this store.
+    volatile int* volatile nowhere = nullptr;
+    *nowhere = 1;
   } else if (kind == "abort") {
     std::abort();
   } else if (kind == "hang") {
