@@ -522,9 +522,22 @@ jobs:
     # scripts/test-deadline.sh attaches gdb to a hung test to print its threads (D-034).
     container:
       image: mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3
-      options: --cap-add=SYS_PTRACE
+      # The runner host's preinstalled SDKs are mounted so the first step can delete them, as
+      # the sanitized job does: the debug build's last link ran out of disk on the runner
+      # (PR #484, run 40580506813), with every test binary carrying full debug information.
+      options: >-
+        --cap-add=SYS_PTRACE
+        -v /usr/share/dotnet:/host/usr/share/dotnet
+        -v /usr/local/lib/android:/host/usr/local/lib/android
+        -v /opt/ghc:/host/opt/ghc
+        -v /opt/hostedtoolcache/CodeQL:/host/opt/hostedtoolcache/CodeQL
     timeout-minutes: 150
     steps:
+      - name: Free runner disk space
+        run: |
+          df -h /
+          rm -rf /host/usr/share/dotnet/* /host/usr/local/lib/android/* /host/opt/ghc/* /host/opt/hostedtoolcache/CodeQL/*
+          df -h /
       - uses: actions/checkout@v6
       - name: Prepare the package cache
         id: package-cache-key
