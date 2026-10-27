@@ -214,8 +214,8 @@ int main(int argc, char **argv) {
         window.resize(1280, 900);
         window.show();
         check(QTest::qWaitForWindowExposed(&window), "Presentation window exposed");
-        check(QTest::qWaitFor([&] { return window.viewport()->rendererReady(); }, 20000),
-              "Native GL renderer ready");
+        // The dialog and the model need no GL renderer, so the suite does not wait for one: the
+        // package check runs it where no GL renderer starts (as the IFC dialog suites do).
         auto &doc = window.document();
         auto &view = *window.viewport();
         window.demo();
