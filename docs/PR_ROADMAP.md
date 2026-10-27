@@ -1517,7 +1517,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R106 — Deliver DWG support only after feasibility passes
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C05. **UX:** —.
+**Status:** Feasibility design proposed (ADR 0180): an import-only helper that links LibreDWG, for AC1015 to AC1032 in tiers; conditional on counsel's answer on the GPL helper; no code started. **Track:** Interchange. **Scope:** C05. **UX:** —.
 
 **Requires:** [R089](#r089), [R005](#r005), [R077](#r077); milestone gate rule above.
 
