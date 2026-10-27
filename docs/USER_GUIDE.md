@@ -626,13 +626,14 @@ SketchyUp does not connect to any online model library. It does not search one, 
 download from one. To use a model from a library, download the file yourself in a browser, then
 import it. The import makes a new, unsaved model, and the downloaded file is never changed.
 
-### 3D Warehouse
+### The 3D Warehouse website
 
 The 3D Warehouse website is run by Trimble Inc. SketchyUp is not affiliated with or endorsed by
 Trimble Inc. The 3D Warehouse website is named here only to say where to find models.
 
 1. Open the model's page on the 3D Warehouse website in your browser. Sign in to your own account if
-   the download needs it. The 3D Warehouse Download Policy sets a daily download limit for each plan.
+   the download needs it. The Download Policy on the 3D Warehouse website sets a daily download limit for
+   each plan.
    SketchyUp does not set it, and it does not count your downloads.
 2. If the page offers a choice of formats, choose one in the table below. The download may arrive as
    a ZIP archive.
@@ -659,8 +660,8 @@ by Trimble Inc. The 3D Warehouse website is named in this section only to say wh
 
 ### Licences and credit
 
-- Each model has its own licence. 3D Warehouse models are licensed under the General Model License in
-  the 3D Warehouse Terms of Use. The Terms we read did not require credit to the uploader. They do
+- Each model has its own licence. Models on the 3D Warehouse website are licensed under the General
+  Model License, which its Terms of Use set out. The Terms we read did not require credit to the uploader. They do
   forbid claiming to own a model you did not create, and removing its copyright or trademark notices.
   Keep those notices in the file.
 - The Terms bar selling a model on its own or as a stand-alone item, and gathering models into a

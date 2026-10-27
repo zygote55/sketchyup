@@ -108,7 +108,9 @@ int main(int argc, char **argv) {
         // B: the extraction the ZIP refusal asks for. The archive's member is the repository's own
         // box.skp, and that file passes the check, so the advised next step works.
         {
-            const QByteArray zipBytes = QFile(fixture("wrapped-box.zip")).readAll();
+            QFile wrapper(fixture("wrapped-box.zip"));
+            check(wrapper.open(QIODevice::ReadOnly), "the wrapper opens");
+            const QByteArray zipBytes = wrapper.readAll();
             check(zipBytes.startsWith(zipMagic), "the wrapper is a ZIP archive");
             check(zipBytes.contains("box.skp"),
                   "the wrapper holds box.skp, the file the user extracts");
