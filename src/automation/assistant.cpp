@@ -147,6 +147,30 @@ QJsonArray visibleInspectionCatalog() {
             result.append(value);
     return result;
 }
+// R100.f1 (ADR 0174 decision 9): the edge stroke is kept off the assistant's command schemas, as
+// transaction.begin's history is. The stroke is set from the Styles tab and MCP, and the
+// assistant's pinned tool bytes do not change. The engine still accepts the field.
+QJsonValue withoutEdgeStroke(const QJsonValue &value) {
+    if (value.isArray()) {
+        QJsonArray result;
+        for (const auto &item : value.toArray())
+            result.append(withoutEdgeStroke(item));
+        return result;
+    }
+    if (!value.isObject())
+        return value;
+    const auto object = value.toObject();
+    QJsonObject result;
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it)
+        result[it.key()] = withoutEdgeStroke(it.value());
+    // value(), not operator[]: a schema without properties must not gain a null one.
+    if (result.value("properties").isObject()) {
+        auto properties = result.value("properties").toObject();
+        properties.remove("edgeStroke");
+        result["properties"] = properties;
+    }
+    return result;
+}
 QJsonArray catalog(const QStringList &commands, bool clarification, int taskSeconds) {
     const auto inspection = visibleInspectionCatalog();
     QJsonArray entries = inspection;
@@ -172,7 +196,7 @@ QJsonArray catalog(const QStringList &commands, bool clarification, int taskSeco
                 for (const auto &command : commandCatalog()) {
                     const auto commandName = command.toObject()["name"].toString();
                     if (assistantVisible(commandName) && commands.contains(commandName))
-                        allowed.append(command.toObject()["parameters"]);
+                        allowed.append(withoutEdgeStroke(command.toObject()["parameters"]));
                 }
                 auto array = properties["commands"].toObject();
                 array["items"] = QJsonObject{{"oneOf", allowed}};
