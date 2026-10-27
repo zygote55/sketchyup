@@ -1505,7 +1505,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R105 — Investigate supported hosted asset access
 
-**Status:** Planned; delivery conditional on feasibility. **Track:** Interchange. **Scope:** C04. **UX:** —.
+**Status:** Feasibility design proposed ([ADR 0179](decisions/0179-hosted-asset-access-feasibility.md)): user-mediated downloads only for 1.x (R105.a), with no 3D Warehouse adapter, because the Warehouse has no documented API and its terms bar automated access; a Poly Haven CC0 adapter is viable and held for owner decision (R105.b); Sketchfab is deferred (R105.d). **Track:** Interchange. **Scope:** C04. **UX:** —.
 
 **Requires:** [R089](#r089), [R079](#r079); milestone gate rule above.
 
