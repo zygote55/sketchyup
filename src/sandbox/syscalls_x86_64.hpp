@@ -123,6 +123,7 @@ inline std::optional<long> syscallNumber(std::string_view name) {
 inline constexpr unsigned kAuditArchX86_64 = 0xC000003EU;
 inline constexpr std::size_t kSeccompDataArch = 4;
 inline constexpr std::size_t kSeccompDataArg0 = 16; // the low 32 bits of args[0], little-endian
+inline constexpr std::size_t kSeccompDataArg1 = 24; // the low 32 bits of args[1], little-endian
 
 // Numbers the sandbox calls itself (the kernel's ABI; the C library does not define the Landlock
 // ones).

@@ -7,6 +7,7 @@
 // A layer that cannot be installed is a failure, and the helper refuses before it parses anything
 // (fail closed, ADR 0183 section 7). The library has no dependency: the BPF program and the
 // Landlock calls are written here against the kernel's ABI.
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -27,11 +28,14 @@ enum class Action {
     notImplemented, // the call returns ENOSYS (glibc then falls back to clone)
     threadOnly,     // clone: runs when it creates a thread (CLONE_THREAD), returns EPERM otherwise
     ownProcessOnly, // tgkill: runs when its first argument is this process (abort signals itself)
+    argumentOneOf,  // the call runs when its second argument (the low 32 bits) is one of the rule's
+                    // values, and returns EPERM for any other value (fcntl and ioctl, ADR 0183 S3)
 };
 
 struct SyscallRule {
     std::string_view name; // a name in syscalls_x86_64.hpp
     Action action;
+    std::vector<std::uint32_t> values{}; // argumentOneOf only: the second argument's allowed values
 };
 
 // What the Landlock ruleset grants on one path. A path that does not exist is not granted.

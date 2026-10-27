@@ -1,7 +1,8 @@
 // The seccomp-bpf layer (ADR 0183 sections 3 and 4.3): a raw BPF program, with no library. The
 // program checks the architecture, loads the call number and compares it with each named call in
-// turn. A match runs that call's block: one return for allow, EPERM or ENOSYS, and for a
-// thread-only clone a test of CLONE_THREAD. Any other call falls through to the kill default.
+// turn. A match runs that call's block: one return for allow, EPERM or ENOSYS, a test of
+// CLONE_THREAD for a thread-only clone, a test of the second argument for fcntl and ioctl (ADR 0183
+// S3). Any other call falls through to the kill default.
 #include "sandbox/layers.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
 
@@ -29,8 +30,10 @@ sock_filter jump(std::uint16_t code, std::uint32_t k, std::uint8_t ifTrue, std::
 }
 
 // The instructions that answer for one call. A jump over a block takes its length, so each block is
-// short: the longest are the thread-only clone and the own-process signal, at four instructions.
-std::vector<sock_filter> blockFor(Action action, std::uint32_t self) {
+// short: the longest are the thread-only clone and the own-process signal, at four instructions,
+// and an argument test takes one instruction per value (the policies name at most a handful).
+std::vector<sock_filter> blockFor(Action action, const std::vector<std::uint32_t> &values,
+                                  std::uint32_t self) {
     switch (action) {
     case Action::allow:
         return {statement(BPF_RET | BPF_K, SECCOMP_RET_ALLOW)};
@@ -50,6 +53,18 @@ std::vector<sock_filter> blockFor(Action action, std::uint32_t self) {
                 jump(BPF_JMP | BPF_JEQ | BPF_K, self, 1, 0),
                 statement(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
                 statement(BPF_RET | BPF_K, SECCOMP_RET_ALLOW)};
+    case Action::argumentOneOf: {
+        // args[1] equal to one of the values: allow, which is the last instruction of the block.
+        // The value at position i jumps over the tests after it and the EPERM, so its jump is n -
+        // i.
+        std::vector<sock_filter> block{statement(BPF_LD | BPF_W | BPF_ABS, kSeccompDataArg1)};
+        for (std::size_t i = 0; i < values.size(); ++i)
+            block.push_back(jump(BPF_JMP | BPF_JEQ | BPF_K, values[i],
+                                 static_cast<std::uint8_t>(values.size() - i), 0));
+        block.push_back(statement(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM));
+        block.push_back(statement(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+        return block;
+    }
     }
     return {statement(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS)};
 }
@@ -66,21 +81,22 @@ std::optional<std::vector<sock_filter>> buildProgram(const std::vector<SyscallRu
         statement(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
         statement(BPF_LD | BPF_W | BPF_ABS, kSeccompDataNr),
     };
-    // A call named twice with the same action is one entry; with two actions it is an error.
-    // This process's ID, for the own-process rule: read here, before the filter is installed.
+    // A call named twice with the same action and values is one entry; with another action or other
+    // values it is an error. This process's ID, for the own-process rule: read here, before the
+    // filter is installed.
     const auto self = static_cast<std::uint32_t>(getpid());
-    std::map<long, Action> seen;
+    std::map<long, const SyscallRule *> seen;
     for (const SyscallRule &rule : all) {
         const std::optional<long> number = syscallNumber(rule.name);
         if (!number)
             return std::nullopt;
-        const auto [entry, fresh] = seen.emplace(*number, rule.action);
+        const auto [entry, fresh] = seen.emplace(*number, &rule);
         if (!fresh) {
-            if (entry->second != rule.action)
+            if (entry->second->action != rule.action || entry->second->values != rule.values)
                 return std::nullopt;
             continue;
         }
-        const std::vector<sock_filter> block = blockFor(rule.action, self);
+        const std::vector<sock_filter> block = blockFor(rule.action, rule.values, self);
         program.push_back(jump(BPF_JMP | BPF_JEQ | BPF_K, static_cast<std::uint32_t>(*number), 0,
                                static_cast<std::uint8_t>(block.size())));
         program.insert(program.end(), block.begin(), block.end());

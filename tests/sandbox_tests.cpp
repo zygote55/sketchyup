@@ -20,6 +20,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -229,6 +230,64 @@ void testThreadOnlyClone() {
           "a thread can be created under the thread-only entry");
 }
 
+// A call whose second argument selects the behaviour (fcntl's command, ioctl's request): a listed
+// value runs, another value is EPERM and does not kill the process (ADR 0183 S3).
+void testArgumentFilters() {
+    const ChildResult fcntlCall = inChild([] {
+        int fds[2];
+        if (pipe(fds) != 0)
+            return 2;
+        const pid_t self = getpid();
+        Policy policy;
+        policy.syscalls = withReporting({{"fcntl", Action::argumentOneOf, {F_GETFL, F_SETFL}}});
+        if (apply(policy))
+            return 3;
+        if (fcntl(fds[0], F_GETFL) == -1)
+            return 4;
+        if (fcntl(fds[0], F_SETOWN, self) != -1 || errno != EPERM)
+            return 5; // F_SETOWN can make the kernel signal another process: refused
+        return 0;
+    });
+    check(!fcntlCall.signaled && fcntlCall.code == 0,
+          "fcntl: a listed command runs and F_SETOWN is EPERM (code " +
+              std::to_string(fcntlCall.code) + ", signal " + std::to_string(fcntlCall.signal) +
+              ")");
+
+    // ioctl: the terminal query TCGETS2 runs (/dev/null is not a terminal: ENOTTY), FIONREAD is
+    // EPERM.
+    const ChildResult ioctlCall = inChild([] {
+        const int nullFd = open("/dev/null", O_RDONLY);
+        if (nullFd < 0)
+            return 2;
+        Policy policy;
+        policy.syscalls = withReporting({{"ioctl", Action::argumentOneOf, {0x5401U, 0x802C542AU}}});
+        if (apply(policy))
+            return 3;
+        int window = 0;
+        if (ioctl(nullFd, 0x802C542AU, &window) != -1 || errno != ENOTTY)
+            return 4;
+        if (ioctl(nullFd, 0x541BU, &window) != -1 || errno != EPERM)
+            return 5; // FIONREAD: not a terminal query
+        return 0;
+    });
+    check(!ioctlCall.signaled && ioctlCall.code == 0,
+          "ioctl: TCGETS2 runs and FIONREAD is EPERM (code " + std::to_string(ioctlCall.code) +
+              ", signal " + std::to_string(ioctlCall.signal) + ")");
+
+    // A call named twice with other values is an error: the filter is refused (EINVAL), and the
+    // process cannot run on with a policy it does not have.
+    const ChildResult conflict = inChild([] {
+        Policy policy;
+        policy.syscalls = withReporting({{"fcntl", Action::argumentOneOf, {F_GETFL}},
+                                         {"fcntl", Action::argumentOneOf, {F_SETFL}}});
+        const std::optional<Failure> failure = apply(policy);
+        return (failure && failure->layer == Layer::seccomp && failure->errnoValue == EINVAL) ? 0
+                                                                                              : 1;
+    });
+    check(!conflict.signaled && conflict.code == 0,
+          "one call named with two sets of values fails closed (EINVAL)");
+}
+
 void testLandlockGrants() {
     const std::string directory = "/tmp/sketchyup-sandbox-tests-" + std::to_string(getpid());
     mkdir(directory.c_str(), 0700);
@@ -325,6 +384,7 @@ int main() {
     testKillDefault();
     testOwnProcessSignal();
     testExplicitDenials();
+    testArgumentFilters();
     testThreadOnlyClone();
     testLandlockGrants();
     testUnknownNameFailsClosed();
