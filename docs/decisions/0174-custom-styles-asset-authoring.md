@@ -1,6 +1,6 @@
 # Custom styles and asset authoring
 
-Status: **Accepted (2026-10-23)**: owner decisions 1 to 12 approved as recommended on 2026-10-23; question Q1 (the preset list and texture licences) stays open until the presets slice. Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
+Status: **Accepted (2026-10-23)**: owner decisions 1 to 12 approved as recommended on 2026-10-23; question Q1 (the preset list and texture licences) answered on 2026-10-27 (procedural or CC0 only, list signed off by the owner). Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
 [F06](../SCOPE.md)). R100 requires [R089](../PR_ROADMAP.md#r089) (the 1.0 gate,
 accepted; 1.3.0 is the current release), [R062](../PR_ROADMAP.md#r062) (viewport
 styles and display controls, delivered) and [R079](../PR_ROADMAP.md#r079)
@@ -552,7 +552,7 @@ Each carries a recommended default and a one-line reason.
 
 ## Questions for the owner
 
-- **Q1. Preset list and texture licences. *Open.*** The exact set of new
+- **Q1. Preset list and texture licences. *Answered by the owner on 2026-10-27:*** only procedural textures or CC0 textures (Poly Haven, ambientCG); a worker drafts the list with each source and licence, and the owner signs it off before R100.b ships. The original question: The exact set of new
   textured presets, and the provenance and licence of every bundled texture,
   are not verified in this repository. The owner is asked to confirm the preset
   list and, with counsel if you wish, that every bundled texture's licence is

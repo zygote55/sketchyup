@@ -1,5 +1,5 @@
 # R102.a (ADR 0176): the vendored OpenSKP parser subset (VENDOR.txt and the patches/ directory
-# record the pinned commit, the SHA-256 of every file, and the two patches; scripts/vendor-openskp.py
+# record the pinned commit, the SHA-256 of every file, and the patches; scripts/vendor-openskp.py
 # fails the build if this tree has drifted from the pinned commit).
 #
 # The build mirrors the upstream CMakeLists (packages/cpp) for the parser subset only: no

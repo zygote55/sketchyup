@@ -84,6 +84,8 @@ struct RawDefinition {
   bool always_faces_camera{};
   bool shadows_face_sun{};
   bool is_image{};
+  // The definition's own attribute dictionaries (geometry.cpp, legacy.cpp), as Definition's.
+  ParsedAttrDictionaries attribute_dicts;
   GeometryBuilder builder;
 };
 

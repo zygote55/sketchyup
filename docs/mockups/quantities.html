@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SketchyUp quantities and schedules mockups (R101.e)</title>
+<!-- Static illustrations of docs/UX_DESIGN.md section 19, not application code.
+     Open quantities.html for every screen, or quantities.html?screen=<name> for one 1280 x 860 frame:
+     menu, totals, groups, filters, computing, save, schedules, run, stale, delete, store, exported, exists.
+     Add &text=200 to any of them to double every text size: a check of wrapping and overlap, not a second design.
+     At 200 % the Tray section scrolls, as the real panel does; the frame shows the top of it, and the schedule
+     row or total that a screen is about is brought into view where it matters (stale, schedules).
+     The model is the ADR 0175 section 11 fixture quantities-a with its corrected totals (40,259.20 m2 at precision 2,
+     not the old 40,174.20). The drawing is an illustration only. Figures for the BoxP and Table rows, the visible
+     totals and the Boxes tag come from the fixture's own rows (ADR 0175 sections 2, 11 and R101.a notes); the
+     tag and folder names and the terrain name are invented, and each screen says what it derives. -->
+<style>
+:root {
+  --surface: #f7f7f2; --ink: #263a32; --border: #c9d4c5; --selected: #dce7dc; --hover: #e6ebdf;
+  --input: #ffffff; --accent: #547858; --muted: #617266; --canvas: #f0f1ec;
+  --sel: #5b5bd6; --warn: #7a4f00; --warn-bg: #fdf3dc; --warn-line: #e3b75c;
+  --fail: #a8322b; --fail-bg: #fbf1f0; --info: #2c5aa0; --info-bg: #eef3fb; --ok: #547858; --ok-bg: #dce7dc;
+}
+html { font-size: 12px; }
+html.t200 { font-size: 24px; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #d9dcd3; font: 1rem/1.35 "DejaVu Sans", "Noto Sans", "Liberation Sans", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
+body.one { background: var(--surface); }
+.gallery { padding: 24px; display: flex; flex-direction: column; gap: 28px; align-items: center; }
+.gallery h2 { margin: 0 0 6px; font-size: 1.25rem; }
+.gallery p { margin: 0 0 10px; max-width: 1280px; color: #3d4a42; }
+.frame { width: 1280px; height: 860px; position: relative; overflow: hidden; background: var(--surface); box-shadow: 0 4px 24px rgba(0,0,0,.18); display: grid; grid-template-rows: 2.85rem 4rem 1fr 4.2rem; }
+body.one .frame { box-shadow: none; }
+kbd { font: inherit; font-size: .92rem; padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; background: var(--input); color: var(--muted); }
+u { text-decoration: underline; }
+.sfx { color: var(--muted); font-size: .92rem; }
+
+/* Application chrome, as ifc.html */
+.menubar { display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.menubar span { padding: 4px 9px; border-radius: 4px; }
+.menubar span.open { background: var(--selected); }
+.header { display: flex; align-items: center; gap: 10px; padding: 0 9px 0 25px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.wordmark { font-weight: 700; letter-spacing: 2.4px; font-size: .95rem; margin-right: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: var(--input); }
+.seg span { padding: 3px 14px; border-left: 1px solid var(--border); white-space: nowrap; }
+.seg span:first-child { border-left: 0; }
+.seg span.on { background: var(--accent); color: #fff; font-weight: 700; }
+.doc i { font-style: normal; color: var(--muted); }
+.cmd { margin-left: auto; border: 1px solid var(--border); border-radius: 5px; padding: 6px 11px; background: var(--input); }
+main { display: grid; grid-template-columns: 88px 1fr 8px 260px; min-height: 0; }
+.rail { border-right: 1px solid var(--border); padding: 5px 6px; display: flex; flex-direction: column; overflow: hidden; }
+.rail span { height: 41px; display: grid; place-items: center; border-radius: 5px; font-size: .92rem; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rail span.on { background: var(--selected); }
+.rail span.grp { margin-top: 6px; border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; height: 46px; }
+.viewport { position: relative; background: var(--canvas); overflow: hidden; min-width: 0; }
+.viewport svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+.crumb { position: absolute; left: 24px; top: 14px; color: var(--accent); text-decoration: underline; }
+.splitter { border-left: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--hover); }
+.side { padding: 10px 8px 8px; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+.side .caps { font-size: .92rem; font-weight: 700; letter-spacing: 1.4px; padding: 4px 4px 6px; }
+.tray { flex: 1; min-height: 0; min-width: 0; overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+.hint2 { color: var(--muted); font-size: .85rem; padding: 6px 4px 0; }
+.status { display: flex; align-items: center; gap: 10px; padding: 0 9px; border-top: 1px solid var(--border); white-space: nowrap; }
+.status .msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status .meas { display: flex; align-items: center; gap: 7px; }
+.status .meas span.box { width: 130px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 3px; background: var(--input); color: #9aa49b; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 14px; white-space: nowrap; }
+.chip b { color: var(--warn); }
+.menu { position: absolute; top: 2.6rem; background: var(--input); border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 8px 26px rgba(30,45,35,.18); padding: 4px 0; min-width: 280px; z-index: 5; }
+.menu div { display: flex; justify-content: space-between; gap: 24px; padding: 3px 14px 3px 26px; position: relative; white-space: nowrap; }
+.menu div.on { background: var(--selected); }
+.menu div.new { background: var(--hover); }
+.menu div.new::after { content: "new"; position: absolute; right: 6px; top: 5px; font-size: .7rem; color: var(--ink); font-weight: 700; letter-spacing: .4px; }
+.menu div.off { color: #9aa49b; }
+.menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+.palette { position: absolute; z-index: 5; left: 760px; top: 2.6rem; width: 400px; background: var(--input); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 26px rgba(30,45,35,.18); }
+.palette .q { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.palette .q i { font-style: normal; border-right: 1.5px solid var(--ink); margin-left: 1px; }
+.palette .r { display: flex; justify-content: space-between; gap: 8px; padding: 5px 12px; }
+.palette .r.on { background: var(--selected); }
+.palette .r span:last-child { color: var(--muted); }
+.mocknote { position: absolute; z-index: 6; max-width: 380px; padding: 3px 8px; border: 1px dashed var(--muted); border-radius: 3px; background: var(--surface); color: var(--muted); font-size: .92rem; }
+
+/* Dialogs */
+.scrim { position: absolute; inset: 0; background: rgba(38,58,50,.38); z-index: 10; }
+.dlg { position: absolute; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%); max-height: 96%; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 18px 60px rgba(20,35,28,.38); overflow: hidden; }
+.dh { padding: 14px 20px 8px; }
+.dt { font-size: 1.4rem; font-weight: 700; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ds { color: var(--muted); margin-top: 3px; }
+.dbn { margin: 0 20px 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 5px; display: flex; gap: 10px; align-items: flex-start; }
+.dbn.fail { background: var(--fail-bg); border-color: var(--fail); } .dbn.fail .k { color: var(--fail); }
+.dbn.warn { background: var(--warn-bg); border-color: var(--warn-line); } .dbn.warn .k { color: var(--warn); }
+.dbn.info { background: var(--info-bg); border-color: #9db8dd; } .dbn.info .k { color: var(--info); }
+.dbn.ok { background: var(--ok-bg); border-color: var(--accent); } .dbn.ok .k { color: var(--ink); }
+.dbn .k { font-weight: 700; white-space: nowrap; }
+.rule { border-top: 1px solid var(--border); }
+.dbody { flex: 1; min-height: 0; display: flex; }
+.col { padding: 12px 20px; overflow: hidden; min-width: 0; }
+.col + .col { border-left: 1px solid var(--border); }
+.hd { font-weight: 700; margin: 10px 0 5px; }
+.hd:first-child { margin-top: 0; }
+.fld { display: grid; grid-template-columns: 9.5rem 1fr; gap: 5px 10px; padding: 3px 0; align-items: start; }
+.fld > label { color: var(--muted); padding-top: 3px; }
+.in { display: inline-block; padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--input); min-width: 9rem; }
+.in.dd::after { content: "  ▾"; color: var(--muted); }
+.in.foc { border: 2px solid var(--accent); padding: 2px 7px; }
+.in.bad { border-color: var(--fail); }
+.cap { color: var(--muted); font-size: .92rem; margin-top: 2px; }
+.rb { position: relative; padding: 1px 0 1px 1.9rem; margin: 2px 0; }
+.rb::before { content: ""; position: absolute; left: 2px; top: .3rem; width: .9rem; height: .9rem; border: 1.5px solid var(--muted); border-radius: 50%; background: var(--input); }
+.rb.on::before { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 3.5px, var(--input) 4px); }
+.rb.off { color: #9aa49b; }
+.chk { position: relative; padding: 1px 0 1px 1.9rem; margin: 2px 0; }
+.chk::before { content: ""; position: absolute; left: 2px; top: .3rem; width: .9rem; height: .9rem; border: 1.5px solid var(--muted); border-radius: 2px; background: var(--input); }
+.chk.on::before { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--input); }
+.chk.off { color: #9aa49b; }
+.chk.off::before { border-color: #b7c0b4; background: var(--surface); }
+.df { display: flex; align-items: center; gap: 10px; padding: 10px 20px 14px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.df .st { flex: 1; color: var(--muted); min-width: 10rem; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--input); white-space: nowrap; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.btn.off { color: #9aa49b; background: var(--surface); }
+.btn.def { outline: 2px solid var(--surface); outline-offset: -4px; }
+.btn.flat { border-color: transparent; background: none; color: var(--accent); text-decoration: underline; padding: 2px 4px; }
+.btn.small { padding: 1px 8px; font-size: .92rem; }
+.pill { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: .92rem; font-weight: 700; border: 1px solid; vertical-align: 1px; }
+.pill.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+.pill.fail { color: var(--fail); border-color: var(--fail); background: var(--fail-bg); }
+.pill.info { color: var(--info); border-color: #9db8dd; background: var(--info-bg); }
+.pill.ok { color: var(--ink); border-color: var(--border); background: var(--hover); }
+ol.steps { margin: 4px 0 0; padding-left: 20px; } ol.steps li { margin: 5px 0; }
+ul.plain { margin: 4px 0 0; padding-left: 18px; } ul.plain li { margin: 3px 0; }
+.mono { font-family: "DejaVu Sans Mono", monospace; font-size: .92rem; }
+.ok { color: var(--ok); } .bad { color: var(--fail); } .wr { color: var(--warn); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 2px 0; }
+.kv span:last-child { text-align: right; }
+
+/* Tray sections (UX 3.1: collapsible sections) */
+.qsec { border-top: 1px solid #edf0ea; }
+.qsec:first-child { border-top: 0; }
+.qsec h3 { margin: 0; padding: 6px 10px; font-size: 1.02rem; display: flex; align-items: center; gap: 6px; }
+.qsec h3::before { content: "▾"; font-size: .8rem; }
+.qsec.closed h3::before { content: "▸"; }
+.qsec h3 .n { margin-left: auto; font-weight: 400; color: var(--muted); font-size: .92rem; text-align: right; }
+.qbody { padding: 0 8px 8px 10px; }
+.qh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 700; padding: 4px 0 2px; border-top: 1px solid #edf0ea; }
+.qh:first-child { border-top: 0; }
+.qh .sfx { font-weight: 400; text-align: right; }
+.qlab { color: var(--muted); }
+.qf .fl { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 3px 0; }
+.qf .fl .in { min-width: 6.4rem; padding: 2px 7px; }
+.qf .pick { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 0; border-top: 1px solid #edf0ea; }
+.seg2 { display: flex; gap: 14px; flex-wrap: wrap; padding: 2px 0 2px; }
+.seg2 .rb { margin: 1px 0; }
+.qf .pick .pv { color: var(--ink); text-align: right; }
+.qf .pick.off { color: #9aa49b; }
+.qr { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.qr span:first-child { color: var(--muted); }
+.qr b { font-weight: 700; text-align: right; }
+.qr.dim { color: #9aa49b; }
+.qrev { color: var(--muted); font-size: .92rem; padding: 3px 0 0; }
+.qgt { margin-top: 4px; }
+.qgh, .qgr { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; align-items: baseline; }
+.qgr .gv { grid-column: 2; text-align: right; }
+.qgr small { grid-column: 1; }
+.qgh { color: var(--muted); font-size: .92rem; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.qgh span:not(:first-child) { text-align: right; }
+.qgr { padding: 4px 0; border-bottom: 1px solid #edf0ea; }
+.qgr small { display: block; color: var(--muted); font-size: .85rem; }
+.qi { display: grid; grid-template-columns: 1.1rem 1fr auto; gap: 2px 6px; padding: 4px 0; border-top: 1px solid #edf0ea; align-items: start; }
+.qi small { display: block; color: var(--muted); font-size: .85rem; }
+.qi .n { font-variant-numeric: tabular-nums; }
+.qterr { border-top: 1px solid #edf0ea; padding: 4px 0; }
+.qterr small { display: block; color: var(--muted); font-size: .85rem; }
+.qact { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 2px; }
+.qsch { border-top: 1px solid #edf0ea; padding-top: 4px; }
+.srow { display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; padding: 5px 6px; margin: 3px 0; border: 1px solid var(--border); border-radius: 4px; background: var(--input); }
+.srow.on { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.srow.stale { border-color: var(--warn-line); background: var(--warn-bg); }
+.srow .sname { font-weight: 700; }
+.srow .smeta { grid-column: 1; color: var(--muted); font-size: .92rem; }
+.srow .smeta.wr { color: var(--warn); font-weight: 700; }
+.srow .sact { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.srow .sref { grid-column: 1 / span 2; border-top: 1px solid var(--warn-line); margin-top: 4px; padding-top: 4px; font-size: .92rem; }
+.srow .sref .bad { font-weight: 700; }
+.qother { color: var(--muted); font-size: .92rem; padding: 4px 0; }
+.qhd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 0 2px; }
+.qsched-note { color: var(--muted); font-size: .92rem; }
+.progress { height: .7rem; border: 1px solid var(--border); border-radius: 4px; background: var(--input); overflow: hidden; margin: 4px 0; }
+.progress i { display: block; height: 100%; width: 38%; background: repeating-linear-gradient(135deg, var(--accent) 0 6px, #9db7a0 6px 12px); }
+.totals-dim { opacity: .5; }
+.rmenu { position: absolute; z-index: 6; min-width: 9.5rem; background: var(--input); border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 8px 26px rgba(30,45,35,.18); padding: 4px 0; }
+.rmenu div { padding: 3px 12px; white-space: nowrap; }
+.rmenu div.on { background: var(--selected); }
+.rmenu div.off { color: #9aa49b; }
+.pop { position: absolute; z-index: 7; width: 15.5rem; background: var(--input); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 10px 30px rgba(30,45,35,.22); padding: 8px 0; }
+.pop .ph { padding: 0 12px 6px; font-weight: 700; border-bottom: 1px solid var(--border); }
+.pop .pr { display: grid; grid-template-columns: 1.2rem 1fr auto; gap: 4px; padding: 4px 12px; align-items: start; }
+.pop .pr.on { background: var(--selected); }
+.pop .pr small { display: block; color: var(--muted); font-size: .85rem; }
+.pop .pf { padding: 8px 12px 0; border-top: 1px solid var(--border); margin-top: 6px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+
+/* Report sheet */
+.tree { border: 1px solid var(--border); background: var(--input); height: 100%; overflow: hidden; position: relative; }
+.tree .tr { padding: 3px 14px 3px 10px; display: flex; gap: 8px; align-items: baseline; }
+.tree .tr.g { background: var(--hover); font-weight: 700; border-top: 1px solid var(--border); padding: 5px 14px 5px 10px; }
+.tree .tr.g:first-child { border-top: 0; }
+.tree .tr.g .n { margin-left: auto; font-weight: 400; color: var(--muted); }
+.tree .tr .tw { width: 10px; color: var(--muted); font-size: .8rem; }
+.tree .tr.sel { background: color-mix(in srgb, var(--sel) 13%, white); box-shadow: inset 2px 0 var(--sel); }
+.tree .sub { color: var(--muted); padding: 0 14px 3px 10px; }
+.tree .sub .btn { margin-top: 3px; }
+.tree .d1 { padding-left: 26px; } .tree .sub.d1 { padding-left: 44px; }
+.sfxs { color: var(--muted); font-size: .92rem; }
+.acc { margin: 6px 0 4px; display: flex; height: 18px; border: 1px solid var(--ink); border-radius: 3px; overflow: hidden; }
+.acc i { display: block; height: 100%; }
+.acc .a { background: var(--ink); } .acc .b { background: repeating-linear-gradient(135deg, #fff 0 3px, #c9d4c5 3px 5px); } .acc .c { background: repeating-linear-gradient(45deg, #fff 0 2px, var(--warn) 2px 4px); }
+.legend2 div { display: grid; grid-template-columns: 22px 1fr auto; gap: 4px; padding: 2px 0; }
+.sw { display: inline-block; width: 14px; height: 10px; border: 1px solid var(--ink); vertical-align: -1px; }
+.sw.a { background: var(--ink); } .sw.b { background: repeating-linear-gradient(135deg, #fff 0 2px, #c9d4c5 2px 4px); } .sw.c { background: repeating-linear-gradient(45deg, #fff 0 2px, var(--warn) 2px 4px); }
+
+/* Text at 200 %: the Tray is wider and its rows stack (see notes) */
+.t200 .frame main { grid-template-columns: 88px 1fr 8px 360px; }
+.t200 .rail span { font-size: .6rem; }
+.t200 .qgh, .t200 .qgr { grid-template-columns: 1fr; }
+.t200 .qgh { display: none; }
+.t200 .qgr .gv { grid-column: 1; text-align: left; }
+.t200 .qi { grid-template-columns: 1.4rem 1fr; }
+.t200 .qi .n { grid-column: 2; text-align: left; }
+.t200 .srow { grid-template-columns: 1fr; }
+.t200 .srow .sact { grid-column: 1; grid-row: auto; flex-direction: row; align-items: center; flex-wrap: wrap; }
+.t200 .srow .smeta { grid-column: 1; }
+.t200 .srow .sref { grid-column: 1; }
+.t200 .fld { grid-template-columns: 1fr; }
+.t200 .qf .fl { flex-wrap: wrap; }
+.t200 .df .st { min-width: 100%; order: 2; }
+.t200 .dlg { max-width: 96%; }
+.dlg > .col, .dbody { min-height: 0; }
+.dlg > .col { flex: 1; overflow: auto; }
+.t200 .dbody { flex-direction: column; overflow: auto; }
+.t200 .col + .col { border-left: 0; border-top: 1px solid var(--border); }
+.t200 .dbody .tree { height: auto; min-height: 14rem; }
+.t200 .frame { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.t200 .header { flex-wrap: wrap; row-gap: 4px; padding: 6px 9px 6px 25px; }
+.t200 .status { flex-wrap: wrap; row-gap: 4px; padding: 6px 9px; }
+.t200 .status .meas { display: none; }
+.t200 .menubar { flex-wrap: wrap; }
+.t200 .rmenu { min-width: 12rem; left: 960px !important; top: 596px !important; width: 13rem !important; }
+</style>
+</head>
+<body>
+<script>
+(() => {
+const q = new URLSearchParams(location.search);
+if (q.get('text') === '200') document.documentElement.classList.add('t200');
+
+// ---------- The model: the ADR 0175 section 11 fixture quantities-a (illustrative drawing) ----------
+const S = 21, OX = 433, OY = 262;
+const P = (x, y, z = 0) => [(x - y) * 0.866 * S + OX, (x + y) * 0.5 * S - z * S + OY];
+const pt = (x, y, z) => P(x, y, z).map(n => n.toFixed(1)).join(',');
+const poly = (a, fill, stroke = '#263a32', sw = 1) => `<polygon points="${a.map(p => pt(...p)).join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+const rectFront = (x, w, z1, z2, y = 8) => [[x, y, z1], [x + w, y, z1], [x + w, y, z2], [x, y, z2]];
+const rectRight = (y, w, z1, z2, x = 12) => [[x, y, z1], [x, y + w, z1], [x, y + w, z2], [x, y, z2]];
+function scene() {
+  let s = '';
+  for (let x = -4; x <= 18; x += 2) s += `<polyline points="${pt(x, -4, 0)} ${pt(x, 14, 0)}" fill="none" stroke="#dfe2d9"/>`;
+  for (let y = -4; y <= 14; y += 2) s += `<polyline points="${pt(-4, y, 0)} ${pt(18, y, 0)}" fill="none" stroke="#dfe2d9"/>`;
+  s += poly([[0, 0, 0], [12, 0, 0], [12, 8, 0], [0, 8, 0]], '#e6e6dc', '#9aa49b');
+  s += poly([[12, 0, 0], [12, 8, 0], [12, 8, 3], [12, 0, 3]], '#dcdfd6');
+  s += poly([[0, 8, 0], [12, 8, 0], [12, 8, 3], [0, 8, 3]], '#eceee7');
+  for (const x of [1.0, 4.6, 10.0]) s += poly(rectFront(x, 1.4, 1, 2.2), '#b6cbd6');
+  for (const y of [1.2, 5.2]) s += poly(rectRight(y, 1.4, 1, 2.2), '#b6cbd6');
+  s += poly(rectFront(7.8, 1.0, 0, 2.1), '#c9bfae');
+  s += poly([[12.5, -0.5, 3], [12.5, 8.5, 3], [12.5, 8.5, 3.3], [12.5, -0.5, 3.3]], '#d2d5ca');
+  s += poly([[-0.5, 8.5, 3], [12.5, 8.5, 3], [12.5, 8.5, 3.3], [-0.5, 8.5, 3.3]], '#e0e2d8');
+  s += poly([[-0.5, -0.5, 3.3], [12.5, -0.5, 3.3], [12.5, 8.5, 3.3], [-0.5, 8.5, 3.3]], '#fbfbf8');
+  return `<svg class="scene" viewBox="0 0 938 728" preserveAspectRatio="xMidYMid meet">${s}</svg>`;
+}
+
+// ---------- Chrome ----------
+const MENUS = ['<u>F</u>ile', '<u>E</u>dit', '<u>D</u>raw', '<u>T</u>errain', '<u>C</u>amera', 'E<u>x</u>tensions', '<u>V</u>iew'];
+const menubar = open => `<div class="menubar">${MENUS.map((m, n) => `<span class="${n === open ? 'open' : ''}">${m}</span>`).join('')}</div>`;
+const header = (name, state) => `<div class="header"><span class="wordmark">SKETCHYUP</span><span class="seg"><span class="on">Model</span><span>Sheets</span></span>
+  <span class="doc">${name} &nbsp;·&nbsp; <i>${state}</i></span><span class="cmd">Commands &nbsp;Ctrl+K</span></div>`;
+const status = (msg, extra = '') => `<div class="status"><span class="msg">${msg}</span>${extra}<span class="meas">Measurements · m<span class="box">distance</span></span></div>`;
+const frame = (menuOpen, state, sidebar, stat, overlay = '', view = scene()) =>
+  `<div class="frame">${menubar(menuOpen)}${header('quantities-a', state)}<main><nav class="rail"><span class="on">Select</span><span>Paint</span><span>Line</span><span>Rect</span><span>Push/pull</span><span class="grp">Terrain ▸</span></nav><section class="viewport">${view}<div class="crumb">Model</div></section><div class="splitter"></div>${sidebar}</main>${stat}${overlay}</div>`;
+
+// The Tray: collapsible sections, in the order of UX 3.1 with Quantities between Tags and History.
+const SEC = (name, body = '', open = false, n = '') =>
+  `<section class="qsec${open ? '' : ' closed'}"><h3>${name}${n ? `<span class="n">${n}</span>` : ''}</h3>${open ? `<div class="qbody">${body}</div>` : ''}</section>`;
+const side = (quantitiesBody, opts = {}) => `<aside class="side"><div class="caps">MODEL</div><div class="tray">
+  ${SEC('Entity info', '', false, 'Window #2')}${SEC('Outliner', '', false)}${SEC('Materials', '', false)}${SEC('Tags', '', false)}
+  ${SEC('Quantities', quantitiesBody, true, opts.qn ?? 'revision 214')}${SEC('History', '', false)}
+  </div><div class="hint2">Middle drag: orbit<br>Right drag: pan · Wheel: zoom</div></aside>`;
+const btn = (t, c = '') => `<span class="btn ${c}" role="button">${t}</span>`;
+const foot = (st, buttons) => `<div class="df"><span class="st">${st}</span>${buttons}</div>`;
+const head = (title, sub, pill = '') => `<div class="dh"><div class="dt" id="dt">${title}${pill}</div><div class="ds">${sub}</div></div>`;
+const banner = (kind, key, html) => `<div class="dbn ${kind}" role="${kind === 'fail' ? 'alert' : 'status'}"><span class="k">${key}</span><span>${html}</span></div>`;
+const dlg = (w, inner, name = '') => `<div class="scrim"></div><div class="dlg" role="dialog" aria-modal="true" aria-label="${name}" style="width:${w}px;z-index:11">${inner}</div>`;
+const kv = (a, b, cls = '') => `<div class="kv"><span>${a}</span><span class="${cls}">${b}</span></div>`;
+const rb = (t, on = false, cls = '') => `<div class="rb ${on ? 'on' : ''} ${cls}" role="radio" aria-checked="${on}">${t}</div>`;
+const chk = (t, on = false, cls = '') => `<div class="chk ${on ? 'on' : ''} ${cls}" role="checkbox" aria-checked="${on}">${t}</div>`;
+
+// ---------- The Quantities section, shared by the screens ----------
+const TOT = {
+  all: { area: '40,259.20 m²', vol: '82.40 m³', ctx: 120, inst: 15, def: 4, unv: 2 },
+  vis: { area: '40,241.20 m²', vol: '79.40 m³', ctx: 117, inst: 15, def: 4, unv: 2 },
+  box: { area: '48.00 m²', vol: '12.00 m³', ctx: 6, inst: 3, def: 1, unv: 0 },
+};
+const filters = (o = {}) => `
+  <div class="qf">
+    <div class="fl"><span class="qlab">Group by</span><span class="in dd">${o.group || 'None'}</span></div>
+    <div class="seg2" role="radiogroup" aria-label="Hidden content">${rb('Include hidden', o.vis !== 'visible')}${rb('Visible only', o.vis === 'visible')}</div>
+    <div class="pick"><span>Tags</span><span class="pv">${o.tags || 'none'} ▸</span></div>
+    <div class="pick"><span>Materials <span class="sfx">areas only</span></span><span class="pv">${o.mats || 'none'} ▸</span></div>
+    <div class="pick"><span>Definitions</span><span class="pv">${o.defs || 'none'} ▸</span></div>
+    ${o.selOn ? chk('Selection only · 3 bodies', true) : chk('Selection only · none selected', false, 'off')}
+  </div>`;
+const totals = (k, o = {}) => {
+  const t = TOT[k];
+  return `<div class="qtot ${o.dim ? 'totals-dim' : ''}">
+    <div class="qh"><span>${o.label || 'All'}</span><span class="sfx">${o.scope || ''}</span></div>
+    <div class="qr"><span>Area</span><b>${t.area}</b></div>
+    <div class="qr"><span>Volume</span><b>${t.vol}</b></div>
+    <div class="qr"><span>Contexts</span><b>${t.ctx}</b></div>
+    <div class="qr"><span>Instances</span><b>${t.inst}</b></div>
+    <div class="qr"><span>Definitions</span><b>${t.def}</b></div>
+    <div class="qr"><span>Not counted in volume</span><b>${t.unv}</b></div>
+    <div class="qrev">Computed at revision ${o.rev || 214}</div>
+  </div>`;
+};
+const INVALID = `<div class="qinv"><div class="qh"><span>Not solids</span><span class="sfx">area counted, volume not</span></div>
+  <div class="qi"><span class="wr">⚠</span><span><b>Not a solid: open boundary</b><small>1 body · the open plate</small></span><span class="n">1</span></div>
+  <div class="qi"><span class="wr">⚠</span><span><b>Not a solid: non-manifold boundary</b><small>1 body · two cubes sharing a face</small></span><span class="n">1</span></div></div>`;
+const TERRAIN = `<div class="qterr"><b>Ground</b> · terrain<small>82 contexts · 80,000 triangles · 40,000.00 m² · no volume (not a solid)</small></div>`;
+const ACTIONS = `<div class="qact">${btn('Export CSV…')}${btn('Export JSON…')}${btn('Save as schedule…')}</div>`;
+const SCHEDULES = (o = {}) => {
+  const takeoff = `<div class="srow ${o.firstOn ? 'on' : ''}"><span class="sname">Takeoff by definition</span><span class="smeta">Definition · Included · all metrics · precision 2</span><span class="sact">${btn('Run', 'small')}<span class="btn small" aria-haspopup="menu">⋯ Actions</span></span></div>`;
+  const boxes = `<div class="srow"><span class="sname">Boxes only</span><span class="smeta">Tag Boxes · Included · precision 2</span><span class="sact">${btn('Run', 'small')}<span class="btn small" aria-haspopup="menu">⋯ Actions</span></span></div>`;
+  const stale = `<div class="srow stale"><span class="sname">Walls, old</span><span class="smeta wr">⚠ Stale: tag 7 no longer exists</span><span class="sact">${btn('Run', 'small')}<span class="btn small" aria-haspopup="menu">⋯ Actions</span></span>
+    <div class="sref"><span class="bad">✕ Not run.</span> It refers to tag 7, which no longer exists in this model. Nothing was run, and the totals above are unchanged.<div style="margin-top:4px">${btn('Delete…', 'small')} ${btn('Save current filters as…', 'small')}</div></div></div>`;
+  const listed = o.only === 'stale'
+    ? '<div class="qother">Boxes only and Takeoff by definition are listed above, in name order.</div>'
+    : takeoff + boxes;
+  return `<div class="qsch">
+  <div class="qhd"><b>Saved schedules</b><span class="sfxs">2 for this model</span></div>
+  ${listed}
+  ${o.stale ? stale : ''}
+  <div class="qother">Other models on this computer have 3 schedules. They are kept with those models and are not listed here.</div>
+  <div class="qact">${btn('Save current filters as schedule…')}</div>
+</div>`;
+};
+const LIVE_HEAD = (note = 'Included · all groups') => `<div class="qhd" style="padding-top:2px"><span class="sfxs">quantities-a · ${note}</span></div>`;
+
+// ---------- Screens ----------
+const SCREENS = {};
+
+SCREENS.menu = {
+  title: '1 · Where it lives: View → Quantities, and command search',
+  note: 'Quantities is a section of the Tray, between Tags and History, like Entity info, Outliner, Materials and Tags (UX 3.1 and 5). It is not a new rail slot, window or floating palette (UX 2 and 3.1). <b>View → Quantities</b> is the menu entry: it shows the Tray and opens the section (no default shortcut; the shortcut editor can assign one). Ctrl+K lists it as "Quantities" while it is enabled. The section is not per selection, so it shows whether or not anything is selected; that is why it is not on the Info tab, which describes the selected entity. The menu is drawn with its current order, and the "new" tags are annotations of this mockup. In a narrow window the Tray becomes the overlay sheet of UX 3.3 and the same entry opens it.',
+  html: () => {
+    const row = (t, o = {}) => `<div class="${o.cls || ''}"><span>${t}</span>${o.k ? `<kbd>${o.k}</kbd>` : ''}</div>`;
+    const menu = `<div class="menu" style="left:440px;top:2.6rem;min-width:300px">
+      ${row('Show hidden geometry', { k: '' })}${row('Show guides')}${row('Site origin')}<hr>
+      ${row('Quantities', { cls: 'new on' })}<hr>
+      ${row('Fit model', { k: 'Shift+Z' })}${row('Perspective', { k: '1' })}${row('Top', { k: '2' })}${row('Front', { k: '3' })}${row('Orthographic')}${row('Right')}${row('Back')}${row('Left')}</div>`;
+    const pal = `<div class="palette"><div class="q">quant<i>&nbsp;</i></div>
+      <div class="r on"><span>Quantities</span><span>View</span></div></div>`;
+    const tray = side(`<div class="qhd"><span class="sfxs">Opens and focuses the section</span></div>`, { qn: 'new' });
+    return frame(6, 'Edited', tray, status('Show the Quantities section of the Tray'), menu + pal +
+      `<div class="mocknote" style="left:110px;top:560px">Command search lists "Quantities" as an enabled action. Its section is not shown until a person opens it: nothing is computed on start-up.</div>`);
+  },
+};
+
+SCREENS.totals = {
+  title: '2 · The default view: the All row, the invalid list, the revision',
+  note: 'The default view is the <b>None</b> grouping, the <b>All</b> row, with hidden content <b>included</b> (ADR owner decision 1). Precision is the document setting, 2, so the area reads <b>40,259.20 m²</b> (the corrected total; the earlier 40,174.20 m² is withdrawn). Under the totals, "Computed at revision 214" names the model state these numbers came from (ADR 0175 section 4). <b>Not solids</b> lists the bodies that have no volume, in the words of the Entity info panel ("Not a solid: open boundary"), each with a count, a glyph and the word "Not a solid", so it does not depend on colour. Its area is still counted. Export CSV… and Export JSON… write the file formats of ADR 0175 section 6, through the Save dialog for a new file (never a replacement). The filters are real controls; the selection toggle is greyed while nothing is selected. Terrain is listed as a terrain, not a solid.',
+  html: () => {
+    const body = filters() + totals('all', { scope: 'precision 2' }) + INVALID + TERRAIN + ACTIONS + `<div class="qhd"><span class="sfxs">Saved schedules: below (scroll)</span></div>`;
+    return frame(-1, 'Edited', side(body, {}), status('quantities-a · computed at revision 214 · Included (hidden content counted)'));
+  },
+};
+
+SCREENS.groups = {
+  title: '3 · Grouping and "Visible only": the definition table',
+  note: 'The <b>Group by</b> control takes None, Kind, Tag, Material or Definition (ADR 0175 section 1). This screen shows <b>Definition</b> with <b>Visible only</b>, the case the owner usually wants for a takeoff: the hidden group <i>Stash</i> and the box on the hidden tag <i>Off</i> are left out. The rows are derived from the fixture: <b>BoxP</b> is the three placements on tag Boxes (48.00 m², 12.00 m³ and 6 contexts, ADR section 11 row V1); <b>Table</b> is the two Table placements with their nested Post and Top placements (45.20 m², 4.40 m³, 22 contexts, 12 instances, 3 definitions: R101.a notes); <b>No definition</b> holds the rest, including the terrain. Visible totals are 40,241.20 m² and 79.40 m³ (ADR section 11, corrected). Visible contexts (117) and the unvalidated count (2) are derived by subtraction, not stated in the ADR. A group with no ID is named, not shown as a dash: "No definition" here, an em dash in the CSV.',
+  html: () => {
+    const rows = `<div class="qgt"><div class="qgh"><span>Group</span><span>Area · volume</span></div>
+      <div class="qgr"><b>BoxP</b><span class="gv">48.00 m²</span><small>3 instances · 6 contexts</small><span class="gv">12.00 m³</span></div>
+      <div class="qgr"><b>Table</b><span class="gv">45.20 m²</span><small>12 instances · 22 contexts · 3 definitions</small><span class="gv">4.40 m³</span></div>
+      <div class="qgr"><b>No definition</b><span class="gv">40,148.00 m²</span><small>89 contexts · includes the terrain's 40,000.00 m²</small><span class="gv">63.00 m³</span></div></div>`;
+    const body = filters({ group: 'Definition', vis: 'visible' }) + `<div class="cap" style="margin:0 0 2px">Visible only leaves out hidden tags, groups and bodies.</div><div class="qh"><span>Visible only</span><span class="sfx">precision 2</span></div>
+      <div class="qr"><span>Area</span><b>${TOT.vis.area}</b></div><div class="qr"><span>Volume</span><b>${TOT.vis.vol}</b></div>
+      <div class="qr"><span>Contexts</span><b>${TOT.vis.ctx}</b></div><div class="qrev">Computed at revision 214</div>` + rows + INVALID + ACTIONS;
+    return frame(-1, 'Edited', side(body, {}), status('Visible only: Stash (hidden group) and Off (hidden tag) are left out'));
+  },
+};
+
+SCREENS.filters = {
+  title: '4 · The pickers, the materials caveat, and the selection toggle',
+  note: 'Tag, material and definition filters are pickers with check rows, like the existing Tags and Materials rows: each row carries its name and a muted count. A <b>folder</b> includes every tag under it, and the row says so. The material filter applies to <b>areas only</b>; the picker says that where it is used, because the CSV cannot say it without an extra "#" line that ADR 0175 section 6.1 does not allow (owner question 5). Definitions list all four, including the nested <b>Post</b> and <b>Top</b> (the Post filter counts exactly 8 placements, ADR V2). The <b>selection toggle</b> is greyed while nothing is selected and says what to do; it is never kept in a schedule. The tag and folder names here are invented, because the fixture names only Boxes and Off.',
+  html: () => {
+    const pop = `<div class="pop" style="left:740px;top:330px" role="dialog" aria-label="Tags filter">
+      <div class="ph">Tags</div>
+      <div class="pr on"><span>☑</span><span>Boxes<small>3 instances</small></span><span></span></div>
+      <div class="pr"><span>☐</span><span>Off <span class="wr">· hidden</span><small>1 body</small></span><span></span></div>
+      <div class="pr"><span>☐</span><span>▸ Site <span class="sfx">folder</span><small>includes its 2 tags below it</small></span><span></span></div>
+      <div class="pf"><span class="btn small">Clear</span><span class="btn small def">Done</span></div></div>`;
+    const body = filters({ tags: 'Boxes' }) + totals('box', { label: 'Tag Boxes', scope: 'Included', rev: 214 }) + ACTIONS;
+    return frame(-1, 'Edited', side(body, {}), status('Tags: pick the tags to count. Folders include every tag under them.'), pop);
+  },
+};
+
+SCREENS.computing = {
+  title: '5 · Computing: progress, Cancel, and the last result kept',
+  note: 'A run that takes longer than about a second shows this state (small models finish first and show no progress at all). The <b>previous totals stay on screen, dimmed, with their own revision</b> ("Computed at revision 214"), and the new run is labelled as the one underway ("Updating to revision 215"). A number is never shown with the wrong revision. The bar is indeterminate, because the engine reports no progress yet (section 19.11); the elapsed time is what the person can read. <b>Cancel</b> is an ordinary button, not the default, and Esc cancels when the section has focus. Cancel returns in 100 ms or less, and the panel then reads "Not updated: cancelled; showing revision 214". The status bar shows a job chip, like other background work.',
+  html: () => {
+    const prog = `<div class="qrev" style="padding-top:0"><b>● Computing revision 215</b> · elapsed 0:03</div>
+      <div class="progress" role="progressbar" aria-label="Computing quantities, elapsed 0:03"><i></i></div>
+      ${btn('Cancel')} <span class="sfxs">Esc also cancels</span>`;
+    const body = filters() + `<div style="margin-top:6px">${prog}</div>` + totals('all', { dim: true, scope: 'previous result', rev: 214 }) + INVALID;
+    return frame(-1, 'Edited', side(body, { qn: 'computing' }),
+      status('Computing the quantities of revision 215', '<span class="chip" role="button" aria-label="Quantities computing, 0:03. Cancel"><b>●</b> Quantities 0:03 · <u>Cancel</u></span>'));
+  },
+};
+
+SCREENS.save = {
+  title: '6 · Save as schedule: the name, what it stores, and what it does not',
+  note: 'A schedule is a saved request for this model only: its name, its filters, its grouping, visibility and precision, and nothing else (ADR 0175 section 7). The name follows the store\'s rule: 1 to 64 characters, letters, digits, spaces and . _ ( ) -, starting and ending with a letter or a digit. Its live counter and its message appear as you type; the same name already saved for this model is refused with "Choose another name". The dialog says that <b>selection is not kept</b> (the CLI cannot use it) and that <b>precision is pinned</b> at the value shown, which is the recommended default in owner question 4. Save is the default button and is disabled when the model has no file yet, because a schedule for an unsaved model cannot be found again. The model holds 2 of its 32 schedules.',
+  html: () => {
+    const inner = head('Save as schedule', 'Saved for this model only. It runs on this model and nowhere else.') +
+      `<div class="col" style="padding-top:4px">
+        <div class="fld"><label for="n">Name</label><span><span class="in foc" id="n" style="min-width:16rem">Takeoff by definition</span>
+          <div class="cap">21 of 64 characters · letters, digits, spaces and . _ ( ) -</div></span></div>
+        <div class="hd">Stored with the name</div>
+        ${kv('Group by', 'Definition')}${kv('Hidden content', 'Included (default)')}${kv('Metrics', 'All: counts, areas, volumes')}${kv('Precision', '2 (pinned at save)')}
+        <div class="hd">Not stored</div>
+        <div class="cap" style="font-size:1rem;margin-top:0">The selection. A schedule runs without it, from the file and the command line alike.</div>
+        <div class="cap" style="margin-top:8px">Schedules are kept in the user data folder, not in the model file. The model is not changed.</div>
+      </div>` +
+      foot('Enter saves · Esc cancels · 2 of 32 used', btn('Cancel') + btn('Save schedule', 'primary def'));
+    return frame(-1, 'Edited', side(filters({ group: 'Definition' }) + totals('all', { scope: 'precision 2' }), {}), status('Save as schedule'), dlg(520, inner, 'Save as schedule'));
+  },
+};
+
+SCREENS.schedules = {
+  title: '7 · The saved schedules of this model, and their actions',
+  note: 'The list shows this model\'s schedules only, in name order. Each row carries its name and a plain summary of its request. <b>Run</b> is the main action and makes the schedule the active view (screen 8); the ⋯ menu holds <b>Export CSV…</b>, <b>Export JSON…</b>, <b>Rename…</b> and <b>Delete…</b>, which are reachable by keyboard (Shift+F10 or the menu key). The count line under the list says that other models have schedules without naming them: a schedule is kept with the model it was saved for (ADR section 7). The list is scrolled to this block; the totals above it are the live view. Rename keeps the request and the creation time; the engine has no rename yet (section 19.11), so the design assumes one.',
+  html: () => {
+    const menu = `<div class="rmenu" role="menu" style="left:1100px;top:338px;width:10.2rem">
+      <div class="on" role="menuitem">Export CSV…</div><div role="menuitem">Export JSON…</div><div role="menuitem">Rename…</div><div role="menuitem">Delete…</div></div>`;
+    const body = `<div class="qsec-scroll">` + SCHEDULES({ firstOn: true }) + `</div>`;
+    return frame(-1, 'Edited', side(body, {}), status('Saved schedules of quantities-a · Run, or open the ⋯ menu'), menu);
+  },
+};
+
+SCREENS.run = {
+  title: '8 · Run: a saved schedule becomes the active view',
+  note: 'Run shows the schedule\'s totals in the same section, with the schedule named in the header and a <b>Back to the live view</b> link. As ADR 0175 section 5 says, the active schedule <b>re-runs when the revision changes</b>, so its line always names the revision it came from. The figures are the fixture\'s Boxes tag: 3 instances, 6 contexts, 48.00 m² and 12.00 m³, none unvalidated (ADR section 11, row V1). Export CSV… from here writes the schedule\'s own file, with <span class="mono">#schedule=Boxes only</span> in place of the ad-hoc marker. The status bar says which view is on screen.',
+  html: () => {
+    const body = `<div class="qhd"><span><b>Schedule · Boxes only</b></span><span class="sfxs">saved 2026-10-25</span></div>
+      <div class="qrev" style="padding-top:0"><span class="sfxs">Tag Boxes · Included · precision 2</span> · <u>Back to the live view</u></div>` +
+      totals('box', { label: 'Boxes', scope: 'Included · tag', rev: 214 }) +
+      `<div class="qact">${btn('Export CSV…')}${btn('Export JSON…')}</div>
+       <div class="qother">This schedule re-runs when the model changes. Its numbers always name the revision they came from.</div>`;
+    return frame(-1, 'Edited', side(body, { qn: 'schedule' }), status('Showing the schedule Boxes only · the live view is one click away'));
+  },
+};
+
+SCREENS.stale = {
+  title: '9 · A stale schedule: the refusal, and what to do next',
+  note: 'The list checks each schedule\'s IDs when it opens and when the revision changes. A schedule that names a tag, material or definition that no longer exists is marked <b>⚠ Stale</b> in amber, with the missing IDs in words. Run is refused, nothing is run, and the refusal says so first (red, with ✕ and the words "Not run"). Its engine message is "The schedule refers to IDs that no longer exist in this document: tags 7" and the same IDs are in its details; the design names them in the list, and never runs the schedule with fewer filters (ADR section 7). The section is scrolled to the stale row, so the row is on screen at 200 % text too. The two ways out are <b>Delete…</b> and <b>Save current filters as…</b>. There is no edit of an existing schedule in the engine yet (section 19.11).',
+  html: () => {
+    const body = SCHEDULES({ stale: true, only: 'stale' }) +
+      `<div class="qrev">The live totals above are unchanged.</div>`;
+    return frame(-1, 'Edited', side(body, {}), status('Walls, old is stale: tag 7 no longer exists'));
+  },
+};
+
+SCREENS.delete = {
+  title: '10 · Delete a schedule: Cancel is the default',
+  note: 'Delete removes a saved request from this computer and asks first, as Reset edits does in the Terrain section (UX 15.6): the default button is <b>Cancel</b>, and Esc cancels. The text says what goes (the saved request) and what does not (the model, and reports already exported). The schedule can be saved again from the current filters if it was deleted by mistake, and nothing else changes.',
+  html: () => {
+    const inner = head('Delete the schedule?', 'Walls, old') +
+      `<div class="col" style="padding-top:2px"><p style="margin:0">Its saved filters are removed from this computer.</p>
+        <p style="margin:8px 0 0;color:var(--muted)">The model is not changed. Reports you exported earlier are not changed.</p></div>` +
+      foot('Esc cancels.', btn('Cancel', 'primary def') + btn('Delete schedule'));
+    return frame(-1, 'Edited', side(SCHEDULES({ stale: true }), {}), status('Delete a saved schedule'), dlg(460, inner, 'Delete the schedule'));
+  },
+};
+
+SCREENS.store = {
+  title: '11 · The schedule file cannot be read: the rest still works',
+  note: 'If the user-level schedule file is damaged, too large or not a file SketchyUp can use, the schedules part of the section says so (red, with ✕), with the file\'s location and the place of the fault (ADR section 7 refusals, "Corrupt or oversized store"). SketchyUp never resets or rewrites that file, so the text tells the person to move it aside to start again. Everything else still works: the live totals, the groups, the invalid list and exports, because a damaged optional store must not stop the model\'s own numbers (principle 5).',
+  html: () => {
+    const body = `<div class="qsch"><div class="qhd"><b>Saved schedules</b><span class="sfxs">cannot be read</span></div>
+      <div class="srow stale" style="border-color:var(--fail);background:var(--fail-bg)"><span class="sname bad">✕ Schedules cannot be read</span>
+        <span class="smeta">The file is not valid JSON.<br><span class="mono">…/SketchyUp/SketchyUp/report-schedules.json</span><br>Fault: at byte 214 (the file is not changed or reset).</span>
+        <div class="sref" style="border-top-color:var(--fail)">Totals, groups and exports still work. SketchyUp never resets this file: move it aside yourself, then reopen this model to start again.<div style="margin-top:4px">${btn('Show details', 'small')}</div></div></div>
+      <div class="qact">${btn('Export CSV…')}${btn('Export JSON…')}</div></div>`;
+    return frame(-1, 'Edited', side(TOT.all ? totals('all', { scope: 'precision 2' }) + body : body, {}), status('Schedules cannot be read · the totals are unaffected'));
+  },
+};
+
+SCREENS.exported = {
+  title: '12 · After an export: the written report',
+  note: 'The export report is the report sheet of UX 6.4, with the same two-column layout as the import and export reports of IFC (UX 16.5 and 16.8). The banner says what was written and that the model is unchanged. The left column records how the file was made (grouping, metrics, hidden content, precision, units, revision, and whether a schedule made it: here none). The right column lists, under <b>Needs your attention</b>, the two bodies with no volume and their status words, since the file carries them in its invalid rows. <b>Terrain</b> is named as not a solid. The CSV is UTF-8 with LF line endings and no BOM (ADR section 6.1).',
+  html: () => {
+    const rep = `<div class="col" style="width:340px">
+        <div class="hd">What was written</div>
+        ${kv('Group by', 'Definition')}${kv('Metrics', 'all tables')}${kv('Hidden content', 'Included')}${kv('Precision', '2 (document)')}
+        ${kv('Units', 'm, m², m³')}${kv('Revision', '214')}${kv('Schedule', 'none (ad hoc)')}${kv('Encoding', 'UTF-8, LF, no BOM')}
+        <div class="hd">The model</div>
+        <div class="cap" style="margin:0">Unchanged. The report reads the model and writes a new file; nothing was saved to the model.</div>
+      </div>
+      <div class="col" style="flex:1;padding:12px 16px 12px 18px"><div class="tree" role="tree" aria-label="Export report: items that need attention and notices">
+        <div class="tr g" role="treeitem" aria-expanded="true"><span class="tw">▾</span><span class="pill warn">Attention</span><span>Not solids</span><span class="n">2</span></div>
+        <div class="tr d1 sel" role="treeitem"><span class="tw">▾</span><span><b>⚠ Not a solid: open boundary</b> · 1 body</span></div>
+        <div class="sub d1">The open plate. Its area (2.00 m²) is written; it has no volume in the file.<br>${btn('Select in model', 'small')}</div>
+        <div class="tr d1" role="treeitem"><span class="tw">▸</span><span><b>⚠ Not a solid: non-manifold boundary</b> · 1 body</span></div>
+        <div class="tr g" role="treeitem" aria-expanded="true"><span class="tw">▾</span><span class="pill info">Notice</span><span>Notices</span><span class="n">1</span></div>
+        <div class="tr d1" role="treeitem"><span class="tw">▸</span><span>Terrain is not a solid: its area is written, with no volume. <span class="sfxs">× 1</span></span></div>
+        <div class="tr g" role="treeitem" aria-expanded="false"><span class="tw">▸</span><span class="pill ok">Info</span><span>Settings and limits used</span><span class="n"></span></div>
+      </div></div>`;
+    const inner = head('Quantities written', `<span class="mono">quantities-a-takeoff.csv</span> · CSV · revision 214`) +
+      banner('ok', '✓ Written', 'The file was written as a new file. <b>The model is unchanged.</b> Two bodies have no volume; their areas are counted.') +
+      '<div class="rule"></div>' + `<div class="dbody">${rep}</div>` +
+      foot('Esc closes.', btn('Copy path') + btn('Close', 'primary def'));
+    return frame(-1, 'Edited', side(filters({ group: 'Definition' }) + totals('all', { scope: 'precision 2' }), {}), status('Quantities written · the model is unchanged'), dlg(980, inner, 'Quantities written'));
+  },
+};
+
+SCREENS.exists = {
+  title: '13 · Refused: the file already exists',
+  note: 'The Save dialog for an export does not ask to replace a file: it is opened without the overwrite prompt, as for the IFC and DXF exports (UX 16.8), because a report is never written over an existing file (ADR section 6.1; the engine refuses it as FILE_EXISTS and nothing is written). The sheet says first that <b>nothing was written</b>, then the name and the rule, then numbered next steps, in the refusal shape of UX 16.6. The sheet has the same red ✕ as the other refusals and never relies on colour alone.',
+  html: () => {
+    const inner = head('Quantities not written', `<span class="mono">quantities-a-takeoff.csv</span>`, '<span class="pill fail" style="font-size:1rem">Refused</span>') +
+      banner('fail', '✕ Nothing was written', 'The model is unchanged. A file with that name already exists in this folder.') + '<div class="rule"></div>' +
+      `<div class="col" style="padding-top:10px">
+        <div style="font-weight:700;margin-bottom:4px">An existing file is never replaced.</div>
+        ${kv('Requested', '<span class="mono">quantities-a-takeoff.csv</span>')}
+        ${kv('Existing file', 'kept, unchanged')}
+        <div class="hd">What to do next</div>
+        <ol class="steps"><li>Choose a new name in the Save dialog. It does not ask to replace files.</li>
+          <li>Or move the existing file aside yourself, then export again.</li></ol>
+      </div>` +
+      foot('Esc closes.', btn('Copy details') + btn('Export to another name…') + btn('Close', 'primary def'));
+    return frame(-1, 'Edited', side(totals('all', { scope: 'precision 2' }) + ACTIONS, {}), status('Export refused: nothing was written'), dlg(640, inner, 'Quantities not written'));
+  },
+};
+
+const ORDER = ['menu', 'totals', 'groups', 'filters', 'computing', 'save', 'schedules', 'run', 'stale', 'delete', 'store', 'exported', 'exists'];
+const one = q.get('screen');
+if (one && SCREENS[one]) { document.body.className = 'one'; document.body.innerHTML = SCREENS[one].html(); }
+else document.body.innerHTML = `<div class="gallery">` + ORDER.map(k => `<div><h2>${SCREENS[k].title}</h2><p>${SCREENS[k].note}</p>${SCREENS[k].html()}</div>`).join('') + '</div>';
+})();
+</script>
+</body>
+</html>
