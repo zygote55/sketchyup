@@ -1253,7 +1253,8 @@ The spread between runs is wide, so read the re-run figures as a range, not one 
 - **Qt version.** The build here used Qt 6.12.0 (`pkg-config`), not the Qt 6.8 that the brief names.
   No Qt 6.8 compile was run here, so the 6.8 build is left to CI.
 - **Sanitizers and CI registration.** No sanitizer build was run. No test file was added, so no CI
-  registration changed, and the `ci-line-inventory.py` and `ci-plan.py` checks were not run.
+  registration changed. `scripts/ci-plan.py check` and `scripts/ci-line-inventory.py check` (against
+  `.github/workflows/native.yml`) were run and passed.
 - **No CLI flag for rename or update.** The brief allowed flags only if trivial. A rename flag needs
   its own refusal set, so none was added.
 - **Store tests on Windows and macOS.** The rename and update checks on the store follow R101.c:
