@@ -4,8 +4,11 @@
 #include "integrations/presentation_store.hpp"
 #include "integrations/render_snapshot.hpp"
 #include <QObject>
+#include <QStringList>
+#include <chrono>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 namespace sketchy {
 // The frozen input of one batch (ADR 0173 §4): one document snapshot taken on the owner thread,
@@ -38,6 +41,45 @@ class PresentationCapture {
     PresentationPlan plan_;
     std::vector<CameraFrame> frames_;
 };
+// The answer of a Blender's video probe (UX_DESIGN 17.5): whether the probe reported its FFmpeg
+// codec list, the identifiers it reported ("H264", "MPEG4", ...) and, when it did not, the reason.
+struct PresentationVideoCheck {
+    bool checked{};
+    QStringList codecs;
+    QString message;
+};
+// The video probe of each Blender executable, cached (UX_DESIGN 17.5). An answer is reused until
+// the executable's resolved path, size or modification time changes. A failed answer is reused for
+// 60 s, so a broken Blender is not probed on every call. The desktop never blocks here: cached()
+// only reads, and refresh() starts a BlenderJob probe and reports its end through finished().
+// check() is the CLI's form; it waits on a nested event loop, so the desktop must not call it.
+// Frames are never rendered by a probe. Owner thread only. The object must outlive the probes it
+// starts.
+class PresentationVideoChecks : public QObject {
+    Q_OBJECT
+  public:
+    explicit PresentationVideoChecks(QObject *parent = nullptr);
+    ~PresentationVideoChecks() override;
+    // The answer for this Blender's current file, when one is cached and still stands. Nothing when
+    // none is cached, the file changed, or a failed answer is past its retry window. Never blocks.
+    std::optional<PresentationVideoCheck> cached(const BlenderJob::Options &options) const;
+    // Starts a probe and returns at once; its answer fills the cache, then finished() is emitted.
+    // Does nothing while a probe of the same file runs, or when an answer stands, unless `force` is
+    // set (the "Check again" of the batch dialog).
+    void refresh(const BlenderJob::Options &options, bool force = false);
+    // The cached answer when one stands; otherwise probes now, waits on a nested event loop, and
+    // caches the answer. The CLI's form only.
+    PresentationVideoCheck check(const BlenderJob::Options &options);
+    // The clock that dates a failed answer. Tests replace it; the default is the steady clock.
+    void setClock(std::function<std::chrono::steady_clock::time_point()> clock);
+  signals:
+    void finished();
+
+  private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
 // Runs one batch at a time on the owner thread. Each frame renders in one Blender worker; a
 // canceled or failed batch keeps its verified frames, and retry renders only the rest.
 class PresentationExport : public QObject {
@@ -55,6 +97,11 @@ class PresentationExport : public QObject {
     void retry(const QString &id, BlenderJob::Options options);
     // Cancels at the next frame boundary: the in-flight frame is discarded, finished frames stay.
     void cancel();
+    // Stops now, for a quit or a closing application: the in-flight worker is killed, its frame is
+    // discarded and the batch is recorded Interrupted, resumable, with its verified frames kept. It
+    // does not wait for a frame boundary, and it does nothing when no batch runs. Call it from the
+    // owner thread, not from a changed() handler.
+    void stop();
     QString jobId() const;
     PresentationJobState state() const;
     int completedFrames() const; // Verified frames across all presets.
@@ -66,6 +113,11 @@ class PresentationExport : public QObject {
     void setFreeSpaceProbe(std::function<qint64(const QString &)> probe);
     // The output budget in bytes. Defaults to 2 GiB; tests lower it.
     void setOutputLimit(qint64 bytes);
+    // Where start and retry read a video's codec check. Set (the desktop), they use only the cached
+    // answer and never block: a missing or stale answer refuses before capture, and the batch
+    // dialog runs refresh() first. Unset (the CLI), they check the Blender synchronously. Not
+    // owned; the object must outlive the batch.
+    void setVideoChecks(PresentationVideoChecks *checks);
   signals:
     void changed();
 

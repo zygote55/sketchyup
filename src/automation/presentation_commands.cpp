@@ -289,6 +289,14 @@ QJsonObject renderPresetDescription(const Document &doc, Id preset) {
             {"settings", settingsObject(record->settings)}};
 }
 
+namespace {
+PresentationVideoProbe presentationVideoProbe;
+} // namespace
+
+void setPresentationVideoProbe(PresentationVideoProbe probe) {
+    presentationVideoProbe = std::move(probe);
+}
+
 QJsonObject presentationDescription(const Document &doc, Id path, const std::vector<Id> &presets,
                                     bool video) {
     const auto record = describedCameraPath(doc, path);
@@ -303,10 +311,11 @@ QJsonObject presentationDescription(const Document &doc, Id path, const std::vec
                             .arg(QString::fromStdString(record->name))
                             .arg(scenesText(references.sceneHasNoCamera)));
     const auto frames = cameraPathFrameCount(record->keyframes.size(), record->timing);
-    if (frames > cameraPathFrameLimit)
-        refusals.append(QString("The path plans %1 frames per preset; the limit is %2")
-                            .arg(frames)
-                            .arg(cameraPathFrameLimit));
+    // The record's own refusal, the same text a batch refuses with (UX_DESIGN 17.11, gap 3).
+    if (const auto frameLimit =
+            cameraPathFrameLimitMessage(record->keyframes.size(), record->timing);
+        !frameLimit.empty())
+        refusals.append(QString::fromStdString(frameLimit));
     if (presets.empty() || presets.size() > 4)
         refusals.append("A presentation names one to four render presets");
 
@@ -336,6 +345,25 @@ QJsonObject presentationDescription(const Document &doc, Id path, const std::vec
     const bool blender = !QStandardPaths::findExecutable("blender").isEmpty();
     if (!blender)
         refusals.append("Presentation batches need an installed Blender 5.2 LTS");
+    // The configured Blender's video encoders (UX_DESIGN 17.5). The check runs only when a Blender
+    // is found. The desktop's probe answers from its cache and never blocks
+    // (installPresentationVideoProbe).
+    QJsonObject encoders{{"checked", false},
+                         {"message", "No Blender found, so video cannot be checked"}};
+    if (blender)
+        encoders = presentationVideoProbe
+                       ? presentationVideoProbe()
+                       : QJsonObject{{"checked", false},
+                                     {"message", "This program does not check video encoders"}};
+    if (video && blender && encoders.value("pending").toBool())
+        refusals.append("Video cannot be confirmed yet: the Blender's video encoders are being "
+                        "checked; ask again shortly");
+    else if (video && blender && !encoders.value("checked").toBool())
+        refusals.append("Video cannot be confirmed in this Blender: " +
+                        encoders.value("message").toString() + "; check again");
+    if (video && encoders.value("checked").toBool() && !encoders.value("h264").toBool())
+        refusals.append("Video is not available in this Blender: its FFmpeg build has no H.264 "
+                        "encoder. A request can choose the MPEG-4 Part 2 codec, or clear video");
 
     return {{"apiVersion", 1},
             {"path", QJsonObject{{"id", QString::number(path)},
@@ -352,7 +380,7 @@ QJsonObject presentationDescription(const Document &doc, Id path, const std::vec
                                    {"frames", "<directory>/frames/frame-NNNN.png and .json"},
                                    {"video", video ? QJsonValue("<directory>/video.mp4")
                                                    : QJsonValue(QJsonValue::Null)}}},
-            {"blender", QJsonObject{{"available", blender}}},
+            {"blender", QJsonObject{{"available", blender}, {"videoEncoders", encoders}}},
             {"refusals", refusals},
             {"ready", refusals.isEmpty()}};
 }

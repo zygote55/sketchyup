@@ -52,6 +52,9 @@ namespace {
 // Set by SIGINT while --export-presentation runs; the batch cancels at its next frame boundary.
 volatile std::sig_atomic_t presentationInterrupted = 0;
 void interruptPresentation(int) { presentationInterrupted = 1; }
+// Set by SIGTERM while --export-presentation runs; the batch stops now and is recorded interrupted.
+volatile std::sig_atomic_t presentationStopped = 0;
+void stopPresentation(int) { presentationStopped = 1; }
 
 // The report flags that a saved schedule replaces (ADR 0175 §8): --schedule runs alone.
 const QStringList reportFlagNames{"metrics",  "group-by",   "visible",   "tag",
@@ -102,6 +105,10 @@ int main(int argc, char **argv) {
         application = std::make_unique<QCoreApplication>(argc, argv);
     auto &app = *application;
     QCoreApplication::setApplicationVersion(SKETCHYUP_VERSION);
+    // The describe queries report the Blender's video encoders through this probe. The CLI has no
+    // event loop to freeze, so it checks synchronously.
+    sketchy::PresentationVideoChecks videoChecks;
+    sketchy::installBlockingPresentationVideoProbe(videoChecks);
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
@@ -1206,9 +1213,12 @@ int main(int argc, char **argv) {
                 QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
                 "/presentation-jobs");
             std::signal(SIGINT, interruptPresentation);
+            std::signal(SIGTERM, stopPresentation);
             const auto run = sketchy::runPresentationRequest(
-                document, request, store, [] { return presentationInterrupted != 0; });
+                document, request, store, [] { return presentationInterrupted != 0; },
+                [] { return presentationStopped != 0; });
             std::signal(SIGINT, SIG_DFL);
+            std::signal(SIGTERM, SIG_DFL);
             std::cout << QJsonDocument(run.manifest).toJson(QJsonDocument::Compact).toStdString()
                       << '\n';
             switch (run.state) {

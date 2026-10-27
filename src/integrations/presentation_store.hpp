@@ -18,6 +18,18 @@ enum class PresentationJobState {
     Interrupted
 };
 QString presentationJobStateName(PresentationJobState state);
+// The message a batch carries when it stops with the application or by a person's choice. It names
+// the next step in the words the interface uses (UX_DESIGN 17.8: Resume, not Retry).
+QString presentationInterruptedMessage();
+
+// The codec of a batch's video (ADR 0173 decision 7, UX_DESIGN 17.12 choice 1). H.264 is the
+// default; MPEG-4 Part 2 in MP4 is used only when a request names it.
+enum class PresentationVideoCodec { H264, MPEG4 };
+// The name in the request and the manifest ("h264", "mpeg4") and the worker's FFmpeg identifier
+// ("H264", "MPEG4"). The name parser refuses any other name.
+QString presentationVideoCodecName(PresentationVideoCodec codec);
+QString presentationVideoCodecId(PresentationVideoCodec codec);
+PresentationVideoCodec presentationVideoCodecFromName(const QString &name);
 // One output of a batch: a name and the render settings. The preset record's ID is not part
 // of the job, so a stored job does not depend on the document's allocator.
 struct PresentationPreset {
@@ -33,6 +45,9 @@ struct PresentationPlan {
     std::vector<PresentationPreset> presets;
     // Encode each preset's verified frames to video.mp4 once every frame is verified (decision 7).
     bool video{};
+    // The codec of that video. Only a plan with video reads it; a stored job without it reads
+    // H.264.
+    PresentationVideoCodec videoCodec{PresentationVideoCodec::H264};
     bool operator==(const PresentationPlan &) const = default;
 };
 // The plan rules a batch can be created with: a valid path name, two to thirty-two keyframes,
