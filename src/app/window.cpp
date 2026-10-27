@@ -515,6 +515,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     }));
     file->addAction(
         action("file.importTerrain", "Import terrain…", {}, [this] { importTerrainDialog(); }));
+    // R100.f2 (UX_DESIGN §18.1): Import style… after Import terrain…; no default shortcut.
+    file->addAction(action("file.importStyle", "Import style…", {}, [this] { importStyleDialog(); }));
     setupTerrainActions();
     file->addAction(action("file.save", "Save", QKeySequence::Save, [this] { save(); }));
     file->addAction(
@@ -527,6 +529,8 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     file->addAction(action("file.exportIfc", "Export IFC…", {}, [this] { exportIfc(); }));
     // R098.c2: Export STEP… after Export IFC… (the STEP twin of the IFC export screen).
     file->addAction(action("file.exportStep", "Export STEP…", {}, [this] { exportStep(); }));
+    // R100.f2 (UX_DESIGN §18.1): Export style… after Export STEP….
+    file->addAction(action("file.exportStyle", "Export style…", {}, [this] { exportStyleDialog(); }));
     file->addSeparator();
     file->addAction(action("file.recovery", "Recover work…", {}, [this] { showRecovery(); }));
     file->addAction(action("file.recoveryNow", "Save recovery now", {}, [this] {

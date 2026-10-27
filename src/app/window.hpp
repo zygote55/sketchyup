@@ -88,6 +88,9 @@ class Window : public QMainWindow {
     // R095.d: File > Import terrain… (window_terrain.cpp). Reads a DXF or point file and opens
     // the import dialog, which adds the terrain to this document in one undoable edit.
     void importTerrainDialog();
+    // R100.f2 (UX_DESIGN §18.2): File > Import style… and File > Export style….
+    void importStyleDialog();
+    void exportStyleDialog();
     // R095.e2: File > Site settings….
     void siteSettings();
     void importTerrainPath(const QString &path);

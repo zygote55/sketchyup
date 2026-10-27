@@ -4,12 +4,14 @@
 #include "io/new_file.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
+#include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
 #include <QtEndian>
 #include <algorithm>
 #include <set>
@@ -242,6 +244,21 @@ QByteArray exportStyleBundle(const Document &doc, const StyleMetadata &metadata)
     return bytes;
 }
 
+QString styleLibraryFolder() {
+    const auto root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return root.isEmpty() ? QString() : QDir(root).filePath(QStringLiteral("styles"));
+}
+
+QString sketchyLibraryKind(const QByteArray &bytes) {
+    if (bytes.size() < headerSize || !bytes.startsWith(magic))
+        return {};
+    const auto manifestSize = qFromLittleEndian<quint32>(bytes.constData() + 8);
+    if (!manifestSize || manifestSize > quint64(bytes.size() - headerSize))
+        return {};
+    const auto parsed = QJsonDocument::fromJson(bytes.mid(headerSize, manifestSize));
+    return parsed.isObject() ? parsed.object()["kind"].toString() : QString{};
+}
+
 StyleLibrary scanStyleDirectory(const QString &directory) {
     const QFileInfo info(directory);
     require(info.isDir() && info.isReadable(), "Choose a readable local style folder");
@@ -251,17 +268,18 @@ StyleLibrary scanStyleDirectory(const QString &directory) {
     QDirIterator files(info.absoluteFilePath(), QDir::Files | QDir::NoDotAndDotDot);
     while (files.hasNext()) {
         files.next();
-        if (++visited > 4096) {
-            result.notices.append("Stopped after 4096 folder entries. Use a smaller style folder.");
+        if (++visited > styleScanEntryLimit) {
+            result.stoppedAtEntries = true;
             break;
         }
         const auto fileInfo = files.fileInfo();
-        if (fileInfo.suffix().compare("sketchystyle", Qt::CaseInsensitive) != 0)
+        if (fileInfo.suffix().compare("sketchystyle", Qt::CaseInsensitive) != 0) {
+            ++result.skippedNotStyles;
             continue;
-        if (result.entries.size() == 128) {
-            result.notices.append(
-                "Showing at most 128 styles. Split this folder into smaller ones.");
-            break;
+        }
+        if (result.entries.size() == styleScanCandidateLimit) {
+            ++result.skippedPastCandidates;
+            continue;
         }
         StyleLibraryEntry entry;
         entry.path = fileInfo.absoluteFilePath();
@@ -277,12 +295,29 @@ StyleLibrary scanStyleDirectory(const QString &directory) {
             readBytes += bytes.size();
             const auto bundle = decodeStyleBundle(bytes);
             entry.metadata = bundle.metadata;
+            entry.style = bundle.style;
             entry.textureStatus = bundle.textureStatus;
         } catch (const std::exception &error) {
             entry.error = QString::fromUtf8(error.what()).left(512);
         }
         result.entries.push_back(std::move(entry));
     }
+    auto count = [](size_t n, const char *one, const char *many) {
+        return QString::number(qulonglong(n)) + " " + (n == 1 ? one : many);
+    };
+    if (result.stoppedAtEntries)
+        result.notices.append("Stopped after 4,096 folder entries. Files after them were not "
+                              "read. Use a smaller style folder.");
+    if (result.skippedNotStyles)
+        result.notices.append("Skipped " +
+                              count(result.skippedNotStyles, "file that is not a style file",
+                                    "files that are not style files") +
+                              ".");
+    if (result.skippedPastCandidates)
+        result.notices.append("Skipped " +
+                              count(result.skippedPastCandidates, "style past the 128 listed",
+                                    "styles past the 128 listed") +
+                              ". Split this folder into smaller ones.");
     std::sort(result.entries.begin(), result.entries.end(), [](const auto &a, const auto &b) {
         const auto comparison =
             QString::compare(a.metadata.name, b.metadata.name, Qt::CaseInsensitive);

@@ -13,6 +13,29 @@ void Viewport::applyModelStyle(const ModelStyle &style) {
     refresh();
     emit changed();
 }
+void Viewport::applyStyleEdit(const StyleEdit &edit) {
+    edit.style.validate();
+    if (edit.style == doc_.style())
+        return;
+    cancel();
+    commitCommands({QJsonObject{{"command", "document.style"},
+                                {"style", encodeModelStyle(edit.style)}}},
+                   false, QString::fromStdString(edit.label));
+    refresh();
+    emit changed();
+}
+
+QString Viewport::applyStyleFile(const QByteArray &bytes, const QString &name) {
+    cancel();
+    const auto result = commitCommands(
+        {QJsonObject{{"command", "style.apply"},
+                     {"data", QString::fromLatin1(bytes.toBase64())}}},
+        false, QStringLiteral("Apply style “%1”").arg(name));
+    refresh();
+    emit changed();
+    return result["styleOperations"].toArray().at(0).toObject()["status"].toString();
+}
+
 void Viewport::syncModelStyle() {
     const auto &style = doc_.style();
     if (displayedStyle_ && *displayedStyle_ == style)
