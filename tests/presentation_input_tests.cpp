@@ -85,7 +85,11 @@ void typeInto(QWidget *target, const char *text) {
 // Makes the window of `widget` the active window and puts focus on `widget`. Undo, Redo, Cancel and
 // a closing modal picker move focus elsewhere, and offscreen nothing gives it back on its own.
 void refocusWidget(QWidget *widget) {
+    // Offscreen, activateWindow alone does not make the window the application's active window.
+    QT_WARNING_PUSH
+    QT_WARNING_DISABLE_DEPRECATED
     QApplication::setActiveWindow(widget->window());
+    QT_WARNING_POP
     widget->window()->activateWindow();
     widget->setFocus(Qt::OtherFocusReason);
     check(QTest::qWaitFor([&] { return focused() == widget; }, 2000), "The dialog takes focus");

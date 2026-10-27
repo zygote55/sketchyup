@@ -994,3 +994,7 @@ refusals), §17.10 and the coexistence rule of §17.9. The batch dialog, the Job
   offscreen. `native_accessibility_audit --dialogs-keyboard=presentations` has no findings, and
   `--dialogs-keyboard=inventory` reports an empty `uncoveredEllipsisActions`. Not run here: the X11 (xcb) and Wayland
   display runs. This machine has no Xvfb and no compositor; CI runs them from `native.yml`.
+- **Render group (`--dialogs-keyboard=render`).** Two file-chooser cases fail offscreen: `blender-executable` and
+  `hdr-environment` ("Dialog focus transfer completes"). The same two fail at the base commit `794cf12c`, built from its
+  own archive, so they are not from this slice. With the render sheet's new button hidden they still fail. `render-setup`
+  and `render-jobs` pass. The X11 and Wayland runs in CI are the authority for these cases.
