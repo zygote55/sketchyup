@@ -259,6 +259,20 @@
       ]
     },
     {
+      "why": "The R100.f3 Asset catalogs dialog (UX_DESIGN 18.5 to 18.7) and its missing-dependency report, the Export asset catalog dialog (18.1, 18.6) and the File menu flow, with the input suite that drives them and the native display lines that run it. The suite links the desktop, so it runs in the fast tier as well.",
+      "paths": [
+        "tests/style_catalog_input_tests.cpp",
+        "src/app/catalog_dialog.*",
+        "src/app/catalog_report.*",
+        "src/app/catalog_export_dialog.*",
+        "src/app/window_catalog.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
       "why": "The R099.d2 Presentations dialog (UX_DESIGN 17): the dialog, its scene picker and the Camera menu entry, with the input suite that drives them and the native display lines that run it. The suite links the desktop, so it runs in the fast tier as well.",
       "paths": [
         "tests/presentation_input_tests.cpp",
