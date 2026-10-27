@@ -370,7 +370,9 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                 {"asset", QString::number(material->asset)},
                 {"assetStatus", !material->asset                            ? "none"
                                 : doc.assets().at(material->asset)->payload ? "present"
-                                                                            : "missing"}});
+                                                                            : "missing"},
+                {"textureSize", material->textureSize ? encodeTextureSize(*material->textureSize)
+                                                      : QJsonValue(QJsonValue::Null)}});
         return {{"documentId", QString::fromStdString(doc.identity())},
                 {"revision", QString::number(doc.revision())},
                 {"materials", records},
@@ -399,7 +401,7 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
                            {"front", appearance(false)},
                            {"back", appearance(true)}};
         if (face)
-            result["textureMapping"] = faceTextureDescription(*body, face);
+            result["textureMapping"] = faceTextureDescription(*body, face, doc.materials());
         return result;
     }
     if (name == "tags.describe") {
@@ -846,12 +848,27 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     throw std::runtime_error("Invalid opacity");
                 return float(value);
             };
+            // R100.b2: { width, height } in metres, or null for no size (one metre per repeat).
+            auto textureSize = [&](const QJsonValue &value) -> std::optional<TextureSize> {
+                if (value.isNull())
+                    return std::nullopt;
+                const auto size = value.toObject();
+                if (!value.isObject() || size.size() != 2 || !size["width"].isDouble() ||
+                    !size["height"].isDouble())
+                    throw std::runtime_error(
+                        "Material texture size must be {width, height} in metres, or null");
+                const TextureSize result{size["width"].toDouble(), size["height"].toDouble()};
+                validateTextureSize(result);
+                return result;
+            };
             if (name == "material.create")
                 createMaterial(staged, command["name"].toString().toStdString(), color(),
                                command.contains("opacity") ? opacity() : 1,
                                !command.contains("asset") || command["asset"] == "0"
                                    ? Id{}
-                                   : id(command["asset"]));
+                                   : id(command["asset"]),
+                               command.contains("textureSize") ? textureSize(command["textureSize"])
+                                                               : std::nullopt);
             else if (name == "material.edit")
                 editMaterial(
                     staged, id(command["material"]),
@@ -862,6 +879,9 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                     command.contains("opacity") ? std::optional(opacity()) : std::nullopt,
                     command.contains("asset")
                         ? std::optional(command["asset"] == "0" ? Id{} : id(command["asset"]))
+                        : std::nullopt,
+                    command.contains("textureSize")
+                        ? std::optional(textureSize(command["textureSize"]))
                         : std::nullopt);
             else if (name == "material.delete")
                 eraseMaterial(staged, id(command["material"]));

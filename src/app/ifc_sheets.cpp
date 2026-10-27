@@ -841,6 +841,9 @@ QString skpNoticeMessage(const QString &code) {
         return QStringLiteral("Texture images over 4,096 by 4,096 pixels: not imported");
     if (code == "texturesOverLimit")
         return QStringLiteral("Textures over the native texture limit: not imported");
+    if (code == "textureSizeOutOfRange")
+        return QStringLiteral("Texture sizes outside 1 cm to 100 m: the material keeps no size, "
+                              "and its faces keep their imported mapping");
     if (code == "materialsOverLimit")
         return QStringLiteral("Materials over the native limit of 1,024: not imported");
     if (code == "bodyLimit")

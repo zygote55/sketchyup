@@ -147,6 +147,30 @@ QJsonArray visibleInspectionCatalog() {
             result.append(value);
     return result;
 }
+// R100.b2 (ADR 0174 decision 9): a material's texture size is kept off the assistant's command
+// schemas, as R100.f1 keeps the edge stroke off, so the pinned tool bytes do not move. The engine
+// still accepts the field, and MCP shows it.
+QJsonValue withoutOptionalField(const QJsonValue &value, const QString &field) {
+    if (value.isArray()) {
+        QJsonArray result;
+        for (const auto &item : value.toArray())
+            result.append(withoutOptionalField(item, field));
+        return result;
+    }
+    if (!value.isObject())
+        return value;
+    const auto object = value.toObject();
+    QJsonObject result;
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it)
+        result[it.key()] = withoutOptionalField(it.value(), field);
+    // value(), not operator[]: a schema without properties must not gain a null one.
+    if (result.value("properties").isObject()) {
+        auto properties = result.value("properties").toObject();
+        properties.remove(field);
+        result["properties"] = properties;
+    }
+    return result;
+}
 QJsonArray catalog(const QStringList &commands, bool clarification, int taskSeconds) {
     const auto inspection = visibleInspectionCatalog();
     QJsonArray entries = inspection;
@@ -172,7 +196,8 @@ QJsonArray catalog(const QStringList &commands, bool clarification, int taskSeco
                 for (const auto &command : commandCatalog()) {
                     const auto commandName = command.toObject()["name"].toString();
                     if (assistantVisible(commandName) && commands.contains(commandName))
-                        allowed.append(command.toObject()["parameters"]);
+                        allowed.append(withoutOptionalField(command.toObject()["parameters"],
+                                                            QStringLiteral("textureSize")));
                 }
                 auto array = properties["commands"].toObject();
                 array["items"] = QJsonObject{{"oneOf", allowed}};

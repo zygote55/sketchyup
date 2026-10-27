@@ -180,6 +180,12 @@ int main(int argc, char **argv) {
             // stay off the provider surface on every surface, so the baseline is unchanged.
             for (const auto *report : {"report.run", "report.schedule"})
                 check(!top.contains(report), name + ": assistant sees " + report);
+            // R100.b2 (ADR 0174 decision 9): the material texture size stays off every assistant
+            // schema, so the pinned bytes below do not move when the material commands gain it.
+            check(!QJsonDocument(request["tools"].toArray())
+                       .toJson(QJsonDocument::Compact)
+                       .contains("textureSize"),
+                  name + ": assistant sees the material texture size");
             // 2. The surface equals the baseline byte for byte.
             const auto actual = describe(request);
             const auto want = expected[surface.name].toObject();
@@ -260,6 +266,19 @@ int main(int argc, char **argv) {
                   "terrain.set_display", "terrain.explode"})
                 check(nested.contains(command),
                       std::string("MCP transaction.apply accepts ") + command);
+        }
+        // R100.b2: MCP's material commands take the texture size.
+        {
+            int sized = 0;
+            for (const auto &tool : mcpToolCatalog()) {
+                const auto entry = tool.toObject();
+                const auto toolName = entry["name"].toString();
+                if (toolName == "material.create" || toolName == "material.edit")
+                    sized += QJsonDocument(entry["inputSchema"].toObject())
+                                 .toJson(QJsonDocument::Compact)
+                                 .contains("textureSize");
+            }
+            check(sized == 2, "MCP material.create and material.edit accept the texture size");
         }
         // 5. Site and terrain commands cannot be authorized for an assistant task, and the
         // hidden query site.convert is rejected without reaching the document.
