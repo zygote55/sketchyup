@@ -62,11 +62,15 @@ OPENSKP_FILES = {
     "packages/cpp/cmake/miniz_export.h.in": "cmake/miniz_export.h.in",
     "LICENSE": "LICENSE",
 }
-# The two patched files: the patch file is applied to the upstream file and the result is the
+# The patched files: the patch file is applied to the upstream file and the result is the
 # vendored file (see PATCHES.md).
 PATCHED = {
     "src/parser.cpp": "patches/parser.cpp.patch",
     "src/internal.hpp": "patches/internal.hpp.patch",
+    "src/geometry.cpp": "patches/geometry.cpp.patch",
+    "src/legacy.cpp": "patches/legacy.cpp.patch",
+    "src/model.cpp": "patches/model.cpp.patch",
+    "include/openskp/model.hpp": "patches/model.hpp.patch",
 }
 MINIZ_FILES = {
     "miniz.h": "miniz/miniz.h",
@@ -154,7 +158,7 @@ def check(archives):
     problems += [f"not in the expected subset: {p}" for p in sorted(set(actual) - set(expected))]
     for path in sorted(set(expected) & set(actual)):
         if actual[path].read_bytes() != expected[path]:
-            problems.append(f"differs from the pinned upstream: {p}")
+            problems.append(f"differs from the pinned upstream: {path}")
     for problem in problems[:40]:
         print(f"vendor-openskp: {problem}", file=sys.stderr)
     if problems:

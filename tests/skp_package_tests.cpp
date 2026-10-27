@@ -355,6 +355,54 @@ int main() {
                        "\"guid\":\"g1\",\"vertices\":5000001,"));
     checkDecode(oversize, "out of range");
 
+    // The attributes (ADR 0176 section 4, the follow-up "attribute reporting"): a string the worker
+    // cut is flagged "truncated", the attributes the worker omitted are counted by kind, and the
+    // attributes the file holds (source.attributes) must equal the kept ones plus the omitted ones.
+    {
+        wp::SkpPackage withAttributes = sample;
+        wp::SkpPackageAttribute note;
+        note.dictionary = "Props";
+        note.key = "Note";
+        note.kind = wp::SkpPackageAttribute::Kind::String;
+        note.text = "cut";
+        note.truncated = true;
+        wp::SkpPackageAttribute count;
+        count.dictionary = "Props";
+        count.key = "Count";
+        count.kind = wp::SkpPackageAttribute::Kind::Number;
+        count.number = 3;
+        withAttributes.definitions[0].instances[0].attributes = {note, count};
+        withAttributes.omitted = {{"attribute", 1}, {"definitionAttribute", 2}};
+        withAttributes.sourceTotals["attributes"] = 2 + 1 + 2;
+        std::string error;
+        const auto bytes = wp::serializeSkpPackage(withAttributes, error);
+        check(!bytes.empty(), error.c_str());
+        const auto back = sketchy::decodeSkpPackage(bytesOf(bytes));
+        const auto &kept = back.definitions[0].instances[0].attributes;
+        check(kept.size() == 2, "the instance's attributes did not survive");
+        check(kept[0].truncated && kept[0].text == "cut", "the truncated flag did not survive");
+        check(!kept[1].truncated && kept[1].number == 3, "a number attribute did not survive");
+        check(back.omitted.at("definitionAttribute") == 2,
+              "the omitted attribute count did not survive");
+        check(back.sourceTotals.at("attributes") == 5, "the attribute total did not survive");
+
+        // The accounting identity: a total that the kept and omitted values do not add up to is
+        // refused.
+        withAttributes.sourceTotals["attributes"] = 6;
+        const auto unbalanced = wp::serializeSkpPackage(withAttributes, error);
+        checkDecode(bytesOf(unbalanced), "the attribute accounting does not add up");
+
+        // A truncated flag that is not a boolean is refused (the same length as "true", so the
+        // manifest's length holds).
+        withAttributes.sourceTotals["attributes"] = 5;
+        auto badFlag = bytesOf(wp::serializeSkpPackage(withAttributes, error));
+        const std::string from = "\"truncated\":true", to = "\"truncated\":null";
+        const auto at = std::search(badFlag.begin(), badFlag.end(), from.begin(), from.end());
+        check(at != badFlag.end(), "the encoded manifest carries the truncated flag");
+        std::copy(to.begin(), to.end(), at);
+        checkDecode(badFlag, "truncated flag must be a boolean");
+    }
+
     std::puts("skp package tests ok");
     return 0;
 }

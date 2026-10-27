@@ -364,6 +364,12 @@ int main(int argc, char **argv) {
         const auto &doc = imported.document;
         check(doc.displayUnits() == DisplayUnit::Meters, std::string(name) + ": the display units are metres");
         check(imported.report["notCarried"].toArray().size() == 8, std::string(name) + ": the report names what the package does not carry");
+        // The attributes add up: every value the file holds is imported or omitted (ADR 0176
+        // section 5).
+        const auto attributes = imported.report["accounting"].toObject()["attributes"].toObject();
+        check(attributes["counted"].toInt() ==
+                  attributes["imported"].toInt() + attributes["omitted"].toInt(),
+              std::string(name) + ": the attributes add up");
         // The root group is named after the file (without its extension).
         bool rootNamed = false;
         for (const auto &[id, body] : doc.bodies())
@@ -589,6 +595,136 @@ int main(int argc, char **argv) {
         checkUndo("scaled_instance.skp (S2)", imported);
     }
 
+    // The attributes the import does not carry (ADR 0176 section 4, the follow-up "attribute
+    // reporting"): the definition's own dictionary, and the instance's Length, its 130-byte key and
+    // the keys over the 128-property cap. Each is counted and named; the attributes add up (136
+    // read = 128 imported + 8 omitted).
+    {
+        auto imported = importOf(fixture("attribute_reporting.skp"));
+        const auto notices = imported.report["notices"].toObject();
+        check(notices["definitionAttributesNotCarried"].toInt() == 4,
+              "reporting: the definition's four values are counted");
+        check(notices["attributeNotImported"].toInt() == 1,
+              "reporting: the instance's length is counted");
+        check(notices["propertiesDropped"].toInt() == 3,
+              "reporting: two keys over the 128-property cap and one 130-byte key are counted");
+        const auto attributes = imported.report["accounting"].toObject()["attributes"].toObject();
+        check(attributes["counted"].toInt() == 136 && attributes["imported"].toInt() == 128 &&
+                  attributes["omitted"].toInt() == 8,
+              "reporting: 136 attributes read = 128 imported + 8 omitted");
+        const auto where = imported.report["locations"].toObject();
+        check(where["definitionAttributesNotCarried"].toObject()["total"].toInt() == 4,
+              "reporting: the four definition values are located");
+        bool namedDictionary = false, namedKey = false;
+        for (const auto &value :
+             where["definitionAttributesNotCarried"].toObject()["samples"].toArray())
+            namedDictionary |=
+                value.toString().contains(QStringLiteral("dictionary \"Spec\", key \"Finish\""));
+        for (const auto &value : where["propertiesDropped"].toObject()["samples"].toArray())
+            namedKey |=
+                value.toString().contains(QStringLiteral("dictionary \"Props\", key \"Item128\""));
+        check(namedDictionary, "reporting: a definition value is named by its dictionary and key");
+        check(namedKey, "reporting: a dropped key is named by its dictionary and key");
+        bool carried = false;
+        for (const auto &value : imported.report["notCarried"].toArray())
+            carried |= value.toString() == QStringLiteral("definitionAttributes");
+        check(carried, "reporting: the definition's attributes are listed as not carried");
+        const Body *placed = nullptr;
+        for (const auto &[id, body] : imported.document.bodies()) {
+            (void)id;
+            if (body->kind == BodyKind::Group && body->name == "Chair A")
+                placed = body.get();
+        }
+        check(placed != nullptr, "reporting: the placement Chair A is imported");
+        if (placed) {
+            check(placed->properties.contains("skp.Props.Item000") &&
+                      placed->properties.contains("skp.Props.Item127"),
+                  "reporting: the first 128 keys are properties");
+            check(!placed->properties.contains("skp.Props.Item128") &&
+                      !placed->properties.contains("skp.Props.Span"),
+                  "reporting: the keys over the cap and the length are not properties");
+        }
+        checkUndo("attribute_reporting.skp", imported);
+    }
+
+    // A text attribute over the 2,048-byte property cap is cut and counted once. The package flags
+    // a text it cut at the helper's bound; the import cuts a text over 2,048 bytes and counts it
+    // too.
+    {
+        auto package = packageOf(fixture("named_attributes.skp"), temp);
+        check(!package.definitions.empty() && !package.definitions[0].instances.empty(),
+              "truncation: the fixture has a placement");
+        auto &attributes = package.definitions[0].instances[0].attributes;
+        SkpPackageAttribute longText;
+        longText.dictionary = "Props";
+        longText.key = "Long";
+        longText.kind = SkpPackageAttribute::Kind::String;
+        longText.text = std::string(3000, 'a');
+        SkpPackageAttribute flagged = longText;
+        flagged.key = "Flagged";
+        flagged.text = std::string(2000, 'b');
+        flagged.truncated = true;
+        SkpPackageAttribute shortText = longText;
+        shortText.key = "Short";
+        shortText.text = "x";
+        attributes.push_back(longText);
+        attributes.push_back(flagged);
+        attributes.push_back(shortText);
+        const auto imported = importSkpPackage(package);
+        check(imported.report["notices"].toObject()["truncatedAttributes"].toInt() == 2,
+              "truncation: the 3,000-byte text and the flagged text are each counted once");
+        const Body *placed = nullptr;
+        for (const auto &[id, body] : imported.document.bodies()) {
+            (void)id;
+            if (body->kind == BodyKind::Group && body->name == "Chair A")
+                placed = body.get();
+        }
+        check(placed != nullptr, "truncation: the placement Chair A is imported");
+        if (placed) {
+            const auto found = placed->properties.find("skp.Props.Long");
+            check(found != placed->properties.end() &&
+                      std::holds_alternative<std::string>(found->second) &&
+                      std::get<std::string>(found->second).size() == 2048,
+                  "truncation: the text is kept at 2,048 bytes");
+            check(placed->properties.contains("skp.Props.Short"),
+                  "truncation: a short text is kept whole");
+        }
+    }
+
+    // What the file holds that the import does not carry and the worker counts (a model's
+    // dictionaries, the scenes): the mapping passes the counts through, adds the model's values to
+    // the accounting, and lists the attributes as not carried. The helper's own samples and totals
+    // join the conversion's.
+    {
+        auto package = packageOf(fixture("box.skp"), temp);
+        package.omitted["modelAttribute"] = 3;
+        package.notices["modelAttributesNotCarried"] = 3;
+        package.locationTotals["modelAttributesNotCarried"] = 3;
+        package.locations.push_back(
+            {"modelAttributesNotCarried", "Model", "dictionary \"D\", key \"K\": not imported"});
+        package.sourceTotals["attributes"] = 3;
+        package.notices["omittedScenes"] = 2;
+        const auto imported = importSkpPackage(package);
+        const auto notices = imported.report["notices"].toObject();
+        check(notices["modelAttributesNotCarried"].toInt() == 3 &&
+                  notices["omittedScenes"].toInt() == 2,
+              "not carried: the worker's counts are the report's notices");
+        const auto attributes = imported.report["accounting"].toObject()["attributes"].toObject();
+        check(attributes["counted"].toInt() == 3 && attributes["imported"].toInt() == 0 &&
+                  attributes["omitted"].toInt() == 3,
+              "not carried: the model's three values are read and omitted");
+        bool carried = false;
+        for (const auto &value : imported.report["notCarried"].toArray())
+            carried |= value.toString() == QStringLiteral("modelAttributes");
+        check(carried, "not carried: the model's attributes are listed as not carried");
+        const auto sample =
+            imported.report["locations"].toObject()["modelAttributesNotCarried"].toObject();
+        check(sample["total"].toInt() == 3 && sample["samples"].toArray().size() == 1 &&
+                  sample["samples"].toArray()[0].toString() ==
+                      QStringLiteral("Model: dictionary \"D\", key \"K\": not imported"),
+              "not carried: the helper's sample joins the report, with its total");
+    }
+
     if (real) {
         const QString corpus = qEnvironmentVariable("SKETCHYUP_SKP_CORPUS");
         const QString file = corpus.isEmpty() ? QString() : corpus + QStringLiteral("/BanyanHarbor.skp");
@@ -618,7 +754,23 @@ int main(int argc, char **argv) {
         check(!imported.report["notices"].toObject().contains("missingUv"),
               "the owner's untextured file raises no missingUv notice");
         std::cout << "owner's file: notices " << QJsonDocument(imported.report["notices"].toObject()).toJson(QJsonDocument::Compact).toStdString() << "\n";
-        std::cout << "owner's file: locations " << QJsonDocument(imported.report["locations"].toObject()).toJson(QJsonDocument::Compact).toStdString() << "\n";
+        // The owner's file's attributes (ADR 0176 section 4): 23 definition values and 10 model
+        // values, none carried, and the attributes add up. Only the totals are printed: the samples
+        // name the owner's keys.
+        const auto attributes = imported.report["accounting"].toObject()["attributes"].toObject();
+        check(imported.report["notices"].toObject()["definitionAttributesNotCarried"].toInt() == 23,
+              "the owner's file: 23 definition attribute values, none carried");
+        check(imported.report["notices"].toObject()["modelAttributesNotCarried"].toInt() == 10,
+              "the owner's file: 10 model attribute values, none carried");
+        check(attributes["counted"].toInt() ==
+                  attributes["imported"].toInt() + attributes["omitted"].toInt(),
+              "the owner's file: the attributes add up");
+        std::cout << "owner's file: attributes "
+                  << QJsonDocument(attributes).toJson(QJsonDocument::Compact).toStdString() << "\n";
+        const QJsonObject located = imported.report["locations"].toObject();
+        for (auto it = located.constBegin(); it != located.constEnd(); ++it)
+            std::cout << "owner's file: located " << it.key().toStdString() << " "
+                      << it.value().toObject()["total"].toInt() << "\n";
         checkUndo("BanyanHarbor.skp", imported);
     }
 

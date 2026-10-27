@@ -15,6 +15,7 @@
 
 #include <openskp/create.hpp>
 
+#include <cstdio>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -200,6 +201,37 @@ static void namedAttributes(const fs::path& out) {
   b->save(out);
 }
 
+// ADR 0176 "Follow-up: attribute reporting" (2026-10-26): the attributes the import does not carry. A
+// definition with its own dictionary "Spec" (four values: a string, a float, a boolean and a Length, none of
+// them carried), and one instance whose dictionary "Props" holds a Length (not carried), a key of 130 bytes
+// (over the 128-byte key cap) and 130 integers, so the 128-property cap drops two of them. The legacy writer
+// refuses a string value over 255 bytes, so no fixture holds an over-2,048-byte string: the truncation is
+// tested with an in-test package (tests/skp_mapping_tests.cpp).
+static void attributeReporting(const fs::path& out) {
+  auto b = create();
+  openskp::DefinitionOptions spec;
+  spec.attribute_dict_name = "Spec";
+  spec.attributes = {{"Finish", std::string("Oak")},
+                     {"Weight", 1.5},
+                     {"Fire", AttributeBool{true}},
+                     {"Span", AttributeLength{12.0}}};
+  auto& chair = b->add_component_definition("Chair", spec);
+  chair.add_face({Point3{0, 0, 0}, Point3{1, 0, 0}, Point3{1, 1, 0}, Point3{0, 1, 0}});
+  chair.close();
+  InstanceOptions placed;
+  placed.name = std::string("Chair A");
+  placed.attribute_dict_name = "Props";
+  placed.attributes = {{std::string(130, 'k'), std::int32_t(1)},
+                       {"Span", AttributeLength{12.0}}};
+  for (int i = 0; i < 130; ++i) {
+    char key[16];
+    std::snprintf(key, sizeof key, "Item%03d", i);
+    placed.attributes[key] = std::int32_t(i);
+  }
+  b->add_instance(chair, placed);
+  b->save(out);
+}
+
 int main(int argc, char** argv) {
   if (argc != 3) {
     std::cerr << "usage: skp_fixture_generator OUTPUT_DIR CHECKER_PNG\n";
@@ -234,5 +266,8 @@ int main(int argc, char** argv) {
   const fs::path named = dir / "named_attributes.skp";
   namedAttributes(named);
   std::cout << "named_attributes.skp " << fs::file_size(named) << " bytes\n";
+  const fs::path reporting = dir / "attribute_reporting.skp";
+  attributeReporting(reporting);
+  std::cout << "attribute_reporting.skp " << fs::file_size(reporting) << " bytes\n";
   return 0;
 }

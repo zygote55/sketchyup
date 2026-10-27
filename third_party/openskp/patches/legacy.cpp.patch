@@ -1,0 +1,19 @@
+--- a/legacy.cpp
++++ b/legacy.cpp
+@@ -1027,7 +1027,7 @@
+         r.raw(6);
+       }
+     } else if (n == "CComponentDefinition") {
+-      preamble();
++      v->attrs = preamble();
+       v->k = "definition";
+       // undecoded base block: 13 bytes in SketchUp 3, 19 in 4, 20 from 5, 22
+       // from 2017
+@@ -1962,6 +1962,7 @@
+         d.always_faces_camera = s.second.v->faces_camera;
+         d.shadows_face_sun = s.second.v->shadows_face_sun;
+         d.is_image = image_def_ids.count(s.first) != 0;
++        d.attribute_dicts = extract_legacy_attribute_dictionaries(s.second.v->attrs, ar.slots);
+         fill(d.builder, s.second.v->ents, ar.slots);
+         out.definitions[s.first] = std::move(d);
+       }

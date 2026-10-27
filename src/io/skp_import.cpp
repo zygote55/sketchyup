@@ -16,6 +16,7 @@
 #include <QJsonArray>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstring>
@@ -189,33 +190,6 @@ struct Canonical {
     Cost own;                       // this definition's own geometry, not its nested placements
 };
 
-// The instance's attributes as the body's properties skp.<dictionary>.<key> (ADR 0176 section 4): a string,
-// a number or a boolean. The native caps hold: 128 properties a body, keys of at most 128 bytes and strings
-// of at most 2,048 bytes; what does not fit is dropped and counted (propertiesDropped).
-void addAttributeProperties(std::map<std::string, std::variant<bool, double, std::string>> &properties,
-                            const SkpPackageInstance &instance, std::map<std::string, long long> &notices) {
-    for (const auto &attribute : instance.attributes) {
-        std::string key = "skp." + attribute.dictionary + "." + attribute.key;
-        if (key.size() > 128 || properties.size() >= 128) {
-            notices["propertiesDropped"] += 1;
-            continue;
-        }
-        std::variant<bool, double, std::string> value;
-        switch (attribute.kind) {
-        case SkpPackageAttribute::Kind::String:
-            value = std::string(clipUtf8(attribute.text, 2048));
-            break;
-        case SkpPackageAttribute::Kind::Number:
-            value = attribute.number;
-            break;
-        case SkpPackageAttribute::Kind::Boolean:
-            value = attribute.flag;
-            break;
-        }
-        properties.emplace(std::move(key), std::move(value));
-    }
-}
-
 // One body under construction: the faces with one tag and one visibility.
 struct Bucket {
     Body body;
@@ -247,6 +221,15 @@ class Converter {
     }
     void locate(const std::string &kind, const std::string &definition, const std::string &message);
     void omit(const std::string &kind, long long count = 1) { omitted[kind] += count; }
+    // The instance's attributes as the body's properties skp.<dictionary>.<key> (ADR 0176 section
+    // 4): a string, a number or a boolean, within the native caps (128 properties a body, names of
+    // at most 128 bytes, strings of at most 2,048 bytes). Each value that does not fit is dropped
+    // and counted (propertiesDropped), and each string cut to 2,048 bytes is counted
+    // (truncatedAttributes); both are named in the samples. `owner` names the definition that holds
+    // the instance.
+    void addAttributeProperties(
+        std::map<std::string, std::variant<bool, double, std::string>> &properties,
+        const SkpPackageInstance &instance, const std::string &owner);
 
     void buildTags();
     void buildMaterials();
@@ -283,7 +266,59 @@ class Converter {
     long long importedFaces{}, importedHoles{}, importedEdges{}, importedWires{}, importedInstances{},
         importedDefinitions{}, placements{}, invalidFaces{}, invalidHoles{}, degenerateEdges{};
     long long nativeEdges{};   // the topology edges of every body (a shared edge counts per body)
+    long long
+        importedAttributes{}; // the instance attributes that became properties (once per instance)
 };
+
+void Converter::addAttributeProperties(
+    std::map<std::string, std::variant<bool, double, std::string>> &properties,
+    const SkpPackageInstance &instance, const std::string &owner) {
+    constexpr std::size_t propertyNameBytes = 128;
+    constexpr std::size_t propertiesPerBody = 128;
+    constexpr std::size_t propertyTextBytes = 2048;
+    for (const auto &attribute : instance.attributes) {
+        const std::string named =
+            "dictionary \"" + attribute.dictionary + "\", key \"" + attribute.key + "\"";
+        std::string key = "skp." + attribute.dictionary + "." + attribute.key;
+        const auto dropped = [&](const std::string &why) {
+            note("propertiesDropped");
+            locate("propertiesDropped", owner, named + ": " + why);
+        };
+        if (key.size() > propertyNameBytes) {
+            dropped("the property name is longer than 128 bytes");
+            continue;
+        }
+        if (properties.size() >= propertiesPerBody) {
+            dropped("the body already holds 128 properties");
+            continue;
+        }
+        if (properties.contains(key)) {
+            dropped("another attribute already has this property name");
+            continue;
+        }
+        std::variant<bool, double, std::string> value;
+        switch (attribute.kind) {
+        case SkpPackageAttribute::Kind::String: {
+            // Cut to the property cap; an attribute the package cut earlier counts once, here.
+            const bool cut = attribute.truncated || attribute.text.size() > propertyTextBytes;
+            value = std::string(clipUtf8(attribute.text, propertyTextBytes));
+            if (cut) {
+                note("truncatedAttributes");
+                locate("truncatedAttributes", owner, named + ": the text is cut to 2,048 bytes");
+            }
+            break;
+        }
+        case SkpPackageAttribute::Kind::Number:
+            value = attribute.number;
+            break;
+        case SkpPackageAttribute::Kind::Boolean:
+            value = attribute.flag;
+            break;
+        }
+        properties.emplace(std::move(key), std::move(value));
+        importedAttributes++;
+    }
+}
 
 void Converter::locate(const std::string &kind, const std::string &definition, const std::string &message) {
     auto &list = locations[kind];
@@ -727,7 +762,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
             node->kind = BodyKind::Group;
             node->parent = 1;
             node->name = capName(instance.name.empty() ? pkg.definitions[std::size_t(instance.definition)].name : instance.name);
-            addAttributeProperties(node->properties, instance, notices);
+            addAttributeProperties(node->properties, instance, definition.name);
             node->transform = placement;
             node->tag = tagOf(instance.tag);
             node->hidden = instance.hidden;
@@ -807,7 +842,7 @@ void Converter::placeTopLevel(std::size_t k, Id parent) {
     group->kind = BodyKind::Group;
     group->parent = parent;
     group->name = capName(instance.name.empty() ? pkg.definitions[d].name : instance.name);
-    addAttributeProperties(group->properties, instance, notices);
+    addAttributeProperties(group->properties, instance, pkg.definitions[0].name);
     group->transform = placement;
     group->tag = tagOf(instance.tag);
     group->hidden = instance.hidden;
@@ -922,10 +957,26 @@ SkpImport Converter::run() {
     account("edges", counts.edges, importedEdges);
     account("instances", counts.instances, importedInstances);
     account("materials", counts.materials, static_cast<long long>(materialRecords.size()));
+    // The attributes (ADR 0176 section 4, the follow-up "attribute reporting"): every value the
+    // file holds is kept on an instance or counted as omitted, and the kept ones are imported as
+    // properties or counted as dropped.
+    long long keptAttributes = 0;
+    for (const auto &definition : pkg.definitions)
+        for (const auto &instance : definition.instances)
+            keptAttributes += static_cast<long long>(instance.attributes.size());
+    account("attributes", keptAttributes, importedAttributes);
 
     // What the SketchUp file holds that the package does not carry (ADR 0176 section 5): counted as none.
     QJsonArray notCarried{"scenes", "styles", "sectionPlanes", "texts", "dimensions", "camera", "constructionLines",
                           "constructionPoints"};
+    // The attribute dictionaries the import does not carry, listed when the file holds any (their
+    // counts are notices).
+    for (const auto &[omittedKind, label] : std::array<std::pair<const char *, const char *>, 3>{
+             {{"modelAttribute", "modelAttributes"},
+              {"definitionAttribute", "definitionAttributes"},
+              {"layerAttribute", "layerAttributes"}}})
+        if (pkg.omitted.count(omittedKind))
+            notCarried.append(QString::fromLatin1(label));
     // The notices (ADR 0176 section 5): the helper's own (the package's, such as newerThanTested and
     // scaledPlacement), the conversion's, and the invalidFaces notice for each face the native validator
     // dropped (the same count the accounting omits).
@@ -937,12 +988,30 @@ SkpImport Converter::run() {
     QJsonObject notes;
     for (const auto &[code, count] : allNotices)
         notes[QString::fromStdString(code)] = qint64(count);
+    // The helper's samples and totals go in with the conversion's: the helper's first, at most 32
+    // samples a kind.
+    std::map<std::string, std::vector<std::string>> samples;
+    std::map<std::string, long long> totals = locationTotals;
+    for (const auto &[kind, total] : pkg.locationTotals)
+        totals[kind] += total;
+    for (const auto &place : pkg.locations) {
+        auto &list = samples[place.kind];
+        if (list.size() < locationsPerKind)
+            list.push_back(clipUtf8(place.definition + ": " + place.message, 256));
+    }
+    for (const auto &[kind, messages] : locations)
+        for (const auto &message : messages) {
+            auto &list = samples[kind];
+            if (list.size() < locationsPerKind)
+                list.push_back(message);
+        }
     QJsonObject where;
-    for (const auto &[kind, messages] : locations) {
+    for (const auto &[kind, total] : totals) {
         QJsonArray list;
-        for (const auto &message : messages)
+        for (const auto &message : samples[kind])
             list.append(QString::fromStdString(message));
-        where[QString::fromStdString(kind)] = QJsonObject{{"total", qint64(locationTotals[kind])}, {"samples", list}};
+        where[QString::fromStdString(kind)] =
+            QJsonObject{{"total", qint64(total)}, {"samples", list}};
     }
     QJsonObject sourceTotals;
     for (const auto &[key, value] : pkg.sourceTotals)

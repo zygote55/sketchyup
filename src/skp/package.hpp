@@ -13,8 +13,9 @@
 //   u64 geometry bytes      at most 256 MiB
 //   u64 texture bytes       at most 256 MiB
 //   manifest                UTF-8 JSON object (see below)
-//   geometry chunk           the definitions of the manifest back to back, in order; self-describing
-//   texture chunk            the raw image bytes of the manifest's textures, in order
+//   geometry chunk           the definitions of the manifest back to back, in order;
+//   self-describing texture chunk            the raw image bytes of the manifest's textures, in
+//   order
 //
 // The file is exactly 32 + manifest + geometry + texture bytes long. The manifest records the
 // SHA-256 of the geometry and texture chunks. The geometry chunk is self-describing: per
@@ -45,6 +46,13 @@
 // Vertex coordinates are metres in the definition's own frame, the definition's raw coordinates
 // converted with the model's unit system (unitScale metres per raw unit). An instance's
 // transform takes that frame to the placement.
+// Optional members (R102.b, and ADR 0176 section 4's "attribute reporting" follow-up): a
+// definition's instanceNames and instanceAttributes (aligned with its instances; a package without
+// them keeps no names and no attributes), an instanceAttributes entry's "truncated": true when the
+// worker cut its string to the package bound, and the report's source.attributes (the attributes
+// the file holds in all). The attributes the file holds are the kept ones (on instances) plus the
+// omitted kinds attribute, modelAttribute, definitionAttribute and layerAttribute; the decoder
+// checks that identity when source.attributes is present.
 #include <array>
 #include <cstdint>
 #include <map>
@@ -130,6 +138,8 @@ struct SkpPackageAttribute {
   std::string text;
   double number{};
   bool flag{};
+  bool truncated{}; // a string the worker cut to the package bound (stringBytes); the import cuts
+                    // it further
 };
 
 struct SkpPackageInstance {
