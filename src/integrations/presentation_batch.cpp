@@ -5,6 +5,7 @@
 #include "io/presentation_io.hpp"
 #include <QCryptographicHash>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -64,6 +65,11 @@ qint64 plannedBudget(const PresentationPlan &plan, size_t frames) {
 }
 qint64 defaultFreeSpace(const QString &path) { return QStorageInfo(path).bytesAvailable(); }
 std::vector<CameraFrame> planFrames(const Document &document, const PresentationPlan &plan) {
+    // The record's refusal is the only text for the frame limit; the planner's own never reaches a
+    // person (UX_DESIGN 17.11, gap 3).
+    if (const auto message = cameraPathFrameLimitMessage(plan.keyframes.size(), plan.timing);
+        !message.empty())
+        throw std::runtime_error(message);
     const CameraPathRecord path{1, plan.path.toStdString(), 0, plan.keyframes, plan.timing};
     const auto references = cameraPathReferences(document.scenes(), path);
     if (!references.sceneMissing.empty()) {
@@ -103,7 +109,52 @@ void requireBlender(const BlenderJob::Options &options) {
             "Presentation batches need an installed Blender 5.2 LTS; install it or choose its "
             "executable");
 }
+// Refuses before any frame renders when the chosen codec is not in this Blender's list (UX_DESIGN
+// 17.5). A check that did not report the list refuses too, since the codec cannot be confirmed.
+void requireVideoCodec(const BlenderJob::Options &options, PresentationVideoCodec codec) {
+    const auto check = checkPresentationVideo(options);
+    if (!check.checked)
+        throw std::runtime_error(check.message.toStdString() +
+                                 ". No frames were rendered. Check again, or clear Write video to "
+                                 "render the frames only.");
+    if (!check.codecs.contains(presentationVideoCodecId(codec)))
+        throw std::runtime_error(
+            QString(
+                "Video is not available in this Blender: its FFmpeg build has no %1 encoder. No "
+                "frames were rendered. Clear Write video to render the frames only.")
+                .arg(codec == PresentationVideoCodec::MPEG4 ? "MPEG-4 Part 2" : "H.264")
+                .toStdString());
+}
 } // namespace
+
+PresentationVideoCheck checkPresentationVideo(const BlenderJob::Options &options) {
+    BlenderJob probe;
+    QEventLoop loop;
+    QObject::connect(&probe, &BlenderJob::changed, &loop, [&] {
+        if (probe.done())
+            loop.quit();
+    });
+    // The probe runs on the CPU: it reports the codecs of the build, whatever device a batch uses.
+    auto probing = options;
+    probing.backend = "CPU";
+    probing.deviceId = "CPU";
+    probe.probe(probing);
+    if (!probe.done())
+        loop.exec();
+    PresentationVideoCheck check;
+    if (probe.phase() != BlenderJob::Phase::Succeeded) {
+        check.message = "The video check did not finish";
+        return check;
+    }
+    const auto codecs = probe.videoCodecs();
+    if (!codecs) {
+        check.message = "The video check did not report this Blender's codecs";
+        return check;
+    }
+    check.checked = true;
+    check.codecs = *codecs;
+    return check;
+}
 PresentationCapture::PresentationCapture(Document document, QByteArray encoded,
                                          PresentationPlan plan)
     : document_(std::move(document)), encoded_(std::move(encoded)), sha256_(digest(encoded_)),
@@ -242,6 +293,7 @@ struct PresentationExport::Impl {
                                 {"captureSha256", capture->sha256()},
                                 {"framesPerSecond", plan.timing.framesPerSecond},
                                 {"videoRequested", plan.video},
+                                {"videoCodec", presentationVideoCodecName(plan.videoCodec)},
                                 {"framesPerPreset", int(capture->frames().size())},
                                 {"totalFrames", int(capture->frames().size() * records.size())},
                                 {"completedFrames", completed()},
@@ -312,7 +364,8 @@ struct PresentationExport::Impl {
                 const auto mp4 =
                     readFile(output + "/" + presetDirectories[p] + "/video.mp4", videoFileLimit);
                 if (entry.value("file") != "video.mp4" || digest(mp4) != entry.value("sha256") ||
-                    entry.value("bytes").toInteger(-1) != mp4.size())
+                    entry.value("bytes").toInteger(-1) != mp4.size() ||
+                    entry.value("codec") != presentationVideoCodecName(capture->plan().videoCodec))
                     continue;
                 videos[p] = entry;
                 bytes += mp4.size();
@@ -431,6 +484,7 @@ struct PresentationExport::Impl {
             request.width = settings.width;
             request.height = settings.height;
             request.framesPerSecond = capture->plan().timing.framesPerSecond;
+            request.codec = presentationVideoCodecId(capture->plan().videoCodec);
             for (size_t i = 0; i < records[p].size(); ++i) {
                 const auto &record = records[p][i];
                 request.frames.push_back({frameDirectory(p) + "/" + frameName(i) + ".png",
@@ -464,12 +518,13 @@ struct PresentationExport::Impl {
         }
         const auto video = finished->videoResult();
         if (!video) {
-            const auto report = finished->report();
-            terminal(
-                PresentationJobState::Failed,
-                QString("Video not written (%1): %2. The finished frames are kept.")
-                    .arg(report.value("code").toString("ENCODE_FAILED"))
-                    .arg(report.value("message").toString("Blender did not encode the video")));
+            // The worker's code stays in the stored report; the sentence carries only the reason.
+            const auto reason =
+                finished->report().value("message").toString("Blender did not encode the video");
+            terminal(PresentationJobState::Failed,
+                     QString("Video not written for %1: %2. The finished frames are kept.")
+                         .arg(capture->plan().presets[videoPreset].name)
+                         .arg(reason));
             return;
         }
         try {
@@ -546,16 +601,23 @@ struct PresentationExport::Impl {
             return;
         }
         if (!finished->result()) {
-            terminal(PresentationJobState::Failed, QString("Frame %1 of %2 failed: %3")
-                                                       .arg(index + 1)
-                                                       .arg(capture->frames().size())
-                                                       .arg(finished->progress()));
+            const auto reason =
+                finished->report().value("message").toString("Blender did not finish the frame");
+            terminal(PresentationJobState::Failed,
+                     QString("Frame %1 of %2 failed: %3. The finished frames are kept.")
+                         .arg(index + 1)
+                         .arg(capture->frames().size())
+                         .arg(reason));
             return;
         }
         try {
             const auto result = finished->result();
             const auto name = frameName(index);
             const auto &pose = capture->frames().at(index);
+            // The attempt log is kept once, under diagnostics, with the executable that ran it. The
+            // result keeps the worker's own report. Nothing else repeats the log (UX_DESIGN 17.11).
+            auto workerManifest = result->manifest;
+            const auto attempts = workerManifest.take("attempts");
             const QJsonObject record{
                 {"index", int(index)},
                 {"file", name + ".png"},
@@ -566,8 +628,9 @@ struct PresentationExport::Impl {
                 {"scene", QString::number(capture->plan().keyframes.at(pose.sceneIndex))},
                 {"camera", input->manifest().value("camera")},
                 {"sourceManifestSha256", input->manifestHash()},
-                {"result", result->manifest},
-                {"diagnostics", finished->report()}};
+                {"result", workerManifest},
+                {"diagnostics", QJsonObject{{"executable", finished->report().value("executable")},
+                                            {"attempts", attempts}}}};
             const auto metadata = QJsonDocument(record).toJson();
             const auto cost = qint64(result->png.size()) + metadata.size();
             if (metadata.size() > metadataLimit || cost > limit - bytes)
@@ -603,7 +666,25 @@ struct PresentationExport::Impl {
         input.reset();
         emit owner.changed();
     }
-    void terminal(PresentationJobState next, QString detail) {
+    // Kills the in-flight worker, so its frame is discarded, and waits for a frame being prepared.
+    // The worker is deleted here, not later, so its process is gone when this returns.
+    void killWorker() {
+        timer.stop();
+        encoding = false;
+        if (worker) {
+            QObject::disconnect(worker, nullptr, &owner, nullptr);
+            delete worker.data();
+            worker.clear();
+        }
+        if (preparing.valid())
+            preparing.wait();
+    }
+    // Records the batch as interrupted: the worker is killed and every verified frame is kept.
+    void interrupt(bool notify) {
+        killWorker();
+        terminal(PresentationJobState::Interrupted, presentationInterruptedMessage(), notify);
+    }
+    void terminal(PresentationJobState next, QString detail, bool notify = true) {
         timer.stop();
         active = false;
         message = std::move(detail);
@@ -620,27 +701,22 @@ struct PresentationExport::Impl {
         } catch (const std::exception &error) {
             message = QString::fromUtf8(error.what());
         }
-        emit owner.changed();
+        if (notify)
+            emit owner.changed();
     }
 };
 PresentationExport::PresentationExport(PresentationJobStore &store, QObject *parent)
     : QObject(parent), impl_(std::make_unique<Impl>(*this, store)) {}
 PresentationExport::~PresentationExport() {
-    impl_->timer.stop();
-    if (impl_->worker) {
-        QObject::disconnect(impl_->worker, nullptr, this, nullptr);
-        delete impl_->worker.data();
-    }
-    // The preparation only owns immutable data; keep that data alive until it ends.
-    if (impl_->preparing.valid())
-        impl_->preparing.wait();
-    if (impl_->active) {
-        try {
-            impl_->store.transition(impl_->id, PresentationJobState::Interrupted,
-                                    "Application closed before this batch finished. Retry to "
-                                    "resume from the first unverified frame.");
-        } catch (...) { /* Startup reconciliation keeps the stopped batch visible. */
-        }
+    try {
+        // A batch closed while it runs is recorded interrupted now, so it can be resumed at once.
+        // A crash leaves it running, and the store's startup reconciliation then marks it.
+        if (impl_->active)
+            impl_->interrupt(false);
+        else
+            impl_->killWorker();
+    } catch (...) {
+        // The store keeps the last state it wrote; startup reconciliation covers the rest.
     }
 }
 QString PresentationExport::start(PresentationCapture capture, QString output,
@@ -677,6 +753,9 @@ QString PresentationExport::start(PresentationCapture capture, QString output,
                 .arg(needed / mib)
                 .arg(available / mib)
                 .toStdString());
+    // A video checks the Blender's codec list before anything is written (UX_DESIGN 17.5).
+    if (plan.video)
+        requireVideoCodec(options, plan.videoCodec);
     const auto id =
         impl.store.enqueue(capture.encoded(), QString::fromStdString(capture.documentId()),
                            QString::number(capture.revision()), plan, target.absoluteFilePath());
@@ -715,6 +794,9 @@ void PresentationExport::retry(const QString &id, BlenderJob::Options options) {
         throw std::runtime_error("Only an unfinished terminal batch can be retried");
     requireBackendMatchesPresets(job.plan, options);
     requireBlender(options);
+    // A resumed video checks its codec before any frame renders, as a new batch does.
+    if (job.plan.video)
+        requireVideoCodec(options, job.plan.videoCodec);
     if (!QFileInfo(job.output).isDir() || QFileInfo(job.output).isSymLink())
         throw std::runtime_error("The batch folder is missing; the batch cannot resume");
     auto frozen = PresentationCapture::restore(impl.store.capture(id), job.plan);
@@ -742,6 +824,13 @@ void PresentationExport::cancel() {
         impl.terminal(PresentationJobState::Canceled, impl.message);
     emit changed();
 }
+void PresentationExport::stop() {
+    if (QThread::currentThread() != thread())
+        throw std::runtime_error("Batch stop requires its owner thread");
+    if (impl_->active)
+        impl_->interrupt(true);
+}
+
 QString PresentationExport::jobId() const { return impl_->id; }
 PresentationJobState PresentationExport::state() const {
     if (impl_->id.isEmpty())

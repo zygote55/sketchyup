@@ -38,6 +38,10 @@ size_t cameraPathBytes(const CameraPathPtr &path);
 size_t renderPresetBytes(const RenderPresetPtr &preset);
 // 1 + N·hold + (N−1)·transition: the frames planCameraFrames returns for N keyframes.
 size_t cameraPathFrameCount(size_t keyframes, CameraPathTiming timing);
+// The one refusal for a path whose planned frames pass the limit, with the formula
+// (UX_DESIGN 17.11, gap 3). Every presentation surface names the limit with this text. Empty when
+// the plan fits.
+std::string cameraPathFrameLimitMessage(size_t keyframes, CameraPathTiming timing);
 // Structure only: identities, names, positions, keyframe count, timing, the planned frame
 // limit and the record budget. Keyframe scenes are not checked here, so a path whose scene
 // was deleted still loads as a diagnosed broken path.

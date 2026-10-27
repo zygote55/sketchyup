@@ -4,6 +4,7 @@
 #include "integrations/presentation_store.hpp"
 #include "integrations/render_snapshot.hpp"
 #include <QObject>
+#include <QStringList>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -38,6 +39,17 @@ class PresentationCapture {
     PresentationPlan plan_;
     std::vector<CameraFrame> frames_;
 };
+// The answer of a Blender's video probe (UX_DESIGN 17.5): whether the probe reported its FFmpeg
+// codec list, the identifiers it reported ("H264", "MPEG4", ...) and, when it did not, the reason.
+struct PresentationVideoCheck {
+    bool checked{};
+    QStringList codecs;
+    QString message;
+};
+// A fresh probe of the Blender's video codecs. It blocks the calling thread until the probe ends,
+// which the probe bounds at its own deadline. Frames are never rendered by it.
+PresentationVideoCheck checkPresentationVideo(const BlenderJob::Options &options);
+
 // Runs one batch at a time on the owner thread. Each frame renders in one Blender worker; a
 // canceled or failed batch keeps its verified frames, and retry renders only the rest.
 class PresentationExport : public QObject {
@@ -55,6 +67,11 @@ class PresentationExport : public QObject {
     void retry(const QString &id, BlenderJob::Options options);
     // Cancels at the next frame boundary: the in-flight frame is discarded, finished frames stay.
     void cancel();
+    // Stops now, for a quit or a closing application: the in-flight worker is killed, its frame is
+    // discarded and the batch is recorded Interrupted, resumable, with its verified frames kept. It
+    // does not wait for a frame boundary, and it does nothing when no batch runs. Call it from the
+    // owner thread, not from a changed() handler.
+    void stop();
     QString jobId() const;
     PresentationJobState state() const;
     int completedFrames() const; // Verified frames across all presets.

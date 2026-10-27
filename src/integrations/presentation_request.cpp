@@ -1,5 +1,6 @@
 #include "integrations/presentation_request.hpp"
 #include "automation/inspection.hpp"
+#include "automation/presentation_commands.hpp"
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
@@ -10,6 +11,7 @@ PresentationPlan resolvePresentationRequest(const Document &doc,
                                             const PresentationRequest &request) {
     PresentationPlan plan;
     plan.video = request.video;
+    plan.videoCodec = presentationVideoCodecFromName(request.videoCodec);
     if (request.explicitKeyframes) {
         plan.path = request.name;
         plan.timing = request.timing;
@@ -50,6 +52,7 @@ PresentationPlan resolvePresentationRequest(const Document &doc,
 PresentationRun runPresentationRequest(const Document &doc, const PresentationRequest &request,
                                        PresentationJobStore &store,
                                        const std::function<bool()> &interrupted,
+                                       const std::function<bool()> &stopped,
                                        BlenderJob::Options options) {
     auto plan = resolvePresentationRequest(doc, request);
     PresentationExport batch(store);
@@ -59,7 +62,9 @@ PresentationRun runPresentationRequest(const Document &doc, const PresentationRe
     QTimer watch;
     watch.setInterval(20);
     QObject::connect(&watch, &QTimer::timeout, &batch, [&] {
-        if (interrupted())
+        if (stopped())
+            batch.stop();
+        else if (interrupted())
             batch.cancel();
     });
     QObject::connect(&batch, &PresentationExport::changed, &loop, [&] {
@@ -76,5 +81,16 @@ PresentationRun runPresentationRequest(const Document &doc, const PresentationRe
         throw std::runtime_error("The batch manifest could not be read");
     const auto manifest = QJsonDocument::fromJson(file.readAll()).object();
     return {batch.state(), manifest};
+}
+
+void installPresentationVideoProbe() {
+    setPresentationVideoProbe([]() -> QJsonObject {
+        const auto check = checkPresentationVideo(BlenderJob::Options{});
+        if (!check.checked)
+            return {{"checked", false}, {"message", check.message}};
+        return {{"checked", true},
+                {"h264", check.codecs.contains("H264")},
+                {"mpeg4", check.codecs.contains("MPEG4")}};
+    });
 }
 } // namespace sketchy

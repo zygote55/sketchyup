@@ -13,10 +13,15 @@ struct PresentationRun {
     QJsonObject manifest; // The batch manifest as it was published in the output folder.
 };
 // Runs a request to a terminal state on this thread. `interrupted` is polled while the batch
-// runs; when it turns true the batch cancels at the next frame boundary. Refusals throw before
-// any folder or job is created.
+// runs; when it turns true the batch cancels at the next frame boundary. `stopped` is polled the
+// same way; when it turns true the batch stops now and is recorded interrupted (a SIGTERM).
+// Refusals throw before any folder or job is created.
 PresentationRun runPresentationRequest(const Document &doc, const PresentationRequest &request,
                                        PresentationJobStore &store,
                                        const std::function<bool()> &interrupted,
+                                       const std::function<bool()> &stopped,
                                        BlenderJob::Options options = {});
+// Installs the real Blender video check behind presentation.describe. The application and the CLI
+// call it at startup; without it the query reports the video as not checked.
+void installPresentationVideoProbe();
 } // namespace sketchy

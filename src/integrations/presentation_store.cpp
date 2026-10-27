@@ -74,7 +74,8 @@ QJsonObject encodePlan(const PresentationPlan &plan) {
                                    {"transitionSteps", plan.timing.transitionSteps},
                                    {"holdSteps", plan.timing.holdSteps}}},
             {"presets", presets},
-            {"video", plan.video}};
+            {"video", plan.video},
+            {"videoCodec", presentationVideoCodecName(plan.videoCodec)}};
 }
 PresentationPlan decodePlan(const QJsonObject &value) {
     PresentationPlan plan;
@@ -105,6 +106,10 @@ PresentationPlan decodePlan(const QJsonObject &value) {
     }
     // A job stored before video existed has no flag, which means no video.
     plan.video = value.value("video").toBool(false);
+    // A job stored before the codec choice existed has H.264, the only codec that existed.
+    plan.videoCodec = value.contains("videoCodec")
+                          ? presentationVideoCodecFromName(value.value("videoCodec").toString())
+                          : PresentationVideoCodec::H264;
     validatePresentationPlan(plan);
     return plan;
 }
@@ -221,6 +226,27 @@ QString presentationJobStateName(PresentationJobState state) {
     }
     throw std::runtime_error("Invalid presentation job state");
 }
+
+QString presentationInterruptedMessage() {
+    return "SketchyUp stopped before this batch finished. Resume continues at the first unverified "
+           "frame.";
+}
+
+QString presentationVideoCodecName(PresentationVideoCodec codec) {
+    return codec == PresentationVideoCodec::MPEG4 ? "mpeg4" : "h264";
+}
+
+QString presentationVideoCodecId(PresentationVideoCodec codec) {
+    return codec == PresentationVideoCodec::MPEG4 ? "MPEG4" : "H264";
+}
+
+PresentationVideoCodec presentationVideoCodecFromName(const QString &name) {
+    if (name == "h264")
+        return PresentationVideoCodec::H264;
+    if (name == "mpeg4")
+        return PresentationVideoCodec::MPEG4;
+    throw std::runtime_error("Presentation video codec is h264 or mpeg4");
+}
 PresentationJobStore::PresentationJobStore(QString directory)
     : PresentationJobStore(std::move(directory), Limits{}) {}
 PresentationJobStore::PresentationJobStore(QString directory, Limits limits)
@@ -313,8 +339,7 @@ void PresentationJobStore::reconcile() {
                     job.report = boundedReport(job.report);
                 }
                 job.state = PresentationJobState::Interrupted;
-                job.message = "Application stopped before this batch finished. Retry to resume "
-                              "from the first unverified frame.";
+                job.message = presentationInterruptedMessage();
                 job.updatedMs = std::max(job.createdMs, QDateTime::currentMSecsSinceEpoch());
                 save(job);
             }

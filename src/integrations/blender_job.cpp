@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QThread>
@@ -263,11 +264,11 @@ quint64 bigEndian(const QByteArray &bytes, qsizetype at, int width) {
     return value;
 }
 
-// What the verifier reads from an MP4: whether the video track is H.264 (an avc1 sample entry
-// with an avcC configuration) and its sample count from the stsz table. Only top-level boxes and
-// the movie box are walked, so media bytes never match.
+// What the verifier reads from an MP4: the first sample entry of the video track (its type and its
+// bytes) and its sample count from the stsz table. Only top-level boxes and the movie box are
+// walked, so media bytes never match.
 struct Mp4Summary {
-    bool h264{};
+    QByteArray entryType, entry;
     qint64 frames{-1};
 };
 
@@ -297,7 +298,15 @@ Mp4Summary summarizeMp4(const QByteArray &bytes) {
     require(ftyp && !movie.isEmpty(), "Video is not an MP4 file");
     const auto table = movie.indexOf("stsz");
     require(table >= 4 && table + 16 <= movie.size(), "Video has no sample table");
-    return {movie.contains("avc1") && movie.contains("avcC"),
+    // stsd holds the type, then the version and flags, the entry count and the first sample entry,
+    // which starts with its own size and type.
+    const auto description = movie.indexOf("stsd");
+    require(description >= 4 && description + 20 <= movie.size(),
+            "Video has no sample description");
+    const auto first = description + 12;
+    const auto size = qsizetype(bigEndian(movie, first, 4));
+    require(size >= 8 && first + size <= movie.size(), "Video sample description is malformed");
+    return {movie.mid(first + 4, 4), movie.mid(first, size),
             qint64(bigEndian(movie, table + 12, 4))};
 }
 
@@ -312,14 +321,20 @@ std::shared_ptr<const BlenderVideoResult> verifyVideo(const QString &directory,
     const auto digest = hash(mp4);
     require(video.value("file") == "video.mp4" &&
                 video.value("bytes").toInteger(-1) == mp4.size() &&
-                video.value("sha256") == digest && video.value("codec") == "H264" &&
+                video.value("sha256") == digest && video.value("codec") == request.codec &&
                 video.value("container") == "MP4" &&
                 video.value("frames").toInteger(-1) == qint64(request.frames.size()) &&
                 video.value("framesPerSecond").toInteger(-1) == request.framesPerSecond,
             "Video does not match the worker report");
+    // The sample entry names the codec: avc1 with an avcC configuration for H.264, and mp4v with an
+    // esds configuration for MPEG-4 Part 2, which never carries avc1 or avcC.
     const auto summary = summarizeMp4(mp4);
-    require(summary.h264 && summary.frames == qint64(request.frames.size()),
-            "Video is not an H.264 MP4 with every verified frame");
+    const bool h264 = request.codec == "H264";
+    const bool entry = h264 ? summary.entryType == "avc1" && summary.entry.contains("avcC")
+                            : summary.entryType == "mp4v" && summary.entry.contains("esds") &&
+                                  !summary.entry.contains("avcC");
+    require(entry && summary.frames == qint64(request.frames.size()),
+            "Video is not an MP4 of the chosen codec with every verified frame");
     QJsonArray inputs;
     for (const auto &frame : request.frames)
         inputs.append(frame.sha256);
@@ -333,11 +348,24 @@ std::shared_ptr<const BlenderVideoResult> verifyVideo(const QString &directory,
                                    {"sha256", digest},
                                    {"encoder", "blender-" + version.join('.')},
                                    {"container", "mp4"},
-                                   {"codec", "h264"},
+                                   {"codec", h264 ? "h264" : "mpeg4"},
                                    {"frames", int(request.frames.size())},
                                    {"framesPerSecond", request.framesPerSecond},
                                    {"inputSha256", inputs}};
     return result;
+}
+// The FFmpeg codec identifiers of a probe: at most 64 names, each of 1 to 32 capitals, digits or
+// underscores. A value that is not such a list fails the probe.
+std::optional<QStringList> videoCodecList(const QJsonValue &value) {
+    require(value.isArray() && value.toArray().size() <= 64, "Malformed Blender video codec list");
+    QStringList codecs;
+    for (const auto item : value.toArray()) {
+        require(item.isString() &&
+                    QRegularExpression("^[A-Z0-9_]{1,32}$").match(item.toString()).hasMatch(),
+                "Malformed Blender video codec list");
+        codecs.append(item.toString());
+    }
+    return codecs;
 }
 } // namespace
 
@@ -361,6 +389,7 @@ struct BlenderJob::Impl {
     std::future<std::shared_ptr<const BlenderSceneResult>> sceneVerification;
     std::shared_ptr<const BlenderSceneResult> sceneResult;
     std::optional<BlenderVideoRequest> video;
+    std::optional<QStringList> codecs; // The last probe's validated codec list, when reported.
     std::future<std::shared_ptr<const BlenderVideoResult>> videoVerification;
     std::shared_ptr<const BlenderVideoResult> videoResult;
     explicit Impl(BlenderJob &owner)
@@ -561,7 +590,8 @@ struct BlenderJob::Impl {
                 request["video"] = QJsonObject{{"frames", frames},
                                                {"width", video->width},
                                                {"height", video->height},
-                                               {"framesPerSecond", video->framesPerSecond}};
+                                               {"framesPerSecond", video->framesPerSecond},
+                                               {"codec", video->codec}};
             }
             write(attemptDirectory + "/request.json",
                   QJsonDocument(request).toJson(QJsonDocument::Compact));
@@ -727,6 +757,10 @@ struct BlenderJob::Impl {
                                 device.value("backend") == currentBackend,
                             "Malformed Blender device");
                 }
+                // An absent field is an absent codec list; a present one must be well formed.
+                codecs = workerReport.contains("videoCodecs")
+                             ? videoCodecList(workerReport.value("videoCodecs"))
+                             : std::optional<QStringList>{};
                 finish(Phase::Succeeded);
                 return;
             }
@@ -790,6 +824,7 @@ void BlenderJob::handoff(std::shared_ptr<const PreparedRender> input, Options op
 }
 void BlenderJob::encode(BlenderVideoRequest request, Options options) {
     impl_->checkOwner();
+    require(request.codec == "H264" || request.codec == "MPEG4", "Unsupported video codec");
     impl_->video = std::move(request);
     impl_->encoding = true;
     impl_->begin(false, nullptr, std::move(options));
@@ -797,6 +832,10 @@ void BlenderJob::encode(BlenderVideoRequest request, Options options) {
 std::shared_ptr<const BlenderVideoResult> BlenderJob::videoResult() const {
     impl_->checkOwner();
     return impl_->videoResult;
+}
+std::optional<QStringList> BlenderJob::videoCodecs() const {
+    impl_->checkOwner();
+    return impl_->codecs;
 }
 std::shared_ptr<const BlenderSceneResult> BlenderJob::sceneResult() const {
     impl_->checkOwner();
