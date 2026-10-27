@@ -9,6 +9,17 @@
   chip that opens the Styles tab. The Styles tab controls follow (R100.f2). A model saved with an edge
   stroke is schema 31 and cannot be opened by SketchyUp 1.3.0.
 
+- Dynamic Components in SketchUp (.skp) files (R104.a, R104.c, R104.d, [ADR 0178](docs/decisions/0178-dynamic-live-component-feasibility.md)):
+  a Dynamic Component's `dynamic_attributes` values are read as read-only properties
+  `skp.dynamic_attributes.<key>`, at instance and definition level (a definition's values reach each of its
+  placements, and the placement's own value wins). Lengths are stored in metres. Formulas (`_<name>_formula`,
+  `_material_formula`) and `onClick` are kept as text, capped at 2,048 bytes, and never evaluated or run.
+  `Copies` imports as one placement. The report has a `dynamicComponents` section that balances per level.
+  Live Components are not identified: the file does not mark them, so the report does not label them
+  service-dependent; the import makes no call to any Trimble service, and a test checks that it needs no
+  network. Formula mapping is deferred indefinitely (R104.b). Dynamic Components and Live Components are
+  Trimble's terms; SketchyUp is not affiliated with or endorsed by Trimble.
+
 - Quantities report engine (R101.a, [ADR 0175](docs/decisions/0175-quantities-reports-schedules.md)):
   a pure counting pass over the materialized document, with the counting rules for shared
   components, nested placements, hidden content, mirrored transforms, invalid solids and terrain.

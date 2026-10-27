@@ -110,6 +110,79 @@ void applyLimits(const SkpImportOptions& options) {
   if (options.rlimitFsize) setrlimit(RLIMIT_FSIZE, &fsize);
 }
 
+// The dynamic_attributes dictionary of a Dynamic Component (ADR 0178 section 5.2, R104.a).
+constexpr const char* kDynamicDictionary = "dynamic_attributes";
+
+enum class Packed { Kept, Unsupported, Dropped };
+
+// One attribute value for the package (R102.b, ADR 0176 section 4; R104.a for dynamic_attributes). Outside
+// dynamic_attributes a value the package does not carry is Dropped, with `why`. Inside it a Length is kept in
+// metres, and a value the package cannot carry (a vector, an array, a null, a number that is not finite) is
+// kept Unsupported, with the kind of value in `out.text`, so the import can count it. `out` is filled for
+// Kept and Unsupported.
+Packed packAttribute(const std::string& dictionary, const std::string& key, const openskp::ParsedAttribute& value,
+                     SkpPackageAttribute& out, std::string& why) {
+  const bool dynamic = dictionary == kDynamicDictionary;
+  out.dictionary = clip(dictionary, SkpPackageLimits::nameBytes);
+  out.key = clip(key, SkpPackageLimits::nameBytes);
+  std::string kind, reason;
+  switch (value.kind) {
+    case openskp::ParsedAttribute::Kind::String:
+      out.kind = SkpPackageAttribute::Kind::String;
+      out.text = clip(value.text, SkpPackageLimits::stringBytes);
+      out.truncated = value.text.size() > SkpPackageLimits::stringBytes;
+      return Packed::Kept;
+    case openskp::ParsedAttribute::Kind::Integer:
+      out.kind = SkpPackageAttribute::Kind::Number;
+      out.number = static_cast<double>(value.integer);
+      return Packed::Kept;
+    case openskp::ParsedAttribute::Kind::Float:
+      if (std::isfinite(value.number)) {
+        out.kind = SkpPackageAttribute::Kind::Number;
+        out.number = value.number;
+        return Packed::Kept;
+      }
+      kind = "notFinite";
+      reason = "a number that is not finite is not imported";
+      break;
+    case openskp::ParsedAttribute::Kind::Boolean:
+      out.kind = SkpPackageAttribute::Kind::Boolean;
+      out.flag = value.integer != 0;
+      return Packed::Kept;
+    case openskp::ParsedAttribute::Kind::Length:
+      if (!dynamic) {
+        why = "a length is not imported";
+        return Packed::Dropped;
+      }
+      if (std::isfinite(value.number)) {
+        out.kind = SkpPackageAttribute::Kind::Length;
+        out.number = value.number * kInchesToMetres;  // the parser's inches, as metres
+        return Packed::Kept;
+      }
+      kind = "notFinite";
+      reason = "a number that is not finite is not imported";
+      break;
+    case openskp::ParsedAttribute::Kind::Vec:
+      kind = "vector";
+      reason = "a vector is not imported";
+      break;
+    case openskp::ParsedAttribute::Kind::Array:
+      kind = "array";
+      reason = "a nested array is not imported";
+      break;
+    default:
+      kind = "null";
+      reason = "an empty value is not imported";
+      break;
+  }
+  why = reason;
+  if (!dynamic)
+    return Packed::Dropped;
+  out.kind = SkpPackageAttribute::Kind::Unsupported;
+  out.text = kind;
+  return Packed::Unsupported;
+}
+
 }  // namespace
 
 double unitScale(const std::string& units) {
@@ -441,20 +514,43 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
   }
   const long long sourceMaterials = static_cast<long long>(model.materials.size());
   long long definitionValues = 0;
-  auto addDefinition = [&](const openskp::Definition& source, const std::string& name, const std::string& guid) {
+  auto addDefinition = [&](const openskp::Definition& source, const std::string& name, const std::string& guid,
+                           bool isRoot) {
     SkpPackageDefinition definition;
     definition.name = clip(name, SkpPackageLimits::nameBytes);
     definition.guid = clip(guid, SkpPackageLimits::stringBytes);
-    // The definition's own attribute dictionaries: the import does not map them, so each value is
-    // reported.
-    for (const auto &[dictionary, values] : source.attribute_dictionaries)
-        for (const auto &[key, value] : values) {
-            (void)value;
+    // The definition's own attribute dictionaries (R104.a). A Dynamic Component's dynamic_attributes values are
+    // kept on the definition, for the placements of it (the import attaches them). Any other dictionary is not
+    // mapped, so each value is reported. The root is the model, not a component: its values are reported.
+    for (const auto& [dictionary, values] : source.attribute_dictionaries)
+        for (const auto& [key, value] : values) {
             attributesPresent++;
-            definitionValues++;
-            report.locate("definitionAttributesNotCarried", definition.name,
-                          "dictionary \"" + clip(dictionary, 64) + "\", key \"" + clip(key, 64) +
-                              "\": not imported");
+            const std::string named =
+                "dictionary \"" + clip(dictionary, 64) + "\", key \"" + clip(key, 64) + "\"";
+            if (isRoot || dictionary != kDynamicDictionary) {
+                definitionValues++;
+                report.locate("definitionAttributesNotCarried", definition.name, named + ": not imported");
+                continue;
+            }
+            const auto dropDefinition = [&](const char *code, const std::string &why) {
+                report.notice(code);
+                report.omitted("definitionAttribute");
+                report.locate(code, definition.name, named + ": " + why);
+            };
+            if (key.empty()) {
+                dropDefinition("attributeNotImported", "the key is empty, so it is not imported");
+                continue;
+            }
+            if (definition.attributes.size() >= SkpPackageLimits::attributesPerInstance) {
+                dropDefinition("attributesOverLimit", "the definition holds more attributes than the package keeps");
+                continue;
+            }
+            SkpPackageAttribute attribute;
+            std::string why;
+            if (packAttribute(dictionary, key, value, attribute, why) == Packed::Dropped)
+                dropDefinition("attributeNotImported", why);
+            else
+                definition.attributes.push_back(std::move(attribute));
         }
     definitionIndex[source.id] = static_cast<long long>(package.definitions.size());
     const auto materialOf = [&](std::optional<openskp::EntityId> id) {
@@ -633,51 +729,16 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
                 dropInstance("attributeNotImported", "the key is empty, so it is not imported");
                 continue;
             }
-          if (out.attributes.size() >= SkpPackageLimits::attributesPerInstance) {
-              dropInstance("attributesOverLimit",
-                           "the instance holds more attributes than the package keeps");
-              continue;
-          }
-          SkpPackageAttribute attribute;
-          attribute.dictionary = clip(dictionary, SkpPackageLimits::nameBytes);
-          attribute.key = clip(key, SkpPackageLimits::nameBytes);
-          switch (value.kind) {
-            case openskp::ParsedAttribute::Kind::String:
-              attribute.kind = SkpPackageAttribute::Kind::String;
-              attribute.text = clip(value.text, SkpPackageLimits::stringBytes);
-              attribute.truncated = value.text.size() > SkpPackageLimits::stringBytes;
-              break;
-            case openskp::ParsedAttribute::Kind::Integer:
-              attribute.kind = SkpPackageAttribute::Kind::Number;
-              attribute.number = static_cast<double>(value.integer);
-              break;
-            case openskp::ParsedAttribute::Kind::Float:
-              if (!std::isfinite(value.number)) {
-                  dropInstance("attributeNotImported",
-                               "a number that is not finite is not imported");
-                  continue;
-              }
-              attribute.kind = SkpPackageAttribute::Kind::Number;
-              attribute.number = value.number;
-              break;
-            case openskp::ParsedAttribute::Kind::Boolean:
-              attribute.kind = SkpPackageAttribute::Kind::Boolean;
-              attribute.flag = value.integer != 0;
-              break;
-            case openskp::ParsedAttribute::Kind::Length:
-                dropInstance("attributeNotImported", "a length is not imported");
+            if (out.attributes.size() >= SkpPackageLimits::attributesPerInstance) {
+                dropInstance("attributesOverLimit", "the instance holds more attributes than the package keeps");
                 continue;
-            case openskp::ParsedAttribute::Kind::Vec:
-                dropInstance("attributeNotImported", "a vector is not imported");
-                continue;
-            case openskp::ParsedAttribute::Kind::Array:
-                dropInstance("attributeNotImported", "a nested array is not imported");
-                continue;
-            default:
-                dropInstance("attributeNotImported", "an empty value is not imported");
-                continue;
-          }
-          out.attributes.push_back(std::move(attribute));
+            }
+            SkpPackageAttribute attribute;
+            std::string why;
+            if (packAttribute(dictionary, key, value, attribute, why) == Packed::Dropped)
+                dropInstance("attributeNotImported", why);
+            else
+                out.attributes.push_back(std::move(attribute));
         }
       }
       // The 4x4: the parser's 3x3 (unitless), the translation in metres. The parser's own
@@ -711,8 +772,8 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
     }
     package.definitions.push_back(std::move(definition));
   };
-  addDefinition(model.root(), "ROOT", "");
-  for (const auto& [id, definition] : model.definitions) (void)id, addDefinition(definition, definition.name, definition.guid);
+  addDefinition(model.root(), "ROOT", "", true);
+  for (const auto& [id, definition] : model.definitions) (void)id, addDefinition(definition, definition.name, definition.guid, false);
 
   // The definitions' own attribute dictionaries are counted before the report block is copied out.
   noteNotCarried("definitionAttributesNotCarried", "definitionAttribute", definitionValues);

@@ -1992,10 +1992,11 @@ jobs:
       - name: The SKP tests
         # The package tests, the import through the helper against the synthetic fixtures
         # (the .skp files' provenance is tests/fixtures/skp/SKP-SOURCE.txt), the mapping of
-        # the import into the native model (R102.b, S1 to S5 and the undo), and the owner-file
-        # checks (skipped on a machine without the corpus). The helper's linkage (only the helper
+        # the import into the native model (R102.b, S1 to S5 and the undo), the Dynamic Component
+        # metadata (R104.a, ADR 0178 D1.1 to D1.9, with its source scan of the import for network code),
+        # and the owner-file checks (skipped on a machine without the corpus). The helper's linkage (only the helper
         # links the parser, its runtime closure) and the notices and source record (R102.d).
-        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_library_install|skp_library_source)$' --output-on-failure --no-tests=error
+        run: ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_dc|skp_dc_real|skp_library_install|skp_library_source)$' --output-on-failure --no-tests=error
       - name: Helper and package tests under the sanitizers
         # The helper's own code, the package decoder and the import under ASan and UBSan, against an
         # instrumented library: the IFC helper's sanitizer line (ADR 0176 section 7, S7). Full tier only.
@@ -2005,7 +2006,7 @@ jobs:
         run: |
           cmake --preset skp-sanitize
           cmake --build --preset skp-sanitize --parallel "$(nproc)"
-          ctest --test-dir build/skp-sanitize -R '^(skp_package|skp_import|skp_mapping)$' --output-on-failure --no-tests=error
+          ctest --test-dir build/skp-sanitize -R '^(skp_package|skp_import|skp_mapping|skp_dc)$' --output-on-failure --no-tests=error
       - name: Package decoder fuzz smoke, Clang with libFuzzer, ASan and UBSan
         # S7 (ADR 0176 section 7): the SKSKPP01 decoder under libFuzzer for a fixed number of runs, from
         # the packages the helper writes for five synthetic fixtures. The Clang fuzz build instruments

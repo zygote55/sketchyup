@@ -1,5 +1,13 @@
 # SketchyUp release notes
 
+## Unreleased
+
+- Dynamic Components: attributes read as read-only properties; formulas and behaviour are not run.
+  The `.skp` import keeps a Dynamic Component's `dynamic_attributes` values as properties, at instance
+  and definition level, with Lengths in metres. Formulas and `onClick` are kept as text and never
+  evaluated or run. The 1.3.0 note on Dynamic Components (below) was true for that release, which did
+  not import `.skp` files ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md)).
+
 ## 1.3.0
 
 SketchyUp 1.3.0 is a minor release. It adds terrain and site tools, Extended
