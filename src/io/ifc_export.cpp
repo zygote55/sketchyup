@@ -1455,6 +1455,8 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
         refuse(code.toStdString(), message.toStdString(), report);
     }
     if (run.kind != IfcWorkerRun::Finished) {
+        if (run.reason == "sandboxViolation")
+            refuse("sandboxViolation", "The IFC helper was stopped by its sandbox; nothing was written.", report);
         const QFileInfo produced(outputPath);
         if (produced.exists() && produced.size() >= qint64(maxIfcBytes))
             refuse("outputTooLarge", "The IFC file would be larger than 256 MiB; nothing was written.", report);
@@ -1486,6 +1488,8 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
         if (checked.kind == IfcWorkerRun::Cancelled)
             refuse("cancelled", "The export was cancelled; nothing was written.");
         if (checked.kind != IfcWorkerRun::Finished && checked.result["status"] != "invalid") {
+            if (checked.reason == "sandboxViolation")
+                refuse("sandboxViolation", "The IFC helper was stopped by its sandbox while checking its file; nothing was written.", report);
             // The check itself stopped (a crash, the deadline, memory): that is the helper failing, not the file.
             auto failed = report;
             failed["logTail"] = scrubPaths(QString(checked.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>"));

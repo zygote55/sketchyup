@@ -1902,7 +1902,10 @@ jobs:
         # The package decoder and the conversion (hand-built packages), then the whole import through the
         # helper against the raw-text scan, the restart path and the command line. The refusals of the
         # downloadable types the import cannot read (R105.a: ZIP, COLLADA, USDZ, FBX) need no helper.
-        run: ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import|import_refusal)$' --output-on-failure --no-tests=error --parallel 2
+        # The helper under its sandbox (ADR 0183, R109 S2): every fixture identical to the unsandboxed code, the attack probes
+        # refused, the refusals named, and the host's classes. Landlock must be on the runner's kernel: the checks fail,
+        # not skip, without it.
+        run: ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import|import_refusal|ifc_sandbox)$' --output-on-failure --no-tests=error --parallel 2
       - name: Helper under the sanitizers
         # The helper's own code under ASan and UBSan against the uninstrumented library.
         if: needs.plan.outputs.full == 'true'
@@ -1911,7 +1914,7 @@ jobs:
         run: |
           cmake --preset ifc-sanitize
           cmake --build --preset ifc-sanitize --parallel "$(nproc)"
-          ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus)$' --output-on-failure --no-tests=error
+          ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus|ifc_step_worker)$' --output-on-failure --no-tests=error
   # ---------------------------------------------------------------------------------------
   # SKP (ADR 0176). The vendored OpenSKP parser subset is plain C++17 with the miniz files
   # pinned inside the tree, so this job has no prefix and no packages beyond the shared

@@ -442,6 +442,10 @@ void showIfcExportRefusal(QWidget *parent, const QString &path, const std::strin
         whatToDo = "1. The model is larger than the export can carry; export a smaller one (one building, storey or discipline).";
     else if (codeText == "workerFailed")
         whatToDo = "1. Try again once.\n2. Then export a smaller or cleaned file.";
+    else if (codeText == "sandboxUnavailable")
+        whatToDo = "1. Check that the kernel offers Landlock and seccomp (Linux 5.13 or later).\n2. Export again.";
+    else if (codeText == "sandboxViolation")
+        whatToDo = "1. Try again once; the helper was stopped by its sandbox and was not restarted.\n2. If it repeats, report it with the details.";
     else if (codeText == "emptyModel")
         whatToDo = "1. Add something to the model (a group or a body with faces).\n2. Export again.";
     else if (codeText == "workerMismatch")
@@ -654,6 +658,10 @@ void showStepExportRefusal(QWidget *parent, const QString &path, const std::stri
         whatToDo = "1. Install the sketchyup-ifc package.\n2. Export again; no restart is needed.";
     else if (codeText == "workerFailed")
         whatToDo = "1. Try again once.\n2. Then export a smaller part of the model.";
+    else if (codeText == "sandboxUnavailable")
+        whatToDo = "1. Check that the kernel offers Landlock and seccomp (Linux 5.13 or later).\n2. Export again.";
+    else if (codeText == "sandboxViolation")
+        whatToDo = "1. Try again once; the helper was stopped by its sandbox and was not restarted.\n2. If it repeats, report it with the details.";
     else
         whatToDo = "1. Try again once.\n2. If it repeats, report it with the details.";
     face.summary =

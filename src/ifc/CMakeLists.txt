@@ -9,19 +9,26 @@ set(SKETCHYUP_IFC_PIN_COMMIT 7ba701972f7182322e0a00db8f0e1f3de5f69840)
 
 include("${CMAKE_CURRENT_LIST_DIR}/IfcOpenShellPrefix.cmake")
 
-add_executable(sketchyup-ifc-worker
-  worker_main.cpp probe_environment.cpp probe_geometry.cpp probe_writer.cpp
+# The helper's code is a library, so the tests run the same code in process as the unsandboxed baseline (R109 S2,
+# ADR 0183 section 8). The executable is the worker around it (worker_main.cpp).
+add_library(sketchyup_ifc_helper ${SKETCHYUP_LIBRARY_TYPE}
+  probe_environment.cpp probe_geometry.cpp probe_writer.cpp
   access.cpp units.cpp placement.cpp model.cpp geometry.cpp account.cpp georeference.cpp package.cpp report.cpp import.cpp export_package.cpp export.cpp check.cpp
-  step_probe.cpp step_import.cpp step_export.cpp step_export_package.cpp)
-target_include_directories(sketchyup-ifc-worker PRIVATE "${PROJECT_SOURCE_DIR}/src")
-target_compile_definitions(sketchyup-ifc-worker PRIVATE
+  step_probe.cpp step_import.cpp step_export.cpp step_export_package.cpp
+  sandbox_policy.cpp)
+target_include_directories(sketchyup_ifc_helper PUBLIC "${PROJECT_SOURCE_DIR}/src")
+target_compile_definitions(sketchyup_ifc_helper PRIVATE
   SKETCHYUP_IFC_PIN_COMMIT_STRING="${SKETCHYUP_IFC_PIN_COMMIT}"
   SKETCHYUP_IFC_OCCT_VERSION_STRING="${SKETCHYUP_IFC_OCCT_VERSION}")
 # TKG3d: the planes of the STEP export's faces (BRepBuilderAPI_MakeFace), which the 7.9 list in
 # IfcOpenShellPrefix.cmake does not name (that file is part of the prefix's cache key, so it stays as is).
-target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_libraries sketchyup_ifc_occt sketchyup_version TKG3d)
+target_link_libraries(sketchyup_ifc_helper PUBLIC sketchyup_ifc_libraries sketchyup_ifc_occt sketchyup_version sketchyup_sandbox TKG3d)
+target_compile_options(sketchyup_ifc_helper PRIVATE -Wall -Wextra -Wpedantic)
+add_dependencies(sketchyup_ifc_helper sketchyup_ifcopenshell_prefix)
+
+add_executable(sketchyup-ifc-worker worker_main.cpp)
+target_link_libraries(sketchyup-ifc-worker PRIVATE sketchyup_ifc_helper)
 target_compile_options(sketchyup-ifc-worker PRIVATE -Wall -Wextra -Wpedantic)
-add_dependencies(sketchyup-ifc-worker sketchyup_ifcopenshell_prefix)
 # The private directory is flat: the helper and every library sit in /usr/lib/sketchyup. A
 # RUNPATH (not an RPATH) of $ORIGIN lets LD_LIBRARY_PATH override it, which is the "replace the
 # library" path of LGPL-3.0 section 4 (check L2). The build tree finds the prefix's libraries.
