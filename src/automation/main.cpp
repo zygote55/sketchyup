@@ -20,6 +20,7 @@
 #include "io/gltf_import.hpp"
 #include "io/ifc_export.hpp"
 #include "io/ifc_worker.hpp"
+#include "io/import_refusal.hpp"
 #include "io/measured_request.hpp"
 #include "io/native_format.hpp"
 #include "io/new_file.hpp"
@@ -51,6 +52,9 @@ namespace {
 // Set by SIGINT while --export-presentation runs; the batch cancels at its next frame boundary.
 volatile std::sig_atomic_t presentationInterrupted = 0;
 void interruptPresentation(int) { presentationInterrupted = 1; }
+// Set by SIGTERM while --export-presentation runs; the batch stops now and is recorded interrupted.
+volatile std::sig_atomic_t presentationStopped = 0;
+void stopPresentation(int) { presentationStopped = 1; }
 
 // The report flags that a saved schedule replaces (ADR 0175 §8): --schedule runs alone.
 const QStringList reportFlagNames{"metrics",  "group-by",   "visible",   "tag",
@@ -101,6 +105,10 @@ int main(int argc, char **argv) {
         application = std::make_unique<QCoreApplication>(argc, argv);
     auto &app = *application;
     QCoreApplication::setApplicationVersion(SKETCHYUP_VERSION);
+    // The describe queries report the Blender's video encoders through this probe. The CLI has no
+    // event loop to freeze, so it checks synchronously.
+    sketchy::PresentationVideoChecks videoChecks;
+    sketchy::installBlockingPresentationVideoProbe(videoChecks);
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
@@ -434,6 +442,17 @@ int main(int argc, char **argv) {
             if (parser.isSet(option))
                 throw sketchy::InspectionError("INVALID_REQUEST",
                                                "Sheet export options require --export-sheets");
+        // R105.a (ADR 0179 section 7.3): every import option's file is checked before its importer
+        // runs, so a downloaded file of a refused type gets its named refusal whichever import the
+        // option names.
+        for (const auto *option :
+             {"import-terrain", "import-dxf", "import-stl", "import-obj", "import-ifc",
+              "import-step", "import-skp", "import-gltf", "import-formline"})
+            if (parser.isSet(option))
+                if (const auto refusal = sketchy::refusedImportFile(parser.value(option)))
+                    throw sketchy::InspectionError(
+                        "INPUT_ERROR", refusal->message.toStdString(),
+                        QJsonObject{{"refusalCode", QString::fromStdString(refusal->code)}});
         if (parser.isSet("import-terrain")) {
             // R095.c (ADR 0168 section 5): one labelled edit on --input or a new model.
             auto invalid = [](const std::string &message) {
@@ -1194,9 +1213,12 @@ int main(int argc, char **argv) {
                 QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
                 "/presentation-jobs");
             std::signal(SIGINT, interruptPresentation);
+            std::signal(SIGTERM, stopPresentation);
             const auto run = sketchy::runPresentationRequest(
-                document, request, store, [] { return presentationInterrupted != 0; });
+                document, request, store, [] { return presentationInterrupted != 0; },
+                [] { return presentationStopped != 0; });
             std::signal(SIGINT, SIG_DFL);
+            std::signal(SIGTERM, SIG_DFL);
             std::cout << QJsonDocument(run.manifest).toJson(QJsonDocument::Compact).toStdString()
                       << '\n';
             switch (run.state) {

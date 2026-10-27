@@ -642,21 +642,30 @@ def video_codecs():
     return {item.identifier for item in bpy.types.FFmpegSettings.bl_rna.properties['codec'].enum_items}
 
 
+VIDEO_CODECS = {
+    'H264': 'H.264',
+    'MPEG4': 'MPEG-4 Part 2',
+}
+
+
 def encode_video(request, directory):
-    # Encodes one preset's frames as H.264 in MP4. Every frame is read once, hashed against the
+    # Encodes one preset's frames in MP4, as the codec the request names: H264 (the default) or
+    # MPEG4 (MPEG-4 Part 2, the explicit fallback). Every frame is read once, hashed against the
     # request, and copied into this attempt's private directory; Blender encodes only those copies.
+    # The codec is never changed here: a Blender without the named encoder refuses the video.
     video = request.get('video')
     if not isinstance(video, dict):
         raise WorkerError('invalid_request', 'Video encoding needs a video request')
     frames = video.get('frames')
     width, height, rate = video.get('width'), video.get('height'), video.get('framesPerSecond')
+    codec = video.get('codec')
     if (not isinstance(frames, list) or not 1 <= len(frames) <= VIDEO_FRAME_LIMIT or
             any(type(value) is not int for value in (width, height, rate)) or
             not 64 <= width <= 4096 or not 64 <= height <= 4096 or width % 2 or height % 2 or
-            not 1 <= rate <= 60):
+            not 1 <= rate <= 60 or type(codec) is not str or codec not in VIDEO_CODECS):
         raise WorkerError('invalid_request', 'Unsupported video request')
-    if 'H264' not in video_codecs():
-        raise WorkerError('codec_unavailable', 'H.264 is not in this Blender build\'s FFmpeg codec list, so no video was written')
+    if codec not in video_codecs():
+        raise WorkerError('codec_unavailable', f"This Blender's FFmpeg build has no {VIDEO_CODECS[codec]} encoder")
     staging = directory / 'frames'
     staging.mkdir()
     names = []
@@ -691,7 +700,7 @@ def encode_video(request, directory):
     scene.render.image_settings.media_type = 'VIDEO'
     scene.render.image_settings.file_format = 'FFMPEG'
     scene.render.ffmpeg.format = 'MPEG4'
-    scene.render.ffmpeg.codec = 'H264'
+    scene.render.ffmpeg.codec = codec
     scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
     scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
     scene.render.ffmpeg.audio_codec = 'NONE'
@@ -708,7 +717,7 @@ def encode_video(request, directory):
         raise WorkerError('render_error', 'Blender did not produce a bounded video')
     data = path.read_bytes()
     return {'status': 'succeeded',
-            'video': {'file': 'video.mp4', 'bytes': len(data), 'sha256': sha(data), 'codec': 'H264',
+            'video': {'file': 'video.mp4', 'bytes': len(data), 'sha256': sha(data), 'codec': codec,
                       'container': 'MP4', 'frames': len(names), 'framesPerSecond': rate}}
 
 
@@ -730,8 +739,10 @@ def main():
                 (not bpy.app.build_options.cycles or 'cycles' not in bpy.context.preferences.addons)):
             raise WorkerError('cycles_unavailable', 'This Blender build does not include Cycles')
         if request['operation'] == 'probe':
+            # The FFmpeg codec identifiers of this Blender build, so a batch can check its video
+            # codec before any frame renders (UX_DESIGN 17.5).
             result = {'status': 'available', 'lightingPolicies': ['studio-v1', 'solar-v1', 'hdri-v1', 'solar-hdri-v1'],
-                      **capabilities(request['backend'])}
+                      'videoCodecs': sorted(video_codecs()), **capabilities(request['backend'])}
         elif request['operation'] == 'encode':
             result = encode_video(request, directory)
         else:

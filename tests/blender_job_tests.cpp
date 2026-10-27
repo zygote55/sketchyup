@@ -56,21 +56,38 @@ QByteArray bigEndian32(quint32 value) {
 QByteArray mp4Box(const char *type, const QByteArray &payload) {
     return bigEndian32(quint32(8 + payload.size())) + QByteArray(type, 4) + payload;
 }
-// A synthetic H.264 MP4 with the layout the verifier reads: ftyp, moov with an avc1/avcC sample
-// entry and an stsz table of `frames` samples, then mdat. It is not playable; ffprobe checks the
-// real encoder's output in the real Blender test.
-QByteArray syntheticMp4(int frames) {
-    const auto avc1 = mp4Box("avc1", QByteArray(78, '\0') + mp4Box("avcC", QByteArray(7, '\0')));
-    const auto stsd = QByteArray(4, '\0') + bigEndian32(1) + avc1;
+// A synthetic MP4 with the layout the verifier reads: ftyp, moov with a sample entry and an stsz
+// table of `frames` samples, then mdat. The entry is avc1 with avcC for H.264, or mp4v with esds
+// for MPEG-4 Part 2. It is not playable; ffprobe checks the real encoder's output in the real
+// Blender test.
+QByteArray syntheticMp4(int frames, bool mpeg4) {
+    const auto entry =
+        mpeg4 ? mp4Box("mp4v", QByteArray(78, '\0') + mp4Box("esds", QByteArray(7, '\0')))
+              : mp4Box("avc1", QByteArray(78, '\0') + mp4Box("avcC", QByteArray(7, '\0')));
+    const auto stsd = QByteArray(4, '\0') + bigEndian32(1) + entry;
     const auto stsz = QByteArray(4, '\0') + bigEndian32(0) + bigEndian32(quint32(frames));
     const auto stbl = mp4Box("stbl", mp4Box("stsd", stsd) + mp4Box("stsz", stsz));
     const auto moov = mp4Box("moov", mp4Box("trak", mp4Box("mdia", mp4Box("minf", stbl))));
     return mp4Box("ftyp", QByteArray("isom") + QByteArray(4, '\0') + QByteArray("isom")) + moov +
            mp4Box("mdat", QByteArray(16, 'x'));
 }
-// The encode fake re-hashes each frame as the worker does. SKETCHYUP_FAKE_CODEC=missing refuses
-// the video as a Blender without H.264 would. SKETCHYUP_FAKE_DAMAGE names a file that one byte is
-// appended to before the frames are read, so a test can damage a frame while the batch runs.
+// The codecs the fake Blender's FFmpeg build has. SKETCHYUP_FAKE_CODECS=no-h264 or no-mpeg4 drops
+// one of them; the probe and the encode both read it, as the worker does.
+QStringList fakeCodecs() {
+    const auto build = qEnvironmentVariable("SKETCHYUP_FAKE_CODECS");
+    if (build == "no-h264")
+        return {"MPEG4"};
+    if (build == "no-mpeg4")
+        return {"H264"};
+    return {"H264", "MPEG4"};
+}
+
+// The encode fake re-hashes each frame as the worker does. A codec the build lacks is refused as
+// codec_unavailable, and SKETCHYUP_FAKE_ENCODE=codec_unavailable refuses it at run time even though
+// the probe listed it. SKETCHYUP_FAKE_ENTRY (mpeg4 or h264) writes that sample entry whatever codec
+// the report names, so a test can check the verifier. SKETCHYUP_FAKE_DAMAGE names a file that one
+// byte is appended to before the frames are read, so a test can damage a frame while the batch
+// runs.
 int fakeEncode(const QString &root, const QJsonObject &request) {
     const auto damage = qEnvironmentVariable("SKETCHYUP_FAKE_DAMAGE");
     if (!damage.isEmpty()) {
@@ -79,14 +96,22 @@ int fakeEncode(const QString &root, const QJsonObject &request) {
     }
     const auto video = request.value("video").toObject();
     const auto frames = video.value("frames").toArray();
+    // Like the worker, the fake requires the codec in the request; a missing one is not H.264.
+    const auto codec = video.value("codec").toString();
     QJsonObject encoded{{"apiVersion", 1},
                         {"adapter", "sketchyup-blender-v1"},
                         {"blenderVersion", QJsonArray{5, 2, 2}}};
-    if (qEnvironmentVariable("SKETCHYUP_FAKE_CODEC") == "missing") {
+    if (codec != "H264" && codec != "MPEG4") {
+        encoded["status"] = "failed";
+        encoded["code"] = "invalid_request";
+        encoded["message"] = "Unsupported video codec";
+    } else if (!fakeCodecs().contains(codec) ||
+               qEnvironmentVariable("SKETCHYUP_FAKE_ENCODE") == "codec_unavailable") {
         encoded["status"] = "failed";
         encoded["code"] = "codec_unavailable";
-        encoded["message"] =
-            "H.264 is not in this Blender build's FFmpeg codec list, so no video was written";
+        encoded["message"] = codec == "MPEG4"
+                                 ? "This Blender's FFmpeg build has no MPEG-4 Part 2 encoder"
+                                 : "This Blender's FFmpeg build has no H.264 encoder";
     } else {
         bool intact = true;
         for (const auto &value : frames) {
@@ -100,13 +125,15 @@ int fakeEncode(const QString &root, const QJsonObject &request) {
             encoded["code"] = "invalid_frame";
             encoded["message"] = "A frame changed before encoding";
         } else {
-            const auto mp4 = syntheticMp4(int(frames.size()));
+            const auto entry = qEnvironmentVariable("SKETCHYUP_FAKE_ENTRY");
+            const bool mpeg4 = entry.isEmpty() ? codec == "MPEG4" : entry == "mpeg4";
+            const auto mp4 = syntheticMp4(int(frames.size()), mpeg4);
             write(root + "/video.mp4", mp4);
             encoded["status"] = "succeeded";
             encoded["video"] = QJsonObject{{"file", "video.mp4"},
                                            {"bytes", mp4.size()},
                                            {"sha256", hash(mp4)},
-                                           {"codec", "H264"},
+                                           {"codec", codec},
                                            {"container", "MP4"},
                                            {"frames", int(frames.size())},
                                            {"framesPerSecond", video.value("framesPerSecond")}};
@@ -162,6 +189,18 @@ int fake(QCoreApplication &app, const QStringList &args) {
         result["backends"] = QJsonArray{"CPU"};
         result["devices"] =
             QJsonArray{QJsonObject{{"id", "CPU"}, {"name", "CPU"}, {"backend", "CPU"}}};
+        // SKETCHYUP_FAKE_CODECS=absent omits the field; malformed and lowercase report a bad one.
+        const auto build = qEnvironmentVariable("SKETCHYUP_FAKE_CODECS");
+        if (build == "malformed") {
+            result["videoCodecs"] = "H264";
+        } else if (build == "lowercase") {
+            result["videoCodecs"] = QJsonArray{"h264"};
+        } else if (build != "absent") {
+            QJsonArray codecs;
+            for (const auto &name : fakeCodecs())
+                codecs.append(name);
+            result["videoCodecs"] = codecs;
+        }
         if (request.value("backend") == "OPENGL") {
             result["backends"] = QJsonArray{"OPENGL"};
             result["devices"] = QJsonArray{fakeRasterDevice()};
@@ -282,6 +321,9 @@ int fake(QCoreApplication &app, const QStringList &args) {
         if (mode == "fractional-version")
             result["blenderVersion"] = QJsonArray{5, 2, .5};
     }
+    // SKETCHYUP_FAKE_LOG=64k prints a log long enough to reach the attempt log's 64 KiB cap.
+    if (qEnvironmentVariable("SKETCHYUP_FAKE_LOG") == "64k")
+        std::cout << std::string(70000, 'x') << '\n';
     std::cout << "SKETCHYUP_PROGRESS {\"phase\":\"rendering\"}\n" << std::flush;
     write(root + "/result.json", QJsonDocument(result).toJson());
     return 0;
@@ -503,6 +545,121 @@ int main(int argc, char **argv) {
         wait(probe);
         check(probe.phase() == Phase::Succeeded && !probe.result(),
               "Probe publishes capabilities only");
+
+        // The probe's codec field: a present list is read, an absent field is reported as absent,
+        // and a malformed one fails the probe. A refused codec list never reads as an empty one.
+        {
+            qputenv("SKETCHYUP_FAKE_CODECS", "no-h264");
+            BlenderJob listed;
+            listed.probe(options("success"));
+            wait(listed);
+            qunsetenv("SKETCHYUP_FAKE_CODECS");
+            check(listed.phase() == Phase::Succeeded && listed.videoCodecs() &&
+                      *listed.videoCodecs() == QStringList{"MPEG4"},
+                  "A probe reports the codec list of its Blender, here without H.264");
+            qputenv("SKETCHYUP_FAKE_CODECS", "absent");
+            BlenderJob absent;
+            absent.probe(options("success"));
+            wait(absent);
+            qunsetenv("SKETCHYUP_FAKE_CODECS");
+            check(absent.phase() == Phase::Succeeded && !absent.videoCodecs(),
+                  "A probe without a codec field reports no codec list");
+            for (const char *build : {"malformed", "lowercase"}) {
+                qputenv("SKETCHYUP_FAKE_CODECS", build);
+                BlenderJob malformed;
+                malformed.probe(options("success"));
+                wait(malformed);
+                qunsetenv("SKETCHYUP_FAKE_CODECS");
+                check(malformed.phase() == Phase::Failed && !malformed.videoCodecs() &&
+                          malformed.report().value("code") == "INVALID_RESULT",
+                      "A malformed codec field fails the probe");
+            }
+        }
+
+        // The encode names its codec and verifies the sample entry that codec writes: avc1 with
+        // avcC for H.264, mp4v with esds for MPEG-4 Part 2. Nothing switches codecs silently.
+        QByteArray frameBytes;
+        {
+            QImage image(64, 64, QImage::Format_RGBA8888);
+            image.fill(Qt::blue);
+            QBuffer buffer(&frameBytes);
+            check(buffer.open(QIODevice::WriteOnly) && image.save(&buffer, "PNG"),
+                  "Encode frame fixture");
+        }
+        const auto framePath = files.path() + "/encode-frame.png";
+        write(framePath, frameBytes);
+        const auto encodeRequest = [&](const char *codec) {
+            BlenderVideoRequest request;
+            request.width = 64;
+            request.height = 64;
+            request.framesPerSecond = 24;
+            request.codec = codec;
+            request.frames.push_back({framePath, hash(frameBytes), qint64(frameBytes.size())});
+            return request;
+        };
+        const auto encodeWith = [&](const char *codec, const char *build, const char *entry,
+                                    BlenderJob &encoder) {
+            if (build)
+                qputenv("SKETCHYUP_FAKE_CODECS", build);
+            if (entry)
+                qputenv("SKETCHYUP_FAKE_ENTRY", entry);
+            encoder.encode(encodeRequest(codec), options("success"));
+            wait(encoder);
+            qunsetenv("SKETCHYUP_FAKE_CODECS");
+            qunsetenv("SKETCHYUP_FAKE_ENTRY");
+        };
+        {
+            BlenderJob encoder;
+            encodeWith("MPEG4", nullptr, nullptr, encoder);
+            check(encoder.phase() == Phase::Succeeded && encoder.videoResult() &&
+                      encoder.videoResult()->manifest.value("codec") == "mpeg4" &&
+                      encoder.videoResult()->manifest.value("frames") == 1,
+                  "An explicit MPEG-4 encode is verified and recorded as mpeg4");
+            BlenderJob defaults;
+            encodeWith("H264", nullptr, nullptr, defaults);
+            check(defaults.phase() == Phase::Succeeded && defaults.videoResult() &&
+                      defaults.videoResult()->manifest.value("codec") == "h264",
+                  "An H.264 encode is verified and recorded as h264");
+        }
+        {
+            BlenderJob missing;
+            encodeWith("MPEG4", "no-mpeg4", nullptr, missing);
+            check(missing.phase() == Phase::Failed && !missing.videoResult() &&
+                      missing.report().value("code") == "codec_unavailable" &&
+                      missing.report().value("message").toString().contains("MPEG-4 Part 2"),
+                  "A build without MPEG-4 refuses the MPEG-4 encode and names no code in its text");
+            BlenderJob noFallback;
+            encodeWith("H264", "no-h264", nullptr, noFallback);
+            check(noFallback.phase() == Phase::Failed && !noFallback.videoResult() &&
+                      noFallback.report().value("code") == "codec_unavailable",
+                  "A build without H.264 refuses the H.264 encode; it never switches to MPEG-4");
+            BlenderJob wrongEntry;
+            encodeWith("H264", nullptr, "mpeg4", wrongEntry);
+            check(wrongEntry.phase() == Phase::Failed && !wrongEntry.videoResult() &&
+                      wrongEntry.report().value("code") == "INVALID_RESULT",
+                  "An H.264 claim over an MPEG-4 sample entry is refused by the verifier");
+            BlenderJob wrongCodec;
+            encodeWith("MPEG4", nullptr, "h264", wrongCodec);
+            check(wrongCodec.phase() == Phase::Failed && !wrongCodec.videoResult(),
+                  "An MPEG-4 claim over an avc1 sample entry is refused by the verifier");
+            qputenv("SKETCHYUP_FAKE_ENCODE", "codec_unavailable");
+            BlenderJob refused;
+            encodeWith("H264", nullptr, nullptr, refused);
+            qunsetenv("SKETCHYUP_FAKE_ENCODE");
+            check(refused.phase() == Phase::Failed && !refused.videoResult() &&
+                      refused.report().value("code") == "codec_unavailable",
+                  "A codec refused at encode time fails the encode with its code");
+            bool rejected = false;
+            try {
+                BlenderJob unknown;
+                auto request = encodeRequest("H264");
+                request.codec = "AV1";
+                unknown.encode(request, options("success"));
+            } catch (const std::exception &) {
+                rejected = true;
+            }
+            check(rejected, "An unknown video codec is refused before any worker starts");
+        }
         for (const auto &mode :
              {"success", "unsupported", "crash", "invalid-png", "hash", "dimensions", "source",
               "device", "preset", "lighting", "losses", "missing", "fractional-version"}) {

@@ -643,7 +643,7 @@
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] cmake --preset ifc-sanitize
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] cmake --preset skp-sanitize
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus)$' --output-on-failure --no-tests=error
-[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] ctest --test-dir build/skp-sanitize -R '^(skp_package|skp_import|skp_mapping|skp_sandbox)$' --output-on-failure --no-tests=error
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ASAN_OPTIONS=detect_leaks=0] ctest --test-dir build/skp-sanitize -R '^(skp_package|skp_import|skp_mapping|skp_dc|skp_sandbox)$' --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --build --preset ifc --parallel "$(nproc)"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --build --preset ifc-app --parallel "$(nproc)"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --build --preset skp --parallel "$(nproc)"
@@ -652,8 +652,8 @@
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] cmake --preset skp
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -L full --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2
-[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import)$' --output-on-failure --no-tests=error --parallel 2
-[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_library_install|skp_library_source|sandbox|skp_sandbox)$' --output-on-failure --no-tests=error
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import|import_refusal)$' --output-on-failure --no-tests=error --parallel 2
+[tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] ctest --test-dir build/skp -R '^(skp_package|skp_import|skp_import_real|skp_mapping|skp_mapping_real|skp_dc|skp_dc_real|skp_library_install|skp_library_source|sandbox|skp_sandbox)$' --output-on-failure --no-tests=error
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] echo "key=ifc-prefix-v1-${{ steps.package-cache-key.outputs.sum }}-$sum" >> "$GITHUB_OUTPUT"
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-ifcopenshell.py check /tmp/ifcopenshell-upstream/ifcopenshell-v0.9.0.tar.gz
 [tier=full image=sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3; env: ] python scripts/vendor-ifcopenshell.py fetch /tmp/ifcopenshell-upstream

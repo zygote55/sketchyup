@@ -58,6 +58,8 @@ void Window::importTerrainDialog() {
     file.setFileMode(QFileDialog::ExistingFile);
     if (file.exec() != QDialog::Accepted || file.selectedFiles().isEmpty())
         return;
+    if (refuseUnsupportedImport(file.selectedFiles().front()))
+        return;
     importTerrainPath(file.selectedFiles().front());
 }
 void Window::importTerrainPath(const QString &path) {

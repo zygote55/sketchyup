@@ -932,3 +932,107 @@ Recorded 2026-10-26 for branch `feat/r099c-video-commands`, on top of R099.b.
   path, not its version or codec. The codec is checked when a video encodes. The worst-case
   output in `presentation.describe` is an estimate, not a measurement. The whole-batch video
   time is not measured, and the real test uses 64 by 64 frames at one sample.
+
+## Implementation notes (R099.d1)
+
+Recorded 2026-10-27 for branch `feat/r099d1-presentation-engine`, on origin/main 794cf12c. The
+engine and worker the presentation UI needs. No UI.
+
+- **Codec probe (UX_DESIGN 17.5, gap 1).** The worker's `probe` reports `videoCodecs`, the sorted
+  FFmpeg identifiers of the build. `BlenderJob::videoCodecs()` returns them validated: at most 64
+  names of 1 to 32 capitals, digits or underscores. An absent field leaves the list unset; a
+  malformed one fails the probe as `INVALID_RESULT`. `checkPresentationVideo` runs a fresh CPU
+  probe and blocks its caller until it ends, at most the probe's 15 s deadline.
+  `PresentationExport::start` and `retry` run it before the job is enqueued, so a refused video
+  creates no folder, no job and no frame. A missing chosen codec refuses with the 17.5 wording
+  ("Video is not available in this Blender: its FFmpeg build has no H.264 encoder. No frames were
+  rendered. Clear Write video to render the frames only."). A probe that does not finish, or does
+  not report a list, refuses too, and names the reason.
+- **Describe.** `presentation.describe` reports `blender.videoEncoders` whenever a Blender is found:
+  `checked`, `h264` and `mpeg4`, or `checked: false` with a message. The input schema and the
+  description are unchanged, so the assistant's pinned tool surface does not move. The probe is
+  installed at startup by the CLI and the desktop (`installPresentationVideoProbe`), so the query
+  blocks for the probe's time while a Blender starts. Without an installed probe the video is
+  reported as not checked. A video plan whose default codec is missing is refused in the describe
+  too, and names the MPEG-4 request as the alternative.
+- **Codec choice (UX_DESIGN 17.12 choice 1).** `PresentationPlan::videoCodec` is `h264` (the
+  default) or `mpeg4` (MPEG-4 Part 2 in MP4). The request field `videoCodec` is accepted only with
+  `video: true`, and the CLI's `--describe-command` and `--capabilities` document it. The worker
+  encodes the named codec and never switches; a missing encoder is `codec_unavailable`. The codec
+  reaches the worker in the encode request (the first run of this slice did not send it, and the
+  fake worker's default hid that until the real-Blender test). The verifier reads the first sample
+  entry of the video track: `avc1` with `avcC` for H.264, and `mp4v` with `esds` and no `avcC` for
+  MPEG-4. The video record's `codec` is `h264` or `mpeg4`, and the manifest has a top-level
+  `videoCodec`. The job record stores the codec; a job stored before this slice reads as H.264.
+  This replaces the R099.b and R099.c "no fallback" position with the owner's explicit choice.
+- **Engine text (UX_DESIGN 17.11, gaps 3 and 8).** Frame and video failures name the frame or the
+  preset and the reason, and the worker's code is kept in the stored report, not in the sentence:
+  "Video not written for Draft: This Blender's FFmpeg build has no H.264 encoder. The finished
+  frames are kept." The frame limit has one message, the record's, with its formula
+  (`cameraPathFrameLimitMessage`); the batch and `presentation.describe` both use it, and the
+  planner's "Camera path exceeds 240 captured frames" no longer reaches a person. The interrupted
+  message reads "SketchyUp stopped before this batch finished. Resume continues at the first
+  unverified frame." (it said "Retry", which the UI does not use).
+- **Per-frame metadata (UX_DESIGN 17.11, gap 7).** The attempt log is kept once, under
+  `diagnostics.attempts`. The duplicate `diagnostics.logTail` and the worker report copied into
+  `diagnostics` are gone; `result` keeps the worker's report without `attempts`. Measured on real
+  Blender 5.2.2 with the v30 fixture (2 frames, `Final` preset, 1920 x 1080, 256 samples; attempt
+  log 889 bytes): the per-frame JSON was **8,868 bytes before** and **4,202 bytes after**. At the
+  64 KiB log cap, a projection from the same structure gives **138,103 bytes before** and
+  **68,807 after**; the fake-worker batch test measured 68,450 bytes after, with the same cap.
+  Every field the manifest and the retry check read (`file`, `sha256`, `bytes`, `index`, `result.device`)
+  is unchanged.
+- **Stop (UX_DESIGN 17.12 choice 5).** `PresentationExport::stop()` kills the in-flight worker,
+  discards its frame and records the batch `Interrupted` at once, keeping every verified frame.
+  Closing the engine mid-batch does the same (the destructor), so the record reads interrupted before
+  any store reopens; a crash still leaves it running until reconciliation. A SIGTERM to
+  `sketchyup-cli --export-presentation` now stops this way and exits 1; SIGINT still cancels
+  (exit 130). Resume works from the stopped batch with its frames kept (tested).
+- **Tests.** Fake Blender (`blender_job_tests`, `presentation_export_tests`,
+  `presentation_cli_tests`, `presentation_command_tests`, `presentation_store_tests`): the probe's
+  codec field present, absent and malformed; an explicit MPEG-4 encode; no silent fallback; the
+  sample-entry check in both directions; `codec_unavailable` at start and at encode; the 17.5
+  wording exactly; the frame-limit message exactly; no codes in the batch text; one copy of the log
+  and the 80 KiB bound; stop and close leave `Interrupted`; retry after stop renders the other eleven
+  frames; the SIGTERM CLI stop. Real Blender 5.2.2 (`presentation_export_tests --real`, with
+  `ffprobe`): an H.264 MP4 reads back `h264,6`, and an MPEG-4 MP4 reads back `mpeg4,6`, six frames
+  per preset. `blender_job_tests --real` passed, including the real probe. `presentation.describe`
+  through the CLI reported `h264: true` and `mpeg4: true` on this machine.
+- **Not run.** The CI Blender package (17:5.2.2-2) and the sanitizer jobs were not run locally.
+  The desktop entry point (`src/app/main.cpp`) compiles; the desktop executable was not linked
+  here.
+- **Contradictions with the ADR and UX design, for the owner.**
+  1. §5 and UX_DESIGN 17.11 gap 7 say the per-frame JSON is about 207 KB, with the log in three
+     copies. The measured frame was 8,868 bytes with two copies (`result.attempts` and
+     `diagnostics.logTail`); the 207 KB figure was not reproduced. The 64 KiB-log projection is
+     138 KB before and 69 KB after.
+  2. `animation_export.cpp` still puts the full `BlenderJob` report, with its log, under
+     `diagnostics` in the one-shot export (ADR 0107 unchanged). The duplicate is there too.
+  3. The probe in `start` blocks its caller (a nested event loop) for a few seconds. The UI
+     slice should run its own probe at dialog open, and Start still runs the fresh one this slice
+     requires.
+  4. `presentation.describe` now starts a Blender when one is found, so each assistant call pays
+     that cost. Its input is unchanged, and its codec answer covers both codecs.
+- **Open for R099.d2 and R099.d3.** The Presentations dialog (d2) and the batch dialog, Jobs row,
+  results and quit prompt (d3). The quit prompt calls `stop()`.
+
+**Review fix (R099.d1): cached, non-blocking codec check.** The review found that
+`presentation.describe` launched a Blender probe on every call and waited for it on a nested event
+loop on the UI thread, so each query could freeze the desktop for up to 15 s and re-enter UI code.
+This resolves contradictions 3 and 4 above, and the "Codec probe" and "Describe" notes describe the
+blocking form that this supersedes. `PresentationVideoChecks` caches the probe per Blender
+executable, keyed by its canonical path, size and modification time. A successful answer stands
+until the key changes. A failed one stands for 60 s, so a broken Blender is not launched on every
+call. `cached()` only reads. `refresh()` starts a `BlenderJob` probe and emits `finished()` when it
+fills the cache, with no nested loop. `check()` is the CLI's blocking form. The desktop installs
+`installPresentationVideoProbe`, so `presentation.describe` reports the cached check, or
+`checked: false, pending: true` with "Checking the video encoder…" while a refresh runs. The CLI
+installs `installBlockingPresentationVideoProbe`. The describe input schema and description are
+unchanged. `PresentationExport::setVideoChecks` makes `start` and `retry` read the cache only. Without
+a fresh answer for the current Blender, they refuse before capture with "The video encoder has not
+been checked yet. Check again, then Start."; the 17.5 wording for a missing codec is unchanged. The
+batch dialog runs `refresh()` on open, reads `cached()` on Start, and refreshes first when the answer
+is missing, which covers a changed executable. The cache was chosen over passing a result in: a
+passed result would need its own key, and a caller could pass a stale one. Unset, `start` and
+`retry` check synchronously, as the CLI does. The nested event loops that remain are the CLI's only:
+`PresentationVideoChecks::check()` and the wait in `runPresentationRequest`. The desktop path has none.

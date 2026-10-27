@@ -1,5 +1,6 @@
 #include "app/ifc_sheets.hpp"
 #include "app/step_export_dialog.hpp"
+#include "io/import_refusal.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
@@ -799,8 +800,13 @@ QString skpNoticeMessage(const QString &code) {
         return QStringLiteral("Attributes over the property limits (128 a body, names of 128 "
                               "bytes), or a name another attribute already has: not imported");
     if (code == "attributeNotImported")
-        return QStringLiteral("Attributes that are a length, a vector, a nested array, an empty "
-                              "value or a number that is not finite: not imported");
+        return QStringLiteral(
+            "Attributes that are a vector, a nested array, an empty value or a number "
+            "that is not finite, or a length outside Dynamic Components: not imported");
+    if (code == "behaviourNotRun")
+        return QStringLiteral("Dynamic Component behaviour (onClick) kept as text: not run");
+    if (code == "materialFormulaNotApplied")
+        return QStringLiteral("Dynamic Component material formulas kept as text: not applied");
     if (code == "attributesOverLimit")
         return QStringLiteral("Attributes beyond the 256 one instance can hold: not imported");
     if (code == "truncatedAttributes")
@@ -888,10 +894,10 @@ QString skpNotCarriedLabel(const QString &key) {
 ImportReportFace skpImportReportFace() {
     ImportReportFace face;
     face.sheetName = "skpImportReport";
-    face.title = "SketchUp import report";
+    face.title = ".skp import report";
     face.prefix = "skpReport";
     face.identitySubject = "faces";
-    face.chipWord = "SketchUp";
+    face.chipWord = ".skp";
     face.restarts = false; // the helper has no restart protocol (ADR 0176 section 1)
     face.attention = [](const ImportReportState &state) {
         // What the import omitted (the native validator's refusals and the caps), summed over the kinds.
@@ -922,6 +928,19 @@ ImportReportFace skpImportReportFace() {
                      .arg(units.isEmpty() ? QStringLiteral("none declared") : units);
         if (report["container"].toString() == "mfc")
             lines << QStringLiteral("Best effort: a file this reader cannot read is refused, never imported in part");
+        // ADR 0178 section 6: the Dynamic Component line, when the file holds any (read-only, never
+        // run).
+        const QJsonObject dynamic = report["dynamicComponents"].toObject();
+        const qint64 kept = dynamic["metadataImported"].toInteger(0);
+        const qint64 notRun = dynamic["formulaNotEvaluated"].toInteger(0) +
+                              dynamic["materialFormulaNotApplied"].toInteger(0) +
+                              dynamic["behaviourNotRun"].toInteger(0);
+        if (kept > 0 || notRun > 0)
+            lines << QString("Dynamic Components: %1 attributes kept as read-only properties; %2 "
+                             "formulas and "
+                             "behaviours were not run.")
+                         .arg(kept)
+                         .arg(notRun);
         return lines.join('\n');
     };
     face.identity = [](const ImportReportState &state) {
@@ -935,6 +954,18 @@ ImportReportFace skpImportReportFace() {
                          .arg(item["counted"].toInteger(0))
                          .arg(item["imported"].toInteger(0))
                          .arg(item["omitted"].toInteger(0));
+        }
+        // ADR 0178 section 6: the Dynamic Component values, per level, when the file holds any.
+        const QJsonObject levels =
+            state.report["dynamicComponents"].toObject()["accounting"].toObject();
+        for (const char *level : {"instance", "definition"}) {
+            const QJsonObject item = levels[level].toObject();
+            if (item["counted"].toInteger(0) > 0)
+                lines << QString("Dynamic Components, %1 level: read %2 = imported %3 + omitted %4")
+                             .arg(QString::fromLatin1(level))
+                             .arg(item["counted"].toInteger(0))
+                             .arg(item["imported"].toInteger(0))
+                             .arg(item["omitted"].toInteger(0));
         }
         return lines.join('\n');
     };
@@ -1029,7 +1060,7 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
                              codeText != "sandboxViolation";
     RefusalSheet face;
     face.sheetName = "skpRefusal";
-    face.title = "SketchUp import refused";
+    face.title = ".skp import refused";
     face.width = 680;
     face.height = 480;
     face.prefix = "skpRefusal";
@@ -1047,15 +1078,39 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
     showRefusalSheet(parent, face);
 }
 
+// R105.a (ADR 0179 section 7.3): the named refusal for a downloaded file of a type the import
+// cannot read (a ZIP archive, COLLADA, USDZ or FBX). The reason names the format; the advice says
+// what to do next. The model is unchanged, and nothing was written.
+void showImportRefusal(QWidget *parent, const QString &fileName, const ImportRefusal &refusal) {
+    RefusalSheet face;
+    face.sheetName = "importRefusal";
+    face.title = "Import refused";
+    face.width = 640;
+    face.height = 400;
+    face.prefix = "importRefusal";
+    face.refusedLine = "Refused: " + QString::fromStdString(refusal.code);
+    face.summary =
+        QString(
+            "%1\n\nThe model was not changed. Nothing was written.\n\n%2%3\n\n"
+            "Not affected: the open model, the sheets, the assistant, your settings and recovery.")
+            .arg(QFileInfo(fileName).fileName())
+            .arg(refusal.message)
+            .arg(refusal.whatToDo.isEmpty()
+                     ? QString()
+                     : QStringLiteral("\n\nWhat to do next:\n%1").arg(refusal.whatToDo));
+    face.closeIsDefault = true;
+    showRefusalSheet(parent, face);
+}
+
 // R102.c (ADR 0176 section 9): the helper is not installed. The availability sheet with the application's
 // words; everything else is unaffected.
 void showSkpUnavailable(QWidget *parent) {
     AvailabilitySheet face;
     face.sheetName = "skpUnavailable";
-    face.title = "SketchUp import";
+    face.title = ".skp import";
     face.prefix = "skpUnavailable";
     face.text = QStringLiteral(
-        "SketchUp import is not installed.\n\n"
+        "The .skp import is not installed.\n\n"
         "The sketchyup-skp-worker helper is not installed on this machine.\n"
         "Everything else is unaffected: the open model, the sheets, the assistant, your settings and "
         "recovery all work as before.\n\n"

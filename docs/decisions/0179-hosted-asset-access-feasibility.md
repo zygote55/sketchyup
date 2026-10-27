@@ -329,6 +329,54 @@ The Verify line asks for sign-in, denied access, import losses and offline cache
 9. **Sketchfab and the others: defer Sketchfab (R105.d). Do not pursue ambientCG or BIMobject now.** *Recommended: defer.* Sketchfab needs per-user OAuth, licences can change, and its status and limits are unverified. ambientCG's 3D content is unverified, and BIMobject offers no public reference.
 10. **Licence record location: in the library entry, not in the document.** *Recommended: yes.* It keeps ADR 0174's rule that catalog provenance is not persisted in documents, so relocating or deleting a library entry breaks nothing.
 
+## Implementation notes (R105.a)
+
+**Status: implemented on `feat/r105a-user-mediated-downloads` (in review; not merged).** The branch adds no network code. Its diff against `38d55bd5` adds no `QNetwork`, socket or HTTP client (checked on 2026-10-27). The only URL-like text added is the COLLADA XML namespace in a fixture and its test.
+
+**Decision 5: the rest of the Warehouse pages, read 2026-10-27.** Each page was read through a summarising reader, so quotes are the reader's. "Last updated" dates are the page's own. The reader cut long pages at 100,000 characters.
+
+- **Canonical Terms** (`https://3dwarehouse.sketchup.com/tos/`, and without the slash). The reader returned only the title "3D Warehouse" and a logo. **Not read.** The embed copy below is still the only Terms text read.
+- **Terms, embed copy** (`https://embed-3dwarehouse-classic.sketchup.com/tos/`, "Last updated: April 1, 2017"; General Model License "March 18, 2015"). Re-read. These lines are new to §1.2:
+  - the licence grant covers uses "as Trimble may approve from time to time in its sole discretion";
+  - the written-consent route is a request "to Trimble at 3dwarehouse-tou@sketchup.com", and the consent is "prior written consent";
+  - there is no credit requirement for Models. The notice rule bars removing "product identification, proprietary, copyright, trademark or other notices". The ownership rule bars claiming "ownership of any Model which you did not create or develop";
+  - uploaders have no licence choice: "You will make your Models available to end users pursuant to the General Model License." Creative Commons is not mentioned.
+- **FAQ** (`https://help.sketchup.com/en/3d-warehouse/3d-warehouse-terms-use-faq`, "Last updated: Aug 21, 2026"). §1.2 read the first 100,000 of 153,004 characters. The rest, read on 2026-10-27, is navigation only, so the FAQ's substance is covered. It does not address attribution, Creative Commons, scraping, bots or APIs, use in software or apps, or converting files. It does address aggregation: a website or a research publication is "impermissible aggregation". Professional deliverables that contain Warehouse models are allowed as a Combined Work. A stand-alone sale is not.
+- **Downloading help** (`https://help.sketchup.com/en/3d-warehouse/downloading-model-file-formats`, "Last updated: Aug 21, 2026"). Read to 100,000 characters. It names COLLADA (.DAE) for older versions and the ZIP wrapper, which "will need to be extracted", with no steps. The format choices are in a screenshot, so the formats offered remain unverified. No other format is named.
+- **Downloading Models** (`https://help.sketchup.com/en/3d-warehouse/downloading-models`). HTTP 404 on 2026-10-27. **Not read.**
+- **Download Policy** (`https://help.sketchup.com/en/3d-warehouse-download-policy`, "Last updated: Aug 21, 2026"). **New to this ADR.** Downloads need a sign-in with a Trimble ID, and "The amount of content you can download resets daily." Free use allows "Three free downloads per day", with up to 100 a day earned by watching promotional videos. Paid plans allow 250 (Go), 1,500 (the Pro plans) and unlimited (Studio). The page says nothing on automated or bulk downloads, reselling, or the 2017 and 2018 restriction. Its text after 100,000 characters was not read. The 2020 limit in forum and search summaries (100 a day, 1,000 a month) is superseded by this page and is not relied on.
+- **Uploading Models** (`https://help.sketchup.com/en/3d-warehouse/uploading-models`, "Last updated: Aug 21, 2026"). No licence or Creative Commons choice, and no attribution text. The upload limit is 50 MB. "the renderbots create a COLLADA file, which has a .dae file extension" for non-geolocated models.
+- **Content Policy** (`https://help.sketchup.com/en/3d-warehouse/3d-warehouse-content-policy`) and **Understanding the Terms of Use** (`https://help.sketchup.com/en/3d-warehouse/understanding-terms-use`), both "Last updated: Aug 21, 2026". Neither states a rule on scraping, formats, attribution or licences. Both point to the Terms.
+- **COLLADA import** (`https://help.sketchup.com/en/sketchup/importing-and-exporting-collada-files`, "Last updated: Sep 29, 2026"). Trimble's own product imports COLLADA 1.4.1 after a validation step, and the page states no loss on import. The format is real and importable in that product. The page says nothing about the Warehouse.
+- **Trademark guidelines** (`https://www.trimble.com/legal/trademark-guidelines`, "Last Updated: July 5, 2023"). §1 allows references "appropriate and consistent with these Guidelines". §4 bars Trimble marks in "product names, business names, or trade names". §6 bars Trimble marks as nouns: "You must follow all Trimble Marks with a proper descriptor." §7 requires a notice ("Terramodel is a trademark of Trimble Inc.") and bars use that suggests ownership, sponsorship or endorsement. The reader's excerpt stops inside §7.
+- **Forum and search** (not relied on): the 2020 download limits, and the search claim that a Creative Commons choice exists. The search on 2026-10-27 found only the overview page in ten languages, which says nothing about a choice. The Creative Commons question stays **not verified**, as §1.2 records.
+
+**What decision 5 changed in the user guide.**
+- Creative Commons: the guide does not claim a choice exists or does not exist.
+- Credit: no page read requires credit. The guide says what the Terms do require, which is keeping the notices and not claiming ownership. It does not say that no attribution is ever needed.
+- Download limits: the guide states them, citing the Download Policy. §1.2 did not record them.
+- Trademark: in the guide and the support matrix, the name is followed by a descriptor ("the 3D Warehouse website"), per §6. The §7 notice appears in each section that names the service.
+
+**Code decisions (R105.a).**
+- One check, `refusedImportFile` (`src/io/import_refusal.cpp`). It judges the extension first: `.usdz`, `.dae`, `.fbx` and `.zip` are refused by name. For an extension that no importer reads, the first 64 KiB decide, by ZIP magic, the FBX header or `<COLLADA`. A file with an importer's extension is never refused on its bytes, so the importer's own refusals (`.ifczip`, ifcXML, ifcJSON) are kept.
+- Refusal codes: `zipArchive`, `collada`, `usdz`, `fbx`. The ZIP message is the sentence ADR 0179 §11 gives. The other three messages name the format, and their advice sits in the sheet or the dialog banner.
+- Where it runs: at each File › Import picker, after the file is chosen (a refusal sheet, and the model is not changed). In the IFC and STEP import dialog (a banner, and Import is off). For every `--import-*` option of `sketchyup-cli` (`INPUT_ERROR`, `refusalCode` in the details, exit 1, and no output file).
+- **The `.dae` advice says the `.skp` import is not released in this version. It must change when R102 ships.**
+
+**Contradictions and gaps.**
+- **No help links exist in the import dialogs.** `src/app` has no help-link mechanism. The brief's "link it from the import dialogs' help" is therefore not met as written. The refusal advice names the guide section in words instead.
+- **Wording rule and existing names.** ADR 0176 §8 names the feature "Import SketchUp (.skp)…", and the File › Import label, the progress and report titles, the refusal sheet's title and the file picker's filter use "SketchUp". All of them predate owner decision 8 (2026-10-27, no feature name contains "SketchUp"). None is changed in R105.a. The owner decides the rename.
+- The trademark guidelines were read only to §7 (the reader cut the excerpt there).
+- Poly Haven and Sketchfab were not re-read. They are outside decision 5's pages.
+
+**Verification (§8).**
+- **V1 (refusals):** the `import_refusal` test (132 checks) covers each fixture, its message and advice, the extract-then-import path, readable files, misnamed files, missing files and the command line. The dialog suites add the IFC dialog's refusals (`ifc_import_dialog`, S0) and the SKP picker's refusal (`skp_import_dialog`, S16).
+- **V2 (`.skp` report):** not done. It depends on R102.
+- **V3 (external references):** not changed. ADR 0109's glTF importer refuses external buffers, as before.
+- **V4 (no network):** Run on the built `sketchyup-cli` inside an empty network namespace (`unshare -rn`), on 2026-10-27. The ZIP and COLLADA refusals print their named messages and exit 1 with no output file. A one-triangle ASCII STL imports with exit 0 under the same namespace.
+- **V5 (wording):** the user guide and the support matrix say the file was downloaded by the user, and that SketchyUp is not affiliated with or endorsed by Trimble. The only added occurrence of "SketchUp" is that trademark notice. No new name contains it.
+- **Build and tests:** `cmake --preset dev` on the development host (Qt 6.12.0, which is not the CI's pinned Qt 6.11.2 image). Built and run offscreen: `import_refusal_tests` (132 checks, in CTest as `import_refusal`), `ifc_import_dialog_tests` (S0 covers the four refused types), `skp_import_dialog_tests` (S16, a ZIP in the picker), and the CLI regression suites `step_import_tests`, `stl_import_tests`, `obj_import_tests`, `dxf_import_tests`, `gltf_import_tests` and `skp_import_tests` (the last with the real helper). All passed. `ci-line-inventory.py check` and `ci-plan.py check` pass. Not run: the full CTest suite, `ifc_import_tests` (it needs the IFC helper, which the `ifc-app` job builds), the Wayland and xvfb native matrix, and the sanitizer lines. No native display fixture changed, so the `full-ci` label is not needed. The one compiler warning in an edited file (`ifc_sheets.cpp:210`, a signed comparison) predates this change.
+
 ## Sources
 
 Each page below was read on 2026-10-26. "Last updated" dates are the page's own, as shown.

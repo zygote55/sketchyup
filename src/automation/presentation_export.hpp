@@ -18,6 +18,9 @@ struct PresentationRequest {
     std::vector<QString> presets;
     QString output;
     bool video{}; // Encode each preset to video.mp4 (decision 7). Off unless requested.
+    // The video's codec, "h264" (the default) or "mpeg4" (MPEG-4 Part 2, the explicit fallback of
+    // UX_DESIGN 17.12). It is named only with video true, and it is never switched for another.
+    QString videoCodec{"h264"};
 };
 // Refuses unknown fields, both or neither path forms, a wrong apiVersion, a non-object, a
 // preset list outside one to four, a duplicate preset and a non-boolean video flag. Other limits
