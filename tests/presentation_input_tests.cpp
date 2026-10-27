@@ -621,13 +621,26 @@ int main(int argc, char **argv) {
               "The new preset takes the next free name");
         check(steps(doc) == beforeCurrent + 1, "New from current settings is one undo step");
 
-        // Escape closes; the saved paths are still there when the dialog opens again.
+        // A draft is in the dialog, not the model, so it survives closing and reopening (§17.2).
         tabs->setCurrentIndex(0);
+        refocusWidget(newPath);
+        QTest::keyClick(focused(), Qt::Key_Space);
+        check(paths->count() == 3 && pathName->text() == "Path 1",
+              "A draft is open before the dialog closes");
+        const auto draftsBefore = steps(doc);
+        // Escape closes; the saved paths are still there when the dialog opens again.
         QTest::keyClick(dialog, Qt::Key_Escape);
         check(!dialog->isVisible(), "Escape closes the dialog");
         open->trigger();
-        check(dialog->isVisible() && paths->count() == 2, "Reopening shows the saved paths");
         refocusWidget(paths);
+        check(dialog->isVisible() && paths->count() == 3 && pathName->text() == "Path 1",
+              "Reopening keeps the draft and shows the saved paths");
+        check(steps(doc) == draftsBefore && doc.cameraPaths().size() == 2,
+              "The draft is not in the model");
+        check(tabTo(cancelDraft), "Keyboard reaches Cancel for the reopened draft");
+        QTest::keyClick(focused(), Qt::Key_Space);
+        refocusWidget(paths);
+        check(paths->count() == 2, "Cancel removes the draft after reopening");
         QTest::mouseClick(close, Qt::LeftButton);
         check(!dialog->isVisible(), "Close closes the dialog");
 

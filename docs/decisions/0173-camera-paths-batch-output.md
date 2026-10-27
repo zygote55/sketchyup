@@ -932,3 +932,65 @@ Recorded 2026-10-26 for branch `feat/r099c-video-commands`, on top of R099.b.
   path, not its version or codec. The codec is checked when a video encodes. The worst-case
   output in `presentation.describe` is an estimate, not a measurement. The whole-batch video
   time is not measured, and the real test uses 64 by 64 frames at one sample.
+
+## Implementation notes (R099.d2)
+
+Recorded 2026-10-27 for branch `feat/r099d2-presentations-dialog`, on top of origin/main `794cf12c`. The design is
+[UX_DESIGN §17](../UX_DESIGN.md#17-presentation-batches); this slice builds §17.1 to §17.3, §17.8 (the path and preset
+refusals), §17.10 and the coexistence rule of §17.9. The batch dialog, the Jobs row, results and the quit prompt are R099.d3.
+
+- **Where the tools live (§17.1).** Camera > Presentations… follows Render…, and it is a public action, so Ctrl+K finds it.
+  The render sheet gains *Export presentation batch…* beside *Export scene animation…*. That button is disabled, with a
+  tooltip, until the batch dialog exists. The footer's *Export batch…* is disabled for the same reason. The palette entry
+  for the batch is not added here: an action with no dialog behind it fails the all-dialog audit. The one-shot sheet is
+  unchanged (§17.9).
+- **The dialog (§17.2, §17.3).** `PresentationsDialog` is a non-modal window with two tabs, Camera paths and Render presets.
+  Each edit calls `Viewport::editPresentations`, which runs one `camera_path.*` or `render_preset.*` batch with its own
+  history label, so each edit is one applied history step. The commands are the existing catalogue commands; the dialog
+  does not write records.
+- **The create flow.** New path makes a draft in the dialog, named `Path N` and selected. The draft is not in the model
+  until Create path, which is one `camera_path.create`. Closing the dialog keeps the draft; Cancel discards it.
+- **The live count.** The planned frames come from `cameraPathFrameCount`, the planner's formula. Within the cap the line
+  reads "✓ Plans · N of 240 frames · S scenes · T s at F fps. At this timing, up to K scenes fit". Over the cap it reads
+  "✕ Too long", with the planner's formula in small type. At the defaults, 7 scenes fit; 8 scenes plan 265 frames; 2 scenes
+  plan 49 frames.
+- **Timing.** The record stores steps. The fields show seconds (steps ÷ fps, to 0.01 s). A change of fps recomputes the
+  steps from the seconds shown, so a one-second transition stays one second. This is exact for the defaults and for any
+  seconds that are whole steps at the current fps.
+- **Refused before the commit (§17.8).** A change that would plan more than 240 frames, or that would leave a path with a
+  broken keyframe, is not sent. The fields go back to the record's values, and the banner reads "✕ Refused · … Nothing was
+  changed." with the limit. The planner's own sentence is never shown.
+- **Broken paths (§17.8, §17.11 gap 4).** The list reads "✕ broken: keyframe N names a missing scene" or "… has no camera".
+  A keyframe whose scene was deleted shows its position and its old ID ("Missing scene, old ID 17"). A broken path changes
+  only to a valid path, which the dialog checks before the commit; the engine's check is the backstop.
+- **Names.** The §17.2 and §17.3 name rule is checked before the commit. A clash uses the engine's words, "Camera path names
+  must be unique" and "Render preset names must be unique". A rename to the same name adds no step.
+- **Presets (§17.3).** The fields use the render sheet's ranges and labels: width and height 64 to 4096, samples 1 to 1024,
+  and the seed 0 to 1,000,000. The engine is a pair of radio buttons, as in the mockup. *New from current settings* reads
+  the sheet's live width, height, samples and engine (`RenderPanel::setupSettings`) once the sheet has been built, and its
+  saved values otherwise. The sheet has no seed, so the seed is 0. The sheet's own code is not refactored.
+- **Keyboard and accessibility (§17.10).** The Tab order follows the design. Close is not the default button, and the
+  dialog's buttons are not auto-default. Qt sends Enter from a field to the default button, or to the first auto-default
+  button when there is none; in testing that closed the dialog, and then pressed New path. Enter commits a field, and Esc
+  closes. A radio group is one Tab stop, and the arrow keys choose, which is Qt's rule. Every Tab stop has an accessible
+  name, and a spin box names its inner line edit too.
+- **Text size (§17.10).** The Interface text size is read when a window is built. At 200% the path list stacks above its
+  editor when the dialog is narrower than 300 px plus forty "M" widths, and the footer stays inside the dialog.
+  `presentation_input_tests` builds a 200% window to check this.
+- **Undo and redo.** Undo and redo end in `Window::sync`, which refreshes the open dialog.
+- **Teardown.** `~Window` detaches the dialog before the document goes, as it does for the R094.c editors. Without that, a
+  focused name field committed a rename into a freed document when the window closed (found by the suite).
+- **Deviations from the mockups.**
+  1. The mockup's limit and draft screens say that 2 scenes plan 37 frames. The planner's formula gives 49
+     (1 + 2 × 12 + 1 × 24), and the dialog shows 49. The mockup's figure is wrong.
+  2. *Export presentation batch…* and *Export batch…* are disabled, not enabled (R099.d3).
+  3. Close is not the default button; the mockup draws it as the primary, default button.
+  4. A draft's footer keeps Close, beside Cancel and Create path. The mockup's draft footer shows the two draft buttons only.
+  5. The keyframe status reads "camera (repeat)" and "missing: remove or replace it". The §17.8 wording is in the banner
+     and the accessible names.
+- **Contradictions with ADR 0173 or UX_DESIGN.** None found. §7 of this ADR lists *Export presentation batch…* among the
+  palette entries; it waits for R099.d3, as above.
+- **Checks run.** `presentation_input_tests` passes offscreen (`QT_QPA_PLATFORM=offscreen`) and at `QT_SCALE_FACTOR=2`
+  offscreen. `native_accessibility_audit --dialogs-keyboard=presentations` has no findings, and
+  `--dialogs-keyboard=inventory` reports an empty `uncoveredEllipsisActions`. Not run here: the X11 (xcb) and Wayland
+  display runs. This machine has no Xvfb and no compositor; CI runs them from `native.yml`.

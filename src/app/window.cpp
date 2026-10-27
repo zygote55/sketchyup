@@ -1606,7 +1606,7 @@ void Window::sync() {
         assistant_->refresh();
     if (render_)
         render_->refreshProvenance();
-    // Undo and redo reach the Presentations dialog here, since they do not emit Viewport::changed.
+    // Undo and redo end here, so the open Presentations dialog refreshes after them.
     if (presentations_)
         presentations_->refresh();
     if (workspace_ == Workspace::Sheets) {
