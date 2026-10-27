@@ -223,8 +223,8 @@ The script refuses a dirty or untracked working tree. It writes, into the output
 directory, the source archive and PKGBUILD from `package-source.sh`; `THIRD_PARTY_NOTICES`
 with a header for each file `CMakeLists.txt` installs into `share/licenses/sketchyup`
 (the SketchyUp license, Clipper2, Manifold license and authors, cgltf, CDT and its
-predicates notice, and for `sketchyup-ifc` the IfcOpenShell LGPL and GPL texts and the
-OpenCASCADE licence and exception); `SHA256SUMS`
+predicates notice, the Poly Haven CC0 texture notice (ADR 0174 Q1), and for `sketchyup-ifc` the
+IfcOpenShell LGPL and GPL texts and the OpenCASCADE licence and exception); `SHA256SUMS`
 for the archive, the notices and any `sketchyup-VERSION-PKGREL-*.pkg.tar.zst` or
 `sketchyup-ifc-VERSION-PKGREL-*.pkg.tar.zst` already
 in the directory; and `MANIFEST.json` with the version, `pkgver`/`pkgrel`, Git commit,
