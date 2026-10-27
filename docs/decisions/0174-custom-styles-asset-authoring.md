@@ -868,3 +868,92 @@ the native matrix and the package acceptance run only in CI. The fuzz target
 `parser_fuzz_catalog` was not extended for edge-stroke style entries, and the libFuzzer target was
 not built. The style decode path now takes the edge flag. `catalog_fuzz_tests`, which runs the same
 seeds and mutations under ctest, passes.
+
+## Implementation notes (R100.e)
+
+Recorded for branch `feat/r100e-style-catalog-cli`, on origin/main `fdd18797`.
+
+**Shape.** The five flags are standalone operations in `src/automation/style_catalog_cli.cpp`.
+Each takes only the options it names, and refuses the rest by name. `--input` is read and never
+written. Each operation publishes at most one new file, through `publishNewFile`, after every
+check has passed. Their options are listed once, in `styleCatalogOptions()`. The same list
+registers the parser options, fills the `styleCatalog` section of `--capabilities`, and answers
+`--describe-command` for each operation. No command is added, so the command catalogue, the MCP
+surface and `assistant_tool_surface_tests` are unchanged.
+
+**Output precedent.** The import operations write their output with `createNativeFile`, as
+`--import-skp`, `--import-ifc`, `--import-stl` and `--import-obj` do: a new file only. The generic
+`--script ... --output` path overwrites an existing file (after a `.bak` copy), so it is not the
+precedent here. The five flags refuse an existing path, as the brief requires.
+
+**Errors.** Every refusal exits 1 with the usual `{status, code, error}` object on stderr.
+`INVALID_REQUEST`: a conflicting or missing flag, an existing or link path, a wrong suffix, an
+unknown or ambiguous entry name, an empty selection, a malformed ID, an invalid library name.
+`INPUT_ERROR`: an unreadable or malformed file, a missing or hash-mismatched texture (named by
+name and asset ID), an entry refused by the catalog reader or the insertion check (named by entry,
+with the reason, which names the dependency ID), and a template. `NOT_FOUND`: a catalog file or a
+library name that does not exist.
+
+**Decisions the ADR did not settle.**
+
+1. `--entries` repeats (`--entries A --entries B`). Entry names are free text, so one flag per name
+   is unambiguous.
+2. A catalog named on the command line is a file when its value contains a slash or ends in
+   `.sketchycat`. Any other value is a library name, under the R100.d name rule. An export to a
+   path must end in `.sketchycat`, and a style export to a path must end in `.sketchystyle`.
+3. `--to-library` writes `NAME.sketchycat` into the catalog library folder. R100.c and R100.d left
+   this write to R100.e. The folder is created on first use, after the bytes are built, and an
+   existing name is refused. A failed write can leave the empty folder, never a file.
+4. Metadata: `--name` (default: the file's base name), `--description`, `--label` (repeatable),
+   `--catalog-version` (default `1.0.0`) and `--catalog-license` (default
+   `LicenseRef-Unspecified`). The name `--version` belongs to Qt's parser.
+5. Selection follows `catalog.export`: `--catalog-component ID` and `--catalog-material ID`
+   (repeatable), and `--catalog-style`. The `catalog-` prefix keeps the flags apart from the
+   report's `--material` filter, which the same parser also holds.
+6. An import into a model that already has the style is not refused. The output is written, and
+   the style reports `unchanged`. The command refuses a no-op batch; the CLI writes a copy.
+7. `--import-catalog` has no `--parent`. Components are placed at the root, as the command does by
+   default.
+8. There is no style library option. R100.a has no fixed style folder, and R100.d left that choice
+   to R100.f.
+
+**Contradictions and gaps against the ADR.**
+
+- Section 7 says `--import-catalog` lists or imports "into the open or a new document". The CLI
+  imports into `--input` and writes a new file. Listing is `--list-catalog`. Importing a template
+  as a new model is not built: R100.d refuses templates, and that stands.
+- No file format changed. No schema, fixture or decoder changed. The damaged style files that the
+  test needs (a missing texture, a flipped texture byte) are made inside the test from the R100.a
+  fixture, so no new fixture was added.
+- The new files are written with mode `0600`. That is what `publishNewFile` does for every native
+  output, and the new flags do not change it.
+
+**Tests.** `style_catalog_cli_tests` is new. It runs the built `sketchyup-cli` and is registered
+under `SKETCHYUP_BUILD_CLI`. It skips with exit 77 off Linux, as `report_schedule_cli` does. It
+covers:
+
+- discovery: `--capabilities` and `--describe-command` list all five operations and every option,
+  and agree with each other;
+- every flag on success, and the refusals listed above, each checked with its code;
+- for every refusal, the folder's file names before and after, so a partial file would show;
+- that `--input` and the catalog are unchanged (SHA-256);
+- round trips: a style exported and imported again, and the document style carried in a catalog,
+  both keep their appearance, texture bytes included;
+- the library: a listing by name, an import by name, and `--to-library` with its refusals.
+
+`HOME` and `XDG_DATA_HOME` point into a `QTemporaryDir`, so the library the test writes to is its
+own. The test runs in 0.7 s locally (`style_catalog_cli: 1` in the path map's `test_seconds`).
+
+**Checks run here.** Local build: Debug, `SKETCHYUP_BUILD_CLI=ON`, `SKETCHYUP_BUILD_DESKTOP=OFF`,
+GCC 16 with Qt 6.12. Passed: `style_catalog_cli_tests`, `command_tests`, `catalog_import_tests`,
+`report_cli_tests`, `report_schedule_cli_tests`, `inspection_tests`, `mcp_tests` and
+`assistant_tool_surface_tests`. `generate-tool-reference.py --check` passes against the new CLI.
+`ci-plan.py check` and `ci-line-inventory.py check` pass.
+
+**Not run here.** The sanitizer job, the Qt 6.8 compile, and the package acceptance (they run in
+CI). `generate-api-schemas.py --check` needs the desktop binary, which this build leaves out. It
+reads only the existing `--capabilities` sections, and none of them changed. The `presentation_cli`
+test was not run; it reads only the presentation section, which did not change.
+
+**Not measured.** The section 9 budgets. The fixtures are small, and no CLI import of a 130 MiB
+catalog entry was timed.

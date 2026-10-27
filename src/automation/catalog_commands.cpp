@@ -60,13 +60,7 @@ CatalogPackage catalogReference(const QJsonObject &request) {
 
 bool isCatalogCommand(const QString &name) { return name == QStringLiteral("catalog.import"); }
 
-QJsonObject executeCatalogCommand(Document &doc, const QJsonObject &command) {
-    if (command["command"].toString() != QStringLiteral("catalog.import"))
-        throw std::runtime_error("Unknown catalog command");
-    const auto package = catalogReference(command);
-    const auto names = textList(command["entries"]);
-    const Id parent = command.contains("parent") ? stableIdText(command["parent"], true) : 0;
-    const auto result = importCatalogEntries(doc, package, names, parent);
+QJsonObject catalogImportReport(const CatalogPackage &package, const CatalogImportResult &result) {
     QJsonArray entries;
     for (const auto &entry : result.entries) {
         QJsonObject record{{"name", entry.name},
@@ -89,6 +83,16 @@ QJsonObject executeCatalogCommand(Document &doc, const QJsonObject &command) {
             {"reusedAssets", double(result.reusedAssets)},
             {"reusedMaterials", double(result.reusedMaterials)},
             {"renamedResources", double(result.renamedResources)}};
+}
+
+QJsonObject executeCatalogCommand(Document &doc, const QJsonObject &command) {
+    if (command["command"].toString() != QStringLiteral("catalog.import"))
+        throw std::runtime_error("Unknown catalog command");
+    const auto package = catalogReference(command);
+    const auto names = textList(command["entries"]);
+    const Id parent = command.contains("parent") ? stableIdText(command["parent"], true) : 0;
+    const auto result = importCatalogEntries(doc, package, names, parent);
+    return catalogImportReport(package, result);
 }
 
 QJsonObject catalogExportQuery(const Document &doc, const QJsonObject &request) {

@@ -8,6 +8,7 @@
 #include "automation/report_commands.hpp"
 #include "automation/report_schedules.hpp"
 #include "automation/session.hpp"
+#include "automation/style_catalog_cli.hpp"
 #include "automation/terrain_commands.hpp"
 #include "integrations/glb_export.hpp"
 #include "integrations/presentation_request.hpp"
@@ -290,6 +291,9 @@ int main(int argc, char **argv) {
                       "Build an assembly source into a new .sketchylib bundle given as the one "
                       "positional argument",
                       "source"});
+    // R100.e (ADR 0174 section 7): the style and catalog operations and the options they take.
+    for (const auto &option : sketchy::styleCatalogOptions())
+        parser.addOption({option.name, option.summary, option.argument});
     try {
         // Parse without QCommandLineParser's unstructured error exit.
         if (!parser.parse(measuredExport ? originalArguments : app.arguments()))
@@ -331,6 +335,17 @@ int main(int argc, char **argv) {
             std::cout << QJsonDocument(QJsonObject{{"status", "built"},
                                                    {"output", output},
                                                    {"bytes", double(bundle.size())}})
+                             .toJson(QJsonDocument::Compact)
+                             .toStdString()
+                      << '\n';
+            return 0;
+        }
+        // R100.e (ADR 0174 section 7): the style and catalog operations. Each is standalone and
+        // refuses what it does not take. The catalog library is in the application's data folder,
+        // so the application names are set first.
+        if (const auto operation = sketchy::styleCatalogOperationOf(parser); !operation.isEmpty()) {
+            useApplicationDataNames();
+            std::cout << QJsonDocument(sketchy::runStyleCatalogCli(parser, operation))
                              .toJson(QJsonDocument::Compact)
                              .toStdString()
                       << '\n';
@@ -1311,6 +1326,15 @@ int main(int argc, char **argv) {
         }
         if (parser.isSet("describe-command") && parser.value("describe-command") == "report") {
             std::cout << QJsonDocument(sketchy::reportExportDescription()).toJson().toStdString();
+            return 0;
+        }
+        // R100.e: the style and catalog operations describe themselves under their flag names.
+        if (parser.isSet("describe-command") &&
+            !sketchy::styleCatalogCliDescription(parser.value("describe-command")).isEmpty()) {
+            std::cout << QJsonDocument(
+                             sketchy::styleCatalogCliDescription(parser.value("describe-command")))
+                             .toJson()
+                             .toStdString();
             return 0;
         }
         if (parser.isSet("describe-command") &&

@@ -227,6 +227,11 @@
       "areas": ["build", "native"]
     },
     {
+      "why": "R100.e (ADR 0174 sections 7 and 10): the style and catalog CLI flags, their refusals, the --capabilities and --describe-command shapes and the library export. The generic source and test rules already select build and native; this rule names the slice.",
+      "paths": ["src/automation/style_catalog_cli*", "tests/style_catalog_cli*"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
       "paths": [
         "tests/**"
@@ -664,6 +669,7 @@
     "report_cli": 15,
     "report_schedule": 15,
     "report_schedule_cli": 23,
-    "report_mcp": 4
+    "report_mcp": 4,
+    "style_catalog_cli": 1
   }
 }
