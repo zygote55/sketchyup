@@ -556,6 +556,9 @@ int main(int argc, char **argv) {
             return [path](QWidget *w) {
                 auto *dialog = qobject_cast<QFileDialog *>(w);
                 dialog->selectFile(path);
+                // selectFile is not always taken by the save dialog; the name field is set as well.
+                if (auto *name = dialog->findChild<QLineEdit *>("fileNameEdit"))
+                    name->setText(path);
                 // accept() is protected in QFileDialog; the meta-object call reaches it as the
                 // button does.
                 QMetaObject::invokeMethod(dialog, "accept");
@@ -631,7 +634,11 @@ int main(int argc, char **argv) {
             "The export waits for the totals, then runs");
         child<QPushButton>(panel, "quantitiesExportCsv")->click();
         verifyDeferred();
-        check(waitFor([&] { return reportClosed; }), "The selection export writes and reports");
+        if (!waitFor([&] { return reportClosed; }))
+            throw std::runtime_error("The selection export writes and reports; status \"" +
+                                     text(panel, "quantitiesStatus").toStdString() + "\", error \"" +
+                                     text(panel, "quantitiesError").toStdString() + "\", export enabled " +
+                                     std::to_string(child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled()));
         check(readFile(selectionPath).contains("#filters.selection=1"),
               "A selection file carries the selection marker");
         child<QCheckBox>(panel, "quantitiesSelectionOnly")->setChecked(false);
