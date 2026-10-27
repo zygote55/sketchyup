@@ -1308,6 +1308,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # on a worker thread), the report, the refusal and the availability sheets, and the File menu flow;
   # the helper is sketchyup-skp-worker, which the application finds beside it and never links.
   target_sources(sketchyup_desktop PRIVATE src/app/skp_import_runner.cpp src/app/skp_progress_sheet.cpp src/app/window_skp.cpp)
+  # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog (camera paths and render
+  # presets, non-modal) and its scene picker; the Camera menu opens it.
+  target_sources(sketchyup_desktop PRIVATE src/app/presentations_dialog.cpp src/app/presentation_scene_picker.cpp src/app/window_presentations.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1583,6 +1586,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     target_compile_definitions(ifc_export_dialog_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME ifc_export_dialog COMMAND ifc_export_dialog_tests)
     set_tests_properties(ifc_export_dialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                    TIMEOUT 600)
+    # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog: the Camera menu entry,
+    # the path editor and its draft create flow, the scene picker, the preset editor, the keyboard,
+    # the refusals and the broken-path display, and the text size, offscreen and on the native displays.
+    add_executable(presentation_input_tests tests/presentation_input_tests.cpp)
+    target_link_libraries(presentation_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(presentation_input_tests PRIVATE tests)
+    target_compile_definitions(presentation_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME presentation_input COMMAND presentation_input_tests)
+    set_tests_properties(presentation_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                     TIMEOUT 600)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
