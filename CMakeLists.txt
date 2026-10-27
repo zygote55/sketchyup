@@ -67,6 +67,11 @@ add_library(sketchyup_solar src/solar/solar.cpp)
 target_include_directories(sketchyup_solar PUBLIC src)
 target_link_libraries(sketchyup_core PUBLIC sketchyup_solar)
 target_compile_options(sketchyup_solar PRIVATE -Wall -Wextra -Wpedantic)
+# R107.a (ADR 0181 §2): the in-house WGS84 and UTM conversion, Qt-free, with no network.
+add_library(sketchyup_geo src/geo/geographic.cpp)
+target_include_directories(sketchyup_geo PUBLIC src)
+target_link_libraries(sketchyup_core PUBLIC sketchyup_geo)
+target_compile_options(sketchyup_geo PRIVATE -Wall -Wextra -Wpedantic)
 # R093.a parameter expression engine (ADR 0165 §2, §7): Qt-free, C++ standard
 # library and libm only. Deterministic binary64: no FP contraction, no fast-math.
 add_library(sketchyup_parameter_expression ${SKETCHYUP_LIBRARY_TYPE} src/core/parameter_expression.cpp)
@@ -139,6 +144,11 @@ if(BUILD_TESTING)
   target_link_libraries(solar_tests PRIVATE sketchyup_solar)
   target_compile_definitions(solar_tests PRIVATE SOLAR_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/noaa-solar-day.csv")
   add_test(NAME solar COMMAND solar_tests)
+  # R107.a (ADR 0181 §2.11): the UTM series against Karney's published reference rows.
+  add_executable(geo_coordinates_tests tests/geo_coordinates_tests.cpp)
+  target_link_libraries(geo_coordinates_tests PRIVATE sketchyup_geo)
+  target_compile_definitions(geo_coordinates_tests PRIVATE GEO_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/geo/karney-tm-reference.txt")
+  add_test(NAME geo_coordinates COMMAND geo_coordinates_tests)
   add_executable(annotation_record_tests tests/annotation_record_tests.cpp)
   target_link_libraries(annotation_record_tests PRIVATE sketchyup_core)
   add_test(NAME annotation_records COMMAND annotation_record_tests)
