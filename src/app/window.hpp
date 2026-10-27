@@ -152,6 +152,9 @@ class Window : public QMainWindow {
     // The printer and paper Print uses; tests point it at a PDF file.
     QPrinter *sheetPrinter();
     void libraryDialog(bool templates);
+    // R100.f3 (UX_DESIGN §18.5, §18.1): File > Asset catalogs…, and File > Export asset catalog….
+    void catalogDialog();
+    void exportCatalogDialog();
     void extensionsDialog();
     // R099.d2 (UX_DESIGN §17.1): Camera > Presentations…, the dialog on its Camera paths tab.
     void presentationsDialog();
@@ -459,6 +462,9 @@ class Window : public QMainWindow {
     int skpDeadlineSeconds_{120};
     ImportReportState skpImportReport_;
     QPushButton *skpReportChip_{};
+    // R100.f1 (UX_DESIGN §18.3): the edge texture chip, shown while the model's edge stroke names a
+    // texture that is missing. It opens the Styles tab.
+    QPushButton *edgeTextureChip_{};
     QAction *skpReportAction_{};
     void tool(Viewport::Tool tool, const QString &instruction);
     // Scope defaults to Model for model tools and viewport-only keys, otherwise Global; the

@@ -5018,6 +5018,43 @@
                                                                 "minItems": 3,
                                                                 "type": "array"
                                                             },
+                                                            "edgeStroke": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "dash": {
+                                                                        "enum": [
+                                                                            "solid",
+                                                                            "dashed",
+                                                                            "dotted",
+                                                                            "dashDot"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "opacity": {
+                                                                        "maximum": 1,
+                                                                        "minimum": 0.01,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "texture": {
+                                                                        "description": "Canonical uint64 decimal string",
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "width": {
+                                                                        "maximum": 8,
+                                                                        "minimum": 1,
+                                                                        "type": "number"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "width",
+                                                                    "opacity",
+                                                                    "dash",
+                                                                    "texture"
+                                                                ],
+                                                                "type": "object"
+                                                            },
                                                             "edgesVisible": {
                                                                 "type": "boolean"
                                                             },
@@ -5489,6 +5526,43 @@
                                                                 "maxItems": 3,
                                                                 "minItems": 3,
                                                                 "type": "array"
+                                                            },
+                                                            "edgeStroke": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "dash": {
+                                                                        "enum": [
+                                                                            "solid",
+                                                                            "dashed",
+                                                                            "dotted",
+                                                                            "dashDot"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "opacity": {
+                                                                        "maximum": 1,
+                                                                        "minimum": 0.01,
+                                                                        "type": "number"
+                                                                    },
+                                                                    "texture": {
+                                                                        "description": "Canonical uint64 decimal string",
+                                                                        "maxLength": 20,
+                                                                        "pattern": "^(0|[1-9][0-9]*)$",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "width": {
+                                                                        "maximum": 8,
+                                                                        "minimum": 1,
+                                                                        "type": "number"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "width",
+                                                                    "opacity",
+                                                                    "dash",
+                                                                    "texture"
+                                                                ],
+                                                                "type": "object"
                                                             },
                                                             "edgesVisible": {
                                                                 "type": "boolean"
@@ -8074,6 +8148,43 @@
                                                         "maxItems": 3,
                                                         "minItems": 3,
                                                         "type": "array"
+                                                    },
+                                                    "edgeStroke": {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "dash": {
+                                                                "enum": [
+                                                                    "solid",
+                                                                    "dashed",
+                                                                    "dotted",
+                                                                    "dashDot"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "opacity": {
+                                                                "maximum": 1,
+                                                                "minimum": 0.01,
+                                                                "type": "number"
+                                                            },
+                                                            "texture": {
+                                                                "description": "Canonical uint64 decimal string",
+                                                                "maxLength": 20,
+                                                                "pattern": "^(0|[1-9][0-9]*)$",
+                                                                "type": "string"
+                                                            },
+                                                            "width": {
+                                                                "maximum": 8,
+                                                                "minimum": 1,
+                                                                "type": "number"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "width",
+                                                            "opacity",
+                                                            "dash",
+                                                            "texture"
+                                                        ],
+                                                        "type": "object"
                                                     },
                                                     "edgesVisible": {
                                                         "type": "boolean"

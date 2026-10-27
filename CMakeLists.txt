@@ -1336,6 +1336,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R099.d2 (ADR 0173 section 7, UX_DESIGN 17): the Presentations dialog (camera paths and render
   # presets, non-modal) and its scene picker; the Camera menu opens it.
   target_sources(sketchyup_desktop PRIVATE src/app/presentations_dialog.cpp src/app/presentation_scene_picker.cpp src/app/window_presentations.cpp)
+  # R100.f3 (ADR 0174 section 8, UX_DESIGN 18.5 to 18.7): the Asset catalogs dialog, its
+  # missing-dependency report, the Export asset catalog dialog, and the File menu flow.
+  target_sources(sketchyup_desktop PRIVATE src/app/catalog_dialog.cpp src/app/catalog_report.cpp src/app/catalog_export_dialog.cpp src/app/window_catalog.cpp)
   # R099.d3 (ADR 0173 section 7, UX_DESIGN 17.4 to 17.7): the batch controller (no widgets), the batch
   # dialog with its live budget, and the results sheet.
   target_sources(sketchyup_desktop PRIVATE src/app/presentation_batches.cpp src/app/presentation_batch_dialog.cpp src/app/presentation_results.cpp)
@@ -1569,6 +1572,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   target_link_libraries(style_input_tests PRIVATE sketchyup_desktop Qt6::Test)
   sketchyup_native_fixture(style_viewport_tests tests/style_viewport_tests.cpp)
   target_link_libraries(style_viewport_tests PRIVATE sketchyup_desktop Qt6::Test)
+  # R100.f1 (UX_DESIGN §18.3): the edge stroke's dash, opacity, texture tiling and missing-texture hatch.
+  sketchyup_native_fixture(edge_stroke_viewport_tests tests/edge_stroke_viewport_tests.cpp)
+  target_link_libraries(edge_stroke_viewport_tests PRIVATE sketchyup_desktop Qt6::Test)
   sketchyup_native_fixture(texture_input_tests tests/texture_input_tests.cpp)
     target_link_libraries(texture_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     target_compile_definitions(texture_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -1629,6 +1635,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME presentation_input COMMAND presentation_input_tests)
     set_tests_properties(presentation_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                     TIMEOUT 600)
+    # R100.f3 (ADR 0174 sections 8 and 10, UX_DESIGN 18.5 to 18.7): the Asset catalogs dialog, its
+    # missing-dependency report and the Export asset catalog dialog, driven the way a person drives
+    # them. The catalog cases are in their own test functions; R100.f2 adds its style cases here.
+    add_executable(style_catalog_input_tests tests/style_catalog_input_tests.cpp)
+    target_link_libraries(style_catalog_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(style_catalog_input_tests PRIVATE tests)
+    target_compile_definitions(style_catalog_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME style_catalog_input COMMAND style_catalog_input_tests)
+    set_tests_properties(style_catalog_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                      TIMEOUT 600)
     # R099.d3 (UX_DESIGN 17.4 to 17.10, 17.12): the batch dialog, the Jobs batch rows, the results sheet
     # and the quit prompt, offscreen. Blender is blender_job_tests run as the worker (its --fake modes),
     # so that binary sits beside this one.

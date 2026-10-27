@@ -1193,3 +1193,203 @@ check. Its last check, that the viewport renderer is ready, failed on the offscr
 platform creates no GL context here (`graphicsDescription()` was empty). That check is unchanged from before
 R100.b and needs the Xvfb or Wayland display that the CI native lines provide. The X11 and Wayland runs were
 not done locally, because Xvfb and Weston are not installed on this machine.
+
+## Implementation notes (R100.f1)
+
+Recorded 2026-10-27 for branch `feat/r100f1-edge-stroke-rendering`, on `origin/main` at `fba4e54f`
+(R099.d1, #473). This is the first desktop slice of [UX_DESIGN §18](../UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs):
+the edge stroke's engine edits and its viewport drawing. The Styles tab controls (R100.f2) and the
+catalog dialog (R100.f3) are not in it.
+
+- **Edit surface (owner choice 3).** `document.style` takes the optional `edgeStroke` record
+  (`width` 1 to 8, `opacity` 0.01 to 1, `dash` as one of `solid`, `dashed`, `dotted`, `dashDot`, and
+  `texture` as a canonical asset id, `"0"` for none). The shared style schema (`modelStyleSchema()`)
+  carries it, so MCP, the transaction schemas and the saved-scene snapshot take it too; the
+  regenerated `docs/api` files and `tool-reference-v1.json` add only that object. The top-level
+  `required` lists are unchanged.
+- **Labelled edits.** `turnOnEdgeStroke`, `turnOffEdgeStroke`, `setEdgeStrokeWidth`,
+  `setEdgeStrokeOpacity`, `setEdgeStrokeDash` and `setEdgeStrokeTexture` (`src/io/model_style_io.hpp`)
+  each return the whole style with one control changed and the history label, so one
+  `document.style` batch with `history.label` is one undo step. The labels are "Turn on edge
+  stroke", "Turn off edge stroke", "Set edge width 2.5 px", "Set edge opacity 60 %", "Set edge dash
+  Dashed" (Solid, Dashed, Dotted, Dash-dot), "Set edge texture “Name”" and "Clear edge texture".
+  Turning the stroke on copies the profile width. A field edit on a style whose stroke is off is
+  refused, and so is a width outside 1 to 8.
+- **The assistant keeps the edge stroke off its schemas (decision 9, the preferred option).** The
+  assistant's `transaction.apply` builds its command schemas from the shared catalogue, so
+  `withoutEdgeStroke` removes the `edgeStroke` property from them, as `transaction.begin` already
+  drops `history`. The assistant's pinned surface does not move: every `toolsSha256` in
+  `tests/assistant-tool-surface-baseline.json` is unchanged, and `assistant_tool_surface_tests`
+  checks byte for byte that the assistant's tool list has no `edgeStroke`. No re-pin, no corpus
+  version and no token measurement were needed, because the assistant's bytes did not change. The
+  engine still accepts the field from any caller that sends it. The assistant cannot set the stroke
+  unless the owner asks for that later, and then the re-pin costs the measurement this record
+  describes for R095.g and R099.c.
+- **The viewport draws the stroke (UX_DESIGN §18.3).** `drawStyleProfiles` builds the profiles from
+  `profileStroke()`: while the stroke is on, its width replaces Profile width, its opacity is the
+  vertex alpha, and its dash and texture apply. With it off, the quads are the ones drawn before
+  R100.f1, and the pixels are the same: a stroke equal to Profile width (opaque, solid, untextured)
+  renders the same frame (`edge_stroke_viewport_tests`, check 1).
+  - **Dash.** `edgeDashRuns` (`src/core/model_style.hpp`) gives the on runs in logical pixels: dashed
+    8 on and 4 off, dotted 2 and 3, dash-dot 8, 3, 2, 3. Each run is one quad. Its world ends come
+    from the screen fraction σ of the visible span: t = σ·w0 / (w1 − σ·(w1 − w0)), where w0 and w1
+    are the clip-space w of the span's ends. Screen position is linear in σ, not in t, so this is
+    what makes the runs exact on screen. The pattern starts at the visible start of each edge (see
+    the gaps below).
+  - **Texture.** The edge texture is bound as the back image of every stroke vertex. Each vertex
+    carries its distance along the edge and its distance across the stroke, in logical pixels, in a
+    `noperspective` varying. The fragment shader divides by the texture's own size, so the texture
+    repeats at its own size in logical pixels and shows only the rows the stroke covers. The texel
+    colour is the edge colour (`toSrgb(texel)`, not multiplied by the edge colour), and its alpha is
+    the stroke opacity times the texel alpha.
+  - **Missing and refused textures.** A named asset with no bytes is hatched, and so is one the
+    decoder refused. The hatch is a 45° pattern (2 logical pixels on and 2 off along the stroke's
+    diagonal) in the theme's warning colour (`colors_.warning`, which is `#7a4f00` on a light model
+    background). A texture still decoding or uploading draws nothing, never a substitute colour.
+    No plain colour, default texture or other substitute is drawn anywhere.
+  - **Opacity.** Blending is on, with the framebuffer alpha kept as the transparent pass keeps it,
+    and depth writes are off, only while the stroke is translucent (opacity below 1, or a texture).
+    Opaque strokes draw exactly as before.
+  - **Chip.** The footer shows "⚠ Edge texture missing · Show in Styles" while the model's stroke
+    names a missing asset (`Viewport::edgeTextureMissing`). It opens the Styles tab through the View
+    action. The chip's text is the design's; the window's chip wiring has no test (see the gaps).
+  - **Exports.** The image export (`Viewport::exportRaster`), the measured PDF and SVG export (which
+    embeds the page raster) and the drawing-view rasters call `renderRaster`, and the sheet export's drawing-view rasters come from the same
+    viewport (`capturedRasters`, `window_sheet_export.cpp`). They all run `paintScene`, so they inherit
+    the stroke. The vector geometry path of the measured export has no profiles, as before, and no
+    vector writer reads them. None of these exports was run in this slice.
+- **Precedence of the two width fields (UX §18.8 item 2).** The stroke's width is the one drawn while
+  the stroke is on. `profileWidth` is drawn when it is off and is unchanged in the record. The
+  Colors and details control that dims it is the Styles tab's, which R100.f2 builds.
+- **Measured numbers.** The cost is one quad per visible dash run: 6 vertices of 76 bytes each. A dotted
+  edge costs about 91 bytes of vertex data for each visible pixel of its length, and dash-dot about 57.
+  The stats gained `profileSegments` (also in `sketchyup --benchmark` output). Nothing was timed at
+  scale, so the section 9 budgets remain unmeasured.
+- **Tests.**
+  - `model_style_command_tests`: each control is one labelled `document.style` edit, one undo
+    step, redone by Redo; turning the stroke off removes the sub-record; an unknown texture is
+    refused by name; the field edits refuse an off stroke.
+  - `model_style_tests`: the dash runs as pure geometry, including the clipped end and the
+    published lengths.
+  - `assistant_tool_surface_tests`: the assistant's surfaces equal the baseline, and no
+    `edgeStroke` appears in the assistant's tool list; MCP's `document.style` accepts it.
+  - `edge_stroke_viewport_tests` (new, native): a stroke equal to Profile width draws the same
+    frame; half opacity blends black over white to grey; dashed runs land where the proposed
+    lengths put them, on the screen, along each edge; the texture repeats every 8 logical pixels
+    and shows no row below its width; a missing texture hatches with no edge colour; the chip state.
+    Run locally offscreen (Mesa `swrast`) at device pixel ratio 1 and 2 (`QT_SCALE_FACTOR`): both
+    pass. The X11 and Wayland jobs run it at 1x and 2x.
+  - The existing `style_viewport_tests`, `command_tests`, `inspection_tests`,
+    `transaction_sequence_tests`, `transaction_dispatch_tests`, `automation_session_tests` and
+    `mcp_tests` pass locally.
+- **Gaps (honest).**
+  - The stroke-off path was not compared against a pre-change image. Its quads and shader branches
+    are the same as before by construction, and the equality check above covers the new code only.
+  - The dash and texture phase starts at each edge's visible start, after clipping at the screen
+    edge. An edge that is partly off screen therefore moves its pattern when the view pans. Anchoring
+    to the unclipped edge needs the projective relation over the whole edge, and an edge that crosses
+    the camera plane has no such relation.
+  - A texture that is present but refused by the decoder draws hatched. The status chip does not
+    show for it, which the design does not ask for. The viewport's "Some images are unavailable"
+    summary covers it.
+  - No window-level test covers the chip's visibility or its click.
+  - The Qt 6.8 reference build, the sanitizer job and the Wayland runs run only in CI.
+  - The §9 budget for dash runs is unmeasured, as above.
+
+## Implementation notes (R100.f3)
+
+Recorded for branch `feat/r100f3-catalog-dialog`, on origin/main `eae946ad`.
+
+**Shape.** File → Asset catalogs… follows Import terrain…, and File → Export asset catalog… follows
+Export STEP…. Neither has a default shortcut. The Asset catalogs dialog (`src/app/catalog_dialog.*`)
+lists the library folder and any file the person opens, groups their entries with a state and a
+reason, and inserts the selection as one `catalog.import` batch. The missing-dependency report is
+`src/app/catalog_report.*`, and Export asset catalog is `src/app/catalog_export_dialog.*`. No engine,
+command or format changed. The dialog runs the session's own batch: `authoring::dryRun` for the check
+and `authoring::publish` for the insert.
+
+**Insert.** Each selection change runs `authoring::dryRun` on the batch, so Insert is on only when no
+selected entry is blocked and the dry run passes. A blocked entry is named in the reason line, which
+says how many others to deselect. Pressing Insert reads each catalog the selection uses again and runs
+the dry run again. A file that changed since the listing therefore refuses the insert, and the report
+says why. The batch has one `catalog.import` per catalog and one undo step. Its label is "Insert
+component “X”", "Insert material “X”", "Apply style “X”", or "Insert N entries from “Catalog”" (or
+"Insert N entries" when the selection spans catalogs). Components are placed at the root, which is the
+model's origin.
+
+**Batch form.** A catalog in the default library folder is named with `library`, as MCP does. Any other
+catalog, from a chosen folder or opened by hand, is sent as its bytes (`catalog`, base64url). The MCP
+schema caps that field at 64 KiB, but the desktop batch runs in process and does not check the schema,
+so a larger catalog inserts from the desktop. This is not measured with a large catalog (see the
+budgets below).
+
+**Reasons.** A dependency's state (missing, tampered, not importable, not earlier) comes from the
+reader's per-entry records, and the sentences and report words are made from it. The reader's own text
+is used only for an entry whose own hash or payload fails.
+
+**Report.** The accounting follows UX_DESIGN §16.5: `0 + refused + not inserted = requested`, with the
+banner, the counts, the bar and the legend, and the three groups (Needs your attention, Not inserted,
+Notices). Its two row actions return to the dialog: Select the other entries, and Remove “X” from
+selection. Deviations from the design:
+
+- The IFC report builder (`ImportReportFace`) has flat label and value rows and no row actions. The
+  catalog report therefore uses its own `QTreeWidget` on the shared `ReportSheet`, and reuses the IFC
+  report's accounting bar (`addSegmentBar`, now declared in `ifc_sheets.hpp` with an object name).
+- The bar fills with three colours, not with the solid, hatched and cross-hatched fills of §18.7. The
+  legend and the identity line carry the numbers in words, so no colour is the only carrier.
+- **Save report…** is not built. The mockup has it; **Copy report** is built.
+
+**Export.** The dialog builds the bytes with `exportCatalog`, which has no 192 KiB query cap, and writes
+them with `writeCatalog`, which publishes a new file only. An existing name is refused with the IFC
+export's wording before anything is written. A missing record refuses the export and names it. The
+mockup has no export-catalog screen, so the dialog's fields are the catalog's name, description,
+labels, version (default `1.0.0`) and licence identifier (default `LicenseRef-Unspecified`), the
+model's components and materials (all checked by default), the document style, and a note on what is
+not written (tags, scenes and loose geometry).
+
+**Folders (§18.8 gap 4).** Choose folder… is remembered as the preference `catalogFolder`. The batch,
+`catalog.library`, MCP and the CLI read only the default folder. The button's tooltip and the user guide
+say so. Opened files are listed for the life of the dialog and are not remembered.
+
+**Keyboard and text size.** The list is one Tab stop. Space toggles the current entry, and Ctrl+A selects
+the insertable entries that are visible. Enter on an entry inserts when Insert is on. The footer's Insert
+and Cancel are not automatic defaults, so Enter in the search field does nothing. While testing, Enter in
+the search field opened Choose folder…, because that button was an auto-default. Above 125% text, and
+when narrow, the list stacks above its details.
+
+**Tests.** `style_catalog_input_tests` (new) covers each path in the brief's test list: the File menu
+order and shortcuts, the folder choice and its memory, the grouped list and its states, a refused
+catalog, a file over 130 MiB, search and the Kind filter, the details pane, Insert off with its reason,
+templates refused, one undo step for one entry and for four, the keyboard path, a refused insert that
+reads the file again and opens the report (both row actions), Export asset catalog (nothing chosen, a
+new file that re-reads as two importable entries, an existing file refused) and 200% text. The fixtures
+come from `catalog_fixtures.hpp`. The audited cases `asset-catalogs` and `export-asset-catalog` are in
+the `catalogs` group, and both pass the offscreen audit with no uncovered ellipsis action. The suite is
+registered in the four native display lines of `native.yml` and in `ci-path-map.json`.
+
+**Run locally.** `style_catalog_input_tests` passed offscreen at 1× and at `QT_SCALE_FACTOR=2`, and
+`native_accessibility_audit --dialogs-keyboard=catalogs` passed offscreen. `ifc_export_dialog_tests`,
+`step_export_dialog_tests` and `step_import_dialog_tests` passed offscreen, since they share the report
+bar. The X11 and Wayland runs need Xvfb or Weston, which this machine does not have, so they run only in
+CI.
+
+**Not measured.** The §9 budgets: an insert of a large (130 MiB) catalog, and the dry run that runs on
+each selection change, which is not debounced. The desktop's inline form copies the catalog bytes for
+each dry run, so a large catalog may stall the selection. The fixtures are small.
+
+**Gaps against the design:**
+
+- The neutral result (the model already has the entries) is written, but no test runs it.
+- The engine's document-level refusal shown as "Insert is off: …" is not tested, since no fixture
+  produces one.
+- The report's keyboard rows (Up, Down, Right, Left, Home, End) rely on the tree's defaults and are not
+  tested. The accessible names of the report's rows are not checked.
+- The stacking rule for a narrow dialog is in the code but not tested. At 200% the dialog's minimum width
+  is above the rule's 900 px, so the suite checks only the text-size path.
+- Templates are listed and refused. No command opens a catalog template as a new model (R100.d gap 3).
+- Placement is at the origin only (UX_DESIGN §18.8 gap 6). Component definitions shared by two entries are
+  stored in each entry (R100.d note).
+
+**Contradictions.** None with the ADR decisions. The brief cites "ADR 0174 §6.4" for the report. ADR 0174
+has no §6.4. The report's layout is the import report of UX_DESIGN §16.5, and that section cites the
+§6.4 component, which is a UX_DESIGN section, not an ADR one.
