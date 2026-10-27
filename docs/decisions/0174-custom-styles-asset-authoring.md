@@ -1,6 +1,6 @@
 # Custom styles and asset authoring
 
-Status: **Accepted (2026-10-23)**: owner decisions 1 to 12 approved as recommended on 2026-10-23; question Q1 (the preset list and texture licences) answered on 2026-10-27 (procedural or CC0 only; the drafted list in the Q1 section below awaits the owner's sign-off). Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
+Status: **Accepted (2026-10-23)**: owner decisions 1 to 12 approved as recommended on 2026-10-23; question Q1 (the preset list and texture licences) answered on 2026-10-27 (procedural or CC0 only; the 15-preset list signed off by the owner on 2026-10-27). Roadmap [R100](../PR_ROADMAP.md#r100) (M10, scope row
 [F06](../SCOPE.md)). R100 requires [R089](../PR_ROADMAP.md#r089) (the 1.0 gate,
 accepted; 1.3.0 is the current release), [R062](../PR_ROADMAP.md#r062) (viewport
 styles and display controls, delivered) and [R079](../PR_ROADMAP.md#r079)
@@ -561,7 +561,7 @@ Each carries a recommended default and a one-line reason.
 
 ## Q1 preset list (proposed for owner sign-off, 2026-10-27)
 
-**Status: drafted, not signed off, not bundled.** This list was drafted on 2026-10-27 under the owner's Q1 answer (procedural textures, or CC0 textures from Poly Haven or ambientCG). The owner signs the list off before R100.b bundles anything. This section commits no texture bytes. The downloads and the embedded files stay in `.local/r100b-textures/`, outside git. The one image committed is the review contact sheet, [`mockups/presets/contact-sheet.png`](../mockups/presets/contact-sheet.png) (110 KiB). It is derived from the nine listed Poly Haven assets (credited below) and from throwaway procedural previews. It is not the generator's output.
+**Status: signed off by the owner on 2026-10-27, not yet bundled.** The owner approved the 15 presets and the size budget below, with one change: R100.b makes the floor tile's grout clearly visible (it is nearly invisible in the preview). The owner also accepted ambientCG's site-wide CC0 statement as sufficient for future presets (no per-asset licence line needed there); no ambientCG asset is in this list. Originally: drafted, not signed off, not bundled. This list was drafted on 2026-10-27 under the owner's Q1 answer (procedural textures, or CC0 textures from Poly Haven or ambientCG). The owner signs the list off before R100.b bundles anything. This section commits no texture bytes. The downloads and the embedded files stay in `.local/r100b-textures/`, outside git. The one image committed is the review contact sheet, [`mockups/presets/contact-sheet.png`](../mockups/presets/contact-sheet.png) (110 KiB). It is derived from the nine listed Poly Haven assets (credited below) and from throwaway procedural previews. It is not the generator's output.
 
 ### The list
 
