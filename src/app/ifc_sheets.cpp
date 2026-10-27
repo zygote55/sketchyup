@@ -800,8 +800,13 @@ QString skpNoticeMessage(const QString &code) {
         return QStringLiteral("Attributes over the property limits (128 a body, names of 128 "
                               "bytes), or a name another attribute already has: not imported");
     if (code == "attributeNotImported")
-        return QStringLiteral("Attributes that are a length, a vector, a nested array, an empty "
-                              "value or a number that is not finite: not imported");
+        return QStringLiteral(
+            "Attributes that are a vector, a nested array, an empty value or a number "
+            "that is not finite, or a length outside Dynamic Components: not imported");
+    if (code == "behaviourNotRun")
+        return QStringLiteral("Dynamic Component behaviour (onClick) kept as text: not run");
+    if (code == "materialFormulaNotApplied")
+        return QStringLiteral("Dynamic Component material formulas kept as text: not applied");
     if (code == "attributesOverLimit")
         return QStringLiteral("Attributes beyond the 256 one instance can hold: not imported");
     if (code == "truncatedAttributes")
@@ -923,6 +928,19 @@ ImportReportFace skpImportReportFace() {
                      .arg(units.isEmpty() ? QStringLiteral("none declared") : units);
         if (report["container"].toString() == "mfc")
             lines << QStringLiteral("Best effort: a file this reader cannot read is refused, never imported in part");
+        // ADR 0178 section 6: the Dynamic Component line, when the file holds any (read-only, never
+        // run).
+        const QJsonObject dynamic = report["dynamicComponents"].toObject();
+        const qint64 kept = dynamic["metadataImported"].toInteger(0);
+        const qint64 notRun = dynamic["formulaNotEvaluated"].toInteger(0) +
+                              dynamic["materialFormulaNotApplied"].toInteger(0) +
+                              dynamic["behaviourNotRun"].toInteger(0);
+        if (kept > 0 || notRun > 0)
+            lines << QString("Dynamic Components: %1 attributes kept as read-only properties; %2 "
+                             "formulas and "
+                             "behaviours were not run.")
+                         .arg(kept)
+                         .arg(notRun);
         return lines.join('\n');
     };
     face.identity = [](const ImportReportState &state) {
@@ -936,6 +954,18 @@ ImportReportFace skpImportReportFace() {
                          .arg(item["counted"].toInteger(0))
                          .arg(item["imported"].toInteger(0))
                          .arg(item["omitted"].toInteger(0));
+        }
+        // ADR 0178 section 6: the Dynamic Component values, per level, when the file holds any.
+        const QJsonObject levels =
+            state.report["dynamicComponents"].toObject()["accounting"].toObject();
+        for (const char *level : {"instance", "definition"}) {
+            const QJsonObject item = levels[level].toObject();
+            if (item["counted"].toInteger(0) > 0)
+                lines << QString("Dynamic Components, %1 level: read %2 = imported %3 + omitted %4")
+                             .arg(QString::fromLatin1(level))
+                             .arg(item["counted"].toInteger(0))
+                             .arg(item["imported"].toInteger(0))
+                             .arg(item["omitted"].toInteger(0));
         }
         return lines.join('\n');
     };

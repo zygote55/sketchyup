@@ -118,6 +118,46 @@ void coordinate(double v, const char *what) {
     require(std::isfinite(v) && std::abs(v) <= 1e6,
             std::string(what) + " is not finite or beyond 1e6 m");
 }
+
+// One attribute entry of a manifest list (R102.b, R104.a): an instance's, or a definition's. The
+// kinds are checked here, once, for both lists.
+SkpPackageAttribute decodeAttribute(const QJsonValue &entry) {
+    const auto a = object(entry, "attribute");
+    onlyKeysOr(a, {"dictionary", "key", "type", "value"}, {"truncated"}, "attribute");
+    SkpPackageAttribute attribute;
+    attribute.dictionary =
+        text(a["dictionary"], SkpPackageLimits::nameBytes, "attribute dictionary");
+    attribute.key = text(a["key"], SkpPackageLimits::nameBytes, "attribute key");
+    require(!attribute.key.empty(), "attribute key is empty");
+    const auto type = text(a["type"], 16, "attribute type");
+    if (a.contains("truncated")) {
+        require(a["truncated"].isBool(), "attribute truncated flag must be a boolean");
+        attribute.truncated = a["truncated"].toBool();
+    }
+    if (type == "string") {
+        attribute.kind = SkpPackageAttribute::Kind::String;
+        attribute.text = text(a["value"], SkpPackageLimits::stringBytes, "attribute value");
+    } else if (type == "number") {
+        attribute.kind = SkpPackageAttribute::Kind::Number;
+        attribute.number = finite(a["value"], "attribute value");
+    } else if (type == "boolean") {
+        require(a["value"].isBool(), "a boolean attribute holds no boolean");
+        attribute.kind = SkpPackageAttribute::Kind::Boolean;
+        attribute.flag = a["value"].toBool();
+    } else if (type == "length") {
+        attribute.kind = SkpPackageAttribute::Kind::Length;
+        attribute.number = finite(a["value"], "attribute value");
+    } else if (type == "unsupported") {
+        attribute.kind = SkpPackageAttribute::Kind::Unsupported;
+        attribute.text = text(a["value"], 16, "attribute value");
+        require(attribute.text == "vector" || attribute.text == "array" ||
+                    attribute.text == "null" || attribute.text == "notFinite",
+                "an unsupported attribute names no known kind of value");
+    } else {
+        fail("attribute type is unknown");
+    }
+    return attribute;
+}
 // The image magic: the package holds the bytes as stored (R102.a; R102.b re-encodes to
 // PNG / JPEG at the mapping stage and applies the 4096 x 4096 cap there).
 bool knownImageMagic(const std::vector<std::uint8_t> &bytes) {
@@ -422,7 +462,7 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
     for (std::size_t i = 0; i < definitionEntries.size(); ++i) {
         const auto d = object(definitionEntries[i], "definition");
         onlyKeysOr(d, {"name", "guid", "vertices", "edges", "faces", "instances"},
-                   {"instanceNames", "instanceAttributes"}, "definition");
+                   {"instanceNames", "instanceAttributes", "attributes"}, "definition");
         const auto expectedVertices =
             std::uint64_t(integer(d["vertices"], 0, SkpPackageLimits::vertices, "definition vertices"));
         const auto expectedEdges =
@@ -574,35 +614,18 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
             for (std::size_t n = 0; n < lists.size(); ++n) {
                 const auto list = array(lists[n], SkpPackageLimits::attributesPerInstance, "an instance's attributes");
                 for (const auto &entry : list) {
-                    const auto a = object(entry, "attribute");
-                    onlyKeysOr(a, {"dictionary", "key", "type", "value"}, {"truncated"},
-                               "attribute");
-                    SkpPackageAttribute attribute;
-                    attribute.dictionary = text(a["dictionary"], SkpPackageLimits::nameBytes, "attribute dictionary");
-                    attribute.key = text(a["key"], SkpPackageLimits::nameBytes, "attribute key");
-                    require(!attribute.key.empty(), "attribute key is empty");
-                    const auto type = text(a["type"], 16, "attribute type");
-                    if (a.contains("truncated")) {
-                        require(a["truncated"].isBool(),
-                                "attribute truncated flag must be a boolean");
-                        attribute.truncated = a["truncated"].toBool();
-                    }
-                    if (type == "string") {
-                        attribute.kind = SkpPackageAttribute::Kind::String;
-                        attribute.text = text(a["value"], SkpPackageLimits::stringBytes, "attribute value");
-                    } else if (type == "number") {
-                        attribute.kind = SkpPackageAttribute::Kind::Number;
-                        attribute.number = finite(a["value"], "attribute value");
-                    } else if (type == "boolean") {
-                        require(a["value"].isBool(), "a boolean attribute holds no boolean");
-                        attribute.kind = SkpPackageAttribute::Kind::Boolean;
-                        attribute.flag = a["value"].toBool();
-                    } else {
-                        fail("attribute type is unknown");
-                    }
-                    definition.instances[n].attributes.push_back(std::move(attribute));
+                    definition.instances[n].attributes.push_back(decodeAttribute(entry));
                     attributesTotal++;
                 }
+            }
+        }
+        // R104.a: the definition's own dynamic_attributes values (optional, as the instances' are).
+        if (d.contains("attributes")) {
+            const auto list = array(d["attributes"], SkpPackageLimits::attributesPerInstance,
+                                    "definition attributes");
+            for (const auto &entry : list) {
+                definition.attributes.push_back(decodeAttribute(entry));
+                attributesTotal++;
             }
         }
 

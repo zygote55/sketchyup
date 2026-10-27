@@ -821,6 +821,18 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
       add_test(NAME skp_mapping COMMAND skp_mapping_tests)
       add_test(NAME skp_mapping_real COMMAND skp_mapping_tests --real)
       set_tests_properties(skp_mapping_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+      # R104.a and R104.c (ADR 0178, D1.1 to D1.9): the Dynamic Component metadata through the helper, against the
+      # self-authored dc_*.skp fixtures and the package edits the writer cannot make; skp_dc_real reads the owner's
+      # file when SKETCHYUP_SKP_CORPUS is set, and prints aggregate counts only.
+      add_executable(skp_dc_tests tests/skp_dc_tests.cpp)
+      target_link_libraries(skp_dc_tests PRIVATE sketchyup_io)
+      target_include_directories(skp_dc_tests PRIVATE src tests)
+      target_compile_definitions(skp_dc_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        SKP_WORKER_PATH="$<TARGET_FILE:sketchyup-skp-worker>")
+      add_test(NAME skp_dc COMMAND skp_dc_tests)
+      set_tests_properties(skp_dc PROPERTIES TIMEOUT 300)
+      add_test(NAME skp_dc_real COMMAND skp_dc_tests --real)
+      set_tests_properties(skp_dc_real PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
       # R102.d (ADR 0176 section 9): the helper's linkage and notices (scripts/verify-skp-library.py).
       # The install check reads this build's installed main component; the source check reads the
       # repository's pins and install lines, so it exists in a git checkout only.

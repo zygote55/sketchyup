@@ -99,6 +99,11 @@ Rejected. Dynamic Components formulas include actions and host state (`onClick`,
 F02 asks for compatibility to be defined separately. SketchyUp neither reads nor
 writes Dynamic Component attributes; the release notes will say so.
 
+> **Note (R104.a, [ADR 0178](0178-dynamic-live-component-feasibility.md), 2026-10-27).** The sentence above
+> described 1.2 and 1.3. The `.skp` import (R102, on `main`) reads the `dynamic_attributes` values of a
+> Dynamic Component as read-only properties, and it neither evaluates their formulas nor runs their
+> behaviour. The rejection of a Dynamic Components–compatible formula language in this section stands.
+
 ## Decision
 
 Adopt (a). The sections below define the parameter model, the expression language,
