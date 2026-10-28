@@ -33,4 +33,13 @@ int runProbe(const std::string& input, Progress& progress);
 // The model's unit-system string to metres per raw unit.
 double unitScale(const std::string& units);
 
+// The newest SketchUp major version a real corpus file covers (ADR 0176 section 2). The owner's
+// 2024 file is version 24. Above it a file is read and labelled "newerThanTested". This moves only
+// when a newer real file is verified (R102.f, F1).
+inline constexpr int kNewestTestedMajor = 24;
+
+// True when a file's major version is above the newest one the corpus covers. A version that could
+// not be read (-1) is not newer.
+bool isNewerThanTested(int major);
+
 }  // namespace sketchyup::skp

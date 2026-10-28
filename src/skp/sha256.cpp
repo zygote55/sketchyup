@@ -32,10 +32,14 @@ std::uint32_t rotr(std::uint32_t value, unsigned bits) {
 void Sha256::update(const std::uint8_t* data, std::size_t bytes) {
   totalBytes_ += bytes;
   buffer_.insert(buffer_.end(), data, data + bytes);
-  while (buffer_.size() >= 64) {
-    block(buffer_.data());
-    buffer_.erase(buffer_.begin(), buffer_.begin() + 64);
+  // The whole blocks are hashed in place and dropped once. Erasing each block from the front moved the
+  // rest of the buffer every time, so a large input took quadratic time (R102.f: 16 MiB took minutes).
+  std::size_t consumed = 0;
+  while (buffer_.size() - consumed >= 64) {
+    block(buffer_.data() + consumed);
+    consumed += 64;
   }
+  buffer_.erase(buffer_.begin(), buffer_.begin() + static_cast<std::ptrdiff_t>(consumed));
 }
 
 void Sha256::block(const std::uint8_t* data) {

@@ -3,13 +3,24 @@
 #include "skp/json_out.hpp"
 #include "skp/progress.hpp"
 
+#include <cstdint>
 #include <filesystem>
 
 namespace sketchyup::skp {
+namespace {
+
+// The terminal queries glibc's isatty issues on a character device, stdout as /dev/null (ADR 0183
+// section 6.5, item 2; R102.e F2). TCGETS2 is what the current glibc uses, TCGETS the older request.
+// The kernel answers both with ENOTTY on /dev/null. Any other ioctl request is EPERM (ADR 0183 S3).
+constexpr std::uint32_t kTcgets = 0x5401;
+constexpr std::uint32_t kTcgets2 = 0x802C542A;
+
+} // namespace
 
 sandbox::Policy skpSandboxPolicy(const std::string& input, const std::string& output) {
     using sandbox::Action;
     using sandbox::FileAccess;
+    using sandbox::oneOfArgument;
 
     sandbox::Policy policy;
     policy.files.push_back({input, FileAccess::readOnly});
@@ -58,6 +69,11 @@ sandbox::Policy skpSandboxPolicy(const std::string& input, const std::string& ou
         {"tgkill", Action::ownProcessOnly},
         {"getpid", Action::allow},
         {"gettid", Action::allow},
+        // ioctl: the terminal check of stdio (R102.e F2). With stdout on /dev/null, glibc asks for
+        // TCGETS2 (or TCGETS, the older request); without this rule the default kill ends the helper.
+        // Its value list is the text and extension policies' (ADR 0183 S3): a single-value rule
+        // (whenArgument, as IFC's and prctl's) cannot name both requests.
+        oneOfArgument("ioctl", 1, {kTcgets, kTcgets2}),
 #ifdef SKP_WORKER_NO_ADDRESS_LIMIT
         // The sanitizer builds (ASan and UBSan, and the fuzzer build) only: their runtimes make these calls
         // after main. UBSan's type cache opens a pipe on a first-time vptr check; ASan gives each thread an

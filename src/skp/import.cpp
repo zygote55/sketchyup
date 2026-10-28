@@ -190,6 +190,8 @@ double unitScale(const std::string& units) {
   return kInchesToMetres;
 }
 
+bool isNewerThanTested(int major) { return major > kNewestTestedMajor; }
+
 int runProbe(const std::string& input, Progress& progress) {
   progress.phase("read");
   const std::vector<std::uint8_t> bytes = readWholeFile(input, 1024 * 1024 * 1024);
@@ -368,7 +370,7 @@ int runImport(const SkpImportOptions& options, Progress& progress) {
   progress.phase("package");
   SkpPackage package;
   SkpReport report;
-  if (major > 25) report.notice("newerThanTested");
+  if (isNewerThanTested(major)) report.notice("newerThanTested");
   package.formatVersion = model.version;
   package.container = major > 20 ? "vff" : "mfc";
   package.units = units;
