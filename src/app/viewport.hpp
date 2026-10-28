@@ -34,6 +34,7 @@ class QTimer;
 class QVariantAnimation;
 namespace sketchy {
 struct ComponentBundle; // io/library_bundle.hpp
+struct StyleEdit; // io/model_style_io.hpp
 class TerrainPreviewWorker; // app/terrain_preview_worker.hpp
 class Viewport : public QOpenGLWidget {
     Q_OBJECT
@@ -381,6 +382,12 @@ class Viewport : public QOpenGLWidget {
     bool measurements(const QString &value);
     void setTheme(const ThemeColors &colors);
     void applyModelStyle(const ModelStyle &style);
+    // R100.f2 (UX_DESIGN §18.3): one labelled edit of the style, through document.style. A no-op
+    // edit changes nothing.
+    void applyStyleEdit(const StyleEdit &edit);
+    // R100.f2 (UX_DESIGN §18.2): applies a `.sketchystyle` file through style.apply, as one edit
+    // labelled "Apply style “name”". Returns the command's status, "applied" or "unchanged".
+    QString applyStyleFile(const QByteArray &bytes, const QString &name);
     void applyModelSolar(const SolarSettings &solar);
     QPointF project(Vec3 p) const;
     std::pair<Id, Id> pick(QPointF point) const;

@@ -1183,6 +1183,19 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          {},
          {childOf(ctx, named("styleDialog"), "styleBackgroundColor")}});
+    // R100.f2 (UX_DESIGN §18.2, §18.7): the style dialogs. Import style opens after its file chooser.
+    add({"style-import", "styles", "Import style",
+         "File > Import style… (palette)", fresh, viaPalette("Import style…"),
+         named("importStyleDialog"), Enter::Accept, "Apply to model", Return::Viewport, {}, {},
+         {chooseFile("Import style", source("tests/fixtures/edge-style-v1.sketchystyle"))},
+         "The chooser comes first; Enter applies the file's style in one undo step."});
+    add({"style-export", "styles", "Export style",
+         "File > Export style… (palette)", fresh, viaPalette("Export style…"),
+         named("exportStyleDialog"), Enter::DefaultOnly, "Export to file…", Return::Viewport});
+    add({"style-save-library", "styles", "Save style to library",
+         "View > Model styles (palette), then Save to library… (Tab, Space)", fresh,
+         viaPanel("Model styles", "styleSaveLibrary"), named("saveStyleDialog"),
+         Enter::DefaultOnly, "Save to library", Return::OpenerPanel});
     add({"scene-update", "styles", "Update saved scene",
          "View > Saved scenes (palette), then Update… (Tab, Space)",
          loadRow("tests/fixtures/saved-scenes-v18.sketchyup", "savedScenesList"),
