@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Helper process sandbox, socket calls (R109 S1, S3, S4 and S6, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)):
+  the `.skp`, text and extension helpers now refuse a socket call with an error (EPERM), as the IFC helper already
+  does, instead of ending. A text helper whose Qt logger opens a socket for a missing locale carries on and logs
+  nothing for it.
+- Sandbox check in CI (R109 S6, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)): the fast tier runs
+  `sandbox_available`, a required check. It fails when the runner has no Landlock, no `PR_SET_NO_NEW_PRIVS` or no
+  seccomp filter, and nothing skips it. Its job log records the runner's kernel and Landlock ABI. This change
+  closes R109, the helper process sandbox.
+
 - Presentation batch, changed Blender (R099.e2, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md)): if
   you change the Blender after opening the batch dialog and press Start, Start checks the video encoder again and
   says so, instead of refusing with the H.264 message. The batch starts with video when that Blender has H.264. If

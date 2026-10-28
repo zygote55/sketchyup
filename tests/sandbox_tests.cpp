@@ -70,8 +70,27 @@ std::vector<SyscallRule> reporting() {
     return {{"write", Action::allow}, {"exit_group", Action::allow}, {"close", Action::allow}};
 }
 
+// The calls the sanitizer runtimes make after main: ASan gives each thread an alternate signal
+// stack, reads the thread's CPU affinity and its id when the thread starts, and releases the pages
+// of freed blocks, and UBSan opens a pipe for its type cache. The helpers allow the same calls in
+// their sanitizer builds only (SKP_WORKER_NO_ADDRESS_LIMIT; ADR 0183 S6). fcntl is not here: the
+// fcntl checks below need every other fcntl command refused.
+std::vector<SyscallRule> sanitizerRuntime() {
+    std::vector<SyscallRule> rules;
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+    rules = {{"pipe2", Action::allow},
+             {"sigaltstack", Action::allow},
+             {"madvise", Action::allow},
+             {"gettid", Action::allow},
+             {"sched_getaffinity", Action::allow}};
+#endif
+    return rules;
+}
+
 std::vector<SyscallRule> withReporting(std::vector<SyscallRule> rules) {
     for (const SyscallRule &rule : reporting())
+        rules.push_back(rule);
+    for (const SyscallRule &rule : sanitizerRuntime())
         rules.push_back(rule);
     return rules;
 }
@@ -218,18 +237,23 @@ void testThreadOnlyClone() {
 
     const ChildResult threaded = inChild([] {
         Policy policy;
-        policy.syscalls = withReporting({{"clone", Action::threadOnly},
-                                         {"clone3", Action::notImplemented},
-                                         {"mmap", Action::allow},
-                                         {"mprotect", Action::allow},
-                                         {"munmap", Action::allow},
-                                         {"futex", Action::allow},
-                                         {"set_robust_list", Action::allow},
-                                         {"rseq", Action::allow},
-                                         {"rt_sigprocmask", Action::allow},
-                                         {"rt_sigaction", Action::allow},
-                                         {"madvise", Action::allow},
-                                         {"exit", Action::allow}});
+        std::vector<SyscallRule> rules = withReporting({{"clone", Action::threadOnly},
+                                                        {"clone3", Action::notImplemented},
+                                                        {"mmap", Action::allow},
+                                                        {"mprotect", Action::allow},
+                                                        {"munmap", Action::allow},
+                                                        {"futex", Action::allow},
+                                                        {"set_robust_list", Action::allow},
+                                                        {"rseq", Action::allow},
+                                                        {"rt_sigprocmask", Action::allow},
+                                                        {"rt_sigaction", Action::allow},
+                                                        {"madvise", Action::allow},
+                                                        {"exit", Action::allow}});
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+        // The sanitizer's thread start calls fcntl; the text helper allows these three commands.
+        rules.push_back(oneOfArgument("fcntl", 1, {F_SETFD, F_GETFL, F_SETFL}));
+#endif
+        policy.syscalls = rules;
         if (apply(policy))
             return 3;
         bool ran = false;

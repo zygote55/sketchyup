@@ -161,6 +161,21 @@
       ]
     },
     {
+      "why": "R109 S6 (ADR 0183 section 8): the sandbox library is every helper's policy layer, so a change to it selects every helper's sandbox suite. The fast tier's build runs sandbox, sandbox_available, text_sandbox, extension_sandbox, skp_sandbox and the fake-Blender blender_sandbox (generic source rules); the IFC and SKP jobs run ifc_sandbox and the release skp_sandbox; the Blender job runs the real Blender; and the sanitized build runs sandbox, text_sandbox, extension_sandbox and blender_sandbox under ASan and UBSan (job:sanitize; skp_sandbox sanitized runs in the SKP job).",
+      "paths": [
+        "src/sandbox/**",
+        "tests/sandbox*"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "blender",
+        "job:ifc",
+        "job:skp",
+        "job:sanitize"
+      ]
+    },
+    {
       "why": "R109 S3 and S4 (ADR 0183): the sandbox of the text helper and the extension worker, their policies, the helpers' host code and the suites that run them. The sanitized builds run both helpers and their suites under ASan and UBSan.",
       "paths": [
         "src/text/sandbox_policy*",
@@ -742,6 +757,20 @@
         "build",
         "native",
         "job:ifc"
+      ]
+    },
+    {
+      "why": "R109 S6: a change to the sandbox library selects every helper's sandbox suite (ADR 0183 section 8)",
+      "paths": [
+        "src/sandbox/sandbox.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "blender",
+        "job:ifc",
+        "job:skp",
+        "job:sanitize"
       ]
     },
     {
