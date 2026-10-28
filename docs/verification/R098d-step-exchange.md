@@ -7,15 +7,19 @@ Qt 6.11.2, Python 3.14), 22 CPUs and a 10 GB container. The checks are those of
 [ADR 0172 §7](../decisions/0172-step-exchange-subset.md#7-verification-the-r098-verify-line) (E1 to E8),
 §6 (the budgets) and §8 (packaging and CI). [Summary](R098d-step-exchange.json).
 
-**Status.** The Verify line is **partly met**. Three of the eight checks pass in full (E3, E5 and E7), and
-five are partial, each with its gap named in its row: E1 (the cylinder's bound is looser than §7 says), E2
-(the non-planar and degenerate counts are not asserted), E4 (no fixture with a bad face or a PMI-only AP242
-file exists in the corpus), E6 (the STEP import has no restart protocol, so ADR §5 and E6's
-restart-and-exclude clause are not implemented) and E8 (the message bound is not asserted for STEP).
-Budgets, measured on the Release build: the 64 MiB and 128 MiB parse rows and the helper's tessellation are
-met; three rows are missed and recorded as **missed: owner decision pending**: the end-to-end import of the
-100-sphere model (13.8 to 15.8 s against 10 s), the export of the 90,954-face imported model (16.6 to 16.8 s
-against 5 s), and the export of the 1,000,000-triangle model (R098.c, not re-run). No budget was changed.
+**Status (after R098.e, 2026-10-28).** The Verify line is **partly met**. Five of the eight checks pass in
+full (E2, E3, E5, E7 and E8), two are partial (E1, which waits for the owner's choice between two clauses of ADR 0172
+section 7, and E6, which lacks the restart), and one is **not met** (E4: the designed bad-face file does not report
+its solid as an element and its faces join the good box's body; the PMI-only AP242 file is refused without counts).
+R098.e changed E1, E2, E6 and E8 (section 9.1 gives each row's before and after). E8 passes on a stand-in
+helper's message, not on a real one.
+
+Budgets, measured on the Release build (section 4), are not all met, and no budget was changed. The helper's
+tessellation of the 100-sphere model (4.0 s, budget 10 s) and the parse rows are met. Three rows are missed and
+recorded as **missed: owner decision pending**: the end-to-end import of the 100-sphere model (14.0 s with a new
+native file, 10.2 s without one, against 10 s), the export of the 90,954-face imported model (16.8 s against 5 s),
+and the export of the 1,000,000-triangle model (61 s for the helper alone, 975 MB of output, and a crash under the
+4 GiB address-space limit; the model cannot be built in one document at all, section 4).
 
 ## 1. Check map
 
@@ -24,14 +28,14 @@ ran at. "Not run" always comes with the reason.
 
 | Check | Clause (ADR 0172) | Proof: CTest suite or command | Result today | Commit |
 | --- | --- | --- | --- | --- |
-| E1 | §7, dimensional: analytic box exact; cylinder and assembly within the bound | `ifc_step` (box volume and area to 1e-9 absolute; cylinder to 5 % relative; assembly two solids); `ifc_step_worker` (the same in Python) | pass. **Partial:** the cylinder is asserted to 5 %, not "within the reported deflection" as §7 says. Measured in R098.a2: 0.989 x volume, 0.995 x area | 33e175fa |
-| E2 | §7, tessellation: planar faces merge; non-planar stays triangles and is counted; collapsed triangles dropped and counted; caps enforced | `step_import` C3 (the box comes out as six faces); `ifc_step` §6 (a total cap of 50 omits the cylinder and reports it; a per-element cap of 50 refuses) | pass for the merge and the caps. **Partial:** `nonPlanarFaces` and `degenerateTriangles` are reported but no test asserts them. Measured today on one 10,108-triangle sphere: 2,021 non-planar faces, 2 degenerate triangles dropped. The document holds 100,000 unique faces (§7, finding 3), so the 1,000,000-triangle total cannot be imported into one document | 33e175fa |
+| E1 | §7, dimensional: analytic box exact; cylinder and assembly within the bound | `ifc_step` (box volume and area to 1e-9 absolute; cylinder to 5 % relative at the default 1 mm; assembly two solids; **R098.e: the bound of §7, "within the reported deflection", at 0.02 mm** for the cylinder and the assembly); `ifc_step_worker` (the 5 % check, in Python) | **R098.e: partial, owner decision.** The bound holds: at 0.02 mm the volume is 0.997368 of the analytic value (bound 0.992016) and the area 0.998948 (bound 0.995203), and the assembly likewise. The bound is derived from the deflection passed to the helper: at the default 1 mm it is 0.64 for the volume, looser than the 5 % check, which stays. **Not met: the other clause of §7, "1e-3 relative for analytic primitives"**: 2.6e-3 at 0.02 mm; the clause needs a deflection of about 0.0025 mm. The owner decides which clause governs | df9cc436 (eb85cffa corrects a comment) |
+| E2 | §7, tessellation: planar faces merge; non-planar stays triangles and is counted; collapsed triangles dropped and counted; caps enforced | `step_import` C3 (the box comes out as six faces); `ifc_step` §6 (a total cap of 50 omits the cylinder and reports it; a per-element cap of 50 refuses); **R098.e: `ifc_import` E2 (app-level counts from the real helper)** | **R098.e: pass.** Box: 12 triangles, 6 merged faces, `nonPlanarFaces` 0, `degenerateTriangles` 0. Cylinder: 92 triangles, 26 merged faces (24 lateral strips and two caps), 0 and 0. Sphere of radius 5 mm (`sketchyup-step-sphere.step`): 304 triangles, `degenerateTriangles` 2 (one per pole, dropped and counted), 302 faces (304 less 2), `nonPlanarFaces` 3. The sphere's non-planar count depends on the tessellation, so it is pinned at this commit, not derived. The 100-sphere model (9 bodies in the document): 18 collapsed triangles, two per sphere | df9cc436 |
 | E3 | §7, units: a declared unit converts and is reported; no unit refuses; a mismatched option does not rescale | `ifc_step` §4 (inch fixture comes out 254 x 508 x 762 mm, factor reported; a mismatching `--step-length-unit` does not win); §5 (no header and no unit refused, exit 2); `ifc_step_worker` (the same, Python) | pass | 33e175fa |
-| E4 | §7, invalid or unsupported: reported with locations and counts; the rest converts; the accounting identity holds | `ifc_step` (accounting: 2 entities = 1 converted + 1 supporting + 0 omitted); `step_import` C2 (AP242-only and unsupported formats refused with the helper's codes) | **Partial.** The accounting identity and the refusals pass. **Not run:** a fixture with a bad face, an entity the translator refuses, or a PMI-only AP242 file: none is in the corpus. `mirror-box.step` was malformed, but it was not a designed E4 fixture, and it is now fixed (see the corpus record) | 33e175fa |
+| E4 | §7, invalid or unsupported: reported with locations and counts; the rest converts; the accounting identity holds | `ifc_step` (accounting: 2 entities = 1 converted + 1 supporting + 0 omitted); `step_import` C2 (an AP230 file refused as `unsupportedSchema`; the unsupported formats refused with the helper's codes); **R098.e: `ifc_import` E4 on two designed fixtures** (`e4-bad-face.step`, `e4-pmi-ap242.step`, written by `tests/fixtures/step/make_designed.py`) | **R098.e: not met.** Bad face: the report counts six faces that no solid bounds (`freeFaces` 6), and the good box converts. Not met: the report has **no location** for them (the STEP report never records one, ADR 0172 section 5); the bad solid is **not counted as an element** (accounting: 2 entities = 1 converted + 1 supporting, the same as the good file); and its six faces come back **in the good box's body** (one body, 12 faces), while the notice says "imported as a body of its own faces". PMI-only AP242: **refused** with `nothingToImport`; no PMI entity is counted or located. Correction: the AP242 refusal this row cited is not in C2. C2 refuses AP230 (`unsupportedSchema`). The helper reads AP242 (best effort, ADR 0172 section 2) and refuses only the AP242 export. See section 9 | df9cc436 |
 | E5 | §7, round trip: AP214 and AP203 export re-imports with geometry, names, colours, `step.Layer`, hidden state and the assembly/instance structure | `ifc_step_export` (`roundTrip` for `ap214` and `ap203`, through the real helper: volumes and bounds of each top-level body, names, colours, layer, hidden, one definition with three instances at three placements; E3 export half: the file declares `.MILLI.`) | pass | 33e175fa |
-| E6 | §7, limits and refusal: a file over 128 MiB refuses with the count and the limit named; a worker over its limits or killed is restarted and the element excluded, or fails with its log tail; the document is unchanged | Refusal: `tests/step_budgets.py` (`refuse-129m`, a run today). Stop and cancel: `step_import` C5 (deadline) and C6 (cancel), which assert the model is untouched. **Not run:** the 128 MiB + 1-byte case as a CTest; SIGSEGV for STEP; RLIMIT_AS and RLIMIT_CPU for STEP | **Partial.** Refusal: pass (today: `LIMIT_EXCEEDED`, `tooLarge`, 134,217,729 bytes, 0.01 s, "larger than 128 MiB"). Stop and cancel: pass with a stand-in helper. **Not met:** the restart-and-exclude clause. `src/io/step_worker.cpp` states that the STEP import "has no per-element restart protocol: a stop is a failure"; ADR §5 and E6 require up to three restarts and then a partial import naming the excluded elements | 33e175fa |
+| E6 | §7, limits and refusal: a file over 128 MiB refuses with the count and the limit named; a worker over its limits or killed is restarted and the element excluded, or fails with its log tail; the document is unchanged | Refusal: `tests/step_budgets.py` (`refuse-129m`, a run today); **R098.e: `step_import` C8 (the 128 MiB + 1-byte refusal as a CTest)**. Stop and cancel: `step_import` C5 (deadline) and C6 (cancel). **R098.e: `step_import` C9 (SIGSEGV), C10 (RLIMIT_AS) and C11 (RLIMIT_CPU), each with a stand-in helper** | **R098.e: partial.** Pass: the 128 MiB + 1-byte file is refused as `tooLarge` before any helper starts (the stand-in hangs, so a helper that started would time out); exactly 128 MiB passes the application's check. A helper killed by SIGSEGV fails with `crash (tessellate)`; over RLIMIT_AS (the stand-in applies the limit and allocates past it) with `memory` and `bad_alloc` in the log tail; over RLIMIT_CPU (SIGXCPU) with `crash`. Each import throws before anything is created. Stop and cancel: pass with a stand-in helper. **Not met: the restart-and-exclude clause.** `src/io/step_worker.cpp` states that the STEP import "has no per-element restart protocol: a stop is a failure"; ADR 0172 §5 and E6 require up to three restarts and then a partial import naming the excluded elements. Not implemented (section 9 has the estimate) | df9cc436 |
 | E7 | §7, native: the document validates (`decodeDocument(encodeDocument())`); save and reopen bit-exact; one undo removes the import; provenance resolves | `ifc_step_export` E7 checks, added in R098.d, run on each round-trip import through the real helper: encode, decode and re-encode bit-exact; one undo empties the document; every geometry body's `step.Source` equals the file's digest in the report | pass (both schemas) | 33e175fa |
-| E8 | §7, report: messages ≤ 256 bytes; report ≤ 64 KiB; counts complete past the 32-per-kind bound | Report size: `tests/step_budgets.py` (the 100-sphere import's report, 6,166 bytes). Messages: **not run for STEP**; the shared report code is asserted by the IFC suites (`ifc_import`, `ifc_convert`) | **Partial:** report size pass; message bound not asserted for STEP | 33e175fa |
+| E8 | §7, report: messages ≤ 256 bytes; report ≤ 64 KiB; counts complete past the 32-per-kind location bound | Report size: `tests/step_budgets.py` (the 100-sphere import's report, 6,166 bytes). **R098.e: `step_import` C12, a refusal whose helper message is 5,000 bytes** | **R098.e: pass (on a stand-in).** The error's message is kept to 240 bytes (it measured 240; the bound is 256), and the report is within 64 KiB. The real helper's texts are clipped to the same 240 bytes (`step_import.cpp`, kernel messages). The counts past 32 locations are not asserted for STEP, because the STEP report keeps no locations (E4) | df9cc436 |
 | Packaging L1 to L6 | §8: the STEP closure is in the private set, `RUNPATH $ORIGIN`, the notices installed | `ifc_library_install` (runs `verify-ifc-library.py install`; the new L3 check requires `STEP-SOURCE.txt` and its toolkit names and tag; the new L6 check requires the worker to record and install `libTKDESTEP` and `libTKXCAF`) | pass | 33e175fa |
 | Packaging L3 to L4 (source) | §8: the notices and licence lines | `ifc_library_source` | pass | 33e175fa |
 | Package acceptance | §8: the installed package carries `share/doc/sketchyup/STEP-SOURCE.txt`; the base package does not | `packaging/arch/verify-package.sh` (not run: no `makepkg` package build in this session). The install step it drives is covered by `ifc_library_install` | **Not run** (no package build). The base-package grep was extended and is unexecuted | — |
@@ -74,12 +78,14 @@ new assertions for the loss wording in the dialog and the report), `step_export_
 
 ## 3. E-checks not yet run, and why
 
-- **E4 fixtures.** A bad face, an entity the translator refuses, and a PMI-only AP242 file are not in the corpus.
-  Writing them is a corpus change for the owner to approve; no such fixture was added here.
+- **E4 fixtures.** R098.e added two designed fixtures (a bad face and a PMI-only AP242 file) and ran them. The
+  second is refused; the first shows the defects of section 9. No entity the translator refuses is in the corpus
+  as its own fixture: a surface model beside a solid gives the same free-face notice as the bad face (checked by
+  hand, not committed).
 - **E6 restart.** Not run: there is no restart protocol for STEP to test (§7, finding 1).
-- **E6 SIGSEGV and RLIMIT for STEP.** The IFC suite `ifc_worker_run` covers these for IFC. A STEP twin would need a
-  STEP fixture that crashes the helper, which the corpus does not have.
-- **E8 messages for STEP.** Not asserted; the shared report code is asserted by the IFC suites.
+- **E6 SIGSEGV and RLIMIT for STEP.** Run in R098.e with stand-in helpers (`step_import` C9 to C11), the pattern
+  `step_import` already uses. They test the application's handling of each stop, not the helper's own limits.
+- **E8 messages for STEP.** Run in R098.e with a stand-in helper's 5,000-byte message (`step_import` C12).
 - **Package acceptance (`verify-package.sh`).** Not run: no `makepkg` package build in this session.
 - **Cancel on the real helper.** Not measured: the command line has no cancel. The stop path is asserted with a stand-in helper.
 - **Sanitizers.** Not run for R098.d: the STEP path is unchanged in its sanitizer behaviour, and the R098.b record ran the sanitize set.
@@ -103,8 +109,8 @@ OCCT sphere model of `tests/step_budget_model.cpp` (100 spheres of radius 1 m, 2
 | Application memory during import | ≤ 1 GiB | Command-line import of the 100-sphere model: peak 722 to 723 MiB over three runs (the helper's peak is inside that figure). The helper alone on the 128 MiB file: 964 to 965 MiB. The 128 MiB input through the command line was not run | **met** for the measured inputs |
 | Parse and transfer 64 MiB, 1,000,000 instances | ≤ 3 s | Helper `--import-step`, 67,108,864 bytes, 1,000,350 entities, status ok; four runs: 2.72, 2.59, 2.69, 2.74 s; peak 487 to 529 MiB. (The R098.a2 figure of 13.89 s was for a different file, 79.8 MiB and 1,690,012 entities, and its build type is not recorded) | **met**: 2.59 to 2.74 s; the margin is about 0.3 s |
 | Parse and transfer 128 MiB, 2,000,000 instances | ≤ 6 s | Helper `--import-step`, 134,217,728 bytes, 1,999,350 entities (under the row's 2,000,000 by 650), status ok; four runs: 5.39, 5.66, 5.51, 5.50 s; peak 964 to 965 MiB | **met**: 5.39 to 5.66 s |
-| Tessellate the model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns in ≤ 100 ms and the helper ends within 1 s | The helper alone on the 100-sphere model (990,584 triangles): 4.04, 3.98, 4.08, 4.99 s; progress: 101 `P at` lines. The command-line import of the same file, end to end, with a new output file: 13.84, 15.76, 14.27, 13.99 s, keeping 9 bodies (`documentLimit`). Cancel on the real helper: **not measured** (the command line has no cancel) | the helper's tessellation **met**; the end-to-end import **missed: owner decision pending**; cancel **not run** |
-| Export of the 1,000,000-triangle model | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | **Not re-run for the 1,000,000-triangle model**: a document cannot hold it (the 100,000-face limit), and a helper-only run needs a package writer the repository does not have. Re-run today, Release: 20,000 triangles, 1.04 s, 18,121,042 bytes; 50,000 triangles, 2.72 s, 45,951,294 bytes (`ifc_step_export --budget 2 100` and `5 100`, one run each). The imported 90,954-face model: 16.75, 16.64, 16.61 s, 223,950,326 bytes (213.6 MiB). The R098.c measurement for 1,000,000 triangles, cited and not re-run: helper alone 73.9 s and 974.9 MB with no address-space limit; with the 4 GiB limit the helper segfaults after 26 s; with the 256 MiB output limit it is stopped at 60.7 s | the 1,000,000-triangle row **missed: owner decision pending** (R098.c). The 90,954-face export **missed on time** (16.6 to 16.8 s against 5 s, **owner decision pending**), and met on size |
+| Tessellate the model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns in ≤ 100 ms and the helper ends within 1 s | The helper alone on the 100-sphere model (990,584 triangles): 4.04, 3.98, 4.08, 4.99 s (R098.d); **R098.e, Release, 4 runs: 3.99, 4.00, 4.00, 4.03 s**; progress: 101 `P at` lines. The command-line import of the same file, end to end, with a new output file: 13.84, 15.76, 14.27, 13.99 s (R098.d); **R098.e, Release, 4 runs: 14.02, 14.09, 14.06, 14.11 s**. The same import without an output file (R098.e, 3 runs): 10.15, 10.18, 10.25 s. Cancel on the real helper: **not measured** (the command line has no cancel) | the helper's tessellation **met**; the end-to-end import **missed: owner decision pending** (14.1 s with a native file, 10.2 s without); cancel **not run**. Where the time goes, in section 9 |
+| Export of the 1,000,000-triangle model | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | **R098.e, Release, the helper alone on a package of the budget model (20 bodies of 500 102-gons, 1,000,000 triangles, 1,020,000 vertices), with no address-space limit: 61.1 s, peak 8,446 MiB, output 975,418,866 bytes (exit 0).** With the application's 4 GiB address-space limit: **SIGSEGV at 21.6 s** (the address space is exhausted; the OCCT writer reports `malloc failed` and then faults in `Interface_Graph::Evaluate`, gdb backtrace in section 9). With the output limit only (257 MiB): SIGXFSZ at 54 s, 269 MB written. Through the application: **the model cannot be built in one document**: `ifc_step_export --budget 20 500` runs for 204 s and then refuses the edit ("vertices would be 1,020,000 of 600,000"). R098.c's figures (73.9 s helper alone, 974.9 MB) are the same order and are consistent with these. The 90,954-face imported model: **R098.e, Release, 4 runs of the command line: 16.80, 16.83, 16.82, 16.83 s**; helper 15.6 s (the writer 13.1 s), application 1.1 s; 223,950,330 bytes | the 1,000,000-triangle row **missed** (61 s against 5 s; 975 MB against 256 MiB; crash at the 4 GiB limit): owner decision pending. The 90,954-face export **missed on time** (16.8 s against 5 s), met on size: owner decision pending |
 
 The helper figures are four runs each (the text gives the spread). The two export budget figures (20,000 and
 50,000 triangles) are single runs. Every timed figure in the record is from the Release build.
@@ -174,9 +180,183 @@ the licence, and where the SketchyUp STEP code is in the source archive. `verify
    recorded in its notes, so the two figures cannot be compared directly. The 128 MiB row is 5.39 to 5.66 s.
    Both rows are met; the margins are about 0.3 s each.
 
+11. **A bad solid's faces are reported as not imported and imported.** The helper's package says `face`, `free-surface`,
+    6 (`src/ifc/step_import.cpp`, `report.notImported`), and the application's notice says `freeFaces` 6 "imported as a
+    body of its own faces". The faces are tessellated with the base shape, so they come back in the good box's body:
+    one body, 12 faces, 24 triangles, and `elements.notImported` is empty. Steps: import `tests/fixtures/step/e4-bad-face.step`
+    (the CLI's `--import-step`), read `importReport`. Not fixed (out of scope for R098.e); E4 stays not met.
+12. **The STEP report has no locations.** ADR 0172 §5 says a location is the entity label, the parent path, the transfer
+    status and a message, at most 32 per kind. `src/ifc/step_import.cpp` never calls `Report::locate`; the report keeps
+    counts by class and reason only.
+13. **A PMI-only AP242 file is refused.** `nothingToImport` ("The reader could not transfer the file into the document"):
+    the file has no shape representation, and the refusal names no PMI entity and counts none (E4 asks for both).
+14. **The 1e-3 clause of §7 E1 does not hold for a tessellated cylinder.** The volume error is 2.6e-3 at 0.02 mm; the
+    clause needs a deflection of about 0.0025 mm. The §7 clause "within the reported deflection" holds at 0.02 mm.
+15. **The 1,000,000-triangle export does not run through the application.** The budget model needs 1,020,000 vertices and
+    a document holds 600,000 (the placement limit). The helper alone needs 8.4 GiB of address space at its peak, so the
+    4 GiB limit of ADR 0172 §6 ends it with a SIGSEGV (an OCCT `malloc failed` in the writer, then a fault in
+    `Interface_Graph::Evaluate`), and the output of 975 MB is four times the 256 MiB limit. The ADR's 4 GiB limit and its
+    1,000,000-triangle export budget do not fit together; the owner decides which one moves.
+16. **Where the 100-sphere import's 14 s goes.** Helper 4.0 s; the application's conversion after the helper 6.2 s (the
+    planar merge `buildMeshGeometry` is about 40 % of the sampled application time, the conversion 60 %); the native save
+    about 4 s (the save is about 37 % of the sampled application time). Sampling: 35 gdb stacks, one every ~0.4 s, on the
+    application's side of the run (section 9).
+17. **The export of 90,954 faces is the writer.** Of the helper's 15.6 s, the OCCT writer takes 13.1 s, the read-back
+    check 1.0 s, the build 1.5 s, the read 0.02 s (a standalone run on the staged package, section 9).
+
 ## 8. Commits
 
 - `7e46236b` — packaging closure check, `STEP-SOURCE.txt` install, path map.
 - `9e9d66f7` — the corpus record and the regenerated mirror fixture.
 - `33e175fa` — the loss wording in the dialog and report, the E7 checks, the budget tools. **The commit the tests ran at.**
 - The commit after `33e175fa` adds this record, the user guide, the support matrix, the roadmap row and the ADR notes.
+- `df9cc436` — R098.e: the E1 bound, the E2 counts, the E4 fixtures, the E6 CTests and stand-ins, the E8 bound, the
+  sandbox count of 17. **The commit the R098.e tests ran at** (the tree of `eb85cffa` differs only in a comment).
+- `eb85cffa` — R098.e: a comment (the E1 area bound at 0.02 mm is 0.995, not 0.994).
+- The commit that adds section 9 and this update to the record and the ADR notes (R098.e).
+## 9. R098.e close (2026-10-28)
+
+The F04 close brief (items 1 to 9). The product code is unchanged: `git diff 86070665 -- src/` is empty. The
+tests are in `df9cc436`, with a comment correction in `eb85cffa`, and this section is in the commit after them.
+
+### 9.1 Each row: before, after, test, commit
+
+| Row | Before (R098.d) | After (R098.e) | Test | Commit |
+| --- | --- | --- | --- | --- |
+| E1 | cylinder to 5 % only | At 0.02 mm: the cylinder's volume is 0.997368 of the analytic value (bound 0.992016) and its area 0.998948 (bound 0.995203); the assembly is inside its bounds too. The default 1 mm keeps its 5 % check, because its bound (0.64 for the volume) is looser. The §7 clause "1e-3 relative for analytic primitives" is not met at any tested deflection (2.6e-3 at 0.02 mm) | `ifc_step` §6 | df9cc436 |
+| E2 | counts reported, not asserted | Box: 12 triangles, 6 faces, 0 non-planar, 0 collapsed. Cylinder: 92 triangles, 26 faces, 0 and 0. Sphere of radius 5 mm: 304 triangles, 2 collapsed (one per pole, dropped), 302 faces, 3 non-planar (pinned) | `ifc_import` E2 | df9cc436 |
+| E4 | no designed fixtures | Two fixtures added. Bad face: six faces counted (`freeFaces` 6), the good box converts, but no location, no element and the faces join the good box's body (section 7, item 11). PMI-only AP242: refused as `nothingToImport` with no counts | `ifc_import` E4 | df9cc436 |
+| E6 | refusal and stop with a stand-in | The 128 MiB + 1-byte refusal is a CTest. SIGSEGV, RLIMIT_AS and RLIMIT_CPU each fail with their log tail and create nothing. Restart-and-exclude: not implemented (9.2) | `step_import` C8 to C11 | df9cc436 |
+| E8 | report size only | A 5,000-byte helper message is kept to 240 bytes; the report is within 64 KiB | `step_import` C12 | df9cc436 |
+
+The E4 `nothingToImport` refusal and the bad-face result are pinned as they are. They are not passing E4 checks.
+
+**Correction to the R098.d record.** The E4 row there cited "`step_import` C2 (AP242-only ... refused)". C2 refuses
+an AP230 file (`unsupportedSchema`). The helper reads AP242 (best effort, ADR 0172 section 2) and refuses only the
+AP242 export (`ifc_step_export` tests the export's refusal). No AP242 import is refused by C2 or anywhere else.
+
+### 9.2 Restart-and-exclude: what IFC does, and what STEP would take (brief item 5)
+
+**What the IFC import does** (ADR 0171 section 1.6 and decision 19; ADR 0171 notes "Restart attribution", lines
+1477 to 1479):
+
+- `src/io/ifc_worker.cpp` `runOnce` (lines 133 to 150) passes `--threads`, `--exclude-step N` for each excluded product,
+  and `--diagnose-from TASK`. It reads the progress lines `P at TASK` (the task it is on), `P next` (the elements to
+  leave out) and `P excluded` (the products the helper left out itself) (lines 190 to 260).
+- The restart loop (lines 395 to 500): a stop on several threads reruns on one thread; a stop on one thread at a known
+  task (`P at TASK`) reruns with `--diagnose-from TASK`, where each task is tried in a child process (ADR 0183); a stop
+  with elements named by `P next` leaves those out and reruns. At most `maxRestarts`, 3 (`src/io/ifc_worker.hpp` line
+  21). Then `workerFailed`, with `engine.stops`, `excluded` and `logTail`. A partial import carries the `excluded` list
+  and the notice `restarted`.
+- The helper side is `--exclude-step` (`src/ifc/worker_main.cpp` lines 146 and 211), `iteratePass` and `diagnoseTasks`
+  (`src/ifc/geometry.cpp`).
+
+**What can be shared.**
+
+- The process supervisor. `runIfcWorker` (`src/io/ifc_worker_run.cpp`, 113 lines) is already shared by the IFC export
+  and the STEP export. The STEP import's own `runOnce` (`src/io/step_worker.cpp`, about 135 lines) is a near copy that
+  also parses the progress lines (`P phase`, `P tasks`, `P at`), guards against flooding and classifies SIGSYS. Folding
+  it into `runIfcWorker` needs a progress hook of about 15 lines.
+- The restart bookkeeping: the excluded list, the `maxRestarts` cap, the `workerFailed` report and the `restarted`
+  notice. These carry over unchanged.
+- Not shareable: the one-thread and `--diagnose-from` steps. They rest on the IFC geometry's tasks, child processes
+  and its four threads. STEP has none of them: BRepMesh is single-threaded in this build, and the helper reports the
+  base it is tessellating as `P at` already (`src/ifc/step_import.cpp`, the `baseLabels` loop).
+- A stop in the read or build phase cannot be attributed to an element, in either importer. Those stay failures.
+
+**What STEP would take (rough size).**
+
+- Helper (`src/ifc/worker_main.cpp`: an `--exclude-step` option, about 10 lines; `src/ifc/step_import.cpp`: skip the
+  excluded bases, record them, and report `P excluded`, about 30 lines): about 40 lines.
+- Application (`src/io/step_worker.cpp`: the restart loop and its report, about 100 lines; `src/io/step_worker.hpp`: the
+  `maxRestarts` option, 1 line; the progress hook in `runIfcWorker` if the STEP runner is folded in, about 15 lines):
+  about 115 lines added and about 130 removed if the STEP runner goes.
+- Tests (a stand-in that stops at base k and a helper test with `--exclude-step`): about 120 lines.
+- Net: roughly 150 to 260 lines. The protocol changes are one new option and one progress line on the helper, and the
+  restart rule in the application. Owner decision: whether 1.4.0 needs the restart (ADR 0172 section 5 and E6).
+
+### 9.3 Budget measurements, and where the time goes (brief item 7)
+
+Release tree (`build/release`: `CMAKE_BUILD_TYPE=Release`, desktop off, CLI on, IFC on, linker BFD; targets
+`sketchyup-cli`, `sketchyup-ifc-worker` and `ifc_step_export_tests`) in `sketchyup-ci-pinned:r097a-ifc`, 2026-10-28,
+on the shared machine. The 100-sphere model is `step_budget_model OUT 100 1000` (100 spheres of radius 1 m, 2.5 m
+apart, 3,520 entities); it is not committed, and the tool builds it.
+
+| Measurement | Runs | Result | Budget | Verdict |
+| --- | --- | --- | --- | --- |
+| Helper alone, 100 spheres (parse, tessellate, package) | 4 | 3.99 to 4.03 s; peak 184 to 189 MiB | 10 s | met |
+| Command line, end-to-end import, a new native file | 4 | 14.02 to 14.11 s; peak 722 to 723 MiB | 10 s | missed |
+| Command line, the same import, no native file | 3 | 10.15 to 10.25 s: before the helper 0.01 s, the helper 3.94 to 4.00 s, after it 6.18 to 6.30 s | 10 s | missed (by 0.2 s) |
+| Command line, export of the imported model (9 bodies, 90,954 faces) | 4 | 16.80 to 16.83 s; peak 1,925 to 1,927 MiB; 223,950,330 bytes. Before the helper 0.71 s, the helper 15.6 to 15.7 s, after it 0.4 s | 5 s | missed |
+| Helper alone, the same export, phase times (one staged package) | 1 | read 0.02 s, build 1.46 s, write 13.06 s, check 1.00 s; total 15.55 s | (part of the 5 s) | |
+| Helper alone, 1,000,000 triangles (20 bodies of 500 102-gons; 1,020,000 vertices) | 1 each | No limits: 61.1 s, peak 8,446 MiB, 975,418,866 bytes, exit 0. The application's 4 GiB address-space limit: SIGSEGV at 21.6 s (the address space reached its cap at 4,022 MiB). The output limit only (257 MiB): SIGXFSZ at 54.0 s, 269 MB written | 5 s; 256 MiB | missed |
+| Application, 1,000,000-triangle export (`ifc_step_export --budget 20 500`) | 1 | Not measurable: the edit is refused after 204 s ("vertices would be 1,020,000 of 600,000"); a document holds 600,000 vertices | | not run |
+
+**Where the 100-sphere import's time goes** (14.1 s with a new native file). The helper is 4.0 s (28 %). After the
+helper, the application's conversion is 6.2 s (44 %, decode, merge and document build), and the native save is about
+4 s (28 %, the difference between the runs with and without an output file). A poor man's profile of the application's
+side (gdb `bt`, 35 samples, about 0.4 s apart, the process stopped in each) puts the conversion (`Converter::run`) in
+21 of 35 samples, and of those the planar merge (`buildMeshGeometry`, `src/io/ifc_import.cpp`) in 14. The save
+(`createNativeFile`, `encodeDocument`) is in 13 of 35. These are sample counts, not a profile, and the sampler ran
+with ptrace enabled for that run only (`--cap-add SYS_PTRACE`).
+
+**Where the 90,954-face export's time goes** (16.8 s). The helper is 15.6 s, of which the OCCT writer
+(`STEPCAFControl_Writer::Transfer` and `Write`) is 13.1 s (84 % of the helper), the read-back and text check of the
+224 MB output is 1.0 s, and the build from the package is 1.5 s. The application's own package build and staging is
+1.1 s. The writer is the cost; the application is not.
+
+**The 1,000,000-triangle export.** The helper's phases: read 0.03 s, build 0.25 s, then the writer from 5.7 s. Under
+the 4 GiB limit, the writer's first `malloc` failure is reported by OCCT (`TransferWriteShape, EXCEPTION:
+Standard_MMgrRaw::Allocate(): malloc failed`), and then the process faults. The gdb backtrace: SIGSEGV in
+`Interface_Graph::Evaluate()`, from `Interface_Graph::Interface_Graph`, `IFSelect_WorkSession::ComputeGraph`,
+`STEPCAFControl_Writer::transfer` and `sketchyup::ifc::runExportStep`. The helper cannot catch a fault inside OCCT's
+writer after a failed allocation, so the application sees a crash. The peak memory is 8.4 GiB for 1,000,000 triangles,
+which the 4 GiB limit of ADR 0172 section 6 cannot hold.
+
+The helper-only runs used the same export package format the application writes (`SKSTPX01`, `src/ifc/step_export_package.cpp`),
+written by a generator of the budget model's geometry (not the application's own export path, which cannot build the model).
+
+### 9.4 Contradictions and corrections
+
+- **The brief's premise about C2** (section 9.1): C2 refuses an AP230 file; no AP242 import is refused.
+- **#495.** The brief describes it as a four-thread race and a use-after-free. The commit (`461e2de8`) and ADR 0171's notes
+  describe a data race: unsynchronised reads of the library's log while worker threads append. The diff has no
+  lifetime change beyond reading the log after the iterator is destroyed, which joins the threads. This record makes
+  no use-after-free claim.
+- **ADR 0172 section 3** says surfaces without volume are "counted and reported as not imported". The bad solid's faces
+  are reported as not imported by the helper and as imported by the application's notice, and they are in the output.
+- **ADR 0172 section 5** says a location is the entity label, the parent path, the status and a message. The STEP
+  report has none.
+- **ADR 0172 section 6** gives the 4 GiB address-space limit. The 1,000,000-triangle export needs about 8.4 GiB, so the
+  limit and that budget cannot both hold.
+- **ADR 0172 section 7, E1** says "1e-3 relative for analytic primitives" and also "within the reported deflection".
+  Only the second holds for a tessellated cylinder.
+- **ADR 0172 sections 6, 8 and 9**: the STEP helper reuses the IFC helper's restarts; it does not (R098.d section 7).
+- **The R098.d record's E4 row** cites a C2 refusal of an AP242-only file (9.1, corrected).
+- **The worker rules** ask for the roadmap row's status to be updated; the brief says not to change `docs/PR_ROADMAP.md`,
+  `docs/SUPPORT_MATRIX.md`, `docs/RELEASE_NOTES.md` or `CHANGELOG.md`. The brief governs, and none of them is changed.
+
+### 9.5 What was not done
+
+- **E4 bad face (stopped).** The defect of section 7, item 11 is a product defect, and fixing it is out of scope. It is
+  reported here with its steps, and E4 stays **not met**. I did not change the product code.
+- **E4 locations and PMI counts.** Both are product changes (section 7, items 12 and 13). Not done.
+- **E6 restart-and-exclude.** Not implemented, as the brief asks. The estimate is in 9.2.
+- **E1's "1e-3" clause.** The owner decides which clause governs (section 7, item 14).
+- **Budgets.** Measured, not fixed. The 1,000,000-triangle export is measured helper-only, not through the application,
+  which cannot build the model.
+- **E8 on a real helper message.** Not produced; the stand-in gives the long message.
+- **Not run:** sanitizers; package acceptance (`verify-package.sh`); cancel latency on the real helper; the desktop
+  dialog suites (the native matrix, which needs the `full-ci` label); the full tier (`full-ci`).
+- **Mutation check.** Three deliberate failures (E1's volume bound at 0.99, E2's non-planar count at 4, E8's bound at
+  200 bytes) each failed their test; the sources were restored and the suites passed again. The mutants are not committed.
+
+### 9.6 Test runs (R098.e)
+
+- The IFC job's application selection, in `sketchyup-ci-pinned:r097a-ifc`, the `ifc-app` tree (Debug), CTest with the
+  address space capped at 8,000,000 KiB: `ifc_package`, `ifc_convert`, `ifc_import`, `ifc_worker_run`, `ifc_export`,
+  `ifc_step`, `ifc_step_export`, `step_import`, `import_refusal` and `ifc_sandbox`: **10 of 10 pass** at the tree of
+  `df9cc436` (the suites ran on the final sources before that commit). `eb85cffa` changes one comment in
+  `ifc_step_tests.cpp` and was not re-run.
+- `ifc_sandbox` counts the 17 STEP fixtures (it counted 14 before; the test was updated with the fixtures).
+- Not run: the helper's Python suites (`ifc_step_worker` and the rest of `build/ifc`); they are untouched.

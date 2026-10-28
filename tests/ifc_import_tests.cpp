@@ -776,6 +776,59 @@ int main(int argc, char **argv) {
             }
             std::cerr << "step refusals ok\n";
         }
+        // R098.e, E2 (ADR 0172 section 3): the tessellation's counts on fixtures whose counts are known. The box's twelve
+        // triangles merge into its six planar faces, and nothing is curved, so nothing is non-planar and nothing collapses.
+        // The cylinder's 92 triangles merge into 26 faces (24 lateral strips and two caps, measured here). The sphere of
+        // radius 5 mm has two poles, and each collapses one triangle: two are dropped and counted, so its 302 faces are
+        // its 304 triangles less two. Three of its triangles stay triangles as non-planar faces; that count depends on
+        // the tessellation, so it is pinned at this commit, not derived.
+        {
+            const StepWorkerOptions worker = stepWorkerOptions();
+            const auto geometryOf = [&](const QString &name) {
+                return importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/") + name, worker).report["geometry"].toObject();
+            };
+            const QJsonObject box = geometryOf("sketchyup-step-box.step");
+            check(box["sourceTriangles"].toInt() == 12 && box["mergedFaces"].toInt() == 6, "E2: the box's twelve triangles merge into six faces");
+            check(box["nonPlanarFaces"].toInt() == 0 && box["degenerateTriangles"].toInt() == 0,
+                  "E2: the box has no non-planar triangle and no collapsed one");
+            const QJsonObject cylinder = geometryOf("sketchyup-step-cylinder.step");
+            check(cylinder["sourceTriangles"].toInt() == 92 && cylinder["mergedFaces"].toInt() == 26,
+                  "E2: the cylinder's 92 triangles merge into 26 faces");
+            check(cylinder["nonPlanarFaces"].toInt() == 0 && cylinder["degenerateTriangles"].toInt() == 0,
+                  "E2: the cylinder has no non-planar triangle and no collapsed one");
+            const QJsonObject sphere = geometryOf("sketchyup-step-sphere.step");
+            check(sphere["sourceTriangles"].toInt() == 304, "E2: the sphere has 304 triangles");
+            check(sphere["degenerateTriangles"].toInt() == 2, "E2: the two poles give two collapsed triangles, counted");
+            check(sphere["faces"].toInt() == 302, "E2: the collapsed triangles are dropped: 302 faces remain");
+            check(sphere["nonPlanarFaces"].toInt() == 3, "E2: the sphere's non-planar count is the pinned value (3)");
+        }
+        // R098.e, E4 (ADR 0172 section 7). The designed fixtures are written by tests/fixtures/step/make_designed.py.
+        // A file with a bad face: the second of two boxes has an open edge loop on one face. The good box converts, and
+        // the report counts the six faces that no solid bounds. Two things are not asserted: a location (the STEP report
+        // has none), and the faces' body (they come back in the good box's body, which the notice's wording does not
+        // say). Both are recorded in the R098.e record as defects.
+        {
+            const StepWorkerOptions worker = stepWorkerOptions();
+            const auto imported = importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/e4-bad-face.step"), worker);
+            bool freeFacesCounted = false;
+            for (const QJsonValue &notice : imported.report["notices"].toArray())
+                if (notice["code"].toString() == "freeFaces" && notice["count"].toInt() == 6)
+                    freeFacesCounted = true;
+            check(freeFacesCounted, "E4 (bad face): the six faces no solid bounds are counted");
+            check(imported.report["accounting"].toObject()["converted"].toInt() == 1, "E4 (bad face): the good box converts");
+        }
+        // A PMI-only AP242 file (no shape representation): the helper refuses it with its code, and nothing is created. E4
+        // asks for the PMI entities to be counted and located; the refusal does neither (R098.e record), so only the
+        // refusal is pinned here.
+        {
+            const StepWorkerOptions worker = stepWorkerOptions();
+            try {
+                (void)importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/e4-pmi-ap242.step"), worker);
+                check(false, "E4 (PMI-only AP242): it must be refused");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "nothingToImport", "E4 (PMI-only AP242): refused as nothingToImport, got " + error.code());
+            }
+        }
         std::cout << "ifc_import ok\n";
         return 0;
     } catch (const std::exception &error) {

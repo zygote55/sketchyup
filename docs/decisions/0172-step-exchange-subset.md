@@ -936,6 +936,54 @@ without it.
 **M10 gate.** F04 needs the M10 gate ([M10 acceptance](../M10_ACCEPTANCE.md)) before STEP is claimed as supported. The
 support matrix and the roadmap say so; the 1.3.0 declaration does not include STEP.
 
+## Implementation notes (R098.e, 2026-10-28)
+
+The close of the R098.d test gaps (E1, E2, E4, E6, E8) and the three budget re-runs, on the Release build. The
+product code is unchanged. The record is `docs/verification/R098d-step-exchange.md`, section 9; the tests are in
+`df9cc436` (and `eb85cffa`, a comment).
+
+### What was built and measured
+
+- **E1 (bound).** The cylinder and the assembly are checked at 0.02 mm against the bound of §7, "within the reported
+  deflection": a chord deviation d on a radius r gives a polygon that contains the disk of radius r − d, so the volume is
+  in [(1 − d/r)², 1] of the analytic value and the area, caps included, in [A_low, 1]. At 0.02 mm the bounds are 0.992 and
+  0.995; the helper gives 0.997 and 0.999. At the default 1 mm the volume bound is 0.64, so the 5 % check stays.
+- **E2 (counts, app level).** A box has 0 non-planar and 0 collapsed triangles. A cylinder has 92 triangles in 26
+  merged faces (24 lateral strips and 2 caps), 0 and 0. A sphere of radius 5 mm has 304 triangles and 2 collapsed ones
+  (one per pole, dropped), so 302 faces, and 3 non-planar triangles (pinned at this commit).
+- **E4 (designed files).** Written by `tests/fixtures/step/make_designed.py`. The bad face: the report counts six faces
+  no solid bounds, and the good box converts. The PMI-only AP242 file is refused as `nothingToImport`.
+- **E6 (CTests).** The 128 MiB + 1-byte refusal (`tooLarge`, before any helper starts). Stand-in helpers for SIGSEGV
+  (`crash`), RLIMIT_AS (`memory`, the stand-in applies the limit and allocates past it) and RLIMIT_CPU (`crash`, SIGXCPU).
+  Each fails with its log tail and throws before anything is created.
+- **E8.** A 5,000-byte helper message is kept to 240 bytes; the report is within 64 KiB.
+- **Budgets (Release).** The helper alone on the 100-sphere model: 4.0 s (budget 10 s, met). The end-to-end import: 14.1 s
+  with a new native file, 10.2 s without (missed). The export of the 90,954-face model: 16.8 s, of which the helper is
+  15.6 s and the OCCT writer 13.1 s (missed, budget 5 s). The 1,000,000-triangle export, helper alone: 61.1 s, 8.4 GiB
+  peak, 975 MB of output; under the 4 GiB address-space limit it ends in a SIGSEGV after an OCCT `malloc failed`; the
+  budget model cannot be built in one document (its 1,020,000 vertices against a 600,000 placement limit).
+
+### Findings that contradict ADR 0172
+
+- **§3 and §5.** The bad solid's faces are "counted and reported as not imported" by the helper, and "imported as a body
+  of its own faces" by the application's notice; they are in the good box's body, so the report and the output disagree.
+  The STEP report has no locations (§5): `src/ifc/step_import.cpp` never calls `Report::locate`.
+- **§7, E1.** "1e-3 relative for analytic primitives" does not hold for a tessellated cylinder at any tested deflection
+  (2.6e-3 at 0.02 mm); the clause "within the reported deflection" does.
+- **§7, E4.** A PMI-only AP242 file is refused, not reported with counts and locations.
+- **§6.** The 4 GiB address-space limit cannot hold the 1,000,000-triangle export (8.4 GiB peak), so the ADR's limit and
+  its export budget do not fit together. The output of that export (975 MB) is four times the 256 MiB limit.
+- **§5 and E6.** The restart-and-exclude is still not implemented (the estimate is in the record, section 9.2). The IFC
+  import's restart (`src/io/ifc_worker.cpp`, 395 to 500) and its process supervisor (`runIfcWorker`, shared with the
+  exports) are the parts to reuse.
+
+### Open for the owner
+
+- Whether the 1.4.0 release needs the STEP restart (§5, E6), with the estimate of about 150 to 260 lines.
+- Whether §7's "1e-3" clause or its "within the reported deflection" clause governs E1.
+- The bad-face defect and the missing locations (product changes; not made in R098.e).
+- The 1,000,000-triangle export budget against the 4 GiB limit and the 256 MiB output limit.
+
 ## Appendix: evidence and sources
 
 **Verified** (against `origin/main 34910469` or the named upstream source):

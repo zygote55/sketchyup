@@ -16,6 +16,7 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <numbers>
 #include <cstring>
 #include <optional>
 #include <iostream>
@@ -719,6 +720,55 @@ int main(int argc, char **argv) {
                   "package assembly: the combined area is within the tessellation error");
         } else {
             check(false, "package assembly: the geometry could not be read");
+        }
+
+        // R098.e, E1 (ADR 0172 section 7, "within the reported deflection"). A curved profile tessellated with chord
+        // deviation d (the deflection the helper is given, in millimetres; the application's report carries it as
+        // tessellation.deflectionMm) of radius r has every chord's sagitta at most d: the polygon contains the disk of
+        // radius r - d and lies in the disk of radius r. So the cylinder's volume is in [(1 - d/r)^2, 1] of the
+        // analytic value, and its area (caps included) is in [A_low, 1] of A, where A_low is the area of the cylinder
+        // of radius r - d. At the default 1 mm the volume bound is 0.64, looser than the 5 % check above, so the bound
+        // is checked at 0.02 mm, where it is 0.992 for the volume and 0.995 for the area. The bound is derived from the
+        // deflection passed to the helper, because the helper's package does not record it.
+        {
+            constexpr double pi = std::numbers::pi;
+            const double radius = 0.005, height = 0.02, deflection = 0.02e-3;  // metres
+            const double inner = radius - deflection;
+            const double cylinderVolume = pi * radius * radius * height;
+            const double cylinderArea = 2 * pi * radius * height + 2 * pi * radius * radius;
+            const double cylinderVolumeLow = pi * inner * inner * height;
+            const double cylinderAreaLow = 2 * pi * inner * height + 2 * pi * inner * inner;
+            const auto importFine = [&](const QString &file) {
+                return run({worker, "--import-step", file, "--output", temp.filePath(QFileInfo(file).fileName() + ".d002.pkg"),
+                            "--step-deflection-mm", "0.02"});
+            };
+            const QString cylinderFile = temp.filePath("sketchyup-step-cylinder.step");
+            const auto cylFine = importFine(cylinderFile);
+            check(cylFine.code == 0 && cylFine.json.value("status").toString() == "ok", "E1 at 0.02 mm (cylinder): ok");
+            if (auto geometry = packageVolumeAndArea(cylinderFile + ".d002.pkg")) {
+                check(geometry->first >= cylinderVolumeLow * (1 - 1e-9) && geometry->first <= cylinderVolume * (1 + 1e-9),
+                      "E1 at 0.02 mm: the cylinder's volume is within the deflection bound, got " + std::to_string(geometry->first));
+                check(geometry->second >= cylinderAreaLow * (1 - 1e-9) && geometry->second <= cylinderArea * (1 + 1e-9),
+                      "E1 at 0.02 mm: the cylinder's area is within the deflection bound, got " + std::to_string(geometry->second));
+            } else {
+                check(false, "E1 at 0.02 mm (cylinder): the geometry could not be read");
+            }
+            // The assembly: the box is exact, so the bounds are the box's values plus the cylinder's.
+            const double boxVolume = 0.01 * 0.02 * 0.03;
+            const double boxArea = 2.0 * (0.01 * 0.02 + 0.01 * 0.03 + 0.02 * 0.03);
+            const QString assemblyFile = temp.filePath("sketchyup-step-assembly.step");
+            const auto asmFine = importFine(assemblyFile);
+            check(asmFine.code == 0 && asmFine.json.value("status").toString() == "ok", "E1 at 0.02 mm (assembly): ok");
+            if (auto geometry = packageVolumeAndArea(assemblyFile + ".d002.pkg")) {
+                check(geometry->first >= (boxVolume + cylinderVolumeLow) * (1 - 1e-9)
+                          && geometry->first <= (boxVolume + cylinderVolume) * (1 + 1e-9),
+                      "E1 at 0.02 mm: the assembly's volume is within the deflection bound, got " + std::to_string(geometry->first));
+                check(geometry->second >= (boxArea + cylinderAreaLow) * (1 - 1e-9)
+                          && geometry->second <= (boxArea + cylinderArea) * (1 + 1e-9),
+                      "E1 at 0.02 mm: the assembly's area is within the deflection bound, got " + std::to_string(geometry->second));
+            } else {
+                check(false, "E1 at 0.02 mm (assembly): the geometry could not be read");
+            }
         }
 
         // The placed and the mirrored fixtures (the R098.b corpus additions): the writer
