@@ -1,12 +1,13 @@
 #include "core/terrain.hpp"
-#include "core/terrain_source_edit.hpp"
-#include "core/terrain_sculpt.hpp"
-#include "core/terrain_stamp.hpp"
-#include "core/terrain_drape.hpp"
 #include "core/component_parameter_records.hpp"
 #include "core/document_limits.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_edit.hpp"
 #include "core/terrain_edit_mesh.hpp"
+#include "core/terrain_sculpt.hpp"
+#include "core/terrain_source_edit.hpp"
+#include "core/terrain_stamp.hpp"
+#include "geo/geographic.hpp"
 #include <algorithm>
 #include <atomic>
 #include <bit>
@@ -266,6 +267,37 @@ std::size_t terrainRecordChangeBytes(const TerrainRecord *before, const TerrainR
             bytes += terrainEditEntryBytes(*edit);
     return bytes;
 }
+UtmPosition validateSiteGeographicRecord(const SiteGeographic &record) {
+    if (record.utmZone < 1 || record.utmZone > 60)
+        refuse("INVALID_REQUEST", "The geographic record's UTM zone must be between 1 and 60");
+    const GeoPosition position{record.latitude, record.longitude};
+    UtmPosition grid;
+    double convergence{};
+    try {
+        geoDatumLabel(record.datum); // WGS84, or NAD83 as an approximation; others by name
+        grid = geoToUtm(position, record.utmZone);
+        convergence = utmGridConvergence(position, record.utmZone);
+    } catch (const std::runtime_error &error) {
+        refuse("INVALID_REQUEST", std::string("Invalid geographic record: ") + error.what());
+    }
+    if (grid.north != record.utmNorth)
+        refuse("INVALID_REQUEST", "The geographic record's hemisphere does not match its latitude");
+    if (!(std::abs(convergence - record.convergence) <= 1e-6))
+        refuse("INVALID_REQUEST",
+               "The stored grid convergence does not match the geographic record");
+    if (std::find(siteVerticalReferences.begin(), siteVerticalReferences.end(),
+                  std::string_view(record.verticalReference)) == siteVerticalReferences.end())
+        refuse("INVALID_REQUEST", "The geographic record's vertical reference is not recognised");
+    // An imported position names its file's SHA-256; a typed or geocoded one has none.
+    const auto &provenance = record.provenance;
+    const bool digestMatches =
+        provenance.kind == "imported" ? sha256Text(provenance.sha256) : provenance.sha256.empty();
+    if (std::find(siteProvenanceKinds.begin(), siteProvenanceKinds.end(),
+                  std::string_view(provenance.kind)) == siteProvenanceKinds.end() ||
+        !boundedText(provenance.source, siteSourceBytes) || !digestMatches)
+        refuse("INVALID_REQUEST", "Invalid geographic provenance");
+    return grid;
+}
 void validateSiteOrigin(const SiteOrigin &origin) {
     for (const auto value : {origin.easting, origin.northing, origin.elevation})
         if (!std::isfinite(value) || std::abs(value) > siteCoordinateLimit)
@@ -277,6 +309,18 @@ void validateSiteOrigin(const SiteOrigin &origin) {
     if (!boundedText(origin.established.source, siteSourceBytes) ||
         (!origin.established.sha256.empty() && !sha256Text(origin.established.sha256)))
         throw TerrainError("INVALID_REQUEST", "Invalid site origin provenance");
+    if (!origin.geographic)
+        return;
+    // ADR 0181 §2.1: the record sits at the origin's own position in its zone.
+    const auto grid = validateSiteGeographicRecord(*origin.geographic);
+    const double offset =
+        std::hypot(grid.easting - origin.easting, grid.northing - origin.northing);
+    if (!(offset <= siteGeographicToleranceMetres))
+        throw TerrainError("INVALID_REQUEST",
+                           "The geographic record is " + std::to_string(offset) +
+                               " m from the site origin in UTM zone " +
+                               std::to_string(origin.geographic->utmZone) +
+                               "; the origin must be at its UTM position (1 m tolerance)");
 }
 TerrainTiling tileTerrainTriangles(const TerrainMesh &mesh, TerrainProgress *progress) {
     TerrainTiling result;
@@ -1015,6 +1059,26 @@ void setSiteOrigin(Document &doc, SiteOrigin origin) {
     edit.site = std::pair{std::optional<SiteOrigin>{}, std::optional<SiteOrigin>{std::move(origin)}};
     doc.apply(std::move(edit), doc.revision());
 }
+void setSiteGeographic(Document &doc, std::optional<SiteGeographic> geographic) {
+    if (!doc.site())
+        refuse("NOT_FOUND", "The document has no site origin; set it first");
+    if (doc.site()->geographic == geographic)
+        refuse("INVALID_REQUEST", geographic ? "The site already has this geographic record"
+                                             : "The site has no geographic record to clear");
+    auto origin = *doc.site();
+    origin.geographic = std::move(geographic);
+    validateSiteOrigin(origin);
+    Edit edit{origin.geographic ? "Set site location" : "Clear site location", {}};
+    edit.site = std::pair{doc.site(), std::optional<SiteOrigin>{origin}};
+    doc.apply(std::move(edit), doc.revision());
+}
+std::optional<double> solarSiteDistance(const Document &doc) {
+    if (!doc.site() || !doc.site()->geographic)
+        return std::nullopt;
+    const auto &record = *doc.site()->geographic;
+    return geoGroundDistance({record.latitude, record.longitude},
+                             {doc.solar().latitude, doc.solar().longitude});
+}
 ChangeReport reanchorSite(Document &doc, double easting, double northing, double elevation) {
     if (!doc.site())
         refuse("NOT_FOUND", "The document has no site origin; set it first");
@@ -1022,6 +1086,19 @@ ChangeReport reanchorSite(Document &doc, double easting, double northing, double
     origin.easting = easting;
     origin.northing = northing;
     origin.elevation = elevation;
+    if (origin.geographic) {
+        // The origin's geographic position moves with it, in the record's own zone.
+        auto &record = *origin.geographic;
+        try {
+            const auto position = utmToGeo({record.utmZone, record.utmNorth, easting, northing});
+            record.latitude = position.latitude;
+            record.longitude = position.longitude;
+            record.convergence = utmGridConvergence(position, record.utmZone);
+        } catch (const std::runtime_error &error) {
+            refuse("INVALID_REQUEST",
+                   std::string("Re-anchor would move the geographic record: ") + error.what());
+        }
+    }
     validateSiteOrigin(origin);
     if (origin == *doc.site())
         refuse("INVALID_REQUEST", "Re-anchor needs a different site origin");

@@ -39,7 +39,13 @@ std::vector<TerrainEditPtr> decodeTerrainEdits(const QJsonValue &value);
 QJsonObject encodeTerrainTileMarker(const TerrainTileKey &key);
 TerrainTileKey decodeTerrainTileMarker(const QJsonValue &value, bool *legacy = nullptr);
 QJsonValue encodeSiteOrigin(const std::optional<SiteOrigin> &origin);
-std::optional<SiteOrigin> decodeSiteOrigin(const QJsonValue &value);
+// `geographic` admits the schema-32 record (ADR 0181 §2.1); older schemas refuse the field.
+std::optional<SiteOrigin> decodeSiteOrigin(const QJsonValue &value, bool geographic = false);
+// The optional geographic record of the site origin, for the schema-32 writer and the parser
+// fuzz target. The decoder checks the record on its own; the origin's position is checked by
+// validateSiteOrigin.
+QJsonObject encodeGeographicSite(const SiteGeographic &record);
+SiteGeographic decodeGeographicSite(const QJsonValue &value);
 // terrain-mesh chunk, little-endian:
 //   "SKTMESH1", u32 tile count,
 //   per tile {u64 body ID, u32 vertex count, u32 triangle count},

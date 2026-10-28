@@ -245,8 +245,10 @@ void compareRuns(const std::string &label, const Outcome &sandboxed, const Outco
 }
 
 void testFixturesIdentical(const std::string &scratch) {
-    // IFC: import (four threads, the application's default) and check, for every fixture and the
-    // export fixtures.
+    // IFC: import and check, for every fixture and the export fixtures. The import runs at four
+    // threads, the application's default, so the sandbox sees the threaded path: the package is the
+    // same bytes as the unsandboxed one (the library's messages are sorted at several threads, and
+    // the helper reads them only when no worker thread can append: ADR 0171, 2026-10-27).
     std::vector<std::string> ifcFiles =
         fixturesIn(std::string(SOURCE_DIR) + "/tests/fixtures/ifc", ".ifc");
     for (const std::string &path :
@@ -265,8 +267,17 @@ void testFixturesIdentical(const std::string &scratch) {
             runHelper(stem + ".sandboxed.out",
                       {"--import", input, "--output", sandboxedPackage, "--threads", "4"});
         const Outcome plain = baselineImport(stem + ".plain.out", input, plainPackage, 4);
-        compareRuns("import " + name, sandboxed, plain, readAll(sandboxedPackage),
+        compareRuns("import " + name + " (four threads)", sandboxed, plain, readAll(sandboxedPackage),
                     readAll(plainPackage));
+
+        const std::string sandboxedSerial = stem + ".sandboxed-1.skifc";
+        const std::string plainSerial = stem + ".plain-1.skifc";
+        const Outcome serial =
+            runHelper(stem + ".sandboxed-1.out",
+                      {"--import", input, "--output", sandboxedSerial, "--threads", "1"});
+        const Outcome serialPlain = baselineImport(stem + ".plain-1.out", input, plainSerial, 1);
+        compareRuns("import " + name + " (one thread)", serial, serialPlain,
+                    readAll(sandboxedSerial), readAll(plainSerial));
 
         const Outcome checked = runHelper(stem + ".check.out", {"--check", input});
         const Outcome checkedPlain = baselineCheck(stem + ".check-plain.out", input);
@@ -300,6 +311,25 @@ void testFixturesIdentical(const std::string &scratch) {
             stem + ".probe.out", {"--probe-step", input, "--round-trip-directory", roundTrip});
         const Outcome probedPlain = baselineStepProbe(stem + ".probe-plain.out", input);
         compareRuns("STEP probe " + name, probed, probedPlain, "", "");
+    }
+}
+
+// Two four-thread imports of a fixture give the same package. The library's worker threads log while
+// the helper reads their log (ADR 0171, implementation notes of 2026-10-27), so this is the check that
+// the four-thread default is deterministic: a lost or garbled message would change the package.
+void testFourThreadDeterminism(const std::string &scratch) {
+    for (const std::string &name : {std::string("openings-hard.ifc"), std::string("tree-cases.ifc")}) {
+        const std::string input = ifcFixture(name);
+        const std::string stem = scratch + "/determinism-" + name;
+        const std::string first = stem + ".1.skifc";
+        const std::string second = stem + ".2.skifc";
+        const Outcome one = baselineImport(stem + ".1.out", input, first, 4);
+        const Outcome two = baselineImport(stem + ".2.out", input, second, 4);
+        check(!one.signaled && one.code == 0 && !two.signaled && two.code == 0,
+              name + ": both four-thread imports succeed");
+        check(!readAll(first).empty(), name + ": the first four-thread import wrote a package");
+        check(readAll(first) == readAll(second), name + ": two four-thread imports give identical packages");
+        check(resultLine(one.out) == resultLine(two.out), name + ": two four-thread imports give the same R line");
     }
 }
 
@@ -629,6 +659,7 @@ int main(int argc, char **argv) {
     }
     const std::string scratch = temporary.path().toStdString();
     testFixturesIdentical(scratch);
+    testFourThreadDeterminism(scratch);
     testDiagnosisIdentical(scratch);
     testPolicyRefusesAttacks(scratch);
     testRefusalsFailClosed(scratch);

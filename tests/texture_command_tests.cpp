@@ -97,7 +97,7 @@ void lifecycle() {
     rejects(doc, [&] { executeBatch(doc, batch(doc, {command(doc, body, planar())})); });
     check(doc.history().total == history + 1, "No-effect mapping batch cannot add history");
     rejects(doc, [&] { executeBatch(doc, request); });
-    const auto description = faceTextureDescription(*mapped, id);
+    const auto description = faceTextureDescription(*mapped, id, doc.materials());
     check(executeQuery(doc, {{"query", "material.sample"},
                              {"body", sid(body)},
                              {"face", sid(id)}})["textureMapping"] == description,
@@ -130,8 +130,9 @@ void lifecycle() {
     const auto reset = faceTextureMappings(*doc.bodies().at(body), id);
     check(!reset.front && reset.back == beforeReset.back,
           "Explicit null resets only the chosen side");
-    near(effectiveFaceTextureMapping(*doc.bodies().at(body), id).coordinates({3, 1, 0}), {3, 1},
-         "Reset restores canonical one-metre implicit mapping");
+    near(effectiveFaceTextureMapping(*doc.bodies().at(body), id, false, doc.materials())
+             .coordinates({3, 1, 0}),
+         {3, 1}, "Reset restores canonical one-metre implicit mapping");
     const auto saved = encodeContainer(doc);
     check(encodeContainer(decodeContainer(saved)) == saved, "Command mapping round-trips exactly");
     auto affine = description["front"].toObject()["stored"].toObject();
@@ -154,7 +155,8 @@ QJsonObject worldPins(const Transform &world) {
             {"coordinates", QJsonArray{QJsonArray{0, 0}, QJsonArray{2, 0}, QJsonArray{0, 3}}}};
 }
 void verifyWorldMapping(const Body &body, Id id) {
-    const auto mapping = effectiveFaceTextureMapping(body, id);
+    // The body in this test has no material, so no size is looked up.
+    const auto mapping = effectiveFaceTextureMapping(body, id, false, MaterialRecords{});
     for (int x = 0; x < 7; ++x)
         for (int y = 0; y < 7; ++y) {
             const Vec3 p{.1 + x * .35, .2 + y * .25, 0};

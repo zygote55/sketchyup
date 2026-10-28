@@ -1,5 +1,6 @@
 #pragma once
 #include "core/asset_records.hpp"
+#include "core/material_records.hpp"
 #include "core/model_style.hpp"
 #include "io/document_io.hpp"
 #include <QJsonObject>
@@ -48,12 +49,14 @@ struct CatalogMetadata {
     QStringList labels;
 };
 // A material preset record: the ADR 0010 fields, with the texture as a catalog asset id (0 for
-// none). The asset is a declared dependency of the entry that carries it.
+// none). The asset is a declared dependency of the entry that carries it. The optional texture
+// size (R100.b2) is written only when present.
 struct CatalogMaterial {
     std::string name;
     std::array<float, 3> color{1, 1, 1};
     float opacity{1};
     std::uint32_t asset{};
+    std::optional<TextureSize> textureSize;
 };
 QString catalogKindName(CatalogEntryKind kind);
 // Writer. Equal media type and bytes share one stored asset (ADR 0131: a hash is only an index,

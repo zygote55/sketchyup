@@ -50,6 +50,21 @@ re-encode to a canonical object. Its seeds are four accepted strokes (the defaul
 with a texture, a dashed and a dotted stroke with the largest id) and eight rejected inputs (a
 width of 0.5 and of 8.5, an opacity of zero and of 1.5, an unknown dash, a non-canonical id, a
 negative id and an unknown field).
+One more covers the R107.a geographic site record (`geographic-site`; [ADR 0181 section 2.1](decisions/0181-maps-geolocation-feasibility.md#21-stored-form)): the site origin's `geographic`
+object, with its latitude and longitude, datum label, UTM zone and hemisphere, convergence, vertical
+reference and provenance. The harness decodes each input twice and requires equal results; an accepted
+record must be within its zone and latitude bounds and re-encode to a canonical object. Its seeds are
+four accepted records (London typed, the 84°N bound with NAD83, the 80°S bound and a southern imported
+record with a digest) and eleven rejected inputs (OSGB36 and ETRS89 datums, a latitude above 84°N, zone
+61, a Norway exception position, an unknown vertical reference, a digest that does not match the
+provenance kind, a hemisphere that does not match the latitude, a convergence that drifts and an unknown
+field).
+One more covers the R100.b2 material texture size (`material-texture-size`; [ADR 0174 section 3](decisions/0174-custom-styles-asset-authoring.md#3-expanded-material-presets-decision-3)):
+the `textureSize` object of a schema-33 material, with its width and height in metres (0.01 to 100).
+The harness decodes each input twice and requires equal results; an accepted size must be within its
+bounds and re-encode to a canonical object. Its seeds are three accepted sizes (the two bounds
+together, a brick at 0.90 m, and a non-square wool tile at 0.27 by 0.28 m) and five rejected inputs (a width
+below 0.01, a height above 100, a string height, a missing height and an unknown field).
 One more covers the R097.b IFC conversion package decoder (`ifc-package`;
 [ADR 0171 section 1.6](decisions/0171-ifc-exchange-subset.md#16-process-isolation-decision-19)): the bounded,
 versioned container the isolated IFC helper writes and the application decodes (a manifest of at most 32 MiB,

@@ -162,8 +162,9 @@
       ]
     },
     {
-      "why": "Native document schema (R099.a, ADR 0173; R100.a, ADR 0174): schema 30 with presentation-v1, schema 31 with edge-styles-v1, the record decoders and the .sketchystyle envelope. A format change runs the full tier, including the package acceptance's prior-release check and the Qt 6.8 compile.",
+      "why": "Native document schema (R099.a, ADR 0173; R100.a, ADR 0174; R107.a, ADR 0181): schema 30 with presentation-v1, schema 31 with edge-styles-v1, schema 32 with geographic-site-v1, the record decoders and the .sketchystyle envelope. A format change runs the full tier, including the package acceptance's prior-release check and the Qt 6.8 compile.",
       "paths": [
+        "src/core/site_origin.hpp",
         "src/io/container.cpp",
         "src/io/document_io.cpp",
         "src/io/drawing_sheets_io.cpp",
@@ -180,6 +181,8 @@
         "tests/style_bundle*",
         "tests/fixtures/presentation-v30.sketchyup",
         "tests/fixtures/edge-styles-v31.sketchyup",
+        "tests/geographic_site*",
+        "tests/fixtures/geographic-site-v32.sketchyup",
         "tests/fixtures/edge-style-v1.sketchystyle",
         "docs/api/native-format-v1.json"
       ],
@@ -188,6 +191,22 @@
         "native",
         "slow-core",
         "full"
+      ]
+    },
+    {
+      "why": "R107.a (ADR 0181 section 2): the offline WGS84 and UTM conversion (src/geo, Krueger series, no PROJ), the site's geographic record and its commands and dialogs, and the solar location action and warning.",
+      "paths": [
+        "src/geo/**",
+        "src/app/solar_panel*",
+        "src/automation/solar_commands*",
+        "tests/geo_coordinates*",
+        "tests/geographic_site*",
+        "tests/fixtures/geo/**"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
       ]
     },
     {
@@ -243,6 +262,11 @@
     {
       "why": "R100.f1 (ADR 0174 section 10, UX_DESIGN §18.3): the edge stroke's viewport drawing (dash runs, opacity, texture tiling and the missing-texture hatch), its status chip and the document.style edits. The generic source and test rules already select build and native; this rule names the slice.",
       "paths": ["src/app/viewport_styles*", "src/app/viewport_textures*", "tests/edge_stroke_viewport*", "tests/model_style*", "src/core/model_style*", "src/io/model_style_io*"],
+      "areas": ["build", "native"]
+    },
+    {
+      "why": "R100.b2 (ADR 0174 section 3): the material texture size, schema 33 with material-texture-size-v1, and its fixture. Tested by material_texture_size_tests, which the build and native lines run; the mapping and exporter checks are in texture_export_tests and the carriers in skp_mapping_tests and catalog_import_tests.",
+      "paths": ["tests/material_texture_size_tests*", "tests/fixtures/material-texture-size-v33.sketchyup"],
       "areas": ["build", "native"]
     },
     {
@@ -743,6 +767,7 @@
     "report_schedule_cli": 23,
     "report_mcp": 4,
     "style_catalog_cli": 1,
-    "texture_presets": 2
+    "texture_presets": 2,
+    "material_texture_size": 3
   }
 }

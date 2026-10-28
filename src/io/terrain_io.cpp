@@ -835,11 +835,48 @@ TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy) {
     validateTerrainRecord(record);
     return record;
 }
+QJsonObject encodeGeographicSite(const SiteGeographic &record) {
+    return {
+        {"latitude", record.latitude},
+        {"longitude", record.longitude},
+        {"datum", QString::fromStdString(record.datum)},
+        {"utmZone", record.utmZone},
+        {"utmHemisphere", record.utmNorth ? "north" : "south"},
+        {"convergence", record.convergence},
+        {"verticalReference", QString::fromStdString(record.verticalReference)},
+        {"provenance", QJsonObject{{"kind", QString::fromStdString(record.provenance.kind)},
+                                   {"source", QString::fromStdString(record.provenance.source)},
+                                   {"sha256", QString::fromStdString(record.provenance.sha256)}}}};
+}
+SiteGeographic decodeGeographicSite(const QJsonValue &value) {
+    const auto root = object(value);
+    exactFields(root,
+                {"latitude", "longitude", "datum", "utmZone", "utmHemisphere", "convergence",
+                 "verticalReference", "provenance"},
+                "geographic record");
+    const auto provenance = object(root["provenance"]);
+    exactFields(provenance, {"kind", "source", "sha256"}, "geographic provenance");
+    const auto hemisphere = text(root["utmHemisphere"]);
+    if (hemisphere != "north" && hemisphere != "south")
+        throw std::runtime_error("A geographic record's hemisphere is north or south");
+    SiteGeographic record;
+    record.latitude = number(root["latitude"]);
+    record.longitude = number(root["longitude"]);
+    record.datum = text(root["datum"]);
+    record.utmZone = int(integer(root["utmZone"], 1, 60));
+    record.utmNorth = hemisphere == "north";
+    record.convergence = number(root["convergence"]);
+    record.verticalReference = text(root["verticalReference"]);
+    record.provenance = {text(provenance["kind"]), text(provenance["source"]),
+                         text(provenance["sha256"])};
+    validateSiteGeographicRecord(record);
+    return record;
+}
 QJsonValue encodeSiteOrigin(const std::optional<SiteOrigin> &origin) {
     if (!origin)
         return QJsonValue::Null;
     validateSiteOrigin(*origin);
-    return QJsonObject{
+    QJsonObject result{
         {"easting", origin->easting},
         {"northing", origin->northing},
         {"elevation", origin->elevation},
@@ -847,12 +884,20 @@ QJsonValue encodeSiteOrigin(const std::optional<SiteOrigin> &origin) {
         {"established",
          QJsonObject{{"source", QString::fromStdString(origin->established.source)},
                      {"sha256", QString::fromStdString(origin->established.sha256)}}}};
+    // Schema 32 (ADR 0181 §2.1): written only when the origin has a geographic record.
+    if (origin->geographic)
+        result["geographic"] = encodeGeographicSite(*origin->geographic);
+    return result;
 }
-std::optional<SiteOrigin> decodeSiteOrigin(const QJsonValue &value) {
+std::optional<SiteOrigin> decodeSiteOrigin(const QJsonValue &value, bool geographic) {
     if (value.isNull())
         return std::nullopt;
     const auto root = object(value);
-    exactFields(root, {"easting", "northing", "elevation", "crs", "established"}, "site origin");
+    QStringList fields{"easting", "northing", "elevation", "crs", "established"};
+    // Before schema 32 the record is refused: exactFields sees one field too many.
+    if (geographic && root.contains("geographic"))
+        fields.append("geographic");
+    exactFields(root, fields, "site origin");
     const auto established = object(root["established"]);
     exactFields(established, {"source", "sha256"}, "site provenance");
     SiteOrigin origin{number(root["easting"]),
@@ -860,6 +905,8 @@ std::optional<SiteOrigin> decodeSiteOrigin(const QJsonValue &value) {
                       number(root["elevation"]),
                       text(root["crs"]),
                       {text(established["source"]), text(established["sha256"])}};
+    if (root.contains("geographic"))
+        origin.geographic = decodeGeographicSite(root["geographic"]);
     validateSiteOrigin(origin);
     return origin;
 }

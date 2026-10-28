@@ -4,6 +4,6 @@
 
 namespace sketchy {
 // Projection descriptions always report stored/effective body-local covectors.
-QJsonObject faceTextureDescription(const Body &body, Id face);
+QJsonObject faceTextureDescription(const Body &body, Id face, const MaterialRecords &materials);
 ChangeReport executeTextureMappingCommand(Document &doc, const QJsonObject &command);
 } // namespace sketchy

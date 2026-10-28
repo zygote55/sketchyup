@@ -48,6 +48,15 @@ QJsonObject stableId(bool zero = false) {
             {"maxLength", 20},
             {"description", "Canonical uint64 decimal string"}};
 }
+// R100.b2: a material's real-world texture size in metres, or null for none (one metre).
+QJsonObject textureSizeSchema() {
+    const QJsonObject metres{{"type", "number"}, {"minimum", minimumTextureSize},
+                             {"maximum", maximumTextureSize}};
+    return {{"type", QJsonArray{"object", "null"}},
+            {"properties", QJsonObject{{"width", metres}, {"height", metres}}},
+            {"required", QJsonArray{"width", "height"}},
+            {"additionalProperties", false}};
+}
 // The optional edge stroke (ADR 0174 section 2, schema 31). Once present, every field is required;
 // the texture is "0" for none.
 QJsonObject edgeStrokeSchema() {
@@ -922,14 +931,16 @@ QJsonArray commandCatalog() {
              {{"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
               {"color", list({{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 3, 3)},
               {"opacity", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}},
-              {"asset", stableId(true)}},
+              {"asset", stableId(true)},
+              {"textureSize", textureSizeSchema()}},
              {"name", "color"}),
         spec("material.edit", "Edit material swatch", "Materials",
              {{"material", stableId()},
               {"name", QJsonObject{{"type", "string"}, {"minLength", 1}, {"maxLength", 1024}}},
               {"color", list({{"type", "number"}, {"minimum", 0}, {"maximum", 1}}, 3, 3)},
               {"opacity", QJsonObject{{"type", "number"}, {"minimum", 0}, {"maximum", 1}}},
-              {"asset", stableId(true)}},
+              {"asset", stableId(true)},
+              {"textureSize", textureSizeSchema()}},
              {"material"}),
         spec("material.delete", "Delete unused material", "Materials", {{"material", stableId()}},
              {"material"}),

@@ -1,12 +1,23 @@
 #pragma once
 #include "core/body.hpp"
+#include <optional>
 namespace sketchy {
+// The real-world size, in metres, that one repeat of a material's texture covers (ADR 0174
+// section 3, R100.b2). Absent, as SketchUp leaves it, the implicit face mapping uses one metre.
+struct TextureSize {
+    double width{}, height{};
+    bool operator==(const TextureSize &) const = default;
+};
+// Each side is finite and within one centimetre to one hundred metres.
+inline constexpr double minimumTextureSize = 0.01, maximumTextureSize = 100;
+void validateTextureSize(const TextureSize &size);
 struct MaterialRecord {
     Id id{};
     std::string name;
     std::array<float, 3> color{0.73f, 0.79f, 0.73f};
     float opacity{1};
     Id asset{};
+    std::optional<TextureSize> textureSize;
     bool operator==(const MaterialRecord &) const = default;
 };
 using MaterialPtr = std::shared_ptr<const MaterialRecord>;

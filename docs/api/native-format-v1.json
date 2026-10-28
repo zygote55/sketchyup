@@ -1,11 +1,11 @@
 {
     "apiVersion": 1,
     "containerVersion": 2,
-    "documentVersion": 31,
+    "documentVersion": 33,
     "fileLimitBytes": "134217728",
     "format": "sketchyup",
     "migrationReplacesFiles": false,
-    "publicSchema": "sketchyup-document-v31",
+    "publicSchema": "sketchyup-document-v33",
     "readDocumentVersions": [
         1,
         2,
@@ -37,7 +37,9 @@
         28,
         29,
         30,
-        31
+        31,
+        32,
+        33
     ],
     "units": "m",
     "unknownRequiredRecords": "reject",
