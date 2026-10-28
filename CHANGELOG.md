@@ -19,6 +19,13 @@
   and Cycles' statistics), so the same frame renders to the same bytes. The pixels are unchanged. Single renders
   lose the same chunks.
 - `sketchyup-cli --export-presentation`: a request over 16 KiB is refused with `LIMIT_EXCEEDED`, not `INPUT_ERROR`.
+- Presentation frames, rendered camera (R099.e3, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md) §6):
+  each frame's record now holds the camera its Blender rendered, in model coordinates, not only the camera the job
+  was given. The batch checks it against the planned pose to 1 µm, with the stand-in and with real Blender.
+- Presentation batch, MPEG-4 refusal (R099.e3): when a batch that chose MPEG-4 Part 2 is refused for its codec, the
+  refusal names MPEG-4 Part 2, not H.264.
+- Render queue (R099.e3, [ADR 0100](docs/decisions/0100-render-queue-lifecycle.md)): asking for the result of a render
+  before it finishes is refused, and the render keeps its state. It no longer shows as Failed in the jobs list.
 
 - Blender job sandbox (R109 S5, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)): the Blender
   render, preview, encode and handoff run under the helper sandbox. Blender may read its own install, the

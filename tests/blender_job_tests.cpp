@@ -3,6 +3,7 @@
 #include "core/face_textures.hpp"
 #include "core/materials.hpp"
 #include "integrations/blender_job.hpp"
+#include "integrations/render_snapshot.hpp"
 #include "io/assets.hpp"
 #include "io/texture_image.hpp"
 #include <QBuffer>
@@ -217,6 +218,24 @@ int blockUntilStopped() {
     never.wait(lock, [] { return false; });
     return 0;
 }
+// The camera the fake Blender reports as rendered: the camera the job gave it (the snapshot
+// manifest's camera), in the form blender_worker.py's rendered_camera reports. Each value is what
+// that camera's transform and lens give, as renderCameraTransform places it, so the echo is of the
+// given camera and nothing else.
+QJsonObject fakeRenderedCamera(const QJsonObject &source) {
+    const auto given =
+        parseRenderOptions(QJsonObject{{"apiVersion", 1}, {"camera", source.value("camera")}})
+            .camera;
+    QJsonArray matrix;
+    for (const auto value : renderCameraTransform(*given).m)
+        matrix.append(value);
+    return {{"projection", given->orthographic ? "orthographic" : "perspective"},
+            {"matrix", matrix},
+            {"angleY", given->verticalFov},
+            {"clipStart", given->nearClip},
+            {"clipEnd", given->farClip}};
+}
+
 int fake(const QString &stated, const QStringList &args) {
     auto mode = stated;
     const auto requestPath = args.last();
@@ -400,6 +419,9 @@ int fake(const QString &stated, const QStringList &args) {
                                       {"height", settings.value("height")},
                                       {"bytes", bytes.size()},
                                       {"sha256", hash(bytes)}};
+        // A still render reports the camera it renders with (the worker's renderedCamera).
+        if (request.value("operation") != "handoff" && source.contains("camera"))
+            result["renderedCamera"] = fakeRenderedCamera(source);
         if (mode == "source")
             result["revision"] = -1;
         if (mode == "device")

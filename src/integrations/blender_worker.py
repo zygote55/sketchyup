@@ -555,6 +555,21 @@ def configure_lighting(manifest, source=None):
     return {'mode': 'studio-v1', 'worldStrength': .25}
 
 
+def rendered_camera(camera):
+    # The camera a frame renders with, read after the scene is set up (ADR 0173 §6). The snapshot
+    # exporter maps our Z-up to glTF Y-up as (x, y, z) -> (x, z, -y), and the glTF importer maps
+    # Y-up back to Blender's Z-up as (x, y, z) -> (x, -z, y). Composed, the two are the identity,
+    # so the transform is reported as it stands. Columns are the x, y and z axes and then the
+    # position, as in renderCameraTransform: the position is column 3 and the view runs along -z.
+    bpy.context.view_layer.update()
+    matrix = camera.matrix_world
+    data = camera.data
+    return {'projection': 'orthographic' if data.type == 'ORTHO' else 'perspective',
+            'matrix': [float(matrix[row][column]) for column in range(4) for row in range(4)],
+            'angleY': float(data.angle_y),
+            'clipStart': float(data.clip_start), 'clipEnd': float(data.clip_end)}
+
+
 def render(request, directory):
     source = Path(request['sourceDirectory'])
     manifest, manifest_bytes = load_json(source / 'manifest.json', 16 * 1024 * 1024)
@@ -660,6 +675,7 @@ def render(request, directory):
         setattr(scene.render, flag, False)
     scene.render.filepath = str(directory / 'image.png')
     progress('rendering')
+    camera = rendered_camera(scene.camera)
     bpy.ops.render.render(write_still=True)
     progress('verifying-output')
     image = directory / 'image.png'
@@ -667,7 +683,7 @@ def render(request, directory):
         raise WorkerError('render_error', 'Renderer did not produce a bounded PNG')
     strip_png_text(image)
     image_bytes = image.read_bytes()
-    return {**common,
+    return {**common, 'renderedCamera': camera,
             'image': {'file': 'image.png', 'width': settings['width'], 'height': settings['height'],
                       'bytes': len(image_bytes), 'sha256': sha(image_bytes)}}
 

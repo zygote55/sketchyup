@@ -888,8 +888,7 @@ QString PresentationBatchDialog::startProblem() const {
                 return answer->message +
                        ". Check again, or clear Write video to render the frames only.";
             if (!videoAvailable())
-                return QString("H.264 is not in this Blender's FFmpeg build, so no video can be "
-                               "written. Clear Write video to render the frames only.");
+                return presentationVideoRefusal(selected.codec);
         }
     }
     if (const auto odd = oddSizeProblem(selected); !odd.isEmpty())

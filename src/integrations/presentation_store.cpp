@@ -240,6 +240,12 @@ QString presentationVideoCodecId(PresentationVideoCodec codec) {
     return codec == PresentationVideoCodec::MPEG4 ? "MPEG4" : "H264";
 }
 
+QString presentationVideoRefusal(PresentationVideoCodec codec) {
+    return QString("%1 is not in this Blender's FFmpeg build, so no video can be written. Clear "
+                   "Write video to render the frames only.")
+        .arg(codec == PresentationVideoCodec::MPEG4 ? "MPEG-4 Part 2" : "H.264");
+}
+
 PresentationVideoCodec presentationVideoCodecFromName(const QString &name) {
     if (name == "h264")
         return PresentationVideoCodec::H264;

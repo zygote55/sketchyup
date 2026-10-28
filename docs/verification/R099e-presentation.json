@@ -1,13 +1,17 @@
 {
   "layer": "R099.e",
   "date": "2026-10-27",
-  "branch": "docs/r099e-presentation-acceptance",
+  "updated": "2026-10-28",
+  "branch": "docs/r099e-presentation-acceptance (2026-10-27); fix/r099e3-presentation-close (2026-10-28, R099.e3)",
   "base": {
-    "main": "36f1c42f"
+    "main": "36f1c42f",
+    "mainAfterR099e2": "8268248d (PR #501 merged; PR #503 also merged)"
   },
   "commits": {
     "productCodeRunAt": "36f1c42f",
-    "recordCommit": "the head of docs/r099e-presentation-acceptance"
+    "recordCommit": "the head of docs/r099e-presentation-acceptance",
+    "r099e2": "PR #501, merged at 8268248d",
+    "r099e3": "the head of fix/r099e3-presentation-close (the PR's head, set at push)"
   },
   "ciRuns": {
     "mainFullTier": {
@@ -46,35 +50,37 @@
     }
   },
   "build": {
-    "timedBuild": "Release (CMAKE_BUILD_TYPE=Release, GCC 16.2.1, -O3 -DNDEBUG), build/release, BFD linker, SKETCHYUP_BUILD_DESKTOP=ON, SKETCHYUP_BUILD_CLI=ON, Qt 6.12.0, 467 steps",
+    "timedBuild": "Release (CMAKE_BUILD_TYPE=Release, GCC 16.2.1, -O3 -DNDEBUG), build/release, BFD linker, SKETCHYUP_BUILD_DESKTOP=ON, SKETCHYUP_BUILD_CLI=ON, Qt 6.12.0, 467 steps (2026-10-27 budgets)",
+    "r099e3Build": "Debug (the dev preset: CMAKE_BUILD_TYPE=Debug, desktop and CLI on), build/dev, Qt 6.12.0; the R099.e3 test runs (§2 of the record); budgets were not re-measured in R099.e3",
     "fuzzBuild": "clang with -fsanitize=fuzzer,address,undefined, RelWithDebInfo, build/fuzz, SKETCHYUP_BUILD_FUZZERS=ON, desktop and CLI off",
     "machine": "22 CPU threads, 30 GB RAM; other workers built during several runs; the 1-minute load average is recorded with each row",
     "blender": "Blender 5.2.2 LTS at /usr/bin/blender (build 2026-10-13); CI uses 17:5.2.2-2",
     "conditions": "ADR 0173 §5 names the pinned image and software rendering for the CPU rows; these runs are local, on this machine, with Cycles on the CPU"
   },
-  "status": "delivered with open findings: the Verify line is partly met (the camera-pose clause holds at the planner, and the unrelated-job clause has no fixture); §5 has one fail (batch capture) and one row not frozen (per-frame preparation, no row to compare); the whole-batch row passes as reported on a 48-frame run",
-  "verifyLine": "partial",
+  "status": "delivered with open findings. The Verify line holds. Every section 6 row holds as written except two that need the parent's wording decision: P4 (the schema row's 1.3.0 refusal wording, contradiction C2) and P5 (the determinism row's 'identical per-frame metadata', checked for the fields the batch compares). Section 5: nine of ten rows pass; the per-frame preparation row is not frozen (no row to compare). The owner decisions 2, 3, 4, 5 and 8 remain open. 'Accepted (R099.e)' is not set until P4 and P5 are decided.",
+  "verifyLine": "met",
   "checks": {
     "verifyFrameCountAndTiming": "pass: presentation_record_tests (240 inclusive, the formula), presentation_command_tests (8 frames), presentation_export_tests (6 frames; 240 refused); scripted R1 (8 per preset), S6 (12 per preset), refusal e (1,129 frames)",
-    "verifyCameraPoses": "partly: camera_motion_tests pins 11 per-frame pose digests for a four-scene fixture (the planner the batch calls); the batch's per-frame camera is not digested; the rendered-pose tolerance of 1 µm is not checked",
+    "verifyCameraPoses": "pass (R099.e3): the planner's per-frame digests are pinned in camera_motion_tests; presentation_export_tests verifyPoses checks each frame's recorded camera for equality with describeRenderCamera(renderSceneCamera(plan)); verifyRenderedPoses checks the camera Blender rendered within 1 µm, through the stand-in and on real Blender (§3a of the record)",
     "verifyCancellationAndRetry": "pass: presentation_export_tests (cancel, retry byte-identical, stopped worker reopens interrupted, damaged manifest refused); presentation_cli (SIGINT and SIGTERM); scripted S2 (real Blender: exit 130, 2 frames kept, hash-verified)",
-    "verifyUnrelatedJobs": "not met: no unrelated-job fixture (a render job before, during and after a batch, byte for byte)",
+    "verifyUnrelatedJobs": "pass (PR #501): presentation_export_tests, the unrelated-job block (lines 1402 to 1483): a single render beside a batch that is canceled, resumed and stopped; its state, attempts, manifest, worker, store record and absence of a result unchanged after each step",
     "s6FrameCountAndTiming": "pass (keyframe flags, framesPerSecond 24 in manifests and videos)",
-    "s6CameraPosesDimensionsHashes": "partly: frame size and hashes pass (presentation_export_tests line 162; all scripted frames verified); rendered pose within 1 µm not built",
-    "s6ProvenanceImmutable": "partly: the engine and the real batch leave the live document unchanged (presentation_export_tests lines 264 and 1152); destroy-the-original-capture not tested; the 'model has changed since' wording not asserted",
+    "s6CameraPosesDimensionsHashes": "pass (R099.e3): frame size and hashes pass; the rendered pose is within 1 µm on real Blender (§3a)",
+    "s6ProvenanceImmutable": "pass: the engine and the real batch leave the live document unchanged; destroy-the-original-capture tested (PR #501, the destroy block, lines 1292 to 1361); the 'model has changed since' wording asserted in presentation_batch_input_tests (R099.e3)",
     "s6Cancellation": "pass (presentation_export; scripted S2)",
     "s6RetryAndResume": "pass (presentation_export: exact launches, byte-identical verified frames, interrupted reopen)",
-    "s6UnrelatedJobFixture": "not met (no fixture)",
-    "s6Refusals": "pass: broken path, existing destination, symlink destination (presentation_export_tests 481 to 490), over-budget frames and output, absent Blender, preset list over four; scripted a to g leave no folder",
-    "s6Records": "partly: create, edit, delete undoable and the exact record restored (presentation_record_tests 221 to 244); encodings after undo not compared bit for bit; over-budget and malformed refused at load; save and reopen bit for bit (presentation_io_tests 192 to 199)",
-    "s6Schema": "partly: schema 30 with presentation-v1 reopens; schema 29 without tables (presentation_io_tests 152); the installed 1.3.0 CLI refuses the v30 fixture, unchanged, with the container wording (not the newer-format wording); parser_fuzz_presentation run locally, no finding",
-    "s6Determinism": "partly: same capture SHA-256 on two copies; every frame's decoded pixels equal; decoded video frames equal; PNG file bytes differ by Blender's tEXt Date and RenderTime (finding C3)"
+    "s6UnrelatedJobFixture": "pass (PR #501, as verifyUnrelatedJobs)",
+    "s6Refusals": "pass: broken path, existing destination, symlink destination (presentation_export_tests 481 to 490), over-budget frames and output, absent Blender, preset list over four; scripted a to g leave no folder; the MPEG-4 refusal text names MPEG-4 Part 2 (R099.e3)",
+    "s6Records": "pass: create, edit, delete undoable and the exact record restored (presentation_record_tests 221 to 244); after undo every byte of the encoding is equal except the revision, which advances (ADR 0005; the amended wording, parent decision P3); over-budget and malformed refused at load; save and reopen bit for bit (presentation_io_tests 192 to 199)",
+    "s6Schema": "partly, parent decision P4: schema 30 with presentation-v1 reopens; schema 29 without tables (presentation_io_tests 152); the installed 1.3.0 CLI refuses the v30 fixture, unchanged, with 'Unsupported container field' (the §6 row names the newer-format error); parser_fuzz_presentation run locally, no finding (CI does not run it)",
+    "s6Determinism": "partly, parent decision P5: the same capture SHA-256 on two copies; every frame's decoded pixels equal; decoded video frames equal; PNG bytes identical across two real batches with the stamp off and the text chunks stripped (P1, R099.e2; presentation_export_tests lines 1567 to 1592); 'identical per-frame metadata' checked for the camera, scene, keyframe and source manifest, not the diagnostics log"
   },
   "testRuns": {
     "localRelease": "15 of 15 core presentation, job, report-free suites pass under ctest (presentation_export_real with real Blender 36.6 s); presentation_input_tests passes offscreen; presentation_batch_input_tests passes offscreen with the two new blocks; camera_motion_tests passes with the pinned digests",
     "mainFullTier": "Development build and checks 274 of 274; fractional job with real Blender 10 of 10 (presentation_export_real 47.8 s); Sanitized builds 141 of 141",
     "pr484": "full tier CI verdict success; every presentation native cell passed",
-    "pr475": "full tier CI verdict success"
+    "pr475": "full tier CI verdict success",
+    "r099e3Local2026-10-28": "Debug build/dev: presentation_export_tests stand-in suite passes; presentation_export_tests --real passes (real Blender 5.2.2 LTS; the last of three runs is reported); blender_job_tests passes (fake) and --real; render_queue_tests passes, and fails on the R099.e2 code at its new check; presentation_cli_tests passes; presentation_batch_input_tests 'all checks passed' offscreen, with the new provenance block"
   },
   "nativeMatrix": {
     "scope": "Linux x86_64 only, as docs/SUPPORT_MATRIX.md states; Windows and macOS not run",
@@ -106,7 +112,8 @@
     "notRun": [
       "Windows and macOS (not in the support matrix)",
       "dialog audit at X11 1x and Wayland 2x (not in the CI audit cells)",
-      "sanitizer runs of presentation_input_tests, presentation_batch_input_tests and presentation_cli_tests (not in the sanitize lists)"
+      "sanitizer runs of presentation_input_tests, presentation_batch_input_tests and presentation_cli_tests (not in the sanitize lists)",
+      "the native matrix and the full tier for the R099.e3 branch (the fast tier runs on the PR)"
     ]
   },
   "sanitizers": {
@@ -145,8 +152,8 @@
     },
     "batchCapture250kTriangles": {
       "budget": "p95 <= 500 ms (proposed)",
-      "measured": "p50 1,602 ms, p95 1,747 ms, max 1,767 ms; 20 runs; 249,218-triangle terrain document (quantities-b terrain, no placements); 218 frames; encodeDocument alone p50 1,514 ms, p95 1,721 ms; load 2.05 to 4.01",
-      "verdict": "fail (owner decision 1)"
+      "measured": "2026-10-27: p50 1,602 ms, p95 1,747 ms, max 1,767 ms; 20 runs; 249,218-triangle terrain document (quantities-b terrain, no placements); 218 frames; encodeDocument alone p50 1,514 ms, p95 1,721 ms; load 2.05 to 4.01. After PR #500 (ADR 0173, capture encode notes): p50 154 to 161 ms, p95 160 to 183 ms over runs 3 and 4",
+      "verdict": "pass after PR #500 (the 2026-10-27 fail is superseded; owner decision 1 is no longer needed)"
     },
     "perFramePreparation": {
       "budget": "within the existing GLB preparation row, measured per frame",
@@ -161,7 +168,7 @@
     "wholeBatch": {
       "budget": "measured and reported (no fixed cap; progress and cancel at frame boundaries; remaining 2 GiB surfaced per frame) (proposed)",
       "measured": "reduced run: 4 presets x 12 frames = 48 frames in 604 s wall (mean 12.6 s per frame), all hash-verified. Projected for 960 frames: about 3.4 h (3.9 h at the p50 interval), about 0.65 GB output (2 GiB budget). The 960-frame run was not made",
-      "verdict": "pass, reported (owner decision 3)"
+      "verdict": "pass, reported (owner decision 3, open)"
     },
     "store": {
       "budget": "8 pending, 16 retained, 2 GiB (the R070 limits)",
@@ -170,7 +177,7 @@
     },
     "manifests": {
       "budget": "per-frame .json at most 1 MiB; batch manifest.json at most 1 MiB (proposed)",
-      "measured": "per-frame JSON 70,208 bytes (max 70,259 across 48 frames); batch manifest 14,514 bytes for 48 frames (about 300 bytes per frame; about 0.29 MB at 960 frames)",
+      "measured": "2026-10-27: per-frame JSON 70,208 bytes (max 70,259 across 48 frames); batch manifest 14,514 bytes for 48 frames (about 300 bytes per frame; about 0.29 MB at 960 frames). R099.e3 adds the rendered camera to each frame's result (16 matrix values and four numbers); the size was not re-measured",
       "verdict": "pass"
     },
     "codecProbeCache": {
@@ -179,30 +186,59 @@
       "verdict": "measured"
     }
   },
+  "renderedPose": {
+    "budget": "ADR 0173 §6: the rendered pose within 1 µm (0.001 model units) of the planned pose",
+    "fixture": "the export fixture: 12 frames (two presets, three keyframes), the default camera at a distance of 14 model units, changing in yaw only",
+    "realBlender5_2_2": {
+      "position": 2.1033e-06,
+      "target": 1.54972e-06,
+      "up": 5.62151e-06,
+      "clipping": 4.99189e-11,
+      "fieldOfViewEdge": 3.0598e-07,
+      "unit": "model units (a millimetre); the field of view as its edge's displacement at the planned distance",
+      "verdict": "pass"
+    },
+    "standIn": {
+      "position": 0,
+      "target": 1.77636e-15,
+      "up": 0,
+      "clipping": 0,
+      "fieldOfViewEdge": 0,
+      "verdict": "pass"
+    },
+    "convention": "the exporter maps Z-up to glTF Y-up as (x, y, z) -> (x, z, -y); the importer maps Y-up to Blender Z-up as (x, y, z) -> (x, -z, y); composed, the identity, so no conversion is applied"
+  },
   "gapsCarried": [
-    "Unrelated-job fixture (Verify, section 6): not built",
-    "Pinned per-frame camera digests in the batch and the rendered-pose tolerance (1 µm): not built",
-    "Destroy-the-original-capture test and the 'model has changed since' wording: not built",
-    "Encodings after undo compared bit for bit: not built",
+    "P4: the schema row's 1.3.0 wording (C2): needs the parent's decision to amend §6 to the container's wording. Blocks 'Accepted (R099.e)'",
+    "P5: the determinism row's 'identical per-frame metadata': needs the parent's decision to amend §6 to the fields verifySameFrames compares, or to compare the diagnostics log too. Blocks 'Accepted (R099.e)'",
+    "Owner decision 2: the per-frame preparation row has no GLB number",
+    "Owner decision 3: the whole-batch length (the 960-frame run was not made)",
+    "Owner decision 4: 250,000-triangle terrains cannot be rendered or batched (GLB and body limits)",
+    "Owner decision 5: the byte budgets (512 KiB, 256 KiB) cannot bind",
+    "Owner decision 8: the live version-6 assistant run before the 1.4.0 release, not made",
     "Sanitizer runs of presentation_input_tests, presentation_batch_input_tests and presentation_cli_tests: not in the sanitize lists",
     "parser_fuzz_presentation is not run by CI",
     "No fuzz target for PresentationJobStore",
+    "Orthographic cameras: in no fixture; the rendered orthographic field of view and scale are not checked (the projection and the matrix are)",
     "Installed smoke with the 1.4.0 package: RC walkthrough",
-    "Live version-6 assistant run before the next release (R099.c): not made",
-    "Byte budgets (512 KiB, 256 KiB) cannot bind (R099.a): owner decision 5",
     "Dialog disk refusal, the Canceling row, a plain Resume from the results sheet: untested (R099.d3)",
     "Disk figure, Eevee resume, status chip wording (R099.d3): carried, cosmetic or documented",
-    "animation_export.cpp duplicate log (ADR 0107 unchanged): carried"
+    "animation_export.cpp duplicate log (ADR 0107 unchanged): carried",
+    "The dialog's Start cannot reach the MPEG-4 refusal through its own UI (the codec list follows each new answer); the text is tested at presentationVideoRefusal"
   ],
   "findings": [
-    "O6 (product defect): Start after the Blender file changed refuses with 'H.264 is not in this Blender's FFmpeg build'; the re-check branch in startBatch is never reached (presentation_batch_dialog.cpp: startBatch, startProblem, videoAvailable). Reproduced by a batch test block, now removed; product code unchanged. Owner decision 6",
-    "C4: a 250,000-triangle terrain document is captured, but cannot be prepared: GLB has too many visible faces (glb_export.cpp line 277, observed); a 72,000-face model with 6,000 placements is refused with 'Export artifacts exceed bounds' (JSON over 16 MiB, glb_export.cpp lines 577 and 640, observed); the render snapshot refuses more than 20,000 bodies (render_snapshot.cpp line 250). Owner decision 4",
-    "C3: 'identical PNG bytes' does not hold; Blender writes Date and RenderTime tEXt chunks. Pixels, decoded video and planned poses are identical. Owner decision 7",
-    "C2: the schema-30 refusal by the released readers uses the container's wording, not the newer-format wording §6 names. Refused and unchanged",
+    "O6 (product defect), FIXED in PR #501 (R099.e2): Start after the Blender file changed refused with 'H.264 is not in this Blender's FFmpeg build'. A missing answer is no refusal now; Start re-checks the encoder and says so",
+    "R099.e2 gap, FIXED in R099.e3: RenderQueue::result() on a running job made jobs() show it as Failed, and the entry outlived the job (render_queue.cpp; the test fails on the old code)",
+    "R099.e2 gap, FIXED in R099.e3: the MPEG-4 refusal said H.264 (presentationVideoRefusal names the chosen codec; tested for both codecs)",
+    "R099.e2 gap, FIXED in R099.e3: the worker reported no camera (the rendered camera, renderedCamera, is reported and checked)",
+    "C4: a 250,000-triangle terrain document is captured, but cannot be prepared: GLB has too many visible faces (glb_export.cpp line 277, observed); a 72,000-face model with 6,000 placements is refused with 'Export artifacts exceed bounds' (JSON over 16 MiB, glb_export.cpp lines 577 and 640, observed); the render snapshot refuses more than 20,000 bodies (render_snapshot.cpp line 250). Owner decision 4 (open)",
+    "C3: 'identical PNG bytes': RESOLVED by parent decision P1 (R099.e2): the stamp is off and the PNG text chunks are stripped; the PNG bytes are identical across real batches",
+    "C2: the schema-30 refusal by the released readers uses the container's wording, not the newer-format wording §6 names. Refused and unchanged. OPEN: parent decision P4",
     "C1: the per-frame JSON is 70,208 bytes, not about 207 KB (UX 17.11 gap 7; ADR section 5)",
-    "C5: a request over 16 KiB is refused as INPUT_ERROR; R099.b documents LIMIT_EXCEEDED. Owner decision 9",
-    "The capture budget fails (1,747 ms p95 against 500 ms) and the per-frame preparation row has no number. Owner decisions 1 and 2",
-    "The whole batch takes about 3.4 hours projected at 240 x 4 at 1024x768 / 32 samples on this machine. Owner decision 3"
+    "C5: a request over 16 KiB: RESOLVED by parent decision P2 (R099.e2): LIMIT_EXCEEDED; a request that cannot be read stays INPUT_ERROR",
+    "The capture budget: RESOLVED by PR #500 (p95 160 to 183 ms against 500 ms). The per-frame preparation row has no number (owner decision 2, open)",
+    "The whole batch takes about 3.4 hours projected at 240 x 4 at 1024x768 / 32 samples on this machine (owner decision 3, open)",
+    "P5 (open): the determinism row's per-frame metadata clause, checked for the fields verifySameFrames compares"
   ],
   "decisions": {
     "recordLevel": [
@@ -211,37 +247,52 @@
       "R3 the capture row's document is quantities-b's terrain (249,218 triangles, no placements); preparation and rendering use the 92,500-triangle, 3,700-body document",
       "R4 the whole-batch row is frozen pass, reported, on a measured 48-frame run and the projection",
       "R5 the per-frame preparation row is not frozen (no row to compare with)",
-      "R6 the pinned pose digests are at planner level (camera_motion_tests)",
+      "R6 the pinned pose digests are at planner level (camera_motion_tests), with the batch's recorded camera compared for equality with the plan (R099.e3)",
       "R7 the native matrix is taken from main's full-tier run 40630475876",
-      "R8 the roadmap status is 'Delivered, with open findings'",
+      "R8 the roadmap status is 'Delivered, with open findings' until P4 and P5 are decided",
       "R9 the benchmark is committed as an EXCLUDE_FROM_ALL tool, as report_benchmark is"
     ],
+    "parent": [
+      "P1 identical PNG bytes are kept: the stamp is off and the PNG text chunks are stripped (owner item 7, the first option, against the recommendation; R099.e2)",
+      "P2 LIMIT_EXCEEDED for an over-size request; INPUT_ERROR for a request that cannot be read (owner item 9; R099.e2)",
+      "P3 the §6 Records row's undo wording: every byte of the encoding except the revision, which advances (ADR 0005); amended in place as R101.f amended V5 (R099.e3)",
+      "P4 OPEN: the §6 schema row's 1.3.0 wording (C2). Recommended: amend the row to the container's wording. This decision stops 'Accepted (R099.e)'",
+      "P5 OPEN: the §6 determinism row's per-frame metadata clause. Recommended: amend the row to the fields verifySameFrames compares, or compare the diagnostics log too"
+    ],
     "owner": [
-      "1 The batch capture budget (500 ms; fail at 1,747 ms p95). Recommendation: (b) accept a larger budget for this document size; (a) fund the encode work later",
-      "2 Name the GLB preparation row (none found). Recommendation: name a row and freeze this measurement against it",
-      "3 Accept the whole-batch length (about 3.4 h projected for 240 x 4). Recommendation: accept, and measure the 960-frame run before 1.4.0 if wanted",
-      "4 250,000-triangle terrains cannot be rendered or batched (GLB and body limits). Recommendation: keep the limits and state it in the support matrix",
-      "5 The byte budgets (512 KiB, 256 KiB) cannot bind. Recommendation: drop them, or set them at a small multiple of the measured maxima",
-      "6 Fix the changed-Blender Start defect (O6) before 1.4.0. Recommendation: fix",
-      "7 'Identical PNG bytes': strip Blender's metadata, or amend the row to pixels, decoded video and planned poses. Recommendation: amend the row",
-      "8 Live version-6 assistant run before 1.4.0 (R099.c)",
-      "9 The 16 KiB refusal code: restore LIMIT_EXCEEDED or amend R099.b's note. Recommendation: either; small",
-      "10 Keep the roadmap status 'Delivered, with open findings' until O6 and the unrelated-job fixture are done"
+      "1 The batch capture budget: resolved by PR #500 (p95 160 to 183 ms against 500 ms); no choice needed",
+      "2 Name the GLB preparation row (none found). OPEN. Recommendation: name a row and freeze this measurement against it",
+      "3 Accept the whole-batch length (about 3.4 h projected for 240 x 4). OPEN. Recommendation: accept, and measure the 960-frame run before 1.4.0 if wanted",
+      "4 250,000-triangle terrains cannot be rendered or batched (GLB and body limits). OPEN. Recommendation: keep the limits and state it in the support matrix",
+      "5 The byte budgets (512 KiB, 256 KiB) cannot bind. OPEN. Recommendation: drop them, or set them at a small multiple of the measured maxima",
+      "6 Fix the changed-Blender Start defect (O6) before 1.4.0: FIXED in PR #501",
+      "7 'Identical PNG bytes': decided by the parent (P1): the chunks are stripped, the first option",
+      "8 Live version-6 assistant run before 1.4.0 (R099.c). OPEN, not made",
+      "9 The 16 KiB refusal code: decided by the parent (P2): LIMIT_EXCEEDED, restored in R099.e2",
+      "10 The roadmap status: kept at 'Delivered, with open findings' until P4 and P5 are decided"
     ]
   },
-  "productCodeChanged": false,
+  "productCodeChanged": true,
+  "productCodeChangedIn": [
+    "R099.e2 (PR #501): the batch dialog's changed-Blender Start; the request limit; the worker's PNG text chunks and STAMP_FLAGS",
+    "R099.e3 (this branch): src/integrations/blender_worker.py (rendered_camera, the renderedCamera result); src/integrations/render_queue.cpp (RenderQueue::result); src/integrations/presentation_store.hpp/.cpp (presentationVideoRefusal); src/app/presentation_batch_dialog.cpp (the Start refusal uses it)"
+  ],
   "testsAdded": [
     "tests/presentation_benchmark.cpp: the section 5 measurement tool (modes plan, edit, load, capture, prepare, probe, describe, write-model); not built by default (CMakeLists.txt, EXCLUDE_FROM_ALL)",
-    "tests/presentation_batch_input_tests.cpp: Esc closes the batch dialog and starts no batch; the status chip opens a failed batch's results; the results offer Resume: encode video, which writes the one missing video; the quit test finds its Discard button by its standard button",
-    "tests/camera_motion_tests.cpp: the four-scene fixture with 11 pinned per-frame pose digests (SHA-256 at 17 significant digits); camera_motion_tests links Qt6::Core"
+    "tests/presentation_batch_input_tests.cpp: Esc closes the batch dialog and starts no batch; the status chip opens a failed batch's results; the results offer Resume: encode video, which writes the one missing video; the quit test finds its Discard button by its standard button; (R099.e2) the changed-Blender blocks (O6); (R099.e3) the completed batch's results read 'The model has changed since.' after a live edit",
+    "tests/camera_motion_tests.cpp: the four-scene fixture with 11 pinned per-frame pose digests (SHA-256 at 17 significant digits); camera_motion_tests links Qt6::Core",
+    "tests/presentation_export_tests.cpp (R099.e2): the unrelated-job blocks, the destroy-the-capture block, the undo encoding check (in presentation_record_tests), the PNG identity of two real batches; (R099.e3) verifyPoses (the recorded camera for equality with the plan), verifyRenderedPoses (the rendered camera within 1 µm), reportDeviation, the MPEG-4 and H.264 refusal text",
+    "tests/render_queue_tests.cpp (R099.e3): a refused result() on a running and on a queued job leaves both states unchanged (fails on the R099.e2 code)",
+    "tests/blender_job_tests.cpp (R099.e3): the fake Blender echoes the camera it was given as renderedCamera (fakeRenderedCamera), through renderCameraTransform"
   ],
   "scriptedRuns": [
     "R1 video batch, 2 presets, 16 frames, real Blender, H.264 videos read back by ffprobe, every hash verified; 142.7 s",
-    "R1-b the same batch on a second copy: capture SHA-256 equal; decoded pixels and decoded video frames equal; file bytes differ by PNG tEXt and MP4 metadata",
+    "R1-b the same batch on a second copy: capture SHA-256 equal; decoded pixels and decoded video frames equal; file bytes differ by PNG tEXt and MP4 metadata (on 2026-10-27; the PNG chunks are stripped since R099.e2)",
     "S2 SIGINT after two verified frames: exit 130, state canceled, 2 frames kept, hash-verified",
     "S4 MPEG-4 Part 2 batch: 5 frames, mpeg4 Simple Profile, 512x384",
     "S6 reduced whole batch: 4 presets x 12 frames, 1024x768, 32 samples: 48 frames in 604 s, every hash verified",
     "a-g refusals: missing parent, existing folder, unknown preset, five presets, 1,129 frames, relative path, a 17 KB request; each exit 1, no folder created",
-    "prior-release: the installed 1.3.0 CLI refuses presentation-v30.sketchyup (validate and inspect), exit 1, file byte-identical"
+    "prior-release: the installed 1.3.0 CLI refuses presentation-v30.sketchyup (validate and inspect), exit 1, file byte-identical",
+    "R099.e3 real-Blender suite (presentation_export_tests --real, the rendered pose of §3a and the real batch and video checks): passes"
   ]
 }

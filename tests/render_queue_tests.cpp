@@ -121,6 +121,21 @@ int main(int argc, char **argv) {
             check(record(queue, third).state == RenderJobState::Queued &&
                       record(queue, fourth).state == RenderJobState::Canceled,
                   "Remaining work queues in order and cancels before launch");
+            // A result exists only once its job completes. Asking early is refused, and the refusal
+            // leaves the job's state alone, whether the job is running or still queued. The later
+            // wait for each job to finish fails if a refused call makes the job Failed.
+            for (const auto early : {first, third}) {
+                bool refused = false;
+                try {
+                    queue.result(early);
+                } catch (const std::exception &) {
+                    refused = true;
+                }
+                check(refused, "A result is refused before its job completes");
+            }
+            check(record(queue, first).state == RenderJobState::Running &&
+                      record(queue, third).state == RenderJobState::Queued,
+                  "A refused result leaves the job's state unchanged");
             document.addFace({{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}});
             const auto liveRevision = document.revision();
             queue.cancel(first);
