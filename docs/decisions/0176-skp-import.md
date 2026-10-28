@@ -700,6 +700,27 @@ on an idle machine, so the two are not comparable.
 planes, texts, dimensions, camera and construction lines was not true before this follow-up: the report
 listed those kinds with no count. It is true now.
 
+## Implementation notes (R102.e)
+
+R102.e is the acceptance record: [`docs/verification/R102e-skp-import.md`](../verification/R102e-skp-import.md),
+with its [JSON](../verification/R102e-skp-import.json). It ran on `origin/main` at `fafc0431` on 2026-10-28.
+Status: delivered, with open findings. The record does not set "Accepted"; the parent decides with the owner.
+
+- **The owner's file** (SketchUp 2024, VFF), read in place: S1 (the counts against the parser's), S2 (the
+  placed bounding box, 0 m off), S3 (one instance, 1 of 1; 3 of 3 with two placements added in a scratch
+  document) and S4 (23 soft, 23 smooth and 142 hidden edges kept) pass. S5 cannot be checked: the file has no
+  textures, and the check needs a SketchUp screenshot. The helper takes a median of 15.6 ms to import the file
+  and peaks at 13.1 MiB.
+- **The tested version matrix is one real file**, SketchUp 2024. Every other version is either synthetic
+  (OpenSKP's own writer, v17) or untested. The guide's "2021 and later: supported, tested with a 2024 model"
+  and its "newer than tested" line go beyond that evidence (record §5, C1 and C17).
+- **Findings** (record §6): the newer-than-tested notice fires only above major 25 (`src/skp/import.cpp:371`),
+  where §2 names the corpus (2024) as the bar; the helper is killed by its sandbox when stdout is `/dev/null`
+  (the `ioctl` for `TCGETS2` is not in the SKP policy); the package's `bounding` block is over each definition's
+  own vertices, not the placed box that §7 S2 describes; the R102.b note on `missingUv` is out of date; and the
+  §5 and §6 limits, and the native caps on the `.skp` path, have no test.
+- No product code changed.
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue
