@@ -10,6 +10,7 @@
 // takes the owner's own file, local-only (never committed); it exits 77 (skipped) when that
 // file is not on this machine.
 #include "io/skp_package.hpp"
+#include "skp/import.hpp"
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
@@ -266,6 +267,19 @@ int main(int argc, char** argv) {
         const auto best = run({"--probe", withUnits(0x33, "best-effort-2013.skp")});  // 13
         check(best.report["code"].toString() != "pre2013",
               "a 2013 file is read best-effort, not refused as pre-2013: " + jstr(best.report["code"]));
+    }
+    // R102.f, F1: "newer than tested" applies above the newest major the corpus covers (24). A VFF
+    // header cannot be patched to a newer version and still be read (R102.e section 6), so the
+    // decision is tested directly.
+    {
+        check(!sketchyup::skp::isNewerThanTested(sketchyup::skp::kNewestTestedMajor),
+              "a file of the newest tested major (2024) is not labelled newer than tested");
+        check(!sketchyup::skp::isNewerThanTested(sketchyup::skp::kNewestTestedMajor - 1),
+              "an older file is not labelled newer than tested");
+        check(!sketchyup::skp::isNewerThanTested(-1), "a version that could not be read is not labelled");
+        check(sketchyup::skp::isNewerThanTested(sketchyup::skp::kNewestTestedMajor + 1),
+              "a 2025 file is labelled newer than tested");
+        check(sketchyup::skp::isNewerThanTested(26), "a 2026 file is labelled newer than tested");
     }
 #ifdef CLI_PATH
     // R102.c (ADR 0176 section 9): the application's CLI, --import-skp, through the real helper, with
