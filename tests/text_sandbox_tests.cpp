@@ -22,7 +22,8 @@
 //     resolves in the helper with no fallback, and is missing without its folder; the folder is
 //     granted read-only (a read is allowed; a write, a create, a read beside it or a remove is
 //     not); the helper refuses bad font arguments.
-// Needs sketchyup-text-worker (TEXT_WORKER_PATH) and a DejaVu Sans under /usr/share/fonts (the
+// Needs sketchyup-text-worker (TEXT_WORKER_PATH) and DejaVu Sans and DejaVu Serif under
+// /usr/share/fonts, both from ttf-dejavu, the package's only font dependency (the
 // user-font tests copy it). Landlock must be available: the checks fail, not skip, when it is not
 // (ADR 0183 decision 9).
 #include "sandbox/sandbox.hpp"
@@ -235,7 +236,7 @@ void testFixturesIdentical(const std::string &scratch) {
         lines << QStringLiteral("Line %1 cafe").arg(i, 2, 10, QLatin1Char('0'));
     const std::vector<std::pair<std::string, TextGeometrySettings>> requests = {
         {"latin-a", latin(QStringLiteral("SketchyUp 1"), QStringLiteral("DejaVu Sans"))},
-        {"latin-b", latin(QStringLiteral("Hello world"), QStringLiteral("Liberation Sans"))},
+        {"latin-b", latin(QStringLiteral("Hello world"), QStringLiteral("DejaVu Serif"))},
         {"large", latin(lines.join('\n'), QStringLiteral("DejaVu Sans"))},
     };
     for (const auto &[name, settings] : requests) {
