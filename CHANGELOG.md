@@ -1,6 +1,36 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 — 2026-10-28
+
+A minor release that adds the 1.4.0 group of Extended rows: IFC and STEP exchange (scope row F04),
+camera paths and batch presentations (F05), custom styles and asset catalogs (F06), quantities,
+reports and schedules (F07), `.skp` import (C01, import only), offline geographic coordinates (C06,
+offline only) and the helper process sandbox (R109). Additive: existing commands, queries and
+schemas keep their shapes; a document that uses the new features is written at schema 30 to 33.
+The summary is in the [1.4.0 release notes](docs/RELEASE_NOTES.md). The group is released only
+through its [M10 gate](docs/M10_ACCEPTANCE.md).
+
+- IFC import and export (R097, F04, [ADR 0171](docs/decisions/0171-ifc-exchange-subset.md)): **File → Import IFC…**
+  reads `IFC2X3`, `IFC4` and `IFC4X3_ADD2` into a new unsaved model, with a report; **File → Export IFC…**
+  writes `IFC4` only, tessellated. `sketchyup-cli --import-ifc` and `--export-ifc` do the same work. The
+  acceptance record is partial: the owner's buildingSMART hosted validation has not been run, so the export
+  claim is conditional on it, and the 10,000-body import budget is missed ([R097.f](docs/verification/R097f-ifc-exchange.md)).
+- STEP import and export (R098, F04, [ADR 0172](docs/decisions/0172-step-exchange-subset.md)): **File → Import STEP…**
+  reads AP203 and AP214, and AP242 on a best-effort basis; **File → Export STEP…** writes AP214 (the default) or AP203,
+  and never AP242. `sketchyup-cli --import-step` and `--export-step`. Three budgets are missed and await the
+  owner's decision ([R098.d](docs/verification/R098d-step-exchange.md)).
+- `.skp` import (R102, C01, [ADR 0176](docs/decisions/0176-skp-import.md)): **File → Import .skp file…** and
+  `sketchyup-cli --import-skp` read a SketchUp model file as a new, unsaved model, through the MIT-licensed
+  OpenSKP reader in a sandboxed helper. Export is not supported.
+- Geographic site coordinates (R107.a, C06, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): the
+  site can carry a WGS84 or NAD83 position, in UTM, as schema 32 (`geographic-site-v1`); the sun panel's **Use site
+  location** applies it as one undo step. Offline only: there is no lookup, no elevation import and no attribution.
+- Quantities panel and automation names (R101): **View → Quantities** shows the counts, areas and volumes of the
+  model in a panel; `report.run` and `report.schedule` are available over MCP and the session. The in-app
+  assistant cannot run them.
+- Presentations and batch output (R099.b to R099.d): **Camera → Presentations…** edits the camera paths and render
+  presets; **Export presentation batch…** (command search) renders a path through up to four presets to a new
+  folder, with an optional H.264 MP4 for each preset.
 
 - Asset catalogs dialog (R100.g F-1 and F-3, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)): a
   catalog opened with Open catalog file… is checked on each selection without its bytes being sent through the check.
@@ -74,7 +104,7 @@
   `sandboxUnavailable`, and nothing is read or written. The STEP export's AP203 header no longer names the machine's
   address: it names `0.0.0.0`, because the name lookup that wrote it is refused under the sandbox.
 
-- Dynamic Components in SketchUp (.skp) files (R104.a, R104.c, R104.d, [ADR 0178](docs/decisions/0178-dynamic-live-component-feasibility.md)):
+- Dynamic Components in .skp files (R104.a, R104.c, R104.d, [ADR 0178](docs/decisions/0178-dynamic-live-component-feasibility.md)):
   a Dynamic Component's `dynamic_attributes` values are read as read-only properties
   `skp.dynamic_attributes.<key>`, at instance and definition level (a definition's values reach each of its
   placements, and the placement's own value wins). Lengths are stored in metres. Formulas (`_<name>_formula`,
