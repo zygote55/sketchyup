@@ -37,6 +37,7 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <cctype>
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
@@ -79,6 +80,24 @@ std::string readAll(const std::string &path) {
 }
 
 // The last "R " line of a helper's stdout: its result, as the application reads it.
+// The R line without its "bytes" field. At four threads the package's element order, and with it
+// the width of the numbers it writes, follows the order the threads finish (ADR 0171 F8), so its
+// size can differ by a few bytes between runs; the status and the node count cannot.
+std::string withoutByteCount(std::string line) {
+    const std::string key = "\"bytes\":";
+    const std::size_t at = line.find(key);
+    if (at == std::string::npos)
+        return line;
+    std::size_t end = at + key.size();
+    while (end < line.size() && std::isdigit(static_cast<unsigned char>(line[end])))
+        ++end;
+    if (end < line.size() && line[end] == ',')
+        ++end;
+    else if (at > 0 && line[at - 1] == ',')
+        return line.erase(at - 1, end - at + 1);
+    return line.erase(at, end - at);
+}
+
 std::string resultLine(const std::string &text) {
     std::string line;
     std::size_t start = 0;
@@ -244,12 +263,31 @@ void compareRuns(const std::string &label, const Outcome &sandboxed, const Outco
           label + ": the sandboxed output bytes equal the unsandboxed ones");
 }
 
+// A four-thread import: the same return code and signal, and the same R line apart from the package
+// byte count (see withoutByteCount). The package bytes are compared on the one-thread import.
+void compareThreadedRuns(const std::string &label, const Outcome &sandboxed, const Outcome &plain) {
+    check(!sandboxed.signaled || sandboxed.signal != SIGSYS,
+          label + ": the sandboxed run was not killed by the sandbox");
+    check(sandboxed.signaled == plain.signaled && sandboxed.signal == plain.signal &&
+              sandboxed.code == plain.code,
+          label + ": the same return code and signal (sandboxed " + std::to_string(sandboxed.code) +
+              "/" + std::to_string(sandboxed.signal) + ", unsandboxed " +
+              std::to_string(plain.code) + "/" + std::to_string(plain.signal) + ")");
+    const std::string sandboxedLine = withoutByteCount(resultLine(sandboxed.out));
+    const std::string plainLine = withoutByteCount(resultLine(plain.out));
+    check(sandboxedLine == plainLine,
+          label +
+              ": the sandboxed R line, without the byte count, equals the unsandboxed one "
+              "(sandboxed '" +
+              sandboxedLine + "', unsandboxed '" + plainLine + "')");
+}
+
 void testFixturesIdentical(const std::string &scratch) {
     // IFC: import and check, for every fixture and the export fixtures. The import runs at four
     // threads, the application's default, so the sandbox sees the threaded path; there the package
     // lists elements in the order the threads finish (ADR 0171 F8; the document does not depend on
-    // it), so those runs compare the return code, signal and R line. A one-thread import, which is
-    // in file order, compares the package bytes too.
+    // it), so those runs compare the return code, signal and the R line without its byte count. A
+    // one-thread import, which is in file order, compares the full R line and the package bytes.
     std::vector<std::string> ifcFiles =
         fixturesIn(std::string(SOURCE_DIR) + "/tests/fixtures/ifc", ".ifc");
     for (const std::string &path :
@@ -268,7 +306,7 @@ void testFixturesIdentical(const std::string &scratch) {
             runHelper(stem + ".sandboxed.out",
                       {"--import", input, "--output", sandboxedPackage, "--threads", "4"});
         const Outcome plain = baselineImport(stem + ".plain.out", input, plainPackage, 4);
-        compareRuns("import " + name + " (four threads)", sandboxed, plain, "", "");
+        compareThreadedRuns("import " + name + " (four threads)", sandboxed, plain);
 
         const std::string sandboxedSerial = stem + ".sandboxed-1.skifc";
         const std::string plainSerial = stem + ".plain-1.skifc";
