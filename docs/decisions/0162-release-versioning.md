@@ -79,5 +79,10 @@ informational: readers accept any writer string, and retained fixtures that reco
   files were moved to 1.4.0 on those two lines only, after the first CI run on this branch failed G6. The
   Python worker tests build their own package with version 1.3.0 and are unaffected. A later bump must move
   these lines too.
+- The catalog fixtures (`tests/fixtures/catalog/*.sketchycat`) embed native documents, so they carry the
+  writer string and the chunk digests over it; `catalog_tests` compares them with its generator byte for
+  byte. They were regenerated with `catalog_tests --write-fixtures <new empty directory>` after the
+  package and development jobs failed `catalog`. Only the writer string and the digests changed. The
+  `catalog`, `catalog_fuzz`, `catalog_import` and `style_catalog_cli` tests pass on them.
 - Contradiction, not changed: `tests/provider_release_corpus_tests.py` says in its header that v5 is
   authoritative, but its `CURRENT` manifest is v6 (added by R099.c). The header is stale.
