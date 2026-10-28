@@ -650,6 +650,122 @@ int main(int argc, char **argv) {
             setBlender(success);
         }
 
+        // UX_DESIGN 17.5 (O6): the Blender changes after the dialog checked it. Start has no answer
+        // for the new file, so it checks the encoder again and says so, and the batch starts when
+        // the answer arrives. A new Blender that lacks H.264, or whose check does not finish, is
+        // refused with its own reason, and no batch starts.
+        {
+            isolateStore(files, "store-8");
+            Window window;
+            window.resize(1280, 900);
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "Changed-Blender window exposed");
+            makeModel(window);
+            setBlender(success);
+            auto &batches = window.renderPanel()->batches();
+            auto *dialog = openBatchDialog(window);
+            QPointer<QDialog> dialogPointer(dialog);
+            waitFor([&] { return label(*dialog, "batchVideoState")->text().contains("available"); },
+                    60000, "The first encoder check arrives");
+            auto *video = dialog->findChild<QCheckBox *>("batchVideo");
+            auto *start = dialog->findChild<QPushButton *>("batchStart");
+            dialog->findChild<QLineEdit *>("batchFolder")->setText(files.path() + "/changed");
+            video->setChecked(true);
+            check(start->isEnabled(), "Start is enabled with video, before the Blender changes");
+
+            // The Blender is replaced after the check. Start checks the new file again: the
+            // re-check line says so, Start waits for it, and the batch starts when H.264 is found.
+            setBlender(standIn(files, "blender-changed", "success"));
+            start->click();
+            checkText(label(*dialog, "batchVideoState")->text(), "Checking the video encoder",
+                      "Start says it checks the new Blender's encoder");
+            check(!start->isEnabled(), "Start waits for the new check");
+            check(video->isChecked(), "The owner's Write video choice waits with Start");
+            waitFor([&] { return !batches.jobs().empty(); }, 60000,
+                    "The batch starts once the new Blender reports H.264");
+            check(!dialogPointer || !dialogPointer->isVisible(), "Start closes the batch dialog");
+            check(onlyJob(batches).plan.video, "The started batch writes video");
+            waitFor([&] { return onlyJob(batches).state == PresentationJobState::Completed; },
+                    120000, "The batch with the changed Blender completes");
+        }
+
+        // The changed Blender has no H.264: the answer arrives and its reason is the refusal.
+        {
+            isolateStore(files, "store-9");
+            Window window;
+            window.resize(1280, 900);
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "No-H.264 window exposed");
+            makeModel(window);
+            setBlender(success);
+            auto &batches = window.renderPanel()->batches();
+            auto *dialog = openBatchDialog(window);
+            QPointer<QDialog> dialogPointer(dialog);
+            waitFor([&] { return label(*dialog, "batchVideoState")->text().contains("available"); },
+                    60000, "The first encoder check arrives");
+            auto *video = dialog->findChild<QCheckBox *>("batchVideo");
+            auto *start = dialog->findChild<QPushButton *>("batchStart");
+            dialog->findChild<QLineEdit *>("batchFolder")->setText(files.path() + "/no-h264");
+            video->setChecked(true);
+            setBlender(standIn(files, "blender-changed-no-h264", "success"));
+            qputenv("SKETCHYUP_FAKE_CODECS", "no-h264");
+            start->click();
+            waitFor(
+                [&] {
+                    return label(*dialog, "batchRefusal")->text().contains("not in this Blender");
+                },
+                60000, "The new Blender's answer is the refusal");
+            qunsetenv("SKETCHYUP_FAKE_CODECS");
+            checkText(label(*dialog, "batchRefusal")->text(),
+                      "H.264 is not in this Blender's FFmpeg build, so no video can be written.",
+                      "The refusal names H.264 and the Blender's build");
+            check(!video->isChecked(), "Write video is cleared once its refusal shows");
+            check(start->isEnabled(), "Start renders the frames only, as the refusal says");
+            check(dialogPointer && dialogPointer->isVisible(),
+                  "The dialog stays open for the refusal");
+            check(batches.jobs().empty(), "No batch starts without H.264");
+            dialog->deleteLater();
+            setBlender(success);
+        }
+
+        // The changed Blender's check does not finish: its own reason is the refusal, with the
+        // way out (Check again, or clear Write video).
+        {
+            isolateStore(files, "store-10");
+            Window window;
+            window.resize(1280, 900);
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "Unfinished-check window exposed");
+            makeModel(window);
+            setBlender(success);
+            auto &batches = window.renderPanel()->batches();
+            auto *dialog = openBatchDialog(window);
+            QPointer<QDialog> dialogPointer(dialog);
+            waitFor([&] { return label(*dialog, "batchVideoState")->text().contains("available"); },
+                    60000, "The first encoder check arrives");
+            auto *video = dialog->findChild<QCheckBox *>("batchVideo");
+            auto *start = dialog->findChild<QPushButton *>("batchStart");
+            dialog->findChild<QLineEdit *>("batchFolder")->setText(files.path() + "/unfinished");
+            video->setChecked(true);
+            setBlender(standIn(files, "blender-changed-unreported", "success"));
+            qputenv("SKETCHYUP_FAKE_CODECS", "absent");
+            start->click();
+            waitFor(
+                [&] { return label(*dialog, "batchRefusal")->text().contains("did not report"); },
+                60000, "The unreported check is the refusal");
+            qunsetenv("SKETCHYUP_FAKE_CODECS");
+            checkText(label(*dialog, "batchRefusal")->text(),
+                      "The video check did not report this Blender's codecs. Check again, or clear "
+                      "Write video to render the frames only.",
+                      "The refusal names the check and the way out");
+            check(!video->isChecked() && batches.jobs().empty(),
+                  "Write video is cleared and no batch starts");
+            check(dialog->findChild<QPushButton *>("batchVideoRecheck")->isVisible(),
+                  "Check again is offered when the check did not finish");
+            dialog->deleteLater();
+            setBlender(success);
+        }
+
         // UX_DESIGN 17.10: at 200% text the batch dialog's columns stack, the budget under the
         // form.
         {

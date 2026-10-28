@@ -1176,3 +1176,76 @@ the three entries R099.d2 left disabled.
   5. Qt: the APIs used are Qt 6.8 APIs, but the suites ran on the pinned image's Qt 6.11.2, not on 6.8.
 - **Contradictions with ADR 0173 or UX_DESIGN.** None found in the design. §17.4's Start line for the disk rule uses
   the engine's number; the dialog's number differs by the capture size (gap 1).
+
+## Implementation notes (R099.e2)
+
+Closes the R099.e findings that the code can close (the record is PR #499, `docs/verification/R099e-presentation.md`,
+§7 and §8). The branch is based on the R109 S5 head `71d11b20` (PR #494, not yet merged), because the stand-in
+`tests/blender_stand_in.hpp` that the new tests use is on that branch and not on `main`. Once #494 is merged, the
+branch's history contains its commits, and the PR's diff is this slice alone.
+
+- **O6, a changed Blender refuses Start with the H.264 message (§7, owner decision 6).** `startProblem` took a missing
+  answer for "no H.264", so Start returned before its re-check. A missing answer is now no refusal: Start re-checks the
+  encoder and says so ("Checking the video encoder…" on the re-check line), and the batch starts with video when the
+  answer has H.264. Two further rules keep the owner's choice safe. The Write video box is no longer cleared while a
+  Start waits for its check (`updateVideoState`), so the batch does not start frames-only by accident. When the answer
+  is a refusal, the reason goes to the refusal line, and the box is then cleared as the "video is off" state says. A
+  check that did not finish is refused with its own reason ("The video check did not finish. Check again, or clear
+  Write video…"), not with the H.264 message. No nested event loop is added.
+- **Tests for O6 (`presentation_batch_input_tests`).** Three blocks, each driven through the dialog: a changed Blender
+  with H.264 starts the batch, with video, and completes; a changed Blender without H.264 shows the H.264 refusal on the
+  refusal line, clears the box, and starts no batch; a changed Blender whose check reports no codecs shows that check's
+  reason and the way out. The removed test block of the record was not kept in any commit, so these are new.
+- **Unrelated jobs (§6, gap 1).** `presentation_export_tests` runs a single render through `RenderQueue` (one slot, so a
+  second render stays queued), with a hanging stand-in. Cancel, resume and `PresentationExport::stop()` (the call the
+  quit prompt's `PresentationBatches::stop` reaches) each leave the running render's state, attempts, manifest, worker
+  process, store record and absence of a result unchanged, and the queued render's state and record unchanged. The
+  quit prompt's own dialog path is not driven in the UI suite: it reaches the same `stop()`.
+- **Rendered pose within 1 µm (§6, gap 2).** Every frame's record keeps the camera its job was given. Each of its
+  position, target, up, yMag, nearClip and farClip is within 0.001 model units (a millimetre is the model unit, so
+  1 µm is 0.001) of `renderSceneCamera` applied to `planCameraFrames`' pose, and `verticalFov` within 1e-9 rad. This
+  runs through the stand-in batch, for both presets and every frame. **Not met as written:** ADR §6 says the rendered
+  pose is decoded from the result manifest. The worker's result carries no camera, so there is nothing to decode yet;
+  the check covers the input the worker received and its record, not the pose the renderer reports.
+- **Destroying the original capture (§6, gap 3).** A batch whose live document loses its camera path and is closed
+  after the first frame writes frames identical to an uninterrupted batch of the same capture (source manifest, camera,
+  scene and keyframe flag of every frame) and the same capture digest. A batch canceled while the document is closed
+  resumes from its stored capture and matches the same baseline.
+- **Bit for bit after undo (§6, gap 4). Contradicts the brief's literal wording.** The encoding carries the document
+  `revision`, and ADR 0005 says undo, redo and amendments each advance it. So an undo cannot give the bytes of the state
+  before the edit. The test checks that undo advances the revision, and that every other byte of `encodeDocument` is the
+  same after an undo of a path edit, a path delete, a path creation, a preset edit, a preset delete and a preset
+  creation. `presentation_record_tests` links `sketchyup_io` for this.
+- **Identical PNG bytes (§6, owner decision 7; contradiction C3).** Stamping alone does not make the bytes identical,
+  and this was measured with real Blender 5.2.2 on a 512 × 384 frame, 48 samples, Cycles CPU, two runs:
+  - with every `use_stamp*` flag on: `Date`, `Time`, `Frame`, `Camera`, `Scene` and `RenderTime` text chunks, and the
+    files differ;
+  - with `metadata_input = 'SCENE'`, `use_stamp = False` and every `use_stamp_*` flag off: the `Date` and time chunks
+    go, but `cycles.ViewLayer.total_time`, `render_time` and `synchronization_time` remain, with values that differ
+    between runs (1.71 s and 2.14 s), so the files still differ;
+  - with the stamp off and the PNG text chunks (`tEXt`, `zTXt`, `iTXt`) removed after the render, the two files are
+    byte-identical and their decoded IDAT is equal.
+
+  The worker does all three (`blender_worker.py`: `STAMP_FLAGS`, applied to the still render only so a handoff keeps the
+  scene's settings, and `strip_png_text` after the size check). Single renders use the same worker, so their PNGs lose
+  the same text chunks. Frame pixels are unchanged. The real test runs two batches of the same two-frame plan (two
+  presets, two frames each) and requires equal SHA-256 for every frame. Real-Blender frame SHA-256s from the passing run,
+  in manifest order (`01-Draft` frames 1 and 2, then `02-Check` frames 1 and 2):
+  - `c740f7a69cd7ab6d31fc28a7efcbf1db68b1ef9324c37d791a45b44c843c9d77`
+  - `80d27d934ce030e946821df9d8e2fc47f685616fe4ec84760a6be256b798e211`
+  - `a033a0f58856b7d08aee537b8756b1d18b97454e46f1562783faa4dfa3273dce`
+  - `f6623a1cbcf59008134ee95444a9e78b90244fa1dba80a7f6fb07342978b8336`
+- **The request limit (§7, owner decision 9; contradiction C5).** An oversize request is `LIMIT_EXCEEDED`, the code
+  R099.b names and the parser already raised; the CLI had pre-empted it with `INPUT_ERROR`. A request that cannot be read
+  stays `INPUT_ERROR`. `presentation_cli_tests` checks both codes.
+- **Gaps, honest.**
+  1. The rendered-pose decode from the result manifest (above) is not built. The worker reports no camera.
+  2. `RenderQueue::result()` on a job that has no result records an error, and `RenderQueue::jobs()` then reports that
+     job as `Failed` with the message, while the job still runs. The test does not call it on a running job. The
+     behaviour is in `render_queue.cpp` and is not changed here; it is a product bug to fix separately.
+  3. The MPEG-4 choice's refusal still says "H.264 is not in this Blender's FFmpeg build" (an existing wording, not
+     changed here).
+  4. The record (`docs/verification/R099e-presentation.md` and `.json`) and the R099 status line are not updated: they
+     belong to PR #499, which is open. The record's §7 and §8 should note O6 fixed, the §6 rows met (unrelated jobs,
+     destroy the capture, undo encodings with the revision exception, the PNG bytes), and the decisions 7 and 9 taken.
+  5. Not run: the 960-frame batch, the Windows and macOS builds, and the sanitizer and native matrices (CI).

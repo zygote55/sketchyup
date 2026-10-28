@@ -24,6 +24,14 @@ class WorkerError(Exception):
 VIDEO_FRAME_LIMIT = 240
 VIDEO_OUTPUT_LIMIT = 512 * 1024 * 1024
 FRAME_IMAGE_LIMIT = 64 * 1024 * 1024
+PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
+# The text chunks Blender writes into a PNG: the date, the times and the Cycles statistics.
+PNG_TEXT_CHUNKS = (b'tEXt', b'zTXt', b'iTXt')
+# Every stamp flag of the render settings is off, so a frame carries no stamped text (ADR 0173 §6).
+STAMP_FLAGS = ('use_stamp_camera', 'use_stamp_date', 'use_stamp_filename', 'use_stamp_frame',
+               'use_stamp_frame_range', 'use_stamp_hostname', 'use_stamp_labels', 'use_stamp_lens',
+               'use_stamp_marker', 'use_stamp_memory', 'use_stamp_note', 'use_stamp_render_time',
+               'use_stamp_scene', 'use_stamp_sequencer_strip', 'use_stamp_time')
 
 
 def load_json(path, limit):
@@ -38,6 +46,27 @@ def load_json(path, limit):
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def strip_png_text(path):
+    # Blender's Cycles statistics are text chunks too, and they change on every run even with the
+    # stamp off. Removing the text chunks makes identical renders give identical bytes (ADR 0173 §6).
+    data = path.read_bytes()
+    if not data.startswith(PNG_SIGNATURE):
+        raise WorkerError('render_error', 'Renderer did not produce a PNG')
+    kept, position, kind = [PNG_SIGNATURE], len(PNG_SIGNATURE), b''
+    while kind != b'IEND':
+        if position + 12 > len(data):
+            raise WorkerError('render_error', 'Renderer wrote a truncated PNG')
+        length, = struct.unpack('>I', data[position:position + 4])
+        kind = data[position + 4:position + 8]
+        end = position + 12 + length
+        if end > len(data):
+            raise WorkerError('render_error', 'Renderer wrote a truncated PNG')
+        if kind not in PNG_TEXT_CHUNKS:
+            kept.append(data[position:end])
+        position = end
+    path.write_bytes(b''.join(kept))
 
 
 def progress(phase):
@@ -624,6 +653,11 @@ def render(request, directory):
         data = path.read_bytes()
         return {**common, 'sceneFile': {'file': 'scene.blend', 'bytes': len(data),
                   'sha256': sha(data), 'assetsPacked': True, 'oneWay': True}}
+    # The stamp is off for the frame only; a handoff keeps the scene's own settings.
+    scene.render.metadata_input = 'SCENE'
+    scene.render.use_stamp = False
+    for flag in STAMP_FLAGS:
+        setattr(scene.render, flag, False)
     scene.render.filepath = str(directory / 'image.png')
     progress('rendering')
     bpy.ops.render.render(write_still=True)
@@ -631,6 +665,7 @@ def render(request, directory):
     image = directory / 'image.png'
     if image.is_symlink() or not image.is_file() or not 0 < image.stat().st_size <= 64 * 1024 * 1024:
         raise WorkerError('render_error', 'Renderer did not produce a bounded PNG')
+    strip_png_text(image)
     image_bytes = image.read_bytes()
     return {**common,
             'image': {'file': 'image.png', 'width': settings['width'], 'height': settings['height'],

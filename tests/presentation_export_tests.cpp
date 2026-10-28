@@ -1,8 +1,13 @@
 #include "automation/presentation_commands.hpp"
 #include "blender_stand_in.hpp"
+#include "core/camera_motion.hpp"
+#include "core/presentation.hpp"
 #include "core/scenes.hpp"
+#include "integrations/blender_job.hpp"
 #include "integrations/presentation_batch.hpp"
 #include "integrations/presentation_request.hpp"
+#include "integrations/render_queue.hpp"
+#include "integrations/render_snapshot.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -16,7 +21,9 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <utime.h>
@@ -170,6 +177,75 @@ void verifyManifest(const QString &output, int expectedFrames) {
     }
     check(frames == expectedFrames, "Manifest lists every verified frame");
 }
+// Each frame's record keeps the camera its Blender job was given. Every coordinate of that camera
+// is the planned pose to within 1 µm, which is 0.001 of a millimetre (ADR 0173 §6).
+void verifyPoses(const QString &output, const std::vector<CameraFrame> &planned) {
+    const auto manifest = QJsonDocument::fromJson(read(output + "/manifest.json")).object();
+    const auto point = [](const QJsonValue &value) {
+        const auto array = value.toArray();
+        check(array.size() == 3, "A recorded camera point has three coordinates");
+        return std::array<double, 3>{array[0].toDouble(), array[1].toDouble(), array[2].toDouble()};
+    };
+    const auto within = [](const std::array<double, 3> &actual,
+                           const std::array<double, 3> &expected) {
+        for (size_t axis = 0; axis < 3; ++axis)
+            if (std::abs(actual[axis] - expected[axis]) > 0.001)
+                return false;
+        return true;
+    };
+    int checked = 0;
+    for (const auto &presetValue : manifest.value("presets").toArray()) {
+        const auto directory = output + "/" + presetValue.toObject().value("directory").toString();
+        for (size_t index = 0; index < planned.size(); ++index) {
+            const auto name = QString("frame-%1").arg(index + 1, 4, 10, QChar('0'));
+            const auto camera =
+                QJsonDocument::fromJson(read(directory + "/frames/" + name + ".json"))
+                    .object()
+                    .value("camera")
+                    .toObject();
+            const auto expected = renderSceneCamera(planned[index].camera);
+            check(within(point(camera.value("position")),
+                         {expected.position.x, expected.position.y, expected.position.z}) &&
+                      within(point(camera.value("target")),
+                             {expected.target.x, expected.target.y, expected.target.z}) &&
+                      within(point(camera.value("up")),
+                             {expected.up.x, expected.up.y, expected.up.z}) &&
+                      std::abs(camera.value("yMag").toDouble() - expected.yMag) <= 0.001 &&
+                      std::abs(camera.value("nearClip").toDouble() - expected.nearClip) <= 0.001 &&
+                      std::abs(camera.value("farClip").toDouble() - expected.farClip) <= 0.001 &&
+                      std::abs(camera.value("verticalFov").toDouble() - expected.verticalFov) <=
+                          1e-9 &&
+                      camera.value("projection").toString() ==
+                          (expected.orthographic ? "orthographic" : "perspective"),
+                  "A frame's recorded camera is the planned pose to within 1 µm");
+            ++checked;
+        }
+    }
+    check(checked == int(planned.size()) * manifest.value("presets").toArray().size(),
+          "Every frame of every preset is checked");
+}
+// Two batches of one capture write the same frame records, apart from their output folders: the
+// source manifest, the camera, the scene and the keyframe flag of each frame are equal.
+void verifySameFrames(const QString &output, const QString &baseline, int frames) {
+    for (const auto *preset : {"01-Draft", "02-Check"})
+        for (int number = 1; number <= frames; ++number) {
+            const auto name =
+                QString("/%1/frames/frame-%2.json").arg(preset).arg(number, 4, 10, QChar('0'));
+            const auto live = QJsonDocument::fromJson(read(output + name)).object();
+            const auto frozen = QJsonDocument::fromJson(read(baseline + name)).object();
+            check(live.value("sourceManifestSha256") == frozen.value("sourceManifestSha256") &&
+                      live.value("camera") == frozen.value("camera") &&
+                      live.value("scene") == frozen.value("scene") &&
+                      live.value("keyframe") == frozen.value("keyframe"),
+                  "A frame matches the batch that ran on the captured state");
+        }
+}
+StoredRenderJob renderRecord(const RenderQueue &queue, const QString &id) {
+    for (const auto &job : queue.jobs())
+        if (job.id == id)
+            return job;
+    throw std::runtime_error("The render job is not stored");
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -234,6 +310,7 @@ int main(int argc, char **argv) {
                       manifest.value("presets").toArray().size() == 2,
                   "The batch manifest pins the capture, timing and preset layout");
             verifyManifest(output, 12);
+            verifyPoses(output, capture.frames());
             check(QFileInfo(output + "/01-Draft/frames/frame-0001.png").isFile() &&
                       QFileInfo(output + "/02-Check/frames/frame-0006.png").isFile(),
                   "Each preset writes its own numbered frame folder");
@@ -1131,6 +1208,204 @@ int main(int argc, char **argv) {
                   "The CLI's synchronously checked video batch completes");
         }
 
+        // ADR 0173 §6: a batch's capture is its own. Deleting its camera path, or closing the
+        // document, while it runs changes none of its frames, and a resume reads the captured
+        // state, not the live document.
+        {
+            PresentationJobStore jobs(files.filePath("destroy-store"), limits);
+            Document live;
+            live.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+            const std::vector<std::pair<std::string, double>> views{
+                {"A", -45}, {"B", 90}, {"C", 180}};
+            std::vector<Id> scenes;
+            for (const auto &[name, yaw] : views) {
+                SceneSnapshot view;
+                view.camera = SceneCamera{};
+                view.camera->yaw = yaw;
+                scenes.push_back(createScene(live, name, view));
+            }
+            const auto path = createCameraPath(live, "Orbit", scenes, {24, 1, 1});
+            // The capture a resume uses is taken before the batch starts.
+            const auto resumeCapture = PresentationCapture::capture(live, plan(scenes));
+            const auto baselineOutput = files.filePath("destroy-baseline");
+            PresentationExport baseline(jobs);
+            baseline.start(PresentationCapture::capture(live, plan(scenes)), baselineOutput,
+                           blender(files.filePath("count-destroy-baseline")));
+            wait(baseline);
+            check(baseline.state() == PresentationJobState::Completed &&
+                      baseline.completedFrames() == 12,
+                  "The baseline batch completes");
+
+            // The camera path is deleted and the document closed after the first frame.
+            PresentationExport batch(jobs);
+            const auto output = files.filePath("destroy-live");
+            batch.start(PresentationCapture::capture(live, plan(scenes)), output,
+                        blender(files.filePath("count-destroy-live")));
+            bool closed = false;
+            QObject::connect(&batch, &PresentationExport::changed, &app, [&] {
+                if (!closed && batch.completedFrames() == 1) {
+                    closed = true;
+                    eraseCameraPath(live, path);
+                    live = Document{};
+                }
+            });
+            wait(batch);
+            check(closed && live.scenes().empty() && live.cameraPaths().empty(),
+                  "The live document is closed while the batch runs");
+            check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
+                  "The batch completes after its document is closed");
+            verifyManifest(output, 12);
+            verifySameFrames(output, baselineOutput, 6);
+            const auto baselineManifest =
+                QJsonDocument::fromJson(read(baselineOutput + "/manifest.json")).object();
+            const auto liveManifest =
+                QJsonDocument::fromJson(read(output + "/manifest.json")).object();
+            check(liveManifest.value("captureSha256") == baselineManifest.value("captureSha256") &&
+                      liveManifest.value("captureSha256") == resumeCapture.sha256(),
+                  "The batch keeps the capture it was started with");
+
+            // A canceled batch resumes with the live document still closed: the stored capture is
+            // what it renders.
+            PresentationExport interrupted(jobs);
+            const auto resumedOutput = files.filePath("destroy-resumed");
+            const auto interruptedId = interrupted.start(
+                resumeCapture, resumedOutput, blender(files.filePath("count-destroy-interrupted")));
+            bool requested = false;
+            QObject::connect(&interrupted, &PresentationExport::changed, &app, [&] {
+                if (!requested && interrupted.completedFrames() == 2) {
+                    requested = true;
+                    interrupted.cancel();
+                }
+            });
+            wait(interrupted);
+            check(interrupted.state() == PresentationJobState::Canceled && live.scenes().empty(),
+                  "The batch cancels with the document still closed");
+            PresentationExport resume(jobs);
+            resume.retry(interruptedId, blender(files.filePath("count-destroy-resumed")));
+            wait(resume);
+            check(resume.state() == PresentationJobState::Completed,
+                  "A resume completes from the captured state");
+            verifyManifest(resumedOutput, 12);
+            verifySameFrames(resumedOutput, baselineOutput, 6);
+            check(QJsonDocument::fromJson(read(resumedOutput + "/manifest.json"))
+                          .object()
+                          .value("captureSha256") == resumeCapture.sha256(),
+                  "The resumed batch keeps the captured state's digest");
+        }
+
+        // ADR 0173 §6: a single render that is queued or running is not the batch's. Cancel, stop
+        // and resume leave its state, its worker process and its store record as they were.
+        {
+            QDir().mkpath(files.filePath("render"));
+            // One slot: the second render waits behind the first, so it stays queued.
+            RenderQueue queue(files.filePath("render-queue"), RenderJobStore::Limits{}, 1);
+            RenderOptions renderOptions;
+            renderOptions.settings = {64, 64, 1, 0};
+            const auto prepared =
+                PreparedRender::prepare(RenderSnapshot::capture(doc, renderOptions));
+            BlenderJob::Options renderWorker = options;
+            renderWorker.timeoutMs = 900000; // It hangs until it is canceled.
+            renderWorker.executable =
+                blender_stand_in::place(files.filePath("render/blender-hang"), "hang");
+            const auto running = queue.enqueue(prepared, renderWorker);
+            const auto queued = queue.enqueue(prepared, renderWorker);
+            waitUntil(
+                [&] {
+                    return renderRecord(queue, running).state == RenderJobState::Running &&
+                           queue.workerProcessId(running) > 0;
+                },
+                "The unrelated single render runs");
+            check(renderRecord(queue, queued).state == RenderJobState::Queued,
+                  "The second single render waits in the queue");
+            const auto runningDirectory = files.filePath("render-queue") + "/" + running;
+            check(QFileInfo(runningDirectory).isDir(), "The running render has its job folder");
+            const auto runningBefore = renderRecord(queue, running);
+            const auto queuedBefore = renderRecord(queue, queued);
+            const auto pid = queue.workerProcessId(running);
+            const auto unrelatedUnchanged = [&](const char *when) {
+                const auto now = renderRecord(queue, running);
+                const auto waiting = renderRecord(queue, queued);
+                const auto same = [&](bool unchanged, const char *field) {
+                    if (!unchanged)
+                        throw std::runtime_error(std::string(when) + ": the unrelated render's " +
+                                                 field + " changed");
+                };
+                if (now.state != RenderJobState::Running)
+                    throw std::runtime_error(std::string(when) + ": the unrelated render is " +
+                                             std::to_string(int(now.state)) + ", " +
+                                             now.message.toStdString());
+                same(now.attempts == runningBefore.attempts, "attempts");
+                same(now.manifestHash == runningBefore.manifestHash, "manifest");
+                same(queue.workerProcessId(running) == pid, "worker process");
+                same(now.updatedMs == runningBefore.updatedMs, "store record");
+                // It has no output yet: no result is written beside its record.
+                // (RenderQueue::result is not called here: for a job that has no result it marks
+                // the job Failed in jobs().)
+                same(!QFileInfo::exists(runningDirectory + "/result.json"), "output");
+                same(waiting.state == RenderJobState::Queued, "queued state");
+                same(waiting.updatedMs == queuedBefore.updatedMs, "queued store record");
+            };
+
+            PresentationJobStore jobs(files.filePath("unrelated-store"), limits);
+            PresentationExport canceledBatch(jobs);
+            const auto canceledId =
+                canceledBatch.start(PresentationCapture::capture(doc, plan(keyframes)),
+                                    files.filePath("unrelated-canceled"),
+                                    blender(files.filePath("count-unrelated-canceled")));
+            bool requested = false;
+            QObject::connect(&canceledBatch, &PresentationExport::changed, &app, [&] {
+                if (!requested && canceledBatch.completedFrames() == 2) {
+                    requested = true;
+                    canceledBatch.cancel();
+                }
+            });
+            wait(canceledBatch);
+            check(canceledBatch.state() == PresentationJobState::Canceled,
+                  "The batch cancels beside an unrelated render");
+            unrelatedUnchanged("Cancel leaves the unrelated single render as it was");
+            PresentationExport resumedBatch(jobs);
+            resumedBatch.retry(canceledId, blender(files.filePath("count-unrelated-resumed")));
+            wait(resumedBatch);
+            check(resumedBatch.state() == PresentationJobState::Completed,
+                  "The canceled batch resumes beside an unrelated render");
+            unrelatedUnchanged("Resume leaves the unrelated single render as it was");
+
+            // The quit prompt stops a running batch; PresentationBatches::stop reaches this call.
+            PresentationExport stoppedBatch(jobs);
+            const auto stoppedId =
+                stoppedBatch.start(PresentationCapture::capture(doc, plan(keyframes)),
+                                   files.filePath("unrelated-stopped"),
+                                   blender(files.filePath("count-unrelated-stopped")));
+            bool halted = false;
+            QObject::connect(&stoppedBatch, &PresentationExport::changed, &app, [&] {
+                if (!halted && stoppedBatch.completedFrames() == 1) {
+                    halted = true;
+                    stoppedBatch.stop();
+                }
+            });
+            wait(stoppedBatch);
+            check(stoppedBatch.state() != PresentationJobState::Completed,
+                  "A stopped batch does not complete");
+            unrelatedUnchanged("The stop leaves the unrelated single render as it was");
+            PresentationExport stoppedResume(jobs);
+            stoppedResume.retry(stoppedId,
+                                blender(files.filePath("count-unrelated-stopped-resumed")));
+            wait(stoppedResume);
+            check(stoppedResume.state() == PresentationJobState::Completed,
+                  "The stopped batch resumes beside an unrelated render");
+            unrelatedUnchanged(
+                "Resuming the stopped batch leaves the unrelated single render as it was");
+
+            queue.cancel(queued);
+            queue.cancel(running);
+            waitUntil(
+                [&] {
+                    return renderRecord(queue, running).state != RenderJobState::Running &&
+                           renderRecord(queue, running).state != RenderJobState::Canceling;
+                },
+                "The unrelated single render is stopped at the end");
+        }
+
         // Real Blender, when the explicit opt-in is set: one batch from one capture.
         if (real) {
             PresentationJobStore jobs(files.filePath("real-store"), limits);
@@ -1206,6 +1481,33 @@ int main(int argc, char **argv) {
             check(encoder.phase() == BlenderJob::Phase::Failed &&
                       encoder.report().value("code") == "invalid_frame",
                   "The real worker refuses a frame whose hash does not match");
+
+            // ADR 0173 §6: identical renders give identical PNG bytes. Two runs of the same
+            // two-frame batch give the same SHA-256 for every frame, so Blender's stamp and its
+            // Cycles statistics do not reach the file.
+            const auto frameDigests = [&](const QString &name) {
+                PresentationJobStore twice(files.filePath(name + "-store"), limits);
+                PresentationExport run(twice);
+                run.start(PresentationCapture::capture(doc, plan({first, second}, {24, 1, 0})),
+                          files.filePath(name), real);
+                wait(run);
+                check(run.state() == PresentationJobState::Completed && run.completedFrames() == 4,
+                      "Real Blender completes both runs of the two-frame batch");
+                verifyManifest(files.filePath(name), 4);
+                QStringList digests;
+                const auto manifest =
+                    QJsonDocument::fromJson(read(files.filePath(name) + "/manifest.json")).object();
+                for (const auto &presetValue : manifest.value("presets").toArray())
+                    for (const auto &entryValue : presetValue.toObject().value("frames").toArray())
+                        digests << entryValue.toObject().value("sha256").toString();
+                return digests;
+            };
+            const auto firstDigests = frameDigests("png-first");
+            const auto secondDigests = frameDigests("png-second");
+            check(firstDigests.size() == 4 && firstDigests == secondDigests,
+                  "Two runs of the same two-frame batch give identical PNG bytes");
+            for (const auto &digest : firstDigests)
+                std::cout << "PNG sha256 " << digest.toStdString() << '\n';
 
             std::cout << "Real Blender presentation batch and video verified\n";
             return 0;
