@@ -35,9 +35,9 @@ void write(const QString &path, const QByteArray &bytes) {
           "Write CLI fixture");
 }
 QString quote(QString text) { return "'" + text.replace("'", "'\\''") + "'"; }
-// A fake `blender` on PATH. Each launch waits three seconds (the "slow" stand-in), so a test can stop the
-// batch while its next frame is still rendering. A stand-in here cannot count its launches: the CLI's
-// jobs are not given the test's writable directory.
+// A fake `blender` on PATH. Each launch waits three seconds (the "slow" stand-in), so a test can
+// stop the batch while its next frame is still rendering. A stand-in here cannot count its
+// launches: the CLI's jobs are not given the test's writable directory.
 void blenderLauncher(const QString &path) { blender_stand_in::place(path, "slow"); }
 struct Outcome {
     int code{};
@@ -143,7 +143,8 @@ int main(int argc, char **argv) {
         check(running.waitForStarted(10000), "Interrupted CLI starts");
         QElapsedTimer timer;
         timer.start();
-        // The first frame is written; the second worker is then rendering, and the batch is in flight.
+        // The first frame is written; the second worker is then rendering, and the batch is in
+        // flight.
         while (!QFileInfo::exists(interruptedOutput + "/01-Draft/frames/frame-0001.png") &&
                timer.elapsed() < 120000) {
             QCoreApplication::processEvents();

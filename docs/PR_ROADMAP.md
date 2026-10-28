@@ -1553,7 +1553,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R109 — Sandbox the file-parsing helper processes
 
-**Status:** In progress. S0 (the shared library, `src/sandbox/`) and S1 (the `.skp` helper) are in the PR for `feat/r109a-sandbox-skp`; S2 to S6 are open. Design accepted ([ADR 0183](decisions/0183-helper-process-sandbox.md), owner decisions approved 2026-10-27); planned before the next release. The `.skp` helper's refusal-code fix from the measurements is merged (PR #470). **Track:** Core. **Scope:** — (hardening of shipped helpers). **UX:** —.
+**Status:** In progress. S0 (the shared library, `src/sandbox/`) and S1 (the `.skp` helper) are merged in #481; S2 (IFC and STEP) is in #487 and S3 and S4 (text and extension) in #491. S5, the Blender job (`src/integrations/blender_job.cpp`), is in the PR for `feat/r109s5-sandbox-blender`; S6, the required `sandbox_available` check, is open. Design accepted ([ADR 0183](decisions/0183-helper-process-sandbox.md), owner decisions approved 2026-10-27); planned before the next release. The `.skp` helper's refusal-code fix from the measurements is merged (PR #470). **Track:** Core. **Scope:** — (hardening of shipped helpers). **UX:** —.
 
 **Requires:** [R070](#r070), [R097](#r097), [R098](#r098), [R102](#r102); milestone gate rule above.
 

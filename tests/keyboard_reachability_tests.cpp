@@ -1,4 +1,3 @@
-#include "blender_stand_in.hpp"
 #include "app/collapsible_section.hpp"
 #include "app/component_parameters_section.hpp"
 #include "app/components_tab.hpp"
@@ -11,6 +10,7 @@
 #include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "blender_stand_in.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"

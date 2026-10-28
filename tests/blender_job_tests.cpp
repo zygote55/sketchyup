@@ -1,7 +1,7 @@
+#include "blender_stand_in.hpp"
 #include "core/assets.hpp"
 #include "core/face_textures.hpp"
 #include "core/materials.hpp"
-#include "blender_stand_in.hpp"
 #include "integrations/blender_job.hpp"
 #include "io/assets.hpp"
 #include "io/texture_image.hpp"
@@ -10,21 +10,21 @@
 #include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QFileInfo>
 #include <QThread>
 #include <QTimer>
+#include <chrono>
+#include <condition_variable>
+#include <cstdlib>
 #include <fstream>
 #include <future>
 #include <iostream>
-#include <chrono>
-#include <condition_variable>
-#include <optional>
 #include <iterator>
 #include <mutex>
+#include <optional>
 #include <sys/ptrace.h>
-#include <cstdlib>
 #include <unistd.h>
 using namespace sketchy;
 using Phase = BlenderJob::Phase;
@@ -33,12 +33,13 @@ void check(bool ok, const char *message) {
         throw std::runtime_error(message);
 }
 // The artifacts are read and written with the standard library. The stand-in Blender runs under the
-// sandbox, whose policy is Blender's trace (ADR 0183, R109 S5), and Qt's file layer makes calls that
-// trace does not contain (statx, for one).
+// sandbox, whose policy is Blender's trace (ADR 0183, R109 S5), and Qt's file layer makes calls
+// that trace does not contain (statx, for one).
 QByteArray read(const QString &path) {
     std::ifstream file(QFile::encodeName(path).constData(), std::ios::binary);
     check(bool(file), "Read test artifact");
-    const std::string bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    const std::string bytes((std::istreambuf_iterator<char>(file)),
+                            std::istreambuf_iterator<char>());
     return QByteArray::fromStdString(bytes);
 }
 void write(const QString &path, const QByteArray &data) {
@@ -73,8 +74,9 @@ QByteArray mp4Box(const char *type, const QByteArray &payload) {
 // table of `frames` samples, then mdat. The entry is avc1 with avcC for H.264, or mp4v with esds
 // for MPEG-4 Part 2. It is not playable; ffprobe checks the real encoder's output in the real
 // Blender test.
-// A solid RGBA PNG, written without QImage: its writer loads Qt's logging configuration, a file check
-// the Blender policy does not allow (ADR 0183, R109 S5). The verifier decodes it with QImageReader.
+// A solid RGBA PNG, written without QImage: its writer loads Qt's logging configuration, a file
+// check the Blender policy does not allow (ADR 0183, R109 S5). The verifier decodes it with
+// QImageReader.
 QByteArray bytesOf(std::initializer_list<quint8> values) {
     QByteArray result;
     for (const quint8 value : values)
@@ -92,7 +94,8 @@ QByteArray pngOfColour(int width, int height, quint8 red, quint8 green, quint8 b
         return value ^ 0xFFFFFFFFU;
     };
     const auto be32 = [](quint32 value) {
-        return bytesOf({quint8(value >> 24), quint8(value >> 16), quint8(value >> 8), quint8(value)});
+        return bytesOf(
+            {quint8(value >> 24), quint8(value >> 16), quint8(value >> 8), quint8(value)});
     };
     const auto chunk = [&](const char *type, const QByteArray &data) {
         const QByteArray body = QByteArray(type, 4) + data;
@@ -222,8 +225,9 @@ int fake(const QString &stated, const QStringList &args) {
         }
         return 0;
     }
-    // counted-<hang>: the launch numbered <hang> hangs, the others succeed. The counter is the file named in
-    // <stand-in>.counter, which the test wrote beside the stand-in (tests/blender_stand_in.hpp).
+    // counted-<hang>: the launch numbered <hang> hangs, the others succeed. The counter is the file
+    // named in <stand-in>.counter, which the test wrote beside the stand-in
+    // (tests/blender_stand_in.hpp).
     if (mode.startsWith("counted-")) {
         const int hang = mode.mid(8).toInt();
         const auto counter = QString::fromLocal8Bit(read(args.value(0) + ".counter")).trimmed();
@@ -259,8 +263,9 @@ int fake(const QString &stated, const QStringList &args) {
     }
     if (mode == "crash")
         return 7;
-    // violate: an action the Blender policy does not name (ptrace), so the seccomp filter kills the stand-in
-    // with SIGSYS, which the job reports as sandboxViolation. abort: an ordinary crash, which stays a crash.
+    // violate: an action the Blender policy does not name (ptrace), so the seccomp filter kills the
+    // stand-in with SIGSYS, which the job reports as sandboxViolation. abort: an ordinary crash,
+    // which stays a crash.
     if (mode == "violate") {
         ptrace(PTRACE_TRACEME, 0, nullptr, nullptr);
         return 0;
@@ -434,8 +439,8 @@ int main(int argc, char **argv) {
     QStringList raw;
     for (int i = 0; i < argc; ++i)
         raw.append(QString::fromLocal8Bit(argv[i]));
-    // The stand-in: the job runs it under the sandbox as it runs Blender, so it is dispatched before any Qt
-    // application exists. Its name carries the mode (tests/blender_stand_in.hpp).
+    // The stand-in: the job runs it under the sandbox as it runs Blender, so it is dispatched
+    // before any Qt application exists. Its name carries the mode (tests/blender_stand_in.hpp).
     if (raw.size() > 2 && raw[1] == "--fake")
         return fake(raw[2], raw);
     if (const auto name = QFileInfo(raw.value(0)).fileName(); name.startsWith("sketchyup-fake-"))
@@ -480,7 +485,8 @@ int main(int argc, char **argv) {
         check(QFile::remove(hdrPath), "Remove original environment after capture");
         const auto sourceBytes = read(input->sourceDirectory() + "/scene.glb");
         auto options = [&](const QString &mode) {
-            // A stand-in of its own, so a launcher still entering exec is never rewritten (tests/blender_stand_in.hpp).
+            // A stand-in of its own, so a launcher still entering exec is never rewritten
+            // (tests/blender_stand_in.hpp).
             BlenderJob::Options options;
             options.executable = blender_stand_in::make(files.path(), mode);
             options.timeoutMs = 5000;

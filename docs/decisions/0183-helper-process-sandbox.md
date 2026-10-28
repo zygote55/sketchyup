@@ -396,3 +396,72 @@ Recorded 2026-10-27 on branch `feat/r109a-sandbox-skp`, based on `origin/main` a
 4. The refusal names the layer as `no_new_privs`, `landlock` or `seccomp filter`. §6.7 used the last two and did not name NNP.
 
 **Not done here.** The corrections owed to ADRs 0171, 0176, 0136 and 0180 (see Corrections owed) are not edited in this record. The IFC and STEP, text, extension and Blender helpers (S2 to S5) and the required `sandbox_available` check (S6) are not started. The `sketchyup_sandbox` library has no runner-side Landlock result yet, and the mremap path is not measured (§6.9).
+
+## Implementation notes (R109 S5)
+
+Recorded 2026-10-27 on branch `feat/r109s5-sandbox-blender`, based on `origin/main` at `34fd58ff`. This section covers the Blender job (S5, `src/integrations/blender_job.cpp`) and the two library changes it needs (S0, `src/sandbox/`). The sections above are unchanged except where a point below says so. Measurements were taken on this machine (kernel 7.2.8-9-omarchy, Blender 5.2.2 at `/usr/bin/blender`) while other builds ran, so the timings carry noise, given as ranges.
+
+**What the job does now.** The parent builds the policy before the fork (`sandbox::PreparedPolicy::prepare`: the Landlock ruleset with its rule paths opened, and the BPF program). The child runs `enter()` (`PR_SET_NO_NEW_PRIVS`, `landlock_restrict_self`, `seccomp`), which issues only system calls, and then `exec`s Blender. A layer that cannot be prepared refuses the job before Blender starts (`sandboxUnavailable`, with the layer named). A layer that cannot be installed in the child exits with 70 and writes `sandboxUnavailable: <layer> (errno <n>)` to the job's output. A SIGSYS from the filter is `sandboxViolation` and is not retried on the CPU.
+
+**The library change.** `apply()` is now `prepare()` followed by `enter()`, which the helpers use unchanged. `enter()` takes no lock and allocates nothing. The own-process immediate of a `tgkill` rule is filled in by the process that installs the filter. `FileAccess::readExecute` grants read and execute on one file (the Blender binary and the dynamic loader). `writeUnavailableLine()` is the refusal the child writes before it exits.
+
+**The allow-list, re-derived from real runs.** The trace was taken with a ptrace tracer (not committed) over four real runs of this machine's Blender tests (the job's probes, Cycles and EEVEE renders, the handoff, the animation and the presentation encode). The calls of the Blender images and their threads are 77 names. Eight of them are socket calls, which the policy now refuses. The forked children (`/bin/sh` and `xdg-user-dir` through `popen`, and `nvidia-modprobe`) are not traced in the sandboxed run: their `clone` is EPERM and the Landlock exec rule refuses `/bin/sh`. The final policy names 89 calls:
+
+- 71 allowed as they are (memory, files, threads, signals, identity; the list is in `src/integrations/blender_sandbox_policy.cpp`);
+- `clone`, allowed for threads only (CLONE_THREAD; a fork-like clone is EPERM), and `clone3`, which returns ENOSYS so that glibc falls back to `clone`;
+- `tgkill`, allowed for the process's own ID only, so a Blender `abort()` is a crash and not a violation (the rule S1 added);
+- 15 socket calls, EPERM: `socket`, `socketpair`, `bind`, `connect`, `listen`, `accept`, `accept4`, `sendto`, `sendmsg`, `recvfrom`, `recvmsg`, `getsockname`, `getsockopt`, `setsockopt` and `shutdown`.
+
+Every other call, including `fork`, `vfork`, `ptrace`, `kill`, `execveat` and `io_uring_*`, is killed with SIGSYS.
+
+**Differences from the ADR's list (§5 and §6.6, 58 calls).** The ADR's 58 are the 51 traced calls plus the 7 of the loader. The final policy adds these, and each has a reason:
+
+- `fallocate` and `flock`: Mesa's shader cache, on a cold start. Every attempt is cold (HOME is private), and the EEVEE preview calls both. The warm trace of the user's own HOME did not show them. Landlock limits them to the attempt directory.
+- `chmod`: the handoff saves its scene with mode 0600. Landlock ABI 10 has no right over `chmod`, so the call is not limited by path. It changes only the modes of files the user owns. This is a residual risk (see the risks below).
+- `writev`: from the ADR's loader trace (§6.6). It is not in the four runs.
+- `mremap`: glibc's `realloc` of a large block. No run reached it, and a killed render is worse than an allowed remap of the process's own memory. This follows S1.
+- `tgkill` (own process only): the abort rule, as in S1.
+- `sched_setscheduler` and `setpriority` are allowed, not refused, although `sched_setscheduler` returned EPERM in 10 of 48 unprivileged calls in the warm trace. Refusing it would change what Blender does, and the probes and renders pass with it allowed.
+
+The eight observed socket calls, which the ADR's §5 would have refused as well, are refused with EPERM for every socket call, not only `socket` and `bind`. Blender's Wayland, D-Bus and PipeWire attempts then fail as they do without a network, and its IPv6 probe fails too.
+
+**The Landlock rules.** Execute on the Blender binary and on the dynamic loader (resolved from `/lib64/ld-linux-x86-64.so.2`). Read on `/usr/lib` (libraries, the Python standard library, Blender's scripts), `/opt/intel` (the oneAPI runtime Blender links), `/usr/share/blender`, `/usr/share/locale`, `/usr/share/fonts`, `/usr/share/drirc.d`, `/usr/share/glvnd`, `/usr/share/egl`, `/proc`, `/sys`, `/dev/dri` and a set of named `/etc` files (`ld.so.cache`, `ld.so.preload`, `nsswitch.conf`, `localtime`, `drirc`, `glvnd`, `egl`). Read and write on `/dev/dri/renderD128` and `/dev/null`, and read and write on the attempt directory. Read on the render snapshot and on the frames of a video. Twenty-four path rules; twenty of the paths exist on this machine.
+
+**Contradictions with the ADR, and what was decided.**
+
+1. §5 gives the Blender filesystem as `rx /usr/lib`, `rx /opt/intel` and `ro /etc`. The loader and the libraries need only read (they are opened, not executed), so the policy grants read on the two library trees and execute on the two files above. `/etc` is granted file by file, which keeps `/etc/passwd` refused (the brief's attack probe). Blender then gets no passwd entry and uses `HOME`, which is set.
+2. §7.5 says a child policy that cannot be prepared reports `PREPARE_FAILED`. The brief asks for `sandboxUnavailable`, which §7.1 uses for every layer. The job reports `sandboxUnavailable`, with the layer named.
+3. §6.4's negative control killed Blender's IPv6 probe under the kill default. Here the kill is shown on a `socket` call of the sandboxed child (`blender_sandbox_tests`), with the policy's socket entries removed. Blender itself was not run without them.
+4. §10 risk 9 expected Blender to need no subprocess. Blender's trace makes 50 forked children (`/bin/sh` and `xdg-user-dir` for `popen`, and `nvidia-modprobe`). Each `clone` is EPERM and the exec of `/bin/sh` is refused, so each fails and Blender carries on. No probe or render depends on them.
+
+**The fake Blender under the same sandbox (decision 7 of the brief).** The fake runs under the same policy and the same launcher. A stand-in is a hard link to `blender_job_tests` in its test's directory, and its mode is in its name (`sketchyup-fake-<mode>-<n>`). A shell script would need `/bin/sh`, which the policy refuses, so the stand-ins are no longer scripts. The Qt stand-in made two kinds of call that Blender's trace does not contain, and it was changed to avoid them: its file I/O uses the standard library (Qt's file layer calls `statx`), and its PNG is written without `QImage` (Qt's logging configuration is read). Two test seams exist, and nothing in the application sets either. `setBlenderTestWritableDirectories` is process-wide, like `setPresentationVideoProbe`: it lets a stand-in count its launches in a test directory (the presentation export test does; a stand-in cannot write outside the attempt directory otherwise). `Options::sandboxSimulation` is per job: it makes a named layer fail, for the fail-closed tests. The presentation CLI test runs its stand-ins as "slow" (each launch waits three seconds) and waits for the first frame file, in place of launch counts, because the CLI cannot be given the seam.
+
+**Measured numbers.** Against the ADR's §9 budgets:
+
+| Item | Measured | Budget |
+|---|---|---|
+| Install in the child (fork, `enter`, exit, against fork and exit alone; median of 120) | +350 to +365 µs | ≤ 1 ms: met |
+| `prepare()` in the parent (median of 31) | 91 to 173 µs | not budgeted; once per attempt |
+| Per allowed call (`getpid`, 2 million calls, median of 5 children) | 67 ns plain, 72 ns sandboxed (+5 ns) | ≤ 50 ns added: met |
+| BPF program | 195 instructions, 1,560 bytes | < 4,096 instructions: met, and checked by `prepare()` |
+| Landlock ruleset | 24 path rules, 20 present | negligible (the rule count is not yet a CI check, S6) |
+| Short render (128 by 128, 4 samples, Cycles CPU), through the job against the same Blender without a sandbox, median of 5 | 674 and 722 ms through the job, 682 and 746 ms directly: differences of −1.2% and −3.2% | ≤ 3%: met, within noise |
+| Blender probe, sandboxed against unsandboxed (CPU and OpenGL) | identical results | identical output: met (`blender_sandbox_real`) |
+
+**Tests and gates.**
+
+- `blender_sandbox_tests` (fake, in CI): every allow-list name is in the call table; the policy prepares; the attacks are refused (a socket, a UNIX socket, `/bin/sh`, another program, a fork, `/etc/passwd`, a write outside the attempt directory), while the attempt directory and the input work; an abort is SIGABRT; a ptrace is SIGSYS. The negative control (no socket entries) is killed with SIGSYS. Fail-closed refusals: a simulated Landlock failure before the fork, and a simulated no_new_privs and seccomp failure in the child (exit 70, the layer named). Host classes: a stand-in killed by SIGSYS is `sandboxViolation` and runs once; an abort stays a crash; a layer that cannot be prepared is `sandboxUnavailable` before the fork; one that cannot be installed is `sandboxUnavailable` with exit 70.
+- `blender_sandbox_tests --real` (with `SKETCHYUP_BLENDER_TEST`): the sandboxed CPU and OpenGL probes give the same result as Blender run without a sandbox.
+- A render writes a PNG through the launcher: `blender_job_tests --real` (CPU and EEVEE renders, the solar and environment renders, the fallback and the cancellation), and `animation_export_tests --real`, `blender_handoff_tests --real` (the handoff), `presentation_export_tests --real` (the video encode) and `m7_presentation_tests --real`.
+- The suites the brief names pass unchanged in their assertions: `blender_job_tests` (fake and real), `presentation_export_tests` (fake and real) and `render_input_tests` (offscreen). `presentation_batch_input_tests` does not exist in this repository; the presentation batch is covered by `presentation_export_tests`, `presentation_cli_tests` and `presentation_store_tests`.
+- The helpers that already ran under the library still pass: `sandbox` (S0) and `skp_sandbox` (S1), against the refactored `apply()`.
+
+**Residual risks (S5).**
+
+- `chmod` is not limited by Landlock on this kernel. A parser that runs code could change the mode of a file the user owns. The call is needed for the handoff's 0600 file. A later kernel with a `SETATTR` right, or a Blender that does not chmod, would close it.
+- `/proc` is readable (the ADR's row). A child can read the environment of other processes of the same user, which can hold the user's credentials. The child has no socket, so nothing can leave it except a file in the attempt directory. The directory is removed when the job ends.
+- Qt's `QProcess` does its own work in the forked child before the modifier runs (the argument and environment copies). That work is Qt's, not the policy's, and it is as it was before this change. The modifier itself allocates nothing. The policy's own work is before the fork.
+- The Landlock ABI and the seccomp behaviour of the CI runner are not yet checked (S6). The Blender interoperability job runs `blender_sandbox` and `blender_sandbox_real` on the image's Blender (`command -v blender`), which is the first runner check of this slice.
+- The EEVEE preview on a cold Mesa cache needs `fallocate`, `flock` and the render node. The CI run of `blender_job_tests --real` covers the EEVEE path on the runner's graphics stack, which may differ from this machine's Intel Mesa.
+
+**Not done here.** S6 (the required `sandbox_available` check and the runner-kernel measurements) is open. The corrections owed to ADRs 0171, 0176, 0136 and 0180 are not edited. The keyboard reachability test (`keyboard_reachability_tests`) fails on the offscreen Qt platform at its command-palette check, which needs window activation that offscreen rendering does not give; CI runs it under Xvfb. It was built and run here, and the failure was not investigated further.

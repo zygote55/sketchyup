@@ -42,7 +42,7 @@ struct SyscallRule {
 // What the Landlock ruleset grants on one path. A path that does not exist is not granted.
 enum class FileAccess {
     readOnly,    // read the file, or list and read the directory
-    readExecute, // read, and execute a file (ADR 0183 section 4.4): the one program a helper may exec
+    readExecute, // read and execute a file (ADR 0183 section 4.4): the program a helper may run
     readWrite,   // read, write and create (a directory: every right except execute)
 };
 

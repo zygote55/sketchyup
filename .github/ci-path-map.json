@@ -148,6 +148,17 @@
       ]
     },
     {
+      "why": "The sandbox library (ADR 0183, R109 S0) is also the Blender job's child policy (R109 S5): a change to it runs the Blender job's checks, and the fake Blender tests run under it.",
+      "paths": [
+        "src/sandbox/**",
+        "tests/sandbox*",
+        "tests/blender_sandbox*"
+      ],
+      "areas": [
+        "blender"
+      ]
+    },
+    {
       "why": "Build definition: build and run everything fast, native included.",
       "paths": [
         "CMakeLists.txt",

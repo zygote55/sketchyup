@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Blender job sandbox (R109 S5, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)): the Blender
+  render, preview, encode and handoff run under the helper sandbox. Blender may read its own install, the
+  system libraries and its data, and may write only in the job's attempt directory. It has no network
+  (sockets are refused), no audio server (`ALSOFT_DRIVERS=null`), a private home and temporary directory,
+  and `--offline-mode`. It may execute only Blender. A sandbox violation is reported as such and is not
+  retried. A sandbox that cannot be installed refuses the render, named, and Blender does not start.
+
 - Edge stroke drawing (R100.f1, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)):
   `document.style` takes the optional edge stroke (width, opacity, dash and texture), one labelled
   edit per control. While it is on, the profiles draw with its width, opacity and dash, and with its

@@ -44,7 +44,9 @@ int main(int argc, char **argv) {
     try {
         QTemporaryDir files;
         check(files.isValid(), "Animation fixture directory");
-        auto launcher = [&](const QString &mode) { return blender_stand_in::make(files.path(), mode); };
+        auto launcher = [&](const QString &mode) {
+            return blender_stand_in::make(files.path(), mode);
+        };
         Document doc;
         doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
         SceneSnapshot a;

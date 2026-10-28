@@ -12,20 +12,20 @@ namespace {
 using sketchyup::sandbox::Action;
 using sketchyup::sandbox::FileAccess;
 
-// The directories inside the attempt directory that the environment names. They are created with the
-// attempt, so Blender finds them and need not create them.
-const char *const kSandboxDirectories[] = {"home", "tmp", "xdg/cache", "xdg/config", "xdg/data",
-                                           "xdg/state", "xdg/runtime"};
+// The directories inside the attempt directory that the environment names. They are created with
+// the attempt, so Blender finds them and need not create them.
+const char *const kSandboxDirectories[] = {"home",     "tmp",       "xdg/cache",  "xdg/config",
+                                           "xdg/data", "xdg/state", "xdg/runtime"};
 
 // The variables a child does not inherit. The session (display, bus, runtime directory), the
 // loader's search paths, and Blender's and Python's own paths are either useless to a child with no
 // socket or reach outside the attempt. The rest of the caller's environment passes through.
 const char *const kRemovedVariables[] = {
-    "DISPLAY",          "WAYLAND_DISPLAY",  "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR",
-    "PYTHONPATH",       "PYTHONHOME",       "LD_PRELOAD",               "LD_LIBRARY_PATH",
+    "DISPLAY",    "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "PYTHONPATH",
+    "PYTHONHOME", "LD_PRELOAD",      "LD_LIBRARY_PATH",
 };
 
-}  // namespace
+} // namespace
 
 sketchyup::sandbox::Policy policy(const Layout &layout) {
     sketchyup::sandbox::Policy result;
@@ -39,18 +39,19 @@ sketchyup::sandbox::Policy policy(const Layout &layout) {
     grant(layout.executable, FileAccess::readExecute);
     grant(QFileInfo("/lib64/ld-linux-x86-64.so.2").canonicalFilePath(), FileAccess::readExecute);
 
-    // System paths, read only. Libraries (and the Python standard library they ship with), Blender's
-    // data, the oneAPI runtime Blender links, and the graphics configuration the EEVEE preview reads.
-    // /etc is not granted as a whole: /etc/passwd and the rest stay refused.
-    for (const char *path : {"/usr/lib", "/usr/share/blender", "/usr/share/locale", "/usr/share/fonts",
-                             "/usr/share/drirc.d", "/usr/share/glvnd", "/usr/share/egl", "/opt/intel",
-                             "/proc", "/sys", "/dev/dri"})
+    // System paths, read only. Libraries (and the Python standard library they ship with),
+    // Blender's data, the oneAPI runtime Blender links, and the graphics configuration the EEVEE
+    // preview reads. /etc is not granted as a whole: /etc/passwd and the rest stay refused.
+    for (const char *path : {"/usr/lib", "/usr/share/blender", "/usr/share/locale",
+                             "/usr/share/fonts", "/usr/share/drirc.d", "/usr/share/glvnd",
+                             "/usr/share/egl", "/opt/intel", "/proc", "/sys", "/dev/dri"})
         grant(QString::fromLatin1(path), FileAccess::readOnly);
     for (const char *path : {"/etc/ld.so.cache", "/etc/ld.so.preload", "/etc/nsswitch.conf",
                              "/etc/localtime", "/etc/drirc", "/etc/glvnd", "/etc/egl"})
         grant(QString::fromLatin1(path), FileAccess::readOnly);
 
-    // Devices: the render node for the EEVEE preview, and /dev/null (the redirections Blender makes).
+    // Devices: the render node for the EEVEE preview, and /dev/null (the redirections Blender
+    // makes).
     grant("/dev/dri/renderD128", FileAccess::readWrite);
     grant("/dev/null", FileAccess::readWrite);
 
@@ -67,28 +68,29 @@ sketchyup::sandbox::Policy policy(const Layout &layout) {
 }
 
 std::vector<sketchyup::sandbox::SyscallRule> syscalls() {
-    // ADR 0183 section 5 (Blender). The calls are those of the four real runs on this machine (probe,
-    // Cycles and EEVEE render, handoff, animation and presentation encode), taken without the child
-    // processes that were refused: their union is 77 names. The sandboxed runs add fallocate and flock (a cold
-    // Mesa shader cache). The rules that follow are the choices.
+    // ADR 0183 section 5 (Blender). The calls are those of the four real runs on this machine
+    // (probe, Cycles and EEVEE render, handoff, animation and presentation encode), taken without
+    // the child processes that were refused: their union is 77 names. The sandboxed runs add
+    // fallocate and flock (a cold Mesa shader cache). The rules that follow are the choices.
     std::vector<sketchyup::sandbox::SyscallRule> rules;
     const auto allow = [&](std::initializer_list<const char *> names) {
         for (const char *name : names)
             rules.push_back({name, Action::allow});
     };
     // Memory, files and paths. Writes are limited by Landlock to the attempt directory.
-    allow({"read", "write", "writev", "close", "open", "openat", "stat", "fstat", "newfstatat",
-           "lseek", "access", "readlink", "getdents64", "getcwd", "fchdir", "mkdir", "rmdir", "rename",
-           "unlink", "unlinkat", "statfs", "fcntl", "ioctl", "dup3", "pipe2", "poll", "epoll_create1",
-           "epoll_ctl", "epoll_wait", "eventfd2"});
+    allow({"read",       "write",    "writev",        "close",     "open",       "openat",
+           "stat",       "fstat",    "newfstatat",    "lseek",     "access",     "readlink",
+           "getdents64", "getcwd",   "fchdir",        "mkdir",     "rmdir",      "rename",
+           "unlink",     "unlinkat", "statfs",        "fcntl",     "ioctl",      "dup3",
+           "pipe2",      "poll",     "epoll_create1", "epoll_ctl", "epoll_wait", "eventfd2"});
     allow({"mmap", "mprotect", "munmap", "madvise", "mremap", "brk"});
-    // fallocate and flock: Mesa's shader cache sizes and locks its index when the EEVEE preview starts with
-    // an empty cache, which every attempt does, as HOME is private. Landlock limits both to the attempt
-    // directory, and neither reaches a program or a socket.
+    // fallocate and flock: Mesa's shader cache sizes and locks its index when the EEVEE preview
+    // starts with an empty cache, which every attempt does, as HOME is private. Landlock limits
+    // both to the attempt directory, and neither reaches a program or a socket.
     allow({"fallocate", "flock"});
-    // chmod: Blender saves its scene (handoff) with owner-only permissions. Landlock (ABI 10) has no right over
-    // chmod, so the call is not limited by path; it changes only the mode of files this user owns (ADR 0183
-    // section 10, residual risk).
+    // chmod: Blender saves its scene (handoff) with owner-only permissions. Landlock (ABI 10) has
+    // no right over chmod, so the call is not limited by path; it changes only the mode of files
+    // this user owns (ADR 0183 section 10, residual risk).
     allow({"chmod"});
     // Threads and processes. Blender runs --threads 4; a process is never created (clone without
     // CLONE_THREAD is EPERM), and execve may only start Blender itself (Landlock).
@@ -98,18 +100,19 @@ std::vector<sketchyup::sandbox::SyscallRule> syscalls() {
            "prctl", "prlimit64", "sched_yield", "sched_getaffinity", "sched_setaffinity",
            "sched_getscheduler", "sched_setscheduler", "sched_getparam", "sched_get_priority_max",
            "sched_get_priority_min", "setpriority"});
-    // Signals. abort() signals its own process (tgkill): a Blender abort is a crash, not a violation.
+    // Signals. abort() signals its own process (tgkill): a Blender abort is a crash, not a
+    // violation.
     allow({"rt_sigaction", "rt_sigprocmask"});
     rules.push_back({"tgkill", Action::ownProcessOnly});
     // Identity, time and randomness.
     allow({"getpid", "getppid", "gettid", "getuid", "geteuid", "getgid", "getegid", "getresuid",
            "getresgid", "uname", "clock_gettime", "getrandom"});
-    // Sockets are refused (ADR 0183 decision 6): creating, connecting, binding or using one is EPERM.
-    // Blender's Wayland, D-Bus and PipeWire attempts, and its IPv6 probe, then fail as they do
-    // without a network.
-    for (const char *name : {"socket", "socketpair", "bind", "connect", "listen", "accept", "accept4",
-                             "sendto", "sendmsg", "recvfrom", "recvmsg", "getsockname", "getsockopt",
-                             "setsockopt", "shutdown"})
+    // Sockets are refused (ADR 0183 decision 6): creating, connecting, binding or using one is
+    // EPERM. Blender's Wayland, D-Bus and PipeWire attempts, and its IPv6 probe, then fail as they
+    // do without a network.
+    for (const char *name :
+         {"socket", "socketpair", "bind", "connect", "listen", "accept", "accept4", "sendto",
+          "sendmsg", "recvfrom", "recvmsg", "getsockname", "getsockopt", "setsockopt", "shutdown"})
         rules.push_back({name, Action::denied});
     // Not named, so killed (SIGSYS): fork and vfork, ptrace, execveat, kill, io_uring, bpf and the
     // rest. The host reports a SIGSYS as sandboxViolation (ADR 0183 section 4.6).
@@ -141,4 +144,4 @@ QStringList sandboxDirectories() {
     return directories;
 }
 
-}  // namespace sketchy::blender_sandbox
+} // namespace sketchy::blender_sandbox

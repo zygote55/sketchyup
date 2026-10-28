@@ -82,8 +82,9 @@ std::optional<Failure> buildFilter(const std::vector<SyscallRule> &rules, Filter
             continue;
         }
         const std::vector<sock_filter> block = blockFor(rule.action);
-        filter.program.push_back(jump(BPF_JMP | BPF_JEQ | BPF_K, static_cast<std::uint32_t>(*number),
-                                      0, static_cast<std::uint8_t>(block.size())));
+        filter.program.push_back(jump(BPF_JMP | BPF_JEQ | BPF_K,
+                                      static_cast<std::uint32_t>(*number), 0,
+                                      static_cast<std::uint8_t>(block.size())));
         if (rule.action == Action::ownProcessOnly)
             filter.selfSlots.push_back(filter.program.size() + 1); // the block's comparison
         filter.program.insert(filter.program.end(), block.begin(), block.end());

@@ -1,20 +1,25 @@
 // R109 S5 (ADR 0183): the Blender job's child under its sandbox. The checks:
-//   - every name in the Blender allow-list is in the system call table, and the policy prepares (its
+//   - every name in the Blender allow-list is in the system call table, and the policy prepares
+//   (its
 //     program fits the kernel's limit and its rule paths open);
-//   - a child under the policy refuses the attacks of ADR 0183 section 6.4 and section 11 S5: a socket
-//     (EPERM), an exec of /bin/sh or of another program (EACCES), a fork (EPERM), a ptrace (killed with
-//     SIGSYS), a read of /etc/passwd (EACCES), a write outside the attempt directory (EACCES), and a
-//     write inside it, or a read of the input, which work. An abort is SIGABRT, not a violation;
+//   - a child under the policy refuses the attacks of ADR 0183 section 6.4 and section 11 S5: a
+//   socket
+//     (EPERM), an exec of /bin/sh or of another program (EACCES), a fork (EPERM), a ptrace (killed
+//     with SIGSYS), a read of /etc/passwd (EACCES), a write outside the attempt directory (EACCES),
+//     and a write inside it, or a read of the input, which work. An abort is SIGABRT, not a
+//     violation;
 //   - the negative control: the same policy without its socket entries kills the child at the first
 //     socket call (SIGSYS), so the kill default is in force (ADR 0183 section 6.4);
-//   - a layer that cannot be installed is refused: a simulated Landlock failure before the fork, and a
+//   - a layer that cannot be installed is refused: a simulated Landlock failure before the fork,
+//   and a
 //     simulated no_new_privs or seccomp failure in the child, which exits 70 and names the layer;
 //   - the job's host classes: a stand-in killed by SIGSYS is sandboxViolation and is not retried; a
 //     stand-in that aborts is still a crash; a layer that cannot be prepared or installed is
 //     sandboxUnavailable;
-//   - with --real (and SKETCHYUP_BLENDER_TEST), the probes that the job runs under the sandbox give the
-//     same result as the same probes run by Blender directly, without a sandbox (ADR 0183 section 6.6).
-//     A render that writes a PNG through the launcher is blender_job_tests --real.
+//   - with --real (and SKETCHYUP_BLENDER_TEST), the probes that the job runs under the sandbox give
+//   the
+//     same result as the same probes run by Blender directly, without a sandbox (ADR 0183
+//     section 6.6). A render that writes a PNG through the launcher is blender_job_tests --real.
 // The stand-ins are hard links to blender_job_tests (tests/blender_stand_in.hpp). Landlock must be
 // available: the checks fail, not skip, when it is not (ADR 0183 decision 9).
 #include "blender_stand_in.hpp"
@@ -35,8 +40,8 @@
 #include <QTemporaryDir>
 #include <QThread>
 
-#include <cerrno>
 #include <algorithm>
+#include <cerrno>
 #include <csignal>
 #include <cstdio>
 #include <cstring>
@@ -80,8 +85,9 @@ struct Outcome {
     std::string out; // the child's standard output and standard error
 };
 
-// Runs body in a forked child whose output goes to a file, and reports how it ended. body returns the exit
-// code. The child is the process the policy is applied to, so the parent is never restricted.
+// Runs body in a forked child whose output goes to a file, and reports how it ended. body returns
+// the exit code. The child is the process the policy is applied to, so the parent is never
+// restricted.
 Outcome inChild(const std::string &outputFile, const std::function<int()> &body) {
     std::fflush(nullptr);
     const pid_t pid = fork();
@@ -106,7 +112,8 @@ Outcome inChild(const std::string &outputFile, const std::function<int()> &body)
 // The layout of an attempt in a scratch directory: its attempt directory and its input directory.
 bsp::Layout layoutIn(const std::string &scratch) {
     bsp::Layout layout;
-    layout.executable = QString::fromLocal8Bit(QCoreApplication::applicationFilePath().toLocal8Bit());
+    layout.executable =
+        QString::fromLocal8Bit(QCoreApplication::applicationFilePath().toLocal8Bit());
     layout.attemptDirectory = QString::fromStdString(scratch + "/attempt");
     layout.inputDirectory = QString::fromStdString(scratch + "/input");
     return layout;
@@ -126,7 +133,8 @@ void testPolicyBuilds(const std::string &scratch) {
     std::size_t named = 0;
     for (const auto &rule : rules) {
         check(sandbox::syscallNumber(rule.name).has_value(),
-              "the allow-list names " + std::string(rule.name) + ", which the system call table lists");
+              "the allow-list names " + std::string(rule.name) +
+                  ", which the system call table lists");
         ++named;
     }
     std::cout << "Blender allow-list: " << named << " named calls\n";
@@ -234,9 +242,10 @@ void testAttacks(const std::string &scratch) {
 
 void testNegativeControl(const std::string &scratch) {
     // The Blender policy without its socket entries: a socket call is not named, so it is killed.
-    static const char *const sockets[] = {"socket",  "socketpair", "bind",     "connect",  "listen",
-                                          "accept",  "accept4",    "sendto",   "sendmsg",  "recvfrom",
-                                          "recvmsg", "getsockname", "getsockopt", "setsockopt", "shutdown"};
+    static const char *const sockets[] = {"socket",     "socketpair", "bind",    "connect",
+                                          "listen",     "accept",     "accept4", "sendto",
+                                          "sendmsg",    "recvfrom",   "recvmsg", "getsockname",
+                                          "getsockopt", "setsockopt", "shutdown"};
     auto rules = bsp::syscalls();
     rules.erase(std::remove_if(rules.begin(), rules.end(),
                                [](const sandbox::SyscallRule &rule) {
@@ -257,7 +266,8 @@ void testNegativeControl(const std::string &scratch) {
         return fd >= 0 ? 0 : 1;
     });
     check(outcome.signaled && outcome.signal == SIGSYS,
-          "the negative control: without its socket entries the policy kills the first socket (SIGSYS)");
+          "the negative control: without its socket entries the policy kills the first socket "
+          "(SIGSYS)");
 }
 
 void testFailClosed(const std::string &scratch) {
@@ -265,8 +275,8 @@ void testFailClosed(const std::string &scratch) {
     // Before the fork: a Landlock failure is reported by prepare, and nothing is installed.
     {
         sandbox::PreparedPolicy prepared;
-        const auto failure =
-            prepared.prepare(bsp::policy(layout), {sandbox::Failure{sandbox::Layer::landlock, ENOSYS}});
+        const auto failure = prepared.prepare(bsp::policy(layout),
+                                              {sandbox::Failure{sandbox::Layer::landlock, ENOSYS}});
         check(failure && failure->layer == sandbox::Layer::landlock,
               "a simulated Landlock failure is reported before the fork");
     }
@@ -283,8 +293,9 @@ void testFailClosed(const std::string &scratch) {
             }
             return 0;
         });
-        const std::string expected = std::string("sandboxUnavailable: ") + sandbox::layerName(layer) +
-                                     " (errno " + std::to_string(EPERM) + ")";
+        const std::string expected = std::string("sandboxUnavailable: ") +
+                                     sandbox::layerName(layer) + " (errno " +
+                                     std::to_string(EPERM) + ")";
         check(!simulated.signaled && simulated.code == 70 &&
                   simulated.out.find(expected) != std::string::npos,
               "a simulated " + std::string(sandbox::layerName(layer)) +
@@ -292,7 +303,8 @@ void testFailClosed(const std::string &scratch) {
     }
 }
 
-// The job's host classes, with the stand-ins of blender_job_tests (the same launcher, the same policy).
+// The job's host classes, with the stand-ins of blender_job_tests (the same launcher, the same
+// policy).
 void waitFor(BlenderJob &job, int limitMs = 60000) {
     QElapsedTimer timer;
     timer.start();
@@ -378,9 +390,10 @@ QJsonObject directProbe(const QString &blender, const QString &backend, const QS
     requestFile.close();
     QProcess process;
     process.setWorkingDirectory(directory);
-    process.start(blender, {"--background", "--factory-startup", "--disable-autoexec", "--offline-mode",
-                            "--threads", "4", "--python-exit-code", "1", "--python", directory + "/worker.py",
-                            "--", directory + "/request.json"});
+    process.start(blender,
+                  {"--background", "--factory-startup", "--disable-autoexec", "--offline-mode",
+                   "--threads", "4", "--python-exit-code", "1", "--python",
+                   directory + "/worker.py", "--", directory + "/request.json"});
     if (!process.waitForFinished(120000))
         return {};
     return QJsonDocument::fromJson(read(directory + "/result.json")).object();
@@ -403,7 +416,8 @@ void testRealProbes(const std::string &scratch) {
         BlenderJob probe;
         probe.probe(real);
         waitFor(probe, 60000);
-        check(probe.phase() == Phase::Succeeded, backend.toStdString() + " probe under the sandbox succeeds");
+        check(probe.phase() == Phase::Succeeded,
+              backend.toStdString() + " probe under the sandbox succeeds");
         const auto sandboxed = probe.report().value("worker").toObject();
         check(!expected.isEmpty() && sandboxed.value("status") == "available" &&
                   sandboxed == expected,

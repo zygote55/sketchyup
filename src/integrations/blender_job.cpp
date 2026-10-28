@@ -406,8 +406,10 @@ struct BlenderJob::Impl {
     std::optional<QStringList> codecs; // The last probe's validated codec list, when reported.
     std::future<std::shared_ptr<const BlenderVideoResult>> videoVerification;
     std::shared_ptr<const BlenderVideoResult> videoResult;
-    std::unique_ptr<sketchyup::sandbox::PreparedPolicy> childPolicy; // the child's sandbox, prepared before its fork
-    QString sandboxRefusal; // the child's "sandboxUnavailable" line, when a layer could not be installed
+    std::unique_ptr<sketchyup::sandbox::PreparedPolicy>
+        childPolicy;        // the child's sandbox, prepared before its fork
+    QString sandboxRefusal; // the child's "sandboxUnavailable" line, when a layer could not be
+                            // installed
     explicit Impl(BlenderJob &owner)
         : owner(owner), process(&owner), deadline(&owner), killTimer(&owner), poll(&owner) {
         deadline.setSingleShot(true);
@@ -622,8 +624,8 @@ struct BlenderJob::Impl {
             require(QDir(attemptDirectory).mkdir("config") &&
                         QDir(attemptDirectory).mkdir("scripts"),
                     "Cannot isolate Blender preferences");
-            auto environment = blender_sandbox::environment(QProcessEnvironment::systemEnvironment(),
-                                                            attemptDirectory);
+            auto environment = blender_sandbox::environment(
+                QProcessEnvironment::systemEnvironment(), attemptDirectory);
             environment.insert("BLENDER_USER_CONFIG", attemptDirectory + "/config");
             environment.insert("BLENDER_USER_SCRIPTS", attemptDirectory + "/scripts");
             process.setProcessEnvironment(environment);
@@ -638,19 +640,21 @@ struct BlenderJob::Impl {
             // The child's policy is built here, before the fork: the rule paths are opened and the
             // BPF program is built in this process (ADR 0183 section 4.1). A layer that cannot be
             // prepared refuses the job now, and Blender does not start.
-            blender_sandbox::Layout layout{executable, attemptDirectory,
-                                           input ? input->sourceDirectory() : QString(), {}};
+            blender_sandbox::Layout layout{
+                executable, attemptDirectory, input ? input->sourceDirectory() : QString(), {}};
             if (encoding)
                 for (const auto &frame : video->frames)
                     layout.inputFiles.append(frame.path);
             auto rules = blender_sandbox::policy(layout);
             for (const auto &directory : testWritableDirectories)
-                rules.files.push_back({directory.toStdString(), sketchyup::sandbox::FileAccess::readWrite});
+                rules.files.push_back(
+                    {directory.toStdString(), sketchyup::sandbox::FileAccess::readWrite});
             childPolicy = std::make_unique<sketchyup::sandbox::PreparedPolicy>();
             if (const auto failure = childPolicy->prepare(
                     rules, sketchyup::sandbox::ApplyOptions{options.sandboxSimulation})) {
                 finish(Phase::Unavailable, "sandboxUnavailable",
-                       sandboxRefusalMessage(QString::fromStdString(sketchyup::sandbox::unavailableReason(*failure))));
+                       sandboxRefusalMessage(QString::fromStdString(
+                           sketchyup::sandbox::unavailableReason(*failure))));
                 return;
             }
             progressText = probing    ? "Checking Blender"
@@ -664,7 +668,8 @@ struct BlenderJob::Impl {
 #ifdef Q_OS_LINUX
             const auto ownerPid = getpid();
             process.setChildProcessModifier([ownerPid, policy = childPolicy.get()] {
-                // Syscalls only from here to exec: no allocation and no lock (ADR 0183 section 4.1).
+                // Syscalls only from here to exec: no allocation and no lock (ADR 0183
+                // section 4.1).
                 if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != ownerPid)
                     _exit(127);
                 if (const auto failure = policy->enter()) {
@@ -758,15 +763,17 @@ struct BlenderJob::Impl {
         const auto failure = workerReport.value("code").toString();
         if (code != 0 || status != QProcess::NormalExit ||
             workerReport.value("status") == "failed") {
-            // ADR 0183 sections 4.6 and 7: a sandbox kill and a sandbox refusal are named, and neither is
-            // retried on the CPU, because the same policy would refuse the same call again.
+            // ADR 0183 sections 4.6 and 7: a sandbox kill and a sandbox refusal are named, and
+            // neither is retried on the CPU, because the same policy would refuse the same call
+            // again.
             if (status == QProcess::CrashExit && code == SIGSYS) {
                 finish(Phase::Failed, "sandboxViolation", sandboxViolationMessage());
                 return;
             }
             if (status == QProcess::NormalExit && code == blender_sandbox::kRefusedExit &&
                 !sandboxRefusal.isEmpty()) {
-                finish(Phase::Unavailable, "sandboxUnavailable", sandboxRefusalMessage(sandboxRefusal));
+                finish(Phase::Unavailable, "sandboxUnavailable",
+                       sandboxRefusalMessage(sandboxRefusal));
                 return;
             }
             const bool mayRetry =

@@ -2,7 +2,6 @@
 // R084.u dialog inventory. Every dialog the desktop application can show is either a case
 // here (audited by `native_accessibility_audit --dialogs-keyboard=GROUP`) or listed in
 // `unexercised()` with the reason it cannot run in the isolated fixture.
-#include "blender_stand_in.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
@@ -11,6 +10,7 @@
 #include "automation/commands.hpp"
 #include "automation/extension_store.hpp"
 #include "automation/report_schedules.hpp"
+#include "blender_stand_in.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"

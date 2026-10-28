@@ -1,7 +1,7 @@
 #pragma once
-// The two kernel layers behind sandbox::apply and PreparedPolicy (ADR 0183 section 4.1). Each builder
-// returns nothing when it succeeds, or the failed layer and the errno. The installers issue system
-// calls only: PreparedPolicy::enter runs them after fork().
+// The two kernel layers behind sandbox::apply and PreparedPolicy (ADR 0183 section 4.1). Each
+// builder returns nothing when it succeeds, or the failed layer and the errno. The installers issue
+// system calls only: PreparedPolicy::enter runs them after fork().
 #include "sandbox/sandbox.hpp"
 
 #include <linux/filter.h>
@@ -21,9 +21,10 @@ std::optional<Failure> buildRuleset(const std::vector<FileRule> &files, int &rul
 // landlock_restrict_self on a ruleset built by buildRuleset. System calls only.
 std::optional<Failure> restrictWithRuleset(int rulesetFd) noexcept;
 
-// A seccomp-bpf program: the x86_64 architecture check, then one entry per named call, then the kill
-// default. selfSlots lists the instructions whose immediate is this process's ID (the own-process
-// rule); they are filled in when the filter is installed, in the process that installs it.
+// A seccomp-bpf program: the x86_64 architecture check, then one entry per named call, then the
+// kill default. selfSlots lists the instructions whose immediate is this process's ID (the
+// own-process rule); they are filled in when the filter is installed, in the process that installs
+// it.
 struct Filter {
     std::vector<sock_filter> program;
     std::vector<std::size_t> selfSlots;

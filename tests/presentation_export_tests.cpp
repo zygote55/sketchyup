@@ -1,5 +1,5 @@
-#include "blender_stand_in.hpp"
 #include "automation/presentation_commands.hpp"
+#include "blender_stand_in.hpp"
 #include "core/scenes.hpp"
 #include "integrations/presentation_batch.hpp"
 #include "integrations/presentation_request.hpp"
@@ -70,8 +70,10 @@ void settle(int milliseconds) {
     }
 }
 // A fake Blender that counts its launches. The launch numbered `hang` never returns, so a test can
-// stop a frame while its worker runs; zero never hangs. A name such as bin/blender is the PATH entry.
-QString launcher(const QTemporaryDir &files, const QString &name, const QString &counter, int hang) {
+// stop a frame while its worker runs; zero never hangs. A name such as bin/blender is the PATH
+// entry.
+QString launcher(const QTemporaryDir &files, const QString &name, const QString &counter,
+                 int hang) {
     const QFileInfo target(files.filePath(name));
     QDir().mkpath(target.absolutePath());
     return blender_stand_in::countedAt(target.absoluteFilePath(), hang, counter);
