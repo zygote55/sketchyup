@@ -14,7 +14,7 @@ sheets, Extended row F01.
 **Supported** means the configuration has release evidence. **Untested** means no
 evidence exists for this release; it is neither claimed to work nor known to fail.
 
-- **Supported:** Arch Linux x86_64 with the `sketchyup` 1.3.0-1 package, Qt 6.8.0
+- **Supported:** Arch Linux x86_64 with the `sketchyup` 1.4.0-1 package, Qt 6.8.0
   through 6.12.0 and an OpenGL 3.3 core-profile driver. Omarchy/Hyprland on Wayland
   is the primary desktop; the Qt X11 path is also tested. Ordinary modeling needs
   no network, account, provider or Blender. The assistant's supported provider is

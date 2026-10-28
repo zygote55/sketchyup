@@ -203,7 +203,7 @@ The batch refuses to start on a broken path and names the reasons.
 **Budgets (record level).** At most **64 paths** per document within a **512 KiB**
 record budget (measured at load, like the scene record budget); timing values in
 the existing ranges (fps 1–60, transition steps 1–600, hold steps 0–600).
-Decision 2. *Amended 2026-10-28 (owner decision 4, 2026-10-28; R099.e §8 item 5): the 512 KiB byte budget is dropped, and the 64-path count stays. The code still enforces the byte budget (`validateCameraPathRecords`, `src/core/presentation_records.cpp`, line 68); see Implementation notes (1.4.0 owner decisions, 2026-10-28).*
+Decision 2. *Amended 2026-10-28 (owner decision 4, 2026-10-28; R099.e §8 item 5): the 512 KiB byte budget is dropped, and the 64-path count stays. The code keeps the byte check as a guard (`validateCameraPathRecords`, `src/core/presentation_records.cpp`, line 68); see Implementation notes (1.4.0 owner decisions, 2026-10-28).*
 
 **Edit and history.** Creating, editing and deleting a path is an ordinary model
 edit: one undoable history entry per edit, no allocator floor beyond the
@@ -234,7 +234,7 @@ presets would be up to 640 MiB of image bytes in the document, and a path
 reference to a local `.hdr` would not travel with the file.
 
 **Budgets (record level).** At most **16 presets** per document within a
-**256 KiB** record budget. Decision 4. *Amended 2026-10-28 (owner decision 4, 2026-10-28; R099.e §8 item 5): the 256 KiB byte budget is dropped, and the 16-preset count stays. The code still enforces the byte budget (`validateRenderPresetRecords`, `src/core/presentation_records.cpp`, line 85); see Implementation notes (1.4.0 owner decisions, 2026-10-28).*
+**256 KiB** record budget. Decision 4. *Amended 2026-10-28 (owner decision 4, 2026-10-28; R099.e §8 item 5): the 256 KiB byte budget is dropped, and the 16-preset count stays. The code keeps the byte check as a guard (`validateRenderPresetRecords`, `src/core/presentation_records.cpp`, line 85); see Implementation notes (1.4.0 owner decisions, 2026-10-28).*
 
 **Persistence with the document — and the schema bump.** The records live in
 the native document, not in preferences or a sidecar file:
@@ -1411,5 +1411,5 @@ Recorded 2026-10-28 for branch `docs/rel140-decisions`. The owner's decisions fo
 - **Owner decision 3 (§5 and §9, render limits) [§8 item 4].** A 250,000-triangle terrain cannot be rendered or batched. The GLB export's 100,000-face limit and the render snapshot's 20,000-body limit stay for 1.4.0. Raising them is planned for 1.5.
 - **Owner decision 4 (§2, §3 and §5, byte budgets) [§8 item 5].** The 512 KiB path and 256 KiB preset byte budgets are dropped. The count limits (64 paths, 16 presets) stay.
   - **Finding: the code still enforces both byte budgets.** `validateCameraPathRecords` refuses a path table over `cameraPathBytesLimit` (512 KiB), and `validateRenderPresetRecords` refuses a preset table over `renderPresetBytesLimit` (256 KiB). The constants are in `src/core/presentation_records.hpp` (lines 34 and 36); the checks are at `src/core/presentation_records.cpp` lines 68 and 85. The checks run at load (`src/io/presentation_io.cpp`), on each path and preset edit (`src/automation/presentation_commands.cpp`), and in `src/core/model.cpp`.
-  - Dropping the budgets is therefore a code change, not a documentation change. This record does not make it, so the amendments above describe the decision and the enforcement together. Until the code changes, an over-budget record is refused, as before.
+  - The owner chose to drop the budgets from the design with no code change. The checks cannot bind, because the count limits stop first (R099.a: 64 paths are at most 91,648 bytes, 16 presets at most 18,432), so they stay as defensive guards against a malformed file, and no budget row measures them.
 - **The capture row.** The 2026-10-27 `fail` in §5 is superseded by PR #500 (p95 160 to 183 ms against 500 ms). The table now says so.

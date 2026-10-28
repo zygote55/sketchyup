@@ -5,8 +5,9 @@
 for [R102](../PR_ROADMAP.md#r102) ("Deliver SKP support only after feasibility passes"),
 scope row C01, import direction only. For **reading** `.skp`, it supersedes
 [ADR 0003](0003-compatibility-gaps.md)'s "unsupported" stance. Writing stays unsupported. The
-owner asked for `.skp` import on 2026-10-25 ("We need a way to import .skp files"). No
-implementation has started.
+owner asked for `.skp` import on 2026-10-25 ("We need a way to import .skp files"). Delivered in
+slices R102.a to R102.f and accepted in R102.e on the narrowed claim of owner decision 11 (2026-10-28),
+for SketchyUp 1.4.0.
 
 ## Context
 
@@ -707,7 +708,8 @@ listed those kinds with no count. It is true now.
 
 R102.e is the acceptance record: [`docs/verification/R102e-skp-import.md`](../verification/R102e-skp-import.md),
 with its [JSON](../verification/R102e-skp-import.json). It ran on `origin/main` at `fafc0431` on 2026-10-28.
-Status: delivered, with open findings. The record does not set "Accepted"; the parent decides with the owner.
+Status when written: delivered, with open findings. Since owner decision 11 (2026-10-28) it is **Accepted (R102.e), on the
+narrowed claim** (§2).
 
 - **The owner's file** (SketchUp 2024, VFF), read in place: S1 (the counts against the parser's), S2 (the
   placed bounding box, 0 m off), S3 (one instance, 1 of 1; 3 of 3 with two placements added in a scratch
