@@ -577,7 +577,8 @@ QJsonObject executeQuery(const Document &doc, const QJsonObject &request) {
 static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &request,
                                               BatchResponse response,
                                               const Document *outerScene = nullptr,
-                                              Id excludedInstance = 0) {
+                                              Id excludedInstance = 0,
+                                              const OpenedCatalogs *opened = nullptr) {
     fields(request, {"apiVersion", "documentId", "expectedRevision", "commands", "history"});
     if (!request["apiVersion"].isDouble() || request["apiVersion"].toDouble() != 1)
         throw std::runtime_error("Unsupported API version");
@@ -728,8 +729,11 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         auto name = command["command"].toString();
         const auto schema = commandDescription(name)["parameters"].toObject();
         const auto allowed = schema["properties"].toObject();
+        // `opened` is the desktop dialog's key for a catalog it holds (OpenedCatalogs). It is not
+        // in the public schema, so a request that holds no catalogs cannot send it.
+        const bool heldCatalogs = opened && name == QStringLiteral("catalog.import");
         for (auto it = command.begin(); it != command.end(); ++it)
-            if (!allowed.contains(it.key()))
+            if (!allowed.contains(it.key()) && !(heldCatalogs && it.key() == "opened"))
                 throw std::runtime_error("Unknown command parameter");
         for (const auto &required : schema["required"].toArray())
             if (!command.contains(required.toString()))
@@ -761,7 +765,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else if (isStyleCommand(name)) {
             styleOperations.append(executeStyleCommand(staged, command));
         } else if (isCatalogCommand(name)) {
-            catalogOperations.append(executeCatalogCommand(staged, command));
+            catalogOperations.append(executeCatalogCommand(staged, command, opened));
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (isComponentParameterCommand(name)) {
@@ -1602,7 +1606,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                              {"commands", scopedCommands}},
                             response == BatchResponse::Full ? BatchResponse::Full
                                                             : BatchResponse::Changes,
-                            scopeInstance ? &staged : nullptr, scopeInstance);
+                            scopeInstance ? &staged : nullptr, scopeInstance, opened);
                         if (scopeInstance)
                             scopeDraft = draft;
                         return decodedChanges(innerResult["changes"].toObject());
@@ -2015,9 +2019,10 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         result["document"] = describe(doc);
     return result;
 }
-QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchResponse response) {
+QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchResponse response,
+                         const OpenedCatalogs *opened) {
     try {
-        return executeBatchWithReferences(doc, request, response);
+        return executeBatchWithReferences(doc, request, response, nullptr, 0, opened);
     } catch (const ComponentParameterError &error) {
         // Keep ADR 0165's codes and context for sessions, MCP, staging and the CLI.
         throw InspectionError(error.code(), error.what(), componentParameterErrorDetails(error));
@@ -2110,9 +2115,10 @@ QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
     previewGeometry(doc, candidate, result);
     return result;
 }
-QJsonObject previewBatch(const Document &doc, const QJsonObject &request) {
+QJsonObject previewBatch(const Document &doc, const QJsonObject &request,
+                         const OpenedCatalogs *opened) {
     Document candidate = doc;
-    auto result = executeBatch(candidate, request);
+    auto result = executeBatch(candidate, request, BatchResponse::Full, opened);
     result["status"] = "preview";
     result["baseRevision"] = QString::number(doc.revision());
     previewGeometry(doc, candidate, result);

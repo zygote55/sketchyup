@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Asset catalogs dialog (R100.g F-1 and F-3, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)): a
+  catalog opened with Open catalog file… is checked on each selection without its bytes being sent through the check.
+  On a 128 MiB catalog a selection takes about 0.1 s, against 2 to 5 s before, and the process peaks at about 0.5 GB,
+  against 1.5 GB. The check and the insert are the engine's, as before.
 - Helper process sandbox, socket calls (R109 S1, S3, S4 and S6, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)):
   the `.skp`, text and extension helpers now refuse a socket call with an error (EPERM), as the IFC helper already
   does, instead of ending. A text helper whose Qt logger opens a socket for a missing locale carries on and logs

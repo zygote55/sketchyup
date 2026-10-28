@@ -75,8 +75,8 @@ QString unreadable(const QString &reason) {
 }
 
 // A catalog in the library folder can be named to the batch (catalog.import's `library`, R100.d)
-// only when it sits in the default folder, which the batch reads. Any other catalog is sent as its
-// bytes, which the batch decodes again.
+// only when it sits in the default folder, which the batch reads. Any other catalog is passed as
+// the package the dialog listed when it was opened, so its bytes are not encoded into the batch.
 bool namedInBatch(const CatalogSource &source) {
     return source.fromLibrary && !source.name.isEmpty() && isCatalogLibraryName(source.name) &&
            QDir(source.folder).absolutePath() == QDir(catalogLibraryFolder()).absolutePath();
@@ -753,7 +753,9 @@ void CatalogDialog::refreshInsert() {
     }
     // The engine's shared dry run (previewBatch): the insert is checked before the button is on,
     // so the dialog never waits for a refusal.
-    const auto refusal = authoring::dryRun(doc_, commands(refs));
+    OpenedCatalogs opened;
+    const auto batch = commands(refs, opened);
+    const auto refusal = authoring::dryRun(doc_, batch, &opened);
     if (!refusal.isEmpty()) {
         refusal_ = refusal["message"].toString();
         setInsertState(false, QStringLiteral("Insert"),
@@ -763,7 +765,7 @@ void CatalogDialog::refreshInsert() {
     setInsertState(true, insertButtonText(entries), placementLine(entries));
 }
 
-QJsonArray CatalogDialog::commands(const std::vector<Ref> &refs) const {
+QJsonArray CatalogDialog::commands(const std::vector<Ref> &refs, OpenedCatalogs &opened) const {
     // One catalog.import per catalog the selection uses, so each catalog is named once.
     std::map<QString, QStringList> byPath;
     std::vector<QString> order;
@@ -780,11 +782,14 @@ QJsonArray CatalogDialog::commands(const std::vector<Ref> &refs) const {
         if (!source || !source->package)
             continue;
         QJsonObject command{{"command", "catalog.import"}};
-        if (namedInBatch(*source))
+        if (namedInBatch(*source)) {
             command["library"] = source->name;
-        else
-            command["catalog"] = QString::fromLatin1(source->package->file.toBase64(
-                QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+        } else {
+            // The key is the catalog's place in `opened`; the package shares its file's bytes.
+            const auto key = QString::number(opened.size());
+            opened.emplace(key, *source->package);
+            command["opened"] = key;
+        }
         QJsonArray names;
         for (const auto &name : byPath[path])
             names.append(name);
@@ -836,7 +841,9 @@ void CatalogDialog::insertSelected() {
     const auto refs = chosen();
     const auto label = insertLabel(refs);
     try {
-        authoring::publish(doc_, view_, commands(refs), label);
+        OpenedCatalogs opened;
+        const auto batch = commands(refs, opened);
+        authoring::publish(doc_, view_, batch, label, &opened);
     } catch (const std::exception &failure) {
         const QString message = QString::fromUtf8(failure.what());
         if (message == QStringLiteral("Batch has no committed changes")) {

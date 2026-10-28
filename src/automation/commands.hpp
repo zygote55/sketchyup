@@ -1,4 +1,5 @@
 #pragma once
+#include "automation/catalog_commands.hpp"
 #include "core/model.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
@@ -20,7 +21,11 @@ QJsonObject executeAmend(Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request, BatchResponse response = BatchResponse::Full);
 QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
                          const QJsonObject &request);
-QJsonObject previewBatch(const Document &doc, const QJsonObject &request);
+// `opened` names the catalogs a `catalog.import` command may use by key (see OpenedCatalogs). Only
+// the desktop dialog passes it.
+QJsonObject previewBatch(const Document &doc, const QJsonObject &request,
+                         const OpenedCatalogs *opened = nullptr);
 QJsonObject executeBatch(Document &doc, const QJsonObject &request,
-                         BatchResponse response = BatchResponse::Full);
+                         BatchResponse response = BatchResponse::Full,
+                         const OpenedCatalogs *opened = nullptr);
 } // namespace sketchy
