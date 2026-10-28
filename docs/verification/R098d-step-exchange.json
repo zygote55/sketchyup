@@ -1,6 +1,6 @@
 {
   "layer": "R098.d",
-  "date": "2026-10-25 (R098.d); R098.e updates 2026-10-28",
+  "date": "2026-10-25 (R098.d); R098.e updates 2026-10-28; R098.f updates 2026-10-28",
   "branch": "feat/r098d-step-publish",
   "base": {
     "main": "c898a9e3"
@@ -12,7 +12,9 @@
     "dialogWordingE7AndBudgetTools": "33e175fa",
     "r098eTests": "df9cc436",
     "r098eComment": "eb85cffa",
-    "r098eRecord": "the commit that adds this record (see the PR)"
+    "r098eRecord": "the commit that adds this record (see the PR)",
+    "r098fCode": "df0f218e",
+    "r098fRecord": "the commit that adds section 10 and the ADR notes (see the PR)"
   },
   "pullRequests": {
     "record": "this branch, against main"
@@ -22,13 +24,13 @@
     "timedBuild": "Release (sketchyup-cli, sketchyup-ifc-worker, ifc_step_export_tests)",
     "debugTimingsDiscarded": true
   },
-  "status": "partial after R098.e: E2, E3, E5, E7 and E8 pass; E1 partial (owner decision between two clauses of ADR 0172 section 7); E6 partial (restart-and-exclude not implemented); E4 not met (bad face: counted, no location, not an element, faces join the good body; PMI-only AP242 refused without counts); three budget misses recorded for the owner (the 1,000,000-triangle export: 61 s and 975 MB, crash at the 4 GiB limit)",
+  "status": "partial after R098.f: E1 passes by the parent's decision (ADR 0172 section 7 amended, the 1e-3 clause dropped); E4 met in its tests (findings 11, 12 and 13 fixed in R098.f; not accepted by the owner); E2, E3, E5, E7 and E8 pass; E6 partial (restart-and-exclude not implemented); three budget misses recorded for the owner (the 1,000,000-triangle export: 61 s and 975 MB, crash at the 4 GiB limit)",
   "verifyLine": "partial",
   "checks": {
-    "E1": "partial, owner decision: the bound of section 7 (within the reported deflection) passes in ifc_step at 0.02 mm (volume 0.997368 >= 0.992016; area 0.998948 >= 0.995203; assembly likewise); the default 1 mm keeps 5 %; the clause '1e-3 relative for analytic primitives' is not met (2.6e-3 at 0.02 mm)",
+    "E1": "pass (R098.f, parent decision): ADR 0172 section 7 is amended in place, the 1e-3 clause is dropped and the reported deflection governs; ifc_step passes at 0.02 mm (volume 0.997368 >= 0.992016; area 0.998948 >= 0.995203; assembly likewise); the default 1 mm keeps 5 %",
     "E2": "pass (R098.e): ifc_import E2 on the app's report: box 12 triangles, 6 faces, 0 non-planar, 0 collapsed; cylinder 92, 26 faces, 0, 0; sphere r=5 mm 304 triangles, 2 collapsed (one per pole), 302 faces, 3 non-planar (pinned at this commit)",
     "E3": "pass: ifc_step section 4 and 5, ifc_step_worker",
-    "E4": "not met (R098.e): bad face counted (freeFaces 6) and the good box converts, but no location, the bad solid is not an element, and its faces are in the good box's body (defect, section 7 item 11); PMI-only AP242 refused as nothingToImport with no counts. C2 does not refuse AP242 (it refuses AP230)",
+    "E4": "met in its tests (R098.f, df0f218e): bad face: six faces counted and in elements.notImported (face, free-surface, 6), six locations with the part's entity label, one body of 12 triangles (the good box alone), identity 8 = 1 + 1 + 6; PMI-only AP242 refused as nothingToImport with its five kinds named and counted, one each, and five locations; not yet accepted by the owner",
     "E5": "pass: ifc_step_export (AP214 and AP203 round trips through the real helper)",
     "E6": "partial (R098.e): 128 MiB + 1 byte refused as tooLarge (CTest, step_import C8); SIGSEGV (C9), RLIMIT_AS (C10) and RLIMIT_CPU (C11) each fail with the log tail through stand-ins; restart-and-exclude not implemented (section 9.2)",
     "E7": "pass: ifc_step_export E7 checks on both round trips",
@@ -45,7 +47,11 @@
     "desktopDialogs": "4 of 4 pass (step_import_dialog, step_export_dialog, ifc_import_dialog, ifc_export_dialog)",
     "r098eIfcJob": "10 of 10 pass: ifc_package, ifc_convert, ifc_import, ifc_worker_run, ifc_export, ifc_step, ifc_step_export, step_import, import_refusal, ifc_sandbox (ifc-app, Debug, address space capped at 8,000,000 KiB), at the tree of df9cc436",
     "r098eMutants": "three deliberate failures (E1 volume bound 0.99, E2 non-planar count 4, E8 bound 200 bytes) each failed their test; sources restored; not committed",
-    "r098eDeterminism": "see R097.f record, item 8 (60 runs per fixture at four threads, identical)"
+    "r098eDeterminism": "see R097.f record, item 8 (60 runs per fixture at four threads, identical)",
+    "r098fBaseline": "10 of 10 pass at f51b59ec before the change: ifc_step, step_import, ifc_step_export, ifc_import, ifc_sandbox, ifc_package, ifc_convert, ifc_worker_run, ifc_export, import_refusal (ifc-app, Debug)",
+    "r098fSuites": "10 of 10 pass at df0f218e, the same suites, 33.5 s",
+    "r098fRepeats": "ifc_step, step_import, ifc_step_export, ifc_import, ifc_sandbox: 5 of 5 pass in each of 5 runs",
+    "r098fStepWorker": "ifc_step_worker (the helper's STEP Python suite): pass"
   },
   "budgets": {
     "inputFile128MiB": {
@@ -110,12 +116,14 @@
     "The corpus is tests/fixtures/step/, not tests/resources/step/ as ADR 0172 section 7 says",
     "Timing: the ifc-app preset is Debug; Release timings are the record's figures; the R098.a2 64 MiB figure is not a Release figure",
     "The 1,000,000-triangle export cannot be built in one document; its figure is R098.c's, not re-run",
-    "R098.e: a bad solid's six faces are reported as not imported by the helper (face, free-surface, 6) and as imported by the application's notice; they are in the good box's body (12 faces, one body); steps in the record, section 7 item 11",
-    "R098.e: the STEP report has no locations (ADR 0172 section 5); src/ifc/step_import.cpp never calls Report::locate",
-    "R098.e: a PMI-only AP242 file is refused as nothingToImport with no counts",
-    "R098.e: the 1e-3 clause of ADR 0172 section 7 E1 is not met by any tessellated cylinder tested (2.6e-3 at 0.02 mm)",
+    "R098.f fixed (df0f218e): a bad solid's six faces are reported as not imported by the helper (face, free-surface, 6) and as imported by the application's notice; they are in the good box's body (12 faces, one body); steps in the record, section 7 item 11",
+    "R098.f fixed (df0f218e): the STEP report has no locations (ADR 0172 section 5); src/ifc/step_import.cpp never calls Report::locate",
+    "R098.f fixed (df0f218e): a PMI-only AP242 file is refused as nothingToImport with no counts",
+    "R098.f fixed (df0f218e): the 1e-3 clause of ADR 0172 section 7 E1 is not met by any tessellated cylinder tested (2.6e-3 at 0.02 mm)",
     "R098.e: the 1,000,000-triangle export needs about 8.4 GiB of address space; the ADR's 4 GiB limit ends it with a SIGSEGV after an OCCT malloc failure (gdb backtrace in section 9.3)",
-    "R098.e: the C2 refusal the record cited for AP242 is an AP230 refusal; AP242 files are read (best effort)"
+    "R098.e: the C2 refusal the record cited for AP242 is an AP230 refusal; AP242 files are read (best effort)",
+    "R098.f: src/ifc/step_import.cpp's treeTooDeep notice says the deeper parts are attached to the deepest kept assembly; the walk does not add them, so they are neither imported, counted nor located",
+    "R098.f: a file that converts geometry and holds PMI reports nothing for its PMI (only the refusal counts the kinds)"
   ],
   "notRun": [
     "package acceptance (verify-package.sh, needs a package build)",
@@ -124,6 +132,8 @@
     "E4 bad-face and PMI fixtures beyond the two designed ones (no entity the translator refuses as its own fixture)",
     "E8 message bound on a real helper message (the stand-in gives the long message)",
     "sanitizers for R098.d and R098.e",
-    "interactive desktop session; desktop dialog suites in the native matrix (full-ci)"
+    "interactive desktop session; desktop dialog suites in the native matrix (full-ci)",
+    "R098.f: the desktop dialog suites (step_import_dialog and the native matrix; full-ci label)",
+    "R098.f: the full tier, the sanitizers, and the helper-only IFC suites in build/ifc (the IFC import's code is unchanged; the application's IFC suites ran)"
   ]
 }

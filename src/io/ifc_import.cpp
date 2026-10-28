@@ -433,7 +433,7 @@ const std::map<std::string, std::string> &noticeTexts() {
         {"colorAlphaDropped", "A colour with an opacity that is not 1 was imported opaque."},
         {"invisibleShapes", "A shape the file marks invisible was imported hidden."},
         {"degeneratePlacement", "A placement the kernel could not apply was replaced by the identity; the shape keeps its own frame."},
-        {"freeFaces", "A solid with a face that no solid bounds was imported as a body of its own faces."},
+        {"freeFaces", "Surfaces that no solid bounds (faces without volume) were not imported; each is counted and located."},
         {"metadataTruncated", "A name or property longer than its cap was truncated."},
         {"mirrorVariantOmitted", "A mirror instance's second mesh variant was left out of the package by the budget; the instance keeps the first."},
         {"noSolids", "A shape transferred but held no solid; it was not converted."},
