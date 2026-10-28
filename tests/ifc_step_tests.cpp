@@ -728,7 +728,7 @@ int main(int argc, char **argv) {
         // radius r - d and lies in the disk of radius r. So the cylinder's volume is in [(1 - d/r)^2, 1] of the
         // analytic value, and its area (caps included) is in [A_low, 1] of A, where A_low is the area of the cylinder
         // of radius r - d. At the default 1 mm the volume bound is 0.64, looser than the 5 % check above, so the bound
-        // is checked at 0.02 mm, where it is 0.992 for the volume and 0.994 for the area. The bound is derived from the
+        // is checked at 0.02 mm, where it is 0.992 for the volume and 0.995 for the area. The bound is derived from the
         // deflection passed to the helper, because the helper's package does not record it.
         {
             constexpr double pi = std::numbers::pi;
