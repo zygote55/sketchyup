@@ -70,7 +70,7 @@ std::uint64_t grantedRights(FileAccess access, bool directory, int abi) {
 
 } // namespace
 
-std::optional<Failure> installLandlock(const std::vector<FileRule> &files) {
+std::optional<Failure> buildRuleset(const std::vector<FileRule> &files, int &rulesetFd) {
     const int abi = landlockAbiVersion();
     if (abi < 1)
         return Failure{Layer::landlock, errno};
@@ -113,12 +113,13 @@ std::optional<Failure> installLandlock(const std::vector<FileRule> &files) {
             return Failure{Layer::landlock, saved};
         }
     }
+    rulesetFd = static_cast<int>(ruleset);
+    return std::nullopt;
+}
 
-    const long restricted = syscall(kSysLandlockRestrictSelf, ruleset, 0L);
-    const int saved = errno;
-    ::close(static_cast<int>(ruleset));
-    if (restricted != 0)
-        return Failure{Layer::landlock, saved};
+std::optional<Failure> restrictWithRuleset(int rulesetFd) noexcept {
+    if (syscall(kSysLandlockRestrictSelf, rulesetFd, 0L) != 0)
+        return Failure{Layer::landlock, errno};
     return std::nullopt;
 }
 

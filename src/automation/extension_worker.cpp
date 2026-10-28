@@ -7,6 +7,9 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QThread>
+
+#include <csignal>
+
 namespace sketchy {
 namespace {
 void require(bool value, const char *message) {
@@ -128,6 +131,13 @@ QJsonArray runExtensionWorker(const ExtensionManifest &manifest, const QString &
             if (process.state() == QProcess::NotRunning)
                 break;
         }
+        // ADR 0183 sections 4.6 and 7: a call the sandbox's policy does not allow kills the worker
+        // with SIGSYS (QProcess reports it as the exit code of a crash). That is a violation, not a
+        // crash.
+        if (process.exitStatus() == QProcess::CrashExit && process.exitCode() == SIGSYS)
+            throw std::runtime_error(
+                "sandboxViolation: the extension worker was stopped by its sandbox for an "
+                "action its policy does not allow; the action was not run");
         require(process.exitStatus() == QProcess::NormalExit, "Extension worker crashed");
         const auto reply = object(output);
         require(reply["protocol"] == 1 && reply["ok"].isBool(),
