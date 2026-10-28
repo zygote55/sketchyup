@@ -14,6 +14,7 @@
 #include <QTemporaryDir>
 #include <cmath>
 #include <iostream>
+#include <map>
 #include <set>
 using namespace sketchy;
 namespace {
@@ -802,24 +803,42 @@ int main(int argc, char **argv) {
             check(sphere["faces"].toInt() == 302, "E2: the collapsed triangles are dropped: 302 faces remain");
             check(sphere["nonPlanarFaces"].toInt() == 3, "E2: the sphere's non-planar count is the pinned value (3)");
         }
-        // R098.e, E4 (ADR 0172 section 7). The designed fixtures are written by tests/fixtures/step/make_designed.py.
-        // A file with a bad face: the second of two boxes has an open edge loop on one face. The good box converts, and
-        // the report counts the six faces that no solid bounds. Two things are not asserted: a location (the STEP report
-        // has none), and the faces' body (they come back in the good box's body, which the notice's wording does not
-        // say). Both are recorded in the R098.e record as defects.
+        // R098.f, E4 (ADR 0172 section 7). The designed fixtures are written by tests/fixtures/step/make_designed.py.
+        // A file with a bad face: the second of two boxes has an open edge loop on one face, so its six faces are bounded
+        // by no solid. They are counted and located as not imported (ADR 0172 section 3), the good box converts, and the
+        // good box's body holds the good box's twelve triangles alone: no face of the bad box is in it.
         {
             const StepWorkerOptions worker = stepWorkerOptions();
             const auto imported = importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/e4-bad-face.step"), worker);
+            const QJsonObject &report = imported.report;
             bool freeFacesCounted = false;
-            for (const QJsonValue &notice : imported.report["notices"].toArray())
+            for (const QJsonValue &notice : report["notices"].toArray())
                 if (notice["code"].toString() == "freeFaces" && notice["count"].toInt() == 6)
                     freeFacesCounted = true;
             check(freeFacesCounted, "E4 (bad face): the six faces no solid bounds are counted");
-            check(imported.report["accounting"].toObject()["converted"].toInt() == 1, "E4 (bad face): the good box converts");
+            int surfacesNotImported = 0;
+            for (const QJsonValue &entry : report["elements"].toObject()["notImported"].toArray())
+                if (entry["class"].toString() == "face" && entry["reason"].toString() == "free-surface")
+                    surfacesNotImported += entry["count"].toInt();
+            check(surfacesNotImported == 6, "E4 (bad face): the six faces are in the elements not imported, got " + std::to_string(surfacesNotImported));
+            int located = 0;
+            for (const QJsonValue &place : report["locations"].toArray())
+                if (place["kind"].toString() == "notImported" && place["step"].toInt() > 0 && place["message"].toString().contains("not imported"))
+                    ++located;
+            check(located == 6, "E4 (bad face): each of the six faces has a location with its entity label, got " + std::to_string(located));
+            check(report["locationTotals"].toObject()["notImported"].toInt() == 6, "E4 (bad face): the location total is complete");
+            const QJsonObject accounting = report["accounting"].toObject();
+            check(accounting["converted"].toInt() == 1, "E4 (bad face): the good box converts");
+            check(report["geometry"].toObject()["bodies"].toInt() == 1, "E4 (bad face): one body");
+            check(report["geometry"].toObject()["sourceTriangles"].toInt() == 12,
+                  "E4 (bad face): the body is the good box alone (12 triangles), got " + std::to_string(report["geometry"].toObject()["sourceTriangles"].toInt()));
+            check(accounting["omitted"].toInt() == 6, "E4 (bad face): the six faces are omitted from the accounting");
+            check(accounting["converted"].toInt() + accounting["supporting"].toInt() + accounting["omitted"].toInt() == accounting["entities"].toInt(),
+                  "E4 (bad face): converted + supporting + omitted = entities");
         }
-        // A PMI-only AP242 file (no shape representation): the helper refuses it with its code, and nothing is created. E4
-        // asks for the PMI entities to be counted and located; the refusal does neither (R098.e record), so only the
-        // refusal is pinned here.
+        // A PMI-only AP242 file (no shape representation): refused as nothingToImport, with nothing created. Its report names
+        // and counts what the import does not read, by kind, and locates each entity: the five PMI kinds, one entity each.
+        // The product structure and the units are read as data, so they are not counted.
         {
             const StepWorkerOptions worker = stepWorkerOptions();
             try {
@@ -827,6 +846,20 @@ int main(int argc, char **argv) {
                 check(false, "E4 (PMI-only AP242): it must be refused");
             } catch (const IfcImportError &error) {
                 check(error.code() == "nothingToImport", "E4 (PMI-only AP242): refused as nothingToImport, got " + error.code());
+                const QJsonObject &report = error.report();
+                std::map<std::string, long long> kinds;
+                for (const QJsonValue &entry : report["elements"].toObject()["notImported"].toArray())
+                    kinds[entry["class"].toString().toStdString()] += entry["count"].toInteger();
+                const std::map<std::string, long long> expected = {{"DIMENSIONAL_SIZE", 1}, {"SHAPE_ASPECT", 1},
+                                                                   {"MEASURE_REPRESENTATION_ITEM", 1},
+                                                                   {"SHAPE_DIMENSION_REPRESENTATION", 1},
+                                                                   {"DIMENSIONAL_CHARACTERISTIC_REPRESENTATION", 1}};
+                check(kinds == expected, "E4 (PMI-only AP242): the five PMI kinds are named and counted, one each");
+                int located = 0;
+                for (const QJsonValue &place : report["locations"].toArray())
+                    if (place["kind"].toString() == "notImported" && place["step"].toInt() > 0)
+                        ++located;
+                check(located == 5, "E4 (PMI-only AP242): each PMI entity is located, got " + std::to_string(located));
             }
         }
         std::cout << "ifc_import ok\n";

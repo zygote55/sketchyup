@@ -20,6 +20,7 @@
 //    1 to 3; the nodes are 3D (the mesh carries no UVs here).
 #include "ifc/step_import.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
@@ -27,22 +28,28 @@
 #include <iostream>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "Bnd_Box.hxx"
 #include "BRepBndLib.hxx"
 #include "BRepMesh_IncrementalMesh.hxx"
+#include "BRep_Builder.hxx"
 #include "BRep_Tool.hxx"
 #include "HeaderSection_FileSchema.hxx"
 #include "IFSelect_ReturnStatus.hxx"
 #include "Interface_EntityIterator.hxx"
+#include "Interface_InterfaceModel.hxx"
 #include "Poly_Triangle.hxx"
 #include "Poly_Triangulation.hxx"
 #include "Quantity_ColorRGBA.hxx"
 #include "STEPCAFControl_Reader.hxx"
 #include "STEPControl_Reader.hxx"
 #include "Standard_Failure.hxx"
+#include "StepData_FreeFormEntity.hxx"
+#include "StepData_Plex.hxx"
+#include "StepData_Simple.hxx"
 #include "StepData_StepModel.hxx"
 #include "TColStd_HArray1OfInteger.hxx"
 #include "TColStd_HArray1OfReal.hxx"
@@ -70,6 +77,7 @@
 #include "XCAFDoc_ShapeTool.hxx"
 #include "XSControl_WorkSession.hxx"
 #include "TopoDS.hxx"
+#include "TopoDS_Compound.hxx"
 #include "TopoDS_Face.hxx"
 #include "TopoDS_Shape.hxx"
 #include "TopoDS_Solid.hxx"
@@ -527,6 +535,104 @@ bool solidTooFarFromOrigin(const TopoDS_Shape& solid, const double metresPerUnit
   return false;
 }
 
+// The solids of a shape as one compound, the surfaces without volume left out (ADR 0172 section 3). A shape with
+// such surfaces is tessellated from this compound, so they never join a body.
+TopoDS_Shape solidsOf(const TopoDS_Shape& shape) {
+  BRep_Builder builder;
+  TopoDS_Compound compound;
+  builder.MakeCompound(compound);
+  TopExp_Explorer s(shape, TopAbs_SOLID);
+  for (; s.More(); s.Next()) builder.Add(compound, s.Current());
+  return compound;
+}
+
+// A location of the report (ADR 0172 section 5): the entity label, the kind and a message. The report keeps 32 per
+// kind and counts the rest.
+void locate(Report& report, const std::string& kind, const long long label, const std::string& message) {
+  Location place;
+  place.kind = kind;
+  place.step = static_cast<int>(label);
+  place.message = message;
+  report.location(std::move(place));
+}
+
+// The kinds the import reads as data (ADR 0172 section 5): the product structure and its links, the representation
+// contexts and the units. Every other kind is one the import does not read. A complex entity is named by its members.
+const std::set<std::string> kReadKinds = {
+    "APPLICATION_PROTOCOL_DEFINITION", "APPLICATION_CONTEXT", "PRODUCT", "PRODUCT_CONTEXT", "PRODUCT_DEFINITION",
+    "PRODUCT_DEFINITION_FORMATION", "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE", "PRODUCT_DEFINITION_CONTEXT",
+    "PRODUCT_DEFINITION_SHAPE", "PRODUCT_RELATED_PRODUCT_CATEGORY", "PRODUCT_CATEGORY", "PRODUCT_DEFINITION_USAGE",
+    "NEXT_ASSEMBLY_USAGE_OCCURRENCE", "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION", "ITEM_DEFINED_TRANSFORMATION",
+    "REPRESENTATION_RELATIONSHIP", "SHAPE_REPRESENTATION_RELATIONSHIP", "SHAPE_DEFINITION_REPRESENTATION",
+    "GEOMETRIC_REPRESENTATION_CONTEXT", "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT", "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+    "REPRESENTATION_CONTEXT", "UNCERTAINTY_MEASURE_WITH_UNIT", "LENGTH_UNIT", "NAMED_UNIT", "SI_UNIT",
+    "PLANE_ANGLE_UNIT", "SOLID_ANGLE_UNIT", "CONVERSION_BASED_UNIT", "LENGTH_MEASURE_WITH_UNIT", "DIMENSIONAL_EXPONENTS"};
+
+bool readKind(const std::string& kind) {
+  std::size_t begin = 0;
+  for (;;) {
+    const std::size_t plus = kind.find('+', begin);
+    if (kReadKinds.count(kind.substr(begin, plus - begin)) == 0) return false;
+    if (plus == std::string::npos) return true;
+    begin = plus + 1;
+  }
+}
+
+// An entity's kind as the file names it: the StepType of a simple entity, the members of a complex one joined with "+".
+std::string stepKind(const Handle(Standard_Transient)& entity, const Handle(Interface_InterfaceModel)& model) {
+  if (const Handle(StepData_Plex) plex = Handle(StepData_Plex)::DownCast(entity); !plex.IsNull()) {
+    std::string kind;
+    for (Standard_Integer i = 1; i <= plex->NbMembers(); ++i) {
+      if (i > 1) kind += "+";
+      const Handle(StepData_Simple) member = plex->Member(i);
+      if (!member.IsNull()) kind += member->StepType();
+    }
+    return kind;
+  }
+  if (const Handle(StepData_Simple) simple = Handle(StepData_Simple)::DownCast(entity); !simple.IsNull())
+    return simple->StepType();
+  if (const Handle(StepData_FreeFormEntity) free = Handle(StepData_FreeFormEntity)::DownCast(entity); !free.IsNull())
+    return free->StepType();
+  // Any other entity: the model's name, which for a complex entity is "(A,B,C)" - the same kind as "A+B+C" above.
+  std::string kind;
+  for (const char c : std::string(model->TypeName(entity)))
+    if (c != '(' && c != ')' && c != ' ') kind += c == ',' ? '+' : c;
+  return kind;
+}
+
+// The entities of a file that transferred nothing, counted by kind and located by their STEP label: the import does
+// not read them (a PMI-only AP242 file, for one). Only the kinds the import does not read are counted (ADR 0172 E4).
+void tallyUnread(const Handle(XSControl_WorkSession)& session, Report& report) {
+  const Handle(Interface_InterfaceModel) model = session->Model();
+  if (model.IsNull()) return;
+  const Handle(StepData_StepModel) steps = Handle(StepData_StepModel)::DownCast(model);
+  for (Standard_Integer i = 1; i <= model->NbEntities(); ++i) {
+    const Handle(Standard_Transient) entity = model->Value(i);
+    const std::string kind = stepKind(entity, model);
+    if (readKind(kind)) continue;
+    const Standard_Integer label = steps.IsNull() ? 0 : steps->IdentLabel(entity);
+    report.notImported(kind.empty() ? "unnamed" : kind, "not-read", 1);
+    locate(report, "notImported", label > 0 ? label : i, "not read by the import: a file with no shape to convert");
+  }
+}
+
+// The report's lists in the IFC shape: the elements not imported by class and reason, the locations and their totals.
+void writeLists(JsonOut& j, const Report& report) {
+  j.key("elements").beginObject();
+  j.key("notImported").beginArray();
+  for (const auto& [key, count] : report.notImportedClasses())
+    j.beginObject().field("class", key.first).field("reason", key.second).field("count", count).endObject();
+  j.endArray();
+  j.endObject();
+  j.key("locations").beginArray();
+  for (const Location& place : report.locations())
+    j.beginObject().field("kind", place.kind).field("step", place.step).field("globalId", place.globalId).field("message", place.message).endObject();
+  j.endArray();
+  j.key("locationTotals").beginObject();
+  for (const auto& [kind, total] : report.locationTotals()) j.field(kind, total);
+  j.endObject();
+}
+
 std::string baseName(const std::string& path) {
   const auto at = path.find_last_of('/');
   return at == std::string::npos ? path : path.substr(at + 1);
@@ -725,6 +831,24 @@ int runStepImportPackage(const StepImportOptions& options) {
   STEPCAFControl_Reader xde(ws, Standard_False);  // its controller's Init registers the STEP norm for the session
   if (!ws->SelectNorm("STEP"))  // without a norm the session has no work library: the read could not happen
     return refuse("read", "The STEP reader's session could not select the STEP norm.");
+  // A refusal for a file that transferred nothing (ADR 0172 E4): the refusal stays, and the report names and counts
+  // the entities the import does not read, by kind, with their locations.
+  const auto refuseUnread = [&](const std::string& message) {
+    Report unread;
+    tallyUnread(ws, unread);
+    long long entities = 0;
+    for (const auto& [key, count] : unread.notImportedClasses()) entities += count;
+    std::string text = message;
+    if (entities > 0)
+      text += " " + std::to_string(entities) + " entities of " + std::to_string(unread.notImportedClasses().size()) +
+              " kinds that the import does not read are listed in the report.";
+    JsonOut json;
+    json.beginObject().field("status", "refused").field("code", "nothingToImport").field("message", clip(text, 240));
+    writeLists(json, unread);
+    json.endObject();
+    progress.line("R " + json.str());
+    return 3;
+  };
   xde.SetColorMode(Standard_True);
   xde.SetLayerMode(Standard_True);
   xde.SetNameMode(Standard_True);
@@ -736,9 +860,9 @@ int runStepImportPackage(const StepImportOptions& options) {
   } catch (const Standard_Failure& failure) {
     return refuse("read", clip(failure.GetMessageString(), 200));
   }
-  if (xde.NbRootsForTransfer() == 0) return refuse("nothingToImport", "The file read, but no shape could be transferred.");
+  if (xde.NbRootsForTransfer() == 0) return refuseUnread("The file read, but no shape could be transferred.");
   try {
-    if (!xde.Transfer(doc)) return refuse("nothingToImport", "The reader could not transfer the file into the document.");
+    if (!xde.Transfer(doc)) return refuseUnread("The reader could not transfer the file into the document.");
   } catch (const Standard_Failure& failure) {
     return refuse("read", clip(failure.GetMessageString(), 200));
   }
@@ -823,7 +947,7 @@ int runStepImportPackage(const StepImportOptions& options) {
     }
   }
 
-  if (order.empty()) return refuse("nothingToImport", "The file transferred, but the document holds no shape.");
+  if (order.empty()) return refuseUnread("The file transferred, but the document holds no shape.");
   if (treeTooDeep) report.notice("treeTooDeep", 1);
   // ADR 0172 §4: an element with no parent (a free part; a free assembly is a top-level group)
   // goes under the top-level group, counted as a notice (the IFC uncontainedElements pattern).
@@ -899,12 +1023,29 @@ int runStepImportPackage(const StepImportOptions& options) {
     const double parentDet = order[i].parent >= 0 ? order[static_cast<std::size_t>(order[i].parent)].detChain : 1.0;
     order[i].detChain = order[i].detLocal * parentDet;
   }
+  // Each base's first place in the walk: its locations name that entry's label and the path above it (ADR 0172 section 5).
+  std::vector<long long> firstEntry(baseLabels.size(), -1);
+  for (std::size_t i = 0; i < order.size(); ++i)
+    if (!order[i].isAssembly && firstEntry[order[i].baseIndex] < 0) firstEntry[order[i].baseIndex] = static_cast<long long>(i);
+  // The walk's path to an entry, for a message: the names of the assemblies above it and its own, " (in A / B)".
+  const auto placeOf = [&](const long long entry) -> std::string {
+    if (entry < 0) return {};
+    std::vector<std::string> names;
+    for (long long at = entry; at >= 0; at = order[static_cast<std::size_t>(at)].parent) {
+      const std::string name = labelName(order[static_cast<std::size_t>(at)].base);
+      names.push_back(name.empty() ? "(unnamed)" : name);
+    }
+    std::string path;
+    for (auto it = names.rbegin(); it != names.rend(); ++it) path += (path.empty() ? "" : " / ") + *it;
+    return " (in " + path + ")";
+  };
 
   // The unique bases (the shapes the instances refer to), first-seen order: meshed once, shared by
   // every instance. A group (an assembly) is always converted; a part is converted, omitted (a cap)
   // or unsupported (nothing meshable) - the accounting stays the ADR 0172 §3 identity over the
   // bases: converted + omitted + unsupported = bases.
   long long converted = 0, omitted = 0, unsupported = 0;
+  long long omittedEntries = 0;  // the walk's entries that no body was made for (their base was left out)
   long long triangles = 0, degenerate = 0, faces = 0, solidCount = 0, freeFaces = 0;
   std::map<std::pair<std::size_t, int>, long long> baseMesh;  // (the base's index, its mirror
                                                           // state) -> its package mesh
@@ -919,16 +1060,20 @@ int runStepImportPackage(const StepImportOptions& options) {
       ++converted;  // a group, no mesh of its own (its parts carry the geometry)
       continue;
     }
+    // The base's label for its locations: its first walk entry's (the entity label, ADR 0172 section 5), else its own.
+    const long long entry = firstEntry[baseIndex_];
+    const long long label = std::max<long long>(0, entry >= 0 ? order[static_cast<std::size_t>(entry)].tag : base.Tag());
+    const std::string where = placeOf(entry);
     TopoDS_Shape shape;
     shapeTool.GetShape(base, shape);
     if (shape.IsNull()) {
       report.notImported("StepPart", "no-shape", 1);
+      locate(report, "notImported", label, "no shape to convert: not imported" + where);
       ++unsupported;
       continue;
     }
-    std::string tooFar;
-    if (solidTooFarFromOrigin(shape, toMetres, tooFar)) return refuse("farFromOrigin", tooFar);
-    // The shape's free faces (surfaces without volume, not imported: ADR 0172 §3) and its solids.
+    // The shape's surfaces without volume and its solids. A surface is counted and located, and it is not imported
+    // (ADR 0172 section 3): it is never tessellated into a body, so it can never come back in another element's body.
     long long allFaces = 0, solidFaces = 0, solids = 0;
     {
       TopExp_Explorer e(shape, TopAbs_FACE);
@@ -948,43 +1093,60 @@ int runStepImportPackage(const StepImportOptions& options) {
       }
     }
     solidCount += solids;
+    const long long surfaces = allFaces - solidFaces;
+    if (surfaces > 0) {
+      freeFaces += surfaces;
+      report.notImported("face", "free-surface", surfaces);
+      report.notice("freeFaces", surfaces);
+      for (long long n = 1; n <= surfaces; ++n)
+        locate(report, "notImported", label,
+               "surface " + std::to_string(n) + " of " + std::to_string(surfaces) + " is bounded by no solid: not imported" + where);
+    }
     if (solids == 0) {
       report.notImported("StepPart", "no-solids", 1);
       report.notice("noSolids", 1);
+      locate(report, "notImported", label, "no solid: not imported" + where);
       ++omitted;  // a counted slot, omitted: nothing of volume to convert
       continue;
     }
-    if (allFaces > solidFaces) {
-      freeFaces += allFaces - solidFaces;
-      report.notImported("face", "free-surface", allFaces - solidFaces);
-      report.notice("freeFaces", allFaces - solidFaces);
-    }
+    // With surfaces, the solids alone are checked and tessellated: the surfaces are not imported, so they are not in the
+    // body. A shape without surfaces is used as it is, as before.
+    const TopoDS_Shape solidShape = surfaces > 0 ? solidsOf(shape) : shape;
+    std::string tooFar;
+    if (solidTooFarFromOrigin(solidShape, toMetres, tooFar)) return refuse("farFromOrigin", tooFar);
     // The base's primary variant: tessellated in the base's own frame (the storage frame: the
     // tessellator's raw winding is the face's orientation under the shape's location, the ADR
     // 0172 section 7 rule; the instance's mirror is the second factor, the flip argument).
     const ColorDecision color = colorOf(base);  // the file's colour (the reader's colour propagation)
     const FaceColours faceColours = faceColoursOf(shapeTool, base);
-    SolidMesh mesh = tessellateSolid(shape, deflection, angleRadians, toMetres, false, faceColours, color);
+    SolidMesh mesh = tessellateSolid(solidShape, deflection, angleRadians, toMetres, false, faceColours, color);
     if (!mesh.ok) {
       report.notImported("StepPart", "tessellation-failed", 1);
       report.kernelMessage("tessellation", clip(mesh.error, 64), "error", clip(mesh.error, 240));
+      locate(report, "notImported", label, "tessellation failed (" + clip(mesh.error, 120) + "): not imported" + where);
       ++unsupported;
       continue;
     }
     if (mesh.triangles == 0) {
       report.notImported("StepPart", "no-triangles", 1);
+      locate(report, "notImported", label, "no triangles: not imported" + where);
       ++unsupported;
       continue;
     }
     if (mesh.triangles > options.maxTrianglesPerElement) {
       report.notImported("StepPart", "meshTriangleLimit", 1);
       report.notice("triangleCapApplied", 1);
+      locate(report, "notImported", label,
+             std::to_string(mesh.triangles) + " triangles, over the cap of " + std::to_string(options.maxTrianglesPerElement) +
+                 " per element: omitted" + where);
       ++omitted;
       continue;
     }
     if (triangles + mesh.triangles > options.maxTotalTriangles) {
       report.notImported("StepPart", "triangleBudget", 1);
       report.notice("triangleBudgetApplied", 1);
+      locate(report, "notImported", label,
+             "the total budget of " + std::to_string(options.maxTotalTriangles) + " triangles is reached: omitted" + where);
       ++omitted;
       continue;
     }
@@ -1026,7 +1188,7 @@ int runStepImportPackage(const StepImportOptions& options) {
         break;
       }
     if (needMirror) {
-      SolidMesh mirror = tessellateSolid(shape, deflection, angleRadians, toMetres, true, faceColours, color);
+      SolidMesh mirror = tessellateSolid(solidShape, deflection, angleRadians, toMetres, true, faceColours, color);
       if (mirror.ok && mirror.triangles > 0 && mirror.triangles <= options.maxTrianglesPerElement
           && triangles + mirror.triangles <= options.maxTotalTriangles) {
         PackageMesh mpm;
@@ -1099,7 +1261,14 @@ int runStepImportPackage(const StepImportOptions& options) {
       // has no node.
       const auto key = std::make_pair(flat.baseIndex, flat.detChain < 0.0 ? 1 : 0);
       const auto found = baseMesh.find(key);
-      if (found == baseMesh.end()) continue;
+      if (found == baseMesh.end()) {
+        // No body for this entry: its base was left out (located with the base), or its mirror variant was (located here).
+        ++omittedEntries;
+        if (flat.detChain < 0.0 && baseMesh.count(std::make_pair(flat.baseIndex, 0)) > 0)
+          locate(report, "notImported", std::max<long long>(0, flat.tag),
+                 "a mirror instance whose variant was omitted: not imported" + placeOf(static_cast<long long>(i)));
+        continue;
+      }
       const long long mesh = found->second;
       ++bodyCount;
       node.className = "IfcStepSolid";
@@ -1161,11 +1330,9 @@ int runStepImportPackage(const StepImportOptions& options) {
       .field("faces", faces)
       .field("triangles", triangles)
       .field("degenerate", degenerate)
+      .field("omittedEntries", omittedEntries)
       .endObject();
-  r.key("notImported").beginArray();
-  for (const auto& [key, count] : report.notImportedClasses())
-    r.beginObject().field("class", key.first).field("reason", key.second).field("count", count).endObject();
-  r.endArray();
+  writeLists(r, report);
   r.key("notices").beginArray();
   for (const auto& [code, count] : report.notices())
     r.beginObject().field("code", code).field("count", count).endObject();
@@ -1198,6 +1365,8 @@ int runStepImportPackage(const StepImportOptions& options) {
       .field("omitted", omitted)
       .field("unsupported", unsupported)
       .field("triangles", triangles)
+      .field("freeFaces", freeFaces)
+      .field("omittedEntries", omittedEntries)
       .endObject();
   progress.line("R " + json.str());
   return 0;

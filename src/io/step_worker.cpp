@@ -521,6 +521,12 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
         QJsonObject source{{"sha256", QString::fromLatin1(hash.result().toHex())},
                            {"bytes", QFileInfo(input).size()}, {"schema", schema}};
         QJsonObject report{{"apiVersion", 1}, {"format", "STEP"}, {"direction", "import"}, {"source", source}};
+        // A refusal of a file that transferred nothing names and counts what it holds, by kind (ADR 0172 E4).
+        if (run.result.contains("elements")) {
+            report["elements"] = run.result["elements"].toObject();
+            report["locations"] = run.result["locations"].toArray();
+            report["locationTotals"] = run.result["locationTotals"].toObject();
+        }
         throw IfcImportError(code.toStdString(), message.toStdString(), report);
     }
     QFile packageFile(output);
@@ -547,10 +553,11 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     hooks.cancelled = worker.cancelled;
     auto imported = importIfcPackage(package, IfcImportOptions{}, facts, hooks);
     // The application's own words for the report the conversion made for a STEP package: the format is
-    // STEP, the tessellation policy is the application's own choice, the helper's own line rides the
-    // report as `step`, and the accounting identity is computed from the package it read (the helper's
-    // package holds the converted nodes and the root; the conversion omits nothing — the helper refuses
-    // before it writes anything it cannot convert).
+    // STEP, the tessellation policy is the application's own choice, and the helper's own line rides the
+    // report as `step`. The accounting identity counts what the package holds: its nodes (the root, the
+    // groups and the bodies), the walk's entries that no body was made for, and the surfaces without volume,
+    // which are not imported. Converted are the bodies; supporting are the root and the groups; omitted are
+    // the entries and the surfaces that were left out.
     auto &report = imported.report;
     report["format"] = "STEP";
     report["tessellation"] = QJsonObject{{"deflectionMm", worker.deflectionMm},
@@ -560,10 +567,11 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     report["step"] = run.result;
     const qint64 nodes = qint64(package.nodes.size());
     const qint64 converted = report["geometry"].toObject()["bodies"].toInteger(0);
-    report["accounting"] = QJsonObject{{"entities", nodes},
+    const qint64 omitted = run.result["omittedEntries"].toInteger(0) + run.result["freeFaces"].toInteger(0);
+    report["accounting"] = QJsonObject{{"entities", nodes + omitted},
                                        {"converted", converted},
                                        {"supporting", nodes - converted},
-                                       {"omitted", 0LL}};
+                                       {"omitted", omitted}};
     return imported;
 }
 } // namespace sketchy
