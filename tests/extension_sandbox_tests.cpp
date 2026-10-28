@@ -3,9 +3,9 @@
 //   under each of
 //     the stdio setups (pipes, files, a pseudo-terminal for stdout) and for stdout as /dev/null
 //     (exit 0), and for a request padded to 300 KiB;
-//   - the attack probes under the policy: socket, execve and fork are killed with SIGSYS, abort is
-//     SIGABRT, /etc/passwd and a file outside the worker's directory are EACCES, and the locale can
-//     be read;
+//   - the attack probes under the policy: socket is EPERM (R109 S6), execve and fork are killed
+//     with SIGSYS, abort is SIGABRT, /etc/passwd and a file outside the worker's directory are
+//     EACCES, and the locale can be read;
 //   - a layer that cannot be installed refuses with sandboxUnavailable: simulated in process, and
 //   for the real
 //     worker under a filter that refuses the layer's calls (ADR 0183 section 6.7);
@@ -288,11 +288,10 @@ void testFixturesIdentical(const std::string &scratch, const QByteArray &panel) 
 
 void testPolicyRefusesAttacks(const std::string &scratch) {
     const Outcome socketCall = armed(scratch + "/attack-socket.out", [] {
-        socket(AF_INET, SOCK_STREAM, 0);
-        return 0;
+        return socket(AF_INET, SOCK_STREAM, 0) == -1 && errno == EPERM ? 0 : 1;
     });
-    check(socketCall.signaled && socketCall.signal == SIGSYS,
-          "the extension worker cannot create a socket (killed with SIGSYS)");
+    check(!socketCall.signaled && socketCall.code == 0,
+          "the extension worker cannot create a socket (EPERM)");
 
     const Outcome execCall = armed(scratch + "/attack-exec.out", [] {
         char *const argv[] = {const_cast<char *>("/bin/true"), nullptr};

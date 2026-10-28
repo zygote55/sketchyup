@@ -860,6 +860,13 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(sandbox_tests PRIVATE sketchyup_sandbox)
     target_include_directories(sandbox_tests PRIVATE src tests)
     add_test(NAME sandbox COMMAND sandbox_tests)
+    # R109 S6 (ADR 0183 decision 9): the required fast-tier check that the runner can install the sandbox
+    # (Landlock, PR_SET_NO_NEW_PRIVS and a seccomp filter). It never skips: a failure is a red CI verdict.
+    add_executable(sandbox_available_tests tests/sandbox_available_tests.cpp)
+    target_link_libraries(sandbox_available_tests PRIVATE sketchyup_sandbox)
+    target_include_directories(sandbox_available_tests PRIVATE src)
+    add_test(NAME sandbox_available COMMAND sandbox_available_tests)
+    set_tests_properties(sandbox_available PROPERTIES TIMEOUT 60)
     # R102.a: the import through the helper, against the synthetic .skp fixtures (the .skp
     # format is a binary MFC archive; the fixtures' provenance is tests/fixtures/skp/SKP-SOURCE.txt).
     if(TARGET sketchyup-skp-worker)

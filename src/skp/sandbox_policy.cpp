@@ -67,8 +67,15 @@ sandbox::Policy skpSandboxPolicy(const std::string& input, const std::string& ou
         {"fcntl", Action::allow},
         {"sched_getaffinity", Action::allow},
 #endif
-        // no socket, no exec, no fork: a call not listed here (socket, execve, fork, ptrace...) kills
-        // the helper with SIGSYS (ADR 0183 section 5: the SKP network and exec rows are "none").
+        // The socket calls are refused with EPERM, not killed, as in every helper (ADR 0183 section
+        // 4.3 and decision 4; R109 S6, the parent's decision of 2026-10-27). The helper creates no
+        // socket.
+        {"socket", Action::denied},
+        {"socketpair", Action::denied},
+        {"bind", Action::denied},
+        {"connect", Action::denied},
+        // no exec, no fork: a call not listed here (execve, a raw fork, ptrace...) kills the helper
+        // with SIGSYS (ADR 0183 section 5: the SKP exec row is "none").
     };
     return policy;
 }
