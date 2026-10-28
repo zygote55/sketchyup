@@ -49,6 +49,7 @@ inline constexpr const char *formats[] = {"native-json",
                                           "presentation",
                                           "edge-style",
                                           "catalog",
+                                          "material-texture-size",
                                           "geographic-site"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
@@ -211,6 +212,13 @@ inline void edgeStrokeInvariants(const EdgeStroke &stroke) {
     require(std::isfinite(stroke.width) && stroke.width >= 1 && stroke.width <= 8 &&
                 std::isfinite(stroke.opacity) && stroke.opacity >= .01 && stroke.opacity <= 1,
             "edge stroke within its width and opacity bounds");
+}
+// R100.b2 (ADR 0174 section 3): the bounds of an accepted material texture size.
+inline void textureSizeInvariants(const TextureSize &size) {
+    require(std::isfinite(size.width) && size.width >= minimumTextureSize &&
+                size.width <= maximumTextureSize && std::isfinite(size.height) &&
+                size.height >= minimumTextureSize && size.height <= maximumTextureSize,
+            "texture size within its bounds");
 }
 // R107.a (ADR 0181 §2.1): the zone and latitude bounds of an accepted geographic record.
 inline void geographicSiteInvariants(const SiteGeographic &record) {
@@ -470,6 +478,21 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             require(decodeEdgeStroke(encoded) == first &&
                         encodeEdgeStroke(decodeEdgeStroke(encoded)) == encoded,
                     "accepted edge stroke re-encodes canonically");
+        } else if (format == "material-texture-size") {
+            // R100.b2 (ADR 0174 section 3): an accepted texture size is within its bounds,
+            // decodes the same way twice and re-encodes canonically.
+            const auto json = QJsonDocument::fromJson(bytes);
+            if (!json.isObject())
+                return false;
+            const auto first = decodeTextureSize(json.object());
+            require(first == decodeTextureSize(json.object()),
+                    "texture size decode is deterministic");
+            accepted = true;
+            textureSizeInvariants(first);
+            const auto encoded = encodeTextureSize(first);
+            require(decodeTextureSize(encoded) == first &&
+                        encodeTextureSize(decodeTextureSize(encoded)) == encoded,
+                    "accepted texture size re-encodes canonically");
         } else if (format == "geographic-site") {
             // R107.a (ADR 0181 §2.1): an accepted geographic record is within its bounds,
             // decodes the same way twice and re-encodes canonically.

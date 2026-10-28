@@ -2,9 +2,11 @@
 #include "core/model.hpp"
 namespace sketchy {
 TextureMappingSides faceTextureMappings(const Body &body, Id face);
-// Implicit projections use a canonical face-plane basis at the body origin,
-// with one metre per repeat on either side. Explicit side records take precedence.
-TextureMapping effectiveFaceTextureMapping(const Body &body, Id face, bool back = false);
+// Implicit projections use a canonical face-plane basis at the body origin. One repeat covers
+// the side's material texture size (ADR 0174 section 3) when that material has one, and one
+// metre otherwise. Explicit side records take precedence.
+TextureMapping effectiveFaceTextureMapping(const Body &body, Id face, bool back,
+                                           const MaterialRecords &materials);
 void setFaceTextureMappings(Body &body, Id face, const TextureMappingSides &mapping);
 void validateFaceTextureMappings(const Body &body);
 void reportFaceTextureMappingChanges(const Body &before, const Body &after, EntityChanges &changes);

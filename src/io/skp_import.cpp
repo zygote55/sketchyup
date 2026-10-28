@@ -632,6 +632,17 @@ void Converter::buildMaterials() {
                 const double tileW = texture.width > tileEpsilon ? texture.width : 1.0;
                 const double tileH = texture.height > tileEpsilon ? texture.height : 1.0;
                 textureTiles[i] = std::make_pair(tileW, tileH);
+                // R100.b2: SketchUp keeps the texture size per material, in inches. The faces keep
+                // their explicit mappings above; the material keeps the size as its own.
+                if (texture.width > tileEpsilon && texture.height > tileEpsilon) {
+                    const TextureSize size{texture.width * metresPerInch,
+                                           texture.height * metresPerInch};
+                    if (size.width < minimumTextureSize || size.width > maximumTextureSize ||
+                        size.height < minimumTextureSize || size.height > maximumTextureSize)
+                        note("textureSizeOutOfRange");
+                    else
+                        record->textureSize = size;
+                }
             }
         }
         materialRecords.push_back(record);

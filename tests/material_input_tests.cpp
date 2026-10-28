@@ -8,6 +8,7 @@
 #include "io/texture_presets.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
@@ -295,6 +296,11 @@ int main(int argc, char **argv) {
                   "The asset chooser is held to the preset's texture");
             check(dialog->findChild<QLineEdit *>("materialName")->text() == "Wood, light",
                   "A textured preset fills the name");
+            // R100.b2: the preset's signed-off tile size fills the size field, which is on.
+            check(dialog->findChild<QCheckBox *>("materialTextureSized")->isChecked() &&
+                      dialog->findChild<QDoubleSpinBox *>("materialTextureWidth")->value() == 1 &&
+                      dialog->findChild<QDoubleSpinBox *>("materialTextureHeight")->value() == 1,
+                  "A textured preset shows its tile size");
             accept(dialog);
         });
         const auto woodId = doc.materials().rbegin()->first;
@@ -304,6 +310,8 @@ int main(int argc, char **argv) {
               "A textured preset adds one material and one texture");
         check(wood->color == std::array<float, 3>{1, 1, 1} && wood->opacity == 1 && wood->asset,
               "Wood, light has a white tint, full opacity and its texture");
+        check(wood->textureSize == TextureSize{1, 1},
+              "The created material stores the preset's tile size");
         check(doc.assets().at(wood->asset)->mediaType == "image/jpeg" &&
                   assetByteArray(doc.assets().at(wood->asset)->payload) ==
                       texturePresetBytes(texturePresets()[0]),
@@ -330,6 +338,27 @@ int main(int argc, char **argv) {
         check(doc.assets().size() == assetsBefore + 1 &&
                   doc.materials().rbegin()->second->asset == wood->asset,
               "Identical texture bytes are reused, not copied");
+        // R100.b2: the editor sets one width as one undo step, and unchecking the size clears it.
+        // The reused texture's material is the paint material now, so the edit targets it.
+        const auto reusedId = doc.materials().rbegin()->first;
+        modal(window, "materialEdit", [&](QDialog *dialog) {
+            dialog->findChild<QDoubleSpinBox *>("materialTextureWidth")->setValue(2.5);
+            accept(dialog);
+        });
+        check(doc.materials().at(reusedId)->textureSize == TextureSize{2.5, 1},
+              "The editor sets the width of an existing material");
+        doc.undo();
+        sync(window);
+        check(doc.materials().at(reusedId)->textureSize == TextureSize{1, 1},
+              "Undoing the editor's size change restores it");
+        modal(window, "materialEdit", [&](QDialog *dialog) {
+            dialog->findChild<QCheckBox *>("materialTextureSized")->setChecked(false);
+            accept(dialog);
+        });
+        check(!doc.materials().at(reusedId)->textureSize,
+              "Unchecking the size clears it, back to one metre");
+        doc.undo();
+        sync(window);
         textured("Floor tile, 600 mm", [&](QDialog *dialog) {
             check(dialog->findChild<QLabel *>("materialTextureCaption")
                       ->text()
@@ -337,6 +366,8 @@ int main(int argc, char **argv) {
                   "A new texture is added");
         });
         const auto floor = doc.materials().rbegin()->second;
+        check(floor->textureSize == TextureSize{.6, .6},
+              "The floor tile stores its 600 mm tile size");
         check(floor->asset && floor->asset != wood->asset &&
                   floor->color == std::array<float, 3>{float(QColor("#d6d1c7").redF()),
                                                        float(QColor("#d6d1c7").greenF()),
