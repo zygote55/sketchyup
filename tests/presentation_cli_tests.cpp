@@ -261,8 +261,20 @@ int main(int argc, char **argv) {
         check(blenderMissing.err.contains("Blender"), "A missing Blender names the requirement");
         check(!QFileInfo::exists(files.filePath("export/refused-4")),
               "A missing Blender makes no folder");
-        refused("oversized.json", QByteArray(17 * 1024, ' '), env,
-                "A request over 16 KiB is refused");
+        // R099.b: an oversize request is LIMIT_EXCEEDED; a request that cannot be read is
+        // INPUT_ERROR.
+        const auto oversized = refused("oversized.json", QByteArray(17 * 1024, ' '), env,
+                                       "A request over 16 KiB is refused");
+        check(oversized.err.contains("\"code\":\"LIMIT_EXCEEDED\"") &&
+                  oversized.err.contains("exceeds 16 KiB"),
+              "A request over 16 KiB is LIMIT_EXCEEDED");
+        {
+            const auto missing = runCli(
+                {"--input", native, "--export-presentation", files.filePath("absent-request.json")},
+                env, files.path());
+            check(missing.code == 1 && missing.err.contains("\"code\":\"INPUT_ERROR\""),
+                  "A request that cannot be read is INPUT_ERROR");
+        }
         {
             const auto result = runCli({"--export-presentation", byPath}, env, files.path());
             check(result.code == 1, "A batch needs an explicit input model");

@@ -3,6 +3,15 @@
 // Each scenario builds its own document, so a later check never depends on an earlier one.
 #include "core/presentation.hpp"
 #include "core/scenes.hpp"
+// The encoding checks need the Qt-based document encoder; the Qt-free core sanitizer build
+// compiles this suite without Qt, and skips them there.
+#if __has_include(<QByteArray>)
+#define PRESENTATION_RECORD_ENCODING_CHECKS 1
+#include "io/document_io.hpp"
+#include <QByteArray>
+#include <QRegularExpression>
+#include <QString>
+#endif
 #include <iostream>
 using namespace sketchy;
 namespace {
@@ -293,6 +302,72 @@ void presets() {
     doc.undo();
     check(doc.renderPresets().size() == 2, "Undo restores a deleted preset");
 }
+#ifdef PRESENTATION_RECORD_ENCODING_CHECKS
+// The encoding's bytes with the revision's value blanked. The revision counts edits, and undo, redo
+// and amendments each advance it (ADR 0005), so an undo cannot restore it. Every other byte of the
+// encoding must match.
+QByteArray withoutRevision(const QByteArray &encoded) {
+    static const QRegularExpression revision(QStringLiteral(R"("revision":"[^"]*")"));
+    QString text = QString::fromUtf8(encoded);
+    auto matches = revision.globalMatch(text);
+    int count = 0;
+    for (; matches.hasNext(); matches.next())
+        ++count;
+    check(count == 1, "An encoding carries exactly one revision");
+    return text.replace(revision, QStringLiteral(R"("revision":"")")).toUtf8();
+}
+// ADR 0173 §6: the encoding is the document's bytes. An edit, a delete or a creation, and its undo,
+// give the bytes the document had before it, for camera paths and render presets.
+void undoEncodings() {
+    Scenes s;
+    auto &doc = s.doc;
+    const auto start = encodeDocument(doc);
+    const auto path = createCameraPath(doc, "Encoded", {s.plan, s.side});
+    const auto created = encodeDocument(doc);
+    check(created != start, "Creating a path changes the encoding");
+    updateCameraPath(doc, path, "Encoded edited", {s.side, s.plan}, timing(30, 12, 6));
+    const auto edited = encodeDocument(doc);
+    check(edited != created, "Editing a path changes the encoding");
+    const auto editedRevision = doc.revision();
+    doc.undo();
+    check(doc.revision() > editedRevision, "Undo is an edit: it advances the revision (ADR 0005)");
+    check(withoutRevision(encodeDocument(doc)) == withoutRevision(created),
+          "Undo of a path edit gives the bytes before the edit");
+    doc.redo();
+    check(withoutRevision(encodeDocument(doc)) == withoutRevision(edited),
+          "Redo of a path edit gives the edited bytes");
+    doc.undo();
+    eraseCameraPath(doc, path);
+    check(withoutRevision(encodeDocument(doc)) != withoutRevision(created),
+          "Deleting a path changes the encoding");
+    doc.undo();
+    check(withoutRevision(encodeDocument(doc)) == withoutRevision(created),
+          "Undo of a path delete gives the bytes before the delete");
+    doc.undo();
+    check(withoutRevision(encodeDocument(doc)) == withoutRevision(start),
+          "Undo of a path creation gives the bytes before it");
+    const auto presetStart = encodeDocument(doc);
+    const auto final =
+        createRenderPreset(doc, "Final", RenderSettings{3840, 2160, 256, 0, RenderEngine::Cycles});
+    const auto presetCreated = encodeDocument(doc);
+    check(withoutRevision(presetCreated) != withoutRevision(presetStart),
+          "Creating a preset changes the encoding");
+    updateRenderPreset(doc, final, "Final",
+                       RenderSettings{1920, 1080, 128, 7, RenderEngine::Eevee});
+    check(withoutRevision(encodeDocument(doc)) != withoutRevision(presetCreated),
+          "Editing a preset changes the encoding");
+    doc.undo();
+    check(withoutRevision(encodeDocument(doc)) == withoutRevision(presetCreated),
+          "Undo of a preset edit gives the bytes before it");
+    eraseRenderPreset(doc, final);
+    doc.undo();
+    check(withoutRevision(encodeDocument(doc)) == withoutRevision(presetCreated),
+          "Undo of a preset delete gives the bytes before it");
+    doc.undo();
+    check(withoutRevision(encodeDocument(doc)) == withoutRevision(presetStart),
+          "Undo of a preset creation gives the bytes before it");
+}
+#endif
 void limits() {
     Scenes s;
     auto &doc = s.doc;
@@ -323,6 +398,9 @@ int main() {
         allocators();
         history();
         presets();
+#ifdef PRESENTATION_RECORD_ENCODING_CHECKS
+        undoEncodings();
+#endif
         limits();
         std::cout << "presentation records: all checks passed\n";
         return 0;

@@ -544,6 +544,9 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_executable(terrain_io_tests tests/terrain_io_tests.cpp)
     target_link_libraries(terrain_io_tests PRIVATE sketchyup_io)
     add_test(NAME terrain_io COMMAND terrain_io_tests)
+    # R099.e2: presentation_record_tests' encoding checks use the document encoder, which exists only
+    # in Qt builds (the Qt-free core sanitizer build compiles the suite without them).
+    target_link_libraries(presentation_record_tests PRIVATE sketchyup_io)
     add_executable(presentation_io_tests tests/presentation_io_tests.cpp)
     target_link_libraries(presentation_io_tests PRIVATE sketchyup_io)
     target_compile_definitions(presentation_io_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
