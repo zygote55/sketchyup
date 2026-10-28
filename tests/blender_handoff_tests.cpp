@@ -1,3 +1,4 @@
+#include "blender_stand_in.hpp"
 #include "core/assets.hpp"
 #include "core/materials.hpp"
 #include "integrations/blender_job.hpp"
@@ -68,18 +69,10 @@ int main(int argc, char **argv) {
         const auto capturedRevision = document.revision();
         document.addFace({{{10, 0, 0}, {11, 0, 0}, {11, 1, 0}, {10, 1, 0}}});
         const auto liveRevision = document.revision();
-        int sequence{};
         auto options = [&](const QString &mode) {
             BlenderJob::Options options;
             options.timeoutMs = 60000;
-            options.executable = files.filePath(mode + QString::number(++sequence));
-            write(options.executable,
-                  ("#!/bin/sh\nexec " + quote(app.applicationDirPath() + "/blender_job_tests") +
-                   " --fake " + quote(mode) + " \"$@\"\n")
-                      .toUtf8());
-            check(QFile::setPermissions(options.executable,
-                                        QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner),
-                  "Executable handoff fixture");
+            options.executable = blender_stand_in::make(files.path(), mode);
             return options;
         };
         if (app.arguments().contains("--real")) {

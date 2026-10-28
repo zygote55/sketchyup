@@ -1,3 +1,4 @@
+#include "blender_stand_in.hpp"
 #include "integrations/render_queue.hpp"
 #include <QCoreApplication>
 #include <QDir>
@@ -30,15 +31,8 @@ QByteArray read(const QString &path) {
     return file.readAll();
 }
 QString quote(QString value) { return "'" + value.replace("'", "'\\''") + "'"; }
-void launcher(const QString &path, const QString &mode) {
-    write(path, ("#!/bin/sh\nexec " +
-                 quote(QCoreApplication::applicationDirPath() + "/blender_job_tests") + " --fake " +
-                 quote(mode) + " \"$@\"\n")
-                    .toUtf8());
-    check(QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                          QFileDevice::ExeOwner),
-          "Executable queue fixture");
-}
+// A stand-in at path running mode. Repairing it is placing it again (tests/blender_stand_in.hpp).
+void launcher(const QString &path, const QString &mode) { blender_stand_in::place(path, mode); }
 template <class F> void wait(F predicate, const char *message, int timeout = 10000) {
     QElapsedTimer timer;
     timer.start();

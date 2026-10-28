@@ -1,3 +1,4 @@
+#include "blender_stand_in.hpp"
 #include "core/scenes.hpp"
 #include "integrations/animation_export.hpp"
 #include "io/document_io.hpp"
@@ -43,16 +44,8 @@ int main(int argc, char **argv) {
     try {
         QTemporaryDir files;
         check(files.isValid(), "Animation fixture directory");
-        auto launcher = [&](const QString &name, const QString &mode) {
-            const auto path = files.filePath(name);
-            write(path,
-                  ("#!/bin/sh\nexec " + quote(app.applicationDirPath() + "/blender_job_tests") +
-                   " --fake " + quote(mode) + " \"$@\"\n")
-                      .toUtf8());
-            check(QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                                  QFileDevice::ExeOwner),
-                  "Executable fixture");
-            return path;
+        auto launcher = [&](const QString &mode) {
+            return blender_stand_in::make(files.path(), mode);
         };
         Document doc;
         doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
@@ -68,7 +61,7 @@ int main(int argc, char **argv) {
         const auto history = doc.history().total;
         BlenderJob::Options options;
         options.executable =
-            real ? qEnvironmentVariable("SKETCHYUP_BLENDER_TEST") : launcher("success", "success");
+            real ? qEnvironmentVariable("SKETCHYUP_BLENDER_TEST") : launcher("success");
         AnimationExport full;
         const auto output = files.filePath("complete");
         full.start(capture, output, options);
@@ -100,7 +93,7 @@ int main(int argc, char **argv) {
         }
         AnimationExport interrupted;
         auto hanging = options;
-        hanging.executable = launcher("hang", "hang");
+        hanging.executable = launcher("hang");
         interrupted.start(capture, files.filePath("interrupted"), hanging);
         QElapsedTimer launchWait;
         launchWait.start();
@@ -152,7 +145,7 @@ int main(int argc, char **argv) {
                   immediate.completedFrames() == 0,
               "Cancel during immutable preparation");
         AnimationExport failed;
-        options.executable = launcher("failure", "fail");
+        options.executable = launcher("fail");
         failed.start(capture, files.filePath("failed"), options);
         wait(failed);
         check(failed.state() == AnimationExport::State::Failed && failed.completedFrames() == 0,

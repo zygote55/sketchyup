@@ -150,6 +150,17 @@
       ]
     },
     {
+      "why": "The sandbox library (ADR 0183, R109 S0) is also the Blender job's child policy (R109 S5): a change to it runs the Blender job's checks, and the fake Blender tests run under it.",
+      "paths": [
+        "src/sandbox/**",
+        "tests/sandbox*",
+        "tests/blender_sandbox*"
+      ],
+      "areas": [
+        "blender"
+      ]
+    },
+    {
       "why": "R109 S3 and S4 (ADR 0183): the sandbox of the text helper and the extension worker, their policies, the helpers' host code and the suites that run them. The sanitized builds run both helpers and their suites under ASan and UBSan.",
       "paths": [
         "src/text/sandbox_policy*",
