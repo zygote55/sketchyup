@@ -1,6 +1,6 @@
 {
   "layer": "R098.d",
-  "date": "2026-10-25",
+  "date": "2026-10-25 (R098.d); R098.e updates 2026-10-28",
   "branch": "feat/r098d-step-publish",
   "base": {
     "main": "c898a9e3"
@@ -9,7 +9,10 @@
     "productCodeRunAt": "33e175fa",
     "packagingAndCi": "7e46236b",
     "corpusRecord": "9e9d66f7",
-    "dialogWordingE7AndBudgetTools": "33e175fa"
+    "dialogWordingE7AndBudgetTools": "33e175fa",
+    "r098eTests": "df9cc436",
+    "r098eComment": "eb85cffa",
+    "r098eRecord": "the commit that adds this record (see the PR)"
   },
   "pullRequests": {
     "record": "this branch, against main"
@@ -19,17 +22,17 @@
     "timedBuild": "Release (sketchyup-cli, sketchyup-ifc-worker, ifc_step_export_tests)",
     "debugTimingsDiscarded": true
   },
-  "status": "partial: E3, E5 and E7 pass in full; E1, E2, E4, E6 and E8 are partial (see the checks); three budget misses recorded for the owner",
+  "status": "partial after R098.e: E2, E3, E5, E7 and E8 pass; E1 partial (owner decision between two clauses of ADR 0172 section 7); E6 partial (restart-and-exclude not implemented); E4 not met (bad face: counted, no location, not an element, faces join the good body; PMI-only AP242 refused without counts); three budget misses recorded for the owner (the 1,000,000-triangle export: 61 s and 975 MB, crash at the 4 GiB limit)",
   "verifyLine": "partial",
   "checks": {
-    "E1": "partial: ifc_step and ifc_step_worker pass (box exact; cylinder asserted to 5 %, not the reported deflection)",
-    "E2": "partial: merge and per-element and total caps pass; non-planar and degenerate counts reported but not asserted",
+    "E1": "partial, owner decision: the bound of section 7 (within the reported deflection) passes in ifc_step at 0.02 mm (volume 0.997368 >= 0.992016; area 0.998948 >= 0.995203; assembly likewise); the default 1 mm keeps 5 %; the clause '1e-3 relative for analytic primitives' is not met (2.6e-3 at 0.02 mm)",
+    "E2": "pass (R098.e): ifc_import E2 on the app's report: box 12 triangles, 6 faces, 0 non-planar, 0 collapsed; cylinder 92, 26 faces, 0, 0; sphere r=5 mm 304 triangles, 2 collapsed (one per pole), 302 faces, 3 non-planar (pinned at this commit)",
     "E3": "pass: ifc_step section 4 and 5, ifc_step_worker",
-    "E4": "partial: accounting identity and refusals pass; no bad-face, untranslatable-entity or PMI-only AP242 fixture in the corpus",
+    "E4": "not met (R098.e): bad face counted (freeFaces 6) and the good box converts, but no location, the bad solid is not an element, and its faces are in the good box's body (defect, section 7 item 11); PMI-only AP242 refused as nothingToImport with no counts. C2 does not refuse AP242 (it refuses AP230)",
     "E5": "pass: ifc_step_export (AP214 and AP203 round trips through the real helper)",
-    "E6": "partial: 128 MiB + 1 byte refused (measured today); stop and cancel pass with a stand-in; restart-and-exclude not implemented for STEP",
+    "E6": "partial (R098.e): 128 MiB + 1 byte refused as tooLarge (CTest, step_import C8); SIGSEGV (C9), RLIMIT_AS (C10) and RLIMIT_CPU (C11) each fail with the log tail through stand-ins; restart-and-exclude not implemented (section 9.2)",
     "E7": "pass: ifc_step_export E7 checks on both round trips",
-    "E8": "partial: report size 6,166 bytes (measured); message bound not asserted for STEP",
+    "E8": "pass on a stand-in (R098.e): a 5,000-byte helper message is kept to 240 bytes (256 bound); report within 64 KiB (step_import C12)",
     "packaging": "pass: ifc_library_install (L1 to L6, with the STEP-SOURCE and STEP toolkit checks) and ifc_library_source; package acceptance not run",
     "pathMap": "pass: ci-plan.py check; STEP sources, fixtures and tests select job:ifc",
     "corpus": "pass: 14 files, SHA-256 match the record; no third-party file",
@@ -39,7 +42,10 @@
     "helperFastTier": "8 of 8 pass (134.31 s)",
     "applicationSuites": "8 of 8 pass on the first run; parser_fault_corpus built with its target and passed",
     "mirrorReRun": "ifc_step, ifc_step_export, step_import, ifc_step_worker pass after the fixture replacement",
-    "desktopDialogs": "4 of 4 pass (step_import_dialog, step_export_dialog, ifc_import_dialog, ifc_export_dialog)"
+    "desktopDialogs": "4 of 4 pass (step_import_dialog, step_export_dialog, ifc_import_dialog, ifc_export_dialog)",
+    "r098eIfcJob": "10 of 10 pass: ifc_package, ifc_convert, ifc_import, ifc_worker_run, ifc_export, ifc_step, ifc_step_export, step_import, import_refusal, ifc_sandbox (ifc-app, Debug, address space capped at 8,000,000 KiB), at the tree of df9cc436",
+    "r098eMutants": "three deliberate failures (E1 volume bound 0.99, E2 non-planar count 4, E8 bound 200 bytes) each failed their test; sources restored; not committed",
+    "r098eDeterminism": "see R097.f record, item 8 (60 runs per fixture at four threads, identical)"
   },
   "budgets": {
     "inputFile128MiB": {
@@ -84,13 +90,13 @@
     },
     "tessellate1M": {
       "budget": "10 s with progress; cancel 100 ms; helper ends 1 s",
-      "measured": "helper alone 3.98 to 4.99 s for 990,584 triangles (101 progress lines); command-line import end to end 13.84, 15.76, 14.27, 13.99 s; cancel not measured on the real helper",
-      "verdict": "helper met; end to end missed: owner decision pending; cancel not run"
+      "measured": "helper alone 3.99 to 4.03 s (4 runs, Release, R098.e); end-to-end import 14.02 to 14.11 s with a new native file (4 runs), 10.15 to 10.25 s without one (3 runs); helper 3.94 to 4.00 s of it; application conversion 6.2 s, native save about 4 s; cancel not measured on the real helper",
+      "verdict": "helper met; end to end missed (14.1 s, 10.2 s without a file): owner decision pending; cancel not run"
     },
     "export1M": {
       "budget": "5 s with progress and cancel; output 256 MiB",
-      "measured": "1,000,000-triangle model not re-run (R098.c: helper alone 73.9 s; segfault at 4 GiB after 26 s; stopped at 256 MiB at 60.7 s). Re-run today: 20,000 triangles 1.04 s, 18.1 MB; 50,000 triangles 2.72 s, 46.0 MB; imported 90,954-face model 16.6 to 16.8 s, 223,950,326 bytes",
-      "verdict": "1,000,000-triangle row missed: owner decision pending (R098.c); the 90,954-face export missed on time (owner decision pending), met on size"
+      "measured": "1,000,000 triangles, helper alone, Release, R098.e: 61.1 s, peak 8,446 MiB, output 975,418,866 bytes with no limits; SIGSEGV at 21.6 s under the 4 GiB address-space limit (OCCT malloc failed in the writer, then a fault in Interface_Graph::Evaluate); SIGXFSZ at 54.0 s under the 257 MiB output limit. Not measurable through the application: the budget model needs 1,020,000 vertices and a document holds 600,000. The 90,954-face imported model: command line 16.80 to 16.83 s (4 runs); helper 15.6 s (the OCCT writer 13.1 s), application 1.1 s; 223,950,330 bytes",
+      "verdict": "1,000,000-triangle row missed (61 s against 5 s; 975 MB against 256 MiB; crash at the 4 GiB limit): owner decision pending. The 90,954-face export missed on time (16.8 s against 5 s), met on size: owner decision pending"
     }
   },
   "findings": [
@@ -103,16 +109,21 @@
     "mirror-box.step was malformed (lost commas and same-sense attributes; integer reals) and is regenerated from OCCT output for a true mirror",
     "The corpus is tests/fixtures/step/, not tests/resources/step/ as ADR 0172 section 7 says",
     "Timing: the ifc-app preset is Debug; Release timings are the record's figures; the R098.a2 64 MiB figure is not a Release figure",
-    "The 1,000,000-triangle export cannot be built in one document; its figure is R098.c's, not re-run"
+    "The 1,000,000-triangle export cannot be built in one document; its figure is R098.c's, not re-run",
+    "R098.e: a bad solid's six faces are reported as not imported by the helper (face, free-surface, 6) and as imported by the application's notice; they are in the good box's body (12 faces, one body); steps in the record, section 7 item 11",
+    "R098.e: the STEP report has no locations (ADR 0172 section 5); src/ifc/step_import.cpp never calls Report::locate",
+    "R098.e: a PMI-only AP242 file is refused as nothingToImport with no counts",
+    "R098.e: the 1e-3 clause of ADR 0172 section 7 E1 is not met by any tessellated cylinder tested (2.6e-3 at 0.02 mm)",
+    "R098.e: the 1,000,000-triangle export needs about 8.4 GiB of address space; the ADR's 4 GiB limit ends it with a SIGSEGV after an OCCT malloc failure (gdb backtrace in section 9.3)",
+    "R098.e: the C2 refusal the record cited for AP242 is an AP230 refusal; AP242 files are read (best effort)"
   ],
   "notRun": [
     "package acceptance (verify-package.sh, needs a package build)",
     "cancel latency on the real helper (the command line has no cancel)",
-    "E4 bad-face and PMI fixtures (none in the corpus)",
-    "E6 restart for STEP (not implemented)",
-    "E6 SIGSEGV and RLIMIT for STEP (no STEP fixture that crashes the helper)",
-    "E8 message bound for STEP",
-    "sanitizers for R098.d",
-    "interactive desktop session"
+    "E6 restart for STEP (not implemented; estimate in section 9.2)",
+    "E4 bad-face and PMI fixtures beyond the two designed ones (no entity the translator refuses as its own fixture)",
+    "E8 message bound on a real helper message (the stand-in gives the long message)",
+    "sanitizers for R098.d and R098.e",
+    "interactive desktop session; desktop dialog suites in the native matrix (full-ci)"
   ]
 }

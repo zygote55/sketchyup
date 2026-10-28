@@ -7,6 +7,9 @@ PR #438). Product code is unchanged by this record; the one file it adds is the 
 
 [Summary](R097f-ifc-exchange.json).
 
+**Determinism (2026-10-28, the F04 close, item 8).** The four-thread determinism check was re-run on today's main, 60
+runs per fixture, and every package and R line was identical (section "Determinism re-run" below).
+
 **Status.** Every check that a run can prove has been run and passes, with the exceptions named in its row. Two
 items are not complete: the buildingSMART hosted validation service, which needs a person (owner, section G1; the export
 claim is conditional on it), and the native matrix, which runs on the pull request with the `full-ci` label (section
@@ -78,6 +81,7 @@ commit it ran at. "Not run" always comes with the reason.
 | L4 | `THIRD_PARTY_NOTICES`, PKGBUILD licence array and `dependencies.json` updated | `ifc_library_source` | pass | 78058393 |
 | L5 | No GPL-3.0-or-later library linked | `ifc_library_install` (`verify-ifc-library.py`) | pass | 78058393 |
 | L6 | Kernel removal reports "kernel unavailable", no abort | `ifc_library_install` | pass | 78058393 |
+| H3 | Four-thread determinism after PR #495 (the 2026-10-28 re-run): 60 runs per fixture at four threads, packages byte-identical | by hand: the helper's `--import` at four threads, `cmp` of each package (section below) | pass: 60 of 60 identical for `openings-hard.ifc` (10,523 bytes) and 60 of 60 for `tree-cases.ifc` (14,854 bytes) | 86070665 (origin/main) |
 
 ## Test runs
 
@@ -280,6 +284,8 @@ every file. Notes for reading the result:
 
 ## Native matrix
 
+The 1.4.0 release candidate's full tier supplies this matrix (item 9 of the F04 close, 2026-10-28).
+
 The full tier (ADR 0170) runs X11 and Wayland at 1× and 2× (the IFC dialog suites `ifc_import_dialog` and
 `ifc_export_dialog`, which include S9, the dirty-model undo, and T7, the cancelled export), the sanitizer step, and
 the damaged-file corpus at 512 mutations (label `full`). It runs when the pull request carries the `full-ci` label.
@@ -317,6 +323,34 @@ What is claimed, and no more:
 **K1 result: pass as written, on the text published here.** The schemas and directions above match the code paths cited;
 the unsupported classes match D2's assertions. The desktop screens' wording of the report is counts and notices; the
 per-class lists are in the command line's report, which the user guide says.
+
+## Determinism re-run (item 8, 2026-10-28)
+
+**What changed since the record's determinism check.** At `78058393` the check passed, but four threads were not
+deterministic: the library's kernel messages were read while the worker threads appended to them. PR #495 (merge
+`461e2de8`, ADR 0171's four-thread determinism notes) reads the log only where no worker thread can write (after the
+iterator is constructed, and after it is destroyed, which joins the threads), and sorts the messages at more than one
+thread. Its tests compare four-thread packages byte for byte (`tests/ifc_sandbox_tests.cpp`). The cause was a data race,
+not a use-after-free.
+
+**The re-run.** On `origin/main` at `86070665`, which contains #495, in `sketchyup-ci-pinned:r097a-ifc` with the
+IfcOpenShell prefix `7ba70197`, the helper's `--import` at `--threads 4` with the application's defaults for deflection,
+angular deflection, voids and entities, 60 runs per fixture, one helper process at a time on four CPUs. Each run's
+package was compared with the first run's package by `cmp`, and each R line with the first R line.
+
+| Fixture | Runs at four threads | Identical to run 1 | Different | Package bytes | R line |
+| --- | --- | --- | --- | --- | --- |
+| `openings-hard.ifc` | 60 | 60 | 0 | 10,523 | `{"status":"ok","bytes":10523,"nodes":6}` |
+| `tree-cases.ifc` | 60 | 60 | 0 | 14,854 | `{"status":"ok","bytes":14854,"nodes":16}` |
+
+**Result.** Pass: 120 of 120 four-thread runs gave the same package and the same R line. Before the fix, the same
+fixtures varied at four threads (the kernel messages in 53 and 104 of 3,430 runs; ADR 0171's notes). The race is rare, so
+120 runs are evidence, not proof; ADR 0171 notes that only a ThreadSanitizer build of the library would show that no other
+unsynchronised access remains, and that build was not made.
+
+**Not changed by item 8.** The native matrix (the full tier's dialog suites and the damaged-file corpus at 512
+mutations) is left to the full tier, which the 1.4.0 release candidate's run will supply. The buildingSMART hosted
+validation (G1) stays with the owner.
 
 ## Commands
 

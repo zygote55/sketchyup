@@ -2538,3 +2538,38 @@ nodes instead of six: an opening element was not imported and the hosts were cut
 - The two-run test passes whether or not the race is fixed in most runs, because the race is rare. It guards against
   nondeterminism in general (for example the message order); the stress runs above are the evidence for the race.
 - The vendored IfcOpenShell tree is unchanged, and so are the thread count and the sanitizer job.
+
+## Implementation notes (R097.f item 8: four-thread determinism re-run, 2026-10-28)
+
+The R097.f acceptance record (`docs/verification/R097f-ifc-exchange.md`, its determinism section) re-runs the four-thread
+determinism check on today's main, after the fix recorded above. This note records the fix and the re-run. The product code
+is unchanged by this note.
+
+### What the fix changed
+
+PR #495 (merge `461e2de8`) makes the helper read the library's message log only where no worker thread can append to it: once
+after the iterator is constructed (the units are logged there, with no thread yet) and once after the iterator is destroyed
+(its destructor joins the threads). At more than one thread the messages are sorted before the report is derived. The change
+is in `src/ifc/geometry.cpp` (`LibraryMessages`, `iteratePass`, `runGeometry`) and in `tests/ifc_sandbox_tests.cpp`, which now
+compares the four-thread packages byte for byte. The cause was a data race (an unsynchronised read of the log while the
+conversions appended), not a use-after-free: the diff has no lifetime change beyond the order of the final read.
+
+### The re-run
+
+Origin `main` at `86070665` (which contains #495), the helper built in `sketchyup-ci-pinned:r097a-ifc` (IfcOpenShell prefix
+`7ba70197`), four threads, `--deflection 0.001 --angular-deflection 0.5 --max-voids 100 --max-entities 2000000`, one helper
+process at a time on a four-CPU container.
+
+| Fixture | Runs at four threads | Identical to run 1 | Package bytes | R line |
+| --- | --- | --- | --- | --- |
+| `openings-hard.ifc` | 60 | 60 | 10,523 | `{"status":"ok","bytes":10523,"nodes":6}` |
+| `tree-cases.ifc` | 60 | 60 | 14,854 | `{"status":"ok","bytes":14854,"nodes":16}` |
+
+No run failed, and every package and every R line was the same. Before the fix, the same two fixtures varied at four threads
+(the kernel messages in 53 and 104 of 3,430 runs), so the check is sensitive to the defect it guards against. Measured
+evidence is not proof: the race is rare, and only a ThreadSanitizer build of the library would show that no other
+unsynchronised access remains (the open question of the note above).
+
+### Contradictions with this ADR
+
+None new. The notes above already record F8 and H1 as corrected by the fix.
