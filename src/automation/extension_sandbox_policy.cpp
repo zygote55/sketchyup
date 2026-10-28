@@ -74,10 +74,14 @@ sketchyup::sandbox::Policy extensionSandboxPolicy() {
         {"sigaltstack", Action::allow},
         {"madvise", Action::allow}, // ASan releases the pages of freed blocks
 #endif
-        // no socket, no exec and no clone: the ADR's row for the worker says it creates no thread,
-        // so a
-        // call to any of them kills the worker with SIGSYS, which the host reports as
-        // sandboxViolation.
+        // The socket calls are refused with EPERM, not killed, as in every helper (ADR 0183 section 4.3
+        // and decision 4; R109 S6).
+        {"socket", Action::denied},
+        {"socketpair", Action::denied},
+        {"bind", Action::denied},
+        {"connect", Action::denied},
+        // no exec and no clone: the ADR's row for the worker says it creates no thread, so a call to
+        // either kills the worker with SIGSYS, which the host reports as sandboxViolation.
         // exit and exit_group are always allowed.
     };
     return policy;

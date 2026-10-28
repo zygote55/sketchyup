@@ -156,8 +156,15 @@ sketchyup::sandbox::Policy textSandboxPolicy(const TextFontGrants &fonts) {
         {"sigaltstack", Action::allow},
         {"madvise", Action::allow}, // ASan releases the pages of freed blocks
 #endif
-        // no socket and no exec: a call to either kills the helper with SIGSYS, which the host
-        // reports as sandboxViolation. exit and exit_group are always allowed.
+        // The socket calls are refused with EPERM, not killed, as in every helper (ADR 0183 section 4.3
+        // and decision 4; R109 S6). Qt's journal logger opens a socket when a locale is missing: the
+        // refusal lets it log nothing and carry on.
+        {"socket", Action::denied},
+        {"socketpair", Action::denied},
+        {"bind", Action::denied},
+        {"connect", Action::denied},
+        // no exec: a call to execve kills the helper with SIGSYS, which the host reports as
+        // sandboxViolation. exit and exit_group are always allowed.
     };
     return policy;
 }

@@ -1,10 +1,9 @@
 // R109 S1 (ADR 0183): the .skp helper under its sandbox. The checks:
 //   - every committed fixture, imported, probed and dry-run by the sandboxed helper, gives the same
 //     package bytes and the same R line as the same code run unsandboxed in this process;
-//   - a sandboxed helper's policy refuses a socket and an exec (the process is killed with SIGSYS),
-//   a
-//     fork (EPERM), a read outside the granted file, and a write outside the private directory, and
-//     it allows a write inside it;
+//   - a sandboxed helper's policy refuses a socket (EPERM, as in every helper: R109 S6) and an exec
+//     (the process is killed with SIGSYS), a fork (EPERM), a read outside the granted file, and a
+//     write outside the private directory, and it allows a write inside it;
 //   - a layer that cannot be installed refuses with sandboxUnavailable and parses nothing (exit
 //   70),
 //     both for a simulated failure and for the real helper under a filter that refuses the layer's
@@ -232,11 +231,12 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
     };
 
     Outcome socketCall = inChild(scratch + "/attack-socket.out", armed([] {
-                                     socket(AF_INET, SOCK_STREAM, 0);
-                                     return 0;
+                                     return (socket(AF_INET, SOCK_STREAM, 0) == -1 && errno == EPERM)
+                                                ? 0
+                                                : 1;
                                  }));
-    check(socketCall.signaled && socketCall.signal == SIGSYS,
-          "the sandboxed helper cannot create a socket (killed with SIGSYS)");
+    check(!socketCall.signaled && socketCall.code == 0,
+          "the sandboxed helper cannot create a socket (EPERM, R109 S6)");
 
     Outcome execCall = inChild(scratch + "/attack-exec.out", armed([] {
                                    char *const argv[] = {const_cast<char *>("/bin/true"), nullptr};

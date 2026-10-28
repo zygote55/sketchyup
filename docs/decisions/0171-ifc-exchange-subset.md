@@ -1251,7 +1251,7 @@ limits.
 16. **GlobalId stability:** deterministic GlobalIds from the document identity and the stable body ID; imported GlobalIds kept when valid and unique. *Decided 2026-10-22: approved.*
 17. **Packaging:** vendor a trimmed pinned source tree and build it ourselves; not the AUR, not a build-time download. *Decided 2026-10-22: "Approve all".*
 18. **OCCT:** carry a private copy of the OCCT libraries the kernel needs (about 37 to 57 MB) instead of depending on Arch's `opencascade` (about 0.53 GiB installed for users, because it pulls VTK, Tcl and Tk) or making it optional. *Decided 2026-10-22: "Approve all".*
-19. **Process isolation:** IfcOpenShell runs only in a separate helper process with resource limits, restarts after a crash with the culprit element excluded, and a sandbox (Landlock, seccomp) as a later hardening. *Decided 2026-10-22: "Approve all".*
+19. **Process isolation:** IfcOpenShell runs only in a separate helper process with resource limits, restarts after a crash with the culprit element excluded, and a sandbox (Landlock, seccomp) as a later hardening. *Decided 2026-10-22: "Approve all".* The sandbox is ADR 0183 (R109 S2 implemented it for this helper; R109 S6 added the required check).
 20. **Build time and CI:** accept the extra package-build time (about 15 minutes or more, paid twice by package acceptance) and use a cached prefix in the fast tier. *Decided 2026-10-22: "Approve all".*
 21. **Version policy:** pin 0.9.0; upgrade only by an explicit change that re-runs the checks; the project maintains the trim. *Decided 2026-10-22: "Approve all".*
 22. **Package shape:** IFC built into release packages by default, shipped as a separate optional package `sketchyup-ifc`. *Decided 2026-10-22: "Approve all".*

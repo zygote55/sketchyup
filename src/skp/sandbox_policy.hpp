@@ -10,7 +10,7 @@ namespace sketchyup::skp {
 
 // The policy of one command. The input file is read. The directory of the output package (the
 // application's private directory, which holds the input copy as well) is read and written. Nothing
-// else is granted: no socket, no exec, and no thread but the deadline's.
+// else is granted: no socket (each socket call is EPERM), no exec, and no thread but the deadline's.
 sandbox::Policy skpSandboxPolicy(const std::string& input, const std::string& output);
 
 // Installs the policy in this process, fail closed. Returns the layer that failed, or nothing.

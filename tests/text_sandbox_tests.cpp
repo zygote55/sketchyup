@@ -3,7 +3,7 @@
 //   unsandboxed in
 //     a child process, for the Latin requests and for a large one; the mixed-script request
 //     returns;
-//   - the attack probes under the policy: socket and execve are killed with SIGSYS, fork is EPERM,
+//   - the attack probes under the policy: socket is EPERM (R109 S6), execve is killed with SIGSYS, fork is EPERM,
 //   abort is
 //     SIGABRT, /etc/passwd and a file outside the private directory are EACCES, and the fontconfig
 //     configuration can be read;
@@ -288,11 +288,10 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
     fs::create_directories(home);
 
     const Outcome socketCall = armed(scratch + "/attack-socket.out", [] {
-        socket(AF_INET, SOCK_STREAM, 0);
-        return 0;
+        return (socket(AF_INET, SOCK_STREAM, 0) == -1 && errno == EPERM) ? 0 : 1;
     });
-    check(socketCall.signaled && socketCall.signal == SIGSYS,
-          "the text helper cannot create a socket (killed with SIGSYS)");
+    check(!socketCall.signaled && socketCall.code == 0,
+          "the text helper cannot create a socket (EPERM)");
 
     const Outcome execCall = armed(scratch + "/attack-exec.out", [] {
         char *const argv[] = {const_cast<char *>("/bin/true"), nullptr};

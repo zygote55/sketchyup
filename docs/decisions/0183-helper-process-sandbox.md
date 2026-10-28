@@ -1,6 +1,6 @@
 # 0183 — Helper process sandbox
 
-**Status: Accepted (2026-10-27).** The owner approved decisions 1 to 11 as recommended and assigned roadmap row **R109** (decision 12). The work is scheduled before the next release, as the shared slice S0 and then one slice per helper (S1 to S5) and CI (S6). S1's `tooLarge` fix is already merged (PR #470). Originally proposed 2026-10-26. This ADR decides how the file-parsing helpers are sandboxed. It also lists the corrections owed to ADRs 0171, 0176 and 0136, which call those helpers "sandboxed" or describe them loosely, and to ADR 0180, which needs two corrections of its own. It is design and measurement only. No product code and no dependency change is part of it. The owner decides on the verdict and on the [owner decisions](#owner-decisions). Until one is accepted and implemented, the helpers have resource limits and, in some modes, `PR_SET_NO_NEW_PRIVS`. They keep the user's file and network access, as [ADR 0171 §1.6](0171-ifc-exchange-subset.md) says.
+**Status: Implemented (S0–S6).** The owner accepted decisions 1 to 11 as recommended on 2026-10-27 and assigned roadmap row **R109** (decision 12). The shared slice (S0), one slice per helper (S1 to S5) and CI (S6) are all merged; the implementation notes below record what each built, and where it differs from the design. S1's `tooLarge` fix was merged first (PR #470). Originally proposed 2026-10-26. This ADR decides how the file-parsing helpers are sandboxed. It also lists the corrections owed to ADRs 0171, 0176 and 0136, which call those helpers "sandboxed" or describe them loosely, and to ADR 0180, which needs two corrections of its own. The design was written from measurements, and it was not code. The owner decides on the verdict and on the [owner decisions](#owner-decisions). Before S0, the helpers had resource limits and, in some modes, `PR_SET_NO_NEW_PRIVS`. They kept the user's file and network access, as [ADR 0171 §1.6](0171-ifc-exchange-subset.md) says. The sandbox removes that access.
 
 ## Verdict in brief
 
@@ -99,7 +99,7 @@ Each allow-list is the union of the calls seen in traces of the helper, taken un
 - standard output and standard error as pipes, as files and as `/dev/null`;
 - each input class in the corpus and the fault paths (for IFC, `--diagnose-from` with `--test-fault`).
 
-A record filter traps each call, logs its number and any path argument, and runs it through a trampoline. The trampoline is exempt from the trap by instruction pointer. An observe mode does the same without a fixed list: it logs every call outside the list and runs it, so a missing entry shows up in the log and the run still finishes. Both modes are test-only. They are not in release builds (decision 13).
+The design named a test-only record filter (it would trap each call, log its number and path argument, and run it through a trampoline) and a test-only observe mode (it would log every call outside the list and run it, so the run finishes). **Neither was built.** The library has no record or observe mode, in the tests or in release builds (R109 S6, checked against the sources). A refused call is found in the kernel's audit log instead: a seccomp refusal that kills the process is a `type=1326` (SECCOMP) record, which names the process, its executable, the signal and the call number (`syscall=`). On a machine where the kernel log is readable, `journalctl -k | grep type=1326` lists them. The S6 notes say how the sanitizer checks used it.
 
 Two gaps in trace-derived lists were found and are the reason for the rule. The first is that a list taken from one I/O setup misses calls that another setup makes (`fcntl` appeared only with a pipe on stdin). The second is that a trace which starts after the constructor misses the loader and libc startup. Both are covered by the union rule and by the CI check in §8.
 
@@ -249,7 +249,7 @@ Two tiers, matching ADR 0170 and the CI time directive in the owner's notes (mer
 
 - Every corpus file for each helper under the kill allow-list (74 IFC and STEP; 12 SKP; the text Latin requests; the extension panel; the Blender probes and the render), identical output and identical return codes.
 - The IFC diagnosis case (`--test-fault crash:<id>`, `--diagnose-from 0`), identical to the unsandboxed run.
-- **Trace coverage.** Observe-mode runs over the corpus, under each I/O setup in §4.5, must report no call outside the allow-list. A stale list fails the job, which is how the `fcntl` and `isatty` cases would have been caught.
+- **Trace coverage.** Designed as observe-mode runs over the corpus, under each I/O setup in §4.5, that report no call outside the allow-list. Not built: observe mode does not exist (§4.5). The suites cover the same ground in another way. A call outside the list kills the helper, and each corpus run compares its output with the unsandboxed run, so a stale list fails its suite for any call the suite makes. The `fcntl` and `isatty` cases were found by comparing outputs (§6.5), not by a trace.
 - **Negative controls.** Blender's kill policy without the socket entries must die with SIGSYS, which shows the kill default is active. A missing Landlock rule must refuse.
 
 **Kernel requirements, pinned image.** The image provides Landlock, seccomp, `no_new_privs` and the `clone3` fallback. It does not provide user namespaces. Landlock is a kernel feature: the runner's kernel must have `CONFIG_SECURITY_LANDLOCK` and `landlock` in its boot LSM list. That is not verified for `ubuntu-latest` (§10).
@@ -287,7 +287,7 @@ The per-syscall cost matters most for helpers that make many calls, such as the 
 
 One slice per helper, after a shared slice. Each slice records its measured numbers in an implementation-notes section of this ADR, as ADR 0176 does.
 
-- **S0, shared library (`src/sandbox/`).** NNP, the Landlock ruleset builder and ABI probe, the raw BPF assembler with the x86_64 table, the allow-list and explicit-entry model, the kill default, clone and clone3 rules, the failure reporter (`sandboxUnavailable` and `sandboxViolation`), the record and observe modes (test-only), and `sandbox_available`. Gate: the attack probe and `sandbox_available` pass in the pinned image and on the host.
+- **S0, shared library (`src/sandbox/`).** NNP, the Landlock ruleset builder and ABI probe, the raw BPF assembler with the x86_64 table, the allow-list and explicit-entry model, the kill default, clone and clone3 rules, the failure reporter (`sandboxUnavailable` and `sandboxViolation`) and `sandbox_available` (built in S6). The record and observe modes named here were not built (§4.5). Gate: the attack probe and `sandbox_available` pass in the pinned image and on the host.
 - **S1, SKP (`src/skp/worker_main.cpp`).** Apply before `runImport` and `runProbe`. Allow-list of 19, `rw {private}`. Fix the `tooLarge` code for a failed read (`src/skp/import.cpp:228`). Gate: 12 fixtures identical under kill; probe modes sandboxed.
 - **S2, IFC and STEP (`src/ifc/worker_main.cpp`, `src/io/ifc_worker.cpp`).** Apply before every mode that opens a file: import, export, check, STEP import and export, and the probe modes. Allow-list of 31, with fork-like `clone` for diagnosis. `rx` on the plugin directory and `/usr/lib`. Classify a sandbox kill as `sandboxViolation` (`ifc_worker.cpp:281–282`). Gate: 74 fixtures identical; diagnosis case identical; export and check measured.
 - **S3, text (`src/text/worker_main.cpp`, `src/text/text_worker.cpp`).** Apply in `main` before `QGuiApplication`. Set `HOME`, `XDG_*` and `TMPDIR` to the private directory (`text_worker.cpp:188–190`). Allow-list of 27. Gate: Latin requests identical; the mixed request returns 0.
@@ -299,24 +299,24 @@ No slice starts before the owner accepts this ADR. Slices S1 to S5 can run in an
 
 ## Corrections owed
 
-The brief asks for corrections to ADRs 0171, 0176 and 0136. They are listed here, not edited. ADR 0180 is listed as well, because the measurements contradict two of its statements.
+These corrections were listed at acceptance and not made in this record. Each item below says where it was made, or why it is moot (R109 S6 checked them all). ADR 0180 is listed as well, because the measurements contradict two of its statements.
 
-**ADR 0171, §1.6 and decision 19 (`docs/decisions/0171-ifc-exchange-subset.md`).**
+**ADR 0171, §1.6 and decision 19 (`docs/decisions/0171-ifc-exchange-subset.md`). Done (S2, and S6 for the last pointer).**
 - Line 410: "A real sandbox … is possible on current kernels with a fallback to resource limits only." The fallback to limits is the fail-open choice. This ADR proposes fail closed (decision 1). Replace the sentence with a pointer to this ADR, and say the fallback is not part of the design.
 - Lines 404–406: the list of isolation layers, including `PR_SET_NO_NEW_PRIVS`, is true for import, check, export and STEP package only. The probe modes and `--import-step` without `--output` do not set it (`src/ifc/worker_main.cpp:85–88, 158–203, 245`). Say so.
 - Line 409, "it is not a sandbox": correct. Keep.
 - Line 1062 ("until the Landlock and seccomp hardening of decision 19 exists") and lines 1161, 1249 and 1354 ("later hardening"): add the status, "ADR 0183, proposed".
 
-**ADR 0176 (`docs/decisions/0176-skp-import.md`).**
+**ADR 0176 (`docs/decisions/0176-skp-import.md`). Done (S1, PR #470 for the refusal code).**
 - Line 104 (§1): the list of isolation layers is right for `--import`, but not for `--probe`, which runs with no `PR_SET_NO_NEW_PRIVS` and no limits (`src/skp/worker_main.cpp:70–73`; `src/skp/import.cpp:118`). Add that.
 - Line 278 (decision 2): "run the parser only in a new `sketchyup-skp-worker` helper (sandboxed as in ADR 0171 §1.6)". The helper is not sandboxed. Replace "sandboxed" with "resource-limited, as in ADR 0171 §1.6, and not a sandbox until ADR 0183 is implemented".
 - The import refusal for a sandbox-denied open is reported as `tooLarge` (`src/skp/import.cpp:228`). The reason code needs to change when S1 lands. This is a defect, not only a wording change.
 
-**ADR 0136 (`docs/decisions/0136-bounded-extension-worker.md`).**
+**ADR 0136 (`docs/decisions/0136-bounded-extension-worker.md`). Done (S4).**
 - Lines 24–27: "The child uses a minimal environment … This is a process-failure and command-validation boundary, not an OS sandbox for the installed application binary." The environment scrub limits what the child inherits: credentials and plugin configuration. It does not limit files or sockets. The child keeps the user's file and network access. It has no rlimit, `setsid`, `PDEATHSIG` or `NO_NEW_PRIVS` (`src/automation/extension_worker.cpp:90–131`). Say that plainly.
 - Lines 10–17 (protocol, bounded reads, deadline): accurate; no change.
 
-**ADR 0180 (branch `docs/r106-dwg-feasibility`, commit `5c3edcf0`).**
+**ADR 0180 (branch `docs/r106-dwg-feasibility`, commit `5c3edcf0`). Moot until DWG is reopened.** ADR 0180 is deferred indefinitely (2026-10-27). Its §3.2, §3.3 and §3.5 corrections are not made, and a line in ADR 0180 says so.
 - §3.3 (line 171): "the helper's own shared libraries are loaded before the restriction is applied." True for libraries loaded at start-up. Not true for plugins loaded during the parse: the IFC helper opened `/build/ifc-prefix/lib` and `/usr/lib/libTK*.so.7.9` after start-up (§6.3 trace). The DWG helper needs a read and execute rule for any library it loads lazily.
 - §3.5 (line 191): the cause of `unshare -n` failing is not known in that ADR. It is now known: `unshare -n` without `-U` needs `CAP_SYS_ADMIN`, and `unshare -Urn` works (§6.2).
 - §3.2 point 2 (lines 156–162): "Its architecture is checked first (x86_64 and aarch64)". The supported platform is x86_64 (`docs/SUPPORT_MATRIX.md`, line 12). An aarch64 table is needed only if that platform is added.
@@ -473,7 +473,14 @@ The fix adds `sched_yield` to the sanitizer-only set in `src/ifc/sandbox_policy.
 
 Verification on the fixed sanitized helper: the probe command 100 times, all exit 0 (34 killed before the fix); 20 runs each of `--import --dry-run` on openings, bsi-ifc4-arch, bsi-ifc4-landscaping and bsi-ifc4-road, and of `--import --output` on bsi-ifc4-landscaping, all exit 0. `ctest` on `ifc-sanitize` (`ifc_worker_probe`, `ifc_import_worker`, `ifc_georeference`, `ifc_export_worker`, `ifc_worker_fault_corpus` and `ifc_step_worker`) passed 6 of 6. The release `ifc_sandbox` test passed.
 
-Found and not fixed here: the sanitized helper reports a heap-use-after-free on some four-thread imports, and the sandbox is not involved. On openings.ifc it appeared in 3 of 140 runs (1 of 20 with the trace, and 2 of 120 untraced on the fixed helper). The read is in `iteratePass` (`src/ifc/geometry.cpp`) on the main thread. The block was allocated and freed on a worker thread, in IfcOpenShell's `logger::append`. The probe fixture (bsi-ifc4-arch) showed no such error in the 266 probe runs that finished. Its effect on CI is not measured. The four-thread determinism work should look at it first.
+**Heap-use-after-free (superseded: fixed by #495).** The sanitized helper reported a heap-use-after-free on some four-thread imports. The sandbox was not involved. On openings.ifc it appeared in 3 of 140 runs (1 of 20 with the trace, and 2 of 120 untraced on the fixed helper). The read is in `iteratePass` (`src/ifc/geometry.cpp`) on the main thread. The block was allocated and freed on a worker thread, in IfcOpenShell's `logger::append`. The probe fixture (bsi-ifc4-arch) showed no such error in the 266 probe runs that finished. Dated 2026-10-27: after the merge of `origin/main` with #495 (`461e2de8`), the rebuilt helper showed no heap-use-after-free in 200 `--import --dry-run` runs of openings.ifc at four threads (3 of 140 runs before the fix) and no ASan report in 100 `--probe-api` runs of bsi-ifc4-arch.ifc, so #495's fix removed the use-after-free in these runs, and all 300 runs exited 0. Verification on main with #495 and #496 (2026-10-28, ifc-sanitize helper in the pinned image): `--import --dry-run openings.ifc --threads 4` 200 runs, 0 ASan reports and 0 use-after-free (before #495: 3 of 140); `--probe-api bsi-ifc4-arch.ifc --threads 4` 100 runs, 0 SIGSYS and 0 ASan reports; the six CI ifc-sanitize tests 6/6. Zero in 200 would occur about 1 time in 70 at the old ~2% rate: strong evidence, not proof. This paragraph supersedes the earlier note on the use-after-free, which said it was not fixed here.
+
+**Decisions recorded (parent, 2026-10-27/28).** The parent decided these on S2. They are recorded here so that the notes and the code agree.
+
+1. **Socket calls are EPERM, for every helper.** This is decision 4 and §4.3 as written, and it is the rule for all helpers. The IFC and STEP helper refused `socket`, `socketpair`, `bind` and `connect` with EPERM from S2 on. The `.skp` helper (S1) killed on a socket call until R109 S6, and the text and extension helpers (S3, S4) had no socket entry, so they were killed too. R109 S6 changes those three to EPERM (see the S6 notes).
+2. **The AP203 header's `0.0.0.0` is accepted.** The writer's host-address lookup now gets the unspecified address, so the file no longer names the machine (contradiction 2 above).
+3. **A diagnosis child's `raise()` is refused, and the child still dies.** The own-process `tgkill` rule covers the helper's process only, so a child's `raise()` is EPERM, and the child then dies of the fault the test raised. The parent accepted this, because a fork-aware own-process rule cannot be written in classic BPF (contradiction 3 above).
+4. **The STEP export's +0.9 ms is the fixed install cost, inside its 1 ms bound.** The Release figure is to be measured at release preparation.
 
 ## Implementation notes (R109 S3, S4)
 
