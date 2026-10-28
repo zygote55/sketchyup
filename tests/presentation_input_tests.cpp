@@ -283,7 +283,9 @@ int main(int argc, char **argv) {
         check(newPath->isEnabled() && !deletePath->isEnabled(),
               "New path enabled, Delete path not");
         check(!pathName->isEnabled() && !keyframes->isEnabled(), "The empty editor is disabled");
-        check(!exportBatch->isEnabled(), "Export batch… waits for the batch dialog");
+        // R099.d3 enables the footer's Export batch…, which opens the batch dialog
+        // (presentation_batch_input_tests drives that dialog).
+        check(exportBatch->isEnabled(), "Export batch… opens the batch dialog");
         check(!close->isDefault(), "Close is not the default, so Enter in a field does not close");
         checkNamed(*dialog);
         check(!refusal->isVisible() && !cancelDraft->isVisible() && !createPath->isVisible(),

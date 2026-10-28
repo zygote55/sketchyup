@@ -1102,3 +1102,77 @@ refusals), §17.10 and the coexistence rule of §17.9. The batch dialog, the Job
   `hdr-environment` ("Dialog focus transfer completes"). The same two fail at the base commit `794cf12c`, built from its
   own archive, so they are not from this slice. With the render sheet's new button hidden they still fail. `render-setup`
   and `render-jobs` pass. The X11 and Wayland runs in CI are the authority for these cases.
+
+## Implementation notes (R099.d3)
+
+Recorded 2026-10-27 for branch `feat/r099d3-batch-jobs-results`, on the R099.d2 merge `27b18b78`, with origin/main `ffc7ff95` merged in. The design is
+[UX_DESIGN §17](../UX_DESIGN.md#17-presentation-batches); this slice builds §17.4 to §17.7, §17.8 (the batch refusals
+and the run messages), §17.10 (announcements and the keyboard path) and §17.12 choice 5 (the quit prompt), and enables
+the three entries R099.d2 left disabled.
+
+- **The controller (`src/app/presentation_batches.*`).** `PresentationBatches` owns the job store, one batch engine
+  and a `PresentationVideoChecks`. It holds no widgets, so the dialog, the Jobs list, the results sheet and the quit
+  prompt all call it. The store opens on first use at `AppLocalDataLocation/presentation-jobs`, so a window that never
+  shows batches creates no folder. Tests pass their own folder.
+- **The dialog (§17.4, §17.5).** `PresentationBatchDialog` is modal and opened with `open()`, so it never runs a nested
+  event loop. On open it runs `PresentationVideoChecks::refresh()` and a device probe of the chosen Blender, both through
+  signals. Start waits while either runs. When Start finds no cached answer for the executable (the Blender changed), it
+  refreshes once and starts when the answer arrives; a second miss refuses with "The video encoder has not been checked
+  yet. Check again, then Start." The four probe states, the Blender line and the setup card are as §17.5 and §17.8 give
+  them. Start is the dialog's default, and no other button is auto-default, so an enabled setup button never takes Enter.
+- **The budget (§17.4).** Frames are `cameraPathFrameCount` times the presets. The ceiling is the sum of
+  `presentationFrameBudget` per frame (doubled with video), capped at `presentationOutputLimit`. Free space comes from
+  `QStorageInfo` on the folder's parent. Time is "Not estimated".
+- **The codec choice (§17.12 choice 1).** A "Codec" list sits under Write video. H.264 is the default. MPEG-4 Part 2 in
+  MP4 is listed only when H.264 is missing and the probe reports MPEG-4, so it is never chosen for the person.
+- **The Jobs rows (§17.6, gap 10).** `RenderJobsDialog` lists the render jobs as before, then each batch: a parent row
+  with the state word, the path name and the provenance, and one child row per preset in plan order. The manifest
+  names a preset's state only once one of its frames verifies, so while a batch runs the first unfinished preset is the
+  one shown as running. Its child row has a determinate bar. The rows are rebuilt on each refresh and the selection is
+  restored by ID. Cancel batch, Resume, Show folder, Show results… and Remove are enabled as §17.6 says.
+- **Results (§17.7).** `PresentationResultsDialog` opens from Show results… only. A video is listed only when the
+  manifest has it, and Play video opens the system player. The stills grid has one cell per keyframe and preset,
+  labelled in text.
+- **Quit (§17.12 choice 5).** Closing with a batch running asks "Closing stops the batch. Finished frames are kept, and
+  you can resume it later." with "Stop batch and close" and "Keep running" (the default and Esc). The prompt is a
+  modal `QMessageBox`, as the unsaved-changes prompt already is. The batch is stopped only after the close is certain,
+  so a close cancelled by the unsaved-changes prompt leaves it running.
+- **Announcements (§17.10).** `PresentationBatches::announced` carries one sentence per milestone: the start or resume,
+  each preset's frames finished (by preset name), each video written and each final state. The window announces them
+  through `QAccessibleAnnouncementEvent`. Frames are never announced.
+- **Enabled entries.** The render sheet's *Export presentation batch…*, the palette entry under Camera (command search
+  only, no menu item) and the Presentations footer's *Export batch…* open the same dialog.
+- **Tests.** `presentation_batch_input_tests` drives the dialog through every probe state, each refusal and its wording,
+  the odd-size and device refusals, a keyboard start to completion, the Jobs parent and child rows, the results sheet
+  with and without video, Remove keeping the folder, cancel and resume, the announcements, the quit prompt declined and
+  confirmed (the batch is then Interrupted), the missing-Blender setup card, the MPEG-4 fallback and 200% stacking. Blender
+  is `blender_job_tests` as the worker. The fake probe now reports its version. Each block has its own data folder, so the
+  batches of one block are not in another's store. `presentation_input_tests` now expects the footer's *Export batch…*
+  enabled. `native_accessibility_audit --dialogs-keyboard=inventory` reports an empty `uncoveredEllipsisActions`, and the
+  `presentations` and `render` groups pass.
+- **Checks run.** In the pinned image (`sketchyup-ci-pinned:r097a-ifc`, Qt 6.11.2), offscreen and under Xvfb with
+  `xcb`: `presentation_batch_input_tests`, `presentation_input_tests`, `render_input_tests` (under Xvfb, as CI runs it;
+  offscreen it waits for a GL renderer that is not there), and the audit's `presentations` and `render` groups. Not
+  run: the Wayland runs and the sanitizer jobs, which need the CI runners, and the X11 2x scale for the new suite.
+- **Deviations from the mockups.**
+  1. The stills grid has text cells only. The mockup's thumbnails are not drawn.
+  2. The codec is a "Codec" list under Write video, not a second checkbox. It is shown only when H.264 is missing.
+  3. The Blender card's first line reads "✓ Blender 5.2.2 · CPU device ready", as the mockup does, and its second line
+     reads "Video: H.264 available.".
+  4. An interrupted batch's row says "⚠ Interrupted ·" and the engine's message ("Resume continues at the first
+     unverified frame"). The mockup's "frame 81 of 157" needs the engine to name the frame, which the record does not.
+  5. A failed batch's row says "✕ Failed ·" and the engine's message, not the mockup's "frame 12 of 157 failed" wording.
+  6. The Jobs row's child for a preset with no video and no frames yet reads "waiting for <previous preset>", and a
+     preset not started in a batch that ended reads "not started".
+- **Gaps, honest.**
+  1. The disk figure in the dialog is the ceiling plus the 256 MiB reserve. The engine adds the encoded capture, so its
+     refusal number at Start is a little larger.
+  2. A batch with no finished frame on an Eevee preset cannot resume: the device it used is not recorded. Resume says
+     so and asks for a new batch. Cycles batches resume on the CPU.
+  3. The status chip keeps its "Show results" text until the next batch or a restart, not until the model closes.
+  4. Not tested in the suite: the disk refusal (the engine's own tests cover the check), the Canceling row, Resume and
+     Resume: encode video from the results sheet, Show results… from the chip, Esc in the dialog, and a changed Blender
+     between opening the dialog and Start (the re-check path is by code reading only).
+  5. Qt: the APIs used are Qt 6.8 APIs, but the suites ran on the pinned image's Qt 6.11.2, not on 6.8.
+- **Contradictions with ADR 0173 or UX_DESIGN.** None found in the design. §17.4's Start line for the disk rule uses
+  the engine's number; the dialog's number differs by the capture size (gap 1).
