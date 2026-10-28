@@ -555,9 +555,10 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     // The application's own words for the report the conversion made for a STEP package: the format is
     // STEP, the tessellation policy is the application's own choice, and the helper's own line rides the
     // report as `step`. The accounting identity counts what the package holds: its nodes (the root, the
-    // groups and the bodies), the walk's entries that no body was made for, and the surfaces without volume,
-    // which are not imported. Converted are the bodies; supporting are the root and the groups; omitted are
-    // the entries and the surfaces that were left out.
+    // groups and the bodies), the walk's entries that no body was made for, the surfaces without volume, and
+    // the entries below the depth limit, which are not imported. Converted are the bodies; supporting are the
+    // root and the groups; omitted are the entries and the surfaces that were left out. The PMI entities are
+    // not shapes, so they stand outside the identity (ADR 0172 section 5).
     auto &report = imported.report;
     report["format"] = "STEP";
     report["tessellation"] = QJsonObject{{"deflectionMm", worker.deflectionMm},
@@ -567,7 +568,8 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     report["step"] = run.result;
     const qint64 nodes = qint64(package.nodes.size());
     const qint64 converted = report["geometry"].toObject()["bodies"].toInteger(0);
-    const qint64 omitted = run.result["omittedEntries"].toInteger(0) + run.result["freeFaces"].toInteger(0);
+    const qint64 omitted = run.result["omittedEntries"].toInteger(0) + run.result["freeFaces"].toInteger(0)
+                           + run.result["droppedEntries"].toInteger(0);
     report["accounting"] = QJsonObject{{"entities", nodes + omitted},
                                        {"converted", converted},
                                        {"supporting", nodes - converted},

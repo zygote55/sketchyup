@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Writes the two designed E4 fixtures of ADR 0172 section 7 (R098.e): a file with a bad face and a PMI-only AP242 file.
+"""Writes the designed E4 fixtures of ADR 0172 section 7 (R098.e, R098.g): a file with a bad face, a PMI-only AP242 file,
+a converting AP242 file with PMI beside its box, and a product tree deeper than the 128 levels the import keeps.
 
     python3 -I tests/fixtures/step/make_designed.py OUTPUT_DIR
 
@@ -11,13 +12,18 @@ e4-bad-face.step   two boxes in one shape representation. The first is a closed 
                    four: an open loop, so the solid cannot be closed.
 e4-pmi-ap242.step  an AP242 file with product structure and one dimension (a diameter on a shape aspect), and no shape
                    representation at all.
+e4-pmi-solid.step  (R098.g) an AP242 file whose box converts, with PMI beside it: 34 dimensions (more than the 32 located
+                   per kind), a shape aspect and its value, a flatness tolerance, a datum and a draughting callout.
+deep-tree.step     (R098.g) a chain of 128 nested assemblies (depths 0 to 127), a box at depth 1 that converts, and a box
+                   at depth 128 below the last assembly. The import keeps the depths 0 to 126 (the document's 128 records,
+                   the file's root included), so the assembly at depth 127 and the box at depth 128 are not imported.
 """
 import os
 import sys
 
 HEADER = """ISO-10303-21;
 HEADER;
-FILE_DESCRIPTION(('SketchyUp R098.e designed fixture'),'2;1');
+FILE_DESCRIPTION(('{description}'),'2;1');
 FILE_NAME('{name}','2026-10-28T00:00:00',(''),(''),'','','');
 FILE_SCHEMA(('{schema}'));
 ENDSEC;
@@ -125,9 +131,9 @@ def box(writer, x0, y0, z0, dx, dy, dz, open_face=None):
     return writer.add("MANIFOLD_SOLID_BREP('',#%d)" % shell)
 
 
-def write(directory, name, schema, product, body, solids):
+def write(directory, name, schema, product, body, solids, description="SketchyUp R098.e designed fixture"):
     """Writes one file: the header, the product, the body, the shape representation (id 10) and the units."""
-    text = HEADER.format(name=name, schema=schema)
+    text = HEADER.format(name=name, schema=schema, description=description)
     text += product.format(name=name)
     text += "\n".join(body) + "\n"
     if solids:
@@ -136,6 +142,88 @@ def write(directory, name, schema, product, body, solids):
     text += UNITS
     text += "ENDSEC;\nEND-ISO-10303-21;\n"
     with open(os.path.join(directory, name), "w", encoding="ascii", newline="\n") as handle:
+        handle.write(text)
+
+
+# The context of the product tree (ids 1, 2, 8 and 9), for files whose products are written one by one.
+CONTEXT = """#1 = APPLICATION_PROTOCOL_DEFINITION('draft international standard','automotive_design',1998,#2);
+#2 = APPLICATION_CONTEXT('core data for automotive mechanical design processes');
+#8 = PRODUCT_CONTEXT('',#2,'mechanical');
+#9 = PRODUCT_DEFINITION_CONTEXT('part definition',#2,'design');
+"""
+
+# The product tree's depth: the root is depth 0, the assemblies run to depth LEVELS - 1, and the part below the last one is
+# at depth LEVELS. The import keeps the depths 0 to 126 (ADR 0172 section 4), so the assembly at depth 127 and that part
+# are not kept.
+LEVELS = 128
+
+
+def pmi_solid(directory):
+    """e4-pmi-solid.step (R098.g): the box converts, and the PMI beside it is counted, not imported."""
+    writer = Writer(1000)
+    good = box(writer, 0, 0, 0, 10, 20, 30)
+    aspect = writer.add("SHAPE_ASPECT('','',#4,.F.)")
+    dimensions = [writer.add("DIMENSIONAL_SIZE('diameter %d',#%d)" % (n, aspect)) for n in range(1, 35)]
+    value = writer.add("MEASURE_REPRESENTATION_ITEM('',LENGTH_MEASURE(10.),#901)")
+    shape = writer.add("SHAPE_DIMENSION_REPRESENTATION('',(#%d),#900)" % value)
+    writer.add("DIMENSIONAL_CHARACTERISTIC_REPRESENTATION(#%d,#%d)" % (dimensions[0], shape))
+    magnitude = writer.add("LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.05),#901)")
+    writer.add("FLATNESS_TOLERANCE('flatness','',#%d,#%d)" % (magnitude, aspect))
+    writer.add("DATUM('A','',#4,.T.,'A')")
+    writer.add("DRAUGHTING_CALLOUT('callout',(#%d))" % dimensions[0])
+    write(directory, "e4-pmi-solid.step", AP242, PRODUCT, writer.lines, [good], "SketchyUp R098.g designed fixture")
+
+
+def deep_tree(directory):
+    """deep-tree.step (R098.g): LEVELS nested assemblies, a box at level 1 and a box below the last level."""
+    writer = Writer(1000)
+    origin = writer.add("CARTESIAN_POINT('',(0.,0.,0.))")
+    axis = writer.add("DIRECTION('',(0.,0.,1.))")
+    reference = writer.add("DIRECTION('',(1.,0.,0.))")
+    identity = writer.add("AXIS2_PLACEMENT_3D('',#%d,#%d,#%d)" % (origin, axis, reference))
+    transform = writer.add("ITEM_DEFINED_TRANSFORMATION('','',#%d,#%d)" % (identity, identity))
+
+    def product(name):
+        prod = writer.add("PRODUCT('%s','%s','',(#8))" % (name, name))
+        formation = writer.add("PRODUCT_DEFINITION_FORMATION('','',#%d)" % prod)
+        definition = writer.add("PRODUCT_DEFINITION('design','',#%d,#9)" % formation)
+        shape = writer.add("PRODUCT_DEFINITION_SHAPE('','',#%d)" % definition)
+        return definition, shape
+
+    def assembly(name):
+        definition, shape = product(name)
+        rep = writer.add("SHAPE_REPRESENTATION('',(#%d),#900)" % identity)
+        writer.add("SHAPE_DEFINITION_REPRESENTATION(#%d,#%d)" % (shape, rep))
+        return definition, rep
+
+    def part(name, x0):
+        definition, shape = product(name)
+        solid = box(writer, x0, 0, 0, 10, 20, 30)
+        rep = writer.add("ADVANCED_BREP_SHAPE_REPRESENTATION('',(#%d),#900)" % solid)
+        writer.add("SHAPE_DEFINITION_REPRESENTATION(#%d,#%d)" % (shape, rep))
+        return definition, rep
+
+    def use(parent, child, number):
+        # The usage of the child in the parent, its placement (the identity) and the representation relationship.
+        parent_definition, parent_rep = parent
+        child_definition, child_rep = child
+        usage = writer.add("NEXT_ASSEMBLY_USAGE_OCCURRENCE('%d','','',#%d,#%d,$)" % (number, parent_definition, child_definition))
+        placement = writer.add("PRODUCT_DEFINITION_SHAPE('Placement','Placement of an item',#%d)" % usage)
+        relation = writer.add("(REPRESENTATION_RELATIONSHIP('','',#%d,#%d) REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#%d) "
+                              "SHAPE_REPRESENTATION_RELATIONSHIP())" % (child_rep, parent_rep, transform))
+        writer.add("CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#%d,#%d)" % (relation, placement))
+
+    top = assembly("Level 0")
+    use(top, part("Shallow", 0), 1)
+    parent = top
+    for level in range(1, LEVELS):
+        child = assembly("Level %d" % level)
+        use(parent, child, level + 1)
+        parent = child
+    use(parent, part("Below the limit", 0), LEVELS + 1)
+    text = HEADER.format(name="deep-tree.step", schema=AP214, description="SketchyUp R098.g designed fixture")
+    text += CONTEXT + "\n".join(writer.lines) + "\n" + UNITS + "ENDSEC;\nEND-ISO-10303-21;\n"
+    with open(os.path.join(directory, "deep-tree.step"), "w", encoding="ascii", newline="\n") as handle:
         handle.write(text)
 
 
@@ -155,6 +243,8 @@ def main(directory):
         "#24 = DIMENSIONAL_CHARACTERISTIC_REPRESENTATION(#21,#23)",
     ]
     write(directory, "e4-pmi-ap242.step", AP242, PRODUCT, pmi, [])
+    pmi_solid(directory)
+    deep_tree(directory)
 
 
 if __name__ == "__main__":
