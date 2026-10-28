@@ -1,24 +1,52 @@
 // sketchyup-ifc-worker: the only executable that links IfcOpenShell (ADR 0171 decision 19).
 // R097.a ships the skeleton: --probe and the API probes. Import and export arrive in R097.b to d.
 // It takes a fixed argv, reads no environment-dependent configuration and runs no shell.
-#include <sys/prctl.h>
+// Before it opens a file, every mode that reads or writes one applies the sandbox (ADR 0183, R109 S2): the
+// input is readable, the output's directory is writable, and a call outside the policy kills the helper.
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <sys/resource.h>
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "ifc/check.hpp"
 #include "ifc/export.hpp"
 #include "ifc/import.hpp"
 #include "ifc/probe.hpp"
+#include "ifc/sandbox_policy.hpp"
 #include "ifc/step_export.hpp"
 #include "ifc/step_import.hpp"
 #include "ifc/step_probe.hpp"
 #include "sketchyup/version.hpp"
+
+// The AP203 header's person and organization carry the host's address: OpenCASCADE's OSD_Host::InternetAddress asks the
+// name service (gethostbyname), and it does not test the answer. The sandbox refuses the sockets the name service needs
+// (ADR 0183 section 4.3), so the answer is NULL and the STEP writer crashes (pinned OpenCASCADE 7.9.3). The helper answers
+// the question itself, with the unspecified address 0.0.0.0 and no lookup, so the header no longer names the machine's
+// address. This is the helper's only call of gethostbyname; the change is recorded in ADR 0183's implementation notes.
+extern "C" struct hostent* gethostbyname(const char*) {
+  static char name[] = "localhost";
+  static char* aliases[] = {nullptr};
+  static in_addr_t address = INADDR_ANY;
+  static char* addresses[] = {reinterpret_cast<char*>(&address), nullptr};
+  static struct hostent host = {name, aliases, AF_INET, sizeof address, addresses};
+  return &host;
+}
+
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+// The sanitizer builds (the global flag of the top CMakeLists.txt; ADR 0183 section 3). LeakSanitizer checks for leaks at
+// exit by stopping the helper's threads with ptrace, which the sandbox refuses, so the helper would be killed at exit. The
+// application starts the helper with an empty environment, so ASAN_OPTIONS cannot turn it off there. IfcParse leaks by
+// design (the test environment sets detect_leaks=0 for the same reason); this is that setting, built into the sanitized helper.
+extern "C" const char* __lsan_default_options() { return "detect_leaks=0"; }
+#endif
 
 namespace {
 
@@ -72,17 +100,25 @@ int fail(const std::string& message) {
   return 2;
 }
 
+// The directories a command creates files in: the directory of its output, when it has one.
+std::vector<std::string> outputDirectoryOf(const std::string& output) {
+  if (output.empty()) return {};
+  return {sketchyup::ifc::parentDirectory(output)};
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   using namespace sketchyup::ifc;
   try {
-    pinPluginDirectory();
+    const std::string pluginDirectory = pinPluginDirectory();
     if (argc == 2 && std::strcmp(argv[1], "--version") == 0) {
       std::printf("sketchyup-ifc-worker %s\n", SKETCHYUP_VERSION);
       return 0;
     }
     if (argc == 2 && std::strcmp(argv[1], "--probe") == 0) {
+      // The probe loads the plugins and reads /proc, so it is sandboxed too (ADR 0183 decision 7).
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory})) return refuseSandboxUnavailable(*failure);
       std::puts(probeEnvironment().c_str());
       return 0;
     }
@@ -120,7 +156,8 @@ int main(int argc, char** argv) {
         else return fail("one input file only");
       }
       if (options.input.empty() || (options.output.empty() && !options.dryRun)) return fail("--import needs an input file and --output");
-      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {options.input}, outputDirectoryOf(options.output)}))
+        return refuseSandboxUnavailable(*failure);
       return runImport(options);
     }
     if (argc >= 3 && std::strcmp(argv[1], "--check") == 0) {
@@ -135,7 +172,7 @@ int main(int argc, char** argv) {
         else return fail("one file only");
       }
       if (input.empty()) return fail("--check needs a file");
-      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {input}})) return refuseSandboxUnavailable(*failure);
       return runCheck(input);
     }
     if (argc >= 2 && std::strcmp(argv[1], "--export") == 0) {
@@ -152,10 +189,13 @@ int main(int argc, char** argv) {
         else return fail("one package only");
       }
       if (options.input.empty() || options.output.empty()) return fail("--export needs a package and --output");
-      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {options.input}, outputDirectoryOf(options.output)}))
+        return refuseSandboxUnavailable(*failure);
       return runExport(options);
     }
     if (argc == 3 && std::strcmp(argv[1], "--probe-write") == 0) {
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {}, outputDirectoryOf(argv[2])}))
+        return refuseSandboxUnavailable(*failure);
       std::puts(probeWriter(argv[2]).c_str());
       return 0;
     }
@@ -184,6 +224,7 @@ int main(int argc, char** argv) {
         }
       }
       if (options.file.empty()) return fail("--probe-api needs an input file");
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {options.file}})) return refuseSandboxUnavailable(*failure);
       std::puts(probeGeometry(options).c_str());
       return 0;
     }
@@ -198,6 +239,11 @@ int main(int argc, char** argv) {
         else return fail("one input file only");
       }
       if (options.file.empty()) return fail("--probe-step needs an input file");
+      // The round-trip directory is created here, before the sandbox: its files are written inside it.
+      if (!options.roundTripDirectory.empty()) std::filesystem::create_directories(options.roundTripDirectory);
+      const std::vector<std::string> roundTrip = options.roundTripDirectory.empty() ? std::vector<std::string>{} : std::vector<std::string>{options.roundTripDirectory};
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {options.file}, roundTrip}))
+        return refuseSandboxUnavailable(*failure);
       std::puts(probeStep(options).c_str());
       return runStepProbe(options);
     }
@@ -216,10 +262,14 @@ int main(int argc, char** argv) {
         else return fail("one package only");
       }
       if (options.input.empty() || options.output.empty()) return fail("--export-step needs a package and --output");
-      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {options.input}, outputDirectoryOf(options.output)}))
+        return refuseSandboxUnavailable(*failure);
       return runExportStep(options);
     }
     if (argc == 3 && std::strcmp(argv[1], "--write-step") == 0) {
+      // The corpus directory is created here, before the sandbox, and the corpus is written inside it.
+      std::filesystem::create_directories(argv[2]);
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {}, {argv[2]}})) return refuseSandboxUnavailable(*failure);
       std::puts(writeStep(argv[2]).c_str());
       return 0;
     }
@@ -242,8 +292,9 @@ int main(int argc, char** argv) {
         else return fail("one input file only");
       }
       if (options.file.empty()) return fail("--import-step needs an input file");
+      if (const auto failure = applyIfcSandbox(IfcSandboxScope{pluginDirectory, {options.file}, outputDirectoryOf(options.output)}))
+        return refuseSandboxUnavailable(*failure);
       if (options.output.empty()) return runStepImport(options);
-      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
       return runStepImportPackage(options);
     }
     usage(stderr);

@@ -1216,7 +1216,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
     auto drawingItems = sheets ? decodeDrawingItems(root["drawingItems"]) : DrawingItemRecords{};
     std::optional<SiteOrigin> site;
     if (terrain) {
-        site = decodeSiteOrigin(root["site"]);
+        site = decodeSiteOrigin(root["site"],
+                                root["version"].toInt() >= nativeGeographicSiteDocumentVersion);
         QByteArray mesh;
         if (root["assetStorage"] == "external") {
             if (!root["terrainMesh"].isNull())

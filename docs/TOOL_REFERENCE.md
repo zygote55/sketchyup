@@ -162,6 +162,8 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `component_parameter.reset` | Reset component parameter values on a placement | `body`, `command` |
 | `site.set` | Set site origin | `easting`, `northing`, `command` |
 | `site.reanchor` | Re-anchor site origin | `easting`, `northing`, `command` |
+| `site.set_geographic` | Set site geographic location | `latitude`, `longitude`, `command` |
+| `site.clear_geographic` | Clear site geographic location | `command` |
 | `terrain.explode` | Explode terrain | `body`, `command` |
 | `terrain.inspect_source` | Inspect terrain source | `data`, `format`, `command` |
 | `terrain.import` | Import terrain | `data`, `format`, `command` |

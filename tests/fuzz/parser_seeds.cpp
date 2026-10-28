@@ -13,6 +13,7 @@
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_stamp.hpp"
+#include "geo/geographic.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/dxf_export.hpp"
 #include "io/model_style_io.hpp"
@@ -595,6 +596,80 @@ int main(int argc, char **argv) {
             publishRejected("edge-style", bytes(stroke(2, 1, "solid", "-1")), "negative-id");
             publishRejected("edge-style",
                             bytes(stroke(2, 1, "solid", "0")).replace("\"width\"", "\"wide\""),
+                            "unknown-field");
+        }
+        // R107.a (ADR 0181 §2.1): geographic records at the bounds with each datum and vertical
+        // label, and the rejected inputs (a datum refused by name, a bound, a mismatch).
+        {
+            const auto geographic = [](double latitude, double longitude, int zone,
+                                       const char *datum, const char *vertical, const char *kind,
+                                       const char *sha) {
+                double convergence = 0;
+                try {
+                    convergence = utmGridConvergence({latitude, longitude}, zone);
+                } catch (const std::exception &) {
+                    // Rejected inputs keep a zero convergence, so only their named field is wrong.
+                }
+                return QJsonObject{
+                    {"latitude", latitude},
+                    {"longitude", longitude},
+                    {"datum", datum},
+                    {"utmZone", zone},
+                    {"utmHemisphere", latitude < 0 ? "south" : "north"},
+                    {"convergence", convergence},
+                    {"verticalReference", vertical},
+                    {"provenance",
+                     QJsonObject{{"kind", kind}, {"source", "seed"}, {"sha256", sha}}}};
+            };
+            const auto bytes = [](const QJsonObject &object) {
+                return QJsonDocument(object).toJson(QJsonDocument::Compact);
+            };
+            const char *digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+            publish("geographic-site",
+                    bytes(geographic(51.50735, -0.12776, 30, "WGS84", "unknown", "typed", "")),
+                    "london-typed");
+            publish("geographic-site",
+                    bytes(geographic(84, 3, 31, "NAD83", "EGM2008", "geocoded", "")),
+                    "north-bound-approximation");
+            publish("geographic-site", bytes(geographic(-80, 3, 31, "WGS84", "EGM96", "typed", "")),
+                    "south-bound");
+            publish(
+                "geographic-site",
+                bytes(geographic(-33.8688, 151.2093, 56, "WGS84", "NAVD88", "imported", digest)),
+                "southern-imported");
+            publishRejected("geographic-site",
+                            bytes(geographic(51.5, -0.1, 30, "OSGB36", "unknown", "typed", "")),
+                            "datum-osgb36");
+            publishRejected("geographic-site",
+                            bytes(geographic(51.5, -0.1, 30, "ETRS89", "unknown", "typed", "")),
+                            "datum-etrs89");
+            publishRejected("geographic-site",
+                            bytes(geographic(84.5, 3, 31, "WGS84", "unknown", "typed", "")),
+                            "latitude-above-band");
+            publishRejected("geographic-site",
+                            bytes(geographic(51.5, -0.1, 61, "WGS84", "unknown", "typed", "")),
+                            "zone-61");
+            publishRejected("geographic-site",
+                            bytes(geographic(60, 5, 31, "WGS84", "unknown", "typed", "")),
+                            "norway-exception");
+            publishRejected("geographic-site",
+                            bytes(geographic(51.5, -0.1, 30, "WGS84", "NGVD29", "typed", "")),
+                            "vertical-unknown");
+            publishRejected("geographic-site",
+                            bytes(geographic(51.5, -0.1, 30, "WGS84", "unknown", "typed", digest)),
+                            "typed-with-digest");
+            publishRejected("geographic-site",
+                            bytes(geographic(51.5, -0.1, 30, "WGS84", "unknown", "imported", "")),
+                            "imported-without-digest");
+            auto mismatch = geographic(51.5, -0.1, 30, "WGS84", "unknown", "typed", "");
+            mismatch["utmHemisphere"] = "south";
+            publishRejected("geographic-site", bytes(mismatch), "hemisphere-mismatch");
+            auto drift = geographic(51.5, -0.1, 30, "WGS84", "unknown", "typed", "");
+            drift["convergence"] = drift["convergence"].toDouble() + 1;
+            publishRejected("geographic-site", bytes(drift), "convergence-drift");
+            publishRejected("geographic-site",
+                            bytes(geographic(51.5, -0.1, 30, "WGS84", "unknown", "typed", ""))
+                                .replace("\"latitude\"", "\"lat\""),
                             "unknown-field");
         }
         // R093.a: parameter expressions, canonical text, every type and function.
