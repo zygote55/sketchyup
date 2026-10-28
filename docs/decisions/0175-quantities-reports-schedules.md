@@ -1340,6 +1340,77 @@ native dialog audit (`tests/native_dialog_cases.hpp`).
 The terrain's area is reported under its Terrain material, as R101.e1 records. `docs/mockups/quantities.html`
 is not redrawn here, so it still draws the terrain under "No material".
 
+## Implementation notes (R101.e2, Delete after a closed modal)
+
+**Symptom.** `quantities_input_tests` failed "Delete removes the schedule" on Wayland 1× (PR #490,
+passed on rerun) and on Wayland 2× (PR #503, run 40677521753, job 122799131800). X11 and offscreen
+passed.
+
+**Cause.** A race in the test, not in the product. The schedule's Delete is a `Qt::WidgetShortcut`, so
+it fires only while the list's window holds keyboard focus. Right after the Cancel dialog closes, Qt
+can already report the list as focused (`hasFocus()` is true, because Qt counts a window with an open
+dialog as active), while the compositor has not yet given the window the keyboard. The helper waited
+only for `hasFocus()`, which passed at once, and `QTest::keyClick` then sent Delete while
+`QGuiApplication::focusWindow()` was null. No shortcut fired and no confirmation opened. The step then
+failed at the store check after 8 s, so the driver's "dialog never appeared" message (printed after
+10 s) never appeared.
+
+**Evidence.** A copy of the test that logged the focus state at each key press showed the cause. In
+the two loaded runs that failed, a Delete went out with `focusWindow` null. In the 28 passing loaded
+runs, no key went out without keyboard focus.
+
+**Product.** No change. `deleteSchedule` opens its confirmation with a synchronous `box.exec()`, and
+writes the store synchronously (`deleteReportSchedule`, then `ReportScheduleStore::commit`) on the UI
+thread. Nothing read the store early. The shortcut behaved as designed: it fired only in the window
+that held focus.
+
+**Fix (tests only).**
+
+- `tests/shortcut_focus.hpp` (new): `waitForShortcutFocus(widget)` waits for
+  `QTest::qWaitForWindowFocused` on the widget's window, then focuses the widget and waits for
+  `hasFocus()`.
+- `quantities_input_tests.cpp`: `pressShortcut` uses it and fails the step if focus never arrives.
+  `driveModal` never gives up by itself, because a step may wait for other things before its action.
+  `verifyDeferred()` runs after the action, gives the drivers still pending 8 s, and records
+  "The dialog never appeared: <step>" for each one. Two actions that opened dialogs had no
+  `verifyDeferred()` and now have one. A Delete that opens no dialog now fails with
+  "The dialog never appeared: Delete, confirmed" (exit 1), not with the store check.
+- `presentation_input_tests.cpp`: the Alt+Up and Alt+Down keyframe shortcuts run right after the scene
+  picker closes, so they wait for the same focus.
+
+An earlier version of this fix gave each driver an 8 s limit counted from its registration. Under load,
+a step can wait longer than that for the export totals before its action, so the driver gave up before
+the Save dialog opened, and two of 30 loaded 2× runs hung in that dialog until the deadline. Counting
+the limit from `verifyDeferred()`, after the action, removed the hang.
+
+**Measured.** Weston is the pinned image's, run through `scripts/test-wayland.sh` as CI does. Loaded
+means eight busy loops in a second container.
+
+| Run | Before (unmodified test) | After |
+| --- | --- | --- |
+| Weston 1×, unloaded | 0/30 | 30/30 |
+| Weston 2×, unloaded | 0/30 | 30/30 |
+| Weston 1×, loaded | 0/30 (a copy with only prints added: 2/30 at this step) | 29/30 (1 export-wait timeout, not this step) |
+| Weston 2×, loaded | 0/30 at this step (1 export-wait timeout and a deadline stop) | 30/30 |
+| X11 (Xvfb), quantities | not run | 5/5 |
+| Offscreen, quantities | not run | 5/5 |
+| Offscreen, presentation (its ctest platform) | not run | 5/5 |
+| X11, presentation | not run | 3/3 |
+| Weston 1×, presentation | not run | 5/5 |
+
+**Not changed.** The other Delete and F2 presses in the input suites go to widget key handlers or event
+filters, not to window shortcuts, or come before any dialog closes. This covers
+`component_authoring_input_tests`, `entity_info_input_tests`, `keyboard_outliner_input_tests`, the
+`sheet_*` suites and `terrain_edit_input_tests`. Window shortcuts other than Delete and F2 (Ctrl+Z, for
+example) sent right after a dialog closes are not covered by this change. The roadmap status is
+unchanged: this is a test fix.
+
+**Known limitation.** Under heavy CPU load, the export's 8 s wait for the totals can time out. That
+wait is outside this fix, and the unmodified test showed it too (2× loaded). The brief rules out
+lengthening timeouts as a fix, so the wait is unchanged.
+
+**Contradiction with the ADR.** None.
+
 ## Implementation notes (R101.f)
 
 R101.f is the acceptance record, [verification/R101f-quantities-reports.md](../verification/R101f-quantities-reports.md),

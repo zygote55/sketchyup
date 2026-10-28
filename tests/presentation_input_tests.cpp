@@ -12,6 +12,7 @@
 #include "core/presentation_records.hpp"
 #include "core/scenes.hpp"
 #include "io/scenes_io.hpp"
+#include "shortcut_focus.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -389,6 +390,8 @@ int main(int argc, char **argv) {
 
         // Keyboard reorder (§17.2): Alt+Down moves Front later, Alt+Up moves it back.
         check(tabTo(keyframes), "Keyboard reaches the keyframe list");
+        // The picker closed just before: the Alt shortcuts need the window's keyboard focus back.
+        check(waitForShortcutFocus(keyframes), "The keyframe list takes keyboard focus");
         keyframes->setCurrentRow(0);
         const auto beforeMove = steps(doc);
         QTest::keyClick(focused(), Qt::Key_Down, Qt::AltModifier);
