@@ -26,6 +26,16 @@
 #include <optional>
 #include <sys/ptrace.h>
 #include <unistd.h>
+
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+// The sanitizer builds. This binary is also the stand-in Blender, which runs under the Blender
+// policy. LeakSanitizer checks for leaks at exit by stopping the threads with ptrace, which that
+// policy refuses (SIGSYS), and the stand-in's environment is scrubbed, so ASAN_OPTIONS cannot turn
+// the check off there. The setting is built into the whole binary, so its leak check is off in
+// sanitizer builds. Test code only (ADR 0183, R109 S5).
+extern "C" const char *__lsan_default_options() { return "detect_leaks=0"; }
+#endif
+
 using namespace sketchy;
 using Phase = BlenderJob::Phase;
 void check(bool ok, const char *message) {

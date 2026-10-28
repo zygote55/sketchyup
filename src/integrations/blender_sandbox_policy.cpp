@@ -1,5 +1,6 @@
 #include "integrations/blender_sandbox_policy.hpp"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 
@@ -63,6 +64,14 @@ sketchyup::sandbox::Policy policy(const Layout &layout) {
         grant(frame, FileAccess::readOnly);
     grant(layout.attemptDirectory, FileAccess::readWrite);
 
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+    // The sanitizer builds only. Their libraries are shared objects in the build tree
+    // (CMakeLists.txt links them shared under the sanitizers), and a stand-in Blender loads them
+    // after the policy is in force, so its loader must read that tree. The release build links the
+    // libraries into each executable, and this grant is not in its policy (ADR 0183, R109 S5).
+    grant(QCoreApplication::applicationDirPath(), FileAccess::readOnly);
+#endif
+
     result.syscalls = syscalls();
     return result;
 }
@@ -114,6 +123,13 @@ std::vector<sketchyup::sandbox::SyscallRule> syscalls() {
     // violation.
     allow({"rt_sigaction", "rt_sigprocmask"});
     rules.push_back({"tgkill", Action::ownProcessOnly});
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+    // The sanitizer builds only (ADR 0183 section 5, as S1 and S2). The sanitized stand-in Blender
+    // makes sigaltstack, an alternate signal stack for a thread, and readlinkat, which a release
+    // Blender does not make (its trace names readlink). The kernel audit log names both, and the
+    // release policy does not take them.
+    allow({"sigaltstack", "readlinkat"});
+#endif
     // Identity, time and randomness.
     allow({"getpid", "getppid", "gettid", "getuid", "geteuid", "getgid", "getegid", "getresuid",
            "getresgid", "uname", "clock_gettime", "getrandom"});

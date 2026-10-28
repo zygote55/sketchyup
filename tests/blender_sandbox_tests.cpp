@@ -55,6 +55,13 @@
 #include <unistd.h>
 #include <vector>
 
+#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
+// The sanitizer builds. The probe children of this binary run under the Blender policy and then
+// exit, and LeakSanitizer's check at exit stops the threads with ptrace, which that policy refuses
+// (SIGSYS). The setting is built into the whole binary. Test code only (ADR 0183, R109 S5).
+extern "C" const char *__lsan_default_options() { return "detect_leaks=0"; }
+#endif
+
 using namespace sketchy;
 using Phase = BlenderJob::Phase;
 namespace bsp = sketchy::blender_sandbox;
