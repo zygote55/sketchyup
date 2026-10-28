@@ -265,6 +265,11 @@
       "areas": ["build", "native"]
     },
     {
+      "why": "R100.b2 (ADR 0174 section 3): the material texture size, schema 33 with material-texture-size-v1, and its fixture. Tested by material_texture_size_tests, which the build and native lines run; the mapping and exporter checks are in texture_export_tests and the carriers in skp_mapping_tests and catalog_import_tests.",
+      "paths": ["tests/material_texture_size_tests*", "tests/fixtures/material-texture-size-v33.sketchyup"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
       "paths": [
         "tests/**"
@@ -748,6 +753,7 @@
     "report_schedule_cli": 23,
     "report_mcp": 4,
     "style_catalog_cli": 1,
-    "texture_presets": 2
+    "texture_presets": 2,
+    "material_texture_size": 3
   }
 }

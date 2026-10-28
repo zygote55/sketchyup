@@ -286,10 +286,12 @@ struct Writer {
             useMaterial(back.material);
             const auto frontImage = imageFor(front), backImage = imageFor(back);
             const bool textured = frontImage.texture >= 0 || backImage.texture >= 0;
-            const auto frontMapping =
-                           textured ? effectiveFaceTextureMapping(body, face) : TextureMapping{},
-                       backMapping = textured ? effectiveFaceTextureMapping(body, face, true)
-                                              : TextureMapping{};
+            const auto frontMapping = textured ? effectiveFaceTextureMapping(body, face, false,
+                                                                             doc.materials())
+                                               : TextureMapping{},
+                       backMapping =
+                           textured ? effectiveFaceTextureMapping(body, face, true, doc.materials())
+                                    : TextureMapping{};
             const bool paired = front != back || (textured && frontMapping != backMapping);
             if (paired)
                 ++backDifferences;

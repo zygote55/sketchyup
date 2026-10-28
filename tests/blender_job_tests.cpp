@@ -359,7 +359,8 @@ int main(int argc, char **argv) {
                     2, 2, {255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0, 255, 255, 255, 255}))));
             const auto faces = document.bodies().at(body)->surface.faces;
             for (const auto &[face, record] : faces) {
-                auto back = effectiveFaceTextureMapping(*document.bodies().at(body), face, true);
+                auto back = effectiveFaceTextureMapping(*document.bodies().at(body), face, true,
+                                                        document.materials());
                 back.offset = {.25, .5};
                 assignTextureMapping(document, body, face, back, false, true);
             }

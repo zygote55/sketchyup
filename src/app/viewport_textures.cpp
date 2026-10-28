@@ -123,7 +123,7 @@ Viewport::TextureProjection Viewport::textureProjection(const Body &body, const 
         return {};
     const auto &image = *textureImages_.at(asset);
     try {
-        const auto mapping = effectiveFaceTextureMapping(body, local.face, back);
+        const auto mapping = effectiveFaceTextureMapping(body, local.face, back, doc_.materials());
         const auto uv =
             floatTextureCoordinates({mapping.coordinates(local.a), mapping.coordinates(local.b),
                                      mapping.coordinates(local.c)},

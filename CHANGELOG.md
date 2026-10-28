@@ -32,8 +32,15 @@
   textures from Poly Haven and six generated ones. Creating a preset adds its texture and its material
   in one undo step, and an identical texture already in the model is reused. Each preset shows its
   source and licence. The six colour presets are unchanged. The Poly Haven notice is in
-  `THIRD_PARTY_NOTICES`. The preset's repeat size is not yet stored with the material (see the ADR's
-  implementation notes).
+  `THIRD_PARTY_NOTICES`.
+- Material texture size (R100.b2, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md) section 3):
+  a material can store the real-world size, in metres, that one texture repeat covers. Each textured
+  preset stores its signed-off tile size, and the New and Edit material dialogs have a **Set size**
+  field. A material without a size repeats every metre, as before. The material commands take
+  `textureSize`, `materials.describe` reports it, and catalogs and the `.skp` import carry it. A
+  document with a sized material is schema 33 with the conditional feature `material-texture-size-v1`;
+  a document without one is written as before. A geographic site record is schema 32 (R107.a), and the
+  two features are independent. The schema-33 file is refused by SketchyUp 1.3.0 and 1.2.0 as schema 31 is.
 
 - Asset catalogs dialog (R100.f3, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md) §8,
   [UX_DESIGN §18](docs/UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs)): File → **Asset catalogs…**
