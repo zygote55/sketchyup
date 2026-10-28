@@ -666,7 +666,7 @@ int main(int argc, char **argv) {
         // the answer arrives. A new Blender that lacks H.264, or whose check does not finish, is
         // refused with its own reason, and no batch starts.
         {
-            isolateStore(files, "store-8");
+            isolateStore(files, "store-o6-h264");
             Window window;
             window.resize(1280, 900);
             window.show();
@@ -702,7 +702,7 @@ int main(int argc, char **argv) {
 
         // The changed Blender has no H.264: the answer arrives and its reason is the refusal.
         {
-            isolateStore(files, "store-9");
+            isolateStore(files, "store-o6-absent");
             Window window;
             window.resize(1280, 900);
             window.show();
