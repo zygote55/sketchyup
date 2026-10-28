@@ -7,11 +7,15 @@ TextureMappingSides faceTextureMappings(const Body &body, Id face) {
     const auto found = body.faceTextureMappings.find(face);
     return found == body.faceTextureMappings.end() ? TextureMappingSides{} : found->second;
 }
-TextureMapping effectiveFaceTextureMapping(const Body &body, Id face, bool back) {
+TextureMapping effectiveFaceTextureMapping(const Body &body, Id face, bool back,
+                                           const MaterialRecords &materials) {
     const auto sides = faceTextureMappings(body, face);
     const auto &explicitMapping = back ? sides.back : sides.front;
     if (explicitMapping)
         return *explicitMapping;
+    const auto assigned = faceMaterials(body, face);
+    const auto material = back ? assigned.back : assigned.front;
+    const auto size = material ? materials.at(material)->textureSize : std::nullopt;
     auto normal = body.surface.normal(face);
     const std::array<double, 3> components{normal.x, normal.y, normal.z};
     size_t dominant = 0;
@@ -22,7 +26,8 @@ TextureMapping effectiveFaceTextureMapping(const Body &body, Id face, bool back)
         normal = normal * -1;
     // Winding reversal must not mirror an otherwise unchanged implicit image.
     const Vec3 tangent = std::abs(normal.x) < .9 ? Vec3{1, 0, 0} : Vec3{0, 1, 0};
-    return planarTextureMapping({}, normal, tangent, 1, 1);
+    return planarTextureMapping({}, normal, tangent, size ? size->width : 1,
+                                size ? size->height : 1);
 }
 void setFaceTextureMappings(Body &body, Id face, const TextureMappingSides &mapping) {
     if (!body.surface.faces.contains(face))

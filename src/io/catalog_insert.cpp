@@ -90,10 +90,14 @@ void importMaterial(Document &doc, const CatalogPackage &package, const CatalogE
     const auto catalogAsset = std::uint32_t(record["asset"].toDouble());
     const Id asset =
         catalogAsset ? destinationAsset(doc, package, catalogAsset, mapped, result) : 0;
-    // A material is reused only for the same name, colour, opacity and asset (ADR 0131).
+    const auto textureSize = record.contains("textureSize")
+                                 ? std::optional(decodeTextureSize(record["textureSize"]))
+                                 : std::nullopt;
+    // A material is reused only for the same name, colour, opacity, asset and texture size (ADR
+    // 0131, R100.b2).
     for (const auto &[id, material] : doc.materials())
         if (material->name == name && material->color == color && material->opacity == opacity &&
-            material->asset == asset) {
+            material->asset == asset && material->textureSize == textureSize) {
             out.material = id;
             ++result.reusedMaterials;
             return;
@@ -104,7 +108,7 @@ void importMaterial(Document &doc, const CatalogPackage &package, const CatalogE
         names.insert(material->name);
     }
     out.material = createMaterial(doc, uniqueLibraryName(name, names, result.renamedResources),
-                                  color, opacity, asset);
+                                  color, opacity, asset, textureSize);
 }
 
 void applyStyle(Document &doc, const CatalogPackage &package, const CatalogEntryReport &entry,
@@ -278,7 +282,7 @@ QByteArray exportCatalog(const Document &doc, const CatalogExportRequest &reques
         const auto &record = *found->second;
         const auto name = QString::fromStdString(record.name);
         claim(name);
-        CatalogMaterial entry{record.name, record.color, record.opacity, 0};
+        CatalogMaterial entry{record.name, record.color, record.opacity, 0, record.textureSize};
         if (record.asset)
             entry.asset = exportedAsset(builder, doc, record.asset, mapped);
         builder.addMaterial(name, {}, entry);

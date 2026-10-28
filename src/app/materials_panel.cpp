@@ -5,6 +5,7 @@
 #include "core/face_textures.hpp"
 #include "io/assets.hpp"
 #include "io/texture_presets.hpp"
+#include <QCheckBox>
 #include <QColorDialog>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -315,6 +316,45 @@ void MaterialsPanel::edit(bool create) {
                        sid(assetId));
     if (id)
         asset->setCurrentIndex(asset->findData(sid(doc_.materials().at(id)->asset)));
+    // R100.b2: the real-world size of one texture repeat, in metres. Off means the implicit one
+    // metre. A textured preset turns it on with its signed-off size.
+    const auto initialSize =
+        create ? std::optional<TextureSize>{} : doc_.materials().at(id)->textureSize;
+    auto *sized = new QCheckBox("Set size");
+    sized->setObjectName("materialTextureSized");
+    sized->setAccessibleName("Set texture size");
+    sized->setChecked(initialSize.has_value());
+    auto sizeSpin = [&](const char *name, const char *label, double value) {
+        auto *spin = new QDoubleSpinBox;
+        acceptKeypadDecimal(spin);
+        spin->setObjectName(name);
+        spin->setAccessibleName(label);
+        spin->setRange(minimumTextureSize, maximumTextureSize);
+        spin->setDecimals(2);
+        spin->setSuffix(" m");
+        spin->setValue(value);
+        spin->setEnabled(sized->isChecked());
+        return spin;
+    };
+    auto *tileWidth =
+        sizeSpin("materialTextureWidth", "Texture width", initialSize ? initialSize->width : 1);
+    auto *tileHeight =
+        sizeSpin("materialTextureHeight", "Texture height", initialSize ? initialSize->height : 1);
+    const auto initialWidth = tileWidth->value(), initialHeight = tileHeight->value();
+    connect(sized, &QCheckBox::toggled, &dialog, [=](bool on) {
+        tileWidth->setEnabled(on);
+        tileHeight->setEnabled(on);
+    });
+    auto *sizeRow = new QHBoxLayout;
+    sizeRow->addWidget(sized);
+    sizeRow->addWidget(tileWidth);
+    sizeRow->addWidget(tileHeight);
+    // The JSON value of the field: an object, or null for no size.
+    auto sizeValue = [=]() -> QJsonValue {
+        if (!sized->isChecked())
+            return QJsonValue(QJsonValue::Null);
+        return QJsonObject{{"width", tileWidth->value()}, {"height", tileHeight->value()}};
+    };
     auto *error = new QLabel;
     error->setObjectName("materialDialogError");
     error->setWordWrap(true);
@@ -432,6 +472,9 @@ void MaterialsPanel::edit(bool create) {
                     color->setText(text(preset.tint));
                     color->setModified(true);
                     opacity->setValue(preset.opacity);
+                    sized->setChecked(true);
+                    tileWidth->setValue(preset.tileWidth);
+                    tileHeight->setValue(preset.tileHeight);
                     showTexture(key);
                 } else if (key >= 0) {
                     const auto &preset = presets[size_t(key)];
@@ -477,6 +520,7 @@ void MaterialsPanel::edit(bool create) {
     form->addRow("Color", colorRow);
     form->addRow("Opacity", opacity);
     form->addRow("Stored file", asset);
+    form->addRow("Texture size", sizeRow);
     form->addRow(error);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     form->addRow(buttons);
@@ -508,7 +552,8 @@ void MaterialsPanel::edit(bool create) {
                     {"name", name->text()},
                     {"color", QJsonArray{chosen.redF(), chosen.greenF(), chosen.blueF()}},
                     {"opacity", opacity->value() / 100},
-                    {"asset", sid(texture)}});
+                    {"asset", sid(texture)},
+                    {"textureSize", sizeValue()}});
                 view_.editMaterials(commands);
                 view_.setPaintMaterial(next, view_.paintSide());
                 dialog.accept();
@@ -522,12 +567,19 @@ void MaterialsPanel::edit(bool create) {
                 command["color"] = QJsonArray{chosen.redF(), chosen.greenF(), chosen.blueF()};
             if (create || opacity->value() != initialOpacity)
                 command["opacity"] = opacity->value() / 100;
+            // The size is sent when it changed; a material created without one sends none.
+            const bool sizeChanged = sized->isChecked() != initialSize.has_value() ||
+                                     (sized->isChecked() && (tileWidth->value() != initialWidth ||
+                                                             tileHeight->value() != initialHeight));
+            if (sizeChanged && (!create || sized->isChecked()))
+                command["textureSize"] = sizeValue();
             const auto next = doc_.nextMaterialId();
             if (!create)
                 command["material"] = sid(id);
             // OK without a change closes, as in the other editors, instead of reporting an
             // empty edit.
             if (!create && !command.contains("color") && !command.contains("opacity") &&
+                !command.contains("textureSize") &&
                 name->text().toStdString() == doc_.materials().at(id)->name &&
                 asset->currentData().toString() == sid(doc_.materials().at(id)->asset)) {
                 dialog.accept();

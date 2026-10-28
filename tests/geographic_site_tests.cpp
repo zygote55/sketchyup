@@ -95,7 +95,7 @@ void write(const QString &path, const QByteArray &bytes) {
 // Schema 32 is the lowest that carries the record, and the record is written only when present.
 void schemaVersions() {
     const auto doc = geographicFixture();
-    check(nativeDocumentVersionFor(doc) == 32 && nativeDocumentVersion == 32,
+    check(nativeDocumentVersionFor(doc) == 32 && nativeGeographicSiteDocumentVersion == 32,
           "A site with a geographic record is schema 32");
     const auto bytes = encodeContainer(doc);
     check(bytes.contains("geographic-site-v1") && bytes.contains("json-v32"),

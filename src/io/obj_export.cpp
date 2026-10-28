@@ -161,7 +161,7 @@ struct Writer {
         for (const auto &[faceId, face] : body.surface.faces) {
             const auto [materialId, textured] = material(body, faceId);
             const bool hasUV = textured || faceTextureMappings(body, faceId).front.has_value();
-            const auto mapping = effectiveFaceTextureMapping(body, faceId);
+            const auto mapping = effectiveFaceTextureMapping(body, faceId, false, doc.materials());
             if (materialId != currentMaterial) {
                 elements += "usemtl material-" + QByteArray::number(materialId) + "\n";
                 currentMaterial = materialId;
