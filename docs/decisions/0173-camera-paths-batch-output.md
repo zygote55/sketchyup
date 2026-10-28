@@ -1204,3 +1204,64 @@ Recorded 2026-10-27 for branch `docs/r099e-presentation-acceptance`, on origin/m
   5. R099.b documents `LIMIT_EXCEEDED` for a request over 16 KiB. The CLI returns `INPUT_ERROR`.
   6. **A defect, not fixed.** UX_DESIGN 17.5 says Start re-checks the encoder when the Blender has changed. In `presentation_batch_dialog.cpp`, `startBatch` calls `startProblem` first, and `videoAvailable` reads only the cache. With no answer for the changed file, Start reports "H.264 is not in this Blender's FFmpeg build" and returns before the re-check, so no batch starts. The batch test block that found it was removed from the record's PR, and product code is unchanged (owner decision 6).
 - **Owner decisions** (listed in the record's §8): the capture budget (1), the missing preparation row (2), the whole-batch length (3), 250,000-triangle terrains (4), the byte budgets (5), the changed-Blender defect (6), the determinism row (7), the version-6 assistant run (8), the 16 KiB code (9) and the roadmap status (10).
+
+## Implementation notes (capture encode, §5 budget)
+
+Measured on the §5 batch-capture document: quantities-b's terrain, 249,218 triangles in 256 tiles, no
+placements, 32 saved scenes and a 32-keyframe plan of 218 frames. Local Release build (GCC 16.2.1,
+`-O3 -DNDEBUG`, BFD). Captures use `presentation_benchmark capture 20`. The normal save uses
+`saveDocument`: 20 new files, then 20 overwrites of one file. Other workers' builds shared the machine,
+so each run records the load average at its start.
+
+- **Profile.** `encodeDocument` took about 1,000 ms per call. Phase timers in a local, uncommitted build
+  put about 860 ms of that in the 256 terrain tiles. For each tile, `encodeBodies` built the vertices and
+  faces (about 330 ms), the edges (about 240 ms) and the rest of the record (about 290 ms, not split
+  further; it includes the edge-appearance object). It then replaced those keys with empty values. The
+  mesh has been in the terrain-mesh chunk since schema 29, so that JSON was never written. A second pass
+  over the bodies added about 100 ms, the terrain-mesh chunk about 25 ms and the JSON serialisation about
+  11 ms.
+- **Change.** `encodeBodies` does not build a terrain tile's vertices, faces, edges or edge
+  appearances. The keys are still written, with the same empty values. Nothing else changes.
+- **Bytes.** The output is byte-identical. The proof covers the 37 native documents under
+  `tests/fixtures` that decode (33 `.sketchyup`, 4 raw JSON). Each was encoded three ways (JSON with
+  inline assets, JSON with external assets, container): 111 encodings. Four documents built in memory
+  were encoded the same way: the tour (quantities-b with 32 scenes), quantities-b with 300 placements, a
+  four-part model and a 40 × 40 terrain (12 encodings). A built document's `documentId` is random, so it
+  was replaced with a fixed one before encoding, and the normalised JSON was compared byte for byte. The
+  3,700-body model file was compared the same way, with its identity normalised. The SHA-256 of the full
+  256-line result list (the 123 encodings above, and the 133 files that are not native documents) is
+  `ecd2d2916a2e894a53dd16db45854dd3ac35aba80688a29f8a5798528097f505`, before and after.
+- **Numbers.** Milliseconds, p50 / p95 over 20 runs.
+
+  | Run | Batch capture | `encodeDocument` alone | Save, new file | Save, overwrite | Load at start |
+  | --- | --- | --- | --- | --- | --- |
+  | Before, run 1 | 1,111 / 1,128 | 997 / 1,009 | 1,011 / 1,029 | 1,482 / 1,510 | 0.9 |
+  | Before, run 2 (another build running at start) | 1,160 / 1,225 | 1,028 / 1,070 | 1,024 / 1,066 | 1,502 / 1,548 | 1.0 |
+  | Before, run 3 | 1,152 / 1,247 | 1,025 / 1,051 | 1,053 / 1,214 | 1,517 / 1,537 | 2.0 |
+  | After, run 3 | 161 / 183 | 31 / 35 | 33 / 38 | 534 / 563 | 2.2 |
+  | After, run 4 | 154 / 160 | 29 / 30 | 32 / 49 | 506 / 533 | 1.8 |
+
+- **Budget.** The §5 row (p95 ≤ 500 ms) is met, with about three times headroom: p95 160 to 183 ms
+  after the change, against 1,128 to 1,247 ms in the quiet runs before it. The R099.e record's 1,747 ms
+  was measured in a different run, under different load, so the two are not directly comparable. Its
+  encode was 1,721 ms, which points to the same cause.
+- **Full encode, or not.** The capture still encodes the whole document. Its bytes are the job's
+  `capture.sketchyup`. Resume decodes them (`PresentationCapture::restore`), the job record's SHA-256 is
+  checked on every read, and the disk-space check uses their size. A capture that skipped the encode
+  would need its own persisted format and decoder. After the change the encode is about 30 ms of about
+  155 ms, so that is not proposed.
+- **Not split, not needed for the budget.** The rest of the capture (about 125 ms) is the 32 saved-scene
+  snapshots, the document freeze, and the SHA-256 of the 8.6 MB capture. The rest of an overwrite save
+  (about 475 ms more than a new-file save) is reading and decoding the previous file, and writing its
+  backup. Both are outside the encoder.
+- **Contradiction with the ADR, resolved.** The R099.b notes (contradiction 2) say the cost is "the
+  native encoding that doubles as the capture hash", and offer a cheaper digest as one option. The
+  digest is not in `encodeDocument`. The cost is the encoder, which took about 1,000 of the capture's
+  roughly 1,150 ms and built JSON that it then discarded. With that fixed, the 500 ms row holds in a
+  Release build, so the digest option is not needed. No format or byte changed.
+- **Tests.** `ctest -R` over 21 suites that encode or decode documents passed (Release, `ulimit -v
+  8000000`, `-j2`): the ten terrain suites (`terrain`, `terrain_io`, `terrain_history`,
+  `terrain_regenerate`, `terrain_edit`, `terrain_replay`, `terrain_import`, `terrain_sculpt`,
+  `terrain_stamp`, `terrain_drape`), `native_format`, `persistence`,
+  `m4_persistence`, `document_limits_io`, `recovery`, `presentation_io`, `presentation_store`,
+  `geographic_site`, `material_texture_size`, `m6_workflow`, `m8_exchange`. Result: 21 of 21 passed.

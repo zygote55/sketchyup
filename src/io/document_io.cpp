@@ -301,23 +301,29 @@ QJsonObject encodeGuide(Id id, const Guide &guide) {
 QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
     QJsonArray bodies;
     for (const auto &[id, b] : records) {
+        // A terrain tile's vertices, faces, edges and edge appearances are written empty below
+        // (its mesh is in the terrain-mesh chunk), so they are not built here.
+        const bool tile = b->terrainTile;
         QJsonArray vertices, faces, wires, edges, curves, guides;
-        for (auto [vid, p] : b->surface.vertices)
-            vertices.append(QJsonArray{sid(vid), p.x, p.y, p.z});
-        for (const auto &[fid, f] : b->surface.faces) {
-            QJsonArray loops;
-            for (const auto &l : f.loops) {
-                QJsonArray loop;
-                for (Id v : l)
-                    loop.append(sid(v));
-                loops.append(loop);
+        if (!tile) {
+            for (auto [vid, p] : b->surface.vertices)
+                vertices.append(QJsonArray{sid(vid), p.x, p.y, p.z});
+            for (const auto &[fid, f] : b->surface.faces) {
+                QJsonArray loops;
+                for (const auto &l : f.loops) {
+                    QJsonArray loop;
+                    for (Id v : l)
+                        loop.append(sid(v));
+                    loops.append(loop);
+                }
+                faces.append(QJsonObject{{"id", sid(fid)}, {"loops", loops}});
             }
-            faces.append(QJsonObject{{"id", sid(fid)}, {"loops", loops}});
         }
         for (auto w : b->surface.wires)
             wires.append(QJsonArray{sid(w[0]), sid(w[1])});
-        for (const auto &[edgeId, edge] : b->topology.edges)
-            edges.append(QJsonArray{sid(edgeId), sid(edge.a), sid(edge.b), edge.wire});
+        if (!tile)
+            for (const auto &[edgeId, edge] : b->topology.edges)
+                edges.append(QJsonArray{sid(edgeId), sid(edge.a), sid(edge.b), edge.wire});
         for (const auto &[curveId, curve] : b->curves)
             curves.append(encodeCurve(curveId, curve));
         for (const auto &[guideId, guide] : b->guides)
@@ -337,9 +343,10 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
                 },
                 value);
         QJsonObject edgeAppearances;
-        for (const auto &[edge, style] : b->edgeAppearances)
-            edgeAppearances[sid(edge)] = QJsonObject{
-                {"hidden", style.hidden}, {"soft", style.soft}, {"smooth", style.smooth}};
+        if (!tile)
+            for (const auto &[edge, style] : b->edgeAppearances)
+                edgeAppearances[sid(edge)] = QJsonObject{
+                    {"hidden", style.hidden}, {"soft", style.soft}, {"smooth", style.smooth}};
         QJsonObject faceColors;
         for (const auto &[face, color] : b->faceColors)
             faceColors[sid(face)] = QJsonArray{color[0], color[1], color[2]};
