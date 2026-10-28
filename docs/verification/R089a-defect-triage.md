@@ -220,7 +220,7 @@ problem. **Limitation** means a documented, intended boundary.
 | D-005 | 282 ms opening heartbeat gap on Intel/Wayland not remeasured after the progress fix | [R082.m](R082m-native-file-timing.md), [R082.bb](R082bb-public-tooltip-progress.md), [R082.ak](R082ak-public-progress.md), [R082.ii](R082ii-amd-hardware-session.md), [ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md) | D02, N01 | **Unverified; Intel/Wayland rerun waived (2026-10-12).** R082.m retains 186–282 ms maximum open gaps on Intel Arc/Wayland. R082.bb's fix brought all 18 AMD/X11 gaps below 50 ms (worst 33.0 ms), and the 2026-10-11 AMD/X11 file campaign agrees: open gap 19.7–29.2 ms, save gaps up to 32.4 ms, every operation under 400 ms. No Intel/Wayland rerun exists. | Limitation | UI latency only, untested on Intel/Wayland at the current revision. Every open and save is within the five-second target. | [R082](../PR_ROADMAP.md#r082): none for 1.0 |
 | D-020 | Weston 15.0.1 segfaults when a progress popup is created for a minimized window; Hyprland check waived | [R083.f](R083f-file-worker-hang.md), [ADR 0161](../decisions/0161-m9-hardware-evidence-waiver.md) | N01 | **Open (external); Hyprland check waived (2026-10-12).** Seen only on Weston 15.0.1, which is the isolated test compositor, not the primary Hyprland target. Other compositors were not tested. The check on Hyprland (a long open or save started, then the window minimized, before the progress popup appears; [M9 hardware session](../M9_HARDWARE_SESSION.md) section 8) was not run. | Limitation | An external compositor crash, not shown on the primary target, and untested there by the owner's waiver. The owner will see it in use if it occurs. | [R085](../PR_ROADMAP.md#r085) |
 | D-029 | PKGBUILD dependencies carry no versions | [R087.u](R087u-clean-machine-packages.md), [R088.d N02](R088d-core-parity-gaps.md#row-status), [release notes](../RELEASE_NOTES.md#install-and-upgrade) | N02 | **Open by design for 1.0.** pacman installs a package built against newer Qt or glibc on an older system, where both executables fail to start (`Qt_6.11` and `GLIBC_2.43` symbol versions not found in R087.u). The release notes tell users to install a package built for their repository snapshot. | Limitation | Documented in the release notes. Arch does not support partial upgrades, so it matters only when a package is installed outside its snapshot. The RC package installs and runs on the pinned and fresh images, and a package built from the RC archive runs on the Qt 6.8.0 reference. | [R087](../PR_ROADMAP.md#r087): versioned lower bounds for Qt and glibc after 1.0 |
-| D-048 | An edit on a 100,000-face model holds the UI thread for about 140 to 160 ms in the `Viewport::changed` slots, and the Outliner rebuilds every row on each edit | [R101.f](R101f-quantities-reports.md) finding 22; this record's measurement (`edit_latency_benchmark`, `tests/edit_latency_benchmark.cpp`) | N01 (native viewport), O04 (Outliner and tags), F07 (Quantities section); [routine-edit budget](../BUILD_PLAN.md#initial-performance-budgets) | **Open (2026-10-27).** Release build (`CMAKE_BUILD_TYPE=Release`, `CMAKE_LINKER_TYPE=BFD`), offscreen, section hidden. One placement moves per edit; 20 edits after one warm-up; load average 2 to 6 from other workers. **99,996 faces (8,333 placements):** the edit and the synchronous slots p50 139.7 ms, p95 151.9 ms, max 157.3 ms; an earlier session gave p50 157.0, p95 168.6, max 169.6 ms. The transform alone is 0.23 ms. **49,992 faces (4,166 placements):** p50 66.6, p95 67.9, max 72.0 ms (earlier session: 71.5, 76.8, 81.3). **Section shown** (99,996 faces): p50 175.3 ms. **Per slot,** mean per edit at 99,996 faces, from temporary timers that are not committed: Outliner tree rebuild 115 ms (74%); `filter()` 21 ms (14%); the inference snapshot copy in `Viewport::refresh` 11.5 ms (7%); `TextPanel::refresh` 3.4 ms inside the Outliner call and 3.9 ms in its own slot (5%); every other slot and `Window::sync` step under 1 ms in total. At 49,992 faces the same steps take 48, 6 and 5.8 ms, so the three largest costs scale with the record count (24,999 records here), not with the edited body. The Outliner is rebuilt with no visibility check: with the section shown, its tab is not current ("outliner on screen: no") and the rebuild costs the same. Not measured: the repaint and the viewport's mesh rebuild. They run in paint, not in the slots, and offscreen the viewport's GL is not ready, so that path returns before drawing. Scope of the claim: the synchronous slots only, on this machine, not on the declared reference hardware | Minor (provisional) | A performance miss against the routine-edit feedback budget (p95 below 100 ms) on a machine that is not the declared reference. No wrong result and no data effect. D-024, a budget miss of the same kind, was Major: the owner should confirm this class before the 1.4.0 RC, and reclassify it if the reference-hardware run also misses | Unassigned. Proposals in the PR body, in order: (1) skip the Outliner rebuild when no row's displayed fields changed (about 100 ms at this size; low to medium risk; needs the selection-derived states in the check); (2) an empty-search fast path in `filter()` (about 20 ms; low risk; not held by a deterministic test); (3) a lazy inference snapshot (about 11 ms; medium risk); (4) time the repaint on a GL-capable run |
+| D-048 | An edit on a 100,000-face model holds the UI thread for about 140 to 160 ms in the `Viewport::changed` slots, and the Outliner rebuilds every row on each edit | [R101.f](R101f-quantities-reports.md) finding 22; this record's measurement (`edit_latency_benchmark`, `tests/edit_latency_benchmark.cpp`) | N01 (native viewport), O04 (Outliner and tags), F07 (Quantities section); [routine-edit budget](../BUILD_PLAN.md#initial-performance-budgets) | **Fixed by this PR (2026-10-27, branch `fix/d048-outliner-rebuild`, not yet merged).** See "Closed by the D-048 fix" below. Was: Release build (`CMAKE_BUILD_TYPE=Release`, `CMAKE_LINKER_TYPE=BFD`), offscreen, section hidden. One placement moves per edit; 20 edits after one warm-up; load average 2 to 6 from other workers. **99,996 faces (8,333 placements):** the edit and the synchronous slots p50 139.7 ms, p95 151.9 ms, max 157.3 ms; an earlier session gave p50 157.0, p95 168.6, max 169.6 ms. The transform alone is 0.23 ms. **49,992 faces (4,166 placements):** p50 66.6, p95 67.9, max 72.0 ms (earlier session: 71.5, 76.8, 81.3). **Section shown** (99,996 faces): p50 175.3 ms. **Per slot,** mean per edit at 99,996 faces, from temporary timers that are not committed: Outliner tree rebuild 115 ms (74%); `filter()` 21 ms (14%); the inference snapshot copy in `Viewport::refresh` 11.5 ms (7%); `TextPanel::refresh` 3.4 ms inside the Outliner call and 3.9 ms in its own slot (5%); every other slot and `Window::sync` step under 1 ms in total. At 49,992 faces the same steps take 48, 6 and 5.8 ms, so the three largest costs scale with the record count (24,999 records here), not with the edited body. The Outliner is rebuilt with no visibility check: with the section shown, its tab is not current ("outliner on screen: no") and the rebuild costs the same. Not measured: the repaint and the viewport's mesh rebuild. They run in paint, not in the slots, and offscreen the viewport's GL is not ready, so that path returns before drawing. Scope of the claim: the synchronous slots only, on this machine, not on the declared reference hardware | Major (reclassified 2026-10-27 by the parent; was Minor, provisional) | A performance miss against the routine-edit feedback budget (p95 below 100 ms) in the real window, the budget D-024 missed at 10,000 placements, which was Major. No wrong result and no data effect | Fixed by this PR, step 1: the Outliner and Tags rows are compared with the last build, and a tree is rebuilt only when they differ (see the closure section). Not implemented, because step 1 meets the budget (p95 43 ms at 8,333 placements), and kept as proposals: (2) defer the Outliner while it is off screen, as the components panel does (its gain is not measured); (3) an empty-search fast path in `filter()` (about 20 ms at 99,996 faces; low risk); (4) a lazy inference snapshot (about 11 ms; medium risk); (5) time the repaint on a GL-capable run |
 
 ## Candidates checked and not carried forward
 
@@ -414,6 +414,44 @@ Closed by the D-032 fix (2026-10-17, branch `fix/d032-fractional-focus`):
   1.5× and 2× and on Wayland at 1× and 2×; `native_accessibility_audit` and every
   `--dialogs-keyboard` group pass on X11 at 1× and 2×; and every other line of the
   fractional-scaling job (1.5× and 1.75×, X11 and Wayland) passes.
+
+Closed by the D-048 fix (2026-10-27, branch `fix/d048-outliner-rebuild`, not yet merged):
+
+- **D-048** (an edit on a 100,000-face model holds the UI thread for 140 to 160 ms, and the
+  Outliner rebuilds every row on each edit). Class: **Major** (reclassified by the parent; was
+  Minor, provisional). **Mechanism.** `OrganizationPanel::refresh` cleared both trees and built one
+  item per record on every `Viewport::changed`; `filter()` then set every row's hidden state. It now
+  builds the rows that the trees show (`entityRows` and `tagRows`) and rebuilds a tree only when its
+  rows differ from those of its last build, or when the viewport's selection differs from the tree's
+  selection (a rejected click, such as a locked entity, leaves its row selected). An Outliner row holds
+  the id, the parent, the name, the tooltip's tag name, the kind word, and the hidden, locked and
+  context states (hidden and locked include the ancestors and the tag visibility). A Tags row holds the
+  id, the parent, the name, the folder mark, the visible checkbox and the effective visibility. The
+  comparison is exact, not a hash. Record pointers cannot decide it: `Document::transform` replaces the
+  placement's record, so the pointer changes though no displayed field does. `filter()` runs only after
+  an Outliner rebuild, because nothing it reads changes otherwise. A new document always rebuilds.
+  **Measured** (Release, `edit_latency_benchmark`, offscreen, section hidden, 20 edits after one
+  warm-up; the edit plus the synchronous slots; load average before and after the run):
+  - 99,996 faces (8,333 placements): before p50 148.1, p95 151.0, max 151.9 ms (load 4.45 and 4.17);
+    after p50 36.9, p95 43.1, max 44.0 ms (load 3.60); a second after run p50 38.2, p95 47.0, max
+    53.9 ms (load 3.19 and 3.57).
+  - 49,992 faces (4,166 placements): before p50 68.7, p95 77.0, max 82.8 ms (load 4.00); after p50
+    16.8, p95 19.0, max 21.5 ms (load 3.19).
+  Step 1 meets the budget (p95 below 100 ms at 8,333 placements, section hidden), so steps 2 and 3 are
+  not implemented. The 37 ms that remain include the row comparison and the other slots (the inference
+  snapshot and the Text panel, 11.5 and 7 ms before); the split was not measured.
+  **Tests.** `organization_input_tests` (Debug, `QT_QPA_PLATFORM=offscreen`): a transform keeps every
+  Outliner and Tags item (the unmodified sources fail this check); a rename, a tag assignment, a tag
+  rename, a tag hiding its entity, hide, lock, a locked selection that the viewport rejects, a viewport
+  selection, the context mark, a search result kept across a transform, and a hierarchy change each
+  reach their row. `keyboard_outliner_input_tests`, `selection_input_tests`, `selection_tests`,
+  `tag_tests`, `keyboard_panel_tabs_tests` and `narrow_layout_input_tests` pass. `group_input_tests`
+  fails "Line splits active group geometry without merging into inactive neighbor" (1 face, not 2) on
+  the unmodified sources under the same platform, so this change does not cause it; CI, which runs
+  the xcb and Wayland lines, is the check for it. **Not covered by a test:** the kind word in the
+  tooltip (it is in the row, but no public edit changes one row's kind without adding a row).
+  **Behaviour change:** the Tags tree's row selection now survives a refresh that changes nothing in the
+  Tags tab; before, every refresh cleared it.
 
 Closed by the D-047 fix (2026-10-21, branch `fix/d047-qt68-includes`):
 
@@ -968,10 +1006,10 @@ Closed by the D-028 fix (2026-10-18, branch `test/d027-d028-tooling`):
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 9 | D-006–D-009, D-019, D-031, D-034, D-040, D-048 |
+| Minor | 8 | D-006–D-009, D-019, D-031, D-034, D-040 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **23** | |
-| Fixed since the 2026-10-11 refresh | 22 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-027 and D-028 (Minor, added at the RC and fixed 2026-10-18), D-022 (Minor, fixed 2026-10-18 in the fuzz harness), D-023 (Minor, fixed 2026-10-18), D-042 (Release-blocking, added and fixed 2026-10-18), D-043 (Major, added and fixed 2026-10-19), D-045 (Minor, added by R095.f and closed 2026-10-19 by restating the budget), D-044 (Minor, added by R095.f and fixed 2026-10-19), D-046 (Minor, added at the 1.3.0 RC1 and fixed 2026-10-21), D-047 (Major, added at the 1.3.0 RC2 and fixed 2026-10-21) |
+| **Total open** | **22** | |
+| Fixed since the 2026-10-11 refresh | 23 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-027 and D-028 (Minor, added at the RC and fixed 2026-10-18), D-022 (Minor, fixed 2026-10-18 in the fuzz harness), D-023 (Minor, fixed 2026-10-18), D-042 (Release-blocking, added and fixed 2026-10-18), D-043 (Major, added and fixed 2026-10-19), D-045 (Minor, added by R095.f and closed 2026-10-19 by restating the budget), D-044 (Minor, added by R095.f and fixed 2026-10-19), D-046 (Minor, added at the 1.3.0 RC1 and fixed 2026-10-21), D-047 (Major, added at the 1.3.0 RC2 and fixed 2026-10-21), D-048 (Major, reclassified 2026-10-27 by the parent; fixed on branch `fix/d048-outliner-rebuild`, not yet merged) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
 R091.h (2026-10-14) added D-031 and D-032 (Minor). 2026-10-15 added D-034 (Minor). D-035
@@ -1020,8 +1058,10 @@ Limitation); none blocks 1.3.0 ([F03-rc-1.3.0](F03-rc-1.3.0.md#triage-at-rc3)). 
 D-046 (Minor, RC1) and D-047 (Major, RC2); both are fixed at RC3.
 
 After the D-048 record (2026-10-27, branch `investigate/f22-edit-latency`): 23 open (0
-release-blocking, 0 Major, 9 Minor, 14 Limitation). D-048 is new, Minor and provisional; no fix
-is on this branch.
+release-blocking, 0 Major, 9 Minor, 14 Limitation). D-048 was new, Minor and provisional.
+After the D-048 fix (2026-10-27, branch `fix/d048-outliner-rebuild`, not yet merged): 22 open (0
+release-blocking, 0 Major, 8 Minor, 14 Limitation). The parent reclassified D-048 Major, and the
+fix on that branch closes it.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

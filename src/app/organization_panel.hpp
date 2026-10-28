@@ -63,6 +63,26 @@ class OrganizationPanel : public QWidget {
     bool syncing_{};
     std::set<Id> knownBodies_, knownTags_;
     Document::SaveStamp session_;
+    // The rows a tree shows, as its last rebuild built them. refresh() rebuilds a tree only when
+    // these change, so an edit that changes no displayed field keeps every QTreeWidgetItem (D-048).
+    struct EntityRow {
+        Id id{}, parent{};
+        std::string name, tag; // column 0, and the tooltip's tag name ("" when untagged)
+        std::string_view kind; // the tooltip's kind, a string literal
+        bool hidden{}, locked{}, context{};
+        bool operator==(const EntityRow &) const = default;
+    };
+    struct TagRow {
+        Id id{}, parent{};
+        std::string name;
+        bool folder{}, visible{}, effective{};
+        bool operator==(const TagRow &) const = default;
+    };
+    std::vector<EntityRow> entityRows() const;
+    std::vector<TagRow> tagRows() const;
+    bool selectionShown() const;
+    std::vector<EntityRow> shownEntities_;
+    std::vector<TagRow> shownTags_;
     bool attempt(const std::function<void()> &operation);
     void filter();
     void enter();
