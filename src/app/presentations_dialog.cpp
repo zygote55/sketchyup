@@ -204,7 +204,7 @@ PresentationsDialog::PresentationsDialog(Document &doc, Viewport &view,
     exportBatch_->setObjectName("presentationsExportBatch");
     exportBatch_->setAccessibleName("Export batch");
     exportBatch_->setEnabled(false);
-    exportBatch_->setToolTip("Presentation batches are not available in this version yet.");
+    exportBatch_->setToolTip("Export a presentation batch from these paths and presets.");
     exportBatch_->setAccessibleDescription(exportBatch_->toolTip());
     footer->addWidget(exportBatch_);
     close_ = new QPushButton("Close");
@@ -224,6 +224,13 @@ PresentationsDialog::PresentationsDialog(Document &doc, Viewport &view,
     }
     connect(&view_, &Viewport::changed, this, [this] { refresh(); });
     refresh();
+}
+
+void PresentationsDialog::setExportBatch(std::function<void()> open) {
+    exportBatch_->disconnect(this);
+    exportBatch_->setEnabled(bool(open));
+    if (open)
+        QObject::connect(exportBatch_, &QPushButton::clicked, this, [open] { open(); });
 }
 
 void PresentationsDialog::detach() {

@@ -1369,6 +1369,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R100.f3 (ADR 0174 section 8, UX_DESIGN 18.5 to 18.7): the Asset catalogs dialog, its
   # missing-dependency report, the Export asset catalog dialog, and the File menu flow.
   target_sources(sketchyup_desktop PRIVATE src/app/catalog_dialog.cpp src/app/catalog_report.cpp src/app/catalog_export_dialog.cpp src/app/window_catalog.cpp)
+  # R099.d3 (ADR 0173 section 7, UX_DESIGN 17.4 to 17.7): the batch controller (no widgets), the batch
+  # dialog with its live budget, and the results sheet.
+  target_sources(sketchyup_desktop PRIVATE src/app/presentation_batches.cpp src/app/presentation_batch_dialog.cpp src/app/presentation_results.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1681,6 +1684,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME style_catalog_input COMMAND style_catalog_input_tests)
     set_tests_properties(style_catalog_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                       TIMEOUT 600)
+    # R099.d3 (UX_DESIGN 17.4 to 17.10, 17.12): the batch dialog, the Jobs batch rows, the results sheet
+    # and the quit prompt, offscreen. Blender is blender_job_tests run as the worker (its --fake modes),
+    # so that binary sits beside this one.
+    add_executable(presentation_batch_input_tests tests/presentation_batch_input_tests.cpp)
+    target_link_libraries(presentation_batch_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(presentation_batch_input_tests PRIVATE tests)
+    add_dependencies(presentation_batch_input_tests blender_job_tests)
+    add_test(NAME presentation_batch_input COMMAND presentation_batch_input_tests)
+    set_tests_properties(presentation_batch_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                          TIMEOUT 900)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.

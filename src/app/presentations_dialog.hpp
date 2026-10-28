@@ -55,6 +55,8 @@ class PresentationsDialog : public QDialog {
     // Stops every signal of the dialog before its document goes (the Window's destructor does
     // this).
     void detach();
+    // R099.d3: the footer's Export batch… opens the batch dialog. Until it is set, the button is disabled.
+    void setExportBatch(std::function<void()> open);
 
   protected:
     void resizeEvent(QResizeEvent *event) override;
