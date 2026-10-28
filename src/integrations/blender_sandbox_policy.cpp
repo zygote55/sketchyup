@@ -64,11 +64,12 @@ sketchyup::sandbox::Policy policy(const Layout &layout) {
         grant(frame, FileAccess::readOnly);
     grant(layout.attemptDirectory, FileAccess::readWrite);
 
-#ifdef SKP_WORKER_NO_ADDRESS_LIMIT
-    // The sanitizer builds only. Their libraries are shared objects in the build tree
-    // (CMakeLists.txt links them shared under the sanitizers), and a stand-in Blender loads them
-    // after the policy is in force, so its loader must read that tree. The release build links the
-    // libraries into each executable, and this grant is not in its policy (ADR 0183, R109 S5).
+#ifdef SKETCHYUP_SHARED_PROJECT_LIBS
+    // Builds that link the project libraries as shared objects in the build tree only: the
+    // sanitizer builds and the CI fast tier (CMakeLists.txt). A stand-in Blender loads them after
+    // the policy is in force, so its loader must read that tree. The release build and the package
+    // link the libraries into each executable, and this grant is not in their policy (ADR 0183,
+    // R109 S5).
     grant(QCoreApplication::applicationDirPath(), FileAccess::readOnly);
 #endif
 
