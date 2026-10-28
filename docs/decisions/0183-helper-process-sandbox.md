@@ -692,3 +692,20 @@ Measured here (Arch host, kernel `7.2.8-9-omarchy`, x86_64): Landlock ABI 10, al
 - The 24.04 and 26.04 behaviour (the S6 bullet of §11) is not measured. There is no such runner here.
 - `ifc_sandbox` ran in the `ifc-app` configuration only, which is how CI runs it. The IFC helper's sanitized build does not run it.
 - The full-ci run was not waited for.
+
+## Implementation notes (R102.f)
+
+- **The `.skp` policy allows the stdio terminal check.** `src/skp/sandbox_policy.cpp` now has one more rule:
+  `ioctl` with request TCGETS or TCGETS2, as `argumentOneOf` (S3), and any other request is EPERM. Without it, a helper
+  with stdout on `/dev/null` ended with SIGSYS: glibc's stdio asks for TCGETS2 on a character device (R102.e record,
+  F2). The section 5 SKP row lists the calls measured from the traces, which did not include a `/dev/null` run; `ioctl`
+  is the one call added to them.
+- **Why a value list.** The text and extension policies already take TCGETS and TCGETS2 this way, and the list is the
+  only way the rule can name both requests. A single-value rule (`whenArgument`, as IFC's and prctl's) cannot.
+- **The other helpers.** IFC and STEP allow TCGETS2 only (`whenArgument`); the pinned glibc asks for that request, so the
+  exposure does not arise there. They are not changed in this section: the IFC suite needs the IFC worker, which this host
+  does not build, and the R109 notes (item 6 above) record TCGETS2 alone as the IFC rule. Text and extension allow both
+  requests. Blender does not filter `ioctl` (section 10, risk 5), so it has no exposure.
+- **Tests.** `skp_sandbox`: the policy answers TCGETS and TCGETS2 with ENOTTY on `/dev/null` and another request with
+  EPERM, and the real helper with stdout on `/dev/null` exits 0 in `--probe`, `--import` and `--dry-run`. The sanitized
+  build of `skp_sandbox` passes (ASan and UBSan).

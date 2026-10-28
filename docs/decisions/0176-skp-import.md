@@ -232,7 +232,7 @@ sample locations per kind). It records:
 - **Checks:**
   - **S1:** the face, hole, edge, definition, instance, material and tag counts equal
     the parser's;
-  - **S2:** the bounding box in metres within 1e‑6 m of the parser's × 0.0254;
+  - **S2:** the bounding box in metres within 1e‑6 m of the parser's × 0.0254, where the box is the placed world box: the placements applied to the parser's vertices, computed from the import and set against the parser's (amended in R102.f, parent decision). The package's `bounding` block is per definition, over each definition's own vertices with no placement applied, so it is not the placed box;
   - **S3:** a component edited once changes all its instances;
   - **S4:** hidden tags hidden, soft and smooth edges kept;
   - **S5:** textures shown on the right faces (visual check against a SketchUp
@@ -514,6 +514,8 @@ holes kept, 1,422 edges (153 of them wires), 18 materials, no tags. Notices: `in
 `missingUv` 159 (faces with no texture mapping, which the file has no textures for). The helper's
 package is about 59 KB. `skp_mapping_tests --real` and `skp_import_tests --real` pass against the file.
 
+**Correction (R102.f, 2026-10-28, F4).** The `missingUv` notice fires only for a textured side with no mapping (`src/skp/import.cpp`, lines 691 to 692). The owner's file has no textures and raises no `missingUv`, so the 159 above is stale. `skp_mapping` asserts it. See [R102.e section 6, F4](../verification/R102e-skp-import.md).
+
 **Tests.** `skp_import_dialog_tests` (offscreen, a stand-in helper that copies a package written by the
 helper's own writer) passes all of its flows: the File menu's order, a missing helper, each refusal, a
 full import with the report, the attention count, Cancel and Escape, the prompts, and the chip's
@@ -720,6 +722,55 @@ Status: delivered, with open findings. The record does not set "Accepted"; the p
   own vertices, not the placed box that §7 S2 describes; the R102.b note on `missingUv` is out of date; and the
   §5 and §6 limits, and the native caps on the `.skp` path, have no test.
 - No product code changed.
+
+## Implementation notes (R102.f)
+
+R102.f closes the findings of the [R102.e record](../verification/R102e-skp-import.md) that were code or wording,
+and one defect that the limit tests found. Each finding's status, fix, test and commit is in
+[record section 11](../verification/R102e-skp-import.md#11-r102f-closing-the-findings). The record's status stays
+"Delivered, with open findings": S5 and the real-file matrix have no new evidence.
+
+- **F1, the threshold.** `kNewestTestedMajor` is 24 (`src/skp/import.hpp`): the newest major version a real corpus
+  file covers, the owner's 2024 file. `isNewerThanTested` is true above it. The label applied only above 25, so a
+  2025 file was read without it. The constant moves only when a newer real file is verified. Test: `skp_import`
+  (the decision at 24, 23, -1, 25 and 26).
+- **F2, the stdio terminal check (`src/skp/sandbox_policy.cpp`).** The SKP policy allows `ioctl` with the request
+  TCGETS or TCGETS2 and refuses any other request with EPERM. It is a value list (`argumentOneOf`, ADR 0183 S3), the
+  style the text and extension policies use. A single-value rule (`whenArgument`, as IFC's and prctl's) cannot name
+  both requests, and glibc asks for either. The kernel answers both with ENOTTY on `/dev/null`. Tests in `skp_sandbox`:
+  the policy's answers in process, and the real helper with stdout on `/dev/null` in `--probe`, `--import` and
+  `--dry-run`. Without the rule, each of the three ends with SIGSYS and the test fails (checked by removing the rule).
+- **The other helpers, checked for the same exposure.**
+  - IFC and STEP: the policy allows TCGETS2 only. The pinned glibc asks for TCGETS2, so the exposure does not arise
+    there; the older TCGETS request would end the helper. Not changed here: the IFC suite (`ifc_sandbox`) needs the IFC
+    worker, which this host does not build, and the R109 notes record TCGETS2 alone as the IFC rule (item 6 of the
+    notes). Not run.
+  - Text and extension: both requests are allowed. No exposure.
+  - Blender: `ioctl` is not filtered (section 10, risk 5). No exposure.
+- **F3, S2.** Amended in section 7 above, as the parent decided on 2026-10-28.
+- **F4, `missingUv`.** A dated correction under the R102.b note above.
+- **F5, limits.** Tests were added for the 256 MiB input default (a sparse file one byte over is refused before
+  the helper starts), the helper's address-space, CPU and output limits (stand-in helpers, as the STEP import's E6
+  tests), the real helper's `--rlimit-fsize`, the texture caps (a PNG header of 4097 pixels is refused by the import;
+  a texture of 16 MiB + 1 bytes is refused by the decoder and 16 MiB is read), and the geometry and texture chunks over
+  256 MiB. Not tested, with the reason: the real helper's CPU and address-space limits (a real helper reaches its CPU
+  limit only after about a second of CPU, and the address-space limit depends on the mapped libraries, so a fixed
+  size would be fragile on other machines; the stand-ins test the host's reaction); the 512 MiB output default (a
+  512 MiB package); the 256 MiB input accepted (a 256 MiB copy on every run); the native caps (100,000 faces, 300,000
+  edges, 10,000 geometry records, 600,000 faces after placement, 1,024 materials and nesting over 64 levels), which need
+  packages or models the fixtures do not contain; `uvPerspective`; and the JPEG texture path, for which the repository has
+  no fixture.
+- **F6, labels.** The material, mirror and texture-size checks in `skp_mapping_tests` are labelled by content. S1 to S7
+  mean the checks of section 7 only.
+- **F7, found by the F5 test: the hash was quadratic.** `Sha256::update` erased each 64-byte block from the front of its
+  buffer, so a large input took quadratic time. The `skp_package` suite took 148 s before the fix and 0.15 s after; its
+  16 MiB hashes were most of the cost. The helper hashes the whole input file in `runImport`, so a large `.skp` was slow in
+  the same way and could reach the 120 s deadline. The owner's file imports in the time R102.e recorded: five helper imports on this machine
+  (load average 1.3) took 14 to 19 ms, median 17 ms, against the 15.6 ms recorded in R102.e. Test: the FIPS 180-4
+  vectors for the 448-bit message and for a million a's, in `skp_package`.
+
+**Where the code and the ADR disagree now.** None, beyond what the R102.e record already listed. Section 2's "newer
+than tested" now applies to a 2025 file, as the section says. The S-checks in the tests are the section 7 checks.
 
 ## Sources
 
