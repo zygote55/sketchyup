@@ -3,10 +3,15 @@
 // Each scenario builds its own document, so a later check never depends on an earlier one.
 #include "core/presentation.hpp"
 #include "core/scenes.hpp"
+// The encoding checks need the Qt-based document encoder; the Qt-free core sanitizer build
+// compiles this suite without Qt, and skips them there.
+#if __has_include(<QByteArray>)
+#define PRESENTATION_RECORD_ENCODING_CHECKS 1
 #include "io/document_io.hpp"
 #include <QByteArray>
 #include <QRegularExpression>
 #include <QString>
+#endif
 #include <iostream>
 using namespace sketchy;
 namespace {
@@ -297,6 +302,7 @@ void presets() {
     doc.undo();
     check(doc.renderPresets().size() == 2, "Undo restores a deleted preset");
 }
+#ifdef PRESENTATION_RECORD_ENCODING_CHECKS
 // The encoding's bytes with the revision's value blanked. The revision counts edits, and undo, redo
 // and amendments each advance it (ADR 0005), so an undo cannot restore it. Every other byte of the
 // encoding must match.
@@ -361,6 +367,7 @@ void undoEncodings() {
     check(withoutRevision(encodeDocument(doc)) == withoutRevision(presetStart),
           "Undo of a preset creation gives the bytes before it");
 }
+#endif
 void limits() {
     Scenes s;
     auto &doc = s.doc;
@@ -391,7 +398,9 @@ int main() {
         allocators();
         history();
         presets();
+#ifdef PRESENTATION_RECORD_ENCODING_CHECKS
         undoEncodings();
+#endif
         limits();
         std::cout << "presentation records: all checks passed\n";
         return 0;
