@@ -57,3 +57,32 @@ informational: readers accept any writer string, and retained fixtures that reco
   version change changes those eight values. They are regenerated with
   `provider_trial --describe`, prompts unchanged, as R082.cc and R084.r did for
   schema changes.
+
+## Implementation notes (1.4.0 release preparation)
+
+- The prior release for the 1.4.0-1 package is the published `sketchyup-1.3.0-1-x86_64.pkg.tar.zst`
+  (SHA-256 `5f5c0cf8…a833b`, the `gh release view v1.3.0` digest). Downloaded into its own directory and
+  unpacked without pacman, its `sketchyup-cli --format-capabilities` reports `documentVersion` 29 and
+  `readDocumentVersions` 1 through 29, so it refuses schemas 30 to 33 with "Unsupported container field"
+  and leaves each file unchanged.
+- Each prior-release test was run locally against that CLI (`SKETCHYUP_PRIOR_CLI`): `component_parameter_io_tests`
+  (899 checks), `drawing_sheet_io_tests`, `geographic_site_tests`, `material_texture_size_tests`,
+  `presentation_io_tests`, `style_bundle_tests` and `terrain_io_tests` all pass. `terrain_io` now expects the
+  schema-29 file to open, because 1.3.0 is the first release to read schema 29.
+- The writer string is part of the fixture bytes. Bumping it to `SketchyUp/1.4.0` changed the provider
+  corpus `inputSha256` values (all eight tasks in each of six manifests, regenerated with
+  `provider_trial --describe`) and the bytes of the two schema fixtures whose reopen test compares the file
+  itself (`geographic-site-v32`, `material-texture-size-v33`, regenerated with `--write-fixture`).
+  The geographic fixture's document identity also changed, because that test does not fix it.
+- The IFC export goldens (`tests/fixtures/ifc/export/*.ifc`, compared byte for byte by `ifc_export_tests`)
+  carry the application version twice: in `FILE_NAME`'s originating system and in `IFCAPPLICATION`. The six
+  files were moved to 1.4.0 on those two lines only, after the first CI run on this branch failed G6. The
+  Python worker tests build their own package with version 1.3.0 and are unaffected. A later bump must move
+  these lines too.
+- The catalog fixtures (`tests/fixtures/catalog/*.sketchycat`) embed native documents, so they carry the
+  writer string and the chunk digests over it; `catalog_tests` compares them with its generator byte for
+  byte. They were regenerated with `catalog_tests --write-fixtures <new empty directory>` after the
+  package and development jobs failed `catalog`. Only the writer string and the digests changed. The
+  `catalog`, `catalog_fuzz`, `catalog_import` and `style_catalog_cli` tests pass on them.
+- Contradiction, not changed: `tests/provider_release_corpus_tests.py` says in its header that v5 is
+  authoritative, but its `CURRENT` manifest is v6 (added by R099.c). The header is stale.

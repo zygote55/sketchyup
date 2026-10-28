@@ -381,7 +381,7 @@ fonts.
 **Limits.** Formulas are one-way: editing geometry never changes a parameter, and a
 formula reads only its own definition's parameters. SketchUp Dynamic Components are not
 converted into parameters; their attributes are read as read-only properties of a `.skp` import (see
-[Importing SketchUp (.skp) files](#importing-sketchup-skp-files)). The in-app assistant cannot change component parameters; MCP
+[Importing .skp files](#importing-skp-files)). The in-app assistant cannot change component parameters; MCP
 clients and the transaction APIs can (`component_parameter.*` operations and
 `component_parameters.*` queries in the [tool reference](TOOL_REFERENCE.md)).
 
@@ -422,7 +422,7 @@ or cloud fallback.
 ## Exchange and present a model
 
 Use File import/export commands for GLB/glTF, OBJ/MTL, STL or the documented 2D
-DXF subset. SketchUp (.skp) files import too, as described in [Importing SketchUp (.skp) files](#importing-sketchup-skp-files). Review conversion notices before relying on geometry, units, axes,
+DXF subset. `.skp` files import too, as described in [Importing .skp files](#importing-skp-files). Review conversion notices before relying on geometry, units, axes,
 materials or hierarchy. Imported content becomes an unsaved native model; Save
 chooses its native destination. Keep multi-file OBJ/MTL/image packages together.
 Use the [format matrix](SUPPORT_MATRIX.md#exchange-boundaries) for losses and limits.
@@ -548,7 +548,7 @@ model made of triangle faces reaches the limit at about 110,000 faces; large fla
 0.9 KB per triangle, so the limit is reached at about 280,000 triangles. The export dialog's size
 note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
 
-## Importing SketchUp (.skp) files
+## Importing .skp files
 
 **File → Import .skp file…** opens a SketchUp model as a new, unsaved SketchyUp model. Choose
 the file; there are no options to set. The file is read by a separate helper process,
@@ -566,7 +566,7 @@ default 120) to allow the helper more or less time.
 | SketchUp that saved the file | Import |
 |---|---|
 | 2021 and later | **Supported.** Tested with a SketchUp 2024 model. A version newer than the ones tested is read and labelled "newer than tested" in the report |
-| 2013 to 2020 | **Best effort**, labelled as such in the report. These files use an older container that the reader handles less completely. Some of them cannot be read yet, because the reader fails on certain text labels in them (OpenSKP issue 442). A file it cannot read is refused with the advice below; it is never imported in part |
+| 2013 to 2020 | **Best effort**, labelled as such in the report. These files use an older container that the reader handles less completely. Some of them cannot be read: one cause is a text label the reader fails on (OpenSKP issue 442), and the cause of the 2017 to 2020 failures is not yet known. A file it cannot read is refused with the advice below; it is never imported in part |
 | Before 2013 | **Refused:** "This SketchUp file is from before 2013. Save it from SketchUp 2021 or later and try again." |
 
 If a file is refused, save it again from SketchUp 2021 or later and import that copy.
@@ -665,11 +665,11 @@ Trimble Inc. The 3D Warehouse website is named here only to say where to find mo
 
 | File | In this version |
 |---|---|
-| `.skp` | Not released yet. When it is, the versions in [the .skp section](#importing-sketchup-skp-files) apply. |
+| `.skp` | Imported with a conversion report, from File › Import .skp file…. The versions it reads are in [the .skp section](#importing-skp-files). |
 | `.glb`, `.gltf` | Imported with a conversion report, from File › Import GLB/glTF… |
 | `.obj`, `.stl`, `.dxf`, `.ifc`, `.step` | Imported with their own reports, from their File › Import entries. |
 | `.zip` | Refused, with the advice to extract the archive and import the file inside it. |
-| `.dae` (COLLADA) | Refused, with the reason. Where the page offers a newer `.skp` version of the model, download that instead. The `.skp` import is not released yet. |
+| `.dae` (COLLADA) | Refused, with the reason. Where the page offers a newer `.skp` version of the model, download that instead. |
 | `.usdz`, `.fbx` | Refused, with the reason. Where the source offers a glTF or GLB version of the model, download that instead. |
 
 Every import shows a report. A `.skp` report gives the format version and container, the file's
@@ -915,7 +915,7 @@ of decimals) and `--format csv` or `json`. `--report OUT.csv --schedule NAME` ru
 manage them. The command line never changes the model and never replaces a file.
 
 **What is not counted.** Sheets, views and items are listed in the file's metadata, not in any total. The
-in-app assistant cannot run reports or schedules. Quantities, reports and schedules are not in the 1.3.0
+in-app assistant cannot run reports or schedules. Quantities, reports and schedules are in the 1.4.0 group, released only through the M10 gate
 declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Presentation batches
@@ -928,7 +928,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Command line.** `sketchyup-cli --input MODEL.sketchyup --export-presentation REQUEST.json` runs a batch without the desktop. The request names the saved scenes, the presets, the new output folder and whether to write video; `--describe-command export-presentation` lists the fields. Ctrl+C cancels at the next frame and exits with status 130.
 
-**Limits.** A batch needs the optional Blender 5.2 LTS and runs one Blender worker at a time. On a 3,700-body test model, each 1024 × 768 frame at 32 samples took about 13 seconds on the CPU; a full 240-frame, four-preset batch is projected at about three and a half hours. A batch writes at most 2 GiB. A terrain of 250,000 triangles cannot be rendered. A Blender that changes after the dialog opens can refuse Start with a wrong reason. Camera paths and batch output are not in the 1.3.0 declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A batch needs the optional Blender 5.2 LTS and runs one Blender worker at a time. On a 3,700-body test model, each 1024 × 768 frame at 32 samples took about 13 seconds on the CPU; a full batch of 240 frames for each of four presets (960 frames) is projected at about 3.4 hours at the mean frame time. A batch writes at most 2 GiB. A terrain of 250,000 triangles cannot be rendered. Camera paths and batch output are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Custom styles and asset catalogs
 
@@ -944,7 +944,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Older releases.** An edge stroke saves the file as format 31, and a sized material as format 33. SketchyUp 1.3.x and 1.2.x refuse both with "Unsupported container field". To save a file that those releases must open, turn off the edge stroke and clear the material sizes first; the file then saves in the lowest format its content needs.
 
-**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are not in the 1.3.0 declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Troubleshooting
 

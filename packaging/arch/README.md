@@ -18,8 +18,8 @@ them; for the IFC helper they are `boost`, `eigen`, `opencascade` and `patchelf`
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
-sudo pacman -U sketchyup-1.3.0-1-x86_64.pkg.tar.zst
-sudo pacman -U sketchyup-ifc-1.3.0-1-x86_64.pkg.tar.zst   # optional: IFC helper
+sudo pacman -U sketchyup-1.4.0-1-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-ifc-1.4.0-1-x86_64.pkg.tar.zst   # optional: IFC helper
 ```
 
 The version has one source: `project(SketchyUp VERSION ...)` in `CMakeLists.txt`
@@ -88,10 +88,9 @@ the same source to exercise clean install and upgrade hooks. The preceding packa
 the previous release in the series: `pkgrel - 1` of the same version; for the first
 `pkgrel` of a patch version, the previous patch at `pkgrel` 1 (`1.0.1-1` upgrades from
 `1.0.0-1`); and for the first `pkgrel` of `x.y.0`, the newest earlier entry of the
-script's `released_packages` table (`1.3.0-1` upgrades from `1.2.0-1`, `1.2.0-1` from
-`1.1.1-1`, `1.1.0-1` from
-`1.0.1-1`, `1.0.0-1` from
-the development package `0.1.0-3`). `vercmp` must order the table and each pair. A new
+script's `released_packages` table (`1.4.0-1` upgrades from `1.3.0-1`, `1.3.0-1` from
+`1.2.0-1`, `1.2.0-1` from `1.1.1-1`, `1.1.0-1` from `1.0.1-1`, `1.0.0-1` from the development
+package `0.1.0-3`). `vercmp` must order the table and each pair. A new
 minor version whose previous series is missing from the table stops with an error, so
 add each published release to it. After the upgrade it
 checks `pacman -Q` and `sketchyup-cli --version`. Both packages contain the current
@@ -108,11 +107,13 @@ It verifies the package's SHA-256 (pinned in the script per file name, or
 passes its CLI to `check()` as `SKETCHYUP_PRIOR_CLI`. After installation, the released
 CLI must refuse every retained fixture newer than the schemas it reads and leave it
 unchanged, and must accept a sheet-free document saved by the new package. CI downloads
-the latest release, `sketchyup-1.2.0-1-x86_64.pkg.tar.zst` from the v1.2.0 release.
-The 1.2.0-1 CLI reads schema 28, and no retained fixture is newer, so for 1.3.0 the
-schema-29 (terrain) refusal is checked in `check()`: `terrain_io` passes only if the
-released CLI refuses a schema-29 file and leaves it unchanged, and `component_parameter_io`
-requires it to open schema-28 files unchanged.
+the latest release, `sketchyup-1.3.0-1-x86_64.pkg.tar.zst` from the v1.3.0 release.
+The 1.3.0-1 CLI reads schemas 1 to 29. For 1.4.0 the retained fixtures newer than that are
+refused by the tests in `check()`, each of which requires the released CLI to refuse its
+file and leave it unchanged: `presentation_io` (schema 30), `style_bundle` (schema 31),
+`geographic_site` (schema 32) and `material_texture_size` (schema 33). `terrain_io` and
+`component_parameter_io` require it to open the schema-29 and schema-28 files unchanged, and
+`drawing_sheet_io` the schema-27 files.
 
 After upgrading, the installed CLI migrates the retained historical native fixtures
 to new files. `scripts/verify-installed-migrations.py` checks source hashes, identity,

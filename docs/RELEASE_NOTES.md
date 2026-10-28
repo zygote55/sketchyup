@@ -1,12 +1,261 @@
 # SketchyUp release notes
 
-## Unreleased
+## 1.4.0
 
-- Dynamic Components: attributes read as read-only properties; formulas and behaviour are not run.
-  The `.skp` import keeps a Dynamic Component's `dynamic_attributes` values as properties, at instance
-  and definition level, with Lengths in metres. Formulas and `onClick` are kept as text and never
-  evaluated or run. The 1.3.0 note on Dynamic Components (below) was true for that release, which did
-  not import `.skp` files ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md)).
+SketchyUp 1.4.0 is a minor release. It adds one named group of Extended rows, the group that
+[M10 acceptance](M10_ACCEPTANCE.md) calls the 1.4.0 group: IFC and STEP exchange (scope row F04),
+camera paths and batch presentations (F05), custom styles and asset catalogs (F06), quantities,
+reports and schedules (F07), `.skp` import (C01, import only), offline geographic coordinates (C06,
+offline only) and the helper process sandbox (R109). The group is gated as one release, and it is
+not claimed until its record is accepted. The release record, written at the release candidate,
+will be `docs/verification/G-1.4.0.md`. The [support matrix](SUPPORT_MATRIX.md)
+states what is supported, and the [user guide](USER_GUIDE.md) describes each workflow.
+
+Existing commands, queries and schemas keep their shapes; everything new is additive, as a minor
+version allows ([ADR 0162](decisions/0162-release-versioning.md)). A document that uses none of the
+new features is written exactly as 1.3.0 writes it.
+
+### IFC import and export
+
+IFC support covers three schemas for import and IFC4 for export ([ADR 0171](decisions/0171-ifc-exchange-subset.md)).
+
+- **File → Import IFC…** reads `IFC2X3`, `IFC4` (IFC4 ADD2 TC1) and `IFC4X3_ADD2` (the building
+  subset of IFC 4.3.2.0) into a new, unsaved model. It keeps the spatial structure (project, site,
+  building, storey and space), the elements with a body, their properties and quantities, and their
+  materials and colours. The report lists everything it did not import. The source file is never
+  changed.
+- **File → Export IFC…** writes `IFC4` only, tessellated, with no view definition and no
+  certification claim. It never replaces an existing file.
+- The command line does the same work: `sketchyup-cli --import-ifc` and `--export-ifc`. The helper,
+  `sketchyup-ifc-worker`, is in the optional `sketchyup-ifc` package.
+- A map conversion with no rotation sets the site origin. A rotation keeps the project axes unless
+  `--ifc-georef grid` is given. A non-metre map unit, a scale, several conversions or a non-identity
+  world coordinate system is reported, and the last is refused.
+
+### STEP import and export
+
+STEP support reads AP203 and AP214, and AP242 on a best-effort basis; it writes AP214 (the default)
+or AP203 ([ADR 0172](decisions/0172-step-exchange-subset.md)).
+
+- **File → Import STEP…** and `sketchyup-cli --import-step` read a STEP file into a new, unsaved model.
+  A declared unit converts and is reported. An undeclared unit is refused unless you choose one; the
+  unit is never guessed.
+- **File → Export STEP…** and `sketchyup-cli --export-step` write a new file. AP242 is never written:
+  a request for it is refused.
+- Assemblies, instances, names, flat colours, `step.Layer` and hidden parts come across in both
+  directions. A layer's own on/off switch, material names, opacity and textures do not.
+- Curved surfaces arrive as meshes of flat faces. They are not editable as curves, and an export
+  writes the mesh only.
+
+### `.skp` import
+
+**File → Import .skp file…** and `sketchyup-cli --import-skp` read a SketchUp model file (`.skp`) as a
+new, unsaved SketchyUp model ([ADR 0176](decisions/0176-skp-import.md)). The file is read by OpenSKP,
+an MIT-licensed reader that runs in a sandboxed helper. There is no `.skp` export.
+
+- Imported: faces with their holes, edges with their flags, components, tags, materials with their
+  textures (PNG and JPEG are kept; other formats are converted), names and attributes. A Dynamic
+  Component's attributes come across as read-only properties.
+- Not imported: scenes, styles, section planes, text, dimensions, guides and the camera. A group
+  becomes a component used once, not a group, as [ADR 0176](decisions/0176-skp-import.md) §4 notes as
+  a gap.
+- A file from before 2013 is refused with advice to save it again. A 2013 to 2020 file is read on a
+  best-effort basis and labelled as such in the report.
+
+### Camera paths and batch presentations
+
+- **Camera → Presentations…** edits named camera paths of two to 32 saved scenes, and named render
+  presets (settings only). A path plans at most 240 frames, and a document holds at most 64 paths and
+  16 presets ([ADR 0173](decisions/0173-camera-paths-batch-output.md)).
+- **Export presentation batch…** (in command search) renders one capture through up to four presets
+  to a new folder: PNG frames with a JSON record for each frame, a batch `manifest.json`, and an
+  optional H.264 MP4 for each preset. Blender 5.2 LTS renders the frames. A batch is refused before any
+  frame renders when the chosen codec is missing from that Blender. MPEG-4 Part 2 is offered only as an
+  explicit choice when H.264 is missing.
+- `sketchyup-cli --export-presentation` runs the same batch from a request file of at most 16 KiB.
+  Ctrl-C (SIGINT) cancels at the next frame boundary and keeps the finished frames.
+- Camera paths and render presets save with the document as schema 30 (`presentation-v1`).
+
+### Custom styles and asset catalogs
+
+- **Edge strokes** in the document style: width, opacity, dash and an optional texture. A missing
+  texture draws hatched, with a status chip that opens the Styles tab. Saved as schema 31
+  (`edge-styles-v1`) ([ADR 0174](decisions/0174-custom-styles-asset-authoring.md)).
+- **Textured material presets:** fifteen under **Textured** in the New material dialog, nine CC0
+  textures from Poly Haven and six generated ones. Each preset shows its source and licence. The Poly
+  Haven notice is in `THIRD_PARTY_NOTICES`.
+- **Material texture size:** a material can store the metres that one texture repeat covers, in
+  **Set size** in the New and Edit material dialogs. Saved as schema 33 (`material-texture-size-v1`).
+- **Styles** (`.sketchystyle`): **File → Import style…** and **File → Export style…**, and a Style
+  library section in the Styles tab. A missing texture is named and nothing is applied or written.
+- **Asset catalogs** (`.sketchycat`): **File → Asset catalogs…** lists the catalogs in the library
+  folder and any catalog you open, with search and a Kind filter, and inserts the chosen entries at the
+  model's origin as one undo step. **File → Export asset catalog…** writes components, materials and a
+  style to a new file. A tampered or incomplete entry is refused and named; it is never replaced with a
+  default. The command line has `--import-style`, `--export-style`, `--list-catalog`, `--import-catalog`
+  and `--export-catalog`.
+
+### Quantities, reports and schedules
+
+- **View → Quantities** shows the counts, areas and volumes of the model, grouped by kind, tag, material
+  or definition. Hidden content is included unless you choose Visible only. CSV is the file of record
+  and JSON is also available; both write a new file only ([ADR 0175](decisions/0175-quantities-reports-schedules.md)).
+- A solid counts toward volume only when it validates. Other solids are listed with their reason, and
+  their area still counts. Sheets, views and items appear only in the file's metadata.
+- `sketchyup-cli --report` writes a report file. `--save-schedule`, `--list-schedules`,
+  `--delete-schedule` and `--schedule` manage saved schedules, which are kept on the computer, not in
+  the model. Over MCP and the session, `report.run` and `report.schedule` are available. The in-app
+  assistant cannot run either.
+
+### Geographic site coordinates
+
+- A site can carry a geographic record: a WGS84 or NAD83 position, converted to UTM with an in-house
+  series, with no network, grid file or PROJ library ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md)).
+  A site with the record is schema 32 (`geographic-site-v1`); a site without it keeps its schema.
+- The sun panel's **Use site location** applies the position as one undo step. The site and solar
+  describe operations report and warn when the two locations disagree.
+
+### Dynamic Components in `.skp` files (read-only)
+
+A Dynamic Component's `dynamic_attributes` values come across as read-only properties, at instance and
+definition level, with lengths in metres. Formulas (`_<name>_formula`, `_material_formula`) and
+`onClick` are kept as text and are never evaluated or run. A Live Component is not identified, because
+the file does not mark it ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md)).
+
+### Helper process sandbox
+
+The `.skp`, IFC and STEP, text, extension and Blender helpers run under a sandbox: `PR_SET_NO_NEW_PRIVS`,
+a Landlock ruleset that confines each helper to its input and a private directory, and a seccomp-bpf
+allow-list with a kill default. A helper cannot open a socket or run another program, and it reads only the files
+its policy names: its input, a private directory, and for the text helper the font folders and the locale. A call outside its policy ends the helper and is reported as a sandbox violation; it is not
+restarted. A helper whose sandbox layer cannot be installed refuses, naming the layer, and reads
+nothing ([ADR 0183](decisions/0183-helper-process-sandbox.md)). The `sandbox_available` check is required
+in CI.
+
+### Other changes
+
+- **Online libraries:** SketchyUp does not search, sign in to or download from any online library. You
+  download a file yourself and import it. A ZIP archive, COLLADA (`.dae`), USDZ and FBX file is refused with
+  the reason ([ADR 0179](decisions/0179-hosted-asset-access-feasibility.md)).
+- The asset catalogs dialog no longer stalls the window on a large catalog. Selecting an entry in a
+  catalog opened from a file takes about 0.1 s on a 128 MiB catalog, against about 2 s before.
+- The Outliner rebuilds only when what it shows changes. A placement move on a 100,000-face model
+  takes about 37 ms of its work, against about 148 ms before (Release, p50).
+- The render queue refuses a request for a result before the render finishes, and keeps the render's
+  state. Presentation frames no longer carry Blender's date, time and statistics text chunks, so a
+  frame renders to the same bytes.
+
+### File format
+
+1.4.0 reads document versions 1 through 33 and writes the schema each document needs:
+
+| Schema | Feature | Written when |
+| --- | --- | --- |
+| 33 | `material-texture-size-v1` | a material has a texture size |
+| 32 | `geographic-site-v1` | the site has a geographic record |
+| 31 | `edge-styles-v1` | the document style has an edge stroke |
+| 30 | `presentation-v1` | the document has a camera path or a render preset |
+| 29 | `terrain-v1` | the document has a terrain or a site origin |
+| 28, 27, 26 | component parameters, sheets, none | as in 1.3.0 |
+
+A document with more than one feature is written at the highest schema it needs.
+
+SketchyUp 1.3.0 refuses schemas 30 to 33 with "Unsupported container field" and leaves the file
+unchanged. The published 1.3.0-1 package was checked against each of these files, and the
+package acceptance runs the same checks. Files at schema 29 and below open in 1.3.0.
+
+### Upgrade from 1.3.0-1
+
+Run `pacman -U sketchyup-1.4.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helper, also install
+`sketchyup-ifc-1.4.0-1-x86_64.pkg.tar.zst`; the helper is optional. Package acceptance upgrades a
+1.3.0-1 package built from the release source to 1.4.0-1, and checks that the 1.3.0-1 CLI refuses
+each newer file unchanged.
+
+To roll back, install `sketchyup-1.3.0-1-x86_64.pkg.tar.zst` with `pacman -U`. A document with a
+camera path or preset, an edge stroke, a geographic site or a material texture size does not open
+in 1.3.0. Copy such a document before you open it in 1.4.0 if you may need 1.3.0. When 1.4.0 saves
+over an existing document, the previous bytes are kept as `NAME.sketchyup.bak`.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.4.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch packages | `sketchyup` 1.4.0-1, x86_64; `sketchyup-ifc` 1.4.0-1 (optional, IFC and STEP helper) |
+| Native document | Schema 33 at most, in SKUPDOC container version 2; reads versions 1 through 33. Saves record the writer `SketchyUp/1.4.0` |
+| MCP, inspection, transactions and other public schemas | Same versions as 1.0.0, with the additive sheet (1.1.0), component parameter (1.2.0), site and terrain (1.3.0) and presentation, style, catalog, report and geographic operations and queries (1.4.0) |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the 1.2.0 limits. Evaluated at the release candidate against corpus v6; the results are in the release record |
+| New third-party code | OpenSKP (MIT, `.skp` import, in `sketchyup`), IfcOpenShell 0.9.0 with the OpenCASCADE libraries it needs (LGPL, IFC and STEP helper, in `sketchyup-ifc`), and the Poly Haven CC0 textures. Their notices are in the release's `THIRD_PARTY_NOTICES` |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.0.0. The camera paths, batches and textured
+presets need Blender 5.2 LTS.
+
+### Known limitations
+
+The 1.3.0 limitations still apply where a row above does not lift them. For the 1.4.0 group:
+
+- **IFC is not yet accepted.** Its acceptance record is partial: the owner's
+  buildingSMART hosted validation has not been run, so the IFC4 export claim is conditional on it, and
+  the native matrix runs on the pull request. A model of about 10,000 bodies imports in 11 to 12 s,
+  over its 10 s budget. A damaged-file run of 5,120 mutations found one crash in the IFC library,
+  which is not fixed.
+- **IFC limits:** a file over 128 MiB or 2,000,000 entities is refused. A model over the document limits
+  (100,000 vertices or faces, 10,000 bodies) imports partly, and the report names what is left out. IFC
+  4.3 infrastructure, advanced breps, NURBS, CSG, swept solids, revolutions and parametric profiles are
+  not imported. `IFC2X3` and `IFC4X3` are not exported. `.ifczip`, `.ifcXML`, `.ifcJSON` and IFC5 are not
+  read. Two IFC classes, `IfcGrid` and `IfcRelNests`, are omitted, and `IfcAnnotation` and
+  `IfcVirtualElement` are reported as unsupported.
+- **STEP is not yet accepted.** Its record is partly met: three of eight checks pass in full, five are
+  partial, and three budgets are missed and await the owner's decision. The end-to-end import of a
+  100-sphere model takes 13.8 to 15.8 s against a 10 s budget. Exporting the 90,954-face model imported
+  from it takes 16.6 to 16.8 s against 5 s. The export of a 1,000,000-triangle model was not re-run.
+- **STEP limits:** 128 MiB input, 1,000,000 triangles and 100,000 triangles per element. A document holds
+  100,000 faces of unique geometry, so a curved model stops at about 100,000 triangles and the rest is
+  left out and named in the report. A STEP export is refused above 256 MiB, which is reached at about
+  110,000 triangle faces of curved imports. A limit breach or a helper kill fails the import; there is
+  no restart. Cancel latency on the real helper was not measured.
+- **`.skp` import is tested on one model.** The release tested one 2024 model and 15 synthetic files. 2021 and later is the stated range; 2013 to 2020 is best effort. Some 2013 to 2020 files fail:
+  one cause, in a text label, is known (OpenSKP issue 442), and another, in files from 2017 to 2020, is not
+  yet understood. Dynamic Component formulas are not run, and Live Components are not identified. There is
+  no export.
+- **Camera paths and batches:** a 250,000-triangle terrain cannot be rendered or batched; the GLB export
+  refuses more than 100,000 visible faces, and the render snapshot refuses more than 20,000 bodies. A
+  full 960-frame batch (240 frames for each of four presets, at 1024 × 768 and 32 samples) is projected at
+  about 3.4 hours on the test machine. It has progress, and it cancels at frame boundaries. An Eevee
+  preset with no finished frame cannot resume. There is no HDR environment in version 1.
+- **Styles and catalogs:** a catalog import has no progress and no cancel; a 128 MiB catalog imports one
+  entry in about 0.6 s. Catalog components are not deduplicated, templates in a catalog cannot be opened
+  as a model, and placement is at the origin only. Three style-dialog differences from the design: there
+  is no **Save report…** button (**Copy report** is there), the usage bar is in three colours rather than
+  hatched, and a refused save uses the wording "Save refused:", which the design does not give. The in-app
+  assistant cannot change styles or catalogs.
+- **Quantities:** a solid that fails validation has no volume, and terrain has area only. A material filter
+  applies to area rows only. A schedule keeps its precision, not its display units. Cancel acts between
+  records, so one very large body cannot be interrupted. On a model of about 100,000 faces, an edit holds the
+  UI for 0.3 to 0.4 s locally and 0.85 s in CI; this is outside the report code.
+- **Geographic coordinates:** WGS84 and NAD83 only. NAD83 is an approximation and is labelled as one. OSGB36
+  and ETRS89 are refused by name. The UTM grid covers 80° S to 84° N, and Norway and Svalbard are refused by
+  name. There is no online lookup, no elevation import and no attribution.
+- **Helper sandbox:** Linux only. It needs Landlock and seccomp. Unavailable layers refuse the import with a
+  named reason. The kernels of 24.04 and 26.04 were not measured. Access to `chmod`, `/proc` reads and device
+  `ioctl` calls is not limited.
+- **Online libraries:** SketchyUp makes no network request for them. A ZIP archive, COLLADA (`.dae`), USDZ and
+  FBX file is refused with the reason; a ZIP archive must be extracted first.
+- **Assistant:** the in-app assistant cannot run the report, the schedule or the presentation commands, nor
+  change styles, catalogs or parameters.
+
+The open-defect list is [R089.a](verification/R089a-defect-triage.md).
+
+### Not in this release
+
+- The Investigate rows C02 (Ruby extensions), C05 (DWG), C07 (collaboration) and the Dynamic and Live
+  Component formula mapping (R104.b). Each was deferred or found not viable ([ADR 0177](decisions/0177-ruby-extension-feasibility.md),
+  [ADR 0180](decisions/0180-dwg-feasibility.md), [ADR 0182](decisions/0182-collaboration-feasibility.md)).
+- Geographic elevation import (DEM and GeoTIFF from user downloads), credits in exports, geocoding and the
+  geographic documentation (R107.b to R107.e), and orthophoto placement.
+- Hosted-asset adapters (R105.b to R105.d). Only user-mediated downloads are in this release.
+- `.skp` export, IFC2X3 and IFC4X3 export, STEP AP242 export, and any import format beyond the ones above.
+- Ruby extension compatibility, native `.skp` support beyond import, and full SketchUp parity.
 
 ## 1.3.0
 
