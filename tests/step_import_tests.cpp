@@ -288,6 +288,120 @@ int main(int argc, char **argv) {
                 check(error.code() == "workerMissing", "a missing helper is refused as workerMissing");
             }
         }
+        // R098.e, E6 (ADR 0172 section 7): a file over 128 MiB is refused by the application before any helper starts. The
+        // stand-in hangs, so a helper that did start would end in a timeout instead. A file of exactly 128 MiB passes the
+        // application's check (sparse files: no disk is used).
+        {
+            const QString big = root.path() + "/over-limit.step";
+            QFile file(big);
+            check(file.open(QIODevice::WriteOnly), "the over-limit file opens");
+            check(file.write("ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 2 10303 214 0 1 1 1 }'));\nENDSEC;\n"
+                             "DATA;\nENDSEC;\nEND-ISO-10303-21;\n") > 0, "the over-limit header is written");
+            check(file.resize(128 * 1024 * 1024), "the file is resized to 128 MiB");
+            file.close();
+            check(checkStepSource(big).schema == "ap214", "128 MiB exactly passes the application's size check");
+            QFile grown(big);
+            check(grown.open(QIODevice::ReadWrite) && grown.resize(128 * 1024 * 1024 + 1), "the file is resized to 128 MiB + 1 byte");
+            grown.close();
+            try {
+                importStepFile(big, workerOptions(hang, 30));
+                check(false, "a file of 128 MiB + 1 byte is refused");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "tooLarge", "128 MiB + 1 byte is refused as tooLarge: " + error.code());
+                const std::string words(error.what());
+                check(words.find("134217729") != std::string::npos && words.find("128 MiB") != std::string::npos,
+                      "the refusal names the size and the limit: " + words);
+            }
+        }
+        // E6: a helper killed by SIGSEGV mid-run is a failed import with its log tail; the import throws and creates nothing.
+        {
+            const QString crash = executable(
+                root.path(), "worker-segv",
+                standIn("{\"ok\":true}", QStringLiteral("    echo 'P phase tessellate'\n"
+                                                        "    echo 'stand-in: crashing with SIGSEGV' >&2\n"
+                                                        "    kill -SEGV $$\n")));
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), workerOptions(crash, 30));
+                check(false, "a helper killed by SIGSEGV is a failed import");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "workerFailed", "SIGSEGV: a failed import: " + error.code());
+                check(std::string(error.what()).find("crash") != std::string::npos, "SIGSEGV: the reason is a crash");
+                const QJsonObject report = error.report();
+                check(report["logTail"].toString().contains("SIGSEGV"), "SIGSEGV: the log tail is in the report");
+                check(report["engine"].toObject()["stops"].toArray().first().toString() == "crash (tessellate)",
+                      "SIGSEGV: the stop names the phase");
+            }
+        }
+        // E6: a helper over RLIMIT_AS. The stand-in applies the limit the application passes (--rlimit-as) and then asks for
+        // more memory than that, as an allocation of the helper would; its log tail says so, as the helper's does.
+        {
+            const QString memory = executable(
+                root.path(), "worker-as",
+                standIn("{\"ok\":true}", QStringLiteral(R"(
+    limit=""
+    prev=""
+    for arg in "$@"; do
+        if [ "$prev" = "--rlimit-as" ]; then limit="$arg"; fi
+        prev="$arg"
+    done
+    echo 'P phase tessellate'
+    ulimit -v $((limit / 1024))
+    python3 -c 'import sys
+try:
+    bytearray(512 * 1024 * 1024)
+except MemoryError:
+    sys.stderr.write("std::bad_alloc: the address space limit was reached\n")
+    sys.exit(1)
+sys.exit(0)' || exit 1
+)")));
+            StepWorkerOptions options = workerOptions(memory, 30);
+            options.addressSpaceBytes = qint64(256) * 1024 * 1024;
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), options);
+                check(false, "a helper over RLIMIT_AS is a failed import");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "workerFailed", "RLIMIT_AS: a failed import: " + error.code());
+                check(std::string(error.what()).find("memory") != std::string::npos, "RLIMIT_AS: the reason is memory");
+                const QJsonObject report = error.report();
+                check(report["logTail"].toString().contains("bad_alloc"), "RLIMIT_AS: the log tail is in the report");
+            }
+        }
+        // E6: a helper over RLIMIT_CPU is ended by SIGXCPU. The stand-in sets its own two-second CPU limit (the helper receives
+        // --rlimit-cpu, four deadlines; this deadline is six seconds of wall time, so the stand-in's limit comes first).
+        {
+            const QString cpu = executable(
+                root.path(), "worker-cpu",
+                standIn("{\"ok\":true}", QStringLiteral("    echo 'P phase tessellate'\n"
+                                                        "    echo 'stand-in: cpu limit of two seconds' >&2\n"
+                                                        "    ulimit -t 2\n"
+                                                        "    while :; do :; done\n")));
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), workerOptions(cpu, 6));
+                check(false, "a helper over RLIMIT_CPU is a failed import");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "workerFailed", "RLIMIT_CPU: a failed import: " + error.code());
+                const QJsonObject report = error.report();
+                check(report["logTail"].toString().contains("cpu limit"), "RLIMIT_CPU: the log tail is in the report");
+                check(report["engine"].toObject()["stops"].toArray().first().toString() == "crash (tessellate)",
+                      "RLIMIT_CPU: the stop is a crash in the tessellation");
+            }
+        }
+        // R098.e, E8 (ADR 0172 section 5): a message is at most 256 bytes and the report at most 64 KiB. The stand-in refuses with
+        // a 5,000-byte message; the application keeps the message to 240 bytes, the bound its helper's texts are clipped to too
+        // (step_import.cpp clips the kernel messages to 240 bytes).
+        {
+            const QString verbose = executable(root.path(), "worker-long",
+                                               standIn("{\"ok\":true}", refuseBody("units", QString(5000, QChar('m')))));
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), workerOptions(verbose));
+                check(false, "a refusal with a long message is refused");
+            } catch (const IfcImportError &error) {
+                const auto size = std::string(error.what()).size();
+                check(size <= 256, "E8: the message is at most 256 bytes, got " + std::to_string(size));
+                check(QJsonDocument(error.report()).toJson(QJsonDocument::Compact).size() <= 64 * 1024,
+                      "E8: the report is within 64 KiB");
+            }
+        }
     } catch (const std::exception &error) {
         std::cerr << "failure: " << error.what() << '\n';
         return 1;
