@@ -57,7 +57,7 @@
     "blender": "Blender 5.2.2 LTS at /usr/bin/blender (build 2026-10-13); CI uses 17:5.2.2-2",
     "conditions": "ADR 0173 §5 names the pinned image and software rendering for the CPU rows; these runs are local, on this machine, with Cycles on the CPU"
   },
-  "status": "Accepted (R099.e). The Verify line holds. Every section 6 row holds, two as amended by the parent: P4 (the schema row names the released readers' 'Unsupported container field' refusal, contradiction C2) and P5 (the determinism row's per-frame metadata names the fields the batch compares). Section 5: nine of ten rows pass; the per-frame preparation row is not frozen (no row to compare). Owner decisions 2, 3, 4 and 5 are carried to the 1.4.0 release decisions; decision 8 is the live corpus run at the 1.4.0 RC, approved by the owner on 2026-10-27.",
+  "status": "Accepted (R099.e). The Verify line holds. Every section 6 row holds, two as amended by the parent: P4 (the schema row names the released readers' 'Unsupported container field' refusal, contradiction C2) and P5 (the determinism row's per-frame metadata names the fields the batch compares). Section 5: all ten rows pass against the budgets in force on 2026-10-28 (the per-frame preparation budget was set by the owner). Owner decisions 2, 3, 4 and 5 were decided on 2026-10-28 (the 1.4.0 decisions 1 to 4); decision 8 is the live corpus run at the 1.4.0 RC, approved by the owner on 2026-10-27.",
   "verifyLine": "met",
   "checks": {
     "verifyFrameCountAndTiming": "pass: presentation_record_tests (240 inclusive, the formula), presentation_command_tests (8 frames), presentation_export_tests (6 frames; 240 refused); scripted R1 (8 per preset), S6 (12 per preset), refusal e (1,129 frames)",
@@ -143,12 +143,12 @@
     "pathRecordEdit": {
       "budget": "within the ordinary document-edit row (BUILD_PLAN routine primitive edit: p95 feedback below 100 ms); 512 KiB record budget measured at load (proposed)",
       "measured": "core edit p95: create 0.002 ms, update 0.002 ms, erase 0.003 ms; 100 cycles each; load 3.08. Records at load: 64 paths and 16 presets decode p95 0.422 ms, presentation tables 10,571 bytes",
-      "verdict": "pass (the byte budget cannot bind; owner decision 5)"
+      "verdict": "pass (the count caps bind; the 512 KiB byte budget is dropped by 1.4.0 decision 4, 2026-10-28, and the code still enforces it)"
     },
     "presetRecordEdit": {
       "budget": "within the ordinary document-edit row; 256 KiB record budget measured at load (proposed)",
       "measured": "core edit p95: create 0.002 ms, update 0.002 ms, erase 0.002 ms; 100 cycles each",
-      "verdict": "pass (owner decision 5)"
+      "verdict": "pass (the 256 KiB byte budget is dropped by 1.4.0 decision 4, 2026-10-28, and the code still enforces it)"
     },
     "batchCapture250kTriangles": {
       "budget": "p95 <= 500 ms (proposed)",
@@ -156,9 +156,9 @@
       "verdict": "pass after PR #500 (the 2026-10-27 fail is superseded; owner decision 1 is no longer needed)"
     },
     "perFramePreparation": {
-      "budget": "within the existing GLB preparation row, measured per frame",
+      "budget": "p95 <= 1 s per frame (1.4.0 decision 1, 2026-10-28; the cited GLB row has no number)",
       "measured": "p50 304 ms, p95 323 ms; 6 runs over 3 frames; 92,500 triangles (3,700 bodies); load 2.08",
-      "verdict": "not frozen: the cited row has no number in the repository (owner decision 2)"
+      "verdict": "pass against the 1 s p95 budget (owner decision, 2026-10-28; the cited row had no number)"
     },
     "perFrameRender": {
       "budget": "<= 180 s including the CPU fallback; PNG at most 64 MiB, hash-verified (ADR 0173 section 5)",
@@ -168,7 +168,7 @@
     "wholeBatch": {
       "budget": "measured and reported (no fixed cap; progress and cancel at frame boundaries; remaining 2 GiB surfaced per frame) (proposed)",
       "measured": "reduced run: 4 presets x 12 frames = 48 frames in 604 s wall (mean 12.6 s per frame), all hash-verified. Projected for 960 frames: about 3.4 h (3.9 h at the p50 interval), about 0.65 GB output (2 GiB budget). The 960-frame run was not made",
-      "verdict": "pass, reported (owner decision 3, open)"
+      "verdict": "pass, reported; projection accepted and no full run (1.4.0 decision 2, 2026-10-28)"
     },
     "store": {
       "budget": "8 pending, 16 retained, 2 GiB (the R070 limits)",
@@ -209,10 +209,10 @@
     "convention": "the exporter maps Z-up to glTF Y-up as (x, y, z) -> (x, z, -y); the importer maps Y-up to Blender Z-up as (x, y, z) -> (x, -z, y); composed, the identity, so no conversion is applied"
   },
   "gapsCarried": [
-    "Owner decision 2: the per-frame preparation row has no GLB number",
-    "Owner decision 3: the whole-batch length (the 960-frame run was not made)",
-    "Owner decision 4: 250,000-triangle terrains cannot be rendered or batched (GLB and body limits)",
-    "Owner decision 5: the byte budgets (512 KiB, 256 KiB) cannot bind",
+    "1.4.0 decision 1 (R099.e owner decision 2): the per-frame preparation budget is 1 s at p95; decided 2026-10-28, measured 323 ms",
+    "1.4.0 decision 2 (R099.e owner decision 3): the whole-batch projection of about 3.4 h is accepted; the 960-frame run is not made",
+    "1.4.0 decision 3 (R099.e owner decision 4): 250,000-triangle terrains cannot be rendered or batched; the GLB and body limits stay for 1.4.0 and raising them is planned for 1.5",
+    "1.4.0 decision 4 (R099.e owner decision 5): the 512 KiB and 256 KiB byte budgets are dropped and the count limits stay; the code still enforces the byte budgets (src/core/presentation_records.cpp lines 68 and 85), and removing them is a code change not made here",
     "Owner decision 8: the live version-6 assistant run, carried to the 1.4.0 RC (one live corpus run approved by the owner on 2026-10-27)",
     "Sanitizer runs of presentation_input_tests, presentation_batch_input_tests and presentation_cli_tests: not in the sanitize lists",
     "parser_fuzz_presentation is not run by CI",
@@ -229,13 +229,13 @@
     "R099.e2 gap, FIXED in R099.e3: RenderQueue::result() on a running job made jobs() show it as Failed, and the entry outlived the job (render_queue.cpp; the test fails on the old code)",
     "R099.e2 gap, FIXED in R099.e3: the MPEG-4 refusal said H.264 (presentationVideoRefusal names the chosen codec; tested for both codecs)",
     "R099.e2 gap, FIXED in R099.e3: the worker reported no camera (the rendered camera, renderedCamera, is reported and checked)",
-    "C4: a 250,000-triangle terrain document is captured, but cannot be prepared: GLB has too many visible faces (glb_export.cpp line 277, observed); a 72,000-face model with 6,000 placements is refused with 'Export artifacts exceed bounds' (JSON over 16 MiB, glb_export.cpp lines 577 and 640, observed); the render snapshot refuses more than 20,000 bodies (render_snapshot.cpp line 250). Owner decision 4 (open)",
+    "C4: a 250,000-triangle terrain document is captured, but cannot be prepared: GLB has too many visible faces (glb_export.cpp line 277, observed); a 72,000-face model with 6,000 placements is refused with 'Export artifacts exceed bounds' (JSON over 16 MiB, glb_export.cpp lines 577 and 640, observed); the render snapshot refuses more than 20,000 bodies (render_snapshot.cpp line 250). Owner decision 4 (decided 2026-10-28 as 1.4.0 decision 3: the limits stay; raising them is planned for 1.5)",
     "C3: 'identical PNG bytes': RESOLVED by parent decision P1 (R099.e2): the stamp is off and the PNG text chunks are stripped; the PNG bytes are identical across real batches",
     "C2: the schema-30 refusal by the released readers uses the container's wording, not the newer-format wording §6 named. Refused and unchanged. RESOLVED by parent decision P4: the §6 row names the container's wording",
     "C1: the per-frame JSON is 70,208 bytes, not about 207 KB (UX 17.11 gap 7; ADR section 5)",
     "C5: a request over 16 KiB: RESOLVED by parent decision P2 (R099.e2): LIMIT_EXCEEDED; a request that cannot be read stays INPUT_ERROR",
-    "The capture budget: RESOLVED by PR #500 (p95 160 to 183 ms against 500 ms). The per-frame preparation row has no number (owner decision 2, open)",
-    "The whole batch takes about 3.4 hours projected at 240 x 4 at 1024x768 / 32 samples on this machine (owner decision 3, open)",
+    "The capture budget: RESOLVED by PR #500 (p95 160 to 183 ms against 500 ms). The per-frame preparation budget is set by the owner at 1 s p95 (1.4.0 decision 1, 2026-10-28); measured 323 ms, passes",
+    "The whole batch takes about 3.4 hours projected at 240 x 4 at 1024x768 / 32 samples on this machine (accepted by the owner as 1.4.0 decision 2, 2026-10-28; no full run)",
     "P5 (decided): the determinism row's per-frame metadata clause names the fields verifySameFrames compares (camera, scene, keyframe flag, source manifest), not the diagnostics log"
   ],
   "decisions": {
@@ -244,7 +244,7 @@
       "R2 schema 30's lowest-schema rule accepted as recorded (R099.a)",
       "R3 the capture row's document is quantities-b's terrain (249,218 triangles, no placements); preparation and rendering use the 92,500-triangle, 3,700-body document",
       "R4 the whole-batch row is frozen pass, reported, on a measured 48-frame run and the projection",
-      "R5 the per-frame preparation row is not frozen (no row to compare with)",
+      "R5 the per-frame preparation row was not frozen at the record (no row to compare with); the owner's 1 s p95 budget now applies (1.4.0 decision 1, 2026-10-28)",
       "R6 the pinned pose digests are at planner level (camera_motion_tests), with the batch's recorded camera compared for equality with the plan (R099.e3)",
       "R7 the native matrix is taken from main's full-tier run 40630475876",
       "R8 the roadmap status was 'Delivered, with open findings' while a clause failed; it is 'Accepted (R099.e)' since R099.e3 and P4 and P5",
@@ -259,10 +259,10 @@
     ],
     "owner": [
       "1 The batch capture budget: resolved by PR #500 (p95 160 to 183 ms against 500 ms); no choice needed",
-      "2 Name the GLB preparation row (none found). OPEN. Recommendation: name a row and freeze this measurement against it",
-      "3 Accept the whole-batch length (about 3.4 h projected for 240 x 4). OPEN. Recommendation: accept, and measure the 960-frame run before 1.4.0 if wanted",
-      "4 250,000-triangle terrains cannot be rendered or batched (GLB and body limits). OPEN. Recommendation: keep the limits and state it in the support matrix",
-      "5 The byte budgets (512 KiB, 256 KiB) cannot bind. OPEN. Recommendation: drop them, or set them at a small multiple of the measured maxima",
+      "2 Name the GLB preparation row (none found). DECIDED 2026-10-28 (1.4.0 decision 1): a budget of 1 s per frame at p95; measured 323 ms, passes",
+      "3 Accept the whole-batch length (about 3.4 h projected for 240 x 4). DECIDED 2026-10-28 (1.4.0 decision 2): accepted; the 960-frame run is not made",
+      "4 250,000-triangle terrains cannot be rendered or batched (GLB and body limits). DECIDED 2026-10-28 (1.4.0 decision 3): the limits stay; raising them is planned for 1.5",
+      "5 The byte budgets (512 KiB, 256 KiB) cannot bind. DECIDED 2026-10-28 (1.4.0 decision 4): dropped, and the count limits stay; the code still enforces the byte budgets, so a code change is needed",
       "6 Fix the changed-Blender Start defect (O6) before 1.4.0: FIXED in PR #501",
       "7 'Identical PNG bytes': decided by the parent (P1): the chunks are stripped, the first option",
       "8 Live version-6 assistant run before 1.4.0 (R099.c). Carried to the 1.4.0 RC: one live corpus run approved by the owner on 2026-10-27",

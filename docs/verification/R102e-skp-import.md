@@ -4,7 +4,7 @@
 
 The owner's file, `BanyanHarbor.skp`, was read in place from the git-ignored `.local/skp-corpus/`. This record holds its counts, sizes, timings and SHA-256 only. No part of it is committed.
 
-**Status: Delivered, with open findings.** Every check that ran passes, except the findings in §6. Three checks cannot run here, and one of them (S5, textures against a SketchUp screenshot) needs the owner. The claims in §5 that rest on synthetic files or on one real file are narrower than the matrix and guide say, and the parent decides the wording. This record does not set "Accepted".
+**Status: Accepted (R102.e), on the narrowed claim (owner decision 11, 2026-10-28).** Every check that ran passes, except the findings in §6, which R102.f closed or narrowed (§11). S5 (textures against a SketchUp screenshot) cannot run without an owner file, and the real-file evidence is still one 2024 model. The claims in §5 are worded to that evidence, as §12 records.
 
 ## 1. Check map
 
@@ -335,3 +335,13 @@ file's import time.
   against the label.
 - ADR 0183, section 5. The SKP row's measured calls did not include the `/dev/null` run, which found `ioctl`. The
   R102.f note in ADR 0183 records the addition.
+
+## 12. Owner decision (2026-10-28)
+
+Owner decision 11, 2026-10-28: the `.skp` claim is narrowed to what is tested. The 1.4.0 release notes, support matrix, user guide, scope row and ADR 0176 §2 use this wording:
+
+- SketchUp 2024 files import; one 2024 model was tested. Other 2021-and-later versions use the same container and are untested.
+- 2013 to 2020 files are best effort, tested only with synthetic files.
+- Textures are tested with synthetic PNG files only.
+
+This adopts the substance of the recommended wording in §5 for C1, C2, C4, C5 and C14. C5, the Dynamic Component claim, is worded as tested on synthetic files. The decision does not close S5 or the real-file matrix, which need owner files (§7). The F1 threshold is not reviewed by the owner: R102.f set the "newer than tested" label to apply above 2024, as ADR 0176 §2 says, and the owner has not separately confirmed it.

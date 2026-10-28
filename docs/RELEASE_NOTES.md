@@ -25,7 +25,9 @@ IFC support covers three schemas for import and IFC4 for export ([ADR 0171](deci
   materials and colours. The report lists everything it did not import. The source file is never
   changed.
 - **File → Export IFC…** writes `IFC4` only, tessellated, with no view definition and no
-  certification claim. It never replaces an existing file.
+  certification claim. It never replaces an existing file. It passes the buildingSMART rules run
+  locally and `ifcopenshell.validate`; it has not been checked by buildingSMART's hosted validation
+  service.
 - The command line does the same work: `sketchyup-cli --import-ifc` and `--export-ifc`. The helper,
   `sketchyup-ifc-worker`, is in the optional `sketchyup-ifc` package.
 - A map conversion with no rotation sets the site origin. A rotation keeps the project axes unless
@@ -46,6 +48,9 @@ or AP203 ([ADR 0172](decisions/0172-step-exchange-subset.md)).
   directions. A layer's own on/off switch, material names, opacity and textures do not.
 - Curved surfaces arrive as meshes of flat faces. They are not editable as curves, and an export
   writes the mesh only.
+- Fixes in this release (PRs #510 and #511): a bad solid's surfaces are no longer imported into another
+  part's body; problems are located in the import report; PMI and GD&T are counted and reported; and parts
+  nested too deeply are counted.
 
 ### `.skp` import
 
@@ -54,13 +59,20 @@ new, unsaved SketchyUp model ([ADR 0176](decisions/0176-skp-import.md)). The fil
 an MIT-licensed reader that runs in a sandboxed helper. There is no `.skp` export.
 
 - Imported: faces with their holes, edges with their flags, components, tags, materials with their
-  textures (PNG and JPEG are kept; other formats are converted), names and attributes. A Dynamic
-  Component's attributes come across as read-only properties.
+  textures (tested with synthetic PNG files only; the JPEG path and the conversion of other formats are
+  not tested), names and attributes. A Dynamic Component's attributes come across as read-only
+  properties, tested on synthetic files only.
 - Not imported: scenes, styles, section planes, text, dimensions, guides and the camera. A group
   becomes a component used once, not a group, as [ADR 0176](decisions/0176-skp-import.md) §4 notes as
   a gap.
+- SketchUp 2024 files import. One 2024 model was tested; other 2021-and-later versions use the same
+  container and are untested. A file from SketchUp 2025 or later is read and labelled "newer than
+  tested" in the report.
 - A file from before 2013 is refused with advice to save it again. A 2013 to 2020 file is read on a
-  best-effort basis and labelled as such in the report.
+  best-effort basis and labelled as such in the report. These files are tested only with synthetic files.
+- Fixes in this release (R102.f, PR #513): a helper run with its output on `/dev/null` is no longer
+  ended by its own sandbox, and a large file is hashed in linear time, so it no longer risks the
+  helper's 120 s deadline. The "newer than tested" label now starts at SketchUp 2025 files, as the documentation says.
 
 ### Camera paths and batch presentations
 
@@ -115,12 +127,14 @@ an MIT-licensed reader that runs in a sandboxed helper. There is no `.skp` expor
 - The sun panel's **Use site location** applies the position as one undo step. The site and solar
   describe operations report and warn when the two locations disagree.
 
-### Dynamic Components in `.skp` files (read-only)
+### Dynamic Components in `.skp` files (read-only, R104.a)
 
 A Dynamic Component's `dynamic_attributes` values come across as read-only properties, at instance and
 definition level, with lengths in metres. Formulas (`_<name>_formula`, `_material_formula`) and
 `onClick` are kept as text and are never evaluated or run. A Live Component is not identified, because
-the file does not mark it ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md)).
+the file does not mark it ([ADR 0178](decisions/0178-dynamic-live-component-feasibility.md)). These are
+tested on synthetic files written by OpenSKP's writer; no SketchUp file with Dynamic Components has been
+tested. Formula mapping (R104.b) is deferred.
 
 ### Helper process sandbox
 
@@ -136,7 +150,8 @@ in CI.
 
 - **Online libraries:** SketchyUp does not search, sign in to or download from any online library. You
   download a file yourself and import it. A ZIP archive, COLLADA (`.dae`), USDZ and FBX file is refused with
-  the reason ([ADR 0179](decisions/0179-hosted-asset-access-feasibility.md)).
+  the reason ([ADR 0179](decisions/0179-hosted-asset-access-feasibility.md)). The user guide's page
+  "Getting models from online libraries" describes the download steps (R105.a).
 - The asset catalogs dialog no longer stalls the window on a large catalog. Selecting an entry in a
   catalog opened from a file takes about 0.1 s on a 128 MiB catalog, against about 2 s before.
 - The Outliner rebuilds only when what it shows changes. A placement move on a 100,000-face model
@@ -196,8 +211,8 @@ The 1.3.0 limitations still apply where a row above does not lift them. For the 
 
 - **IFC is not yet accepted.** Its acceptance record is partial: the owner's
   buildingSMART hosted validation has not been run, so the IFC4 export claim is conditional on it, and
-  the native matrix runs on the pull request. A model of about 10,000 bodies imports in 11 to 12 s,
-  over its 10 s budget. A damaged-file run of 5,120 mutations found one crash in the IFC library,
+  the native matrix runs on the pull request. A model of about 10,000 bodies imports in about 12 s,
+  against a 10 s budget. The owner accepted that as a limit for 1.4.0 (2026-10-28). A damaged-file run of 5,120 mutations found one crash in the IFC library,
   which is not fixed.
 - **IFC limits:** a file over 128 MiB or 2,000,000 entities is refused. A model over the document limits
   (100,000 vertices or faces, 10,000 bodies) imports partly, and the report names what is left out. IFC
@@ -206,26 +221,29 @@ The 1.3.0 limitations still apply where a row above does not lift them. For the 
   read. Two IFC classes, `IfcGrid` and `IfcRelNests`, are omitted, and `IfcAnnotation` and
   `IfcVirtualElement` are reported as unsupported.
 - **STEP is not yet accepted.** Its record is partly met: three of eight checks pass in full, five are
-  partial, and three budgets are missed and await the owner's decision. The end-to-end import of a
-  100-sphere model takes 13.8 to 15.8 s against a 10 s budget. Exporting the 90,954-face model imported
-  from it takes 16.6 to 16.8 s against 5 s. The export of a 1,000,000-triangle model was not re-run.
-- **STEP limits:** 128 MiB input, 1,000,000 triangles and 100,000 triangles per element. A document holds
+  partial, and three budgets are missed. On 2026-10-28 the owner accepted the missed budgets as limits for 1.4.0.
+  The end-to-end import of a 100-sphere model takes about 14 s (13.8 to 15.8 s measured) against a 10 s budget. Exporting the 90,954-face model imported
+  from it takes about 17 s (16.6 to 16.8 s measured) against 5 s. Speeding up the conversion step is planned for 1.5.
+- **STEP import limits:** 128 MiB input, 1,000,000 triangles and 100,000 triangles per element. A document holds
   100,000 faces of unique geometry, so a curved model stops at about 100,000 triangles and the rest is
   left out and named in the report. A STEP export is refused above 256 MiB, which is reached at about
-  110,000 triangle faces of curved imports. A limit breach or a helper kill fails the import; there is
-  no restart. Cancel latency on the real helper was not measured.
-- **`.skp` import is tested on one model.** The release tested one 2024 model and 15 synthetic files. 2021 and later is the stated range; 2013 to 2020 is best effort. Some 2013 to 2020 files fail:
+  110,000 triangle faces of curved imports. A limit breach fails the import. A STEP file that crashes the
+  helper is refused whole, and the model is unchanged. Restart-and-exclude is planned for 1.5. Cancel
+  latency on the real helper was not measured.
+- **STEP export budget:** the largest model a document can hold <!-- R098.h export number -->. The export
+  helper keeps its 4 GiB address-space cap.
+- **`.skp` import is tested on one model.** The release tested one 2024 model and 15 synthetic files. SketchUp 2024 files import; other 2021-and-later versions use the same container and are untested. 2013 to 2020 files are best effort, tested only with synthetic files. Some 2013 to 2020 files fail:
   one cause, in a text label, is known (OpenSKP issue 442), and another, in files from 2017 to 2020, is not
-  yet understood. Dynamic Component formulas are not run, and Live Components are not identified. There is
+  yet understood. Dynamic Component formulas are not run, and Live Components are not identified. Dynamic Components and textures are tested on synthetic files only. There is
   no export.
 - **Camera paths and batches:** a 250,000-triangle terrain cannot be rendered or batched; the GLB export
-  refuses more than 100,000 visible faces, and the render snapshot refuses more than 20,000 bodies. A
+  refuses more than 100,000 visible faces, and the render snapshot refuses more than 20,000 bodies. Both limits stay in 1.4.0, and raising them is planned for 1.5. A
   full 960-frame batch (240 frames for each of four presets, at 1024 × 768 and 32 samples) is projected at
-  about 3.4 hours on the test machine. It has progress, and it cancels at frame boundaries. An Eevee
+  about 3.4 hours on the test machine. The owner accepted that projection, which comes from a measured 48-frame run; the full run was not made. A batch has progress, and it cancels at frame boundaries. An Eevee
   preset with no finished frame cannot resume. There is no HDR environment in version 1.
-- **Styles and catalogs:** a catalog import has no progress and no cancel; a 128 MiB catalog imports one
+- **Styles and catalogs:** a catalog import has no progress and no Cancel, and both are planned for 1.5; a 128 MiB catalog imports one
   entry in about 0.6 s. Catalog components are not deduplicated, templates in a catalog cannot be opened
-  as a model, and placement is at the origin only. Three style-dialog differences from the design: there
+  as a model, and placement is at the origin only. Three style-dialog differences from the design are accepted for 1.4.0 and planned for a fix in 1.5: there
   is no **Save report…** button (**Copy report** is there), the usage bar is in three colours rather than
   hatched, and a refused save uses the wording "Save refused:", which the design does not give. The in-app
   assistant cannot change styles or catalogs.
@@ -256,6 +274,9 @@ The open-defect list is [R089.a](verification/R089a-defect-triage.md).
 - Hosted-asset adapters (R105.b to R105.d). Only user-mediated downloads are in this release.
 - `.skp` export, IFC2X3 and IFC4X3 export, STEP AP242 export, and any import format beyond the ones above.
 - Ruby extension compatibility, native `.skp` support beyond import, and full SketchUp parity.
+- Planned for 1.5, from the 1.4.0 owner decisions: a higher render and batch limit for 250,000-triangle
+  terrains; catalog import progress and Cancel; the Styles dialog fixes; STEP restart-and-exclude; faster
+  STEP conversion; and buildingSMART's hosted validation of the IFC export. The roadmap lists them.
 
 ## 1.3.0
 

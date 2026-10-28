@@ -5,8 +5,9 @@
 for [R102](../PR_ROADMAP.md#r102) ("Deliver SKP support only after feasibility passes"),
 scope row C01, import direction only. For **reading** `.skp`, it supersedes
 [ADR 0003](0003-compatibility-gaps.md)'s "unsupported" stance. Writing stays unsupported. The
-owner asked for `.skp` import on 2026-10-25 ("We need a way to import .skp files"). No
-implementation has started.
+owner asked for `.skp` import on 2026-10-25 ("We need a way to import .skp files"). Delivered in
+slices R102.a to R102.f and accepted in R102.e on the narrowed claim of owner decision 11 (2026-10-28),
+for SketchyUp 1.4.0.
 
 ## Context
 
@@ -122,11 +123,12 @@ implementation has started.
 
 | Saved by | Container | Import |
 |---|---|---|
-| SketchUp 2021 and later | VFF | **Supported.** Verified on the corpus (§7) |
-| SketchUp 2013–2020 | MFC `CArchive` | **Best effort**, labelled as such. A parse failure is a clear refusal ("This SketchUp 2017 file could not be read; save it from SketchUp 2021 or later and try again"), never a partial model |
+| SketchUp 2024 | VFF | **Supported.** One 2024 model was tested (§7). Other 2021-and-later versions use the same container and are untested (owner decision 11, 2026-10-28) |
+| SketchUp 2013–2020 | MFC `CArchive` | **Best effort**, labelled as such, and tested only with synthetic files (owner decision 11, 2026-10-28). A parse failure is a clear refusal ("This SketchUp 2017 file could not be read; save it from SketchUp 2021 or later and try again"), never a partial model |
 | Before 2013 (V3–V8) | MFC | Refused with the same advice. They can be accepted later if the C++ reader matches the Python one (upstream #442) |
 
 - The version comes from the file's header string (`{24.0.553}`), and the report records it.
+- Owner decision 11 (2026-10-28) narrows the claim to the table above, and the release documents use that wording. Textures are tested with synthetic PNG files only.
 - A file from a newer SketchUp than the corpus covers is attempted and labelled "newer than
   tested".
 
@@ -706,7 +708,8 @@ listed those kinds with no count. It is true now.
 
 R102.e is the acceptance record: [`docs/verification/R102e-skp-import.md`](../verification/R102e-skp-import.md),
 with its [JSON](../verification/R102e-skp-import.json). It ran on `origin/main` at `fafc0431` on 2026-10-28.
-Status: delivered, with open findings. The record does not set "Accepted"; the parent decides with the owner.
+Status when written: delivered, with open findings. Since owner decision 11 (2026-10-28) it is **Accepted (R102.e), on the
+narrowed claim** (§2).
 
 - **The owner's file** (SketchUp 2024, VFF), read in place: S1 (the counts against the parser's), S2 (the
   placed bounding box, 0 m off), S3 (one instance, 1 of 1; 3 of 3 with two placements added in a scratch

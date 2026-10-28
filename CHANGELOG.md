@@ -14,11 +14,10 @@ through its [M10 gate](docs/M10_ACCEPTANCE.md).
   reads `IFC2X3`, `IFC4` and `IFC4X3_ADD2` into a new unsaved model, with a report; **File → Export IFC…**
   writes `IFC4` only, tessellated. `sketchyup-cli --import-ifc` and `--export-ifc` do the same work. The
   acceptance record is partial: the owner's buildingSMART hosted validation has not been run, so the export
-  claim is conditional on it, and the 10,000-body import budget is missed ([R097.f](docs/verification/R097f-ifc-exchange.md)).
+  claim is conditional on it, and the 10,000-body import takes about 12 s against its 10 s budget, an accepted limit for 1.4.0 (2026-10-28) ([R097.f](docs/verification/R097f-ifc-exchange.md)).
 - STEP import and export (R098, F04, [ADR 0172](docs/decisions/0172-step-exchange-subset.md)): **File → Import STEP…**
   reads AP203 and AP214, and AP242 on a best-effort basis; **File → Export STEP…** writes AP214 (the default) or AP203,
-  and never AP242. `sketchyup-cli --import-step` and `--export-step`. Three budgets are missed and await the
-  owner's decision ([R098.d](docs/verification/R098d-step-exchange.md)).
+  and never AP242. `sketchyup-cli --import-step` and `--export-step`. Three budgets are missed; the owner accepted them as limits for 1.4.0 on 2026-10-28, and speeding up the conversion is planned for 1.5 ([R098.d](docs/verification/R098d-step-exchange.md)).
 - `.skp` import (R102, C01, [ADR 0176](docs/decisions/0176-skp-import.md)): **File → Import .skp file…** and
   `sketchyup-cli --import-skp` read a SketchUp model file as a new, unsaved model, through the MIT-licensed
   OpenSKP reader in a sandboxed helper. Export is not supported.
@@ -114,6 +113,9 @@ through its [M10 gate](docs/M10_ACCEPTANCE.md).
   service-dependent; the import makes no call to any Trimble service, and a test checks that it needs no
   network. Formula mapping is deferred indefinitely (R104.b). Dynamic Components and Live Components are
   Trimble's terms; SketchyUp is not affiliated with or endorsed by Trimble.
+- Downloads from online libraries (R105.a, [ADR 0179](docs/decisions/0179-hosted-asset-access-feasibility.md), [PR #476](https://github.com/zygote55/sketchyup/pull/476)):
+  the user guide's page "Getting models from online libraries" describes the download steps. A ZIP archive,
+  COLLADA (`.dae`), USDZ or FBX file is refused with the reason. SketchyUp makes no network request for them.
 - Textured material presets (R100.b, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md) Q1):
   the New material dialog's Local library gains a **Textured** group of fifteen presets, nine CC0
   textures from Poly Haven and six generated ones. Creating a preset adds its texture and its material
