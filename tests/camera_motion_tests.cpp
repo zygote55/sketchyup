@@ -1,12 +1,11 @@
 #include "core/camera_motion.hpp"
-#include <QByteArray>
-#include <QCryptographicHash>
-#include <QString>
+#include "core/component_parameter_records.hpp"
 #include <array>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <string>
 using namespace sketchy;
 void check(bool value, const char *message) {
     if (!value)
@@ -14,16 +13,14 @@ void check(bool value, const char *message) {
 }
 void near(Vec3 a, Vec3 b, const char *message) { check(length(a - b) < 1e-8, message); }
 // The SHA-256 of one planned frame's index, scene, keyframe flag and camera, at 17 significant digits.
-QString poseDigest(const CameraFrame &frame) {
+std::string poseDigest(const CameraFrame &frame) {
     std::ostringstream text;
     text << std::setprecision(17) << frame.index << ' ' << frame.sceneIndex << ' '
          << frame.keyframe << ' ' << frame.camera.target.x << ' ' << frame.camera.target.y << ' '
          << frame.camera.target.z << ' ' << frame.camera.yaw << ' ' << frame.camera.pitch << ' '
          << frame.camera.distance << ' ' << frame.camera.fieldOfView << ' '
          << frame.camera.orthographic;
-    return QString::fromLatin1(QCryptographicHash::hash(QByteArray::fromStdString(text.str()),
-                                                        QCryptographicHash::Sha256)
-                                   .toHex());
+    return digestHex(sha256Digest(text.str()));
 }
 template <class F> void rejects(F f) {
     try {
@@ -100,7 +97,7 @@ int main() {
             const auto frames = planCameraFrames(fixture, {24, 2, 1});
             check(frames.size() == pinned.size(), "The four-scene fixture plans eleven frames");
             for (size_t i = 0; i < frames.size(); ++i)
-                check(poseDigest(frames[i]) == QString::fromLatin1(pinned[i]),
+                check(poseDigest(frames[i]) == pinned[i],
                       "A planned pose matches its pinned digest");
         }
         std::cout << "Fixed-eye look, horizontal walking and bounded camera timelines passed\n";
