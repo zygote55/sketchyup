@@ -46,20 +46,43 @@ StyleBundle decodeStyleBundle(const QByteArray &bytes);
 StyleBundle loadStyleBundle(const QString &path);
 void writeStyleBundle(const QByteArray &bytes, const QString &newPath);
 
+// True when applying the style would change nothing: the record equals the document's, and its
+// texture is the document's asset with the same media type and bytes (ADR 0131), or there is none.
+// A missing or mismatched texture is never equal, so it is not reported as applied.
+bool styleAlreadyInDocument(const Document &doc, const StyleBundle &bundle);
+
 // Captures the document's style and its edge texture. A missing texture refuses the export (the
 // file would depend on a resource it does not hold). The result is decoded again before return.
 QByteArray exportStyleBundle(const Document &doc, const StyleMetadata &metadata);
 
 // The style library: a flat folder of `.sketchystyle` files, scanned with bounded limits (ADR 0174
 // §1.3, the R079 pattern). Each entry is fully decoded before it reports its metadata.
+// The ADR 0132 bounds of the style folder scan: 4,096 folder entries, 128 listed styles, and a
+// 256 MiB read budget across the listed files.
+inline constexpr size_t styleScanEntryLimit = 4096;
+inline constexpr size_t styleScanCandidateLimit = 128;
+
+// The style folder of the desktop (UX_DESIGN §18.1): `styles` under the application data folder.
+// Empty on a platform with no application data folder.
+QString styleLibraryFolder();
+// The kind named by a `.sketchylib`-envelope file's manifest ("style", "catalog", "template" or
+// "component"), or empty when the header or the manifest JSON cannot be read. It only names a file
+// of another kind; decodeStyleBundle still decides whether the file is a style.
+QString sketchyLibraryKind(const QByteArray &bytes);
+
 struct StyleLibraryEntry {
     QString path;
     StyleMetadata metadata;
+    ModelStyle style; // the decoded record, when the entry has no error
     StyleTextureStatus textureStatus{StyleTextureStatus::None};
     QString error;
 };
 struct StyleLibrary {
     std::vector<StyleLibraryEntry> entries;
+    // Files the scan did not list, by reason: a file that is not `.sketchystyle`, and a style past
+    // the 128 listed. `stoppedAtEntries` is set when the scan ended at the 4,096-entry limit.
+    size_t skippedNotStyles{}, skippedPastCandidates{};
+    bool stoppedAtEntries{};
     QStringList notices;
 };
 StyleLibrary scanStyleDirectory(const QString &directory);

@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -89,6 +90,12 @@ inline std::vector<std::pair<double, double>> edgeDashRuns(double length, EdgeDa
     }
     return runs;
 }
+// A value as a plain decimal for a refusal, such as "9" or "0.005" (no locale, no fixed digits).
+inline std::string styleValueText(double value) {
+    std::ostringstream text;
+    text << value;
+    return text.str();
+}
 // The extended edge stroke (ADR 0174 §2), stored as the optional `edgeStroke` field of the style.
 // Its width uses profileWidth semantics. `texture` is a managed asset id, zero when none; a missing
 // or mismatched texture is reported by the style commands and never replaced (ADR 0174 §5).
@@ -100,9 +107,11 @@ struct EdgeStroke {
     bool operator==(const EdgeStroke &) const = default;
     void validate() const {
         if (!std::isfinite(width) || width < 1 || width > 8)
-            throw std::runtime_error("Edge width must be from one to eight logical pixels");
+            throw std::runtime_error("Edge width " + styleValueText(width) +
+                                     " px is outside 1 to 8 px");
         if (!std::isfinite(opacity) || opacity < .01 || opacity > 1)
-            throw std::runtime_error("Edge opacity must be from 0.01 to 1");
+            throw std::runtime_error("Edge opacity " + styleValueText(opacity) +
+                                     " is outside 0.01 to 1");
         edgeDashCode(dash);
     }
 };
@@ -129,7 +138,8 @@ struct ModelStyle {
         if (!std::isfinite(groundHeight) || std::abs(groundHeight) > 1e6)
             throw std::runtime_error("Style ground height must be within one million metres");
         if (!std::isfinite(profileWidth) || profileWidth < 1 || profileWidth > 8)
-            throw std::runtime_error("Profile width must be from one to eight logical pixels");
+            throw std::runtime_error("Profile width " + styleValueText(profileWidth) +
+                                     " px is outside 1 to 8 px");
         if (!std::isfinite(xrayOpacity) || xrayOpacity < .01 || xrayOpacity > .95)
             throw std::runtime_error("X-ray opacity must be from 0.01 to 0.95");
         if (edgeStroke)
