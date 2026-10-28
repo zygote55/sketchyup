@@ -2,6 +2,7 @@
 // R084.u dialog inventory. Every dialog the desktop application can show is either a case
 // here (audited by `native_accessibility_audit --dialogs-keyboard=GROUP`) or listed in
 // `unexercised()` with the reason it cannot run in the isolated fixture.
+#include "blender_stand_in.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_export_dialog.hpp"
 #include "app/sheet_workspace.hpp"
@@ -346,25 +347,7 @@ inline void installExtension(Context &context) {
 // A launcher for the project's fake Blender worker (blender_job_tests --fake MODE).
 // "hold-handoff" renders like "success" but keeps a scene handoff running until cancelled.
 inline QString fakeBlender(Context &context, const QString &mode) {
-    const auto path = QDir(context.files).filePath("blender-" + mode);
-    if (!QFile::exists(path)) {
-        QFile file(path);
-        require(file.open(QIODevice::WriteOnly), "Create fake Blender launcher");
-        const auto worker = "'" + QCoreApplication::applicationDirPath() + "/blender_job_tests'";
-        QString script = "#!/bin/sh\n";
-        if (mode == "hold-handoff")
-            script += "for request; do :; done\n"
-                      "if grep -Eq '\"operation\" *: *\"handoff\"' \"$request\" 2>/dev/null; then\n"
-                      "  exec " +
-                      worker + " --fake hang \"$@\"\nfi\n";
-        script += "exec " + worker + " --fake " +
-                  (mode == "hold-handoff" ? QString("success") : mode) + " \"$@\"\n";
-        file.write(script.toUtf8());
-        file.close();
-        require(file.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner),
-                "Fake Blender launcher is executable");
-    }
-    return path;
+    return blender_stand_in::place(QDir(context.files).filePath("blender-" + mode), mode);
 }
 inline void cameraScenes(Context &context) {
     fresh(context);

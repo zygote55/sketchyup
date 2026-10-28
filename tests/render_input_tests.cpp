@@ -1,3 +1,4 @@
+#include "blender_stand_in.hpp"
 #include "app/render_panel.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
@@ -115,19 +116,7 @@ int main(int argc, char **argv) {
             check(view.renderCamera().up.y == -1, "Bottom-view up vector");
             view.standardView(0);
             auto executable = [&](QString mode) {
-                const auto path = files.path() + "/blender-" + mode;
-                QFile file(path);
-                check(file.open(QIODevice::WriteOnly), "Create fake worker launcher");
-                const auto script =
-                    ("#!/bin/sh\nexec " +
-                     quote(QCoreApplication::applicationDirPath() + "/blender_job_tests") +
-                     " --fake " + quote(mode) + " \"$@\"\n")
-                        .toUtf8();
-                check(file.write(script) == script.size(), "Write worker launcher");
-                file.close();
-                check(file.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner),
-                      "Worker executable");
-                return path;
+                return blender_stand_in::place(files.path() + "/blender-" + mode, mode);
             };
             action->trigger();
             auto *path = setup->findChild<QLineEdit *>("blenderPath");

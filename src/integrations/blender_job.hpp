@@ -1,5 +1,6 @@
 #pragma once
 #include "integrations/glb_export.hpp"
+#include "sandbox/sandbox.hpp"
 #include <QImage>
 #include <QObject>
 #include <QStringList>
@@ -56,6 +57,11 @@ struct BlenderVideoResult {
     QByteArray mp4;
 };
 void saveBlenderScene(const BlenderSceneResult &scene, const QString &path);
+
+// Test seam, like setPresentationVideoProbe: the directories a job's child may also read and write, so a
+// test's stand-in can count its launches (tests/blender_stand_in.hpp). Empty in the application, and no
+// Blender run is given it otherwise. Set it before the jobs start.
+void setBlenderTestWritableDirectories(QStringList directories);
 class BlenderJob : public QObject {
     Q_OBJECT
   public:
@@ -78,6 +84,9 @@ class BlenderJob : public QObject {
         QString scratchParent; // Optional existing private parent for disposable worker files.
         bool allowCpuFallback{true};
         int timeoutMs{180000};
+        // Test injection, never set by the application (ADR 0183 section 6.7): the child's sandbox layer
+        // fails as if the kernel refused it. A Landlock failure refuses the job before the fork.
+        std::optional<sketchyup::sandbox::Failure> sandboxSimulation;
     };
     explicit BlenderJob(QObject *parent = nullptr);
     ~BlenderJob() override;

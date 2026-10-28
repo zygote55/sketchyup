@@ -1,3 +1,4 @@
+#include "blender_stand_in.hpp"
 #include "core/presentation.hpp"
 #include "core/scenes.hpp"
 #include "integrations/presentation_store.hpp"
@@ -34,20 +35,10 @@ void write(const QString &path, const QByteArray &bytes) {
           "Write CLI fixture");
 }
 QString quote(QString text) { return "'" + text.replace("'", "'\\''") + "'"; }
-int launches(const QString &counter) {
-    return QFileInfo::exists(counter) ? read(counter).trimmed().toInt() : 0;
-}
-// A fake `blender` on PATH. Launch number `hang` never returns; zero never hangs.
-void blenderLauncher(const QString &path, const QString &binary, const QString &counter, int hang) {
-    write(path, ("#!/bin/sh\nn=0\n[ -f " + quote(counter) + " ] && n=$(cat " + quote(counter) +
-                 ")\nn=$((n+1))\necho $n > " + quote(counter) + "\nif [ \"$n\" = \"" +
-                 QString::number(hang) + "\" ]; then exec " + quote(binary) +
-                 " --fake hang \"$@\"; fi\nexec " + quote(binary) + " --fake success \"$@\"\n")
-                    .toUtf8());
-    check(QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                          QFileDevice::ExeOwner),
-          "Executable fixture");
-}
+// A fake `blender` on PATH. Each launch waits three seconds (the "slow" stand-in), so a test can stop the
+// batch while its next frame is still rendering. A stand-in here cannot count its launches: the CLI's
+// jobs are not given the test's writable directory.
+void blenderLauncher(const QString &path) { blender_stand_in::place(path, "slow"); }
 struct Outcome {
     int code{};
     QByteArray out, err;
@@ -67,7 +58,6 @@ int main(int argc, char **argv) {
     try {
         QTemporaryDir files;
         check(files.isValid(), "CLI fixture directory");
-        const auto binary = app.applicationDirPath() + "/blender_job_tests";
         const auto bin = files.filePath("bin");
         check(QDir().mkpath(bin) && QDir().mkpath(files.filePath("empty")) &&
                   QDir().mkpath(files.filePath("export")),
@@ -101,8 +91,7 @@ int main(int argc, char **argv) {
         auto env = QProcessEnvironment::systemEnvironment();
         env.insert("XDG_DATA_HOME", data);
         env.insert("PATH", bin + ":/usr/bin:/bin");
-        const auto counter = files.filePath("count-success");
-        blenderLauncher(bin + "/blender", binary, counter, 0);
+        blenderLauncher(bin + "/blender");
         const auto request = [&](const QString &name, const QByteArray &body) {
             write(files.filePath(name), body);
             return files.filePath(name);
@@ -142,8 +131,7 @@ int main(int argc, char **argv) {
               "A relative output folder is created in the working folder");
 
         // Interrupt: SIGINT stops at the next frame boundary, keeps the finished frame, exits 130.
-        const auto interruptCounter = files.filePath("count-interrupt");
-        blenderLauncher(bin + "/blender", binary, interruptCounter, 2);
+        blenderLauncher(bin + "/blender");
         const auto interruptedOutput = files.filePath("export/interrupted");
         const auto interruptRequest = request(
             "interrupt.json", R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
@@ -155,13 +143,14 @@ int main(int argc, char **argv) {
         check(running.waitForStarted(10000), "Interrupted CLI starts");
         QElapsedTimer timer;
         timer.start();
-        while (!(launches(interruptCounter) == 2 &&
-                 QFileInfo::exists(interruptedOutput + "/01-Draft/frames/frame-0001.png")) &&
+        // The first frame is written; the second worker is then rendering, and the batch is in flight.
+        while (!QFileInfo::exists(interruptedOutput + "/01-Draft/frames/frame-0001.png") &&
                timer.elapsed() < 120000) {
             QCoreApplication::processEvents();
             QThread::msleep(5);
         }
-        check(launches(interruptCounter) == 2, "The interrupted batch reaches its second frame");
+        check(QFileInfo::exists(interruptedOutput + "/01-Draft/frames/frame-0001.png"),
+              "The interrupted batch finishes its first frame");
         check(::kill(static_cast<pid_t>(running.processId()), SIGINT) == 0, "Send SIGINT");
         check(running.waitForFinished(120000), "Interrupted CLI finishes");
         check(running.exitCode() == 130, "A SIGINT cancel exits 130");
@@ -175,8 +164,7 @@ int main(int argc, char **argv) {
 
         // Stop: SIGTERM stops at once. The batch is recorded interrupted, keeps its finished frame
         // and exits 1, as an interrupted batch does; a later run can resume it.
-        const auto stopCounter = files.filePath("count-stop");
-        blenderLauncher(bin + "/blender", binary, stopCounter, 2);
+        blenderLauncher(bin + "/blender");
         const auto stoppedOutput = files.filePath("export/stopped");
         const auto stopRequest = request(
             "stop.json", R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"output":")" +
@@ -188,13 +176,13 @@ int main(int argc, char **argv) {
         check(stopping.waitForStarted(10000), "Stopped CLI starts");
         QElapsedTimer stopTimer;
         stopTimer.start();
-        while (!(launches(stopCounter) == 2 &&
-                 QFileInfo::exists(stoppedOutput + "/01-Draft/frames/frame-0001.png")) &&
+        while (!QFileInfo::exists(stoppedOutput + "/01-Draft/frames/frame-0001.png") &&
                stopTimer.elapsed() < 120000) {
             QCoreApplication::processEvents();
             QThread::msleep(5);
         }
-        check(launches(stopCounter) == 2, "The stopped batch reaches its second frame");
+        check(QFileInfo::exists(stoppedOutput + "/01-Draft/frames/frame-0001.png"),
+              "The stopped batch finishes its first frame");
         stopping.terminate();
         check(stopping.waitForFinished(120000), "Stopped CLI finishes");
         check(stopping.exitCode() == 1, "A SIGTERM stop exits 1, as an interrupted batch does");

@@ -1,6 +1,7 @@
 #include "core/assets.hpp"
 #include "core/face_textures.hpp"
 #include "core/materials.hpp"
+#include "blender_stand_in.hpp"
 #include "integrations/blender_job.hpp"
 #include "io/assets.hpp"
 #include "io/texture_image.hpp"
@@ -11,27 +12,37 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QSaveFile>
+#include <QFileInfo>
 #include <QThread>
 #include <QTimer>
+#include <fstream>
 #include <future>
 #include <iostream>
+#include <chrono>
+#include <condition_variable>
+#include <optional>
+#include <iterator>
+#include <mutex>
+#include <unistd.h>
 using namespace sketchy;
 using Phase = BlenderJob::Phase;
 void check(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
 }
+// The artifacts are read and written with the standard library. The stand-in Blender runs under the
+// sandbox, whose policy is Blender's trace (ADR 0183, R109 S5), and Qt's file layer makes calls that
+// trace does not contain (statx, for one).
 QByteArray read(const QString &path) {
-    QFile file(path);
-    check(file.open(QIODevice::ReadOnly), "Read test artifact");
-    return file.readAll();
+    std::ifstream file(QFile::encodeName(path).constData(), std::ios::binary);
+    check(bool(file), "Read test artifact");
+    const std::string bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    return QByteArray::fromStdString(bytes);
 }
 void write(const QString &path, const QByteArray &data) {
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size())
-        throw std::runtime_error(
-            ("Write test artifact " + path + ": " + file.errorString()).toStdString());
+    std::ofstream file(QFile::encodeName(path).constData(), std::ios::binary | std::ios::trunc);
+    if (!(file.write(data.constData(), data.size()) && file.flush()))
+        throw std::runtime_error(("Write test artifact " + path).toStdString());
 }
 QString hash(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
@@ -60,6 +71,44 @@ QByteArray mp4Box(const char *type, const QByteArray &payload) {
 // table of `frames` samples, then mdat. The entry is avc1 with avcC for H.264, or mp4v with esds
 // for MPEG-4 Part 2. It is not playable; ffprobe checks the real encoder's output in the real
 // Blender test.
+// A solid RGBA PNG, written without QImage: its writer loads Qt's logging configuration, a file check
+// the Blender policy does not allow (ADR 0183, R109 S5). The verifier decodes it with QImageReader.
+QByteArray bytesOf(std::initializer_list<quint8> values) {
+    QByteArray result;
+    for (const quint8 value : values)
+        result.append(char(value));
+    return result;
+}
+QByteArray pngOfColour(int width, int height, quint8 red, quint8 green, quint8 blue, quint8 alpha) {
+    const auto crc = [](const QByteArray &bytes) {
+        quint32 value = 0xFFFFFFFFU;
+        for (const char byte : bytes) {
+            value ^= quint8(byte);
+            for (int bit = 0; bit < 8; ++bit)
+                value = (value >> 1) ^ (0xEDB88320U & (0U - (value & 1U)));
+        }
+        return value ^ 0xFFFFFFFFU;
+    };
+    const auto be32 = [](quint32 value) {
+        return bytesOf({quint8(value >> 24), quint8(value >> 16), quint8(value >> 8), quint8(value)});
+    };
+    const auto chunk = [&](const char *type, const QByteArray &data) {
+        const QByteArray body = QByteArray(type, 4) + data;
+        return be32(quint32(data.size())) + body + be32(crc(body));
+    };
+    QByteArray header = be32(quint32(width)) + be32(quint32(height)) + bytesOf({8, 6, 0, 0, 0});
+    QByteArray scanlines;
+    const QByteArray pixel = bytesOf({red, green, blue, alpha});
+    for (int row = 0; row < height; ++row) {
+        scanlines.append(char(0)); // filter type None
+        for (int column = 0; column < width; ++column)
+            scanlines.append(pixel);
+    }
+    // qCompress prefixes the uncompressed length; a PNG IDAT is the bare zlib stream.
+    const QByteArray zlib = qCompress(scanlines, 9).mid(4);
+    return bytesOf({0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}) + chunk("IHDR", header) +
+           chunk("IDAT", zlib) + chunk("IEND", QByteArray());
+}
 QByteArray syntheticMp4(int frames, bool mpeg4) {
     const auto entry =
         mpeg4 ? mp4Box("mp4v", QByteArray(78, '\0') + mp4Box("esds", QByteArray(7, '\0')))
@@ -91,8 +140,8 @@ QStringList fakeCodecs() {
 int fakeEncode(const QString &root, const QJsonObject &request) {
     const auto damage = qEnvironmentVariable("SKETCHYUP_FAKE_DAMAGE");
     if (!damage.isEmpty()) {
-        QFile file(damage);
-        check(file.open(QIODevice::Append) && file.write("x") == 1, "Damage fixture");
+        std::ofstream file(QFile::encodeName(damage).constData(), std::ios::binary | std::ios::app);
+        check(bool(file.write("x", 1)) && file.flush(), "Damage fixture");
     }
     const auto video = request.value("video").toObject();
     const auto frames = video.value("frames").toArray();
@@ -143,8 +192,18 @@ int fakeEncode(const QString &root, const QJsonObject &request) {
     return 0;
 }
 
-int fake(QCoreApplication &app, const QStringList &args) {
-    const auto mode = args[2];
+// Blocks until the parent stops the process. The stand-in needs no event loop for that, and a
+// QCoreApplication would load Qt's logging configuration, whose file check is a call the Blender
+// policy does not allow (ADR 0183, R109 S5).
+int blockUntilStopped() {
+    std::mutex mutex;
+    std::condition_variable never;
+    std::unique_lock lock(mutex);
+    never.wait(lock, [] { return false; });
+    return 0;
+}
+int fake(const QString &stated, const QStringList &args) {
+    auto mode = stated;
     const auto requestPath = args.last();
     if (requestPath.endsWith(".blend") && args.contains("--disable-autoexec")) {
         const auto proof = qEnvironmentVariable("SKETCHYUP_HANDOFF_LAUNCH_PROOF");
@@ -152,23 +211,49 @@ int fake(QCoreApplication &app, const QStringList &args) {
             // The detached-process fixture uses visibility of this path as its
             // completion signal. Publish all bytes together so the parent cannot
             // observe an empty file between open and write.
-            QSaveFile result(proof);
+            // Written beside the proof and renamed into place, so the path appears complete.
             const auto bytes = requestPath.toUtf8();
-            check(result.open(QIODevice::WriteOnly) && result.write(bytes) == bytes.size() &&
-                      result.commit(),
+            write(proof + ".tmp", bytes);
+            check(std::rename(QFile::encodeName(proof + ".tmp").constData(),
+                              QFile::encodeName(proof).constData()) == 0,
                   "Publish complete external-launch proof");
         }
         return 0;
     }
+    // counted-<hang>: the launch numbered <hang> hangs, the others succeed. The counter is the file named in
+    // <stand-in>.counter, which the test wrote beside the stand-in (tests/blender_stand_in.hpp).
+    if (mode.startsWith("counted-")) {
+        const int hang = mode.mid(8).toInt();
+        const auto counter = QString::fromLocal8Bit(read(args.value(0) + ".counter")).trimmed();
+        int launches = 0;
+        if (std::ifstream probe(QFile::encodeName(counter).constData()); probe)
+            launches = QByteArray::fromStdString(std::string(std::istreambuf_iterator<char>(probe),
+                                                             std::istreambuf_iterator<char>()))
+                           .trimmed()
+                           .toInt();
+        write(counter, QByteArray::number(++launches));
+        mode = launches == hang ? "hang" : "success";
+    }
     const auto root = QFileInfo(requestPath).absolutePath();
     const auto request = QJsonDocument::fromJson(read(requestPath)).object();
+    // slow: every launch waits a few seconds, then succeeds.
+    if (mode == "slow") {
+        std::mutex mutex;
+        std::condition_variable wake;
+        std::unique_lock lock(mutex);
+        wake.wait_for(lock, std::chrono::seconds(3), [] { return false; });
+        mode = "success";
+    }
+    // hold-handoff: a handoff hangs until it is stopped; any other operation succeeds.
+    if (mode == "hold-handoff")
+        mode = request.value("operation") == "handoff" ? "hang" : "success";
     if (mode == "hang") {
         std::cout << "Retained worker log before interruption\n" << std::flush;
-        return app.exec();
+        return blockUntilStopped();
     }
     if (mode == "flood") {
         std::cout << std::string(3 * 1024 * 1024, 'x') << std::flush;
-        return app.exec();
+        return blockUntilStopped();
     }
     if (mode == "crash")
         return 7;
@@ -211,12 +296,8 @@ int fake(QCoreApplication &app, const QStringList &args) {
                 read(request.value("sourceDirectory").toString() + "/manifest.json"))
                 .object();
         const auto settings = source.value("settings").toObject();
-        QImage image(settings.value("width").toInt(), settings.value("height").toInt(),
-                     QImage::Format_RGBA8888);
-        image.fill(Qt::red);
-        QByteArray bytes;
-        QBuffer buffer(&bytes);
-        check(buffer.open(QIODevice::WriteOnly) && image.save(&buffer, "PNG"), "Encode fixture");
+        QByteArray bytes = pngOfColour(settings.value("width").toInt(),
+                                       settings.value("height").toInt(), 255, 0, 0, 255);
         if (mode == "invalid-png")
             bytes = "not a PNG";
         write(root + "/image.png", bytes);
@@ -288,8 +369,8 @@ int fake(QCoreApplication &app, const QStringList &args) {
         if (mode == "losses")
             result["losses"] = QJsonObject{};
         result["image"] = QJsonObject{{"file", "image.png"},
-                                      {"width", image.width()},
-                                      {"height", image.height()},
+                                      {"width", settings.value("width")},
+                                      {"height", settings.value("height")},
                                       {"bytes", bytes.size()},
                                       {"sha256", hash(bytes)}};
         if (mode == "source")
@@ -302,7 +383,7 @@ int fake(QCoreApplication &app, const QStringList &args) {
         if (mode == "hash")
             description["sha256"] = "wrong";
         if (mode == "dimensions")
-            description["width"] = image.width() + 1;
+            description["width"] = settings.value("width").toInt() + 1;
         result["image"] = description;
         if (mode == "missing")
             QFile::remove(root + "/image.png");
@@ -339,13 +420,19 @@ void wait(BlenderJob &job, int limit = 15000) {
         job.cancel();
     check(job.done(), "Job terminated before test deadline");
 }
-QString quote(QString value) { return "'" + value.replace("'", "'\\''") + "'"; }
 int main(int argc, char **argv) {
+    QStringList raw;
+    for (int i = 0; i < argc; ++i)
+        raw.append(QString::fromLocal8Bit(argv[i]));
+    // The stand-in: the job runs it under the sandbox as it runs Blender, so it is dispatched before any Qt
+    // application exists. Its name carries the mode (tests/blender_stand_in.hpp).
+    if (raw.size() > 2 && raw[1] == "--fake")
+        return fake(raw[2], raw);
+    if (const auto name = QFileInfo(raw.value(0)).fileName(); name.startsWith("sketchyup-fake-"))
+        return fake(name.mid(15).section('-', 0, -2), raw);
     QCoreApplication app(argc, argv);
     try {
         const auto args = app.arguments();
-        if (args.size() > 2 && args[1] == "--fake")
-            return fake(app, args);
         QTemporaryDir files;
         check(files.isValid(), "Test directory");
         Document document;
@@ -382,19 +469,10 @@ int main(int argc, char **argv) {
         auto environment = readRenderEnvironment(hdrPath, .5, 90);
         check(QFile::remove(hdrPath), "Remove original environment after capture");
         const auto sourceBytes = read(input->sourceDirectory() + "/scene.glb");
-        int launcherSequence{};
         auto options = [&](const QString &mode) {
-            // A launcher may still be entering exec when the next job starts.
-            // Never truncate a path that another process may be executing.
-            const auto path = files.path() + "/" + mode + "-" + QString::number(++launcherSequence);
-            write(path, ("#!/bin/sh\nexec " + quote(app.applicationFilePath()) + " --fake " +
-                         quote(mode) + " \"$@\"\n")
-                            .toUtf8());
-            check(
-                QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner),
-                "Executable fixture");
+            // A stand-in of its own, so a launcher still entering exec is never rewritten (tests/blender_stand_in.hpp).
             BlenderJob::Options options;
-            options.executable = path;
+            options.executable = blender_stand_in::make(files.path(), mode);
             options.timeoutMs = 5000;
             return options;
         };
