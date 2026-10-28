@@ -71,7 +71,8 @@ std::vector<sketchyup::sandbox::SyscallRule> syscalls() {
     // ADR 0183 section 5 (Blender). The calls are those of the four real runs on this machine
     // (probe, Cycles and EEVEE render, handoff, animation and presentation encode), taken without
     // the child processes that were refused: their union is 77 names. The sandboxed runs add
-    // fallocate and flock (a cold Mesa shader cache). The rules that follow are the choices.
+    // fallocate and flock (a cold Mesa shader cache), and the CI runner adds statx. The rules that
+    // follow are the choices.
     std::vector<sketchyup::sandbox::SyscallRule> rules;
     const auto allow = [&](std::initializer_list<const char *> names) {
         for (const char *name : names)
@@ -83,6 +84,15 @@ std::vector<sketchyup::sandbox::SyscallRule> syscalls() {
            "getdents64", "getcwd",   "fchdir",        "mkdir",     "rmdir",      "rename",
            "unlink",     "unlinkat", "statfs",        "fcntl",     "ioctl",      "dup3",
            "pipe2",      "poll",     "epoll_create1", "epoll_ctl", "epoll_wait", "eventfd2"});
+    // statx and openat2: the sandboxed probe makes them on the CI runner (the ADR 0183 S5 notes,
+    // CI runner heading). statx returns metadata that newfstatat already returns. openat2 opens a
+    // path as openat does, under the same Landlock rules.
+    allow({"statx", "openat2"});
+    // memfd_create, ftruncate and sysinfo: the software OpenGL renderer of the CI runner makes them
+    // (no GPU, so Mesa's llvmpipe sizes an anonymous memory file and reads the RAM size for its
+    // caches). The file has no path, so no path rule grants it, and execve, which Landlock limits
+    // by path, cannot run it. sysinfo only reads counters.
+    allow({"memfd_create", "ftruncate", "sysinfo"});
     allow({"mmap", "mprotect", "munmap", "madvise", "mremap", "brk"});
     // fallocate and flock: Mesa's shader cache sizes and locks its index when the EEVEE preview
     // starts with an empty cache, which every attempt does, as HOME is private. Landlock limits

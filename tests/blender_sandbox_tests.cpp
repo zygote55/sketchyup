@@ -370,6 +370,27 @@ void testHostClasses(const std::string &scratch) {
           "the refusal names the layer that did not install");
 }
 
+// The reason a job did not succeed: its code and message, then each attempt's exit code or the
+// signal that killed it (SIGSYS is a seccomp kill), the worker's status and the tail of its output
+// (standard output and standard error, merged).
+void explain(const BlenderJob &job) {
+    const auto report = job.report();
+    std::cerr << "  job code " << report.value("code").toString().toStdString() << ": "
+              << report.value("message").toString().toStdString() << "\n";
+    for (const auto item : report.value("attempts").toArray()) {
+        const auto attempt = item.toObject();
+        const int code = attempt.value("exitCode").toInt();
+        if (attempt.value("normalExit").toBool())
+            std::cerr << "  attempt exit code " << code << "\n";
+        else
+            std::cerr << "  attempt killed by signal " << code << " (" << strsignal(code) << ")\n";
+        std::cerr << "  worker status " << attempt.value("workerStatus").toString().toStdString()
+                  << ", code " << attempt.value("code").toString().toStdString() << "\n";
+        std::cerr << "  output tail:\n"
+                  << attempt.value("logTail").toString().right(2048).toStdString() << "\n";
+    }
+}
+
 // Blender's own probe, run without a sandbox, for the comparison of --real.
 QJsonObject directProbe(const QString &blender, const QString &backend, const QString &directory) {
     QFile script(QStringLiteral(SOURCE_DIR) + "/src/integrations/blender_worker.py");
@@ -418,10 +439,20 @@ void testRealProbes(const std::string &scratch) {
         waitFor(probe, 60000);
         check(probe.phase() == Phase::Succeeded,
               backend.toStdString() + " probe under the sandbox succeeds");
+        if (probe.phase() != Phase::Succeeded)
+            explain(probe);
         const auto sandboxed = probe.report().value("worker").toObject();
-        check(!expected.isEmpty() && sandboxed.value("status") == "available" &&
-                  sandboxed == expected,
+        const bool same = !expected.isEmpty() && sandboxed.value("status") == "available" &&
+                          sandboxed == expected;
+        check(same,
               backend.toStdString() + " probe under the sandbox is the unsandboxed probe's result");
+        if (!same) {
+            std::cerr << "  direct probe result: "
+                      << QJsonDocument(expected).toJson(QJsonDocument::Compact).toStdString()
+                      << "\n  sandboxed probe result: "
+                      << QJsonDocument(sandboxed).toJson(QJsonDocument::Compact).toStdString()
+                      << "\n";
+        }
     }
 }
 
