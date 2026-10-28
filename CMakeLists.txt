@@ -1429,6 +1429,11 @@ if(SKETCHYUP_BUILD_DESKTOP)
     sketchyup_native_fixture(quantities_large_input_tests tests/quantities_large_input_tests.cpp)
     target_link_libraries(quantities_large_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     target_include_directories(quantities_large_input_tests PRIVATE tests)
+    # F22 (R101.f finding 22): the UI thread's time for one placement edit, timed in a Release tree.
+    # Not built by default: cmake --build build/release --target edit_latency_benchmark
+    add_executable(edit_latency_benchmark EXCLUDE_FROM_ALL tests/edit_latency_benchmark.cpp)
+    target_link_libraries(edit_latency_benchmark PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(edit_latency_benchmark PRIVATE tests)
     sketchyup_native_fixture(group_input_tests tests/group_input_tests.cpp)
     target_link_libraries(group_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(component_input_tests tests/component_input_tests.cpp)
