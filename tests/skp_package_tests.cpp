@@ -344,6 +344,19 @@ int main() {
         return bytes;
     };
     checkDecode(validPackage(geometry, pngOf(16 * 1024 * 1024 + 1)), "texture bytes is out of range");
+    // R102.f, F5: a geometry or texture chunk over 256 MiB is refused from the header alone: the sizes are
+    // checked before the length of the file is compared with them, so a 32-byte header is enough.
+    const auto headerWith = [](std::uint64_t geometrySize, std::uint64_t textureSize) {
+        std::vector<std::uint8_t> out(8, 0);
+        std::memcpy(out.data(), "SKSKPP01", 8);
+        putU32(out, 0);  // the manifest's length
+        putU32(out, 0);  // the reserved word
+        putU64(out, geometrySize);
+        putU64(out, textureSize);
+        return out;
+    };
+    checkDecode(headerWith(256ULL * 1024 * 1024 + 1, 0), "geometry chunk exceeds 256 MiB");
+    checkDecode(headerWith(0, 256ULL * 1024 * 1024 + 1), "texture chunk exceeds 256 MiB");
     {
         const auto atLimit = sketchy::decodeSkpPackage(validPackage(geometry, pngOf(16 * 1024 * 1024)),
                                                        sketchy::SkpPackageDecodeOptions{false, true});
