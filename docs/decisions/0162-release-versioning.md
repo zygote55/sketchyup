@@ -74,5 +74,10 @@ informational: readers accept any writer string, and retained fixtures that reco
   `provider_trial --describe`) and the bytes of the two schema fixtures whose reopen test compares the file
   itself (`geographic-site-v32`, `material-texture-size-v33`, regenerated with `--write-fixture`).
   The geographic fixture's document identity also changed, because that test does not fix it.
+- The IFC export goldens (`tests/fixtures/ifc/export/*.ifc`, compared byte for byte by `ifc_export_tests`)
+  carry the application version twice: in `FILE_NAME`'s originating system and in `IFCAPPLICATION`. The six
+  files were moved to 1.4.0 on those two lines only, after the first CI run on this branch failed G6. The
+  Python worker tests build their own package with version 1.3.0 and are unaffected. A later bump must move
+  these lines too.
 - Contradiction, not changed: `tests/provider_release_corpus_tests.py` says in its header that v5 is
   authoritative, but its `CURRENT` manifest is v6 (added by R099.c). The header is stale.
