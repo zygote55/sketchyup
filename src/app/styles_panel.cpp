@@ -23,6 +23,7 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QShowEvent>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
@@ -80,7 +81,18 @@ QLabel *caption(const QString &text) {
 StylesPanel::StylesPanel(Document &doc, Viewport &view, QWidget *parent)
     : QWidget(parent), doc_(doc), view_(view) {
     setObjectName("stylesPanel");
-    auto *layout = new QVBoxLayout(this);
+    // The sections are taller than the Tray at 200 % text, so the tab scrolls, as the Materials and
+    // Quantities panels do. The controls below are added to the scrolled body.
+    auto *outer = new QVBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 0);
+    auto *scroll = new QScrollArea;
+    scroll->setObjectName("stylesScroll");
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    outer->addWidget(scroll);
+    auto *body = new QWidget;
+    scroll->setWidget(body);
+    auto *layout = new QVBoxLayout(body);
     auto *note = new QLabel(
         "Display settings are saved with this model. Application theme is set in View → Theme.");
     note->setWordWrap(true);
