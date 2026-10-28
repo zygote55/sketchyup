@@ -186,6 +186,12 @@ int main(int argc, char **argv) {
             // stay off the provider surface on every surface, so the baseline is unchanged.
             for (const auto *report : {"report.run", "report.schedule"})
                 check(!top.contains(report), name + ": assistant sees " + report);
+            // R100.b2 (ADR 0174 decision 9): the material texture size stays off every assistant
+            // schema, so the pinned bytes below do not move when the material commands gain it.
+            check(!QJsonDocument(request["tools"].toArray())
+                       .toJson(QJsonDocument::Compact)
+                       .contains("textureSize"),
+                  name + ": assistant sees the material texture size");
             // 2. The surface equals the baseline byte for byte.
             const auto actual = describe(request);
             const auto want = expected[surface.name].toObject();
@@ -271,6 +277,16 @@ int main(int argc, char **argv) {
                       .toJson(QJsonDocument::Compact)
                       .contains("edgeStroke"),
                   "MCP document.style accepts the edge stroke");
+        }
+        // R100.b2: MCP's material commands take the texture size. They are nested in the
+        // transaction tools' schemas, so count the field across every MCP tool.
+        {
+            int sized = 0;
+            for (const auto &tool : mcpToolCatalog())
+                sized += QJsonDocument(tool.toObject()["inputSchema"].toObject())
+                             .toJson(QJsonDocument::Compact)
+                             .count("textureSize");
+            check(sized >= 2, "MCP material.create and material.edit accept the texture size");
         }
         // 5. Site and terrain commands cannot be authorized for an assistant task, and the
         // hidden query site.convert is rejected without reaching the document.

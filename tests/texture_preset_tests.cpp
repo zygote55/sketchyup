@@ -136,10 +136,26 @@ void checkPresetTable() {
             ++cc0;
     }
     check(cc0 == 9 && procedural == 6, "Nine CC0 presets and six generated presets");
-    // The tile sizes of the Q1 table, in metres.
-    check(presets[2].tileWidth == 0.90 && presets[5].tileWidth == 0.60 &&
-              presets[14].tileWidth == 0.27 && presets[14].tileHeight == 0.28,
-          "Tile sizes match the Q1 table");
+    // The tile sizes of the Q1 table, in metres, in the table's order. Each becomes the size of
+    // the material a preset creates (R100.b2, ADR 0174 section 3).
+    const std::array<std::array<double, 2>, 15> tiles{{{1.00, 1.00},
+                                                       {1.00, 1.00},
+                                                       {0.90, 0.90},
+                                                       {2.00, 2.00},
+                                                       {1.50, 1.50},
+                                                       {0.60, 0.60},
+                                                       {2.00, 2.00},
+                                                       {1.00, 1.00},
+                                                       {1.12, 1.12},
+                                                       {0.30, 0.30},
+                                                       {2.00, 2.00},
+                                                       {1.90, 1.90},
+                                                       {2.10, 2.10},
+                                                       {2.50, 2.50},
+                                                       {0.27, 0.28}}};
+    for (size_t i = 0; i < presets.size(); ++i)
+        check(presets[i].tileWidth == tiles[i][0] && presets[i].tileHeight == tiles[i][1],
+              "Tile sizes match the Q1 table");
     check(presets[9].tint == "#b7d9e5" && presets[9].opacity == 35,
           "Glass, reeded keeps the flat Glass tint and opacity");
 }

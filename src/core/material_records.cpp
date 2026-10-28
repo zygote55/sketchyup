@@ -3,6 +3,12 @@
 #include "core/terrain_records.hpp"
 #include <set>
 namespace sketchy {
+void validateTextureSize(const TextureSize &size) {
+    for (const auto metres : {size.width, size.height})
+        if (!std::isfinite(metres) || metres < minimumTextureSize || metres > maximumTextureSize)
+            throw std::runtime_error("Material texture size must be finite and between 0.01 and "
+                                     "100 metres");
+}
 void validateMaterialRecords(const MaterialRecords &materials, Id next) {
     if (!next || materials.size() > 1024)
         throw std::runtime_error("Invalid material allocator or count");
@@ -16,6 +22,8 @@ void validateMaterialRecords(const MaterialRecords &materials, Id next) {
                 throw std::runtime_error("Material color must be finite and between zero and one");
         if (!std::isfinite(material->opacity) || material->opacity < 0 || material->opacity > 1)
             throw std::runtime_error("Material opacity must be finite and between zero and one");
+        if (material->textureSize)
+            validateTextureSize(*material->textureSize);
     }
 }
 void validateMaterialAssignments(const MaterialRecords &materials,

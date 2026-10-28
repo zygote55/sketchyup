@@ -1039,7 +1039,7 @@ QJsonObject inspectDocument(const Document &doc, const QJsonObject &request,
         data["materials"] = QJsonObject{{"front", QString::number(materials.front)},
                                         {"back", QString::number(materials.back)}};
         if (ref.kind == "face")
-            data["textureMapping"] = faceTextureDescription(b, ref.id);
+            data["textureMapping"] = faceTextureDescription(b, ref.id, doc.materials());
         break;
     }
     case Operation::Properties: {

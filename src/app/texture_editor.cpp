@@ -102,7 +102,7 @@ void editTextureMapping(Document &doc, Viewport &view, QWidget *parent, int side
             current();
             const auto face = sources.at(size_t(source->currentIndex()));
             base = effectiveFaceTextureMapping(*doc.bodies().at(face.body), face.entity,
-                                               sourceSide->currentIndex() == 1);
+                                               sourceSide->currentIndex() == 1, doc.materials());
             if (space->currentIndex() == 0)
                 base = transformTextureMapping(base, doc.worldTransform(face.body));
             const auto area = length(cross(base.uGradient, base.vGradient));

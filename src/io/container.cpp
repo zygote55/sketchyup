@@ -10,6 +10,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QtEndian>
+#include <algorithm>
 #include <optional>
 #include <set>
 namespace sketchy {
@@ -92,8 +93,12 @@ QByteArray encodeContainer(const Document &doc) {
     // applies the same policy to the payload.
     const auto version = nativeDocumentVersionFor(doc);
     const bool drawingSheets = version >= 27, componentParameters = version >= 28,
-               terrain = version >= 29, presentation = version >= 30, edgeStyles = version >= 31,
-               geographicSite = version >= 32;
+               terrain = version >= 29, presentation = version >= 30, edgeStyles = version >= 31;
+    // Schemas 32 and 33 are independent: each feature is written only when the document has it.
+    const bool geographicSite = bool(doc.site() && doc.site()->geographic);
+    const bool textureSizes = std::any_of(
+        doc.materials().begin(), doc.materials().end(),
+        [](const auto &entry) { return entry.second->textureSize.has_value(); });
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
@@ -147,6 +152,8 @@ QByteArray encodeContainer(const Document &doc) {
         features.append("edge-styles-v1");
     if (geographicSite)
         features.append("geographic-site-v1");
+    if (textureSizes)
+        features.append("material-texture-size-v1");
     const auto manifest =
         QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
                                   {"epoch", "1"},
@@ -191,69 +198,46 @@ Document decodeContainer(const QByteArray &bytes) {
     for (const auto &value : manifest["requiredFeatures"].toArray())
         if (!value.isString() || !features.insert(value.toString()).second)
             throw std::runtime_error("Invalid required features");
-    // Schema 32 (ADR 0181 §2.1): the schema-31 set with geographic-site-v1.
-    const bool geographicSite = features == std::set<QString>{"scene-v2",
-                                                              "topology-v1",
-                                                              "curves-v1",
-                                                              "guides-v1",
-                                                              "groups-v1",
-                                                              "face-colors-v1",
-                                                              "components-v1",
-                                                              "tags-v1",
-                                                              "materials-v1",
-                                                              "assets-v1",
-                                                              "display-units-v1",
-                                                              "edge-appearance-v1",
-                                                              "component-glue-v1",
-                                                              "hosted-components-v1",
-                                                              "texture-mapping-v1",
-                                                              "model-style-v1",
-                                                              "saved-scenes-v1",
-                                                              "section-planes-v1",
-                                                              "section-scenes-v1",
-                                                              "annotations-v1",
-                                                              "editable-text-v1",
-                                                              "solar-study-v1",
-                                                              "reference-images-v1",
-                                                              "display-precision-v1",
-                                                              "instanced-placements-v1",
-                                                              "drawing-sheets-v1",
-                                                              "component-parameters-v1",
-                                                              "terrain-v1",
-                                                              "presentation-v1",
-                                                              "edge-styles-v1",
-                                                              "geographic-site-v1"};
-    const bool edgeStyles =
-        geographicSite || features == std::set<QString>{"scene-v2",
-                                                        "topology-v1",
-                                                        "curves-v1",
-                                                        "guides-v1",
-                                                        "groups-v1",
-                                                        "face-colors-v1",
-                                                        "components-v1",
-                                                        "tags-v1",
-                                                        "materials-v1",
-                                                        "assets-v1",
-                                                        "display-units-v1",
-                                                        "edge-appearance-v1",
-                                                        "component-glue-v1",
-                                                        "hosted-components-v1",
-                                                        "texture-mapping-v1",
-                                                        "model-style-v1",
-                                                        "saved-scenes-v1",
-                                                        "section-planes-v1",
-                                                        "section-scenes-v1",
-                                                        "annotations-v1",
-                                                        "editable-text-v1",
-                                                        "solar-study-v1",
-                                                        "reference-images-v1",
-                                                        "display-precision-v1",
-                                                        "instanced-placements-v1",
-                                                        "drawing-sheets-v1",
-                                                        "component-parameters-v1",
-                                                        "terrain-v1",
-                                                        "presentation-v1",
-                                                        "edge-styles-v1"};
+    // Schemas 32 and 33 add geographic-site-v1 (ADR 0181 §2.1) and material-texture-size-v1
+    // (ADR 0174 section 3). Each is optional and the two are independent, so the schema-31 set is
+    // compared with both taken out, and a file with either feature must have that set.
+    const bool geographicSite = features.contains("geographic-site-v1");
+    const bool textureSizes = features.contains("material-texture-size-v1");
+    auto schema31 = features;
+    schema31.erase("geographic-site-v1");
+    schema31.erase("material-texture-size-v1");
+    const bool edgeStyles = schema31 == std::set<QString>{"scene-v2",
+                                                          "topology-v1",
+                                                          "curves-v1",
+                                                          "guides-v1",
+                                                          "groups-v1",
+                                                          "face-colors-v1",
+                                                          "components-v1",
+                                                          "tags-v1",
+                                                          "materials-v1",
+                                                          "assets-v1",
+                                                          "display-units-v1",
+                                                          "edge-appearance-v1",
+                                                          "component-glue-v1",
+                                                          "hosted-components-v1",
+                                                          "texture-mapping-v1",
+                                                          "model-style-v1",
+                                                          "saved-scenes-v1",
+                                                          "section-planes-v1",
+                                                          "section-scenes-v1",
+                                                          "annotations-v1",
+                                                          "editable-text-v1",
+                                                          "solar-study-v1",
+                                                          "reference-images-v1",
+                                                          "display-precision-v1",
+                                                          "instanced-placements-v1",
+                                                          "drawing-sheets-v1",
+                                                          "component-parameters-v1",
+                                                          "terrain-v1",
+                                                          "presentation-v1",
+                                                          "edge-styles-v1"};
+    if ((geographicSite || textureSizes) && !edgeStyles)
+        throw std::runtime_error("Invalid required features");
     const bool presentation = edgeStyles || features == std::set<QString>{"scene-v2",
                                                                           "topology-v1",
                                                                           "curves-v1",
@@ -437,7 +421,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (geographicSite        ? "json-v32"
+        chunk["encoding"] != (textureSizes          ? "json-v33"
+                              : geographicSite      ? "json-v32"
                               : edgeStyles          ? "json-v31"
                               : presentation        ? "json-v30"
                               : terrain             ? "json-v29"
@@ -514,7 +499,8 @@ Document decodeContainer(const QByteArray &bytes) {
     QJsonParseError payloadError;
     const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
     const auto payloadTree = parsedPayload.object();
-    if (payloadTree["version"] != (geographicSite        ? 32
+    if (payloadTree["version"] != (textureSizes          ? 33
+                                   : geographicSite      ? 32
                                    : edgeStyles          ? 31
                                    : presentation        ? 30
                                    : terrain             ? 29

@@ -545,6 +545,21 @@ int main(int argc, char **argv) {
             }
         }
         check(textured, "S5: the textured face is imported with its mapping");
+        // S6 (R100.b2, ADR 0174 section 3): the material keeps the texture's size, in metres from
+        // the inches OpenSKP reports, and the explicit mapping above is unchanged by it.
+        const auto &texture = package.textures.at(0);
+        bool sized = false;
+        for (const auto &[id, material] : doc.materials()) {
+            if (!material->asset)
+                continue;
+            check(texture.width > 0 && texture.height > 0 && material->textureSize,
+                  "S6: a textured material keeps its texture size");
+            check(within(material->textureSize->width, texture.width * 0.0254, 1e-9) &&
+                      within(material->textureSize->height, texture.height * 0.0254, 1e-9),
+                  "S6: the size is the texture's inches in metres");
+            sized = true;
+        }
+        check(sized, "S6: the textured material is imported with its size");
         checkUndo("textured_face.skp (S5)", imported);
     }
     {

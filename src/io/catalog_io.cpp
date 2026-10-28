@@ -95,7 +95,12 @@ void requireMaterialRecord(const QByteArray &payload, const std::vector<CatalogD
     require(error.error == QJsonParseError::NoError && parsed.isObject(),
             "material record is not a JSON object");
     const auto record = parsed.object();
-    fields(record, {"name", "color", "opacity", "asset"});
+    // Every field is required except the texture size, written only when present (R100.b2).
+    const QStringList required{"name", "color", "opacity", "asset"};
+    require(record.size() == qsizetype(required.size()) + (record.contains("textureSize") ? 1 : 0),
+            "material record has missing or extra fields");
+    for (const auto &name : required)
+        require(record.contains(name), "material record has missing or extra fields");
     nonemptyText(text(record["name"], qsizetype(CatalogLimits::materialNameBytes)),
                  CatalogLimits::materialNameBytes);
     require(record["color"].isArray() && record["color"].toArray().size() == 3,
@@ -114,6 +119,13 @@ void requireMaterialRecord(const QByteArray &payload, const std::vector<CatalogD
     const bool matches =
         asset == 0 ? deps.empty() : deps.size() == 1 && assets.size() == 1 && assets[0].id == asset;
     require(matches, "material dependencies do not match its asset");
+    if (record.contains("textureSize")) {
+        const auto size = record["textureSize"].toObject();
+        require(record["textureSize"].isObject() && size.size() == 2 && size["width"].isDouble() &&
+                    size["height"].isDouble(),
+                "material texture size must be {width, height} in metres");
+        validateTextureSize(TextureSize{size["width"].toDouble(), size["height"].toDouble()});
+    }
 }
 struct EntryFailure {
     QString reason;
@@ -294,11 +306,15 @@ std::uint32_t CatalogBuilder::addMaterial(const QString &name, const QString &de
     requireUnitInterval(material.opacity, "Catalog material opacity must be from zero to one");
     require(material.asset <= assets_.size(),
             "Catalog material names an asset that is not in the catalog");
-    const QJsonObject record{
+    QJsonObject record{
         {"name", title},
         {"color", QJsonArray{material.color[0], material.color[1], material.color[2]}},
         {"opacity", material.opacity},
         {"asset", int(material.asset)}};
+    if (material.textureSize) {
+        validateTextureSize(*material.textureSize);
+        record["textureSize"] = encodeTextureSize(*material.textureSize);
+    }
     std::vector<CatalogDependency> dependencies;
     if (material.asset)
         dependencies.push_back({CatalogDependency::Kind::Asset, material.asset});
