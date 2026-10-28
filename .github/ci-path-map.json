@@ -296,6 +296,11 @@
       "areas": ["build", "native"]
     },
     {
+      "why": "R100.f2 (ADR 0174 section 10, UX_DESIGN §18.1 to §18.3, §18.6, §18.7): the Styles tab (the edge stroke controls and the style library), the Import and Export style dialogs and their File entries, and the style file reader and scan. The suite style_catalog_input_tests drives them, and the generic source rules also select build and native; this rule names the slices.",
+      "paths": ["src/app/styles_panel*", "src/app/style_dialogs*", "src/app/window_styles*", "src/io/style_bundle*", "tests/style_catalog_input*"],
+      "areas": ["build", "native"]
+    },
+    {
       "why": "Test sources, fixtures and helpers run by CTest or the repository checks.",
       "paths": [
         "tests/**"

@@ -2132,6 +2132,8 @@ These are gaps to close in R100.f or before it. The design does not depend on an
 9. **Rendering is new work.** `Viewport::drawStyleProfiles` draws screen-space triangles. Dashes need segment geometry, texture tiling needs UVs along each edge, and the hatch needs a pattern. This is the main cost of R100.f, and the §9 budgets are unmeasured.
 10. **Wording.** The Asset list says "Stored" where the engine says `present`, and the design keeps "Stored". ADR 0174 §2 expects a newer-format error from 1.3.x, but the released CLI says "Unsupported container field" (R100.a). The design's warning does not quote the released reader's text.
 
+**Status after R100.f2.** Gap 1 is closed by R100.f1 (`document.style` takes the stroke, one labelled edit per control). Gap 2 is closed: Profile width is dimmed while the stroke is on, and the stroke's width is the one drawn. Gap 3 stands: the desktop scans its own folder, and MCP and the CLI cannot name a library style. Gap 5 stands: `document.describe` does not report the edge texture's status, so MCP cannot show it. Gap 9 is measured: a dash run costs 456 bytes of upload, and the dotted cost is recorded in ADR 0174 (R100.f2 implementation notes), on software GL and not against the reference-hardware budget. Gaps 4, 6, 7 and 8 are the R100.d and R100.f3 slices' concern.
+
 ### 18.9 Open questions for the owner
 
 **The owner decided all five on 2026-10-27, each as recommended:** Choose folder is allowed; a missing edge texture draws hatched; `document.style` sets the edge stroke now (with the decision 9 re-pin if the assistant's bytes change); apply from the library without a confirmation step; and a catalog component is inserted at the origin until the engine takes a position. R100.f builds these.

@@ -1518,3 +1518,145 @@ into a new directory: it wrote 8 `material-texture-size` seeds and 15 `geographi
 - glTF and OBJ import leave the size unset by construction. No test was added for that.
 - An import whose entries are all reused is refused with `Empty edit`. That behaviour exists on main and was not
   changed here.
+
+## Implementation notes (R100.f2)
+
+Recorded 2026-10-27 for branch `feat/r100f2-styles-tab`, on `origin/main` at `c80bcd21` (after R100.f1,
+#482). This is the desktop slice of [UX_DESIGN §18](../UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs):
+the Styles tab's Edge stroke section and Style library section, File > Import style… and File > Export
+style…, and the dotted-edge cost R100.f1 left unmeasured. The asset catalog dialog is R100.f3.
+
+- **What was built.** The Edge stroke section (`src/app/styles_panel.cpp`): one check box, Width, Opacity,
+  Dash and Texture, each one labelled `document.style` edit through `Viewport::applyStyleEdit`, with the
+  §18.3 names ("Turn on edge stroke", "Set edge width 2.5 px", "Set edge opacity 60 %", "Set edge dash
+  Dashed", "Set edge texture “Name”", "Clear edge texture", "Turn off edge stroke", "Reset model style").
+  Turning the stroke on copies the profile width. The schema-31 caption shows while the stroke is on.
+  Colors and details dims Profile width with "Set by the edge stroke" (gap 2). A missing texture is an amber
+  field with its warning word, a caption, and a tooltip that is also the accessible description; a missing
+  texture is listed in the drop-down but cannot be chosen. Width and Opacity commit on Enter and restore on
+  Esc; an invalid value is a sentence under the field that begins "Invalid:".
+- **The Style library section.** The folder (`styles` under the application data folder, or the
+  `styleFolder` preference after Choose folder…), Refresh and the search (names and descriptions), and the
+  rows: the stroke sample, the name, the settings in words, and one state: "✓ Stored", "⚠ Texture missing
+  from file · cannot apply" (listed, not selectable), or "✕ Cannot read: reason" (not selectable). Apply to
+  model applies the row in one labelled step, "Apply style “Name”", and the status line says what changed.
+  Save to library… refuses a taken name in the dialog and suggests the next free one ("Style B 2.sketchystyle
+  (suggested, free)"); it writes a new file only. The row menu has the same four commands as the buttons.
+  The folder is scanned when the tab is shown, and again when its modification time changes.
+- **Import and Export style.** File > Import style… sits after Import terrain…, and File > Export style…
+  after Export STEP…. Neither has a default shortcut. Import reads the file's facts and draws its stroke
+  in a preview (Apply to this model is the default; Save to the style library writes a new file). Its
+  primary button names the outcome. The refusals of §18.6 (texture not in the file, checksum mismatch,
+  texture not an image, texture over 16 MiB, a catalog or template, a field out of range, and an
+  unreadable file) show in the dialog body with what did not happen and the next steps. Export style names
+  what the file holds and counts what it does not (materials, tags, components, scenes); Export to file…
+  refuses an existing name and a missing texture before the file dialog opens.
+- **Engine changes, kept small.** `scanStyleDirectory` now counts the files it skips and why (not
+  `.sketchystyle`, and past the 128 listed), and reports the 4,096-entry stop (ADR 0132). The range refusals
+  name the value ("Edge width 9 px is outside 1 to 8 px", the §18.6 wording). `styleAlreadyInDocument`
+  decides the neutral result before a batch: the engine refuses a batch that changes nothing ("Batch has no
+  committed changes"), so an already-applied style would otherwise read as a failure. No schema, command,
+  catalogue or assistant surface changed; `document.style` and `style.apply` are as R100.a and R100.f1 left them.
+- **Labels.** Each edit's history label is the §18.3 name above, passed as `history.label` through
+  `commitCommands`. Apply from the library and from Import use "Apply style “Name”", which is the label
+  `style.apply` carries in the catalogue.
+
+**Measured dotted-edge cost (R100.f1's open item).** Built and run in `sketchyup-ci-pinned:r097a-ifc`
+(Debug, Qt 6.11.2, Mesa llvmpipe software GL 4.6, Xvfb with the xcb platform, scale 1, a 1200 × 900 window,
+`tests/edge_stroke_benchmark.cpp`, which is a manual tool, not a CI line). Each row is a whole model in
+view, the mean of 30 frames after 5 warm-up frames, one run per setting. "Quads" is the profile quads
+drawn per frame; "upload" is the bytes the change uploads in the first frame after it.
+
+| Model | Setting | Frame ms | Profile quads per frame | Upload after the change |
+| --- | --- | --- | --- | --- |
+| 3,600 quads (14,400 edges) | no stroke | 29.8 | 14,400 | 10,427,960 B |
+| | solid | 30.0 | 14,400 | 10,427,960 B |
+| | dashed | 29.3 | 14,400 | 10,427,960 B |
+| | dotted | 34.8 | 22,392 | 14,072,312 B |
+| | dash-dot | 31.7 | 14,400 | 10,427,960 B |
+| 10,000 quads (40,000 edges) | no stroke | 80.7 | 40,000 | 28,911,160 B |
+| | solid | 81.1 | 40,000 | 28,911,160 B |
+| | dashed | 82.5 | 40,000 | 28,911,160 B |
+| | dotted | 89.8 | 40,000 | 28,911,160 B |
+| | dash-dot | 88.5 | 40,000 | 28,911,160 B |
+
+What the numbers say, and what they do not:
+
+- A dash run is one quad of six vertices of 76 bytes, 456 bytes. Dotted (2 px on, 3 px off) is one run per
+  5 px of edge, so about 91 bytes per visible pixel, which is R100.f1's estimate. Dash-dot is one run per 16 px
+  with two on-runs, about 57 bytes per pixel. Dashed (8 on, 4 off) is about 38 bytes per pixel.
+- At 3,600 quads the 7,992 extra dotted runs cost 3.6 MB of upload and about 5 ms of frame time over solid
+  (about +17 %).
+- At 10,000 quads the view is zoomed out, so each edge is shorter than one dash period and every setting
+  draws one run per edge. The upload is then the same for every setting, and dotted is still about 9 ms
+  slower than solid. The run count does not explain that, and it was not investigated: each setting was run
+  once. Repeated runs would show whether it is noise.
+- **Budget.** [BUILD_PLAN's initial performance budgets](../BUILD_PLAN.md#initial-performance-budgets) give
+  p95 frame time of at most 16.7 ms at 1920 × 1080 for 100k visible triangles, on declared reference
+  hardware. These runs are software-rendered, at 1200 × 900, with mean frame times over 7,200 and 20,000
+  triangles, so they are not that scenario and no verdict on it can be drawn. The no-stroke baseline is
+  already 30 ms here, so the stroke's +5 ms is a relative cost only. The §9 table of this ADR has no
+  frame-time row for dashes. A close-up measurement (edges of tens of pixels) and reference-hardware runs are
+  still needed.
+
+**Mockup and design deviations.**
+
+- The File menu mock lists Import style… before Asset catalogs…, and Export style… before Export asset
+  catalog…. The merged menu keeps R100.f3's adjacency, which its own test checks: Asset catalogs… follows
+  Import terrain… and Export asset catalog… follows Export STEP…. Import style… and Export style… follow those
+  two, so the order is Import terrain…, Asset catalogs…, Import style…, and Export STEP…, Export asset
+  catalog…, Export style…. Nothing else moves.
+- The mock's refusal is a separate sheet with "Copy details". The refusal is the Import dialog's own body, with
+  "Choose another file…" and "Close". "Copy details" is not built.
+- The Edge texture caption reads "Missing: edges that use it draw hatched. No other texture is used."; the
+  mock says "front edges", which is a placeholder.
+- The Import name field shows the base name, not the mock's "Style A.sketchystyle".
+- The export name defaults to "Model style", not the mock's "Style A" placeholder.
+- The library row shows no texture tile, and neither does the Import preview. §18.2 asks for a tile when the
+  texture decodes; it is not built (gap 2 below).
+
+**Gaps 3 and 5 of §18.8, recorded.**
+
+- Gap 3 (no fixed library name for MCP or the CLI): the desktop scans its own folder, and MCP and
+  `sketchyup-cli` see only the default folder's styles. The catalog library's `--to-library` (R100.e) and the
+  style commands do not name a library style. This is still so; the docs say so in UX §18.8.
+- Gap 5 (`document.describe` does not report the edge texture's `assetStatus`): **not closed.** Closing it
+  changes the `document.describe` output and its generated API schema, and the MCP surface is pinned, so it
+  was not a cheap change inside this slice. The desktop reads the model directly, so the Styles tab is right.
+
+**Tests.** `style_catalog_input_tests` (new; tests the desktop through the real window with timers driving
+each dialog): each edge stroke control is one labelled step (and the reset); the Profile width dimming; the
+missing-texture state and tooltip; the library states, search, Apply (one step, the status line, the neutral
+result, Enter), a missing texture not applicable, the bound of 128 and the skipped count; Save to library with
+a taken name, the suggestion and no overwrite; Import apply, the same-style result, save to the library, and
+every §18.6 refusal in the table that the dialog can reach (the texture-too-large case is a header check);
+Choose another file; Export's existing name, a new name and the missing texture; the File menu order; the
+accessible names; the Styles tab order (§18.7); 200 % text checked for the library list and buttons only.
+The three audited dialogs are cases in `tests/native_dialog_cases.hpp` (`style-import`, `style-export`,
+`style-save-library`).
+
+**Checks run.** In `sketchyup-ci-pinned:r097a-ifc`, Debug, with the dev preset's options and
+`SKETCHYUP_NATIVE_FIXTURES_IN_ALL`: `style_catalog_input_tests` passes under Xvfb (xcb) at scale 1 and 2
+(12 test functions). `native_accessibility_audit --dialogs-keyboard=styles` passes at scale 2. The regression
+suites `style_bundle_tests`, `style_catalog_cli_tests`, `model_style_command_tests`, `model_style_io_tests`,
+`model_style_tests`, `command_tests`, `inspection_tests`, `assistant_tool_surface_tests`,
+`edge_stroke_viewport_tests`, `style_input_tests` and `style_viewport_tests` pass. `ci-line-inventory.py check`
+and `ci-plan.py check` pass.
+
+**Not run here.** The Wayland matrix (weston), the sanitizer jobs, the scale-1 audit, the X11 2× and Wayland
+runs of the whole native matrix, and the package acceptance. They run in CI. The audit's
+`reference-import` case fails on offscreen (not Xvfb) and is not in this slice.
+
+**Gaps (honest).**
+
+- Choose folder… (the system folder chooser) is not exercised by the suite. The preference it writes is read
+  by the scan, which is tested.
+- The library row and the Import preview show no texture tile (§18.2). The texture is listed by name.
+- The 200 % check is shallow: the library list and its buttons under a doubled application font. The mock's
+  200 % screens are not compared pixel by pixel.
+- The row menu's four commands are checked through their buttons, not through the menu popup itself.
+- The 4,096-entry scan stop is not tested; the 128-style bound is.
+- The Save to library refusal for a missing texture uses "Save refused:", a wording the design does not
+  give; the Export wording is the design's.
+- The dash cost is measured on software GL. Reference-hardware numbers are still needed (see the budget note).
+- Gap 5 stays open, as above.

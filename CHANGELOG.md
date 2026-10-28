@@ -38,6 +38,13 @@
   texture tiled along each edge. A missing texture draws hatched in the warning colour, with a status
   chip that opens the Styles tab. The Styles tab controls follow (R100.f2). A model saved with an edge
   stroke is schema 31 and cannot be opened by SketchyUp 1.3.0.
+- Styles tab and style library (R100.f2, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md), [UX §18](docs/UX_DESIGN.md#18-styles-edge-strokes-and-asset-catalogs)):
+  the Styles tab gains an Edge stroke section (use, width, opacity, dash and texture, each one undo
+  step) and a Style library section (a folder you can choose, search, Apply to model, Save to library).
+  File > Import style… and File > Export style… read and write `.sketchystyle` files, with the refusals
+  of §18.6: a missing texture is named and nothing is applied or written, and an existing file is never
+  replaced. A dotted edge costs about 91 bytes of vertex data per visible pixel; the frame-time numbers
+  are software-rendered and recorded in the ADR.
 
 - Sandboxed IFC and STEP helper (R109 S2, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)): every mode of
   `sketchyup-ifc-worker` that reads or writes a file (the import, the check, the export, the STEP import and export,
