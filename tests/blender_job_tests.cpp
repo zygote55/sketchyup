@@ -296,6 +296,8 @@ int fake(const QString &stated, const QStringList &args) {
     } else if (request.value("operation") == "probe") {
         result["status"] = "available";
         result["engines"] = QJsonArray{request.value("backend") == "OPENGL" ? "eevee" : "cycles"};
+        // The version the batch dialog names in its Blender line (UX_DESIGN 17.4).
+        result["blenderVersionString"] = "5.2.2";
         result["backends"] = QJsonArray{"CPU"};
         result["devices"] =
             QJsonArray{QJsonObject{{"id", "CPU"}, {"name", "CPU"}, {"backend", "CPU"}}};

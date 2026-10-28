@@ -161,6 +161,21 @@
       ]
     },
     {
+      "why": "R109 S3 and S4 (ADR 0183): the sandbox of the text helper and the extension worker, their policies, the helpers' host code and the suites that run them. The sanitized builds run both helpers and their suites under ASan and UBSan.",
+      "paths": [
+        "src/text/sandbox_policy*",
+        "src/text/worker_main.cpp",
+        "src/text/text_worker*",
+        "src/automation/extension_sandbox_policy*",
+        "src/automation/extension_worker*",
+        "tests/text_sandbox*",
+        "tests/extension_sandbox*",
+        "tests/text_worker*",
+        "tests/extension_worker*"
+      ],
+      "areas": ["build", "job:sanitize"]
+    },
+    {
       "why": "Build definition: build and run everything fast, native included.",
       "paths": [
         "CMakeLists.txt",
@@ -338,6 +353,20 @@
         "src/app/quantities_dialogs.hpp",
         "tests/quantities_input_tests.cpp",
         "tests/quantities_large_input_tests.cpp"
+      ],
+      "areas": [
+        "build",
+        "native"
+      ]
+    },
+    {
+      "why": "The R099.d3 batch dialog, the Jobs batch rows, the results sheet and the quit prompt (UX_DESIGN 17.4 to 17.7, 17.12): the batch controller, the dialog and the results sheet, with the input suite that drives them and the native display lines that run it. The suite links the desktop and runs the fake worker of blender_job_tests, so it runs in the fast tier as well.",
+      "paths": [
+        "tests/presentation_batch_input_tests.cpp",
+        "src/app/presentation_batches.*",
+        "src/app/presentation_batch_dialog.*",
+        "src/app/presentation_results.*",
+        "src/app/render_jobs.*"
       ],
       "areas": [
         "build",

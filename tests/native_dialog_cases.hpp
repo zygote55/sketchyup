@@ -1646,6 +1646,39 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          "Esc cancels. An existing file is never replaced."});
 
+    // ------------------------------------------------- presentation batches ----------
+    // R099.d3 (UX_DESIGN §17.1, §17.4, §17.10): the batch dialog, opened from the palette or from
+    // the render sheet's button. It is modal. Start is the default, but it is disabled until the
+    // path, the presets, the folder and Blender are valid, so Enter does nothing here. Esc cancels.
+    // presentation_batch_input_tests drives it.
+    add({"presentation-batch",
+         "presentations",
+         "Export presentation batch (camera path, presets, device, video)",
+         "Camera > Export presentation batch… (palette)",
+         fresh,
+         viaPalette("Export presentation batch…"),
+         named("presentationBatchDialog"),
+         Enter::DefaultOnly,
+         "Start batch",
+         Return::Viewport,
+         {},
+         {},
+         {},
+         "Esc cancels it. The model has no camera path here, so Start is disabled."});
+    add({"presentation-batch-sheet",
+         "render",
+         "Export presentation batch (from the render sheet)",
+         "Render with Blender > Export presentation batch…",
+         fresh,
+         viaPalette("Render…"),
+         named("presentationBatchDialog"),
+         Enter::DefaultOnly,
+         "Start batch",
+         Return::Opener,
+         {},
+         {},
+         {childOf(ctx, named("renderSetup"), "exportPresentationBatch")}});
+
     // ----------------------------------------------------------- exchange ----------
     // R097.e1, R098.a3, R098.c2, R102.c: the IFC, STEP and SketchUp exchange commands. The
     // offline fixture has no helper, so each command opens its "not installed" availability

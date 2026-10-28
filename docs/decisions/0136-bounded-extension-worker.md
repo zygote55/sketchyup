@@ -23,8 +23,13 @@ A compromised/mismatched helper response cannot substitute undeclared commands.
 The child uses a minimal environment containing PATH/LANG and explicit sanitizer
 options for verification; it inherits neither provider credentials nor desktop
 plugin configuration. No extension-supplied executable code is run. This is a
-process-failure and command-validation boundary, not an OS sandbox for the installed
-application binary.
+process-failure and command-validation boundary. Since R109 S4 ([ADR 0183](0183-helper-process-sandbox.md))
+the child is also an OS sandbox: `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset that grants read-only access
+to the locale files and nothing else, and a seccomp-bpf allow-list whose default action kills the child
+with SIGSYS, which the host reports as `sandboxViolation`. The child has no socket, no exec, no write
+access and no thread creation. Before S4 it had the user's file and network access. S4 adds the sandbox
+and nothing else: the child still has no rlimit, `setsid` or `PDEATHSIG`. The parent's validation of the
+response remains the first line of defence.
 
 The caller must retain the document identity/revision across the asynchronous
 attempt, confirm the package remains enabled, and publish the verified batch via

@@ -394,8 +394,9 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(render_environment_tests PRIVATE sketchyup_environment)
     add_test(NAME render_environment COMMAND render_environment_tests)
   endif()
-  add_library(sketchyup_text src/text/text_geometry.cpp)
-  target_link_libraries(sketchyup_text PUBLIC sketchyup_core Qt6::Gui PRIVATE clipper2)
+  # R109 S3 (ADR 0183): the text helper's sandbox policy is in this library, next to the helper's geometry.
+  add_library(sketchyup_text src/text/text_geometry.cpp src/text/sandbox_policy.cpp)
+  target_link_libraries(sketchyup_text PUBLIC sketchyup_core sketchyup_sandbox Qt6::Gui PRIVATE clipper2)
   target_compile_options(sketchyup_text PRIVATE -Wall -Wextra -Wpedantic)
   if(BUILD_TESTING)
     add_executable(text_geometry_tests tests/text_geometry_tests.cpp)
@@ -403,11 +404,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_test(NAME text_geometry COMMAND text_geometry_tests)
     set_tests_properties(text_geometry PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME=generic;QT_IM_MODULE=compose")
   endif()
-  add_library(sketchyup_io src/io/skp_package.cpp src/io/skp_import.cpp src/io/import_refusal.cpp src/io/skp_worker.cpp src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/step_worker.cpp src/io/step_export.cpp src/io/ifc_worker_run.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/presentation_export.cpp src/automation/presentation_export.hpp src/automation/extension_worker.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/catalog_io.cpp src/io/catalog_insert.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/report_csv.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/presentation_commands.cpp src/automation/style_commands.cpp src/automation/catalog_commands.cpp src/automation/style_catalog_cli.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/presentation_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/io/style_bundle.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/report_commands.cpp src/automation/report_schedules.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/procedural_textures.cpp src/io/texture_presets.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
+  add_library(sketchyup_io src/io/skp_package.cpp src/io/skp_import.cpp src/io/import_refusal.cpp src/io/skp_worker.cpp src/io/ifc_package.cpp src/io/ifc_import.cpp src/io/ifc_export.cpp src/io/ifc_worker.cpp src/io/step_worker.cpp src/io/step_export.cpp src/io/ifc_worker_run.cpp src/io/assembly_source.cpp src/automation/optional_capabilities.cpp src/automation/presentation_export.cpp src/automation/presentation_export.hpp src/automation/extension_worker.cpp src/automation/extension_sandbox_policy.cpp src/automation/extension_store.cpp src/automation/extension.cpp src/io/library_catalog.cpp src/io/component_library.cpp src/io/library_bundle.cpp src/io/catalog_io.cpp src/io/catalog_insert.cpp src/io/measured_request.cpp src/io/measured_export.cpp src/io/measured_drawing.cpp src/io/drawing_view.cpp src/io/drawing_items.cpp src/io/drawing_sheet_paint.cpp src/io/sheet_export.cpp src/io/dxf_export.cpp src/io/dxf_import.cpp src/io/dxf_source.cpp src/io/terrain_source.cpp src/io/terrain_import.cpp src/io/new_file.cpp src/io/report_csv.cpp src/io/component_parameters_io.cpp src/io/pdf_info.cpp src/io/stl_export.cpp src/io/stl_import.cpp src/io/stl_source.cpp src/io/obj_export.cpp src/io/obj_import.cpp src/io/obj_material.cpp src/io/obj_source.cpp src/io/gltf_import.cpp src/io/gltf_package.cpp src/io/native_format.cpp src/integrations/animation_capture.cpp src/automation/reference_image_commands.cpp src/io/reference_image_io.cpp src/automation/solar_commands.cpp src/io/solar_io.cpp src/io/terrain_io.cpp src/automation/terrain_commands.cpp src/automation/text_commands.cpp src/io/text_source_io.cpp src/text/text_worker.cpp src/automation/annotation_commands.cpp src/automation/section_commands.cpp src/automation/scene_commands.cpp src/automation/presentation_commands.cpp src/automation/style_commands.cpp src/automation/catalog_commands.cpp src/automation/style_catalog_cli.cpp src/automation/drawing_sheet_commands.cpp src/automation/component_parameter_commands.cpp src/io/scenes_io.cpp src/io/presentation_io.cpp src/io/drawing_sheets_io.cpp src/io/drawing_items_io.cpp src/io/annotations_io.cpp src/io/sections_io.cpp src/io/model_style_io.cpp src/io/style_bundle.cpp src/automation/texture_commands.cpp src/automation/site_recipe.cpp src/automation/furniture_recipe.cpp src/automation/stair_recipe.cpp src/automation/roof_recipe.cpp src/automation/measurement_assertions.cpp src/automation/hosted_commands.cpp src/io/hosted_components_io.cpp src/automation/native_assistant_session.cpp src/integrations/render_snapshot.cpp src/integrations/glb_export.cpp src/automation/model_recipes.cpp src/automation/assistant.cpp src/automation/local_mcp.cpp src/automation/mcp.cpp src/automation/recipe.cpp src/automation/session.cpp src/automation/transactions.cpp src/automation/transaction_catalog.cpp src/automation/transaction_coordinator.cpp src/io/outcome_store.cpp src/automation/staging.cpp src/automation/inspection_session.cpp src/automation/inspection.cpp src/automation/report_commands.cpp src/automation/report_schedules.cpp src/automation/history.cpp src/io/recovery.cpp src/io/formline.cpp src/automation/entity_info.cpp src/io/assets.cpp src/io/texture_image.cpp src/io/procedural_textures.cpp src/io/texture_presets.cpp src/io/document_io.cpp src/io/container.cpp src/io/save.cpp src/automation/commands.cpp src/automation/component_scope.cpp src/automation/catalog.cpp src/automation/measurements.cpp)
   target_link_libraries(sketchyup_io PRIVATE sketchyup_cgltf)
   # R095.c terrain import uses the triangulation adapter.
   target_link_libraries(sketchyup_io PUBLIC sketchyup_terrain_triangulation)
-  target_link_libraries(sketchyup_io PUBLIC sketchyup_core sketchyup_environment sketchyup_version Qt6::Core PRIVATE Qt6::Gui)
+  # R109 S4 (ADR 0183): the extension worker's sandbox policy is compiled with the worker's own code.
+  target_link_libraries(sketchyup_io PUBLIC sketchyup_core sketchyup_environment sketchyup_sandbox sketchyup_version Qt6::Core PRIVATE Qt6::Gui)
   target_compile_options(sketchyup_io PRIVATE -Wall -Wextra -Wpedantic)
   # R100.b (ADR 0174 Q1): the nine CC0 texture presets, embedded as the bytes of managed assets.
   qt_add_resources(sketchyup_io texture_presets PREFIX "/sketchyup/textures" BASE resources/textures FILES resources/textures/asphalt.jpg resources/textures/fabric-wool-herringbone.jpg resources/textures/grass.jpg resources/textures/gravel.jpg resources/textures/metal-corrugated.jpg resources/textures/roof-tiles-clay.jpg resources/textures/stone-rubble-wall.jpg resources/textures/wood-dark-oak.jpg resources/textures/wood-light-ash.jpg)
@@ -453,6 +455,15 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_compile_definitions(extension_worker_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_dependencies(extension_worker_tests sketchyup-extension-worker)
     add_test(NAME extension_worker COMMAND extension_worker_tests)
+    # R109 S4 (ADR 0183): the extension worker under its sandbox, against the same code run unsandboxed in
+    # this process, under the stdio setups of section 4.5; the attack probes; the refusals; the host's classes.
+    add_executable(extension_sandbox_tests tests/extension_sandbox_tests.cpp)
+    target_link_libraries(extension_sandbox_tests PRIVATE sketchyup_io sketchyup_sandbox)
+    target_compile_definitions(extension_sandbox_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+      EXTENSION_WORKER_PATH="$<TARGET_FILE:sketchyup-extension-worker>")
+    add_dependencies(extension_sandbox_tests sketchyup-extension-worker)
+    add_test(NAME extension_sandbox COMMAND extension_sandbox_tests)
+    set_tests_properties(extension_sandbox PROPERTIES TIMEOUT 600)
     add_executable(extension_store_tests tests/extension_store_tests.cpp)
     target_link_libraries(extension_store_tests PRIVATE sketchyup_io)
     target_compile_definitions(extension_store_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -632,6 +643,14 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(text_worker_tests PRIVATE sketchyup_io)
     add_dependencies(text_worker_tests sketchyup-text-worker)
     add_test(NAME text_worker COMMAND text_worker_tests)
+    # R109 S3 (ADR 0183): the text helper under its sandbox, against the same code run unsandboxed in a child
+    # process; the attack probes; the refusals; the host's classes and its private directory and locale.
+    add_executable(text_sandbox_tests tests/text_sandbox_tests.cpp)
+    target_link_libraries(text_sandbox_tests PRIVATE sketchyup_io sketchyup_text sketchyup_sandbox)
+    target_compile_definitions(text_sandbox_tests PRIVATE TEXT_WORKER_PATH="$<TARGET_FILE:sketchyup-text-worker>")
+    add_dependencies(text_sandbox_tests sketchyup-text-worker)
+    add_test(NAME text_sandbox COMMAND text_sandbox_tests)
+    set_tests_properties(text_sandbox PROPERTIES TIMEOUT 600)
   endif()
   find_package(OpenSSL 3 REQUIRED COMPONENTS Crypto)
   add_library(sketchyup_providers src/integrations/chatgpt_auth.cpp src/integrations/chatgpt_auth.hpp src/integrations/ollama_provider.cpp src/integrations/ollama_provider.hpp src/integrations/provider_transport.cpp src/integrations/provider_transport.hpp src/integrations/openai_provider.cpp src/integrations/openai_provider.hpp src/integrations/credential_store.cpp src/integrations/credential_store.hpp)
@@ -1379,6 +1398,9 @@ if(SKETCHYUP_BUILD_DESKTOP)
   # R100.f3 (ADR 0174 section 8, UX_DESIGN 18.5 to 18.7): the Asset catalogs dialog, its
   # missing-dependency report, the Export asset catalog dialog, and the File menu flow.
   target_sources(sketchyup_desktop PRIVATE src/app/catalog_dialog.cpp src/app/catalog_report.cpp src/app/catalog_export_dialog.cpp src/app/window_catalog.cpp)
+  # R099.d3 (ADR 0173 section 7, UX_DESIGN 17.4 to 17.7): the batch controller (no widgets), the batch
+  # dialog with its live budget, and the results sheet.
+  target_sources(sketchyup_desktop PRIVATE src/app/presentation_batches.cpp src/app/presentation_batch_dialog.cpp src/app/presentation_results.cpp)
   target_compile_options(sketchyup_desktop PRIVATE -Wall -Wextra -Wpedantic)
   add_executable(sketchyup src/app/main.cpp)
   target_link_libraries(sketchyup PRIVATE sketchyup_desktop)
@@ -1439,6 +1461,11 @@ if(SKETCHYUP_BUILD_DESKTOP)
     sketchyup_native_fixture(quantities_large_input_tests tests/quantities_large_input_tests.cpp)
     target_link_libraries(quantities_large_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     target_include_directories(quantities_large_input_tests PRIVATE tests)
+    # F22 (R101.f finding 22): the UI thread's time for one placement edit, timed in a Release tree.
+    # Not built by default: cmake --build build/release --target edit_latency_benchmark
+    add_executable(edit_latency_benchmark EXCLUDE_FROM_ALL tests/edit_latency_benchmark.cpp)
+    target_link_libraries(edit_latency_benchmark PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(edit_latency_benchmark PRIVATE tests)
     sketchyup_native_fixture(group_input_tests tests/group_input_tests.cpp)
     target_link_libraries(group_input_tests PRIVATE sketchyup_desktop Qt6::Test)
     sketchyup_native_fixture(component_input_tests tests/component_input_tests.cpp)
@@ -1686,6 +1713,16 @@ if(SKETCHYUP_BUILD_DESKTOP)
     add_test(NAME style_catalog_input COMMAND style_catalog_input_tests)
     set_tests_properties(style_catalog_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
                                                       TIMEOUT 600)
+    # R099.d3 (UX_DESIGN 17.4 to 17.10, 17.12): the batch dialog, the Jobs batch rows, the results sheet
+    # and the quit prompt, offscreen. Blender is blender_job_tests run as the worker (its --fake modes),
+    # so that binary sits beside this one.
+    add_executable(presentation_batch_input_tests tests/presentation_batch_input_tests.cpp)
+    target_link_libraries(presentation_batch_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_include_directories(presentation_batch_input_tests PRIVATE tests)
+    add_dependencies(presentation_batch_input_tests blender_job_tests)
+    add_test(NAME presentation_batch_input COMMAND presentation_batch_input_tests)
+    set_tests_properties(presentation_batch_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                                                          TIMEOUT 900)
     # R098.a3 (ADR 0172): the STEP import screens — the options dialog's STEP face, the
     # progress sheet, the report, the refusal, and the not-installed state — offscreen,
     # driven by a stand-in helper.

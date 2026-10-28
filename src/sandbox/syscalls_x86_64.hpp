@@ -19,6 +19,7 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"write", 1},
     {"close", 3},
     {"fstat", 5},
+    {"fstatfs", 138},
     {"poll", 7},
     {"lseek", 8},
     {"mmap", 9},
@@ -61,6 +62,11 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"uname", 63},
     {"sysinfo", 99},
     {"readlink", 89},
+    // R109 S4: the names fontconfig calls when it cannot write its cache (a user font folder);
+    // the text policy refuses them with EPERM (denied). No policy allows them.
+    {"mkdir", 83},
+    {"chmod", 90},
+    {"unlink", 87},
     {"getuid", 102},
     {"times", 100},
     {"getgid", 104},
@@ -94,6 +100,7 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"bpf", 321},
     {"execveat", 322},
     {"statx", 332},
+    {"eventfd2", 290},
     {"rseq", 334},
     {"pipe2", 293},
     {"io_uring_setup", 425},
