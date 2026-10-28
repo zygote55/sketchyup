@@ -8,7 +8,7 @@ styles and display controls, delivered) and [R079](../PR_ROADMAP.md#r079)
 options that were weighed and the recommendation. Every owner decision below
 carries a recommended default and a one-line reason, so the owner can "approve
 all". Facts about this repository were read at `34910469` (origin/main);
-anything not verified in the repository is marked as such.
+anything not verified in the repository is marked as such. **R100.g acceptance record (2026-10-28, [`docs/verification/R100g-custom-styles-assets.md`](../verification/R100g-custom-styles-assets.md)):** the Verify line and every §10 check pass with their evidence; the §9 table below carries the measured values and verdicts, frozen; R100 is Accepted (R100.g) with the findings in the record's §8. F06 is released only through the M10 gate.
 
 ## Context
 
@@ -340,17 +340,22 @@ The owner approves a UX design separately, as with R062 and R096. The design
 
 ## 9. Budgets (decision 9)
 
-Proposed rows, to be confirmed by measurement before they are frozen (the
-ADR 0171 decision 14 / ADR 0169 decision 10 position):
+Measured in a Release build, and frozen, by the R100.g record (2026-10-28). The values and
+verdicts are frozen: no later measurement changes them. A later measurement is a new record. The
+verdict words are those of the record's RL-4: **Pass**, **Marginal**, **Reported**, **Partly met**,
+**Miss** and **Not decided**. Rows 7 and 8 were added by R100.g, because R100.f2 and R100.f3 left
+those two items unmeasured and no row covered them.
 
-| Operation | Budget |
-| --- | --- |
-| Apply a style (one labelled style edit) | No measurable cost beyond the existing style edit (appearance rebuild, no retriangulation, ADR 0069) |
-| Decode and validate one 130 MiB `.sketchystyle`/`.sketchycat` | Bounded by the 130 MiB envelope; reported |
-| Catalog scan (one file, full decode) | Reported; within the existing 256 MiB read allowance |
-| Import one catalog entry (one composed edit) | ≤ 3 s with progress and cancel for a 130 MiB source (*proposed*) |
-| Style/catalog relocation re-scan | Reported |
-| Added resident memory (decoded catalog) | Within the existing memory budget rows (R082) |
+| Operation | Budget | Measured (R100.g, Release) | Verdict (R100.g) |
+| --- | --- | --- | --- |
+| 1. Apply a style (one labelled style edit) | No measurable cost beyond the existing style edit (appearance rebuild, no retriangulation, ADR 0069) | 10,000 faces: `style.apply` p50 4.45 ms, p95 5.55 ms; the equal `document.style` edit p50 4.03 ms, p95 4.14 ms. The 0.4 ms median excess is the `.sketchystyle` decode | **Marginal**: the edit costs the same; the apply adds 0.4 ms (10 %) at the median, the file's decode |
+| 2. Decode and validate one 130 MiB `.sketchystyle`/`.sketchycat` | Bounded by the 130 MiB envelope; reported | 127.9 MiB catalog: `decodeCatalog` with every hash checked p50 200.5 ms, p95 203.1 ms; `loadCatalog` p50 245.5 ms; CLI `--list-catalog` 0.27 s, 223 MB peak RSS | **Reported** |
+| 3. Catalog scan (one file, full decode) | Reported; within the existing 256 MiB read allowance | `scanCatalogLibrary`, one 128 MiB file: p50 256.3 ms, p95 258.6 ms | **Pass** (inside the allowance) |
+| 4. Import one catalog entry (one composed edit) | ≤ 3 s with progress and cancel for a 130 MiB source (*proposed*) | CLI `--import-catalog`, one entry: 0.59 to 0.61 s wall, 414 to 432 MB peak. In process, load and insert 245 + 41 ms. No progress and no cancel exist | **Partly met**: the time holds; progress and cancel are not built (record F-2) |
+| 5. Style/catalog relocation re-scan | Reported | CLI listing 0.27 s and library scan 256 ms for the 128 MiB file; the small fixtures moved to tmpfs re-scan identically. The 128 MiB move itself was not run | **Reported** |
+| 6. Added resident memory (decoded catalog) | Within the existing memory budget rows (R082) | CLI: 223 MB (listing), 414 to 432 MB (import). Desktop test process with the 128 MiB catalog open in the dialog: 1.63 GB peak, against 266 MB without it (+1.37 GB) | **Pass** for the CLI. **Miss** for the desktop dialog path, against the 1 GiB supported ceiling of R082.w v2 (record F-3) |
+| 7. *Added by R100.g:* the catalog dialog's dry run on each selection change, large catalog | None in the table; the nearest is row 4 | Opened file: selection p50 2,130.6 ms (max 2,149.7); library folder: p50 304.4 ms. The engine's share: base64url decode of the request bytes 1.15 s, encode 0.20 s, catalog decode 0.20 s | **Finding** (record F-1): the selection runs on the UI thread and is not debounced; BUILD_PLAN's routine feedback budget is 100 ms |
+| 8. *Added by R100.g:* the edge stroke's frame cost (R100.f2's dash row) | None in the table. BUILD_PLAN: p95 16.7 ms at 1920 × 1080, 100k visible triangles, reference hardware | Release, offscreen software GL, 1200 × 900: 3,600 quads (14,400 edges), mean of 30 frames after warm-up: no stroke 25.87 ms; solid +0.06; dashed +0.19; dotted +1.70 (+6.6 %); dash-dot +0.04. 10,000 quads: 72.98 to 73.73 ms for every setting | **Not decided**: software GL cannot be judged against the reference hardware (record F-4) |
 
 ## 10. Verification plan
 
@@ -1660,3 +1665,17 @@ runs of the whole native matrix, and the package acceptance. They run in CI. The
   give; the Export wording is the design's.
 - The dash cost is measured on software GL. Reference-hardware numbers are still needed (see the budget note).
 - Gap 5 stays open, as above.
+
+## Implementation notes (R100.g)
+
+Recorded 2026-10-28 for branch `docs/r100g-styles-assets-acceptance`, on `origin/main` at `e3b45be6` (the merge of PR #490, R100.f2). The record is [`docs/verification/R100g-custom-styles-assets.md`](../verification/R100g-custom-styles-assets.md), with its [summary](../verification/R100g-custom-styles-assets.json). No file under `src/` changed.
+
+- **Verify line.** Met. The four clauses (relocates, preserves appearance, reports missing dependencies, never substitutes) pass with their tests, CI runs and scripted runs (record §1.1). The eight §10 check rows pass (record §1.2). The new check `catalog_import_tests` `equalHashDifferentPayload` closes the §10 row on the equal-hash, different-payload asset.
+- **Released readers.** `sketchyup-cli 1.3.0` (the installed package, SHA-256 `5f5c0cf8…a833b`) and `sketchyup-cli 1.2.0` (the release package, `b95fc189…31295d`) refuse the schema-31 `edge-styles-v31.sketchyup` and the schema-33 `material-texture-size-v33.sketchyup`. Each refusal is exit 1 with `Unsupported container field`, and each copy is unchanged. This is the same wording R100.a and R100.b2 measured, so the ADR's "newer-format error" (§2, §6) is still contradicted, and the record keeps the measured text (RL-2).
+- **Schema-30 migration (contradiction).** §2 and §6 describe a migration of schema-30 documents with a notice. A schema-30 document has no edge fields, so there is nothing to migrate, and no migration fixture or notice exists. The read range is 1 to 31, not 1 to 30. The record decides these as the code says (RL-3).
+- **Budgets.** Measured in Release (GCC 16.2.1, Qt 6.12.0) and frozen in the table above: one **Marginal** (style apply), **Reported** (decode, scan, relocation), **Pass** (scan allowance, CLI memory), **Partly met** (the import's time holds, its progress and cancel are not built), **Miss** for the desktop dialog's memory, and two rows added because R100.f2 and R100.f3 left them unmeasured: the dialog's dry run per selection (2.13 s on an opened 128 MiB catalog, a **finding**) and the edge stroke's frame cost (software GL, **not decided**).
+- **Findings for the owner.** F-1: the catalog dialog's selection stalls the UI thread for 2.1 s on a 128 MiB opened catalog; the decode of the 179 MB request string is 1.15 s of it. F-2: catalog import has no progress or cancel. F-3: the desktop path adds 1.37 GB at its peak with that catalog open. F-4: the edge stroke's reference-hardware cost is unknown. The record's §8 lists them with F-5 to F-7.
+- **Native matrix.** Passes at X11 1×, X11 2×, Wayland 1× and Wayland 2× in PR #490's full-tier run (`40653485697`) for `style_catalog_input_tests` and `material_input_tests`, and for the `catalogs` and `styles` audit groups at X11 2× and Wayland 1×. The audit does not run at X11 1× or Wayland 2× in CI (its workflow names the choice).
+- **Sanitizers and fuzzing.** The sanitize job passed for the catalog, style and material decoders and suites, and for four desktop suites at Wayland 2×. `material_input_tests` is not in the sanitize list. CI has no libFuzzer campaign for the three formats, so the record ran four-minute local campaigns: 6.48 million inputs for the edge stroke, 0.51 million for the catalog, 5.81 million for the material texture size, no finding.
+- **Tests added (no product code).** The sized material through a `.sketchycat` file and `catalog.export` (`material_texture_size_tests` `catalogFileCarriesSize`), the equal-hash refusal (`catalog_import_tests`), and the 4,096-entry folder scan (`style_bundle_tests`). Two manual tools: `style_catalog_benchmark` (the catalog and style budgets), and an opt-in hook in `style_catalog_input_tests` that runs only with `SKETCHYUP_R100G_CATALOG` set.
+- **Not in this record.** The reference-hardware budgets (F-4), the `material_input_tests` sanitizer run (OD-14), the Qt 6.8 byte pins, the Windows and macOS cells (not supported), and the user-facing catalog progress and cancel (F-2).

@@ -4,6 +4,7 @@
 // when SKETCHYUP_PRIOR_CLI is set (package acceptance); the S6 .skp check is in skp_mapping_tests
 // and the GLB and OBJ UV checks are in texture_export_tests.
 #include "automation/commands.hpp"
+#include "automation/inspection.hpp"
 #include "catalog_fixtures.hpp"
 #include "core/face_textures.hpp"
 #include "core/materials.hpp"
@@ -465,6 +466,45 @@ void priorRelease(const QString &directory, const QByteArray &bytes) {
 
 } // namespace
 
+// R100.g (the R100.b2 gap "the .sketchylib with a sized material is untested"): a sized material
+// leaves the document through catalog.export, is written as a .sketchycat file, is read back from
+// that file and imports with its size. The file's bytes are the export's bytes.
+void catalogFileCarriesSize() {
+    Document source(DisplayUnit::Millimeters);
+    const auto brick = createMaterial(source, "Brick", {.6f, .3f, .2f}, 1, 0, TextureSize{.9, .9});
+    const auto body =
+        source.addFace({{{0, 0, 0}, {1000, 0, 0}, {1000, 1000, 0}, {0, 1000, 0}}}, "Wall");
+    assignMaterial(source, body, std::nullopt, brick);
+    const QJsonObject request{{"apiVersion", 1},
+                              {"documentId", QString::fromStdString(source.identity())},
+                              {"expectedRevision", QString::number(source.revision())},
+                              {"query", "catalog.export"},
+                              {"name", "Sized kit"},
+                              {"materials", QJsonArray{QString::number(brick)}}};
+    const auto data = inspectDocument(source, request)["data"].toObject()["data"].toString();
+    const auto bytes =
+        QByteArray::fromBase64Encoding(data.toLatin1(), QByteArray::Base64UrlEncoding |
+                                                            QByteArray::OmitTrailingEquals)
+            .decoded;
+    check(!bytes.isEmpty(), "catalog.export returns the catalog bytes");
+    QTemporaryDir dir;
+    check(dir.isValid(), "A temporary directory");
+    const auto path = dir.filePath("sized.sketchycat");
+    writeCatalog(bytes, path);
+    check(read(path) == bytes, "The file holds the exported bytes");
+    const auto package = loadCatalog(path);
+    check(package.entries.size() == 1 && package.entries[0].importable,
+          "The sized entry is importable from the file");
+    Document target(DisplayUnit::Millimeters);
+    const auto imported = importCatalogEntries(target, package, {"Brick"});
+    check(imported.entries.size() == 1, "The sized entry imports from the file");
+    check(target.materials().at(materialNamed(target, "Brick"))->textureSize == TextureSize{.9, .9},
+          "The file's size reaches the imported material");
+    // The same material exports to the same bytes: nothing about the size depends on the order.
+    check(inspectDocument(source, request)["data"].toObject()["data"].toString() == data,
+          "A second export of the same material is byte-identical");
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     // --write-fixture PATH regenerates the checked-in schema-33 fixture.
@@ -479,6 +519,7 @@ int main(int argc, char **argv) {
         independentFeatures();
         commandsAndUndo();
         catalogCarriesSize();
+        catalogFileCarriesSize();
         // The checked-in fixture reads as a schema-33 file and reopens bit for bit.
         const auto fixture = read(QString::fromLocal8Bit(SOURCE_DIR) +
                                   "/tests/fixtures/material-texture-size-v33.sketchyup");

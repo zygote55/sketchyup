@@ -14,12 +14,14 @@
 #include "io/model_style_io.hpp"
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <array>
+#include <cstdint>
 #include <initializer_list>
 #include <iostream>
 #include <stdexcept>
@@ -368,6 +370,51 @@ void relocation() {
           "The renamed library entry imports the same records as the moved file");
 }
 
+// ADR 0174 section 10 (equal hash, different payload; ADR 0131): an asset whose recorded SHA-256 is
+// another asset's hash, but whose bytes differ, does not verify. Its entry is refused by its own
+// hash, the valid entry still imports with its own bytes, and nothing is reused or substituted.
+void equalHashDifferentPayload() {
+    const auto oak = texture();
+    const auto pine = encodeTexturePng(TextureImage(2, 1, {0, 0, 255, 255, 255, 255, 0, 255}));
+    CatalogBuilder builder(metadata());
+    const auto oakAsset = builder.addAsset("Oak texture", "image/png", oak);
+    const auto pineAsset = builder.addAsset("Pine texture", "image/png", pine);
+    builder.addMaterial("Oak", "Valid", {"Oak", {0.6f, 0.45f, 0.3f}, 1, oakAsset});
+    builder.addMaterial("Pine", "Forged hash", {"Pine", {0.2f, 0.4f, 0.2f}, 1, pineAsset});
+    const auto recordedOak =
+        QString::fromLatin1(QCryptographicHash::hash(oak, QCryptographicHash::Sha256).toHex());
+    const auto forged = withManifest(builder.encode(), [&](QJsonObject &manifest) {
+        auto assets = manifest["assets"].toArray();
+        auto second = assets[1].toObject();
+        second["sha256"] = recordedOak; // the hash of the other texture, over these other bytes
+        assets[1] = second;
+        manifest["assets"] = assets;
+    });
+    writeFile(libraryFolder() + "/forged.sketchycat", forged);
+    const auto package = decodeCatalog(forged);
+    check(package.assets.size() == 2 && package.assets[0].verified && !package.assets[1].verified,
+          "The forged asset does not verify against its bytes");
+    check(package.entries.size() == 2 && package.entries[0].importable &&
+              !package.entries[1].importable &&
+              package.entries[1].reason.contains("does not match its hash"),
+          "The entry that names the forged asset is refused by its hash");
+
+    Document target;
+    const auto before = snapshot(target);
+    const auto refused =
+        rejection([&] { runImport(target, importCommand(names({"Pine"}), "forged")); }, "Pine");
+    check(refused.find("does not match its hash") != std::string::npos,
+          "The forged entry is refused, and the refusal says why: " + refused);
+    requireUnchanged(target, before, "a forged hash");
+
+    runImport(target, importCommand(names({"Oak"}), "forged"));
+    const auto oakId = target.materials().begin()->second->asset;
+    check(
+        target.assets().size() == 1 && target.assets().at(oakId)->payload->bytes() ==
+                                           std::vector<std::uint8_t>(oak.cbegin(), oak.cend()),
+        "The valid entry keeps its own bytes: no reuse of, or substitution for, the forged asset");
+}
+
 // Missing and tampered dependencies refuse that entry, name it, and never substitute.
 void missingDependencies() {
     const auto folder = libraryFolder();
@@ -577,6 +624,7 @@ int main() {
         oneUndoStep();
         relocation();
         missingDependencies();
+        equalHashDifferentPayload();
         refusalsLeaveDocumentUnchanged();
         exportRefusals();
         commandSurface();
