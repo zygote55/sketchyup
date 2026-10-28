@@ -171,6 +171,13 @@ through its [M10 gate](docs/M10_ACCEPTANCE.md).
   the document as schema 30 (`presentation-v1`); a document without them keeps its lower schema.
   SketchyUp 1.3.0 refuses schema-30 files unchanged. No command, UI or rendering yet (R099.b to
   R099.d).
+- STEP import fixes (PRs #510 and #511, [ADR 0172](docs/decisions/0172-step-exchange-subset.md)): a bad solid's
+  surfaces are no longer imported into another part's body; problems are located in the import report; PMI and
+  GD&T are counted and reported; and parts nested too deeply are counted.
+- `.skp` import fixes (R102.f, [ADR 0176](docs/decisions/0176-skp-import.md)): a helper run with its output on
+  `/dev/null` is no longer ended by its own sandbox. The "newer than tested" label applies to SketchUp 2025 files,
+  as the documentation says; it applied only from 2026. Hashing a large input in the helper took quadratic time, so
+  a large `.skp` could exceed the helper's 120 s deadline.
 
 ## 1.3.0 — 2026-10-22
 

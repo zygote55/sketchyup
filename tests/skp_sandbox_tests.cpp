@@ -8,6 +8,11 @@
 //   70),
 //     both for a simulated failure and for the real helper under a filter that refuses the layer's
 //     calls (ADR 0183 section 6.7);
+//   - the terminal check of stdio (TCGETS and TCGETS2) is allowed, and the helper with stdout on
+//     /dev/null exits 0 in every mode (R102.f, F2);
+//   - the helper's limits (R102.f, F5): an input over 256 MiB is refused before the helper starts, the
+//     address-space, CPU and output limits end a helper as a crash or a memory failure, and the real
+//     helper's --rlimit-fsize ends it with SIGXFSZ;
 //   - the host classifies a helper killed by SIGSYS as sandboxViolation, and a helper that refuses
 //   with
 //     sandboxUnavailable as that refusal, while a crash stays a crash.
@@ -22,6 +27,7 @@
 #include "skp/sandbox_policy.hpp"
 
 #include <QCoreApplication>
+#include <QJsonObject>
 #include <QTemporaryDir>
 
 #include <cerrno>
@@ -36,6 +42,7 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <string>
+#include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -289,6 +296,45 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
                                 }));
     check(!readInput.signaled && readInput.code == 0,
           "the sandboxed helper can read its input file");
+
+    // The terminal check of stdio (R102.e F2). /dev/null is opened before the policy, which grants no
+    // path for it, so the descriptor is inherited. The kernel answers TCGETS and TCGETS2 with ENOTTY;
+    // any other ioctl request is EPERM (TIOCGWINSZ here), not a kill.
+    const int nullFd = open("/dev/null", O_RDWR);
+    Outcome terminalCheck = inChild(scratch + "/attack-ioctl.out", armed([&] {
+                                        unsigned char buffer[64] = {};
+                                        const bool tcgets =
+                                            ioctl(nullFd, 0x5401UL, buffer) == -1 && errno == ENOTTY;
+                                        const bool tcgets2 =
+                                            ioctl(nullFd, 0x802C542AUL, buffer) == -1 && errno == ENOTTY;
+                                        const bool other =
+                                            ioctl(nullFd, 0x5413UL, buffer) == -1 && errno == EPERM;
+                                        return (tcgets && tcgets2 && other) ? 0 : 1;
+                                    }));
+    check(!terminalCheck.signaled && terminalCheck.code == 0,
+          "the sandboxed helper answers TCGETS and TCGETS2 with ENOTTY, and another ioctl with EPERM (signal " +
+              std::to_string(terminalCheck.signal) + ", code " + std::to_string(terminalCheck.code) + ")");
+    close(nullFd);
+}
+
+// The helper with stdout on /dev/null: a developer's probe run, or any caller that discards the
+// output (R102.e F2). glibc's stdio asks the terminal check of a character device, and the policy must
+// answer it. Each mode must exit 0; none may be ended by its sandbox.
+void testStdoutToDevNull(const std::string &scratch) {
+    const std::string input = fixture("box.skp");
+    const std::vector<std::vector<std::string>> modes = {
+        {"--probe", input},
+        {"--import", input, "--output", scratch + "/devnull.skskpp"},
+        {"--import", input, "--dry-run"},
+    };
+    for (const std::vector<std::string> &args : modes) {
+        const Outcome run = runHelper("/dev/null", args);
+        check(!run.signaled && run.code == 0,
+              "the sandboxed helper with stdout on /dev/null exits 0 (" + args.front() + "; signal " +
+                  std::to_string(run.signal) + ", code " + std::to_string(run.code) + ")");
+    }
+    check(std::filesystem::exists(scratch + "/devnull.skskpp"),
+          "the import with stdout on /dev/null writes its package");
 }
 
 void testRefusalsFailClosed(const std::string &scratch) {
@@ -392,6 +438,130 @@ void testHostClassifies(const std::string &scratch) {
           "a helper killed by SIGABRT is still a crash (workerFailed)");
 }
 
+// The helper's limits (ADR 0176 section 6; R102.f, F5). The input size is checked by the application
+// before the helper starts, from the file's size: a sparse file of 256 MiB + 1 bytes is refused with
+// tooLarge, and the helper never runs. The helper's own limits come from the application's arguments
+// (--rlimit-as, --rlimit-cpu, --rlimit-fsize); the stand-ins below apply the same limits and end the
+// way a real helper would, and the host's reaction is checked on each (as the STEP import's E6 tests).
+void testLimits(const std::string &scratch) {
+    const std::string input = fixture("box.skp");
+    // How an import ended: its refusal code, its message and its report ("imported" when it did not fail).
+    struct Stop {
+        std::string code;
+        std::string words;
+        QJsonObject report;
+    };
+    const auto stopOf = [&](const std::string &worker, qint64 addressSpace = 0, int deadline = 120) {
+        sketchy::SkpWorkerOptions options;
+        options.workerPath = QString::fromStdString(worker);
+        options.scratchRoot = QString::fromStdString(scratch);
+        options.addressSpaceBytes = addressSpace;
+        options.deadlineSeconds = deadline;
+        try {
+            sketchy::importSkpFile(QString::fromStdString(input), options);
+        } catch (const sketchy::IfcImportError &error) {
+            return Stop{error.code(), error.what(), error.report()};
+        }
+        return Stop{"imported", "", {}};
+    };
+
+    // The input size: a sparse file one byte over the 256 MiB default. Its bytes are zeros, with no
+    // SketchUp header, so a size check that ran after the header check would say notSkp instead.
+    {
+        const std::string big = scratch + "/over-limit.skp";
+        {
+            std::ofstream out(big, std::ios::binary);
+            out.seekp(static_cast<std::streamoff>(256LL * 1024 * 1024));
+            out.put('\0');
+        }
+        check(std::filesystem::file_size(big) == 256ULL * 1024 * 1024 + 1,
+              "the sparse file is 256 MiB + 1 bytes");
+        sketchy::SkpWorkerOptions options;
+        options.workerPath = QString::fromUtf8(SKP_WORKER_PATH);
+        options.scratchRoot = QString::fromStdString(scratch);
+        try {
+            sketchy::importSkpFile(QString::fromStdString(big), options);
+            check(false, "a file of 256 MiB + 1 bytes is refused");
+        } catch (const sketchy::IfcImportError &error) {
+            check(error.code() == "tooLarge", "256 MiB + 1 bytes is refused as tooLarge (" + error.code() + ")");
+            const std::string words(error.what());
+            check(words.find("256 MiB") != std::string::npos && words.find("268435457") != std::string::npos,
+                  "the refusal names the limit and the size: " + words);
+        }
+    }
+
+    // The helper's address-space limit: the stand-in applies the limit the application passes
+    // (--rlimit-as, 256 MiB here) and asks for the memory the limit denies, as the STEP import's E6 test does.
+    {
+        const std::string memory = standIn(scratch, "limit-as-helper.sh", R"(ulimit -c 0
+limit=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--rlimit-as" ]; then limit="$arg"; fi
+  prev="$arg"
+done
+echo 'P phase parse'
+ulimit -v $((limit / 1024))
+python3 - <<'PY'
+import sys
+try:
+    bytearray(512 * 1024 * 1024)
+except MemoryError:
+    sys.stderr.write("std::bad_alloc: the address space limit was reached\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+)");
+        const Stop stop = stopOf(memory, 256LL * 1024 * 1024);
+        check(stop.code == "workerFailed", "RLIMIT_AS: a helper over its address space is a failed import (" + stop.code + ")");
+        check(stop.words.find("memory") != std::string::npos, "RLIMIT_AS: the reason is memory: " + stop.words);
+        check(stop.report["helper"].toObject()["logTail"].toString().contains("bad_alloc"),
+              "RLIMIT_AS: the log tail is in the report");
+    }
+
+    // The helper's CPU limit: the stand-in ends itself with SIGXCPU after two seconds of CPU, as the
+    // helper's own RLIMIT_CPU does. A signal the helper did not send is a crash.
+    {
+        const std::string cpu = standIn(scratch, "limit-cpu-helper.sh", R"(ulimit -c 0
+echo 'stand-in: cpu limit of two seconds' >&2
+ulimit -t 2
+while :; do :; done
+)");
+        const Stop stop = stopOf(cpu, 0, 6);
+        check(stop.code == "workerFailed", "RLIMIT_CPU: a helper over its CPU limit is a failed import (" + stop.code + ")");
+        check(stop.words.find("crash") != std::string::npos, "RLIMIT_CPU: the stop is a crash: " + stop.words);
+        check(stop.report["helper"].toObject()["logTail"].toString().contains("cpu limit"),
+              "RLIMIT_CPU: the log tail is in the report");
+    }
+
+    // The helper's output limit: the stand-in writes past one block of its own output file, and the
+    // kernel ends it with SIGXFSZ, a crash.
+    {
+        const std::string fsize = standIn(scratch, "limit-fsize-helper.sh", R"(ulimit -c 0
+echo 'stand-in: output limit' >&2
+ulimit -f 1
+while :; do echo 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; done > stand-in-output.bin
+)");
+        const Stop stop = stopOf(fsize);
+        check(stop.code == "workerFailed", "RLIMIT_FSIZE: a helper over its output limit is a failed import (" + stop.code + ")");
+        check(stop.words.find("crash") != std::string::npos, "RLIMIT_FSIZE: the stop is a crash: " + stop.words);
+    }
+
+    // The real helper's own output limit, through its --rlimit-fsize option: a package larger than
+    // 1000 bytes ends the helper with SIGXFSZ, and the file it leaves is no larger than the limit.
+    {
+        const std::string stem = scratch + "/fsize-real";
+        const std::string output = stem + ".skskpp";
+        const Outcome ended = runHelper(stem + ".out",
+                                        {"--import", input, "--output", output, "--rlimit-fsize", "1000"});
+        check(ended.signaled && ended.signal == SIGXFSZ,
+              "the real helper over --rlimit-fsize is ended by SIGXFSZ (signal " +
+                  std::to_string(ended.signal) + ", code " + std::to_string(ended.code) + ")");
+        check(!std::filesystem::exists(output) || std::filesystem::file_size(output) <= 1000,
+              "the real helper's output stays within --rlimit-fsize");
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -406,6 +576,8 @@ int main(int argc, char **argv) {
     testPolicyRefusesAttacks(scratch);
     testRefusalsFailClosed(scratch);
     testHostClassifies(scratch);
+    testStdoutToDevNull(scratch);
+    testLimits(scratch);
     if (failures == 0)
         std::cout << "skp sandbox tests passed\n";
     return failures == 0 ? 0 : 1;

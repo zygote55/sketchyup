@@ -150,5 +150,190 @@
     "upstream issue 442 was not re-read for this record"
   ],
   "testsAdded": [],
-  "productCodeChanged": false
+  "productCodeChanged": false,
+  "r102f": {
+    "layer": "R102.f",
+    "date": "2026-10-28",
+    "branch": "fix/r102f-skp-findings",
+    "base": "origin/main e12b3a45",
+    "commits": {
+      "policyThresholdHash": "00e44a34",
+      "testsAndLabels": "c3237b5a",
+      "chunkTest": "ae84c075",
+      "record": "the R102.f record commit (section 11 of the Markdown record)"
+    },
+    "status": "Delivered, with open findings. S5 and the real-file matrix have no new evidence",
+    "findings": [
+      {
+        "id": "F1",
+        "status": "closed",
+        "fix": "kNewestTestedMajor = 24; isNewerThanTested (src/skp/import.hpp, import.cpp); the label applies above 24",
+        "test": "skp_import",
+        "commits": [
+          "00e44a34",
+          "c3237b5a"
+        ]
+      },
+      {
+        "id": "F2",
+        "status": "closed",
+        "fix": "SKP policy: ioctl with TCGETS and TCGETS2 as argumentOneOf (ADR 0183 S3); other requests EPERM",
+        "test": "skp_sandbox: in-process policy answers; real helper with stdout on /dev/null in --probe, --import, --dry-run",
+        "commits": [
+          "00e44a34",
+          "c3237b5a"
+        ]
+      },
+      {
+        "id": "F3",
+        "status": "closed",
+        "fix": "ADR 0176 section 7 S2 amended in place (amended in R102.f, parent decision)",
+        "test": "none (wording)",
+        "commits": [
+          "record commit"
+        ]
+      },
+      {
+        "id": "F4",
+        "status": "closed",
+        "fix": "dated correction under the R102.b missingUv note in ADR 0176",
+        "test": "skp_mapping (no missingUv on untextured models)",
+        "commits": [
+          "record commit"
+        ]
+      },
+      {
+        "id": "F5",
+        "status": "partly closed",
+        "fix": "tests for the 256 MiB input, RLIMIT_AS, RLIMIT_CPU and RLIMIT_FSIZE stops, the real --rlimit-fsize, the 4096 px and 16 MiB texture caps, and the 256 MiB geometry and texture chunks; the rest listed with reasons",
+        "test": "skp_sandbox, skp_mapping, skp_package",
+        "commits": [
+          "c3237b5a",
+          "ae84c075"
+        ]
+      },
+      {
+        "id": "F6",
+        "status": "closed",
+        "fix": "skp_mapping_tests labels: materials, mirror, R100.b2; S1 to S7 mean ADR section 7 only",
+        "test": "none (labels)",
+        "commits": [
+          "c3237b5a"
+        ]
+      },
+      {
+        "id": "F7",
+        "status": "closed",
+        "fix": "Sha256::update hashes blocks in place, erasing once (was quadratic)",
+        "test": "skp_package: FIPS 180-4 vectors (448-bit, a million a's)",
+        "commits": [
+          "00e44a34",
+          "c3237b5a"
+        ]
+      }
+    ],
+    "limits": {
+      "tested": [
+        "input over 256 MiB refused as tooLarge before the helper starts (sparse file, 256 MiB + 1)",
+        "RLIMIT_AS, RLIMIT_CPU, RLIMIT_FSIZE host reactions (stand-in helpers)",
+        "real helper --rlimit-fsize 1000 ended by SIGXFSZ",
+        "texture over 4096 px refused by its header (import)",
+        "texture 16 MiB + 1 refused by the decoder; 16 MiB read",
+        "geometry and texture chunks over 256 MiB refused from the header"
+      ],
+      "notTested": [
+        {
+          "limit": "the real helper's own RLIMIT_AS and RLIMIT_CPU",
+          "why": "a real helper needs about 1 s of CPU to reach its CPU limit; the address-space limit depends on the mapped libraries"
+        },
+        {
+          "limit": "the default 512 MiB output limit",
+          "why": "needs a 512 MiB package; the mechanism is tested with 1000 bytes"
+        },
+        {
+          "limit": "an input of exactly 256 MiB accepted",
+          "why": "copies 256 MiB on every run"
+        },
+        {
+          "limit": "native caps: faces and edges per body, vertices per body, geometry records, faces after placement, 1,024 materials, nesting over 64",
+          "why": "need packages or models the fixtures do not contain"
+        },
+        {
+          "limit": "uvPerspective",
+          "why": "no fixture has a perspective UV transform"
+        },
+        {
+          "limit": "JPEG texture path",
+          "why": "no JPEG fixture in the repository"
+        }
+      ]
+    },
+    "runs": [
+      {
+        "run": "ctest -j2 -R '^(skp_|sandbox)' on build/release, no corpus",
+        "result": "9 pass; 3 _real skip"
+      },
+      {
+        "run": "ctest _real tests with SKETCHYUP_SKP_CORPUS (read in place)",
+        "result": "3 of 3 pass; owner's notices unchanged; no newerThanTested"
+      },
+      {
+        "run": "ctest on build/skp-sanitize: skp_package, skp_import, skp_mapping, skp_dc, skp_sandbox (ASan, UBSan)",
+        "result": "5 of 5 pass"
+      },
+      {
+        "run": "mutation: ioctl rule removed from the SKP policy",
+        "result": "skp_sandbox fails; SIGSYS (31) in --probe, --import, --dry-run; restored and passing"
+      },
+      {
+        "run": "skp_package run time",
+        "result": "148 s before the hash fix; 0.15 s after"
+      },
+      {
+        "run": "owner's file, helper, five runs each (read in place; SHA-256 unchanged)",
+        "result": "import 14 to 19 ms, median 17 ms (R102.e 15.6); probe 11 to 15 ms, median 14 ms (R102.e 11.1); package 64,299 bytes"
+      }
+    ],
+    "helpersChecked": [
+      {
+        "helper": "SKP",
+        "policy": "ioctl was absent",
+        "exposure": "live: SIGSYS with stdout on /dev/null",
+        "changed": true
+      },
+      {
+        "helper": "IFC and STEP",
+        "policy": "ioctl whenArgument TCGETS2 only",
+        "exposure": "none on the pinned glibc, which asks TCGETS2; the older TCGETS would end the helper",
+        "changed": false,
+        "note": "ifc_sandbox not run; the IFC worker is not built on this host"
+      },
+      {
+        "helper": "text",
+        "policy": "ioctl oneOfArgument TCGETS, TCGETS2",
+        "exposure": "none",
+        "changed": false
+      },
+      {
+        "helper": "extension",
+        "policy": "ioctl oneOfArgument TCGETS, TCGETS2",
+        "exposure": "none",
+        "changed": false
+      },
+      {
+        "helper": "Blender",
+        "policy": "ioctl allowed unfiltered (ADR 0183 section 10, risk 5)",
+        "exposure": "none",
+        "changed": false
+      }
+    ],
+    "notDone": [
+      "skp_import_dialog_tests (desktop not built here)",
+      "S5 against a SketchUp screenshot; no textured owner file",
+      "IFC policy change and ifc_sandbox run",
+      "RELEASE_NOTES, SUPPORT_MATRIX, USER_GUIDE and PR_ROADMAP are unchanged (the parent's)",
+      "full CI tier"
+    ],
+    "productCodeChanged": true
+  }
 }

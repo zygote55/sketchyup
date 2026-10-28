@@ -159,6 +159,8 @@ For each claim in the support matrix's `.skp` row (`docs/SUPPORT_MATRIX.md`) and
 
 ## 6. Defects and contradictions found
 
+Status of each finding after R102.f: section 11.
+
 No product code was changed. Each item gives the steps that reproduce it.
 
 **F1. The "newer than tested" notice fires one version later than the ADR and the guide say (contradiction, low).**
@@ -241,3 +243,95 @@ All on `fafc0431`, from the worktree's `build/release` (Release, BFD linker, des
 
 - `fafc0431`: `origin/main` when this work started. Every check ran on this code.
 - The head of `docs/r102e-skp-acceptance` after this PR: the record, its JSON and the ADR notes. No product code changed.
+
+## 11. R102.f: closing the findings
+
+R102.f is branch `fix/r102f-skp-findings`, from `origin/main` at `e12b3a45`. It changes product code, tests and
+documents. Commits: `00e44a34` (the helper's policy, the threshold and the hash), `c3237b5a` (the tests and the
+labels), `ae84c075` (the chunk test), and the commit that adds this section. The status stays **Delivered, with open
+findings**: S5 and the real-file matrix have no new evidence.
+
+The owner's file was read in place for the runs in §11.3. It was not copied, committed or uploaded. Its SHA-256 is
+`75ae2786…c739ed` before and after.
+
+### 11.1 Findings
+
+| Finding | Status | Fix | Test | Commit |
+| --- | --- | --- | --- | --- |
+| F1, the notice fires one version late | Closed | `kNewestTestedMajor` = 24 and `isNewerThanTested` (`src/skp/import.hpp`, `import.cpp`). The label applies above 24, as ADR 0176 section 2 says. F1 lists the threshold as the owner's decision; R102.f applies section 2's 24, as the parent asked, and the owner has not reviewed it | `skp_import`: the decision at 24, 23, -1, 25 and 26 | `00e44a34`, `c3237b5a` |
+| F2, the helper is killed with stdout on `/dev/null` | Closed | SKP policy: `ioctl` with request TCGETS or TCGETS2, as a value list (`argumentOneOf`, ADR 0183 S3), the style of the text and extension policies. Any other request is EPERM | `skp_sandbox`: the policy's answers in process, and the real helper with stdout on `/dev/null` in `--probe`, `--import` and `--dry-run` | `00e44a34`, `c3237b5a` |
+| F3, S2 wording | Closed (ADR text) | ADR 0176 section 7 S2 amended in place, marked "(amended in R102.f, parent decision)" | none (wording) | the R102.f record commit |
+| F4, stale `missingUv` note | Closed (ADR text) | Dated correction under the R102.b note in ADR 0176 | `skp_mapping` asserts no `missingUv` on an untextured model, and the owner's file raises none | the R102.f record commit |
+| F5, limits with no test | Partly closed: the limits listed in 11.2 are tested; the rest are listed with the reason | See 11.2 | `skp_sandbox`, `skp_mapping`, `skp_package` | `c3237b5a`, `ae84c075` |
+| F6, S5 to S7 reused in test labels | Closed | `skp_mapping_tests` labels the material, mirror and texture-size checks as `materials`, `mirror` and `R100.b2`. S1 to S7 now mean section 7 only | none (labels) | `c3237b5a` |
+| F7, found by the F5 test: the helper's hash was quadratic | Closed | `Sha256::update` hashes each block in place and erases the consumed part once. Before, each 64-byte block was erased from the front of a buffer that held the whole input | `skp_package`: the FIPS 180-4 vectors for the 448-bit message and for a million a's | `00e44a34`, `c3237b5a` |
+
+F7 is not in the R102.e list. It is in the helper's import path: `runImport` hashes the whole input, so a large `.skp`
+took quadratic time and could reach the 120 s deadline. The owner's file imports in the time §3 recorded (§11.3).
+
+### 11.2 Limits
+
+Tested now:
+
+- The 256 MiB input default: a sparse file of 256 MiB + 1 bytes is refused as `tooLarge` before the helper starts
+  (`skp_sandbox`, `testLimits`). The file has no SketchUp header, so a size check after the header check would refuse
+  it as `notSkp`.
+- The helper's address-space limit (`--rlimit-as`): a stand-in applies the limit the application passes (256 MiB) and
+  asks for 512 MiB. The host reports `workerFailed` with the memory reason and the log tail (`skp_sandbox`).
+- The helper's CPU limit (`--rlimit-cpu`): a stand-in ends itself with SIGXCPU after two seconds of CPU. The host
+  reports a crash (`skp_sandbox`).
+- The helper's output limit (`--rlimit-fsize`): a stand-in ends itself with SIGXFSZ. The host reports a crash. The real
+  helper given `--rlimit-fsize 1000` is ended by SIGXFSZ, and the file it leaves is no larger than 1000 bytes.
+- A texture over 4096 pixels: a PNG whose header says 4097 by 1 is refused by its header, and the import keeps no image
+  (`skp_mapping`, built in memory from the fixture's own package).
+- A texture over 16 MiB: the decoder refuses 16 MiB + 1 bytes, and reads exactly 16 MiB (`skp_package`).
+- A geometry chunk or a texture chunk over 256 MiB: refused from the 32-byte header (`skp_package`).
+
+Not tested, and why:
+
+- The real helper's own address-space and CPU limits. A real helper reaches its CPU limit only after about a second
+  of CPU, and the address-space limit depends on the libraries mapped, so a fixed size would be fragile on other
+  machines. The stand-ins test the host's reaction to a limit, not the helper's `setrlimit` calls.
+- The default 512 MiB output limit, which the application passes. It needs a 512 MiB package. The mechanism is tested
+  with 1000 bytes.
+- An input of exactly 256 MiB, which is accepted. It would copy 256 MiB on every run.
+- The native caps on the `.skp` path: 100,000 faces or edges per body, 100,000 vertices per body, 10,000 geometry
+  records, 600,000 faces after placement, 1,024 materials, and nesting over 64 levels. Each needs a package or a model
+  the fixtures do not contain.
+- `uvPerspective`. No fixture has a perspective UV transform.
+- The JPEG texture path. The repository has no JPEG fixture.
+
+### 11.3 Runs
+
+Release tree `build/release`: Release, `CMAKE_LINKER_TYPE=BFD`, `SKETCHYUP_BUILD_DESKTOP=OFF`, `SKETCHYUP_BUILD_CLI=ON`.
+Sanitized tree `build/skp-sanitize`: the `skp-sanitize` preset with BFD. Both were built with `-j4` under a 10 GB cgroup.
+
+| Run | Result |
+| --- | --- |
+| `ctest -j2 -R '^(skp_\|sandbox)'` on `build/release`, no corpus variable | 9 pass. The three `_real` tests skip (no corpus variable). `sandbox_available` passes |
+| `ctest -R '^skp_(import\|mapping\|dc)_real$'` with `SKETCHYUP_SKP_CORPUS` set to the owner's directory | 3 of 3 pass. `skp_mapping_tests --real` prints the owner's notices, unchanged from §3: `definitionAttributesNotCarried` 23, `invalidFaces` 1, `modelAttributesNotCarried` 10, `omittedCamera` 1, `omittedConstructionLines` 6, `omittedStyles` 2. No `newerThanTested` |
+| `ctest` on `build/skp-sanitize` (ASan and UBSan, `ASAN_OPTIONS=detect_leaks=0`, under a 10 GB cgroup): `skp_package`, `skp_import`, `skp_mapping`, `skp_dc`, `skp_sandbox` | 5 of 5 pass |
+| Mutation: the `ioctl` rule removed from the SKP policy, then `skp_sandbox` | Fails: the in-process check, and the real helper in all three modes is ended by SIGSYS (signal 31). The rule is restored, and the suite passes |
+| `skp_package` run time | 148 s before the hash fix, 0.15 s after |
+| The owner's file, helper, five runs each on this machine (load average 1.3) | `--import`: 14 to 19 ms, median 17 ms (§3 recorded 15.6 ms). `--probe`: 11 to 15 ms, median 14 ms (§3 recorded 11.1 ms). The package is 64,299 bytes, as in §3 |
+
+The timing difference from §3 is within this machine's noise. It does not show that the hash fix changed the owner's
+file's import time.
+
+### 11.4 Not done
+
+- The desktop dialog suite, `skp_import_dialog_tests`. It is not built here (§9). Its CI jobs are the evidence.
+- S5 against a SketchUp screenshot, and the real-file matrix (§2, §7). No new file was available.
+- The IFC policy. It allows TCGETS2 only, and it is not changed here. `ifc_sandbox` was not run, because the IFC worker
+  is not built on this host. ADR 0176's R102.f notes explain.
+- `docs/RELEASE_NOTES.md`, `docs/SUPPORT_MATRIX.md`, `docs/USER_GUIDE.md` and `docs/PR_ROADMAP.md`. The parent changes
+  them after the owner's decisions on the claims. The claims in section 5 stand as written there.
+- The full CI tier. The record's runs above are local.
+
+### 11.5 Contradictions
+
+- C17 (section 5) and F1 (section 6): the code now matches ADR 0176 section 2 and the user guide's wording, with the
+  threshold at 24. The user guide and the support matrix are unchanged here, so the parent should check their wording
+  against the label.
+- ADR 0183, section 5. The SKP row's measured calls did not include the `/dev/null` run, which found `ioctl`. The
+  R102.f note in ADR 0183 records the addition.

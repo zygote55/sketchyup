@@ -6,8 +6,8 @@
 //   S3: the three-instance component is one definition with three instances, and editing the
 //       definition changes all three;
 //   S4: the hidden tag is hidden, the soft and smooth edges keep their flags, the holed face has two loops;
-//   S5: the two-materials faces carry the right materials, the textured face carries a texture and
-//       the UV mapping the exporter's formula gives, and a mirrored placement keeps its faces outward.
+//   S5: the textured face carries a texture and the UV mapping the exporter's formula gives.
+//       The material and mirror checks are labelled "materials" and "mirror"; they are not S-numbers.
 // Plus: one undo removes the whole import, its label is "Import .skp file", and the report's
 // accounting adds up. With --real and SKETCHYUP_SKP_CORPUS, the owner's file is checked too (its
 // counts and its import time); it is never copied into the repository, and the test exits 77
@@ -495,7 +495,8 @@ int main(int argc, char **argv) {
         checkUndo("face_with_hole.skp (S4)", imported);
     }
 
-    // S5: the two materials on the right faces; the textured face's mapping; the mirrored placement's outward faces.
+    // Materials: the two materials on the right faces. S5: the textured face's mapping. Mirror: the mirrored
+    // placement's outward faces.
     {
         auto imported = importOf(fixture("two_materials.skp"));
         const auto &doc = imported.document;
@@ -508,12 +509,12 @@ int main(int argc, char **argv) {
                 for (const Id vertex : loop)
                     x += body->surface.vertices.at(vertex).x / double(loop.size());
                 const std::string expected = x < 0.5 * 0.0254 * 0 + 1.0 * 0.0254 ? "Red" : "Blue";
-                check(materialName(doc, sides.front) == expected, "S5: the face at x=" + std::to_string(x) + " is " + expected);
+                check(materialName(doc, sides.front) == expected, "materials: the face at x=" + std::to_string(x) + " is " + expected);
                 ++checked;
             }
         }
-        check(checked == 2, "S5: both painted faces carry a material (" + std::to_string(checked) + ")");
-        checkUndo("two_materials.skp (S5)", imported);
+        check(checked == 2, "materials: both painted faces carry a material (" + std::to_string(checked) + ")");
+        checkUndo("two_materials.skp (materials)", imported);
     }
     {
         const auto package = packageOf(fixture("textured_face.skp"), temp);
@@ -545,7 +546,7 @@ int main(int argc, char **argv) {
             }
         }
         check(textured, "S5: the textured face is imported with its mapping");
-        // S6 (R100.b2, ADR 0174 section 3): the material keeps the texture's size, in metres from
+        // R100.b2 (ADR 0174 section 3): the material keeps the texture's size, in metres from
         // the inches OpenSKP reports, and the explicit mapping above is unchanged by it.
         const auto &texture = package.textures.at(0);
         bool sized = false;
@@ -553,13 +554,13 @@ int main(int argc, char **argv) {
             if (!material->asset)
                 continue;
             check(texture.width > 0 && texture.height > 0 && material->textureSize,
-                  "S6: a textured material keeps its texture size");
+                  "R100.b2: a textured material keeps its texture size");
             check(within(material->textureSize->width, texture.width * 0.0254, 1e-9) &&
                       within(material->textureSize->height, texture.height * 0.0254, 1e-9),
-                  "S6: the size is the texture's inches in metres");
+                  "R100.b2: the size is the texture's inches in metres");
             sized = true;
         }
-        check(sized, "S6: the textured material is imported with its size");
+        check(sized, "R100.b2: the textured material is imported with its size");
         checkUndo("textured_face.skp (S5)", imported);
     }
     {
@@ -591,18 +592,18 @@ int main(int argc, char **argv) {
                     for (const Id vertex : loop)
                         centroid = centroid + body->second->surface.vertices.at(vertex) * (1.0 / double(loop.size()));
                     const Vec3 centre{0.5 * 0.0254, 0.5 * 0.0254, 0.5 * 0.0254};
-                    check(dot(local, centroid - centre) > 0, "S5: a mirrored block's face points outward (local)");
+                    check(dot(local, centroid - centre) > 0, "mirror: a mirrored block's face points outward (local)");
                     // The world normal: the inverse transpose of the placement applied to the local normal.
                     const Vec3 worldNormal{inverse.m[0] * local.x + inverse.m[1] * local.y + inverse.m[2] * local.z,
                                            inverse.m[4] * local.x + inverse.m[5] * local.y + inverse.m[6] * local.z,
                                            inverse.m[8] * local.x + inverse.m[9] * local.y + inverse.m[10] * local.z};
                     const Vec3 worldCentroid = world.point(centroid);
-                    check(dot(normalized(worldNormal), worldCentroid - blockCentre) > 0, "S5: a mirrored block's face points outward (world)");
+                    check(dot(normalized(worldNormal), worldCentroid - blockCentre) > 0, "mirror: a mirrored block's face points outward (world)");
                 }
             }
         }
-        check(mirrored, "S5: the mirrored placement has a negative determinant");
-        checkUndo("mirrored_instance.skp (S5)", imported);
+        check(mirrored, "mirror: the mirrored placement has a negative determinant");
+        checkUndo("mirrored_instance.skp (mirror)", imported);
     }
     {
         auto imported = importOf(fixture("scaled_instance.skp"));
@@ -738,6 +739,25 @@ int main(int argc, char **argv) {
                   sample["samples"].toArray()[0].toString() ==
                       QStringLiteral("Model: dictionary \"D\", key \"K\": not imported"),
               "not carried: the helper's sample joins the report, with its total");
+    }
+
+    // R102.f, F5: the texture cap at 4096 pixels. A PNG whose header says 4097 by 1 is refused by its
+    // header, before any pixel is read, and the import keeps no image for it. The rest of the PNG is
+    // not needed: the refusal is decided at the IHDR chunk.
+    {
+        auto package = packageOf(fixture("textured_face.skp"), temp);
+        check(!package.textures.empty(), "textureTooLarge: the fixture has a texture");
+        package.textures[0].bytes = {
+            0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A,  // the signature
+            0x00, 0x00, 0x00, 0x0D, 'I', 'H', 'D', 'R',  // IHDR, 13 bytes
+            0x00, 0x00, 0x10, 0x01,                      // width 4097
+            0x00, 0x00, 0x00, 0x01,                      // height 1
+            0x08, 0x06, 0x00, 0x00, 0x00,                // 8-bit RGBA, compression, filter, interlace
+            0x00, 0x00, 0x00, 0x00};                     // the CRC, which the header check does not read
+        const auto imported = importSkpPackage(package);
+        check(imported.report["notices"].toObject()["textureTooLarge"].toInt() == 1,
+              "textureTooLarge: a texture over 4096 pixels is a notice");
+        check(imported.document.assets().empty(), "textureTooLarge: no image is kept");
     }
 
     if (real) {
