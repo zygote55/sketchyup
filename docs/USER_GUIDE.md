@@ -918,6 +918,18 @@ manage them. The command line never changes the model and never replaces a file.
 in-app assistant cannot run reports or schedules. Quantities, reports and schedules are not in the 1.3.0
 declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
+## Presentation batches
+
+**Camera → Presentations…** keeps camera paths and render presets in the model. A camera path is two to 32 saved scenes that have cameras, played in order, with frames per second (1 to 60) and transition and hold times in seconds. The dialog shows how many frames the path plans, and refuses a path that would plan more than 240 frames. A render preset holds the width, height, samples, engine and seed. Both save with the model and undo.
+
+**Export presentation batch…** (on the Render sheet, or **Export batch…** in the Presentations dialog) renders a path through up to four presets into a new folder you name. Before Start, the dialog checks the Blender executable, the video encoder and the disk. Each frame is a PNG with a record beside it. Turn on **Write video** for one MP4 per preset, written after every frame is verified. If the Blender has no H.264 encoder, the dialog offers MPEG-4 Part 2 in MP4 as an explicit choice; clear **Write video** to keep the frames without a video.
+
+**Jobs** lists each batch as one row, with a row for each preset. **Cancel batch** stops it at the next frame and keeps the finished frames. **Resume** continues at the first unfinished frame. **Show results…** opens the stills and any video, and **Resume: encode video** writes a video that was not written, from the frames already kept. Closing the application while a batch runs asks first: **Stop batch and close** keeps the finished frames and leaves the batch to resume later.
+
+**Command line.** `sketchyup-cli --input MODEL.sketchyup --export-presentation REQUEST.json` runs a batch without the desktop. The request names the saved scenes, the presets, the new output folder and whether to write video; `--describe-command export-presentation` lists the fields. Ctrl+C cancels at the next frame and exits with status 130.
+
+**Limits.** A batch needs the optional Blender 5.2 LTS and runs one Blender worker at a time. On a 3,700-body test model, each 1024 × 768 frame at 32 samples took about 13 seconds on the CPU; a full 240-frame, four-preset batch is projected at about three and a half hours. A batch writes at most 2 GiB. A terrain of 250,000 triangles cannot be rendered. A Blender that changes after the dialog opens can refuse Start with a wrong reason. Camera paths and batch output are not in the 1.3.0 declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+
 ## Troubleshooting
 
 | Symptom | Check |

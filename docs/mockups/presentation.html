@@ -387,7 +387,7 @@ SCREENS.pick = {
         ${kfRows([{ name: 'Front', st: 'camera' }, { name: 'Entrance', st: 'camera' }])}
         <div class="btnrow"><span class="btn" role="button">Add scene…</span><span class="sfx">two to thirty-two scenes to create the path</span></div>
         <div class="hd">Timing</div>${timingRows(FPS, 1, 0.5)}
-        <div class="dbn info" style="margin:8px 0 0" role="status"><span class="k">Draft</span><span>Path 1 is not saved. It has 2 scenes, 37 frames. Create path becomes enabled at 2 scenes.</span></div>
+        <div class="dbn info" style="margin:8px 0 0" role="status"><span class="k">Draft</span><span>Path 1 is not saved. It has 2 scenes, 49 frames. Create path becomes enabled at 2 scenes.</span></div>
       </div>`;
     const body = `<div class="dbody" style="flex:1"><div class="col" style="width:330px"><div class="lst" role="listbox">${pathItem('Path 1', 'draft · not saved', { sel: true })}${pathItem('Tour', '5 scenes · 157 frames')}${pathItem('Orbit', '4 scenes · 121 frames')}</div></div><div class="col" style="flex:1">${draft}</div></div>`;
     const foot_ = foot('Cancel discards the draft; nothing in the model changes.', btn('Cancel') + btn('Create path', 'primary'));

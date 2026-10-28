@@ -3,6 +3,7 @@
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/tags.hpp"
+#include "core/transform.hpp"
 #include "io/document_io.hpp"
 #include <QAction>
 #include <QApplication>
@@ -12,6 +13,8 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QHeaderView>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QMimeData>
 #include <QPushButton>
 #include <QTemporaryDir>
@@ -19,6 +22,7 @@
 #include <QTimer>
 #include <QTreeWidgetItemIterator>
 #include <iostream>
+#include <map>
 using namespace sketchy;
 void check(bool condition, const char *message) {
     if (!condition)
@@ -29,6 +33,16 @@ QTreeWidgetItem *row(QTreeWidget *tree, Id id) {
         if ((*it)->data(0, Qt::UserRole).toULongLong() == id)
             return *it;
     throw std::runtime_error("Expected tree row missing");
+}
+std::map<Id, QTreeWidgetItem *> rowsById(QTreeWidget *tree) {
+    std::map<Id, QTreeWidgetItem *> rows;
+    for (QTreeWidgetItemIterator it(tree); *it; ++it)
+        rows[(*it)->data(0, Qt::UserRole).toULongLong()] = *it;
+    return rows;
+}
+void setState(Viewport *view, Id body, const char *field, bool value) {
+    view->organize(
+        {QJsonObject{{"command", "scene.state"}, {"body", QString::number(body)}, {field, value}}});
 }
 void focus(QTreeWidget *tree) {
     auto *window = tree->window();
@@ -302,6 +316,74 @@ int main(int argc, char **argv) {
         saveDocument(doc, path);
         check(encodeDocument(loadDocument(path)) == encodeDocument(doc),
               "Organization survives exact save/reopen");
+        // D-048: an edit that changes no displayed field keeps every row, and each displayed field
+        // still reaches its row when it changes.
+        view->enterContext(0);
+        const auto probe = doc.addFace({{{6, 0, 0}, {7, 0, 0}, {7, 1, 0}, {6, 1, 0}}}, "Probe");
+        QMetaObject::invokeMethod(view, "changed");
+        tabs->setCurrentIndex(0);
+        const auto probeItems = rowsById(tree), probeTagItems = rowsById(tags);
+        doc.transform(probe, Transform::translation({2, 0, 0}), 0);
+        QMetaObject::invokeMethod(view, "changed");
+        check(rowsById(tree) == probeItems && rowsById(tags) == probeTagItems,
+              "A transform keeps every Outliner and Tags item");
+        renameEntity(doc, probe, "Probe renamed");
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->text(0).startsWith("Probe renamed"),
+              "A rename reaches the Outliner row");
+        const auto probeTag = createTag(doc, "Probe tag");
+        assignTag(doc, probe, probeTag);
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->toolTip(0).contains("Probe tag"),
+              "A tag assignment reaches the entity tooltip");
+        editTag(doc, probeTag, std::string("Probe label"));
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->toolTip(0).contains("Probe label"),
+              "A tag rename reaches the entity tooltip");
+        editTag(doc, probeTag, {}, {}, false);
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->text(1) == QStringLiteral("H") &&
+                  row(tags, probeTag)->checkState(1) == Qt::Unchecked,
+              "Hiding a tag hides its entities in the Outliner");
+        editTag(doc, probeTag, {}, {}, true);
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->text(1).isEmpty(), "Showing the tag clears the entity state");
+        setState(view, probe, "hidden", true);
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->text(1) == QStringLiteral("H"), "Hide reaches the state column");
+        setState(view, probe, "hidden", false);
+        setState(view, probe, "locked", true);
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->text(1) == QStringLiteral("L"), "Lock reaches the state column");
+        current(tree, probe);
+        QMetaObject::invokeMethod(view, "changed");
+        check(tree->selectedItems().isEmpty() && view->selectionState().entities().empty(),
+              "A selection the viewport rejects (locked) is cleared at the next refresh");
+        setState(view, probe, "locked", false);
+        view->setSelection(probe);
+        QMetaObject::invokeMethod(view, "changed");
+        check(tree->selectedItems().size() == 1 && tree->selectedItems()[0] == row(tree, probe),
+              "A viewport selection reaches the Outliner selection");
+        view->enterContext(group);
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, group)->text(1).contains(QStringLiteral("•")),
+              "Opening a context marks its row");
+        view->enterContext(0);
+        QMetaObject::invokeMethod(view, "changed");
+        check(!row(tree, group)->text(1).contains(QStringLiteral("•")),
+              "Leaving the context clears its mark");
+        search->setText("Probe");
+        check(!row(tree, probe)->isHidden() && row(tree, group)->isHidden(),
+              "Search filters the Outliner");
+        doc.transform(probe, Transform::translation({3, 0, 0}), 0);
+        QMetaObject::invokeMethod(view, "changed");
+        check(!row(tree, probe)->isHidden() && row(tree, group)->isHidden(),
+              "A transform keeps the search result");
+        search->clear();
+        doc.transform(probe, doc.bodies().at(probe)->transform, group);
+        QMetaObject::invokeMethod(view, "changed");
+        check(row(tree, probe)->parent() == row(tree, group),
+              "A hierarchy change reaches the row's parent");
         view->fit();
         QTest::qWait(50);
         if (argc == 2) {
