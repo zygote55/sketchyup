@@ -21,6 +21,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -569,13 +570,23 @@ int main(int argc, char **argv) {
             // The unsaved-changes prompt is answered as well: the model was edited, so Discard
             // closes.
             answerPrompt("Stop batch and close");
-            QTimer::singleShot(600, [] {
-                if (auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
-                    for (auto *candidate : box->buttons())
-                        if (box->standardButton(candidate) == QMessageBox::Discard)
-                            candidate->click();
-                }
+            // The stop runs before the unsaved-changes prompt appears, and a fixed delay raced it.
+            // So the Discard button is looked for until it is on screen. Its text differs by Qt version
+            // ("Discard", or "Close without Saving" on Qt 6.12), so the standard button decides.
+            auto *discard = new QTimer(&window);
+            discard->setInterval(50);
+            QObject::connect(discard, &QTimer::timeout, discard, [discard] {
+                auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+                if (!box)
+                    return;
+                for (auto *candidate : box->buttons())
+                    if (box->standardButton(candidate) == QMessageBox::Discard) {
+                        discard->stop();
+                        candidate->click();
+                        return;
+                    }
             });
+            discard->start();
             window.close();
             check(!window.isVisible(), "Confirming the prompt closes the window");
             check(!batches.running(), "The batch is no longer running");
@@ -675,6 +686,86 @@ int main(int argc, char **argv) {
             dialog->deleteLater();
             QSettings("SketchyUp", "SketchyUp").remove("interfaceTextPercent");
         }
+
+        // UX_DESIGN 17.10: Esc closes the batch dialog, and no batch starts.
+        {
+            isolateStore(files, "store-8");
+            Window window;
+            window.resize(1280, 900);
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "Escape window exposed");
+            makeModel(window);
+            setBlender(success);
+            auto *dialog = openBatchDialog(window);
+            QPointer<QDialog> dialogPointer(dialog);
+            focusIn(dialog, dialog->findChild<QComboBox *>("batchPath"));
+            QTest::keyClick(focused(), Qt::Key_Escape);
+            waitFor([&] { return !dialogPointer || !dialogPointer->isVisible(); }, 10000,
+                    "Esc closes the batch dialog");
+            check(window.renderPanel()->batches().jobs().empty(), "Esc starts no batch");
+        }
+
+        // UX_DESIGN 17.6 to 17.8: a batch whose frames finish but whose video is refused ends Failed,
+        // with its frames kept. The status chip opens its results, and "Resume: encode video" writes
+        // the missing video from the kept frames.
+        {
+            isolateStore(files, "store-9");
+            Window window;
+            window.resize(1280, 900);
+            window.show();
+            check(QTest::qWaitForWindowExposed(&window), "Chip window exposed");
+            makeModel(window);
+            setBlender(success);
+            auto &batches = window.renderPanel()->batches();
+            const auto options = batchOptions(success);
+            batches.videoChecks().refresh(options);
+            waitFor([&] { return batches.videoChecks().cached(options).has_value(); }, 60000,
+                    "The codec answer is cached before the batch starts");
+            PresentationPlan plan;
+            {
+                auto &document = window.document();
+                Id path{}, presetFinal{};
+                for (const auto &[id, record] : document.cameraPaths())
+                    if (record->name == "Tour")
+                        path = id;
+                for (const auto &[id, record] : document.renderPresets())
+                    if (record->name == "Final")
+                        presetFinal = id;
+                plan = batches.planFor(path, {presetFinal}, true, PresentationVideoCodec::H264);
+            }
+            const auto output = files.filePath("chip-resume");
+            // The fake encoder refuses H.264 at run time, after the frames have rendered.
+            qputenv("SKETCHYUP_FAKE_ENCODE", "codec_unavailable");
+            const auto id = batches.start(plan, output, options);
+            waitFor([&] { return jobNamed(batches, id).state == PresentationJobState::Failed; },
+                    120000, "The refused video fails the batch");
+            qunsetenv("SKETCHYUP_FAKE_ENCODE");
+            check(QFileInfo(output + "/manifest.json").exists(), "The failed batch keeps its manifest");
+
+            auto *chip = window.findChild<QPushButton *>("renderStatusChip");
+            waitFor([&] { return chip && chip->isVisible() && chip->text().contains("Show results"); },
+                    5000, "The status chip offers the results");
+            chip->click();
+            auto *results = window.findChild<QDialog *>("presentationResults");
+            check(results && results->isVisible(), "The chip opens the batch's results");
+            check(results->findChild<QLabel *>("resultsBanner")->text().contains("Its frames are kept") &&
+                      results->findChild<QLabel *>("resultsBanner")->text().contains("Video not written"),
+                  "The results say the video was not written and the frames are kept");
+            auto *resume = results->findChild<QPushButton *>("resultResumeVideo");
+            check(resume && resume->isEnabled() && resume->text() == "Resume: encode video",
+                  "The results offer Resume: encode video");
+            resume->click();
+            waitFor([&] { return jobNamed(batches, id).state == PresentationJobState::Completed; },
+                    120000, "Resume: encode video completes the batch");
+            QDirIterator videos(output, {"video.mp4"}, QDir::Files, QDirIterator::Subdirectories);
+            int written = 0;
+            while (videos.hasNext()) {
+                videos.next();
+                ++written;
+            }
+            check(written == 1, "Resume writes the one video the refusal left out");
+        }
+
     } catch (const std::exception &error) {
         std::cerr << "presentation_batch_input_tests: " << error.what() << '\n';
         return 1;

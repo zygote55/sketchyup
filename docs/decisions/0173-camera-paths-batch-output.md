@@ -7,7 +7,7 @@ Status: **Accepted (2026-10-23)**: owner decisions 1 to 17 approved as recommend
 [ADR 0106](0106-immutable-animation-capture.md) /
 [ADR 0107](0107-native-animation-frame-export.md) (R072), and on the closed
 1.0 gate (R089). This row takes ADR number 0173 because 0172 is reserved for
-the parallel STEP exchange draft.
+the parallel STEP exchange draft. R099.e, the acceptance record ([R099e-presentation.md](../verification/R099e-presentation.md), 2026-10-27), measures §5 and finds the Verify line partly met: eight of the ten §5 rows pass, batch capture fails (1,747 ms p95 against 500 ms) and the preparation row cannot be frozen (no row to compare with). See Implementation notes (R099.e).
 
 F05 asks for "named camera paths, export controls and batch presentation jobs;
 no requirement for a general character-animation suite". R099 delivers the first
@@ -370,18 +370,18 @@ measurements confirm them before they are frozen (the ADR 0168/0171 practice).
 Measurement conditions: the pinned image, software rendering for the CPU rows
 (the AMD session for the frame rows), like the R070 and R095 records.
 
-| Operation | Budget |
-| --- | --- |
-| `planCameraFrames`, 32 keyframes at the maximum timing | p95 ≤ 10 ms (*proposed*; in memory, no rendering) |
-| A path record edit (create, edit, delete) | Within the ordinary document-edit row; the 512 KiB record budget measured at load (*proposed*) |
-| A preset record edit | Within the ordinary document-edit row; the 256 KiB record budget measured at load (*proposed*) |
-| Batch capture (one freeze + 240-frame plan) on a 250k-triangle document | p95 ≤ 500 ms (*proposed*) |
-| Per-frame preparation (`PreparedRender::prepare`) | Within the existing GLB preparation row, measured per frame |
-| Per-frame render | ≤ 180 s including the CPU fallback (the `BlenderJob` deadline); PNG at most 64 MiB, hash-verified |
-| Whole batch, 240 frames × 4 presets at 1024×768 / 32 samples | Measured and reported (no fixed cap; progress and cancel at frame boundaries, the remaining 2 GiB budget surfaced per frame) (*proposed*) |
-| Store | 8 pending, 16 retained, 2 GiB (the R070 limits, reused) |
-| Manifests | Per-frame `.json` at most 1 MiB (the animation export bound); the batch `manifest.json` at most 1 MiB (*proposed*) |
-| Records on load | 64 paths / 512 KiB and 16 presets / 256 KiB refuse over budget (*proposed*) |
+| Operation | Budget | Measured (R099.e, Release) | Verdict |
+| --- | --- | --- | --- |
+| `planCameraFrames`, 32 keyframes at the maximum timing | p95 ≤ 10 ms (*proposed*; in memory, no rendering) | p50 0.008 ms, p95 0.015 ms, max 0.023 ms (200 runs; 218 frames at 24 fps, transition 7, hold 0) | **pass** |
+| A path record edit (create, edit, delete) | Within the ordinary document-edit row; the 512 KiB record budget measured at load (*proposed*) | core edit p95 0.002 to 0.003 ms (100 cycles each); the tables at load: 10,571 bytes for 64 paths and 16 presets | **pass** |
+| A preset record edit | Within the ordinary document-edit row; the 256 KiB record budget measured at load (*proposed*) | core edit p95 0.002 ms (100 cycles each) | **pass** |
+| Batch capture (one freeze + 240-frame plan) on a 250k-triangle document | p95 ≤ 500 ms (*proposed*) | p50 1,602 ms, p95 1,747 ms (20 runs; 249,218-triangle terrain, 218 frames); encoding alone p95 1,721 ms | **fail**: owner decision 1 |
+| Per-frame preparation (`PreparedRender::prepare`) | Within the existing GLB preparation row, measured per frame | p50 304 ms, p95 323 ms (6 runs over 3 frames; 92,500 triangles, 3,700 bodies); the row it cites has no number | **not frozen**: owner decision 2 |
+| Per-frame render | ≤ 180 s including the CPU fallback (the `BlenderJob` deadline); PNG at most 64 MiB, hash-verified | per-frame p50 14.5 s, p95 15.9 s, max 20.8 s (48 frames, Cycles CPU, 1024×768, 32 samples; every hash verified) | **pass** |
+| Whole batch, 240 frames × 4 presets at 1024×768 / 32 samples | Measured and reported (no fixed cap; progress and cancel at frame boundaries, the remaining 2 GiB budget surfaced per frame) (*proposed*) | 48 frames in 604 s (mean 12.6 s per frame); projected 960 frames about 3.4 h and about 0.65 GB; the full run was not made | **pass, reported**: owner decision 3 |
+| Store | 8 pending, 16 retained, 2 GiB (the R070 limits, reused) | defaults 8, 16 and 2 GiB; enforced by `presentation_store_tests` | **pass** |
+| Manifests | Per-frame `.json` at most 1 MiB (the animation export bound); the batch `manifest.json` at most 1 MiB (*proposed*) | per-frame JSON 70,208 bytes; batch manifest 14,514 bytes for 48 frames | **pass** |
+| Records on load | 64 paths / 512 KiB and 16 presets / 256 KiB refuse over budget (*proposed*) | 64 paths and 16 presets decode at p95 0.42 ms; 10,571 bytes (the byte budgets cannot bind) | **pass** (owner decision 5) |
 
 ## 6. Verification plan
 
@@ -1176,3 +1176,31 @@ the three entries R099.d2 left disabled.
   5. Qt: the APIs used are Qt 6.8 APIs, but the suites ran on the pinned image's Qt 6.11.2, not on 6.8.
 - **Contradictions with ADR 0173 or UX_DESIGN.** None found in the design. §17.4's Start line for the disk rule uses
   the engine's number; the dialog's number differs by the capture size (gap 1).
+
+## Implementation notes (R099.e)
+
+Recorded 2026-10-27 for branch `docs/r099e-presentation-acceptance`, on origin/main `36f1c42f` (PR #484). The acceptance record is [R099e-presentation.md](../verification/R099e-presentation.md) with its [summary](../verification/R099e-presentation.json). No product code under `src/` changed.
+
+- **Verify line: partly met.** Frame count and timing match, and cancellation works on real Blender. "Camera poses match fixtures" holds at the planner: `camera_motion_tests` pins 11 per-frame pose digests for a four-scene path, but the batch's per-frame camera is not digested and the 1 µm rendered-pose check is not built. "Without replacing unrelated jobs" has no unrelated-job fixture. The roadmap status is "Delivered, with open findings".
+- **§5 measured in Release** (local, Cycles CPU, 22 threads; the ADR's conditions were the pinned image and software rendering, so these numbers are not those conditions):
+  - `planCameraFrames`, 32 keyframes, 218 frames: p95 0.015 ms against 10 ms. **Pass.**
+  - Path and preset edits: core p95 0.002 to 0.003 ms, against the ordinary edit row (BUILD_PLAN: routine primitive edit, p95 below 100 ms). **Pass.** The byte budgets cannot bind: 64 paths and 16 presets are 10,571 bytes (R099.a's measured maxima are 91,648 and 18,432 bytes).
+  - Batch capture on a 250,000-triangle document (`quantities-b`'s terrain, 249,218 triangles, no placements): p50 1,602 ms, p95 1,747 ms against 500 ms. **Fail** (owner decision 1). Encoding alone is 1,721 ms p95, so the native encoding (which doubles as the provenance hash) is the cost.
+  - Per-frame preparation on the 92,500-triangle, 3,700-body document: p50 304 ms, p95 323 ms. **Not frozen**: the "existing GLB preparation row" has no number in the ADRs, BUILD_PLAN or verification records (owner decision 2).
+  - Per-frame render, real Blender, 1024×768, 32 samples: p50 14.5 s, p95 15.9 s, max 20.8 s per frame. **Pass** against 180 s. Every frame is hash-verified.
+  - Whole batch: a 48-frame run (4 presets × 12 frames) took 604 s, a mean of 12.6 s per frame. The 960-frame run (240 × 4) is projected at about 3.4 hours and about 0.65 GB, within the 2 GiB budget. **Pass, reported**, with the full run not made (owner decision 3).
+  - Store, manifests: **pass** (8, 16, 2 GiB; the per-frame JSON is 70,208 bytes and the batch manifest 14,514 bytes for 48 frames).
+  - Codec probe: the first probe takes 1,004 ms; `presentation.describe` takes 1,150 ms the first time and 0.25 ms once cached (R099.d1). No §5 row; measured as asked.
+- **The §6 checks.** The record's check map lists each. Unmet as written: the unrelated-job fixture, the rendered-pose tolerance, the destroy-the-original-capture test, and bit-for-bit encodings after undo. Partly met: the batch's determinism row (see contradiction 3).
+- **The native matrix** (main's full-tier run `40630475876`): `presentation_input_tests`, `presentation_batch_input_tests` and `render_input_tests` pass at X11 1×, X11 2×, Wayland 1× and Wayland 2×. The dialog audit passes at X11 2× and Wayland 1×; X11 1× and Wayland 2× are not audit cells.
+- **Sanitizers and fuzzing.** `Sanitized builds` passed 141 of 141, including the presentation record, I/O, store, export and command suites. `presentation_input_tests`, `presentation_batch_input_tests` and `presentation_cli_tests` are not in the sanitize lists. `parser_fuzz_presentation` was run locally under ASan and UBSan for 241 s (5,249,423 runs, no finding); CI does not run it. No fuzz target exists for `PresentationJobStore`.
+- **Installed smoke.** CI's package acceptance passed on `main`, including the prior-release refusal of the schema-30 fixture by the 1.2.0 CLI. The installed 1.3.0 CLI refuses the same fixture, unchanged. The 1.4.0 package smoke is carried to the RC walkthrough, because no 1.4.0 package exists.
+- **Gaps closed here.** The R099.d3 untested paths: Esc closes the batch dialog, the chip opens a failed batch's results, and "Resume: encode video" writes the missing video (new tests in `presentation_batch_input_tests`). The mockup's "37 frames" for two scenes is corrected to 49, the planner's formula. The H.264 answer on CI's Blender (`17:5.2.2-2`) is confirmed by `presentation_export_real`. The MPEG-4 fallback is run for real (owner decision of 2026-10-27).
+- **Contradictions with this ADR or UX_DESIGN §17, for the owner.**
+  1. §5's "250,000-triangle document" cannot be batched as a model: the render snapshot refuses more than 20,000 bodies, and the GLB export refuses more than 100,000 visible faces. The 250,000 triangles can only be a terrain, which captures but does not prepare (`GLB has too many visible faces`, observed). The batch cannot render such a document.
+  2. §6's "identical PNG bytes" does not hold: Blender writes a `Date` and `RenderTime` into each PNG's `tEXt` chunks. Pixels, decoded video and planned poses are identical across two copies of the document.
+  3. §6's schema row says a 1.3.0 writer refuses schema 30 "with the new-format error". The released readers refuse with "Unsupported container field", unchanged (R099.a's measurement, re-run here with the installed 1.3.0 CLI).
+  4. UX_DESIGN 17.11 gap 7 and §5 say the per-frame JSON is about 207 KB. It is 70,208 bytes with one copy of the log.
+  5. R099.b documents `LIMIT_EXCEEDED` for a request over 16 KiB. The CLI returns `INPUT_ERROR`.
+  6. **A defect, not fixed.** UX_DESIGN 17.5 says Start re-checks the encoder when the Blender has changed. In `presentation_batch_dialog.cpp`, `startBatch` calls `startProblem` first, and `videoAvailable` reads only the cache. With no answer for the changed file, Start reports "H.264 is not in this Blender's FFmpeg build" and returns before the re-check, so no batch starts. The batch test block that found it was removed from the record's PR, and product code is unchanged (owner decision 6).
+- **Owner decisions** (listed in the record's §8): the capture budget (1), the missing preparation row (2), the whole-batch length (3), 250,000-triangle terrains (4), the byte budgets (5), the changed-Blender defect (6), the determinism row (7), the version-6 assistant run (8), the 16 KiB code (9) and the roadmap status (10).
