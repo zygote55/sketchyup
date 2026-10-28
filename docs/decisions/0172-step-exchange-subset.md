@@ -1039,6 +1039,102 @@ section 7, items 11 to 13), and the parent's decision on E1. The product changes
 - Whether 1.4.0 needs the STEP restart (§5, E6).
 - The §6 limits against the 1,000,000-triangle export.
 
+## Implementation notes (R098.g, 2026-10-28)
+
+Two STEP reporting defects, left by the R098.f close (record `docs/verification/R098d-step-exchange.md`, section 11):
+the PMI and GD&T of a file that converts was not reported (sections 2 and 5), and the walk dropped the parts below its
+depth limit while the notice said they were attached. The product changes are in `src/ifc/step_import.cpp`,
+`src/io/step_worker.cpp` and the notice table of `src/io/ifc_import.cpp`. The IFC import is not changed.
+
+### What was built
+
+- **PMI in a file that converts.** After the conversion, `tallyPmi` counts each entity of a kind in `kPmiKinds` by kind
+  (reason `pmi`), and locates it by its `#` label. None is imported, and a notice `pmiNotImported` gives the count. The
+  PMI is not a shape, so it stands outside the identity of section 3: `entities`, `converted`, `supporting` and `omitted`
+  count the shape walk only, and for a converting box they are unchanged (2 = 1 + 1 + 0). A file that transferred nothing
+  keeps R098.f's refusal, which counts every kind the import does not read.
+- **The PMI kind list.** Sixty-six names, by family (`kPmiKinds`, `src/ifc/step_import.cpp`):
+  - dimensions and their values: ANGULAR_LOCATION, ANGULAR_SIZE, DIMENSIONAL_CHARACTERISTIC_REPRESENTATION,
+    DIMENSIONAL_LOCATION, DIMENSIONAL_LOCATION_WITH_PATH, DIMENSIONAL_SIZE, DIMENSIONAL_SIZE_WITH_PATH,
+    DIRECTED_DIMENSIONAL_LOCATION, LIMITS_AND_FITS, MEASURE_REPRESENTATION_ITEM, PLUS_MINUS_TOLERANCE,
+    SHAPE_DIMENSION_REPRESENTATION;
+  - shape aspects: SHAPE_ASPECT, SHAPE_ASPECT_DERIVING_RELATIONSHIP, SHAPE_ASPECT_RELATIONSHIP;
+  - geometric tolerances: GEOMETRIC_TOLERANCE, GEOMETRIC_TOLERANCE_RELATIONSHIP,
+    GEOMETRIC_TOLERANCE_WITH_DATUM_REFERENCE, GEOMETRIC_TOLERANCE_WITH_DEFINED_AREA_UNIT,
+    GEOMETRIC_TOLERANCE_WITH_DEFINED_UNIT, GEOMETRIC_TOLERANCE_WITH_MAXIMUM_TOLERANCE,
+    GEOMETRIC_TOLERANCE_WITH_MODIFIERS, MODIFIED_GEOMETRIC_TOLERANCE, UNEQUALLY_DISPOSED_GEOMETRIC_TOLERANCE, and the
+    fifteen characteristics (ANGULARITY, CIRCULAR_RUNOUT, COAXIALITY, CONCENTRICITY, CYLINDRICITY, FLATNESS, LINE_PROFILE,
+    PARALLELISM, PERPENDICULARITY, POSITION, ROUNDNESS, STRAIGHTNESS, SURFACE_PROFILE, SYMMETRY, TOTAL_RUNOUT, each with
+    _TOLERANCE);
+  - tolerance zones: TOLERANCE_ZONE, TOLERANCE_ZONE_DEFINITION, TOLERANCE_ZONE_FORM, NON_UNIFORM_ZONE_DEFINITION,
+    PROJECTED_ZONE_DEFINITION, RUNOUT_ZONE_DEFINITION;
+  - datums: COMMON_DATUM, DATUM, DATUM_FEATURE, DATUM_REFERENCE, DATUM_REFERENCE_COMPARTMENT, DATUM_REFERENCE_ELEMENT,
+    DATUM_REFERENCE_MODIFIER_WITH_VALUE, DATUM_SYSTEM, DATUM_TARGET, GENERAL_DATUM_REFERENCE, PLACED_DATUM_TARGET_FEATURE;
+  - annotations: ANNOTATION_CURVE_OCCURRENCE, ANNOTATION_FILL_AREA, ANNOTATION_FILL_AREA_OCCURRENCE, ANNOTATION_OCCURRENCE,
+    ANNOTATION_PLANE, ANNOTATION_TEXT, ANNOTATION_TEXT_OCCURRENCE, DRAUGHTING_ANNOTATION_OCCURRENCE, DRAUGHTING_CALLOUT,
+    TESSELLATED_ANNOTATION_OCCURRENCE.
+
+  **Source.** The names are AP242's entity names (the AP242 schema, ISO 10303-242). Each one has a class in OpenCASCADE
+  7.9.3's `StepDimTol_`, `StepShape_`, `StepRepr_` or `StepVisual_` packages, whose headers the pinned image carries
+  (`/usr/include/opencascade`); for example `StepDimTol_GeometricToleranceWithDatumReference`, `StepShape_DimensionalSize`,
+  `StepShape_PlusMinusTolerance`, `StepRepr_ShapeAspect` and `StepVisual_DraughtingCallout`. The EXPRESS schema text is not
+  in the repository or the image, and it was not downloaded for this change: the list is the AP242 entity names as the
+  OCCT classes carry them.
+  - **Not listed, on purpose.** DRAUGHTING_PRE_DEFINED_COLOUR and DRAUGHTING_PRE_DEFINED_CURVE_FONT (the colour and font
+    entities the colour reader reads; the corpus's coloured and layered files carry the colour entity, and the coloured
+    file the font); DRAUGHTING_MODEL (a presentation
+    container); TESSELLATED_CURVE_SET and TESSELLATED_GEOMETRIC_SET (tessellated geometry); RIGHT_ANGULAR_WEDGE (a solid
+    primitive); SHAPE_ASPECT_TRANSITION (not shown to be PMI); and the SELECT types and ENUMERATIONS of the same packages,
+    which a file never names as an entity.
+  - **No geometry kind is in the list.** The list and `kReadKinds` do not overlap. Of the committed fixtures, only the two
+    designed PMI files hold a kind of the list (`tests/fixtures/step/`, checked with the list parsed from the source); the
+    OCCT-written corpus holds none. A complex entity counts as PMI when each of its members is in the list.
+- **treeTooDeep.** Two causes. The walk recorded nothing below its limit, and the notice said the parts were attached, which
+  the walk never did. And the limit was one level too deep for the document: a body at walk depth d sits in a chain of d + 2
+  records (the file's root, the d walked entries above it, and the body), and the document refuses a chain of more than 128
+  records (`src/core/model.cpp`, `worldTransformIn`). With the limit at depth 127, a file with a part at depth 127 reached
+  the document and was refused whole ("Cyclic or excessively deep hierarchy"; the first run of `deep-tree.step` showed it).
+  The package decoder allows a level of 128 (`src/io/ifc_package.cpp`), so it was not the binding limit.
+  - **Fix.** `kMaxTreeDepth` is 126: the walk keeps depths 0 to 126, which is 128 records with the file's root. Below that,
+    the walk (iterative, after the walk) counts and locates each entry as not imported: a part as `StepPart` with reason
+    `tree-too-deep`, an assembly as `StepAssembly` with the same reason (an empty assembly below the limit is counted too,
+    so nothing below the limit goes uncounted). Each location carries the entry's XDE label tag (the convention of R098.f)
+    and its path. A path of more than seven names keeps its first three and its last three. The helper's `droppedEntries`
+    goes into `omitted` in `src/io/step_worker.cpp`. A label that is its own ancestor is not followed; the notice
+    `containmentCycle` counts it. The notice `treeTooDeep` now counts the dropped entries.
+  - **Notice text.** The `treeTooDeep` text in `src/io/ifc_import.cpp` says the file is nested deeper than the document
+    keeps (128 levels, the root included) and that the parts and assemblies below are not imported and are counted.
+- **Accounting with the dropped entries.** `entities` = nodes + omitted, and `omitted` = omitted entries + surfaces without
+  volume + dropped entries. For `deep-tree.step`: nodes 129 (the file's root, 127 groups, one body), omitted 2 (the group at
+  depth 127 and the box at depth 128), entities 131 = 1 + 128 + 2.
+- **Location bound.** Located entries of kind `notImported` are kept at 32 in total, with complete totals, as the IFC import
+  does: the bound is per location kind, not per entity kind. PMI and dropped entries share it with surfaces and parts.
+
+### Findings that still contradict ADR 0172
+
+- **Section 5 (locations).** The bound of 32 is per location kind (`notImported`), not per entity kind. The IFC report does
+  the same, so this is kept; a file with more than 32 not-imported entities shows 32 with the totals complete.
+- **Section 4 and the depth limit.** The ADR gives no depth limit. The limit is the document's (128 records with the file's
+  root), which this note and the code now use. The walk's old limit (127 levels, 129 records) was not in the ADR; it was an
+  off-by-one in the code.
+- **Section 2 and section 5, the refusal path.** A file that transferred nothing still counts every kind the import does not
+  read (R098.f's `tallyUnread`, unchanged). A converting file counts only the PMI list. So a refused file can report kinds
+  that are not PMI (for example colour entities). This is a known difference; it is not changed here.
+
+### Tests
+
+- `ifc_import` R098.g (PMI), on `tests/fixtures/step/e4-pmi-solid.step` (written by `make_designed.py`): a box and 41 PMI
+  entities of eight kinds: 34 DIMENSIONAL_SIZE, and one each of SHAPE_ASPECT, MEASURE_REPRESENTATION_ITEM,
+  SHAPE_DIMENSION_REPRESENTATION, DIMENSIONAL_CHARACTERISTIC_REPRESENTATION, FLATNESS_TOLERANCE, DATUM and DRAUGHTING_CALLOUT.
+  The eight kinds and their counts are exact; 32 are located, the total is 41, and the notice counts 41; the accounting is
+  2 = 1 + 1 + 0; the box alone is the body (12 triangles).
+- `ifc_import` R098.g (depth), on `tests/fixtures/step/deep-tree.step`: 128 nested assemblies (depths 0 to 127), a box at
+  depth 1 and a box at depth 128. One part and one assembly are counted with reason `tree-too-deep`, and each is located with
+  its label and path (the exact messages are asserted); the notice counts 2; `omitted` is 2; the box at depth 1 converts;
+  converted + supporting + omitted = entities.
+- `ifc_sandbox` counts the STEP fixtures: 17 became 19 (the two new files). That count is the one change to an existing
+  test.
+
 ## Appendix: evidence and sources
 
 **Verified** (against `origin/main 34910469` or the named upstream source):

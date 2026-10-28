@@ -135,5 +135,44 @@
     "interactive desktop session; desktop dialog suites in the native matrix (full-ci)",
     "R098.f: the desktop dialog suites (step_import_dialog and the native matrix; full-ci label)",
     "R098.f: the full tier, the sanitizers, and the helper-only IFC suites in build/ifc (the IFC import's code is unchanged; the application's IFC suites ran)"
-  ]
+  ],
+  "r098g": {
+    "date": "2026-10-28",
+    "branch": "fix/r098g-step-report",
+    "base": "origin/main fafc0431 (#509 and #510 merged)",
+    "commits": {
+      "codeTestsFixtures": "76d408bf",
+      "record": "the commit that adds this section and ADR 0172's R098.g notes (the PR head)"
+    },
+    "defects": [
+      {
+        "id": "PMI in a converting file",
+        "cause": "tallyPmi was not called for a file that converts; R098.f counted the unread kinds only on the refusal path",
+        "fix": "tallyPmi counts the 66 kPmiKinds entities by kind (reason pmi), locates each by its # label and imports none; notice pmiNotImported; outside the ADR 0172 section 3 identity",
+        "test": "ifc_import R098.g (PMI) on tests/fixtures/step/e4-pmi-solid.step",
+        "commit": "76d408bf"
+      },
+      {
+        "id": "treeTooDeep",
+        "cause": "the walk dropped the entries below its limit without counting or locating them, and the notice said the parts were attached; the limit (127) gave a body 129 records, one over the document's 128 (src/core/model.cpp), so a part at depth 127 got the whole file refused",
+        "fix": "kMaxTreeDepth is 126; each entry below it is counted and located as not imported (StepPart or StepAssembly, reason tree-too-deep, with its label and path) and added to omitted (droppedEntries); the notice text is corrected",
+        "test": "ifc_import R098.g (depth) on tests/fixtures/step/deep-tree.step",
+        "commit": "76d408bf"
+      }
+    ],
+    "pmiKindsSource": "ADR 0172 'Implementation notes (R098.g)'; kPmiKinds in src/ifc/step_import.cpp; the OCCT 7.9.3 StepDimTol_, StepShape_, StepRepr_ and StepVisual_ headers in the pinned image",
+    "testRuns": {
+      "ifcAppCtest": "11 of 11 pass at the final code: ifc_step, step_import, ifc_step_export, ifc_import, ifc_sandbox, ifc_package, ifc_convert, ifc_worker_run, ifc_export, import_refusal, ifc_step_worker",
+      "repeats": "ifc_import, step_import, ifc_step, ifc_step_export and ifc_sandbox: 25 of 25 with --repeat until-fail:5 at the final code",
+      "planCheck": "scripts/ci-plan.py check on the tree before the commit: 3835 tracked files, 43 rules, 20 examples hold"
+    },
+    "notRun": [
+      "R098.g: the Release budgets (the 128 MiB parse margin of 5.39 to 5.66 s against 6 s is not re-measured after the PMI pass)",
+      "R098.g: the sanitizers, the desktop dialog suites (full-ci), the full tier, the package acceptance, and the helper-only IFC suites in build/ifc"
+    ],
+    "contradictions": [
+      "R098.g: the ADR 0172 section 5 location bound is per location kind (notImported), as the IFC import has it",
+      "R098.g: the refusal path (R098.f's tallyUnread) counts every unread kind, which can include non-PMI kinds; not changed"
+    ]
+  }
 }

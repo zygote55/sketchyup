@@ -862,6 +862,80 @@ int main(int argc, char **argv) {
                 check(located == 5, "E4 (PMI-only AP242): each PMI entity is located, got " + std::to_string(located));
             }
         }
+        // R098.g, PMI in a file that converts (ADR 0172 section 5). The box converts, and the PMI beside it is counted by kind
+        // (reason pmi), located by its STEP label and not imported. There are 41 PMI entities and the report keeps 32 locations
+        // for the not-imported kind, so the totals are checked against the count, not the list. The PMI is not a shape: the
+        // accounting is the box's alone.
+        {
+            const StepWorkerOptions worker = stepWorkerOptions();
+            const auto imported = importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/e4-pmi-solid.step"), worker);
+            const QJsonObject &report = imported.report;
+            std::map<std::string, long long> kinds;
+            for (const QJsonValue &entry : report["elements"].toObject()["notImported"].toArray())
+                if (entry["reason"].toString() == "pmi")
+                    kinds[entry["class"].toString().toStdString()] += entry["count"].toInteger();
+            const std::map<std::string, long long> expected = {
+                {"DATUM", 1}, {"DIMENSIONAL_CHARACTERISTIC_REPRESENTATION", 1}, {"DIMENSIONAL_SIZE", 34},
+                {"DRAUGHTING_CALLOUT", 1}, {"FLATNESS_TOLERANCE", 1}, {"MEASURE_REPRESENTATION_ITEM", 1},
+                {"SHAPE_ASPECT", 1}, {"SHAPE_DIMENSION_REPRESENTATION", 1}};
+            check(kinds == expected, "R098.g (PMI): the eight PMI kinds are counted, 41 entities in all, with the box converting");
+            int located = 0;
+            for (const QJsonValue &place : report["locations"].toArray())
+                if (place["kind"].toString() == "notImported" && place["step"].toInt() > 0 && place["message"].toString().contains("PMI"))
+                    ++located;
+            check(located == 32, "R098.g (PMI): the report keeps 32 located PMI entities, got " + std::to_string(located));
+            check(report["locationTotals"].toObject()["notImported"].toInt() == 41, "R098.g (PMI): the location total is complete (41)");
+            bool noticed = false;
+            for (const QJsonValue &notice : report["notices"].toArray())
+                if (notice["code"].toString() == "pmiNotImported" && notice["count"].toInt() == 41)
+                    noticed = true;
+            check(noticed, "R098.g (PMI): the pmiNotImported notice counts the 41 entities");
+            const QJsonObject accounting = report["accounting"].toObject();
+            check(accounting["converted"].toInt() == 1 && accounting["omitted"].toInt() == 0 && accounting["entities"].toInt() == 2,
+                  "R098.g (PMI): the accounting is the box's alone (2 = 1 + 1 + 0)");
+            check(report["geometry"].toObject()["sourceTriangles"].toInt() == 12, "R098.g (PMI): the box is the only body (12 triangles)");
+        }
+        // R098.g, treeTooDeep (ADR 0172 section 4). The walk keeps depths 0 to 126: the document holds at most 128 records in a
+        // chain, the file's root included. The box at depth 1 converts. The assembly at depth 127 and the box at depth 128 are
+        // counted and located as not imported, with their labels and paths, and they are omitted from the accounting, which
+        // still holds.
+        {
+            const StepWorkerOptions worker = stepWorkerOptions();
+            const auto imported = importStepFile(QStringLiteral(SOURCE_DIR "/tests/fixtures/step/deep-tree.step"), worker);
+            const QJsonObject &report = imported.report;
+            long long droppedParts = 0, droppedAssemblies = 0;
+            for (const QJsonValue &entry : report["elements"].toObject()["notImported"].toArray()) {
+                if (entry["reason"].toString() != "tree-too-deep")
+                    continue;
+                if (entry["class"].toString() == "StepPart")
+                    droppedParts += entry["count"].toInteger();
+                else if (entry["class"].toString() == "StepAssembly")
+                    droppedAssemblies += entry["count"].toInteger();
+            }
+            check(droppedParts == 1, "R098.g (depth): the one part below the limit is counted as not imported, got " + std::to_string(droppedParts));
+            check(droppedAssemblies == 1, "R098.g (depth): the one assembly below the limit is counted as not imported, got " + std::to_string(droppedAssemblies));
+            int locatedPart = 0, locatedAssembly = 0;
+            for (const QJsonValue &place : report["locations"].toArray()) {
+                if (place["kind"].toString() != "notImported" || place["step"].toInt() <= 0)
+                    continue;
+                if (place["message"].toString() == "a part below the 128-level limit: not imported (in Level 0 / Level 1 / Level 2 / ... / Level 126 / Level 127 / Below the limit)")
+                    ++locatedPart;
+                if (place["message"].toString() == "an assembly below the 128-level limit: not imported (in Level 0 / Level 1 / Level 2 / ... / Level 125 / Level 126 / Level 127)")
+                    ++locatedAssembly;
+            }
+            check(locatedPart == 1, "R098.g (depth): the part below the limit is located with its label and its path");
+            check(locatedAssembly == 1, "R098.g (depth): the assembly below the limit is located with its label and its path");
+            bool noticed = false;
+            for (const QJsonValue &notice : report["notices"].toArray())
+                if (notice["code"].toString() == "treeTooDeep" && notice["count"].toInt() == 2)
+                    noticed = true;
+            check(noticed, "R098.g (depth): the treeTooDeep notice counts both entries");
+            const QJsonObject accounting = report["accounting"].toObject();
+            check(accounting["converted"].toInt() == 1, "R098.g (depth): the box at depth 1 converts");
+            check(accounting["omitted"].toInt() == 2, "R098.g (depth): the two entries below the limit are omitted from the accounting");
+            check(accounting["converted"].toInt() + accounting["supporting"].toInt() + accounting["omitted"].toInt() == accounting["entities"].toInt(),
+                  "R098.g (depth): converted + supporting + omitted = entities");
+        }
         std::cout << "ifc_import ok\n";
         return 0;
     } catch (const std::exception &error) {

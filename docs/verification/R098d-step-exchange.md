@@ -437,3 +437,34 @@ the application's IFC suites ran in 10.3); `parser_fault_corpus`; the package ac
   code (`src/ifc/step_import.cpp`, the walk) does not add them: they are not imported, and they are neither counted nor
   located. This is outside the three defects and is not changed. The notice and the code disagree.
 - **ADR 0172 section 7, E1.** Resolved by the parent's decision (10.2).
+
+## 11. R098.g: the two STEP reporting defects (2026-10-28)
+
+The fix of the two defects that section 10 left open: the PMI of a file that converts (10.4) and the `treeTooDeep`
+notice (10.5). The code and tests are in `76d408bf`. ADR 0172 has the "Implementation notes (R098.g)" with the PMI kind
+list and its source. The IFC import is not changed.
+
+| Defect | Cause | Fix | Test | Commit |
+| --- | --- | --- | --- | --- |
+| PMI and GD&T of a converting file not reported (ADR 0172 sections 2 and 5) | The R098.f count ran only on the refusal path (`nothingToImport`) | `tallyPmi` counts the 66 AP242 PMI kinds of `kPmiKinds` by kind (reason `pmi`), locates each by its `#` label, and imports none; notice `pmiNotImported`. The PMI is outside the section 3 identity | `ifc_import` R098.g (PMI) on `e4-pmi-solid.step`: 8 kinds, 41 entities, 32 located, total 41, accounting 2 = 1 + 1 + 0 | `76d408bf` |
+| `treeTooDeep` drops parts without a count | The walk returned at its limit without recording the entry, and the notice said the parts were attached. The limit was also one level too deep for the document: a body at depth 127 has 129 records, and the document refuses more than 128 (`src/core/model.cpp`) | `kMaxTreeDepth` is 126. Each entry below it (part or assembly) is counted and located with its label and path, reason `tree-too-deep`, and added to `omitted` (`droppedEntries`). The notice text is corrected | `ifc_import` R098.g (depth) on `deep-tree.step` (128 nested assemblies, a box at depth 1, a box at depth 128): one part and one assembly counted and located, notice 2, omitted 2 | `76d408bf` |
+
+**Runs.** In `sketchyup-ci-pinned:r097a-ifc`, the `ifc-app` tree (Debug), CTest with `-j2` and `ulimit -v 8000000`, at the
+final code: 11 of 11 pass (`ifc_step`, `step_import`, `ifc_step_export`, `ifc_import`, `ifc_sandbox`, `ifc_package`,
+`ifc_convert`, `ifc_worker_run`, `ifc_export`, `import_refusal`, `ifc_step_worker`). The five touched suites ran five times
+each (`--repeat until-fail:5`): 25 of 25 pass. Before the fix, the first `ifc_import` run failed on `deep-tree.step`: the
+document refused the chain ("Cyclic or excessively deep hierarchy"). The limit was then corrected and the suites re-run.
+`scripts/ci-plan.py check` passed on the tree before the commit: 3835 tracked files, 43 rules, 20 examples hold.
+
+**Not run.** The Release budgets: the PMI pass adds one kind lookup per entity of a converting file, and the 128 MiB parse
+and transfer (5.39 to 5.66 s against 6 s) is not re-measured, so its margin is unknown. The sanitizers. The desktop dialog
+suites and the native matrix (they need the `full-ci` label). The full tier. The package acceptance. The helper-only IFC
+suites in `build/ifc`.
+
+**Contradictions with this record.** Section 10.4 said a converting file reports nothing for its PMI; that is fixed. Section
+10.5's `treeTooDeep` is resolved. The 32-per-kind bound is per location kind, as the IFC import has it (ADR 0172, R098.g
+notes). The location rule of ADR 0172 section 5 now holds for the PMI and the dropped entries.
+
+**Owner decisions still open.** As in section 9.5 and section 10.4: the restart-and-exclude, the budgets, the entity cap, and
+the 1,000,000-triangle export against the 4 GiB limit. The refusal path counts every kind the import does not read (R098.f),
+which can include non-PMI kinds; that is not changed here.

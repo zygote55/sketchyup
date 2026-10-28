@@ -287,8 +287,9 @@ void testFixturesIdentical(const std::string &scratch) {
     // STEP: the import into a package, the metadata, and the probe, for every STEP fixture.
     const std::vector<std::string> stepFiles =
         fixturesIn(std::string(SOURCE_DIR) + "/tests/fixtures/step", ".step");
-    // 17: the 14 of R098.d, and the three of R098.e (the sphere and the two designed E4 files).
-    check(stepFiles.size() == 17, "the STEP fixtures are the 17 committed .step files (found " +
+    // 19: the 14 of R098.d, the three of R098.e (the sphere and the two designed E4 files), and the two of R098.g (the
+    // designed PMI file and the deep tree).
+    check(stepFiles.size() == 19, "the STEP fixtures are the 19 committed .step files (found " +
                                       std::to_string(stepFiles.size()) + ")");
     for (std::size_t index = 0; index < stepFiles.size(); ++index) {
         const std::string &input = stepFiles[index];

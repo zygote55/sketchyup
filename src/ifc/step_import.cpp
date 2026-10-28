@@ -30,6 +30,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "Bnd_Box.hxx"
@@ -51,6 +52,7 @@
 #include "StepData_Plex.hxx"
 #include "StepData_Simple.hxx"
 #include "StepData_StepModel.hxx"
+#include "StepData_UndefinedEntity.hxx"
 #include "TColStd_HArray1OfInteger.hxx"
 #include "TColStd_HArray1OfReal.hxx"
 #include "TColStd_HSequenceOfExtendedString.hxx"
@@ -105,8 +107,9 @@ const long long kMaxInputBytes = 128ll * 1024 * 1024;  // the application's inpu
 const double kCoordinateLimit = 1e6;  // metres (the package's coordinate bound, ADR 0172 §6)
 const double kDegenerateArea = 1e-12;  // m^2: a triangle this small is counted, not hidden
 const double kPi = 3.14159265358979323846;
-const int kMaxTreeDepth = 127;  // a walked tree level: the package node's level (its parents + the
-                                // root) must stay at the decoder's depth limit (128)
+const int kMaxTreeDepth = 126;  // the deepest walked level kept (the file's root is level 0 and a walked entry at depth d is
+                                // level d + 1). Its chain of records, the file's root included, must stay within the document's
+                                // 128 (src/core/model.cpp, worldTransformIn); the package decoder allows 128 levels, which is more
 const int kMaxMetadataEntries = 64;  // a part's metadata, truncated (a property text is 2048 bytes)
 
 // ADR 0172 §2: the --step-length-unit option values as a factor of metres.
@@ -556,6 +559,20 @@ void locate(Report& report, const std::string& kind, const long long label, cons
   report.location(std::move(place));
 }
 
+// A path for a message: the names joined with " / ". A path of more than seven names keeps its first three and its last
+// three, with "..." between them, so a message stays short in a deep tree (the report clips its location messages).
+std::string pathText(const std::vector<std::string>& names) {
+  std::vector<std::string> shown = names;
+  if (names.size() > 7) {
+    shown.assign(names.begin(), names.begin() + 3);
+    shown.push_back("...");
+    shown.insert(shown.end(), names.end() - 3, names.end());
+  }
+  std::string path;
+  for (const std::string& name : shown) path += (path.empty() ? "" : " / ") + name;
+  return path;
+}
+
 // The kinds the import reads as data (ADR 0172 section 5): the product structure and its links, the representation
 // contexts and the units. Every other kind is one the import does not read. A complex entity is named by its members.
 const std::set<std::string> kReadKinds = {
@@ -573,6 +590,52 @@ bool readKind(const std::string& kind) {
   for (;;) {
     const std::size_t plus = kind.find('+', begin);
     if (kReadKinds.count(kind.substr(begin, plus - begin)) == 0) return false;
+    if (plus == std::string::npos) return true;
+    begin = plus + 1;
+  }
+}
+
+// The PMI and GD&T entities of AP242 (ADR 0172 section 5, R098.g): the dimensions, the tolerances and their zones, the datums
+// and the annotation occurrences, with the shape aspects they attach to. The names are the EXPRESS entity names; OCCT 7.9.3
+// models each one (the StepDimTol_, StepShape_, StepRepr_ and StepVisual_ classes of its headers). The import reads none of
+// them. The shapes, the colours, the layers and the names come from the product structure, the representations and the
+// styles, so no kind here is one the geometry uses. Not listed on purpose: the colour and font entities of the draughting
+// schema (DRAUGHTING_PRE_DEFINED_COLOUR, DRAUGHTING_PRE_DEFINED_CURVE_FONT: the colour reader reads them), the presentation
+// container DRAUGHTING_MODEL, the tessellated geometry (TESSELLATED_CURVE_SET, TESSELLATED_GEOMETRIC_SET), the SELECT types
+// and the ENUMERATIONS of the same packages, and the tolerance's other relationships.
+const std::set<std::string> kPmiKinds = {
+    // Dimensions and their values.
+    "ANGULAR_LOCATION", "ANGULAR_SIZE", "DIMENSIONAL_CHARACTERISTIC_REPRESENTATION", "DIMENSIONAL_LOCATION",
+    "DIMENSIONAL_LOCATION_WITH_PATH", "DIMENSIONAL_SIZE", "DIMENSIONAL_SIZE_WITH_PATH", "DIRECTED_DIMENSIONAL_LOCATION",
+    "LIMITS_AND_FITS", "MEASURE_REPRESENTATION_ITEM", "PLUS_MINUS_TOLERANCE", "SHAPE_DIMENSION_REPRESENTATION",
+    // The shape aspects the PMI is attached to.
+    "SHAPE_ASPECT", "SHAPE_ASPECT_DERIVING_RELATIONSHIP", "SHAPE_ASPECT_RELATIONSHIP",
+    // Geometric tolerances: the base entity, its datum, unit, maximum and modifier forms, and the characteristics.
+    "GEOMETRIC_TOLERANCE", "GEOMETRIC_TOLERANCE_RELATIONSHIP", "GEOMETRIC_TOLERANCE_WITH_DATUM_REFERENCE",
+    "GEOMETRIC_TOLERANCE_WITH_DEFINED_AREA_UNIT", "GEOMETRIC_TOLERANCE_WITH_DEFINED_UNIT",
+    "GEOMETRIC_TOLERANCE_WITH_MAXIMUM_TOLERANCE", "GEOMETRIC_TOLERANCE_WITH_MODIFIERS", "MODIFIED_GEOMETRIC_TOLERANCE",
+    "UNEQUALLY_DISPOSED_GEOMETRIC_TOLERANCE", "ANGULARITY_TOLERANCE", "CIRCULAR_RUNOUT_TOLERANCE", "COAXIALITY_TOLERANCE",
+    "CONCENTRICITY_TOLERANCE", "CYLINDRICITY_TOLERANCE", "FLATNESS_TOLERANCE", "LINE_PROFILE_TOLERANCE",
+    "PARALLELISM_TOLERANCE", "PERPENDICULARITY_TOLERANCE", "POSITION_TOLERANCE", "ROUNDNESS_TOLERANCE",
+    "STRAIGHTNESS_TOLERANCE", "SURFACE_PROFILE_TOLERANCE", "SYMMETRY_TOLERANCE", "TOTAL_RUNOUT_TOLERANCE",
+    // Tolerance zones and their definitions.
+    "TOLERANCE_ZONE", "TOLERANCE_ZONE_DEFINITION", "TOLERANCE_ZONE_FORM", "NON_UNIFORM_ZONE_DEFINITION",
+    "PROJECTED_ZONE_DEFINITION", "RUNOUT_ZONE_DEFINITION",
+    // Datums, their references and their targets.
+    "COMMON_DATUM", "DATUM", "DATUM_FEATURE", "DATUM_REFERENCE", "DATUM_REFERENCE_COMPARTMENT", "DATUM_REFERENCE_ELEMENT",
+    "DATUM_REFERENCE_MODIFIER_WITH_VALUE", "DATUM_SYSTEM", "DATUM_TARGET", "GENERAL_DATUM_REFERENCE",
+    "PLACED_DATUM_TARGET_FEATURE",
+    // Annotations: the callouts and the occurrences of text, curves, fill areas and planes.
+    "ANNOTATION_CURVE_OCCURRENCE", "ANNOTATION_FILL_AREA", "ANNOTATION_FILL_AREA_OCCURRENCE", "ANNOTATION_OCCURRENCE",
+    "ANNOTATION_PLANE", "ANNOTATION_TEXT", "ANNOTATION_TEXT_OCCURRENCE", "DRAUGHTING_ANNOTATION_OCCURRENCE",
+    "DRAUGHTING_CALLOUT", "TESSELLATED_ANNOTATION_OCCURRENCE"};
+
+// A kind is PMI when every member of it is (a complex entity's members are joined with "+", as stepKind names them).
+bool pmiKind(const std::string& kind) {
+  std::size_t begin = 0;
+  for (;;) {
+    const std::size_t plus = kind.find('+', begin);
+    if (kPmiKinds.count(kind.substr(begin, plus - begin)) == 0) return false;
     if (plus == std::string::npos) return true;
     begin = plus + 1;
   }
@@ -614,6 +677,42 @@ void tallyUnread(const Handle(XSControl_WorkSession)& session, Report& report) {
     report.notImported(kind.empty() ? "unnamed" : kind, "not-read", 1);
     locate(report, "notImported", label > 0 ? label : i, "not read by the import: a file with no shape to convert");
   }
+}
+
+// The PMI entities of a file that converts (ADR 0172 section 5, R098.g): each is counted by kind (reason pmi) and located by
+// its STEP label, and none is imported. They are not shapes, so they stand outside the accounting identity of section 3,
+// which counts the shape walk only. Returns the number counted.
+long long tallyPmi(const Handle(XSControl_WorkSession)& session, Report& report) {
+  const Handle(Interface_InterfaceModel) model = session->Model();
+  if (model.IsNull()) return 0;
+  const Handle(StepData_StepModel) steps = Handle(StepData_StepModel)::DownCast(model);
+  // A typed entity's kind is its class's, so the decision is made once per class, not once per entity (a 128 MiB file
+  // holds about 2,000,000 entities, inside a 6 s parse budget). A generic entity (simple, complex, free-form or
+  // undefined) carries its kind in its data, so each one is named.
+  enum class ClassKind { Other, Pmi, Generic };
+  std::unordered_map<const Standard_Type*, ClassKind> classes;
+  long long counted = 0;
+  for (Standard_Integer i = 1; i <= model->NbEntities(); ++i) {
+    const Handle(Standard_Transient) entity = model->Value(i);
+    if (entity.IsNull()) continue;
+    const Handle(Standard_Type)& type = entity->DynamicType();
+    auto found = classes.find(type.get());
+    if (found == classes.end()) {
+      const bool generic = entity->IsKind(STANDARD_TYPE(StepData_Simple)) || entity->IsKind(STANDARD_TYPE(StepData_Plex)) ||
+                           entity->IsKind(STANDARD_TYPE(StepData_FreeFormEntity)) ||
+                           entity->IsKind(STANDARD_TYPE(StepData_UndefinedEntity));
+      const ClassKind decided = generic ? ClassKind::Generic : pmiKind(stepKind(entity, model)) ? ClassKind::Pmi : ClassKind::Other;
+      found = classes.emplace(type.get(), decided).first;
+    }
+    if (found->second == ClassKind::Other) continue;
+    const std::string kind = stepKind(entity, model);
+    if (found->second == ClassKind::Generic && !pmiKind(kind)) continue;
+    const Standard_Integer label = steps.IsNull() ? 0 : steps->IdentLabel(entity);
+    report.notImported(kind, "pmi", 1);
+    locate(report, "notImported", label > 0 ? label : i, "PMI or GD&T, not imported: the geometry is unchanged");
+    ++counted;
+  }
+  return counted;
 }
 
 // The report's lists in the IFC shape: the elements not imported by class and reason, the locations and their totals.
@@ -900,7 +999,13 @@ int runStepImportPackage(const StepImportOptions& options) {
   std::vector<TDF_Label> baseLabels;  // the unique bases (their label identity - IsEqual - the XDE
                                      // leaves its component and base labels untagged, so the tag
                                      // is no key), first-seen order
-  bool treeTooDeep = false;
+  // A label below the depth limit is not kept by the walk. It is recorded with the kept entry above it, and counted and
+  // located after the walk (treeTooDeep).
+  struct TooDeep {
+    TDF_Label label;
+    long long parent;
+  };
+  std::vector<TooDeep> tooDeep;
   auto baseIndexOf = [&](const TDF_Label& B) -> std::size_t {
     for (std::size_t k = 0; k < baseLabels.size(); ++k)
       if (baseLabels[k].IsEqual(B)) return k;
@@ -909,7 +1014,7 @@ int runStepImportPackage(const StepImportOptions& options) {
   };
   auto walk = [&](auto&& self, const TDF_Label& L, const long long parent, const int depth) -> void {
     if (depth > kMaxTreeDepth) {
-      treeTooDeep = true;  // the package's node depth (128) is not left over
+      tooDeep.push_back({L, parent});  // the package's node depth (128) is not left over: counted after the walk
       return;
     }
     FlatNode flat;
@@ -948,7 +1053,6 @@ int runStepImportPackage(const StepImportOptions& options) {
   }
 
   if (order.empty()) return refuseUnread("The file transferred, but the document holds no shape.");
-  if (treeTooDeep) report.notice("treeTooDeep", 1);
   // ADR 0172 §4: an element with no parent (a free part; a free assembly is a top-level group)
   // goes under the top-level group, counted as a notice (the IFC uncontainedElements pattern).
   long long uncontained = 0;
@@ -1027,18 +1131,80 @@ int runStepImportPackage(const StepImportOptions& options) {
   std::vector<long long> firstEntry(baseLabels.size(), -1);
   for (std::size_t i = 0; i < order.size(); ++i)
     if (!order[i].isAssembly && firstEntry[order[i].baseIndex] < 0) firstEntry[order[i].baseIndex] = static_cast<long long>(i);
-  // The walk's path to an entry, for a message: the names of the assemblies above it and its own, " (in A / B)".
-  const auto placeOf = [&](const long long entry) -> std::string {
-    if (entry < 0) return {};
+  // The names of the kept entries from the root to an entry (the assemblies above it and its own), root first.
+  const auto keptNames = [&](const long long entry) {
     std::vector<std::string> names;
     for (long long at = entry; at >= 0; at = order[static_cast<std::size_t>(at)].parent) {
       const std::string name = labelName(order[static_cast<std::size_t>(at)].base);
       names.push_back(name.empty() ? "(unnamed)" : name);
     }
-    std::string path;
-    for (auto it = names.rbegin(); it != names.rend(); ++it) path += (path.empty() ? "" : " / ") + *it;
-    return " (in " + path + ")";
+    std::reverse(names.begin(), names.end());
+    return names;
   };
+  // The walk's path to an entry, for a message: " (in A / B)".
+  const auto placeOf = [&](const long long entry) -> std::string {
+    if (entry < 0) return {};
+    return " (in " + pathText(keptNames(entry)) + ")";
+  };
+
+  // treeTooDeep (ADR 0172 section 4): the walk keeps the depths 0 to kMaxTreeDepth, and nothing below them is imported. Each
+  // part below that, and each assembly, is counted and located as not imported, with its label and its path, so the
+  // accounting holds (omitted). The walk below the limit is iterative here, and a label that is its own ancestor (a cycle)
+  // is not followed again: the notice containmentCycle says so.
+  constexpr std::size_t kNoEntry = static_cast<std::size_t>(-1);
+  long long droppedEntries = 0;
+  for (const TooDeep& root : tooDeep) {
+    struct Visited {
+      TDF_Label label;
+      TDF_Label base;     // the walk's base: a reference's referred shape, else the label itself
+      std::size_t above;  // the visited entry above this one (kNoEntry: the first below the limit)
+    };
+    const std::vector<std::string> kept = keptNames(root.parent);  // the path down to the limit, shared by its entries
+    std::vector<Visited> visited;
+    std::vector<std::pair<TDF_Label, std::size_t>> pending = {{root.label, kNoEntry}};
+    while (!pending.empty()) {
+      const TDF_Label label = pending.back().first;
+      const std::size_t above = pending.back().second;
+      pending.pop_back();
+      TDF_Label base = label;
+      if (!shapeTool.IsAssembly(label) && shapeTool.IsReference(label)) {
+        TDF_Label referred;
+        if (shapeTool.GetReferredShape(label, referred)) base = referred;
+      }
+      bool cycle = false;
+      for (std::size_t at = above; at != kNoEntry && !cycle; at = visited[at].above) cycle = visited[at].base.IsEqual(base);
+      if (cycle) {
+        report.notice("containmentCycle", 1);
+        continue;
+      }
+      visited.push_back({label, base, above});
+      ++droppedEntries;
+      const bool assembly = shapeTool.IsAssembly(base);
+      if (assembly) {
+        TDF_LabelSequence comps;
+        shapeTool.GetComponents(base, comps);
+        for (int i = comps.Length(); i >= 1; --i) pending.push_back({comps.Value(i), visited.size() - 1});
+      }
+      // The path: the kept entries down to the limit, then the dropped entries above this one, then its own name.
+      std::vector<std::string> names = kept;
+      std::vector<std::string> own;
+      for (std::size_t at = visited.size() - 1; at != kNoEntry; at = visited[at].above) {
+        const std::string name = labelName(visited[at].base);
+        own.push_back(name.empty() ? "(unnamed)" : name);
+      }
+      names.insert(names.end(), own.rbegin(), own.rend());
+      const std::string where = " (in " + pathText(names) + ")";
+      const long long tag = std::max<long long>(0, label.Tag() > 0 ? label.Tag() : base.Tag());
+      if (assembly) {
+        report.notImported("StepAssembly", "tree-too-deep", 1);
+        locate(report, "notImported", tag, "an assembly below the 128-level limit: not imported" + where);
+      } else {
+        report.notImported("StepPart", "tree-too-deep", 1);
+        locate(report, "notImported", tag, "a part below the 128-level limit: not imported" + where);
+      }
+    }
+  }
+  if (droppedEntries > 0) report.notice("treeTooDeep", droppedEntries);
 
   // The unique bases (the shapes the instances refer to), first-seen order: meshed once, shared by
   // every instance. A group (an assembly) is always converted; a part is converted, omitted (a cap)
@@ -1311,6 +1477,8 @@ int runStepImportPackage(const StepImportOptions& options) {
   }
   if (bodyCount == 0)
     return refuse("nothingImported", "The file transferred, but no part with volume was converted; it is refused (ADR 0172 §3).");
+  // ADR 0172 section 5 (R098.g): a file that converts still counts, by kind and label, the PMI and GD&T it holds. None is imported.
+  if (const long long pmi = tallyPmi(ws, report); pmi > 0) report.notice("pmiNotImported", pmi);
 
   if (degenerate > 0) report.notice("degenerateTriangles", degenerate);
   JsonOut r;
@@ -1367,6 +1535,7 @@ int runStepImportPackage(const StepImportOptions& options) {
       .field("triangles", triangles)
       .field("freeFaces", freeFaces)
       .field("omittedEntries", omittedEntries)
+      .field("droppedEntries", droppedEntries)
       .endObject();
   progress.line("R " + json.str());
   return 0;
