@@ -754,7 +754,9 @@ void PresentationBatchDialog::updateVideoState() {
     const bool chosenAvailable = !checking && !notChecked && codec_->currentData().isValid() &&
                                  comboItemEnabled(codec_, codec_->currentIndex());
     video_->setEnabled(chosenAvailable);
-    if (!chosenAvailable) {
+    // A Start that waits for its check keeps the owner's Write video choice: the batch starts with
+    // video when the answer has H.264, and the choice is cleared once a refusal is shown.
+    if (!chosenAvailable && !pendingStart_) {
         QSignalBlocker blocker(video_);
         video_->setChecked(false);
     }
@@ -877,9 +879,19 @@ QString PresentationBatchDialog::startProblem() const {
         return mismatch;
     if (selected.video && videoChecking_)
         return "Checking the video encoder…";
-    if (selected.video && !videoAvailable())
-        return QString("H.264 is not in this Blender's FFmpeg build, so no video can be written. "
-                       "Clear Write video to render the frames only.");
+    // No answer for this Blender is not a refusal: Start checks the encoder again first, and
+    // startBatch starts the batch when the answer arrives (UX_DESIGN 17.5). A probe that did not
+    // finish, or a build without the codec, is refused with its own reason.
+    if (selected.video) {
+        if (const auto answer = batches_.videoChecks().cached(options())) {
+            if (!answer->checked)
+                return answer->message +
+                       ". Check again, or clear Write video to render the frames only.";
+            if (!videoAvailable())
+                return QString("H.264 is not in this Blender's FFmpeg build, so no video can be "
+                               "written. Clear Write video to render the frames only.");
+        }
+    }
     if (const auto odd = oddSizeProblem(selected); !odd.isEmpty())
         return odd;
     if (batches_.running())
@@ -919,8 +931,15 @@ void PresentationBatchDialog::startBatch() {
     const bool waiting = pendingStart_;
     pendingStart_ = false;
     refusal_->hide();
-    if (!startProblem().isEmpty())
+    // A Start that waited for its check gives its reason on the refusal line. The Write video
+    // choice is cleared once the refusal shows (updateVideoState), so the start line would lose it.
+    if (const auto problem = startProblem(); !problem.isEmpty()) {
+        if (waiting) {
+            showRefusal(problem);
+            updateAll();
+        }
         return;
+    }
     const auto selected = choice();
     const auto batchOptions = options();
     // Start re-checks the encoder when the Blender changed since the dialog opened
@@ -930,6 +949,7 @@ void PresentationBatchDialog::startBatch() {
     if (selected.video && !batches_.videoChecks().cached(batchOptions)) {
         if (waiting) {
             showRefusal("The video encoder has not been checked yet. Check again, then Start.");
+            updateAll();
             return;
         }
         pendingStart_ = true;

@@ -1199,10 +1199,9 @@ int main(int argc, char **argv) {
                     throw sketchy::InspectionError("INVALID_REQUEST",
                                                    "Presentation export is a standalone operation");
             QFile file(parser.value("export-presentation"));
-            if (!QFileInfo(file.fileName()).isFile() || !file.open(QIODevice::ReadOnly) ||
-                file.size() > sketchy::presentationRequestBytes)
-                throw sketchy::InspectionError(
-                    "INPUT_ERROR", "Cannot read presentation request or it exceeds 16 KiB");
+            // The size is the parser's to refuse: an oversize request is LIMIT_EXCEEDED (R099.b).
+            if (!QFileInfo(file.fileName()).isFile() || !file.open(QIODevice::ReadOnly))
+                throw sketchy::InspectionError("INPUT_ERROR", "Cannot read presentation request");
             const auto request = sketchy::parsePresentationRequest(
                 file.read(sketchy::presentationRequestBytes + 1));
             const auto document = sketchy::loadDocument(parser.value("input"));

@@ -14,6 +14,16 @@
   `sandbox_available`, a required check. It fails when the runner has no Landlock, no `PR_SET_NO_NEW_PRIVS` or no
   seccomp filter, and nothing skips it. Its job log records the runner's kernel and Landlock ABI. This change
   closes R109, the helper process sandbox.
+
+- Presentation batch, changed Blender (R099.e2, [ADR 0173](docs/decisions/0173-camera-paths-batch-output.md)): if
+  you change the Blender after opening the batch dialog and press Start, Start checks the video encoder again and
+  says so, instead of refusing with the H.264 message. The batch starts with video when that Blender has H.264. If
+  it has not, or its check does not finish, Start shows that reason.
+- Presentation frames (R099.e2): each rendered PNG loses Blender's text chunks (the date, the time, the render time
+  and Cycles' statistics), so the same frame renders to the same bytes. The pixels are unchanged. Single renders
+  lose the same chunks.
+- `sketchyup-cli --export-presentation`: a request over 16 KiB is refused with `LIMIT_EXCEEDED`, not `INPUT_ERROR`.
+
 - Blender job sandbox (R109 S5, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)): the Blender
   render, preview, encode and handoff run under the helper sandbox. Blender may read its own install, the
   system libraries and its data, and may write only in the job's attempt directory. It has no network

@@ -41,6 +41,11 @@ if(SKETCHYUP_SHARED_LIBS)
   set(SKETCHYUP_LIBRARY_TYPE SHARED)
   set(BUILD_SHARED_LIBS ON)
 endif()
+# Code that must know its project libraries are shared objects in the build tree (the Blender
+# stand-in's sandbox reads them, ADR 0183 R109 S5): the sanitizer builds and the CI fast tier.
+if(SKETCHYUP_LIBRARY_TYPE STREQUAL "SHARED")
+  add_compile_definitions(SKETCHYUP_SHARED_PROJECT_LIBS=1)
+endif()
 # The project version above is the single source of truth (ADR 0162).
 configure_file(src/sketchyup/version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/generated/sketchyup/version.hpp" @ONLY)
 add_library(sketchyup_version INTERFACE)
@@ -544,6 +549,9 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_executable(terrain_io_tests tests/terrain_io_tests.cpp)
     target_link_libraries(terrain_io_tests PRIVATE sketchyup_io)
     add_test(NAME terrain_io COMMAND terrain_io_tests)
+    # R099.e2: presentation_record_tests' encoding checks use the document encoder, which exists only
+    # in Qt builds (the Qt-free core sanitizer build compiles the suite without them).
+    target_link_libraries(presentation_record_tests PRIVATE sketchyup_io)
     add_executable(presentation_io_tests tests/presentation_io_tests.cpp)
     target_link_libraries(presentation_io_tests PRIVATE sketchyup_io)
     target_compile_definitions(presentation_io_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
