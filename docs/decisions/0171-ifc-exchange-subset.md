@@ -1086,7 +1086,9 @@ limits prove tight); MCP and assistant exposure.
   `openingsNotApplied` could be common on messy models. The library's log is captured so the user is
   told, and the fixtures include a deliberately bad host.
 - **Library determinism.** Meshing with threads can reorder output; tests run single-threaded and
-  the application orders elements by `#id` before building the document.
+  the application orders elements by `#id` before building the document. *Dated 2026-10-27:* at several threads the
+  helper also read the library's messages while its worker threads were still writing them; that made the report
+  and, rarely, the geometry depend on the run. See the implementation notes (four-thread determinism) at the end.
 - **Model limits are small for BIM.** 100,000 faces and 10,000 body records are below many real
   buildings. The Simple-Scene files are small; a typical project file will refuse or import
   partially. Honest refusal is the design; partial import by storey or class is the likely next row.
@@ -1430,7 +1432,9 @@ compose), `model` (one pass over each relationship class), `geometry` (the itera
   vertices welded, `apply-default-materials` **off**, the mesher's linear deflection from the user (default 1 mm)
   and 0.5 rad, `max-voids-per-element` 100, a filter that takes elements and spatial elements (not
   `IfcVirtualElement`) and leaves out the steps it is told to. One thread is deterministic and in file order; four
-  are the default (the document does not depend on their order: the tree decides it).
+  are the default (the document does not depend on their order: the tree decides it). *Dated 2026-10-27:* the tree
+  does decide the order of the nodes, but four threads did not give identical packages or, rarely, identical
+  geometry; the cause was the helper's read of the library's log (see the implementation notes at the end).
 - **Spatial tree and placements** (B1 to B7): `IfcRelAggregates` parts first, then `IfcRelContainedInSpatialStructure`
   elements, each in relationship order; an element with two parents keeps the first (`multipleParents` is counted);
   an element no relationship reaches goes under the project (`uncontainedElements`); a node's transform is
@@ -2436,3 +2440,101 @@ the export claim of section 2 is conditional**, and the support-matrix row says 
 - The `parser_fault_corpus_tests` target is not built by the `ifc-app` preset; the CI fast tier builds it with the
   application, so the preset's selection reports it "Not Run" when run alone.
 - The export's progress display and the desktop cancel are in the native matrix, not here.
+
+## Implementation notes (four-thread determinism, 2026-10-27)
+
+The four-thread default was not deterministic. CI showed two sizes for `openings-hard.ifc` at four threads (10,261 and
+10,523 bytes) and two for `tree-cases.ifc` (14,853 and 14,854). This record measures what those differences are, names
+the cause and fixes it. The thread default is unchanged (four).
+
+### What was measured
+
+Origin `main` at `7ff74c51`, the helper built in `sketchyup-ci-pinned:r097a-ifc` (IfcOpenShell `7ba70197`), run under
+four-way contention on four CPUs unless stated.
+
+| Threads | Runs per fixture | Result, before the fix |
+| --- | --- | --- |
+| 1 | 5 to 200 | one package per fixture, identical bytes (10,353 and 14,854 bytes) |
+| 2 | 200 | no geometry difference; the kernel-message list varied in every run |
+| 3 | 2,200 | `openings-hard`: **15 runs with different geometry** (5 nodes, not 6; 9,158 to 9,682 bytes; the `GEO191` message lost or blank in all 15); `tree-cases`: none |
+| 4 | 3,430 | no geometry difference in 3,430 runs; `openings-hard`: 53 runs with a different kernel-message list (sizes 10,185 to 10,379) and 17 with a different reason for an unapplied opening; `tree-cases`: 104 runs with a different kernel-message list (14,738 to 14,853) |
+
+The CI numbers are of the second kind. The 10,261-byte package has the same nodes, meshes, transforms and materials as
+the 10,523-byte one. Its report differs: a message with an empty code and text, a different count of `GEO031`, and the
+reason for one unapplied opening (`kernelError` became `openingHasNoGeometry`). The 14,853-byte package differs by one
+`GEO031` count (9 for 10).
+
+**Classification.** The order of the elements was not the cause. At four threads the nodes, meshes, transforms and
+materials were the same bytes in all 3,430 runs of each fixture, the tree decides the node order, and the mesh order is
+deterministic. What varied at four threads was the report: the library's kernel messages (lost, blank, or counted
+differently) and, rarely, the reason for an unapplied opening. At three threads the geometry itself changed.
+
+**Converted documents.** Each package was converted through the application's IFC import (the CLI, with the helper
+replaced by a stand-in that replays a given package). A `.sketchyup` file contains a random `documentId` and the SHA-256
+of the file, so two conversions of the same package never match byte for byte. After those two fields were removed:
+
+- every four-thread package that differed only in the report converted to the same document as the baseline (the
+  10,261, 10,216, 10,265, 10,379, 10,523-with-other-messages, 14,853 and 14,770 variants);
+- the three-thread package with the changed geometry converted to a different document (9,775 bytes against 10,481).
+
+So the four-thread variation did not change the model in any run we saw, and the three-thread variation did.
+
+### The cause
+
+The cause is in the helper (`src/ifc/geometry.cpp`, `iteratePass`), not in the vendored library. In IfcOpenShell 0.9.0,
+`iterator::initialize()` with more than one thread starts `process_concurrently()` on another thread and returns when
+the first element is ready (`src/ifcgeom/iterator.cpp`, line 155). The worker threads then append their messages to the
+iterator's logger as each conversion finishes (`flush_worker_log`, line 172). The helper read that message list right
+after `initialize()`, with no synchronisation, and again to take a count to start from. A read during an append could
+copy a half-written entry (a blank code or text). A message appended between the copy and the count was never copied.
+
+The helper then decides things from those messages. A `GEO191` (non-manifold first operand) marks a host with openings
+as untrusted, and the untrusted hosts are cut again without their openings. In each of the 15 three-thread variants
+that message was lost or had a blank text, several other messages were blank or missing too, and the packages had five
+nodes instead of six: an opening element was not imported and the hosts were cut differently. One thread runs
+`initialize()` synchronously, so it has no such race, which matches the observations.
+
+### What was changed
+
+1. **Reads of the library's log happen only where no worker thread can write.** `LibraryMessages` (in `geometry.cpp`)
+   copies the constructor's messages before `initialize()` (the units are logged there), and copies the rest when the
+   attempt ends, after the iterator is destroyed (its destructor joins the threads).
+2. **At more than one thread the library's messages are sorted** (by code, severity, text, product, instance) before
+   the report and the failure reasons are derived. The library's order at one thread is kept. The sort is needed
+   because the order of the messages follows the order in which the conversions finish. Before the sort, the race fix
+   alone gave identical packages at four threads in 2,050 runs per fixture, but six different packages (the same size,
+   the kernel messages in another order) at three threads in 2,000 runs of `openings-hard.ifc`.
+3. **`tests/ifc_sandbox_tests.cpp`** compares the package bytes of the four-thread import for every fixture again
+   (sandboxed against unsandboxed); the byte comparison had been restricted to one thread. A new test, `testFourThreadDeterminism`,
+   imports `openings-hard.ifc` and `tree-cases.ifc` twice at four threads and requires identical packages and R lines.
+   It is in the existing `ifc_sandbox` test, so no CI registration changed.
+
+### Verification, after the change
+
+- Four threads: 1,600 runs per fixture under contention, every package the same bytes (10,523 and 14,854 bytes).
+- Three threads: 1,600 runs per fixture, every package the same bytes.
+- One thread: 40 runs per fixture, the same bytes as before the change.
+- The IFC job's application selection (`ifc_package`, `ifc_convert`, `ifc_import`, `ifc_worker_run`, `ifc_export`,
+  `ifc_step`, `ifc_step_export`, `step_import`, `import_refusal`, `ifc_sandbox`): 10 of 10 passed.
+- The helper's own selection (`ctest -R '^ifc_' -LE full` in the `ifc` preset): 8 of 8 passed.
+- Not run here: the sanitizer job, the full tier (`-L full`), the desktop suites and the native matrix.
+
+### Contradictions with the ADR
+
+- F8 says "output order from several threads differs". That is true of the messages, but the element order was not
+  what differed in any package we measured.
+- H1 says the worker is deterministic for a given input, "the library's meshing is deterministic". At four threads the
+  helper was not deterministic before this change, and at three threads the geometry changed.
+- The iterator bullet says "the document does not depend on their order: the tree decides it". The tree decides the
+  node order. The helper's read of the log made the report and, at three threads, the geometry depend on the run.
+
+### Open questions and risks
+
+- Measured evidence is not proof. After the change, no variation appeared in about 3,200 four-thread and 3,200
+  three-thread runs. The cause is a race, so only a ThreadSanitizer build of the IfcOpenShell prefix would show that no
+  other unsynchronised access remains. That build was not done.
+- The fix depends on the library writing its messages only from worker threads that have finished when the iterator is
+  destroyed. If a later IfcOpenShell release changes when it appends, the reads in `LibraryMessages` need re-checking.
+- The two-run test passes whether or not the race is fixed in most runs, because the race is rare. It guards against
+  nondeterminism in general (for example the message order); the stress runs above are the evidence for the race.
+- The vendored IfcOpenShell tree is unchanged, and so are the thread count and the sanitizer job.
