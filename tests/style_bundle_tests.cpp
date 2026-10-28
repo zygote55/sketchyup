@@ -555,6 +555,17 @@ void libraryFolder() {
           "A valid style reports its metadata and texture status");
     check(!bad.error.isEmpty() && bad.path.endsWith("bad.sketchystyle"),
           "A bad style reports its error by file");
+    // The folder scan stops at 4,096 entries (ADR 0132) and says so (R100.g, the R100.f2 gap).
+    QTemporaryDir crowded;
+    check(crowded.isValid(), "A temporary directory");
+    for (int i = 0; i < 4097; ++i)
+        write(crowded.filePath(QStringLiteral("note-%1.txt").arg(i, 5, 10, QChar('0'))),
+              QByteArray());
+    const auto stopped = scanStyleDirectory(crowded.path());
+    check(stopped.stoppedAtEntries && stopped.skippedNotStyles == 4096 && stopped.entries.empty(),
+          "The scan stops after 4,096 folder entries");
+    check(stopped.notices.join("\n").contains("Stopped after 4,096 folder entries"),
+          "The stop is reported as a notice");
 }
 
 // The style commands: canonical base64 only, bounded, and refused without changing anything.

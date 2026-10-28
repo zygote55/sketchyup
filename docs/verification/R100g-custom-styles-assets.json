@@ -1,0 +1,382 @@
+{
+  "layer": "R100.g",
+  "date": "2026-10-28",
+  "branch": "docs/r100g-styles-assets-acceptance",
+  "base": {
+    "main": "e3b45be6",
+    "note": "the merge of PR #490 (R100.f2)"
+  },
+  "commits": {
+    "productCodeRunAt": "e3b45be6",
+    "prHeadRunAt": "86b5f333",
+    "recordCommit": "the head of docs/r100g-styles-assets-acceptance"
+  },
+  "ciRuns": {
+    "P490FullTier": {
+      "run": "40653485697",
+      "url": "https://github.com/zygote55/sketchyup/actions/runs/40653485697",
+      "commit": "86b5f333",
+      "pullRequest": "#490",
+      "label": "full-ci",
+      "verdictJob": "122749613902",
+      "conclusion": "success",
+      "note": "carries the whole native matrix, the sanitized builds, the Development build, the Qt 6.8 compile and Arch package acceptance for the R100 code path; #482, #485 and #488 are ancestors of its head"
+    },
+    "P482FullTier": {
+      "run": "40567744599",
+      "url": "https://github.com/zygote55/sketchyup/actions/runs/40567744599",
+      "commit": "342de6b6",
+      "pullRequest": "#482",
+      "verdictJob": "122480739254",
+      "conclusion": "success"
+    },
+    "P485FullTier": {
+      "run": "40604131920",
+      "url": "https://github.com/zygote55/sketchyup/actions/runs/40604131920",
+      "commit": "4c444c4d",
+      "pullRequest": "#485",
+      "verdictJob": "122583564251",
+      "conclusion": "success"
+    },
+    "P488FastTier": {
+      "run": "40591430010",
+      "url": "https://github.com/zygote55/sketchyup/actions/runs/40591430010",
+      "commit": "6f9125bf",
+      "pullRequest": "#488",
+      "verdictJob": "122500479969",
+      "conclusion": "success",
+      "note": "no full-tier run: the PR carried no full-ci label"
+    },
+    "mainPushR482": {
+      "run": "40587173992",
+      "commit": "c80bcd21",
+      "conclusion": "success"
+    },
+    "mainPushR488": {
+      "run": "40592819876",
+      "commit": "34fd58ff",
+      "conclusion": "success",
+      "note": "fast tier only"
+    },
+    "mainPushR485": {
+      "run": "40617677853",
+      "commit": "3f9234c0",
+      "conclusion": "failure",
+      "verdictJob": "122619185993",
+      "note": "IFC helper ifc_worker_probe, SIGSYS exit -31; native cells passed; fixed by #496 (a40aa0af, run 40619272531, success)"
+    },
+    "nightlyMain": {
+      "run": "40503622529",
+      "commit": "61b2018b",
+      "conclusion": "success",
+      "note": "predates the four merges"
+    },
+    "mainE3b45be6": {
+      "run": "40668791307",
+      "commit": "e3b45be6",
+      "conclusion": "in progress when the record was written"
+    }
+  },
+  "build": {
+    "release": "build/release: CMAKE_BUILD_TYPE=Release, GCC 16.2.1, Qt 6.12.0, BFD linker, SKETCHYUP_BUILD_DESKTOP=ON, SKETCHYUP_BUILD_CLI=ON; the 23 R100 suites plus the new checks",
+    "fuzz": "build/fuzz: clang 23.1.3, RelWithDebInfo -O1 -g, -fsanitize=fuzzer-no-link,address,undefined, SKETCHYUP_BUILD_FUZZERS=ON, no desktop, no CLI",
+    "machine": "22 CPU threads, 30 GB RAM; other workers built during some runs; the 1-minute load average is recorded with each series",
+    "catalog": "134,107,758 bytes (127.895 MiB), written by style_catalog_benchmark write"
+  },
+  "status": "Verify line met (four clauses); every ADR 0174 section 10 row passes; native matrix passes in every cell CI runs for these suites; sanitizers pass in CI; four local fuzz campaigns find nothing; §9 budgets measured and frozen: style apply marginal, decode and scan reported or inside allowance, import time met but progress and cancel not built (partly met), desktop catalog memory a miss, dialog selection a finding (2.13 s), edge stroke frame not decided (software only)",
+  "verifyLine": "met",
+  "verifyClauses": {
+    "relocatesCleanlyStyle": "pass: style_bundle_tests noExternalDependency and libraryFolder; CLI S13 (style and catalog from /dev/shm and /home give identical imports)",
+    "relocatesCleanlyCatalog": "pass: catalog_tests relocation (lines 102-111); catalog_import_tests relocation; CLI S7, S8, S13, S14",
+    "preservesAppearance": "pass: style_bundle_tests roundTrip, applyAndExport; catalog_import_tests exportThenImport; CLI S1-S3 (style bytes identical after apply and export), S10",
+    "reportsMissingDependencies": "pass: catalog_import_tests missingDependencies; style_catalog_input_tests refusedInsertReport; CLI S9",
+    "neverSubstitutedSilently": "pass: catalog_import_tests equalHashDifferentPayload (new in this PR); style_bundle_tests missingAndMismatchedTextures; CLI S7, S11"
+  },
+  "checks": {
+    "10.1 style relocates and preserves appearance": "pass: noExternalDependency, libraryFolder, applyAndExport; S1-S3, S13",
+    "10.2 catalog relocates; inserted records identical": "pass: catalog_tests relocation; catalog_import_tests relocation; S8, S13",
+    "10.3 missing and tampered fixtures: not imported, named, destination unchanged": "pass: catalog_import_tests missingDependencies and refusalsLeaveDocumentUnchanged; S9",
+    "10.4 equal-hash different-payload refused; no fallback; assetStatus reflects state": "pass: equalHashDifferentPayload (new); missingAndMismatchedTextures; style_catalog_input_tests missingTextureState; S7, S11. Gap: missingAssets not named per entry (carried)",
+    "10.5 refusals leave state unchanged": "pass: refusalsLeaveDocumentUnchanged, exportRefusals, commands; S5, S9, S11",
+    "10.6 one undo step; save and reopen bit for bit": "pass: oneUndoStep; save and reopen (catalog_import_tests lines 313-321); style_bundle_tests applyAndExport and roundTrip",
+    "10.7 determinism and pinned hashes": "pass: catalog_tests (identical bytes, fixture pins); S8, S13, S14 identical models",
+    "10.8 fuzzing: edge, catalog and material size targets, each decode twice": "pass locally: 6,478,855 + 507,127 + 5,811,905 runs, no finding; CI runs no libFuzzer step for these formats (carried)"
+  },
+  "releasedReaders": {
+    "1.3.0": {
+      "binary": "/usr/bin/sketchyup-cli",
+      "version": "sketchyup-cli 1.3.0",
+      "packageSha256": "5f5c0cf8ca876d278e375304ff95257ac22decc8dc641096da4c62013cfa833b",
+      "result": "refuses tests/fixtures/edge-styles-v31.sketchyup and material-texture-size-v33.sketchyup: exit 1, INVALID_OPERATION, Unsupported container field, copy unchanged (cmp); through --validate-native, --inspect-native, --migrate-native"
+    },
+    "1.2.0": {
+      "binary": "extracted from sketchyup-1.2.0-1-x86_64.pkg.tar.zst (not installed)",
+      "packageSha256": "b95fc18909040de68c8c8cb425f1bd01f3573249b48b4c3b61fe0be53d31295d",
+      "result": "the same refusal for both fixtures"
+    }
+  },
+  "testRuns": {
+    "localReleaseCtest": "23 of 23 R100 headless suites pass (final state)",
+    "localReleasePriorRelease": "style_bundle_tests and material_texture_size_tests pass with SKETCHYUP_PRIOR_CLI set to 1.3.0 and style_bundle_tests with 1.2.0",
+    "localReleaseOffscreen": "style_catalog_input_tests, style_input_tests, style_viewport_tests, edge_stroke_viewport_tests pass at scale 1 and 2; material_input_tests fails rendererReady at both scales (offscreen has no GL context, as R100.b recorded); audit catalogs passes at both scales; audit styles fails reference-import and style-import offscreen (not CI cells; F-5)",
+    "prFullCi": "P490: Development build and checks 278 of 278 ctest; Sanitized builds all jobs success"
+  },
+  "nativeMatrix": {
+    "scope": "Linux x86_64 only; Windows and macOS not supported",
+    "cells": {
+      "X11 1x": {
+        "job": "122716668616",
+        "style_catalog_input_tests": "passed",
+        "material_input_tests": "passed",
+        "audit catalogs and styles": "not run in CI (audit runs at X11 2x and Wayland 1x only)"
+      },
+      "X11 2x": {
+        "job": "122716668745",
+        "style_catalog_input_tests": "passed",
+        "material_input_tests": "passed",
+        "audit catalogs and styles": "passed"
+      },
+      "Wayland 1x": {
+        "job": "122716668661",
+        "style_catalog_input_tests": "passed",
+        "material_input_tests": "passed",
+        "audit catalogs and styles": "passed"
+      },
+      "Wayland 2x": {
+        "job": "122716669445",
+        "style_catalog_input_tests": "passed",
+        "material_input_tests": "passed",
+        "audit catalogs and styles": "not run in CI (audit runs at X11 2x and Wayland 1x only)"
+      }
+    },
+    "audit job": "122716668660, success; no Case aborted line",
+    "notRun": [
+      "audit at X11 1x and Wayland 2x (workflow choice)",
+      "Windows and macOS (not supported)",
+      "Qt 6.8 byte pins for texture_preset_tests (compile only passed, 122699391069)",
+      "Xvfb and Weston locally (not installed)"
+    ]
+  },
+  "sanitizers": {
+    "ci": "P490 Sanitized builds 122699391021 success: bounded inspection and CLI 144 of 144 (catalog, catalog_fuzz, catalog_import, style_catalog_cli, style_bundle, material_texture_size, texture_presets, native_format, model_style_commands, model_style_io, assistant_tool_surface, mcp); core without Qt 74 of 74; desktop style, style viewport, edge stroke viewport, style catalog and texture input suites at Wayland 2x; no AddressSanitizer, LeakSanitizer or runtime error line",
+    "notSanitized": "material_input_tests (not in the sanitize list; OD-14)",
+    "local": "none; the fuzz build is the local ASan and UBSan run for the decoders"
+  },
+  "fuzzing": {
+    "ciLibfuzzer": "none for edge-style, catalog and material-texture-size (carried, OD-13)",
+    "localCampaigns": [
+      {
+        "target": "parser_fuzz_edge_style",
+        "seconds": 241,
+        "runs": 6478855,
+        "execPerSec": 26883,
+        "seeds": 12,
+        "corpusAfter": 116,
+        "peakRssMb": 546,
+        "findings": 0
+      },
+      {
+        "target": "parser_fuzz_catalog",
+        "seconds": 241,
+        "runs": 507127,
+        "execPerSec": 2104,
+        "seeds": 7,
+        "corpusAfter": 138,
+        "peakRssMb": 615,
+        "findings": 0
+      },
+      {
+        "target": "parser_fuzz_material_texture_size",
+        "seconds": 241,
+        "runs": 5811905,
+        "execPerSec": 24115,
+        "seeds": 8,
+        "corpusAfter": 93,
+        "peakRssMb": 561,
+        "findings": 0
+      }
+    ],
+    "flags": "-seed=1 -max_len=1048576 -timeout=10 -rss_limit_mb=3072 under a 10 GB cgroup cap; ASan cannot run under ulimit -v"
+  },
+  "scriptedRuns": {
+    "S1-S14": "see the record §3 and .local/r100g-logs/cli-scripted.log (not committed); S13 uses /dev/shm (tmpfs), a different mount from /home"
+  },
+  "budgets": {
+    "frozen": true,
+    "rows": [
+      {
+        "row": "Apply a style",
+        "budget": "no measurable cost beyond the existing style edit",
+        "measured": "10,000 faces: apply p50 4.45 ms (p95 5.55); equal document.style edit p50 4.03 ms (p95 4.14)",
+        "verdict": "Marginal"
+      },
+      {
+        "row": "Decode and validate one 130 MiB file",
+        "budget": "bounded by the 130 MiB envelope; reported",
+        "measured": "decodeCatalog p50 200.5 ms (p95 203.1); loadCatalog p50 245.5 ms; CLI list 0.27 s, 223 MB peak",
+        "verdict": "Reported"
+      },
+      {
+        "row": "Catalog scan",
+        "budget": "reported; within the 256 MiB read allowance",
+        "measured": "scanCatalogLibrary p50 256.3 ms (p95 258.6) on a 128 MiB file",
+        "verdict": "Pass"
+      },
+      {
+        "row": "Import one catalog entry",
+        "budget": "<= 3 s with progress and cancel, 130 MiB source (proposed)",
+        "measured": "CLI 0.59 to 0.61 s wall, 414 to 432 MB peak; in process load 245 ms + insert 41 ms; no progress or cancel",
+        "verdict": "Partly met (time holds; progress and cancel not built)"
+      },
+      {
+        "row": "Style or catalog relocation re-scan",
+        "budget": "reported",
+        "measured": "CLI listing 0.27 s; library scan 256 ms; the 128 MiB move not run; small fixtures moved to tmpfs re-scan identically",
+        "verdict": "Reported"
+      },
+      {
+        "row": "Added resident memory (decoded catalog)",
+        "budget": "within the R082 rows (R082.w v2 supported class 1 GiB)",
+        "measured": "CLI 223 MB list, 414 to 432 MB import; desktop test process 1,632,964 kB with a 128 MiB catalog open vs 265,808 kB without",
+        "verdict": "Pass for the CLI; Miss for the desktop dialog path (F-3)"
+      },
+      {
+        "row": "Catalog dialog per-selection dry run (added by R100.g; no §9 row)",
+        "budget": "none in §9; nearest is the 3 s import row",
+        "measured": "opened file p50 2,130.6 ms (max 2,149.7); library folder p50 304.4 ms (max 306.4); engine share: base64url decode 1,155 ms, encode 199 ms, catalog decode 200 ms",
+        "verdict": "Finding F-1 (UI thread; not debounced)"
+      },
+      {
+        "row": "Edge stroke frame cost (added by R100.g; no §9 row)",
+        "budget": "none in §9; BUILD_PLAN p95 16.7 ms at 1920x1080, 100k triangles, reference hardware",
+        "measured": "Release, offscreen software GL, 1200x900: 3,600 quads mean of 30 frames: none 25.87 ms, solid +0.06, dashed +0.19, dotted +1.70 (+6.6%), dash-dot +0.04; 10,000 quads 72.98 to 73.73 ms for every setting",
+        "verdict": "Not decided (software only; F-4)"
+      }
+    ],
+    "loadAverage": "0.3 to 1.9 across the series; each series' 1-minute load is in the record"
+  },
+  "findings": [
+    {
+      "id": "F-1",
+      "summary": "Catalog dialog selection stalls the UI thread: 2.13 s per selection on a 128 MiB opened catalog (library form 0.30 s); not debounced; the request carries the whole file as base64url",
+      "kind": "defect (performance)",
+      "ownerDecision": "OD-4"
+    },
+    {
+      "id": "F-2",
+      "summary": "Catalog import has no progress and no cancel, which ADR 0174 section 9 asks for; the time (0.59 s) meets the bound",
+      "kind": "spec miss",
+      "ownerDecision": "OD-5"
+    },
+    {
+      "id": "F-3",
+      "summary": "Desktop process peaks 1.37 GB higher with a 128 MiB catalog open in the dialog; R082 supported class is 1 GiB",
+      "kind": "budget miss",
+      "ownerDecision": "OD-4"
+    },
+    {
+      "id": "F-4",
+      "summary": "Edge stroke frame cost measured in software only; dotted +6.6% at 3,600 quads; reference hardware needed",
+      "kind": "not decided",
+      "ownerDecision": "OD-7"
+    },
+    {
+      "id": "F-5",
+      "summary": "Offscreen-only failures: material_input_tests rendererReady and the styles audit (reference-import, style-import); CI passes them",
+      "kind": "local-only observation",
+      "ownerDecision": null
+    },
+    {
+      "id": "F-6",
+      "summary": "Catalog style entry is always named 'Document style' regardless of --name",
+      "kind": "observation",
+      "ownerDecision": null
+    },
+    {
+      "id": "F-7",
+      "summary": "Main CI verdict failed on the #485 merge commit in the IFC helper (SIGSYS, exit -31); fixed by #496",
+      "kind": "CI incident (not R100 code)",
+      "ownerDecision": null
+    }
+  ],
+  "gapsCarried": [
+    "R100.a: edgeStroke key name and .sketchystyle layout (OD-2, OD-3)",
+    "R100.a: per-entry missingAssets; document.describe edge texture status (R100.f2 gap 5)",
+    "R100.b: Qt 6.8 byte pins; Q1 open questions 1-5 (OD-12)",
+    "R100.c and R100.d and R100.f3: component definition deduplication (OD-8)",
+    "R100.c: no CI libFuzzer step (OD-13)",
+    "R100.d and R100.e and R100.f3: templates in catalogs (OD-9); placement at origin (OD-10)",
+    "R100.e: no style library option (UX 18.8 gap 3)",
+    "R100.f1: stroke-off pre-change image; dash phase at visible start; refused texture without chip; no chip window test",
+    "R100.f2: Choose folder not exercised; texture tiles; 200 percent shallow; row menu popup; Save refused wording; library naming",
+    "R100.f3: neutral result; engine refusal text; report keyboard and names; narrow stacking; Save report button and hatched bar (OD-11)",
+    "R100.b2: viewport repeat on GL; glTF and OBJ size unset (no test); Qt 6.8 minimum",
+    "material_input_tests not sanitized (OD-14)"
+  ],
+  "gapsResolved": [
+    "R100.b2: .sketchylib with a sized material (catalogFileCarriesSize)",
+    "R100.f2: 4,096-entry scan stop (style_bundle_tests libraryFolder)",
+    "R100.a and R100.c and R100.e: libFuzzer targets run locally (edge, catalog, material size)",
+    "R100.a and R100.b2 and R100.f1 and R100.f2: budgets and dash cost measured in Release (§6)",
+    "R100.f3: dry run per selection measured (F-1); insert of a large catalog measured through the CLI path",
+    "R100.a: equal-hash and different-payload refusal (equalHashDifferentPayload)",
+    "R100.b: repeat size reaches the model (closed by R100.b2)",
+    "R100.e: Sanitizer job, Qt 6.8 compile and package acceptance passed in CI (P490)",
+    "R100.d: catalog.list inline cap (closed by the library reference)",
+    "#488 native evidence: P490 full run includes #488 (RL-7)"
+  ],
+  "recordDecisions": [
+    "RL-1 status Accepted (R100.g), budgets are findings",
+    "RL-2 keep the measured refusal wording",
+    "RL-3 schema-30 migration and read-range text contradict the code; code stands",
+    "RL-4 budget verdict vocabulary",
+    "RL-5 the 128 MiB catalog composition",
+    "RL-6 engine names: materials.describe; style files carry no materials",
+    "RL-7 native evidence for #488 from P490",
+    "RL-8 local campaigns are finite",
+    "RL-9 offscreen results are not native cells",
+    "RL-10 tests added and tools added; no product code",
+    "RL-11 no CI fuzz step added"
+  ],
+  "ownerDecisions": [
+    "OD-1 accept the status and the F06 release gate",
+    "OD-2 edgeStroke key name",
+    "OD-3 .sketchystyle layout",
+    "OD-4 catalog dialog dry run: options a, b or c; memory of the dialog path",
+    "OD-5 progress and cancel for catalog import, or waive",
+    "OD-6 reference-hardware budgets and the R082 ceiling for a large catalog",
+    "OD-7 reference-hardware run for the edge stroke",
+    "OD-8 component definition deduplication (schema question)",
+    "OD-9 templates from a catalog",
+    "OD-10 placement of a catalog component",
+    "OD-11 UX deviations: Save report, hatched bar, Save refused wording",
+    "OD-12 Q1 open questions",
+    "OD-13 a CI fuzz step",
+    "OD-14 material_input_tests in the sanitize job",
+    "OD-15 the released refusal wording"
+  ],
+  "publication": {
+    "adr": "docs/decisions/0174: status line, §9 table with measured values and verdicts, Implementation notes (R100.g)",
+    "roadmap": "R100 row: Accepted (R100.g)",
+    "supportMatrix": "Exchange boundaries: Custom styles and asset catalogs (F06, not in the 1.3.0 declaration)",
+    "userGuide": "Custom styles and asset catalogs, after Presentation batches",
+    "changelog": "none in this record; the release carrying F06 writes it"
+  },
+  "testsAdded": [
+    "tests/catalog_import_tests.cpp: equalHashDifferentPayload",
+    "tests/material_texture_size_tests.cpp: catalogFileCarriesSize",
+    "tests/style_bundle_tests.cpp: libraryFolder, the 4,096-entry scan stop",
+    "tests/style_catalog_benchmark.cpp (new manual tool, EXCLUDE_FROM_ALL, no CI line), registered in CMakeLists.txt",
+    "tests/style_catalog_input_tests.cpp: selectionBudget, opt-in with SKETCHYUP_R100G_CATALOG; inactive in CI"
+  ],
+  "productCodeChanged": false,
+  "notRun": [
+    "Xvfb and Weston native cells locally (not installed); the CI cells are cited",
+    "Windows and macOS (not supported)",
+    "audit at X11 1x and Wayland 2x (CI does not run them)",
+    "Qt 6.8 byte pins (compile only in CI)",
+    "reference-hardware frame budgets (OD-7)",
+    "130 MiB file's move across mounts (small fixtures moved; the big file's re-scan costs are measured without a move)",
+    "full CI tier for this PR (the fast tier is the required check; the full tier runs only with the full-ci label)"
+  ]
+}

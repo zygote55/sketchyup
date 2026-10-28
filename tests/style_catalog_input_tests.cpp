@@ -69,6 +69,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <vector>
 
 using namespace sketchy;
 
@@ -839,6 +840,50 @@ void largeText(const QTemporaryDir &files, const QMap<QString, QByteArray> &fixt
     QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 100);
 }
 
+// R100.g (ADR 0174 section 9; UX_DESIGN 18.5): the time each selection change takes on a large
+// catalog. R100.f3 left the dialog's dry run on each selection unmeasured. It runs only when
+// SKETCHYUP_R100G_CATALOG names a catalog (`style_catalog_benchmark write` makes one), so no CI run
+// does it. It times Big 1's selection five times with the catalog opened by Open catalog file…, and
+// again with the catalog in the library folder, where the dialog names it in its batch.
+void selectionBudget(Window &window, const QTemporaryDir &files) {
+    const auto source = qEnvironmentVariable("SKETCHYUP_R100G_CATALOG");
+    if (source.isEmpty())
+        return;
+    const auto timed = [](QTreeWidget &list, const QString &title) {
+        std::vector<double> samples;
+        for (int i = 0; i < 5; ++i) {
+            list.clearSelection();
+            QElapsedTimer timer;
+            timer.start();
+            entryRow(list, title, QStringLiteral("Big 1"))->setSelected(true);
+            samples.push_back(timer.nsecsElapsed() / 1e6);
+        }
+        std::sort(samples.begin(), samples.end());
+        return samples;
+    };
+    const auto report = [](const char *label, const std::vector<double> &samples) {
+        std::cout << label << ": n=" << samples.size() << ", median " << samples[samples.size() / 2]
+                  << " ms, max " << samples.back() << " ms\n";
+    };
+    resetLibrary(files, {}, {});
+    const auto opened = files.path() + "/outside/budget.sketchycat";
+    check(QFile::copy(source, opened), "Copy the budget catalog for Open catalog file");
+    catalogDialog(window, [&](QDialog &dialog) {
+        auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+        modal([&] { child<QPushButton>(dialog, "catalogOpen")->click(); },
+              [&](QDialog &chooser) { chooseFile(chooser, opened); });
+        check(list->topLevelItemCount() == 1, "The opened budget catalog is listed");
+        report("dialog selection, opened file", timed(*list, list->topLevelItem(0)->text(0)));
+    });
+    resetLibrary(files, {}, {});
+    check(QFile::copy(source, libraryFolder() + "/budget.sketchycat"),
+          "Copy the budget catalog into the library");
+    catalogDialog(window, [&](QDialog &dialog) {
+        auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+        check(list->topLevelItemCount() == 1, "The library's budget catalog is listed");
+        report("dialog selection, library folder", timed(*list, list->topLevelItem(0)->text(0)));
+    });
+}
 } // namespace
 
 // R100.f2 (UX_DESIGN §18.1 to §18.3, §18.6, §18.7): the Styles tab's edge stroke and style library,
@@ -1787,6 +1832,7 @@ int main(int argc, char **argv) {
         refusedInsertReport(window, files, fixtures);
         exportAssetCatalog(window, files);
         largeText(files, fixtures);
+        selectionBudget(window, files);
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;
