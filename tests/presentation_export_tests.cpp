@@ -1,4 +1,5 @@
 #include "automation/presentation_commands.hpp"
+#include "blender_stand_in.hpp"
 #include "core/scenes.hpp"
 #include "integrations/presentation_batch.hpp"
 #include "integrations/presentation_request.hpp"
@@ -69,19 +70,13 @@ void settle(int milliseconds) {
     }
 }
 // A fake Blender that counts its launches. The launch numbered `hang` never returns, so a test can
-// stop a frame while its worker runs; zero never hangs.
-QString launcher(const QTemporaryDir &files, const QString &name, const QString &binary,
-                 const QString &counter, int hang) {
-    const auto path = files.filePath(name);
-    write(path, ("#!/bin/sh\nn=0\n[ -f " + quote(counter) + " ] && n=$(cat " + quote(counter) +
-                 ")\nn=$((n+1))\necho $n > " + quote(counter) + "\nif [ \"$n\" = \"" +
-                 QString::number(hang) + "\" ]; then exec " + quote(binary) +
-                 " --fake hang \"$@\"; fi\nexec " + quote(binary) + " --fake success \"$@\"\n")
-                    .toUtf8());
-    check(QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                          QFileDevice::ExeOwner),
-          "Executable fixture");
-    return path;
+// stop a frame while its worker runs; zero never hangs. A name such as bin/blender is the PATH
+// entry.
+QString launcher(const QTemporaryDir &files, const QString &name, const QString &counter,
+                 int hang) {
+    const QFileInfo target(files.filePath(name));
+    QDir().mkpath(target.absolutePath());
+    return blender_stand_in::countedAt(target.absoluteFilePath(), hang, counter);
 }
 int launches(const QString &counter) {
     return QFileInfo::exists(counter) ? read(counter).trimmed().toInt() : 0;
@@ -185,7 +180,8 @@ int main(int argc, char **argv) {
     try {
         QTemporaryDir files;
         check(files.isValid(), "Batch fixture directory");
-        const auto binary = app.applicationDirPath() + "/blender_job_tests";
+        // The stand-ins count their launches in this directory (tests/blender_stand_in.hpp).
+        setBlenderTestWritableDirectories({files.path()});
         const PresentationJobStore::Limits limits{8, 16, 256LL * 1024 * 1024};
         const auto store = files.filePath("store");
         Document doc;
@@ -203,7 +199,7 @@ int main(int argc, char **argv) {
         auto blender = [&](const QString &counter, int hang = 0) {
             BlenderJob::Options launched = options;
             launched.executable =
-                launcher(files, "blender-" + QFileInfo(counter).fileName(), binary, counter, hang);
+                launcher(files, "blender-" + QFileInfo(counter).fileName(), counter, hang);
             return launched;
         };
 
@@ -1028,7 +1024,7 @@ int main(int argc, char **argv) {
             qputenv("PATH", bin.toUtf8() + ":" + oldPath);
             {
                 const auto counter = files.filePath("count-describe");
-                launcher(files, "bin/blender", binary, counter, 0);
+                launcher(files, "bin/blender", counter, 0);
                 PresentationVideoChecks desktop;
                 installPresentationVideoProbe(desktop);
                 const auto pending = presentationDescription(described, pathId, {presetId}, true);
@@ -1054,7 +1050,7 @@ int main(int argc, char **argv) {
             }
             {
                 const auto counter = files.filePath("count-describe-cli");
-                launcher(files, "bin/blender", binary, counter, 0);
+                launcher(files, "bin/blender", counter, 0);
                 PresentationVideoChecks blocking;
                 installBlockingPresentationVideoProbe(blocking);
                 const auto answer =

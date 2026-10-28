@@ -1,3 +1,4 @@
+#include "blender_stand_in.hpp"
 #include "integrations/render_store.hpp"
 #include <QCoreApplication>
 #include <QDir>
@@ -46,14 +47,7 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
         QTemporaryDir files;
-        const auto executable = files.filePath("blender");
-        write(executable,
-              ("#!/bin/sh\nexec " + quote(app.applicationDirPath() + "/blender_job_tests") +
-               " --fake success \"$@\"\n")
-                  .toUtf8());
-        check(QFile::setPermissions(executable, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                                    QFileDevice::ExeOwner),
-              "Executable test worker");
+        const auto executable = blender_stand_in::place(files.filePath("blender"), "success");
         BlenderJob::Options options;
         options.executable = executable;
         Document document;

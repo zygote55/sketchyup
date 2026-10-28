@@ -10,6 +10,7 @@
 #include "app/sheets_tray.hpp"
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "blender_stand_in.hpp"
 #include "core/component_parameters.hpp"
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
@@ -254,16 +255,7 @@ struct Fixture {
     }
 };
 QString fakeBlender(const QString &directory) {
-    const auto path = QDir(directory).filePath("blender-fake");
-    QFile file(path);
-    check(file.open(QIODevice::WriteOnly), "Create fake Blender launcher");
-    file.write(("#!/bin/sh\nexec '" + QCoreApplication::applicationDirPath() +
-                "/blender_job_tests' --fake success \"$@\"\n")
-                   .toUtf8());
-    file.close();
-    check(file.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner),
-          "Fake Blender launcher is executable");
-    return path;
+    return blender_stand_in::place(QDir(directory).filePath("blender-fake"), "success");
 }
 void toolRail(Fixture &f) {
     auto &window = f.window;
