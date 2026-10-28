@@ -405,15 +405,16 @@ void decoderLimits(const QTemporaryDir &files) {
                decodeDocument(QJsonDocument(older).toJson(QJsonDocument::Compact));
            }).empty(),
           "Schema 28 cannot carry terrain");
-    // A released reader (SKETCHYUP_PRIOR_CLI, 1.2.x) refuses a schema-29 file.
+    // A released reader (SKETCHYUP_PRIOR_CLI, 1.3.x, the first to read schema 29) opens a
+    // schema-29 file unchanged. The 1.2.x reader refused this file.
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (!prior.isEmpty()) {
         const auto path = files.filePath("prior-terrain.sketchyup");
         write(path, bytes);
         QProcess process;
         process.start(prior, {"--validate-native", path});
-        check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == bytes,
-              "The prior release refuses a schema-29 file unchanged");
+        check(process.waitForFinished(30000) && process.exitCode() == 0 && read(path) == bytes,
+              "The prior release opens a schema-29 file unchanged");
         std::cout << "prior release refusal: "
                   << process.readAllStandardError().trimmed().toStdString() << '\n';
     } else
