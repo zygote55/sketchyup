@@ -12,6 +12,7 @@
 #include "core/model.hpp"
 #include "core/tags.hpp"
 #include "report_fixtures.hpp"
+#include "shortcut_focus.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QLocale>
@@ -43,6 +44,7 @@
 #include <atomic>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -55,28 +57,6 @@ void check(bool value, const std::string &message) {
         throw std::runtime_error(message);
 }
 
-// The driver for a modal dialog that the next action opens. It polls for a modal widget that
-// `matches`, runs `drive` on it, and stops. A dialog that never appears fails the test.
-void driveModal(const std::function<bool(QWidget *)> &matches,
-                const std::function<void(QWidget *)> &drive, const std::string &what) {
-    auto *timer = new QTimer(qApp);
-    auto tries = std::make_shared<int>(0);
-    QObject::connect(timer, &QTimer::timeout, qApp, [timer, matches, drive, tries, what] {
-        if (auto *modal = QApplication::activeModalWidget(); modal && matches(modal)) {
-            timer->stop();
-            timer->deleteLater();
-            drive(modal);
-            return;
-        }
-        if (++*tries > 1000) {
-            timer->stop();
-            timer->deleteLater();
-            std::cerr << "dialog never appeared: " << what << std::endl;
-        }
-    });
-    timer->start(10);
-}
-
 // A check made inside a dialog's driver runs in a Qt slot, where an exception would end the
 // process. It is recorded here and raised by verifyDeferred() once the action has returned.
 std::vector<std::string> deferred;
@@ -84,20 +64,56 @@ void expectInSlot(bool value, const std::string &message) {
     if (!value)
         deferred.push_back(message);
 }
+
+// The drivers that have not seen their dialog yet, by id, with the step that expects it.
+std::map<int, std::string> awaitingDialogs;
+int nextDialogDriver = 0;
+
+// The driver for a modal dialog that the next action opens. It polls for a modal widget that
+// `matches`, runs `drive` on it, and stops. It never gives up by itself: a step may wait for other
+// things before its action, so verifyDeferred() decides once the action has returned.
+void driveModal(const std::function<bool(QWidget *)> &matches,
+                const std::function<void(QWidget *)> &drive, const std::string &what) {
+    const int id = nextDialogDriver++;
+    awaitingDialogs[id] = what;
+    auto *timer = new QTimer(qApp);
+    QObject::connect(timer, &QTimer::timeout, qApp, [timer, id, matches, drive] {
+        if (!awaitingDialogs.count(id)) { // verifyDeferred() gave up on this driver
+            timer->stop();
+            timer->deleteLater();
+            return;
+        }
+        if (auto *modal = QApplication::activeModalWidget(); modal && matches(modal)) {
+            timer->stop();
+            timer->deleteLater();
+            awaitingDialogs.erase(id);
+            drive(modal);
+        }
+    });
+    timer->start(10);
+}
+
+// Gives the drivers that the action should have answered up to 8 s. A driver whose dialog never
+// came is recorded as a failure, and the first recorded failure is raised.
 void verifyDeferred() {
+    if (!QTest::qWaitFor([] { return awaitingDialogs.empty(); }, 8000))
+        for (const auto &entry : awaitingDialogs)
+            deferred.push_back("The dialog never appeared: " + entry.second);
+    awaitingDialogs.clear();
     if (!deferred.empty())
         throw std::runtime_error(deferred.front());
 }
 
 bool named(QWidget *widget, const char *name) { return widget->objectName() == name; }
 
-// A window shortcut (F2, Delete) fires only in the widget that holds focus, so focus it first.
+// A window shortcut (F2, Delete) fires only in the widget that holds focus, in a window that holds
+// keyboard focus. After a modal closes, the window may not hold it yet, so wait for both.
 void pressShortcut(QWidget *widget, Qt::Key key) {
     if (auto *list = qobject_cast<QListWidget *>(widget);
         list && list->count() && list->currentRow() < 0)
         list->setCurrentRow(0);
-    widget->setFocus(Qt::OtherFocusReason);
-    QTest::qWaitFor([widget] { return widget->hasFocus(); }, 1000);
+    check(waitForShortcutFocus(widget),
+          widget->objectName().toStdString() + " takes keyboard focus before the key is pressed");
     QTest::keyClick(widget, key);
 }
 
@@ -460,6 +476,7 @@ int main(int argc, char **argv) {
                    },
                    "Save filtered schedule");
         child<QPushButton>(panel, "quantitiesSaveSchedule")->click();
+        verifyDeferred();
         check(stored().size() == 1 &&
                   stored().front().request["filters"].toObject()["tags"].toArray().size() == 1,
               "A filtered schedule keeps its tag");
@@ -598,6 +615,7 @@ int main(int argc, char **argv) {
             waitFor([&] { return child<QPushButton>(panel, "quantitiesExportCsv")->isEnabled(); }),
             "The export waits for the totals, then runs");
         child<QPushButton>(panel, "quantitiesExportCsv")->click();
+        verifyDeferred();
         check(waitFor([&] {
                   return text(panel, "quantitiesError").startsWith("Nothing was written.");
               }),
