@@ -83,7 +83,7 @@
     "machine": "22 CPU threads, 30 GB RAM; other workers built during some runs; the 1-minute load average is recorded with each series",
     "catalog": "134,107,758 bytes (127.895 MiB), written by style_catalog_benchmark write"
   },
-  "status": "Verify line met (four clauses); every ADR 0174 section 10 row passes; native matrix passes in every cell CI runs for these suites; sanitizers pass in CI; four local fuzz campaigns find nothing; §9 budgets measured and frozen: style apply marginal, decode and scan reported or inside allowance, import time met but progress and cancel not built (partly met), desktop catalog memory a miss, dialog selection a finding (2.13 s), edge stroke frame not decided (software only)",
+  "status": "Verify line met (four clauses); every ADR 0174 section 10 row passes; native matrix passes in every cell CI runs for these suites; sanitizers pass in CI; four local fuzz campaigns find nothing; §9 budgets measured and frozen: style apply marginal, decode and scan reported or inside allowance, import time met but progress and cancel not built (partly met), desktop catalog memory a miss, dialog selection a finding (2.13 s), edge stroke frame not decided (software only); owner decisions 2026-10-28: OD-5 not in 1.4.0 (planned for 1.5), OD-11 accepted for 1.4.0 and fixed in 1.5",
   "verifyLine": "met",
   "verifyClauses": {
     "relocatesCleanlyStyle": "pass: style_bundle_tests noExternalDependency and libraryFolder; CLI S13 (style and catalog from /dev/shm and /home give identical imports)",
@@ -266,7 +266,7 @@
       "id": "F-2",
       "summary": "Catalog import has no progress and no cancel, which ADR 0174 section 9 asks for; the time (0.59 s) meets the bound",
       "kind": "spec miss",
-      "ownerDecision": "OD-5"
+      "ownerDecision": "OD-5 (decided 2026-10-28: not in 1.4.0; planned for 1.5)"
     },
     {
       "id": "F-3",
@@ -343,13 +343,13 @@
     "OD-2 edgeStroke key name",
     "OD-3 .sketchystyle layout",
     "OD-4 catalog dialog dry run: options a, b or c; memory of the dialog path",
-    "OD-5 progress and cancel for catalog import, or waive",
+    "OD-5 progress and cancel for catalog import: decided 2026-10-28, not in 1.4.0, planned for 1.5",
     "OD-6 reference-hardware budgets and the R082 ceiling for a large catalog",
     "OD-7 reference-hardware run for the edge stroke",
     "OD-8 component definition deduplication (schema question)",
     "OD-9 templates from a catalog",
     "OD-10 placement of a catalog component",
-    "OD-11 UX deviations: Save report, hatched bar, Save refused wording",
+    "OD-11 UX deviations: Save report, hatched bar, Save refused wording: decided 2026-10-28, accepted for 1.4.0, fixed in 1.5",
     "OD-12 Q1 open questions",
     "OD-13 a CI fuzz step",
     "OD-14 material_input_tests in the sanitize job",

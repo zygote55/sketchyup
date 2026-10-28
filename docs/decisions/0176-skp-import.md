@@ -122,11 +122,12 @@ implementation has started.
 
 | Saved by | Container | Import |
 |---|---|---|
-| SketchUp 2021 and later | VFF | **Supported.** Verified on the corpus (§7) |
-| SketchUp 2013–2020 | MFC `CArchive` | **Best effort**, labelled as such. A parse failure is a clear refusal ("This SketchUp 2017 file could not be read; save it from SketchUp 2021 or later and try again"), never a partial model |
+| SketchUp 2024 | VFF | **Supported.** One 2024 model was tested (§7). Other 2021-and-later versions use the same container and are untested (owner decision 11, 2026-10-28) |
+| SketchUp 2013–2020 | MFC `CArchive` | **Best effort**, labelled as such, and tested only with synthetic files (owner decision 11, 2026-10-28). A parse failure is a clear refusal ("This SketchUp 2017 file could not be read; save it from SketchUp 2021 or later and try again"), never a partial model |
 | Before 2013 (V3–V8) | MFC | Refused with the same advice. They can be accepted later if the C++ reader matches the Python one (upstream #442) |
 
 - The version comes from the file's header string (`{24.0.553}`), and the report records it.
+- Owner decision 11 (2026-10-28) narrows the claim to the table above, and the release documents use that wording. Textures are tested with synthetic PNG files only.
 - A file from a newer SketchUp than the corpus covers is attempted and labelled "newer than
   tested".
 

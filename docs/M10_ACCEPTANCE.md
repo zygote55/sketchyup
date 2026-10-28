@@ -11,7 +11,7 @@ is `docs/verification/F02-1.2.0.md`. The third is scope row F03, terrain and sit
 SketchyUp 1.3.0 on 2026-10-22. Its record is `docs/verification/F03-1.3.0.md`. The fourth is
 a named group of rows, the 1.4.0 group: scope rows F04 (IFC and STEP exchange), F05 (camera paths and
 batch presentations), F06 (custom styles and asset catalogs) and F07 (quantities, reports and schedules);
-the `.skp` import of C01, import only ([ADR 0176](decisions/0176-skp-import.md)); the offline coordinates
+the `.skp` import of C01, import only ([ADR 0176](decisions/0176-skp-import.md)), on the narrowed claim of owner decision 11 (2026-10-28); the delivered parts of C03 (R104.a) and C04 (R105.a), as owner decision 12 records (2026-10-28); the offline coordinates
 of C06, R107.a only ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md)); and the helper process
 sandbox, R109 ([ADR 0183](decisions/0183-helper-process-sandbox.md)). It is one release, SketchyUp 1.4.0,
 with one record, `docs/verification/G-1.4.0.md`, written at its release candidate.
@@ -28,7 +28,7 @@ accepted; the full tier must then pass at the RC (below). For F01 those are [R09
 [R093](PR_ROADMAP.md#r093) and [R094](PR_ROADMAP.md#r094); for F03,
 [R095](PR_ROADMAP.md#r095) and [R096](PR_ROADMAP.md#r096). For the 1.4.0 group, those are
 [R097](PR_ROADMAP.md#r097) and [R098](PR_ROADMAP.md#r098) (F04), [R099](PR_ROADMAP.md#r099) (F05),
-[R100](PR_ROADMAP.md#r100) (F06), [R101](PR_ROADMAP.md#r101) (F07), [R102](PR_ROADMAP.md#r102) (C01),
+[R100](PR_ROADMAP.md#r100) (F06), [R101](PR_ROADMAP.md#r101) (F07), [R102](PR_ROADMAP.md#r102) (C01), [R104](PR_ROADMAP.md#r104) (only R104.a, for C03), [R105](PR_ROADMAP.md#r105) (only R105.a, for C04),
 [R107](PR_ROADMAP.md#r107) (only R107.a, for C06) and [R109](PR_ROADMAP.md#r109). An Extended row counts as
 delivered only once its record is accepted. The group counts as delivered only once the 1.4.0 record is
 accepted, and that record accepts or does not accept each of its rows. The IFC record, R097.f, and the

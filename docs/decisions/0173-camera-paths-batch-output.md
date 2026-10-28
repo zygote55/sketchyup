@@ -7,7 +7,7 @@ Status: **Accepted (2026-10-23)**: owner decisions 1 to 17 approved as recommend
 [ADR 0106](0106-immutable-animation-capture.md) /
 [ADR 0107](0107-native-animation-frame-export.md) (R072), and on the closed
 1.0 gate (R089). This row takes ADR number 0173 because 0172 is reserved for
-the parallel STEP exchange draft. R099.e, the acceptance record ([R099e-presentation.md](../verification/R099e-presentation.md), 2026-10-27), measures §5 and finds the Verify line partly met: eight of the ten §5 rows pass, batch capture fails (1,747 ms p95 against 500 ms) and the preparation row cannot be frozen (no row to compare with). PR #500 brings batch capture within budget (p95 160 to 183 ms), PR #501 (R099.e2) and R099.e3 close the other findings, and the parent's two §6 wording decisions (P4, P5) are made in Implementation notes (R099.e3): R099 is **Accepted (R099.e)**, with owner decisions 2 to 5 carried to the 1.4.0 release decisions. See Implementation notes (R099.e), (capture encode, §5 budget), (R099.e2) and (R099.e3).
+the parallel STEP exchange draft. R099.e, the acceptance record ([R099e-presentation.md](../verification/R099e-presentation.md), 2026-10-27), measures §5 and finds the Verify line partly met: eight of the ten §5 rows pass, batch capture fails (1,747 ms p95 against 500 ms) and the preparation row cannot be frozen (no row to compare with). PR #500 brings batch capture within budget (p95 160 to 183 ms), PR #501 (R099.e2) and R099.e3 close the other findings, and the parent's two §6 wording decisions (P4, P5) are made in Implementation notes (R099.e3): R099 is **Accepted (R099.e)**, and the owner's 1.4.0 decisions of 2026-10-28 (marked "owner decision N, 2026-10-28" below, in the list of the R099.e record's §8 items 2 to 5) are recorded in the amendments below and in Implementation notes (1.4.0 owner decisions, 2026-10-28). See Implementation notes (R099.e), (capture encode, §5 budget), (R099.e2) and (R099.e3).
 
 F05 asks for "named camera paths, export controls and batch presentation jobs;
 no requirement for a general character-animation suite". R099 delivers the first
@@ -203,7 +203,7 @@ The batch refuses to start on a broken path and names the reasons.
 **Budgets (record level).** At most **64 paths** per document within a **512 KiB**
 record budget (measured at load, like the scene record budget); timing values in
 the existing ranges (fps 1–60, transition steps 1–600, hold steps 0–600).
-Decision 2.
+Decision 2. *Amended 2026-10-28 (owner decision 4, 2026-10-28; R099.e §8 item 5): the 512 KiB byte budget is dropped, and the 64-path count stays. The code still enforces the byte budget (`validateCameraPathRecords`, `src/core/presentation_records.cpp`, line 68); see Implementation notes (1.4.0 owner decisions, 2026-10-28).*
 
 **Edit and history.** Creating, editing and deleting a path is an ordinary model
 edit: one undoable history entry per edit, no allocator floor beyond the
@@ -234,7 +234,7 @@ presets would be up to 640 MiB of image bytes in the document, and a path
 reference to a local `.hdr` would not travel with the file.
 
 **Budgets (record level).** At most **16 presets** per document within a
-**256 KiB** record budget. Decision 4.
+**256 KiB** record budget. Decision 4. *Amended 2026-10-28 (owner decision 4, 2026-10-28; R099.e §8 item 5): the 256 KiB byte budget is dropped, and the 16-preset count stays. The code still enforces the byte budget (`validateRenderPresetRecords`, `src/core/presentation_records.cpp`, line 85); see Implementation notes (1.4.0 owner decisions, 2026-10-28).*
 
 **Persistence with the document — and the schema bump.** The records live in
 the native document, not in preferences or a sidecar file:
@@ -374,15 +374,17 @@ Measurement conditions: the pinned image, software rendering for the CPU rows
 | Operation | Budget | Measured (R099.e, Release) | Verdict |
 | --- | --- | --- | --- |
 | `planCameraFrames`, 32 keyframes at the maximum timing | p95 ≤ 10 ms (*proposed*; in memory, no rendering) | p50 0.008 ms, p95 0.015 ms, max 0.023 ms (200 runs; 218 frames at 24 fps, transition 7, hold 0) | **pass** |
-| A path record edit (create, edit, delete) | Within the ordinary document-edit row; the 512 KiB record budget measured at load (*proposed*) | core edit p95 0.002 to 0.003 ms (100 cycles each); the tables at load: 10,571 bytes for 64 paths and 16 presets | **pass** |
-| A preset record edit | Within the ordinary document-edit row; the 256 KiB record budget measured at load (*proposed*) | core edit p95 0.002 ms (100 cycles each) | **pass** |
-| Batch capture (one freeze + 240-frame plan) on a 250k-triangle document | p95 ≤ 500 ms (*proposed*) | p50 1,602 ms, p95 1,747 ms (20 runs; 249,218-triangle terrain, 218 frames); encoding alone p95 1,721 ms | **fail**: owner decision 1 |
-| Per-frame preparation (`PreparedRender::prepare`) | Within the existing GLB preparation row, measured per frame | p50 304 ms, p95 323 ms (6 runs over 3 frames; 92,500 triangles, 3,700 bodies); the row it cites has no number | **not frozen**: owner decision 2 |
+| A path record edit (create, edit, delete) | Within the ordinary document-edit row. The 512 KiB byte budget is dropped (owner decision 4, 2026-10-28); the 64-path count stays | core edit p95 0.002 to 0.003 ms (100 cycles each); the tables at load: 10,571 bytes for 64 paths and 16 presets | **pass** |
+| A preset record edit | Within the ordinary document-edit row. The 256 KiB byte budget is dropped (owner decision 4, 2026-10-28); the 16-preset count stays | core edit p95 0.002 ms (100 cycles each) | **pass** |
+| Batch capture (one freeze + 240-frame plan) on a 250k-triangle document | p95 ≤ 500 ms (*proposed*) | p50 1,602 ms, p95 1,747 ms (20 runs; 249,218-triangle terrain, 218 frames); encoding alone p95 1,721 ms (the 2026-10-27 run) | **pass** after PR #500: p95 160 to 183 ms (Implementation notes, capture encode). The terrain is captured and not rendered (owner decision 3, 2026-10-28) |
+| Per-frame preparation (`PreparedRender::prepare`) | p95 ≤ 1 s per frame (owner decision 1, 2026-10-28; replaces the GLB preparation row, which has no number) | p50 304 ms, p95 323 ms (6 runs over 3 frames; 92,500 triangles, 3,700 bodies) | **pass** against the 1 s p95 budget (owner decision 1, 2026-10-28) |
 | Per-frame render | ≤ 180 s including the CPU fallback (the `BlenderJob` deadline); PNG at most 64 MiB, hash-verified | per-frame p50 14.5 s, p95 15.9 s, max 20.8 s (48 frames, Cycles CPU, 1024×768, 32 samples; every hash verified) | **pass** |
-| Whole batch, 240 frames × 4 presets at 1024×768 / 32 samples | Measured and reported (no fixed cap; progress and cancel at frame boundaries, the remaining 2 GiB budget surfaced per frame) (*proposed*) | 48 frames in 604 s (mean 12.6 s per frame); projected 960 frames about 3.4 h and about 0.65 GB; the full run was not made | **pass, reported**: owner decision 3 |
+| Whole batch, 240 frames × 4 presets at 1024×768 / 32 samples | Measured and reported (no fixed cap; progress and cancel at frame boundaries, the remaining 2 GiB budget surfaced per frame) (*proposed*) | 48 frames in 604 s (mean 12.6 s per frame); projected 960 frames about 3.4 h and about 0.65 GB; the full run was not made | **pass, reported**: owner decision 2 (2026-10-28) accepts the projection, and no full run is made |
 | Store | 8 pending, 16 retained, 2 GiB (the R070 limits, reused) | defaults 8, 16 and 2 GiB; enforced by `presentation_store_tests` | **pass** |
 | Manifests | Per-frame `.json` at most 1 MiB (the animation export bound); the batch `manifest.json` at most 1 MiB (*proposed*) | per-frame JSON 70,208 bytes; batch manifest 14,514 bytes for 48 frames | **pass** |
-| Records on load | 64 paths / 512 KiB and 16 presets / 256 KiB refuse over budget (*proposed*) | 64 paths and 16 presets decode at p95 0.42 ms; 10,571 bytes (the byte budgets cannot bind) | **pass** (owner decision 5) |
+| Records on load | 64 paths and 16 presets refuse over the count limit; the 512 KiB and 256 KiB byte budgets are dropped (owner decision 4, 2026-10-28) | 64 paths and 16 presets decode at p95 0.42 ms; 10,571 bytes (the byte budgets cannot bind). The code still enforces the byte budgets (see Implementation notes, 1.4.0 owner decisions) | **pass**; the count limits bind (owner decision 4) |
+
+**Render limits (owner decision 3, 2026-10-28).** A 250,000-triangle terrain cannot be rendered or batched. The GLB export refuses more than 100,000 visible faces, and the render snapshot refuses more than 20,000 bodies. Both limits stay for 1.4.0, and raising them is planned for 1.5.
 
 ## 6. Verification plan
 
@@ -1394,8 +1396,20 @@ branch is `fix/r099e3-presentation-close`, on `origin/main` with PR #501 merged.
      scene, keyframe flag and source manifest. `diagnostics` holds Blender's own output from the attempt, with its
      run times, and is not expected to match between runs.
   With both made, the Verify line and every §6 row hold, and the status is **Accepted (R099.e)**. Owner decisions 2 to
-  5 (the per-frame preparation row, the whole-batch length, the 250,000-triangle render limit, the byte budgets) are
-  carried to the 1.4.0 release decisions. Decision 8, the live version-6 assistant run, is the corpus run at the 1.4.0
+  5 (the per-frame preparation row, the whole-batch length, the 250,000-triangle render limit, the byte budgets) were
+  decided on 2026-10-28; see Implementation notes (1.4.0 owner decisions, 2026-10-28). Decision 8, the live version-6 assistant run, is the corpus run at the 1.4.0
   RC, which the owner approved on 2026-10-27.
 - **Not run here.** The full CI tier, the sanitizers, the native matrix (X11 and Wayland), and the 960-frame batch. The
   fast tier runs on the PR.
+
+## Implementation notes (1.4.0 owner decisions, 2026-10-28)
+
+Recorded 2026-10-28 for branch `docs/rel140-decisions`. The owner's decisions for the 1.4.0 release are numbered 1 to 4 here, as the release documents number them (R099.e record §8 items 2 to 5 in brackets). No product code changed.
+
+- **Owner decision 1 (§5, per-frame preparation) [§8 item 2].** The budget is 1 s per frame at the 95th percentile, not the GLB row the ADR cited, which has no number. Measured: p50 304 ms, p95 323 ms on the 92,500-triangle, 3,700-body model. The row passes.
+- **Owner decision 2 (§5, whole batch) [§8 item 3].** The 3.4-hour projection from the measured 48-frame run (240 × 4 at 1024 × 768, 32 samples) is accepted. The full run is not made.
+- **Owner decision 3 (§5 and §9, render limits) [§8 item 4].** A 250,000-triangle terrain cannot be rendered or batched. The GLB export's 100,000-face limit and the render snapshot's 20,000-body limit stay for 1.4.0. Raising them is planned for 1.5.
+- **Owner decision 4 (§2, §3 and §5, byte budgets) [§8 item 5].** The 512 KiB path and 256 KiB preset byte budgets are dropped. The count limits (64 paths, 16 presets) stay.
+  - **Finding: the code still enforces both byte budgets.** `validateCameraPathRecords` refuses a path table over `cameraPathBytesLimit` (512 KiB), and `validateRenderPresetRecords` refuses a preset table over `renderPresetBytesLimit` (256 KiB). The constants are in `src/core/presentation_records.hpp` (lines 34 and 36); the checks are at `src/core/presentation_records.cpp` lines 68 and 85. The checks run at load (`src/io/presentation_io.cpp`), on each path and preset edit (`src/automation/presentation_commands.cpp`), and in `src/core/model.cpp`.
+  - Dropping the budgets is therefore a code change, not a documentation change. This record does not make it, so the amendments above describe the decision and the enforcement together. Until the code changes, an over-budget record is refused, as before.
+- **The capture row.** The 2026-10-27 `fail` in §5 is superseded by PR #500 (p95 160 to 183 ms against 500 ms). The table now says so.
