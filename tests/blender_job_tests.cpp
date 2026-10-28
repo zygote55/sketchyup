@@ -23,6 +23,8 @@
 #include <optional>
 #include <iterator>
 #include <mutex>
+#include <sys/ptrace.h>
+#include <cstdlib>
 #include <unistd.h>
 using namespace sketchy;
 using Phase = BlenderJob::Phase;
@@ -257,6 +259,14 @@ int fake(const QString &stated, const QStringList &args) {
     }
     if (mode == "crash")
         return 7;
+    // violate: an action the Blender policy does not name (ptrace), so the seccomp filter kills the stand-in
+    // with SIGSYS, which the job reports as sandboxViolation. abort: an ordinary crash, which stays a crash.
+    if (mode == "violate") {
+        ptrace(PTRACE_TRACEME, 0, nullptr, nullptr);
+        return 0;
+    }
+    if (mode == "abort")
+        std::abort();
     if (request.value("operation") == "encode")
         return fakeEncode(root, request);
     QJsonObject result{{"apiVersion", 1},

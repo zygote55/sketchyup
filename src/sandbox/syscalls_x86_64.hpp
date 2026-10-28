@@ -143,6 +143,7 @@ inline constexpr SyscallNumber kX86_64Syscalls[] = {
     {"accept4", 288},
     {"fallocate", 285},
     {"flock", 73},
+    {"chmod", 90},
 };
 
 // The number of a call by its name, or nothing when the table does not list it.

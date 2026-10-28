@@ -86,6 +86,10 @@ std::vector<sketchyup::sandbox::SyscallRule> syscalls() {
     // an empty cache, which every attempt does, as HOME is private. Landlock limits both to the attempt
     // directory, and neither reaches a program or a socket.
     allow({"fallocate", "flock"});
+    // chmod: Blender saves its scene (handoff) with owner-only permissions. Landlock (ABI 10) has no right over
+    // chmod, so the call is not limited by path; it changes only the mode of files this user owns (ADR 0183
+    // section 10, residual risk).
+    allow({"chmod"});
     // Threads and processes. Blender runs --threads 4; a process is never created (clone without
     // CLONE_THREAD is EPERM), and execve may only start Blender itself (Landlock).
     rules.push_back({"clone", Action::threadOnly});
