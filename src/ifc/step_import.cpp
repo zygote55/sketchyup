@@ -30,6 +30,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "Bnd_Box.hxx"
@@ -51,6 +52,7 @@
 #include "StepData_Plex.hxx"
 #include "StepData_Simple.hxx"
 #include "StepData_StepModel.hxx"
+#include "StepData_UndefinedEntity.hxx"
 #include "TColStd_HArray1OfInteger.hxx"
 #include "TColStd_HArray1OfReal.hxx"
 #include "TColStd_HSequenceOfExtendedString.hxx"
@@ -684,11 +686,27 @@ long long tallyPmi(const Handle(XSControl_WorkSession)& session, Report& report)
   const Handle(Interface_InterfaceModel) model = session->Model();
   if (model.IsNull()) return 0;
   const Handle(StepData_StepModel) steps = Handle(StepData_StepModel)::DownCast(model);
+  // A typed entity's kind is its class's, so the decision is made once per class, not once per entity (a 128 MiB file
+  // holds about 2,000,000 entities, inside a 6 s parse budget). A generic entity (simple, complex, free-form or
+  // undefined) carries its kind in its data, so each one is named.
+  enum class ClassKind { Other, Pmi, Generic };
+  std::unordered_map<const Standard_Type*, ClassKind> classes;
   long long counted = 0;
   for (Standard_Integer i = 1; i <= model->NbEntities(); ++i) {
     const Handle(Standard_Transient) entity = model->Value(i);
+    if (entity.IsNull()) continue;
+    const Handle(Standard_Type)& type = entity->DynamicType();
+    auto found = classes.find(type.get());
+    if (found == classes.end()) {
+      const bool generic = entity->IsKind(STANDARD_TYPE(StepData_Simple)) || entity->IsKind(STANDARD_TYPE(StepData_Plex)) ||
+                           entity->IsKind(STANDARD_TYPE(StepData_FreeFormEntity)) ||
+                           entity->IsKind(STANDARD_TYPE(StepData_UndefinedEntity));
+      const ClassKind decided = generic ? ClassKind::Generic : pmiKind(stepKind(entity, model)) ? ClassKind::Pmi : ClassKind::Other;
+      found = classes.emplace(type.get(), decided).first;
+    }
+    if (found->second == ClassKind::Other) continue;
     const std::string kind = stepKind(entity, model);
-    if (!pmiKind(kind)) continue;
+    if (found->second == ClassKind::Generic && !pmiKind(kind)) continue;
     const Standard_Integer label = steps.IsNull() ? 0 : steps->IdentLabel(entity);
     report.notImported(kind, "pmi", 1);
     locate(report, "notImported", label > 0 ? label : i, "PMI or GD&T, not imported: the geometry is unchanged");
