@@ -117,6 +117,9 @@ sandbox::Policy ifcSandboxPolicy(const IfcSandboxScope &scope) {
         {"sigaltstack", Action::allow},
         {"sched_getaffinity", Action::allow},
         {"fcntl", Action::allow},
+        // The ASan runtime yields with sched_yield when the four threads of the import contend (ADR 0183, R109 S2
+        // follow-up). No release trace makes the call, so the release policy does not take it.
+        {"sched_yield", Action::allow},
 #endif
         // no exec, no ptrace, no other clone flags: a call not listed here kills the helper (ADR
         // 0183 section 5)
