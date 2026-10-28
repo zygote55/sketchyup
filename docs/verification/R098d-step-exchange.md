@@ -7,6 +7,8 @@ Qt 6.11.2, Python 3.14), 22 CPUs and a 10 GB container. The checks are those of
 [ADR 0172 §7](../decisions/0172-step-exchange-subset.md#7-verification-the-r098-verify-line) (E1 to E8),
 §6 (the budgets) and §8 (packaging and CI). [Summary](R098d-step-exchange.json).
 
+**Status (after R098.h, 2026-10-28): Accepted (R098.h)**, with the documented limits of section 12.7: the owner's decisions 7, 8 and 13 are applied (section 12). E1 to E5, E7 and E8 pass; E6 passes for the refusals and the stops, and the restart-and-exclude is deferred to 1.5 (decision 7). The 1,000,000-triangle export budget is replaced by the largest exportable model a document holds, measured under the 4 GiB cap (23 s).
+
 **Status (after R098.f, 2026-10-28).** The Verify line is still **partly met**. R098.f fixed the three STEP import
 defects of the R098.e close (findings 11, 12 and 13; section 10): E4 now passes in its tests, and E1 passes by the
 parent's decision on ADR 0172 section 7 (the reported deflection governs). E2, E3, E5, E7 and E8 pass as before, and
@@ -468,3 +470,157 @@ notes). The location rule of ADR 0172 section 5 now holds for the PMI and the dr
 **Owner decisions still open.** As in section 9.5 and section 10.4: the restart-and-exclude, the budgets, the entity cap, and
 the 1,000,000-triangle export against the 4 GiB limit. The refusal path counts every kind the import does not read (R098.f),
 which can include non-PMI kinds; that is not changed here.
+
+## 12. R098.h: the F04 STEP close (2026-10-28)
+
+The owner's decisions 7, 8 and 13 (2026-10-28) are applied to [ADR 0172](../decisions/0172-step-exchange-subset.md) (sections 5,
+6 and 7, and the R098.h notes) and to this record. The product code is unchanged (`git diff 2326adfe -- src/` is empty). The
+one code change is the measurement generator, `tests/ifc_step_export_tests.cpp`: the modes `--largest`, `--largest-grid`,
+`--largest-placements` and `--largest-solids`. The default checks and the R098.e `--budget` mode are unchanged, and the default
+checks pass on the final binary (`ifc_step_export: all checks passed`).
+
+### 12.1 The document limits, and what they mean for the largest export
+
+Read in `src/core/document_limits.hpp` (the benchmark scale is 1). A **unique** count is the geometry outside placements,
+with each definition's members counted once; a **materialized** count is every copy, placed or not.
+
+| Quantity | Unique | Materialized | Other |
+| --- | --- | --- | --- |
+| Vertices | 100,000 | 600,000 | 100,000 per body (`Surface::validate`) |
+| Faces | 100,000 | 600,000 | 100,000 per body |
+| Edges | 300,000 | 900,000 | |
+| Wires | 100,000 | 600,000 | |
+| Bodies (groups included) | 10,000 | 40,000 | |
+| Placements | none | 20,000 | |
+| Curves, guides | 10,000 each | 40,000 each | |
+
+The export (`src/io/step_export.cpp`) caps an element at 100,000 triangles and the file at 1,000,000 triangles. It counts
+the total once per **distinct** mesh: identical placed copies share one mesh by digest. The helper's address space is 4 GiB,
+its deadline 120 s, and the output 256 MiB. The edit history allows 64 MiB per edit (`src/core/model.cpp`).
+
+Two facts change the premise of decision 13, which says a document holds 600,000 vertices:
+
+- The 600,000 is the **materialized** limit, reachable only through placements of a component definition. A plain body is
+  limited to 100,000 unique vertices. Measured: two plain bodies of 100,000 vertices each are refused at the second body
+  ("vertices would be 200,000 of 100,000").
+- The export writes each distinct mesh once, so a placement adds an instance node, not triangles. The export's cost follows
+  the **unique** geometry, which holds at most 100,000 faces and triangles. The 1,000,000-triangle total cannot be reached by
+  any document, so the old budget model (R098.e, 1,020,000 vertices) was never a document-reachable model.
+
+So the largest exportable model is measured on the unique limits (the export's work) and on the materialized limits (the
+document's size). Four models were built and exported; all four completed under the 4 GiB address-space limit.
+
+### 12.2 The four models
+
+Built in `tests/ifc_step_export_tests.cpp` in the pinned image, Release, `build/release` (the `sketchyup-cli`, the helper and the
+test binary, the IfcOpenShell prefix built with them). Each is exported by `exportStepFile`, the function the application and
+`sketchyup-cli --export-step` both call, with the default `IfcWorkerOptions` (4 GiB, 120 s, four threads). The test calls it
+in memory, not through the CLI binary, because the model is built in memory. The native save of each model is 9.7 to 13.4 MB
+(the file limit is 128 MiB); the saves were not reloaded through the CLI.
+
+| Model | Materialized (vertices, faces, edges, triangles, bodies, placements) | Distinct (faces, triangles, meshes) | Output | Helper peak (RSS) |
+| --- | --- | --- | --- | --- |
+| **M2: five placements of a 200 × 250 grid of triangle faces** (the largest export, the row's model) | 252,255; 500,000; 752,250; 500,000; 10; 5 | 100,000 faces, 100,000 triangles (one element, at the element cap), 50,451 vertices; 1 mesh | 216,390,153 B | 2,044 to 2,045 MiB |
+| M4: 10,000 separate closed pentagonal bipyramids (7 vertices, 10 faces each) | 70,000; 100,000; 150,000; 100,000; 10,000; 0 | 100,000 faces, 100,000 triangles, 10,000 solids | 255,583,213 B (243.7 MiB) | 2,473 to 2,474 MiB (the largest peak) |
+| M1: six placements of a 980 × 102-gon + one 40-gon definition (600,000 vertices, the materialized vertex limit) | 600,000; 5,886; 600,000; 588,228; 12; 6 | 100,000 vertices, 981 faces, 98,038 triangles; 1 mesh | 91,176,661 B | 850 to 851 MiB |
+| M3: 20,000 placements of one triangle under a group (40,000 bodies, 20,000 placements) | 60,000; 20,000; 60,000; 20,000; 40,000; 20,000 | 3 vertices, 1 face, 1 triangle; 1 mesh; 20,000 elements | 33,990,861 B | 365 to 366 MiB |
+
+### 12.3 The runs
+
+Each figure is the wall time of one `exportStepFile` call. The machine is shared with another worker; the gate (no `ninja` or
+`cmake` running) was checked before each build, not before each run. The spread within a batch is under 0.5 s for M1, M3
+and M4. For M2 the second and final batches span under 0.3 s; the first batch spans 18.6 to 22.3 s.
+
+| Model | Batch | Runs (ms) | p50 | Max |
+| --- | --- | --- | --- | --- |
+| M2 | final | 18,602; 18,772; 18,659; 18,567; 18,587 | 18,602 ms | 18,772 ms |
+| M2 | second (an earlier build of the same test) | 18,533; 18,531; 18,652; 18,645; 18,470 | 18,533 ms | 18,652 ms |
+| M2 | first (an earlier build of the same test) | 19,621; **22,317**; 18,565; 18,629; 18,682 | 18,629 ms | 22,317 ms |
+| M4 | final | 17,680; 17,722; 17,575; 17,561; 17,463 | 17,575 ms | 17,722 ms |
+| M4 | first | 17,036; 17,283; 17,392; 17,444; 17,508 | 17,392 ms | 17,508 ms |
+| M1 | final | 6,485; 6,468; 6,514; 6,552; 6,503 | 6,503 ms | 6,552 ms |
+| M1 | first | 6,664; 6,568; 6,571; 6,583; 6,664 | 6,583 ms | 6,664 ms |
+| M3 | final | 2,677; 2,719; 2,713; 2,699; 2,693 | 2,699 ms | 2,719 ms |
+| M3 | first | 2,595; 2,651; 2,625; 2,631; 2,632 | 2,631 ms | 2,651 ms |
+
+Across the fifteen M2 runs the p50 is 18,629 ms, and the maximum is 22,317 ms (one run of the first batch; the other fourteen are
+18,470 to 19,621 ms). The earlier batches used builds of the same test that differed only in the model's labels and in how the
+builder was written; the export path is the same. The helper's peak is the largest child's resident size
+(`getrusage(RUSAGE_CHILDREN)`, the helper is the only child), taken as the maximum over the runs so far. It is resident
+memory, not the address space, and every run completed under the 4 GiB limit, so the address-space peak stayed below it.
+
+For the record: the R098.e 1,000,000-triangle model (20 bodies of 500 102-gons, 1,020,000 vertices, a single document) could
+not be built in one document (its edit was refused), and its helper alone used 8,446 MiB with no limit and crashed at the
+4 GiB limit (section 9.3).
+
+### 12.4 The budget row (decision 13)
+
+The row is the largest exportable model's export: **M2**, the model with the largest export time (the most distinct
+triangles, at the element cap). Its measured maximum is 22.3 s, so the budget is **23 s**, rounded up to the next whole
+second. The 4 GiB address-space cap is kept and is not raised. M4 uses more helper memory (2,474 MiB) and more output (255.6 MB,
+under 256 MiB), and it also completes under the cap. The new row is in ADR 0172 section 6, marked "(replaced in R098.h, owner
+decision 13)".
+
+If the owner wants the typical figure instead of the outlier, the M2 median is 18.6 s and the batch maxima are 18.8 s (final)
+and 22.3 s (first); the budget follows the rule as written, the measured maximum.
+
+### 12.5 The owner's decisions applied (2026-10-28)
+
+- **Decision 7 (restart-and-exclude):** not in 1.4.0; planned for 1.5. A STEP file that crashes, or hits a limit, is refused
+  whole with its log tail, and the document is unchanged. ADR 0172 section 5 and E6 amended in place.
+- **Decision 8 (speed):** two budgets are missed and accepted as documented limits for 1.4.0. The import of the 100-sphere
+  model takes 14.02 to 14.11 s with a new native file, against 10 s (R098.e). The export of the 90,954-face imported model
+  takes 16.80 to 16.83 s, against 5 s, and 13.1 s of that is in the OCCT writer (R098.e). Speeding up the application's
+  conversion step is for 1.5. ADR 0172 section 6 amended in place.
+- **Decision 13 (STEP export):** the 4 GiB cap stays. The 1,000,000-triangle budget is replaced by M2's row (section 12.4).
+
+### 12.6 Final verdicts (E-checks, ADR 0172 section 7)
+
+| Check | Final verdict | Basis |
+| --- | --- | --- |
+| E1 dimensional | pass | R098.f (the parent's decision: the reported deflection governs) |
+| E2 tessellation | pass | R098.e |
+| E3 units | pass | R098.d and the R098.e to R098.g suites |
+| E4 invalid or unsupported | pass | R098.e to R098.f: the bad face and the PMI are reported with locations; the R098.g PMI and depth defects are fixed |
+| E5 round trip | pass | `ifc_step_export` (AP214 and AP203) |
+| E6 limits and refusal | **pass for the refusals and the stops; the restart-and-exclude is deferred to 1.5 (decision 7)** | `step_import` C8 to C11 (R098.e), the deadline and cancel (C5, C6) |
+| E7 native | pass | `ifc_step_export` E7 |
+| E8 report | pass (R098.e: on a stand-in helper's message; the real helper's texts are clipped to the same 240 bytes) | `step_import` C12 |
+
+### 12.7 Budget verdicts (ADR 0172 section 6), and the documented limits for 1.4.0
+
+| Row | Verdict |
+| --- | --- |
+| Input file 128 MiB | met |
+| Helper resource limits | 4 GiB, 120 s, CPU 480 s and output 256 MiB are set. The engine reports one thread (BRepMesh is single-threaded in this build), there is no entity cap, and there are no restarts (decision 7). The thread count and the entity cap are not covered by any 2026-10-28 decision, so the row stays as R098.d recorded it: **partly met**, for the parent to decide |
+| Triangles, 1,000,000 total and 100,000 per element | met at the helper; the 1,000,000 total is not reachable by a document (section 12.1) |
+| Package; report; application memory | met (as R098.d recorded) |
+| Parse 64 MiB; parse 128 MiB | met (R098.d) |
+| Tessellate and import of the 100-sphere model, 10 s | the helper alone, 4.0 s: met. The end-to-end import, 14 s: **missed, accepted as a documented limit (owner decision 8)** |
+| Export of the 1,000,000-triangle model, 5 s | **replaced in R098.h (owner decision 13)** by the row of M2: **23 s** |
+| Export of the 90,954-face imported model, 5 s | **missed, accepted as a documented limit (owner decision 8)**: 16.8 s, 13.1 s in the writer |
+| Export of the largest exportable model, 23 s | **M2 measured: 18.6 s p50, 22.3 s max** (fifteen runs); met at the budget |
+
+**Documented limits for 1.4.0** (the "Accepted (R098.h)" status at the top of this record): the 100-sphere import at 14 s; the 90,954-face
+export at 16.8 s; no restart-and-exclude for STEP; the thread count and entity cap of the helper (the row above, for the
+parent). The 4 GiB cap holds for every model the document can hold (section 12.2): no measured model needed it raised.
+
+### 12.8 Contradictions and findings for the parent
+
+- **The 600,000-vertex premise.** A plain document holds 100,000 unique vertices. The 600,000 needs placements, and the
+  export counts each distinct mesh once, so placements do not raise the export's work (section 12.1).
+- **The 1,000,000-triangle export is not reachable by a document.** The unique limits (100,000 faces and triangles) allow at
+  most about 100,000 triangles to reach the export. ADR 0172 section 6's 1,000,000 total is a cap that no document reaches,
+  and the R098.d and R098.e triangle figures (975 MB, 8.4 GiB) describe a model the document cannot hold.
+- **The 64 MiB edit history.** A model's creation in one edit is refused when its history is over 64 MiB (`src/core/model.cpp`,
+  "Edit exceeds the 64 MiB history budget"). The first attempt at M1 failed this way (one edit for six bodies). M1 and M2 are
+  built with one placement per edit, and M3 and M4 in batches of 1,000 and 500. This bears on any import or edit that creates
+  a large model in one step; it is not tested for STEP or IFC imports here.
+- **`Surface::addFace` copies the surface and `Surface::vertex` searches every vertex** (`src/geometry/surface.cpp`). The
+  generator avoids both for the large bodies. The cost is quadratic in the number of faces and vertices. This is an
+  observation, not a fault in any of the checks above.
+- **Decision 8's figure.** The decision text says the 90,954-face export takes "about 17 s". R098.e measured 16.80 to 16.83 s,
+  and this record uses the measured figure.
+- **Not run.** The cancel and progress of the export on the real helper (the command line has no cancel); the package
+  acceptance; the sanitizers; the desktop suites, which run in the full tier with the `full-ci` label. The record's R098.d
+  verdict on the helper's thread count and entity cap is not re-measured.

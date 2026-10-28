@@ -10,7 +10,9 @@ PR #438). Product code is unchanged by this record; the one file it adds is the 
 **Determinism (2026-10-28, the F04 close, item 8).** The four-thread determinism check was re-run on today's main, 60
 runs per fixture, and every package and R line was identical (section "Determinism re-run" below).
 
-**Status.** Every check that a run can prove has been run and passes, with the exceptions named in its row. Two
+**Status (after R097.g, 2026-10-28): Accepted (R097.g)**, subject to the native matrix row (the full tier on PR <number>, run by the parent; section R097.g). Owner decision 9 accepts the 10,000-body budget row as a documented limit, and owner decision 10 skips the buildingSMART hosted validation for 1.4.0, so the IFC export claim rests on the local buildingSMART rules and `ifcopenshell.validate`, and has not been checked by buildingSMART's hosted service.
+
+**Status (before R097.g, 2026-10-25).** Every check that a run can prove has been run and passes, with the exceptions named in its row. Two
 items are not complete: the buildingSMART hosted validation service, which needs a person (owner, section G1; the export
 claim is conditional on it), and the native matrix, which runs on the pull request with the `full-ci` label (section
 Native matrix). Budgets: seven of the eight rows measured in §6.4 are met (the cancel row only for the control's return, not the helper's exit); the 100,000-face, 10,000-body row is missed for its 10,000-body case.
@@ -57,7 +59,7 @@ commit it ran at. "Not run" always comes with the reason.
 | F2 | 60° fixtures: `keepAxes` sets no origin; grid mode maps each vertex | `ifc_georeference`, `ifc_import` | pass | 78058393 |
 | F3 | Model beyond ±1e6 m refused, naming the extent | `ifc_georeference` | pass | 78058393 |
 | F4 | Survey foot, WCS, two conversions and the other F4 cases handled as specified | `ifc_georeference` | pass | 78058393 |
-| G1 | Goldens pass the raw-text scan, `--check`, `ifcopenshell.validate`; hosted service by a person | `ifc_export`, `ifc_export_worker`; `ifcopenshell.validate` by hand (below); hosted service pending: owner | partial: `ifcopenshell.validate` 0 statements on the six goldens, with a positive control (1 statement); the buildingSMART hosted service is **pending: owner** | 78058393 |
+| G1 | Goldens pass the raw-text scan, `--check`, `ifcopenshell.validate`; hosted service by a person | `ifc_export`, `ifc_export_worker`; `ifcopenshell.validate` by hand (below); hosted service pending: owner | partial: `ifcopenshell.validate` 0 statements on the six goldens, with a positive control (1 statement); the buildingSMART hosted service is **skipped for 1.4.0 (owner decision 10, 2026-10-28)**, see R097.g | 78058393 |
 | G2 | Export then re-import reproduces bodies, vertices, hierarchy and properties | `ifc_export` | pass | 78058393 |
 | G3 | Two exports with a fixed time are byte-identical | `ifc_export`, `ifc_export_worker` | pass | 78058393 |
 | G4 | Every non-exported kind is counted; the identity holds | `ifc_export`, `ifc_export_worker` | pass | 78058393 |
@@ -126,7 +128,7 @@ budget is for the application, so these are upper bounds.
 | Parse and index a 128 MiB, 2,000,000-instance file ≤ 6 s | 1.461 to 1.469 s on a padded 134,217,728-byte file; 525 MiB resident | **Met** |
 | At one instance below the limit, the file is refused with the count named | 1.476 s; `entityLimit`, "The file has 2000000 instances; the limit is 1999999" | **Met** (the budget's 3 s; the text's 1.4 s is 1.48 s) |
 | Refuse a file over 128 MiB ≤ 1 s | 0.008 s for a sparse 134,217,729-byte file; `tooLarge`, "larger than 128 MiB (134217729 bytes)" | **Met** |
-| Interpret, convert and commit the 100,000-face, 10,000-body model ≤ 10 s | Two measurements, not one model: 100,000 faces and 5,000 bodies (`ico-5k`): 9.01, 9.27 and 9.66 s total, 326 MiB; 9,996 bodies and 59,976 faces (`walls-20k`, 10,004 bodies over the body limit): 11.14, 11.44 and 11.76 s total | **Missed** for the 10,000-body case. The 100,000-face case is met, at 0.3 to 1.0 s of margin |
+| Interpret, convert and commit the 100,000-face, 10,000-body model ≤ 10 s | Two measurements, not one model: 100,000 faces and 5,000 bodies (`ico-5k`): 9.01, 9.27 and 9.66 s total, 326 MiB; 9,996 bodies and 59,976 faces (`walls-20k`, 10,004 bodies over the body limit): 11.14, 11.44 and 11.76 s total | **Missed** for the 10,000-body case: **accepted as a documented limit (owner decision 9, 2026-10-28)**. The 100,000-face case is met, at 0.3 to 1.0 s of margin |
 | Cancel returns control in ≤ 100 ms; the helper ends within 1 s | 1 ms (`ifc_worker_run`, the cancel test). The time the helper takes to exit was not measured separately | **Met** for the return; the exit time is **not measured** |
 | Export of the 100,000-face model ≤ 5 s; output ≤ 256 MiB | `ico-5k` as an IFC export through the command line: 1.770, 1.789 and 1.792 s; output 5,166,408 bytes (5.2 MB) | **Met** |
 | Application memory during import ≤ 1 GiB | 325 to 326 MiB (`ico-5k`); 404 MiB (`walls-20k`) | **Met** |
@@ -244,7 +246,8 @@ reader (web-ifc) and the local buildingSMART rule run are R097.d's results and w
 ### buildingSMART hosted validation service: owner
 
 The hosted service (<https://validate.buildingsmart.org>) needs a signed-in account and a person, so it was
-**not run**. The owner runs it on the six files below and fills in the table.
+**not run**. **Skipped for 1.4.0 (owner decision 10, 2026-10-28):** the table below stays empty, and it is not a gate
+for 1.4.0. The IFC export claim does not depend on it (section R097.g).
 
 Files to upload, byte for byte as the record's commit has them (`tests/fixtures/ifc/export/`, unchanged since
 `78058393`):
@@ -262,8 +265,8 @@ Files to upload, byte for byte as the record's commit has them (`tests/fixtures/
 Check the SHA-256 with `sha256sum` before uploading.
 
 **What to check:** for each file, the service's schema (IFC4), its error and warning counts, and the rule
-identifiers of each finding. The export claim (ADR 0171 §2) is not final until this table has a result for
-every file. Notes for reading the result:
+identifiers of each finding. The export claim (ADR 0171 §2) was to wait for this table, but the hosted run is skipped
+for 1.4.0 (owner decision 10, 2026-10-28), so the table is not a gate. Notes for reading a result, were one recorded:
 
 - The files declare no `ViewDefinition` on purpose (no view claim, ADR 0171 §2). A finding that says the file
   is not a view-conformant file is expected and is not a failure of the export claim.
@@ -275,12 +278,12 @@ every file. Notes for reading the result:
 
 | File | Errors | Warnings | Rule identifiers or service report link | Date | Result | Reviewer |
 | --- | --- | --- | --- | --- | --- | --- |
-| `bsi-ifc4-arch.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
-| `gltf-rig.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
-| `ifc-structure.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
-| `native-model.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
-| `obj-concave-paint.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
-| `rv-individual-colors.ifc` | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner | pending: owner |
+| `bsi-ifc4-arch.ifc` | skipped for 1.4.0 (owner decision 10) | skipped | skipped | skipped | skipped | skipped |
+| `gltf-rig.ifc` | skipped for 1.4.0 (owner decision 10) | skipped | skipped | skipped | skipped | skipped |
+| `ifc-structure.ifc` | skipped for 1.4.0 (owner decision 10) | skipped | skipped | skipped | skipped | skipped |
+| `native-model.ifc` | skipped for 1.4.0 (owner decision 10) | skipped | skipped | skipped | skipped | skipped |
+| `obj-concave-paint.ifc` | skipped for 1.4.0 (owner decision 10) | skipped | skipped | skipped | skipped | skipped |
+| `rv-individual-colors.ifc` | skipped for 1.4.0 (owner decision 10) | skipped | skipped | skipped | skipped | skipped |
 
 ## Native matrix
 
@@ -306,8 +309,10 @@ What is claimed, and no more:
 - **Import:** the schemas `IFC2X3`, `IFC4` and `IFC4X3_ADD2`, into a new unsaved model. The code accepts exactly these
   three (`src/io/ifc_worker.cpp` and `src/ifc/import.cpp`); any other schema is refused, with the schema named.
 - **Export:** `IFC4` only, tessellated, with no view definition. The code writes exactly that (`src/ifc/export.cpp`,
-  `FILE_SCHEMA` and `FILE_DESCRIPTION`). **The export claim is conditional** on the owner's buildingSMART hosted run
-  (G1 above); the support-matrix row says so.
+  `FILE_SCHEMA` and `FILE_DESCRIPTION`). **The export claim (owner decision 10, 2026-10-28)** passes the buildingSMART
+  rules run locally (R097.d) and `ifcopenshell.validate` (R097.f), and **has not been checked by buildingSMART's hosted
+  service**, which is skipped for 1.4.0. The support-matrix row still says the claim is conditional on that run; the
+  parent aligns it at the join.
 - **Not claimed:** IFC2X3 and IFC4X3 export, `.ifczip`, `.ifcXML`, `.ifcJSON` and IFC5 (refused with the format named,
   tested by `ifc_worker_run`), IFC4X1 and IFC4X2, the IFC 4.3 release candidates and ADD1 (refused with the schema
   named; `ifc_worker_run` tests IFC4X1 and a file that declares two schemas, the others by the same rule), advanced breps, NURBS, CSG, swept solids,
@@ -351,6 +356,38 @@ unsynchronised access remains, and that build was not made.
 **Not changed by item 8.** The native matrix (the full tier's dialog suites and the damaged-file corpus at 512
 mutations) is left to the full tier, which the 1.4.0 release candidate's run will supply. The buildingSMART hosted
 validation (G1) stays with the owner.
+
+## R097.g: owner decisions 9 and 10 (2026-10-28)
+
+The F04 close applies two of the owner's 2026-10-28 decisions to this record. No product code changed and no check was
+re-run; the measurements are those of the sections above.
+
+**Decision 9: the 10,000-body budget row.** The owner accepts the 10,000-body import (11.1 to 11.8 s against 10 s) as a
+documented limit. ADR 0171 §6.4 is corrected to say that a 100,000-face, 10,000-body model cannot be held by one
+document: the document holds 100,000 unique vertices and 10,000 body records, and `walls-20k`, at 10,004 bodies,
+imports 9,996 before the limit refuses the rest. The row now measures the 100,000-face model in 5,000 bodies:
+
+| Budget row (ADR 0171 §6.4) | What it now measures | Result | Verdict |
+| --- | --- | --- | --- |
+| Interpret, convert and commit, ≤ 10 s | 100,000 faces in 5,000 bodies (`ico-5k`) | 9.01, 9.27 and 9.66 s; 326 MiB | met |
+| The 10,000-body case, documented limit | 9,996 bodies and 59,976 faces (`walls-20k`) | 11.14, 11.44 and 11.76 s; 404 MiB | missed, **accepted as a documented limit (owner decision 9)** |
+
+**Decision 10: the buildingSMART hosted validation is skipped for 1.4.0.** The G1 table above is left empty, and each
+of its rows reads "skipped for 1.4.0". The IFC export claim is that the export passes the buildingSMART rules run
+locally (R097.d) and `ifcopenshell.validate` (R097.f), and **has not been checked by buildingSMART's hosted service**.
+ADR 0171 §2 and §6.3 G1 say the same. The support-matrix row and the user guide still say the export claim is
+conditional on the hosted run. This branch does not change them (the parent joins them), so they are stale until then.
+
+**Native matrix (the full tier).** The desktop suites `ifc_import_dialog` and `ifc_export_dialog` (X11 and Wayland, 1×
+and 2×, with S9 and T7) and the damaged-file corpus at 512 mutations run in the full tier. This record does not fill
+them in:
+
+| Row | Result |
+| --- | --- |
+| Native matrix and the damaged-file corpus at 512 (label `full`) | the full tier on PR <number>, run by the parent |
+
+**Status: Accepted (R097.g)**, subject to the native matrix row above. The parent completes that row when the full tier
+passes.
 
 ## Commands
 

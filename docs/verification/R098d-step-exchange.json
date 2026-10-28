@@ -1,6 +1,6 @@
 {
   "layer": "R098.d",
-  "date": "2026-10-25 (R098.d); R098.e updates 2026-10-28; R098.f updates 2026-10-28",
+  "date": "2026-10-25 (R098.d); R098.e updates 2026-10-28; R098.f updates 2026-10-28; R098.h 2026-10-28",
   "branch": "feat/r098d-step-publish",
   "base": {
     "main": "c898a9e3"
@@ -24,17 +24,17 @@
     "timedBuild": "Release (sketchyup-cli, sketchyup-ifc-worker, ifc_step_export_tests)",
     "debugTimingsDiscarded": true
   },
-  "status": "partial after R098.f: E1 passes by the parent's decision (ADR 0172 section 7 amended, the 1e-3 clause dropped); E4 met in its tests (findings 11, 12 and 13 fixed in R098.f; not accepted by the owner); E2, E3, E5, E7 and E8 pass; E6 partial (restart-and-exclude not implemented); three budget misses recorded for the owner (the 1,000,000-triangle export: 61 s and 975 MB, crash at the 4 GiB limit)",
-  "verifyLine": "partial",
+  "status": "Accepted (R098.h), with the documented limits of R098d section 12.7: the 100-sphere end-to-end import (14 s, decision 8), the 90,954-face export (16.8 s, decision 8), no restart-and-exclude for STEP (decision 7); the 1,000,000-triangle export budget is replaced by the largest exportable model's row, 23 s, with the 4 GiB cap kept (decision 13). E1 to E5, E7 and E8 pass; E6 passes for the refusals and the stops",
+  "verifyLine": "accepted (R098.h), with documented limits; the helper's thread count and entity cap are left for the parent",
   "checks": {
-    "E1": "pass (R098.f, parent decision): ADR 0172 section 7 is amended in place, the 1e-3 clause is dropped and the reported deflection governs; ifc_step passes at 0.02 mm (volume 0.997368 >= 0.992016; area 0.998948 >= 0.995203; assembly likewise); the default 1 mm keeps 5 %",
-    "E2": "pass (R098.e): ifc_import E2 on the app's report: box 12 triangles, 6 faces, 0 non-planar, 0 collapsed; cylinder 92, 26 faces, 0, 0; sphere r=5 mm 304 triangles, 2 collapsed (one per pole), 302 faces, 3 non-planar (pinned at this commit)",
-    "E3": "pass: ifc_step section 4 and 5, ifc_step_worker",
-    "E4": "met in its tests (R098.f, df0f218e): bad face: six faces counted and in elements.notImported (face, free-surface, 6), six locations with the part's entity label, one body of 12 triangles (the good box alone), identity 8 = 1 + 1 + 6; PMI-only AP242 refused as nothingToImport with its five kinds named and counted, one each, and five locations; not yet accepted by the owner",
-    "E5": "pass: ifc_step_export (AP214 and AP203 round trips through the real helper)",
-    "E6": "partial (R098.e): 128 MiB + 1 byte refused as tooLarge (CTest, step_import C8); SIGSEGV (C9), RLIMIT_AS (C10) and RLIMIT_CPU (C11) each fail with the log tail through stand-ins; restart-and-exclude not implemented (section 9.2)",
-    "E7": "pass: ifc_step_export E7 checks on both round trips",
-    "E8": "pass on a stand-in (R098.e): a 5,000-byte helper message is kept to 240 bytes (256 bound); report within 64 KiB (step_import C12)",
+    "E1": "pass (R098.f, parent decision; carried in R098.h)",
+    "E2": "pass (R098.e; carried in R098.h)",
+    "E3": "pass (R098.d; carried in R098.h)",
+    "E4": "pass (R098.e to R098.f: the bad face and the PMI-only file are reported with locations and counts; R098.g reports the PMI of a converting file and the dropped deep-tree parts)",
+    "E5": "pass (R098.d; carried in R098.h)",
+    "E6": "pass for the refusals and the stops (R098.e: step_import C8 to C11; the deadline and cancel C5 and C6); the restart-and-exclude is deferred to 1.5 (owner decision 7, 2026-10-28)",
+    "E7": "pass (R098.d; carried in R098.h)",
+    "E8": "pass (R098.e, on a stand-in helper's message; the real helper's texts are clipped to the same 240 bytes)",
     "packaging": "pass: ifc_library_install (L1 to L6, with the STEP-SOURCE and STEP toolkit checks) and ifc_library_source; package acceptance not run",
     "pathMap": "pass: ci-plan.py check; STEP sources, fixtures and tests select job:ifc",
     "corpus": "pass: 14 files, SHA-256 match the record; no third-party file",
@@ -97,12 +97,24 @@
     "tessellate1M": {
       "budget": "10 s with progress; cancel 100 ms; helper ends 1 s",
       "measured": "helper alone 3.99 to 4.03 s (4 runs, Release, R098.e); end-to-end import 14.02 to 14.11 s with a new native file (4 runs), 10.15 to 10.25 s without one (3 runs); helper 3.94 to 4.00 s of it; application conversion 6.2 s, native save about 4 s; cancel not measured on the real helper",
-      "verdict": "helper met; end to end missed (14.1 s, 10.2 s without a file): owner decision pending; cancel not run"
+      "verdict": "helper met (4.0 s); end-to-end import missed, accepted as a documented limit (owner decision 8, 2026-10-28)"
     },
     "export1M": {
       "budget": "5 s with progress and cancel; output 256 MiB",
       "measured": "1,000,000 triangles, helper alone, Release, R098.e: 61.1 s, peak 8,446 MiB, output 975,418,866 bytes with no limits; SIGSEGV at 21.6 s under the 4 GiB address-space limit (OCCT malloc failed in the writer, then a fault in Interface_Graph::Evaluate); SIGXFSZ at 54.0 s under the 257 MiB output limit. Not measurable through the application: the budget model needs 1,020,000 vertices and a document holds 600,000. The 90,954-face imported model: command line 16.80 to 16.83 s (4 runs); helper 15.6 s (the OCCT writer 13.1 s), application 1.1 s; 223,950,330 bytes",
-      "verdict": "1,000,000-triangle row missed (61 s against 5 s; 975 MB against 256 MiB; crash at the 4 GiB limit): owner decision pending. The 90,954-face export missed on time (16.8 s against 5 s), met on size: owner decision pending"
+      "verdict": "replaced in R098.h (owner decision 13) by exportLargest"
+    },
+    "export90954Faces": {
+      "budget": "5 s with progress and cancel",
+      "measured": "16.80 to 16.83 s (R098.e, Release, four runs); the OCCT writer 13.1 s",
+      "verdict": "missed; accepted as a documented limit (owner decision 8, 2026-10-28)"
+    },
+    "exportLargest": {
+      "budget": "23 s, with progress and cancel; output 256 MiB; the 4 GiB address-space cap kept (owner decision 13)",
+      "model": "M2: five placements of a 200 x 250 grid of triangle faces (100,000 distinct triangles, 500,000 materialized faces)",
+      "measured": "fifteen runs in three batches: p50 18.6 s; maximum 22.3 s (one run); the other fourteen 18.5 to 19.6 s; helper peak 2,045 MiB; output 216,390,153 bytes",
+      "others": "M4, 10,000 separate closed solids: maximum 17.7 s, helper 2,474 MiB, output 255,583,213 bytes; M1, six placements of a 100,000-vertex definition (600,000 materialized vertices): maximum 6.7 s, helper 851 MiB; M3, 20,000 placements of a triangle: maximum 2.7 s, helper 366 MiB",
+      "verdict": "met at 23 s"
     }
   },
   "findings": [
@@ -173,6 +185,49 @@
     "contradictions": [
       "R098.g: the ADR 0172 section 5 location bound is per location kind (notImported), as the IFC import has it",
       "R098.g: the refusal path (R098.f's tallyUnread) counts every unread kind, which can include non-PMI kinds; not changed"
+    ]
+  },
+  "r098h": {
+    "date": "2026-10-28",
+    "decisions": {
+      "7": "restart-and-exclude is not in 1.4.0; planned for 1.5",
+      "8": "two budgets accepted as documented limits: the 100-sphere end-to-end import (14 s against 10 s) and the 90,954-face export (16.8 s against 5 s, 13.1 s in the writer); the conversion step is for 1.5",
+      "13": "the 4 GiB cap stays; the 1,000,000-triangle budget is replaced by the largest exportable model's row (23 s)"
+    },
+    "limits": {
+      "documentUnique": {
+        "vertices": 100000,
+        "faces": 100000,
+        "edges": 300000,
+        "bodies": 10000
+      },
+      "documentMaterialized": {
+        "vertices": 600000,
+        "faces": 600000,
+        "edges": 900000,
+        "bodies": 40000,
+        "placements": 20000
+      },
+      "editHistory": "64 MiB per edit",
+      "exportElementTriangles": 100000,
+      "exportTotalTriangles": 1000000
+    },
+    "measurement": "tests/ifc_step_export_tests.cpp modes --largest, --largest-grid, --largest-placements, --largest-solids",
+    "commits": {
+      "record": "the commit that adds this section (the PR head)"
+    },
+    "contradictions": [
+      "The 600,000-vertex limit is materialized only (placements); plain bodies hold 100,000 unique vertices (decision 13's premise)",
+      "The 1,000,000-triangle export cannot be reached by a document: at most about 100,000 distinct triangles reach the export",
+      "One edit that creates a large model is refused by the 64 MiB history budget (src/core/model.cpp); imports not tested for it",
+      "Surface::addFace copies the surface and Surface::vertex searches every vertex (src/geometry/surface.cpp): quadratic at large sizes"
+    ],
+    "notRun": [
+      "cancel and progress on the real helper (the command line has no cancel)",
+      "package acceptance (verify-package.sh)",
+      "sanitizers",
+      "desktop suites (the full tier, with the full-ci label)",
+      "the helper's thread count and entity cap (partly met in R098.d; not covered by the 2026-10-28 decisions)"
     ]
   }
 }
