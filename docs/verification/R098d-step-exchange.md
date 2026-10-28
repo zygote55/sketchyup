@@ -592,7 +592,7 @@ and 22.3 s (first); the budget follows the rule as written, the measured maximum
 | Row | Verdict |
 | --- | --- |
 | Input file 128 MiB | met |
-| Helper resource limits | 4 GiB, 120 s, CPU 480 s and output 256 MiB are set. The engine reports one thread (BRepMesh is single-threaded in this build), there is no entity cap, and there are no restarts (decision 7). The thread count and the entity cap are not covered by any 2026-10-28 decision, so the row stays as R098.d recorded it: **partly met**, for the parent to decide |
+| Helper resource limits | 4 GiB, 120 s, CPU 480 s and output 256 MiB are set. The engine reports one thread (BRepMesh is single-threaded in this build), there is no entity cap, and there are no restarts (decision 7). The thread count and the entity cap were not covered by the owner's decisions. **Parent decision (2026-10-28):** ADR 0172 §6 now states one thread and no entity cap, bounded by the 128 MiB input limit and the helper's 4 GiB, 120 s and 480 s limits; an explicit entity cap is a 1.5 follow-up. **Met, as amended** |
 | Triangles, 1,000,000 total and 100,000 per element | met at the helper; the 1,000,000 total is not reachable by a document (section 12.1) |
 | Package; report; application memory | met (as R098.d recorded) |
 | Parse 64 MiB; parse 128 MiB | met (R098.d) |

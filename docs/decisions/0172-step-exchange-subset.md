@@ -270,7 +270,7 @@ budgets are enforced from the application side, as in ADR 0171 §6.4:
 | | Budget | Rationale |
 |---|---|---|
 | Input file | 128 MiB, checked by the application before the helper starts (size, regular file, `ISO-10303-21` header, a `FILE_SCHEMA` in {AP203, AP214, AP242}) | The IFC precedent; the STEP lex/yacc parse is linear in the file |
-| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s; CPU time 480 s (four threads); output file 256 MiB; four geometry threads | `src/io/ifc_worker.hpp` (120 s, 4 GiB, 4 threads, 3 restarts, 2,000,000 entities); the STEP mode takes the same limits, but has no restarts (owner decision 7, 2026-10-28) |
+| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s; CPU time 480 s (four threads); output file 256 MiB; four geometry threads | `src/io/ifc_worker.hpp` (120 s, 4 GiB, 4 threads, 3 restarts, 2,000,000 entities); the STEP mode takes the same limits, but has no restarts (owner decision 7, 2026-10-28). *Amended 2026-10-28 (parent decision, R098.h): the STEP mode meshes on one thread, because BRepMesh is single-threaded in the pinned OCCT build, and it has no entity cap; the 128 MiB input limit and the helper's 4 GiB, 120 s and 480 s limits bound a file. An explicit entity cap is a 1.5 follow-up.* |
 | Triangles | 1,000,000 in total; 100,000 per element | The native per-body limit; the application merges coplanar triangles into far fewer faces |
 | Package | Manifest at most 32 MiB; mesh chunk at most 128 MiB | Bounds the decoder (ADR 0171 §1.6) |
 | Report / messages | Report ≤ 64 KiB; message ≤ 256 bytes | The IFC bounds |

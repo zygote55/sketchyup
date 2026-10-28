@@ -25,7 +25,7 @@
     "debugTimingsDiscarded": true
   },
   "status": "Accepted (R098.h), with the documented limits of R098d section 12.7: the 100-sphere end-to-end import (14 s, decision 8), the 90,954-face export (16.8 s, decision 8), no restart-and-exclude for STEP (decision 7); the 1,000,000-triangle export budget is replaced by the largest exportable model's row, 23 s, with the 4 GiB cap kept (decision 13). E1 to E5, E7 and E8 pass; E6 passes for the refusals and the stops",
-  "verifyLine": "accepted (R098.h), with documented limits; the helper's thread count and entity cap are left for the parent",
+  "verifyLine": "accepted (R098.h), with documented limits; the helper's thread count and entity cap are amended in ADR 0172 section 6 by the parent (2026-10-28)",
   "checks": {
     "E1": "pass (R098.f, parent decision; carried in R098.h)",
     "E2": "pass (R098.e; carried in R098.h)",
@@ -62,7 +62,7 @@
     "helperLimits": {
       "budget": "4 GiB, 120 s, CPU 480 s, output 256 MiB, four threads, 3 restarts, 2,000,000 entities",
       "measured": "values 4 GiB, 120 s, 480 s, 256 MiB set in code; threads 1; no restarts; no entity cap for STEP",
-      "verdict": "missed: owner decision pending (threads, restarts, entity cap)"
+      "verdict": "met, as amended (parent decision 2026-10-28: one thread in the pinned OCCT build; no entity cap, bounded by the 128 MiB input and the 4 GiB, 120 s and 480 s limits; an entity cap is a 1.5 follow-up); no restarts (owner decision 7)"
     },
     "triangles": {
       "budget": "1,000,000 total, 100,000 per element",
