@@ -7,7 +7,13 @@ Qt 6.11.2, Python 3.14), 22 CPUs and a 10 GB container. The checks are those of
 [ADR 0172 §7](../decisions/0172-step-exchange-subset.md#7-verification-the-r098-verify-line) (E1 to E8),
 §6 (the budgets) and §8 (packaging and CI). [Summary](R098d-step-exchange.json).
 
-**Status (after R098.e, 2026-10-28).** The Verify line is **partly met**. Five of the eight checks pass in
+**Status (after R098.f, 2026-10-28).** The Verify line is still **partly met**. R098.f fixed the three STEP import
+defects of the R098.e close (findings 11, 12 and 13; section 10): E4 now passes in its tests, and E1 passes by the
+parent's decision on ADR 0172 section 7 (the reported deflection governs). E2, E3, E5, E7 and E8 pass as before, and
+E6 is partial (no restart). The owner has not accepted this record. The restart-and-exclude and the budgets wait for
+the owner. The R098.e status below is kept as the record of that close.
+
+**Status (after R098.e, 2026-10-28).** The Verify line was **partly met**. Five of the eight checks pass in
 full (E2, E3, E5, E7 and E8), two are partial (E1, which waits for the owner's choice between two clauses of ADR 0172
 section 7, and E6, which lacks the restart), and one is **not met** (E4: the designed bad-face file does not report
 its solid as an element and its faces join the good box's body; the PMI-only AP242 file is refused without counts).
@@ -28,10 +34,16 @@ ran at. "Not run" always comes with the reason.
 
 | Check | Clause (ADR 0172) | Proof: CTest suite or command | Result today | Commit |
 | --- | --- | --- | --- | --- |
-| E1 | §7, dimensional: analytic box exact; cylinder and assembly within the bound | `ifc_step` (box volume and area to 1e-9 absolute; cylinder to 5 % relative at the default 1 mm; assembly two solids; **R098.e: the bound of §7, "within the reported deflection", at 0.02 mm** for the cylinder and the assembly); `ifc_step_worker` (the 5 % check, in Python) | **R098.e: partial, owner decision.** The bound holds: at 0.02 mm the volume is 0.997368 of the analytic value (bound 0.992016) and the area 0.998948 (bound 0.995203), and the assembly likewise. The bound is derived from the deflection passed to the helper: at the default 1 mm it is 0.64 for the volume, looser than the 5 % check, which stays. **Not met: the other clause of §7, "1e-3 relative for analytic primitives"**: 2.6e-3 at 0.02 mm; the clause needs a deflection of about 0.0025 mm. The owner decides which clause governs | df9cc436 (eb85cffa corrects a comment) |
+| E1 | §7, dimensional: analytic box exact; cylinder and assembly within the bound | `ifc_step` (box volume and area to 1e-9 absolute; cylinder to 5 % relative at the default 1 mm; assembly two solids; **R098.e: the bound of §7, "within the reported deflection", at 0.02 mm** for the cylinder and the assembly); `ifc_step_worker` (the 5 % check, in Python) | **R098.f: pass.** The parent decided (R098.f) that the reported deflection governs, and the clause "1e-3 relative for analytic primitives" is dropped (ADR 0172 §7, amended in R098.f). The bound holds: at 0.02 mm the volume is 0.997368 of the analytic value (bound 0.992016) and the area 0.998948 (bound 0.995203), and the assembly likewise. The bound is derived from the deflection passed to the helper: at the default 1 mm it is 0.64 for the volume, looser than the 5 % check, which stays. (R098.e measured the dropped clause at 2.6e-3 at 0.02 mm, so it did not hold.) | df9cc436 (the test); the amendment in the R098.f record commit |
 | E2 | §7, tessellation: planar faces merge; non-planar stays triangles and is counted; collapsed triangles dropped and counted; caps enforced | `step_import` C3 (the box comes out as six faces); `ifc_step` §6 (a total cap of 50 omits the cylinder and reports it; a per-element cap of 50 refuses); **R098.e: `ifc_import` E2 (app-level counts from the real helper)** | **R098.e: pass.** Box: 12 triangles, 6 merged faces, `nonPlanarFaces` 0, `degenerateTriangles` 0. Cylinder: 92 triangles, 26 merged faces (24 lateral strips and two caps), 0 and 0. Sphere of radius 5 mm (`sketchyup-step-sphere.step`): 304 triangles, `degenerateTriangles` 2 (one per pole, dropped and counted), 302 faces (304 less 2), `nonPlanarFaces` 3. The sphere's non-planar count depends on the tessellation, so it is pinned at this commit, not derived. The 100-sphere model (9 bodies in the document): 18 collapsed triangles, two per sphere | df9cc436 |
 | E3 | §7, units: a declared unit converts and is reported; no unit refuses; a mismatched option does not rescale | `ifc_step` §4 (inch fixture comes out 254 x 508 x 762 mm, factor reported; a mismatching `--step-length-unit` does not win); §5 (no header and no unit refused, exit 2); `ifc_step_worker` (the same, Python) | pass | 33e175fa |
-| E4 | §7, invalid or unsupported: reported with locations and counts; the rest converts; the accounting identity holds | `ifc_step` (accounting: 2 entities = 1 converted + 1 supporting + 0 omitted); `step_import` C2 (an AP230 file refused as `unsupportedSchema`; the unsupported formats refused with the helper's codes); **R098.e: `ifc_import` E4 on two designed fixtures** (`e4-bad-face.step`, `e4-pmi-ap242.step`, written by `tests/fixtures/step/make_designed.py`) | **R098.e: not met.** Bad face: the report counts six faces that no solid bounds (`freeFaces` 6), and the good box converts. Not met: the report has **no location** for them (the STEP report never records one, ADR 0172 section 5); the bad solid is **not counted as an element** (accounting: 2 entities = 1 converted + 1 supporting, the same as the good file); and its six faces come back **in the good box's body** (one body, 12 faces), while the notice says "imported as a body of its own faces". PMI-only AP242: **refused** with `nothingToImport`; no PMI entity is counted or located. Correction: the AP242 refusal this row cited is not in C2. C2 refuses AP230 (`unsupportedSchema`). The helper reads AP242 (best effort, ADR 0172 section 2) and refuses only the AP242 export. See section 9 | df9cc436 |
+| E4 | §7, invalid or unsupported: reported with locations and counts; the rest converts; the accounting identity holds | `ifc_step` (accounting: 2 entities = 1 converted + 1 supporting + 0 omitted); `step_import` C2 (an AP230 file refused as `unsupportedSchema`; the unsupported formats refused with the helper's codes); **R098.e: `ifc_import` E4 on two designed fixtures** (`e4-bad-face.step`, `e4-pmi-ap242.step`, written by `tests/fixtures/step/make_designed.py`) | **R098.f: met in its tests (the owner has not accepted it).** Bad face: the six faces that no solid bounds are counted
+(`elements.notImported`: `face`, `free-surface`, 6; `freeFaces` 6), located (six locations, each with the part's entity
+label), and not imported, as ADR 0172 section 3 says. The good box is the body: one body of 12 triangles, and no face of
+the bad box is in it. The accounting is 8 = 1 converted + 1 supporting + 6 omitted. PMI-only AP242: still refused with
+`nothingToImport`, and the refusal names and counts the five PMI kinds, one entity each, with five locations.
+(R098.e found the bad face counted but unlocated, not an element, and in the good body; the PMI file refused with no
+counts. Section 10 gives the change.) Correction: the AP242 refusal this row cited is not in C2. C2 refuses AP230 (`unsupportedSchema`). The helper reads AP242 (best effort, ADR 0172 section 2) and refuses only the AP242 export. See sections 9 and 10 | df9cc436 (R098.e); df0f218e (R098.f code and tests) |
 | E5 | §7, round trip: AP214 and AP203 export re-imports with geometry, names, colours, `step.Layer`, hidden state and the assembly/instance structure | `ifc_step_export` (`roundTrip` for `ap214` and `ap203`, through the real helper: volumes and bounds of each top-level body, names, colours, layer, hidden, one definition with three instances at three placements; E3 export half: the file declares `.MILLI.`) | pass | 33e175fa |
 | E6 | §7, limits and refusal: a file over 128 MiB refuses with the count and the limit named; a worker over its limits or killed is restarted and the element excluded, or fails with its log tail; the document is unchanged | Refusal: `tests/step_budgets.py` (`refuse-129m`, a run today); **R098.e: `step_import` C8 (the 128 MiB + 1-byte refusal as a CTest)**. Stop and cancel: `step_import` C5 (deadline) and C6 (cancel). **R098.e: `step_import` C9 (SIGSEGV), C10 (RLIMIT_AS) and C11 (RLIMIT_CPU), each with a stand-in helper** | **R098.e: partial.** Pass: the 128 MiB + 1-byte file is refused as `tooLarge` before any helper starts (the stand-in hangs, so a helper that started would time out); exactly 128 MiB passes the application's check. A helper killed by SIGSEGV fails with `crash (tessellate)`; over RLIMIT_AS (the stand-in applies the limit and allocates past it) with `memory` and `bad_alloc` in the log tail; over RLIMIT_CPU (SIGXCPU) with `crash`. Each import throws before anything is created. Stop and cancel: pass with a stand-in helper. **Not met: the restart-and-exclude clause.** `src/io/step_worker.cpp` states that the STEP import "has no per-element restart protocol: a stop is a failure"; ADR 0172 §5 and E6 require up to three restarts and then a partial import naming the excluded elements. Not implemented (section 9 has the estimate) | df9cc436 |
 | E7 | §7, native: the document validates (`decodeDocument(encodeDocument())`); save and reopen bit-exact; one undo removes the import; provenance resolves | `ifc_step_export` E7 checks, added in R098.d, run on each round-trip import through the real helper: encode, decode and re-encode bit-exact; one undo empties the document; every geometry body's `step.Source` equals the file's digest in the report | pass (both schemas) | 33e175fa |
@@ -184,14 +196,18 @@ the licence, and where the SketchyUp STEP code is in the source archive. `verify
     6 (`src/ifc/step_import.cpp`, `report.notImported`), and the application's notice says `freeFaces` 6 "imported as a
     body of its own faces". The faces are tessellated with the base shape, so they come back in the good box's body:
     one body, 12 faces, 24 triangles, and `elements.notImported` is empty. Steps: import `tests/fixtures/step/e4-bad-face.step`
-    (the CLI's `--import-step`), read `importReport`. Not fixed (out of scope for R098.e); E4 stays not met.
+    (the CLI's `--import-step`), read `importReport`. **Fixed in R098.f** (df0f218e; section 10): the surfaces are not
+    tessellated, they are counted and located, and `elements.notImported` names them.
 12. **The STEP report has no locations.** ADR 0172 §5 says a location is the entity label, the parent path, the transfer
     status and a message, at most 32 per kind. `src/ifc/step_import.cpp` never calls `Report::locate`; the report keeps
-    counts by class and reason only.
+    counts by class and reason only. **Fixed in R098.f** (df0f218e; section 10): every outcome that leaves a part out is located.
 13. **A PMI-only AP242 file is refused.** `nothingToImport` ("The reader could not transfer the file into the document"):
     the file has no shape representation, and the refusal names no PMI entity and counts none (E4 asks for both).
+    **Fixed in R098.f** (df0f218e; section 10): the refusal stays, and it names and counts the five kinds, one each.
 14. **The 1e-3 clause of §7 E1 does not hold for a tessellated cylinder.** The volume error is 2.6e-3 at 0.02 mm; the
     clause needs a deflection of about 0.0025 mm. The §7 clause "within the reported deflection" holds at 0.02 mm.
+    **Parent decision (R098.f):** the "1e-3" clause is dropped and the reported deflection governs; ADR 0172 §7 is amended
+    in place, and E1 passes (section 10).
 15. **The 1,000,000-triangle export does not run through the application.** The budget model needs 1,020,000 vertices and
     a document holds 600,000 (the placement limit). The helper alone needs 8.4 GiB of address space at its peak, so the
     4 GiB limit of ADR 0172 §6 ends it with a SIGSEGV (an OCCT `malloc failed` in the writer, then a fault in
@@ -214,6 +230,8 @@ the licence, and where the SketchyUp STEP code is in the source archive. `verify
   sandbox count of 17. **The commit the R098.e tests ran at** (the tree of `eb85cffa` differs only in a comment).
 - `eb85cffa` — R098.e: a comment (the E1 area bound at 0.02 mm is 0.995, not 0.994).
 - The commit that adds section 9 and this update to the record and the ADR notes (R098.e).
+- `df0f218e` — R098.f: the STEP surfaces kept out of bodies, the locations, the PMI kinds, the E4 tests. **The commit the
+  R098.f tests ran at.** The commit that adds section 10 and the R098.f ADR notes and E1 amendment follows it (see the PR).
 ## 9. R098.e close (2026-10-28)
 
 The F04 close brief (items 1 to 9). The product code is unchanged: `git diff 86070665 -- src/` is empty. The
@@ -360,3 +378,62 @@ written by a generator of the budget model's geometry (not the application's own
   `ifc_step_tests.cpp` and was not re-run.
 - `ifc_sandbox` counts the 17 STEP fixtures (it counted 14 before; the test was updated with the fixtures).
 - Not run: the helper's Python suites (`ifc_step_worker` and the rest of `build/ifc`); they are untouched.
+
+## 10. R098.f: the three STEP import defects (2026-10-28)
+
+The fix of findings 11, 12 and 13, and the parent's decision on E1 (ADR 0172 section 7). The code and tests are in
+`df0f218e`; the ADR notes are "Implementation notes (R098.f)" in ADR 0172. The IFC import is not changed.
+
+### 10.1 Each defect: cause, fix, test
+
+| Finding | Cause | Fix | Test |
+| --- | --- | --- | --- |
+| 11: a bad solid's faces join the good body | `src/ifc/step_import.cpp` tessellated a part's whole shape, and the six free faces of `e4-bad-face.step` are in it. The helper wrote `notImported` where the application does not read it (`elements`), so the list was empty | A part with surfaces is tessellated from its solids alone (`solidsOf`). Its surfaces are counted (`freeFaces` 6), located and not imported, as ADR 0172 section 3 says. The helper writes `elements.notImported` as IFC does | `ifc_import` E4 (bad face): six in `elements.notImported` (`face`, `free-surface`); the body is one body of 12 triangles; the identity 8 = 1 + 1 + 6 |
+| 12: the report has no locations | `src/ifc/step_import.cpp` never called `Report::locate` | The shared `Report::location` (32 per kind, totals complete) for each outcome that leaves a part out: no shape, no solid, a surface, a tessellation failure, no triangles, the two triangle caps, a mirror variant left out. A location's `step` is the part's entity label; the message gives the reason and the assembly path | `ifc_import` E4 (bad face): six locations, each with `step` > 0 and the reason |
+| 13: a PMI-only AP242 file is refused with no counts | The refusal named no entity | The refusal stays (`nothingToImport`). Its report names and counts, by STEP kind, the entities the import does not read, and locates each by its `#` label. The kinds the import reads: the product structure, the representation contexts and the units | `ifc_import` E4 (PMI): exactly DIMENSIONAL_SIZE, SHAPE_ASPECT, MEASURE_REPRESENTATION_ITEM, SHAPE_DIMENSION_REPRESENTATION and DIMENSIONAL_CHARACTERISTIC_REPRESENTATION, one each; five locations |
+
+The accounting for STEP is now `entities` = the package's nodes + the walk's entries that no body was made for + the
+surfaces; `omitted` is the last two. For the good box nothing changes (2 = 1 + 1 + 0). For the bad face it is 8 = 1 + 1 + 6.
+
+### 10.2 E1 (parent decision, 2026-10-28)
+
+The parent keeps "within the reported deflection" and drops "1e-3 relative for analytic primitives". ADR 0172 section 7
+is amended in place ("amended in R098.f, parent decision"). E1 is **pass** on the numbers of section 1 (R098.e): at
+0.02 mm the cylinder's volume is 0.997368 of the analytic value (bound 0.992016) and its area 0.998948 (bound 0.995203);
+the assembly is inside its bounds. The test is `ifc_step` (E1 at 0.02 mm), unchanged.
+
+### 10.3 Test runs (R098.f)
+
+All in `sketchyup-ci-pinned:r097a-ifc` with the `ifc-app` tree (Debug, as in section 2), the worktree at `/src`, four
+CPUs, 10 GB, the IfcOpenShell prefix from the cache, and `ulimit -v 8000000` for CTest with `-j2`. Builds were run one at
+a time, with `-j4`.
+
+| Run | Result |
+| --- | --- |
+| Baseline at `f51b59ec`, before the change: `ifc_step`, `step_import`, `ifc_step_export`, `ifc_import`, `ifc_sandbox`, `ifc_package`, `ifc_convert`, `ifc_worker_run`, `ifc_export`, `import_refusal` | 10 of 10 pass (37.6 s) |
+| At `df0f218e` (the code of these runs; the record and ADR commits change no code), the same 10 suites | 10 of 10 pass (33.5 s) |
+| The five touched suites (`ifc_step`, `step_import`, `ifc_step_export`, `ifc_import`, `ifc_sandbox`), five runs | 5 of 5 pass in each run |
+| `ifc_step_worker` (the helper's STEP Python suite, `build/ifc-app`) | pass |
+| The helper on `e4-bad-face.step`: `freeFaces` 6, `triangles` 12, `nodes` 2, `converted` 1 | as stated |
+| The helper on `e4-pmi-ap242.step`: refused as `nothingToImport`, five kinds, one each | as stated |
+| The helper on `sketchyup-step-box.step`: unchanged (12 triangles, `freeFaces` 0) | as before |
+
+Not run: the desktop dialog suites (`step_import_dialog` and the rest of the native matrix; they need the `full-ci`
+label); the full tier; the sanitizers; the helper-only IFC suites in `build/ifc` (the IFC import's code is unchanged, and
+the application's IFC suites ran in 10.3); `parser_fault_corpus`; the package acceptance (`verify-package.sh`).
+
+### 10.4 What was not done
+
+- **Restart-and-exclude (E6), the budgets, the entity cap, and the 4 GiB limit against the 1,000,000-triangle export:**
+  not changed, as the brief says. They wait for the owner.
+- **PMI in a file that converts.** The PMI kinds are counted and located only in the refusal (the brief's case). A file
+  that converts geometry and also holds PMI reports nothing for its PMI, as before. ADR 0172 section 5 would ask for it.
+- **Not accepted.** E4 is met in its tests; the owner has not accepted the record. The roadmap, the support matrix, the
+  release notes and the changelog are not changed (the parent does that).
+
+### 10.5 Contradictions found
+
+- **`treeTooDeep`.** The notice says the parts deeper than 128 levels "were attached to the deepest kept assembly". The
+  code (`src/ifc/step_import.cpp`, the walk) does not add them: they are not imported, and they are neither counted nor
+  located. This is outside the three defects and is not changed. The notice and the code disagree.
+- **ADR 0172 section 7, E1.** Resolved by the parent's decision (10.2).

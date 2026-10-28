@@ -286,7 +286,7 @@ changing scale* — is checked by:
 
 | | Check |
 |---|---|
-| E1: dimensional | The self-generated corpus (§8, with analytic ground truth) imports with mesh volumes and areas within the reported deflection of the analytic values (1e-3 relative for analytic primitives; within the deflection bound for curved profiles); a curved profile's volume is within the reported deflection of the analytic value |
+| E1: dimensional | The self-generated corpus (§8, with analytic ground truth) imports with mesh volumes and areas within the reported deflection of the analytic values (within the deflection bound for curved profiles; the clause "1e-3 relative for analytic primitives" is dropped) (amended in R098.f, parent decision); a curved profile's volume is within the reported deflection of the analytic value |
 | E2: tessellation | Coplanar triangles merge into polygon faces (a wall's side is one face); a non-planar case stays triangles and is counted; collapsed triangles are dropped and counted; per-body and total triangle caps are enforced (100,001 faces and 1,000,001 triangles refuse or report per element, creating no partial document beyond the reported omissions) |
 | E3: units | A file that declares inches imports converted, with the factor in the report; a file with no declared unit and no option refuses with the notice, creating nothing; geometry size changes **only** through a declared unit (the no-silent-scale check); an explicit `--step-length-unit` is used only when the file declares no unit |
 | E4: invalid/unsupported | A fixture with broken or unsupported entities (a bad face, an entity the translator refuses, a PMI-only AP242 file) reports with locations and counts, converts the rest, and changes no scale; the accounting identity (converted + supporting + omitted = counted) holds |
@@ -983,6 +983,61 @@ product code is unchanged. The record is `docs/verification/R098d-step-exchange.
 - Whether §7's "1e-3" clause or its "within the reported deflection" clause governs E1.
 - The bad-face defect and the missing locations (product changes; not made in R098.e).
 - The 1,000,000-triangle export budget against the 4 GiB limit and the 256 MiB output limit.
+
+## Implementation notes (R098.f, 2026-10-28)
+
+The fix of the three STEP import defects that the R098.e close found (record `docs/verification/R098d-step-exchange.md`,
+section 7, items 11 to 13), and the parent's decision on E1. The product changes are in `src/ifc/step_import.cpp`,
+`src/io/step_worker.cpp` and the STEP notice text in `src/io/ifc_import.cpp`; the tests are in `tests/ifc_import_tests.cpp`
+(E4). The IFC import's behaviour is not changed. The record's section 10 gives the test runs.
+
+### What was built
+
+- **Surfaces without volume (item 11).** The helper tessellated a part's whole shape, so the six faces that no solid of
+  `e4-bad-face.step` bounds came back in the good box's body (one body, 12 faces). A part with surfaces is now tessellated
+  from its solids alone (`solidsOf`). Its surfaces are counted (`freeFaces`), located and not imported, as section 3 says.
+  A part with surfaces and no solid is counted the same way. The good box is one body of 12 triangles.
+- **Elements (item 11).** The helper wrote `notImported` at the top of its report, where the application reads
+  `elements.notImported`, so the list was empty for STEP. It is now under `elements`, as for IFC.
+- **Locations (item 12).** The STEP report carries `locations` and `locationTotals`, through the shared `Report::location`
+  (32 per kind, totals complete). Every outcome that leaves a part out is located: no shape, no solid, a surface, a
+  tessellation failure, no triangles, the per-element and total triangle caps, and a mirror instance whose variant was
+  left out. A location's `step` is the entity label of the part (its first place in the assembly walk); its message gives
+  the reason and the assembly path ("(in Top / Sub)"). The path is text in the message, not a field: `Location` has no path
+  field, and the IFC report has none either.
+- **PMI-only AP242 (item 13).** The refusal stays (`nothingToImport`). Its report names and counts the entities the import
+  does not read, by STEP kind, and locates each by its `#` label. The kinds the import reads are the product structure,
+  the representation contexts and the units; every other kind is counted. For `e4-pmi-ap242.step`: DIMENSIONAL_SIZE,
+  SHAPE_ASPECT, MEASURE_REPRESENTATION_ITEM, SHAPE_DIMENSION_REPRESENTATION and DIMENSIONAL_CHARACTERISTIC_REPRESENTATION,
+  one each, five locations.
+- **Accounting.** For STEP, `entities` is the package's nodes plus the walk's entries that no body was made for plus the
+  surfaces without volume; `omitted` is the last two; `converted` is the bodies; `supporting` is the root and the groups.
+  The bad face comes out 8 = 1 + 1 + 6. The box is unchanged: 2 = 1 + 1 + 0.
+- **E1 (parent decision).** The clause "1e-3 relative for analytic primitives" is dropped, and the clause "within the
+  reported deflection" governs. The measurement is the one of R098.e (section 9.1 of the record): at 0.02 mm the cylinder's
+  volume is 0.997368 of the analytic value (bound 0.992016), its area 0.998948 (bound 0.995203), and the assembly is
+  inside its bounds. The test is `ifc_step` (E1 at 0.02 mm), unchanged.
+
+### Findings that still contradict ADR 0172
+
+- **§5 and E6 (restart).** A worker's restart-and-exclude is still not implemented for STEP (record section 9.2).
+- **§6 (helper limits).** The STEP mode has no entity cap and runs on one thread; and the 4 GiB address-space limit cannot
+  hold the 1,000,000-triangle export (record section 9.3). These are unchanged and are the owner's.
+- **§5 (locations).** The location's parent assembly path is in its message, not in a field (see above).
+
+### Tests
+
+- `ifc_import` E4, the bad face: six faces in `elements.notImported` (`face`, `free-surface`, 6); six locations, each with
+  an entity label; one body of 12 triangles (the good box alone); the identity 8 = 1 + 1 + 6 with six omitted.
+- `ifc_import` E4, the PMI-only AP242 file: refused as `nothingToImport`; its five kinds named and counted, one each; five
+  locations.
+- `ifc_step`, `step_import`, `ifc_step_export` and `ifc_sandbox` are unchanged; `ifc_import` has the new E4 checks. The
+  five pass, and the record's section 10 gives the runs.
+
+### Open for the owner
+
+- Whether 1.4.0 needs the STEP restart (§5, E6).
+- The §6 limits against the 1,000,000-triangle export.
 
 ## Appendix: evidence and sources
 
