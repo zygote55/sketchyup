@@ -41,6 +41,11 @@ if(SKETCHYUP_SHARED_LIBS)
   set(SKETCHYUP_LIBRARY_TYPE SHARED)
   set(BUILD_SHARED_LIBS ON)
 endif()
+# Code that must know its project libraries are shared objects in the build tree (the Blender
+# stand-in's sandbox reads them, ADR 0183 R109 S5): the sanitizer builds and the CI fast tier.
+if(SKETCHYUP_LIBRARY_TYPE STREQUAL "SHARED")
+  add_compile_definitions(SKETCHYUP_SHARED_PROJECT_LIBS=1)
+endif()
 # The project version above is the single source of truth (ADR 0162).
 configure_file(src/sketchyup/version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/generated/sketchyup/version.hpp" @ONLY)
 add_library(sketchyup_version INTERFACE)
