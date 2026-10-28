@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace sketchyup::sandbox {
@@ -31,17 +32,29 @@ enum class Action {
                   // 0183 decision 5)
     ownProcessOnly, // tgkill: runs when its first argument is this process (abort signals itself)
     whenArgument,   // runs when one argument has the given value (the low 32 bits), else EPERM
+    argumentOneOf,  // runs when one argument is one of the rule's values (the low 32 bits), else
+                    // EPERM (fcntl's command and ioctl's request, ADR 0183 S3)
 };
 
 struct SyscallRule {
     std::string_view name; // a name in syscalls_x86_64.hpp
     Action action;
-    // whenArgument only: the argument compared (0 to 5) and the value it must have. For example
-    // prctl's option (argument 0) must be PR_SET_PDEATHSIG, and ioctl's request (argument 1) must
-    // be TCGETS.
+    // whenArgument and argumentOneOf: the argument compared (0 to 5) and, for whenArgument, the
+    // value it must have. For example prctl's option (argument 0) must be PR_SET_PDEATHSIG, and
+    // ioctl's request (argument 1) must be TCGETS.
     unsigned argumentIndex = 0;
     std::uint32_t argumentValue = 0;
+    // argumentOneOf only: the values the argument may have.
+    std::vector<std::uint32_t> values{};
 };
+
+// A rule that runs the call when the argument at argumentIndex is one of the values (argumentOneOf,
+// ADR 0183 S3): fcntl's command and ioctl's request are each a list in the text and extension
+// policies.
+inline SyscallRule oneOfArgument(std::string_view name, unsigned argumentIndex,
+                                 std::vector<std::uint32_t> values) {
+    return SyscallRule{name, Action::argumentOneOf, argumentIndex, 0, std::move(values)};
+}
 
 // What the Landlock ruleset grants on one path. A path that does not exist is not granted.
 enum class FileAccess {

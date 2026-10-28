@@ -1,8 +1,9 @@
 // The seccomp-bpf layer (ADR 0183 sections 3 and 4.3): a raw BPF program, with no library. The
 // program checks the architecture, loads the call number and compares it with each named call in
 // turn. A match runs that call's block: one return for allow, EPERM or ENOSYS, for a thread-only
-// clone a test of CLONE_THREAD, and for a clone that may fork a test of the namespace flags. Any
-// other call falls through to the kill default.
+// clone a test of CLONE_THREAD, for a clone that may fork a test of the namespace flags, and for
+// fcntl and ioctl a test of one argument against a list of values (ADR 0183 S3). Any other call
+// falls through to the kill default.
 #include "sandbox/layers.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
 
@@ -35,7 +36,8 @@ sock_filter jump(std::uint16_t code, std::uint32_t k, std::uint8_t ifTrue, std::
 
 // The instructions that answer for one call. A jump over a block takes its length, so each block is
 // short: the longest are the clone, the own-process signal and the argument test, at four
-// instructions.
+// instructions. A list of values takes one more instruction per value (the policies name at most a
+// handful).
 std::vector<sock_filter> blockFor(const SyscallRule &rule, std::uint32_t self) {
     switch (rule.action) {
     case Action::allow:
@@ -69,6 +71,19 @@ std::vector<sock_filter> blockFor(const SyscallRule &rule, std::uint32_t self) {
                 jump(BPF_JMP | BPF_JEQ | BPF_K, rule.argumentValue, 0, 1),
                 statement(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
                 statement(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM)};
+    case Action::argumentOneOf: {
+        // the argument is one of the values: allow, which is the last instruction of the block.
+        // The value at position i jumps over the tests after it and the EPERM, so its jump is n -
+        // i.
+        std::vector<sock_filter> block{
+            statement(BPF_LD | BPF_W | BPF_ABS, seccompDataArg(rule.argumentIndex))};
+        for (std::size_t i = 0; i < rule.values.size(); ++i)
+            block.push_back(jump(BPF_JMP | BPF_JEQ | BPF_K, rule.values[i],
+                                 static_cast<std::uint8_t>(rule.values.size() - i), 0));
+        block.push_back(statement(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM));
+        block.push_back(statement(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+        return block;
+    }
     }
     return {statement(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS)};
 }
@@ -99,7 +114,7 @@ std::optional<std::vector<sock_filter>> buildProgram(const std::vector<SyscallRu
         if (!fresh) {
             const SyscallRule &previous = entry->second;
             if (previous.action != rule.action || previous.argumentIndex != rule.argumentIndex ||
-                previous.argumentValue != rule.argumentValue)
+                previous.argumentValue != rule.argumentValue || previous.values != rule.values)
                 return std::nullopt;
             continue;
         }

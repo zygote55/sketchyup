@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Helper process sandbox, text and extension (R109 S3 and S4, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)):
+  the text helper that outlines glyphs and the extension worker that resolves an extension's action now run
+  under the sandbox. They can read only the system files they need (fonts and their configuration for the text
+  helper, the locale for both) and write nothing; they cannot open a socket or run a program. A call outside the
+  allow-list ends the helper, which the application reports as a sandbox violation and does not restart. A helper
+  that cannot install the sandbox refuses and runs nothing. The text helper reads your font folders
+  (`$XDG_DATA_HOME/fonts`, `~/.local/share/fonts` and `~/.fonts`) read-only, so a font installed there is found
+  as before, and it reads no other file of yours. The helper's locale is C.UTF-8 whatever yours is.
+
 - Outliner rebuilds (D-048): the Outliner no longer rebuilds on edits that do not change what it shows.
   Its rows and the Tags rows are rebuilt only when a shown name, tag, hierarchy position, hidden, locked or
   context state, or the viewport's selection, changes. A placement move on a 100,000-face model no longer
