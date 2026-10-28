@@ -7,7 +7,7 @@ Status: **Accepted (2026-10-23)**: owner decisions 1 to 17 approved as recommend
 [ADR 0106](0106-immutable-animation-capture.md) /
 [ADR 0107](0107-native-animation-frame-export.md) (R072), and on the closed
 1.0 gate (R089). This row takes ADR number 0173 because 0172 is reserved for
-the parallel STEP exchange draft. R099.e, the acceptance record ([R099e-presentation.md](../verification/R099e-presentation.md), 2026-10-27), measures §5 and finds the Verify line partly met: eight of the ten §5 rows pass, batch capture fails (1,747 ms p95 against 500 ms) and the preparation row cannot be frozen (no row to compare with). PR #500 brings batch capture within budget (p95 160 to 183 ms), PR #501 (R099.e2) and R099.e3 close the other findings, and the delivery status stays "Delivered, with open findings" until the two §6 wording decisions in Implementation notes (R099.e3) are made. See Implementation notes (R099.e), (capture encode, §5 budget), (R099.e2) and (R099.e3).
+the parallel STEP exchange draft. R099.e, the acceptance record ([R099e-presentation.md](../verification/R099e-presentation.md), 2026-10-27), measures §5 and finds the Verify line partly met: eight of the ten §5 rows pass, batch capture fails (1,747 ms p95 against 500 ms) and the preparation row cannot be frozen (no row to compare with). PR #500 brings batch capture within budget (p95 160 to 183 ms), PR #501 (R099.e2) and R099.e3 close the other findings, and the parent's two §6 wording decisions (P4, P5) are made in Implementation notes (R099.e3): R099 is **Accepted (R099.e)**, with owner decisions 2 to 5 carried to the 1.4.0 release decisions. See Implementation notes (R099.e), (capture encode, §5 budget), (R099.e2) and (R099.e3).
 
 F05 asks for "named camera paths, export controls and batch presentation jobs;
 no requirement for a general character-animation suite". R099 delivers the first
@@ -254,8 +254,9 @@ Consequences for storage (decision 15):
   promise (the ADR 0163 decision-2 rule) is unchanged: a document without
   presentation records still writes schema 29;
 - the reader's feature-set check gains `presentation-v1`; a 1.3.0 (schema 29)
-  writer **refuses a schema 30 file with the new-format error** rather than
-  silently dropping the tables;
+  writer **refuses a schema 30 file** rather than silently dropping the tables
+  (the released readers name the unknown container field, `Unsupported container
+  field`; R099.e3, parent decision P4);
 - the record decoders get the standard validation (canonical IDs, unique names,
   budget) and a libFuzzer target alongside the other record decoders.
 
@@ -410,8 +411,8 @@ Fixtures (in-repo, generated, no third-party data):
 | Retry and resume | A failed frame is retried and completes; a force-killed batch reopens `Interrupted` with its log retained and scratch cleaned; `retry` resumes from the first unverified frame; verified frames are not re-rendered (byte-identical, unmodified); a retried batch never rewrites another job's files (the unrelated-job fixture byte-for-byte) |
 | Refusals | Broken path (named reasons), existing destination, symlinked destination, preset list over 4, over-budget frame count, over-budget output (remaining budget in the message), absent Blender. Each leaves no partial directory and no broken manifest |
 | Records | Create, edit, delete round-trip through an undoable edit; Undo restores every byte of the encoding except the revision, which advances (ADR 0005; amended in R099.e3, parent decision); over-budget and malformed records refuse at load; save and reopen bit for bit |
-| Schema | Schema 30 documents carry `presentation-v1` and reopen bit for bit; a document without the tables writes schema 29 (the lowest-schema promise); a 1.3.0 writer refuses a schema 30 file with the new-format error; the record decoders pass the libFuzzer target twice per input |
-| Determinism | The same batch on two copies of the document gives identical planned poses, identical per-frame metadata and identical PNG bytes (same Blender, same settings, same seed) |
+| Schema | Schema 30 documents carry `presentation-v1` and reopen bit for bit; a document without the tables writes schema 29 (the lowest-schema promise); a 1.3.0 reader refuses a schema 30 file and leaves it unchanged, with the container's `Unsupported container field` error (amended in R099.e3, parent decision P4: the released readers cannot change); the record decoders pass the libFuzzer target twice per input |
+| Determinism | The same batch on two copies of the document gives identical planned poses, identical per-frame metadata (the camera, scene, keyframe flag and source manifest; not the `diagnostics` log, which is Blender's own output from the attempt; amended in R099.e3, parent decision P5) and identical PNG bytes (same Blender, same settings, same seed) |
 
 The acceptance record (R099.e, `docs/verification/R099e-presentation.md` with a
 JSON summary) covers: the Verify line and every check above; the §5 budgets,
@@ -1385,16 +1386,16 @@ branch is `fix/r099e3-presentation-close`, on `origin/main` with PR #501 merged.
   Amended in place, as R101.f amended V5. The R099.e2 check compares every other byte.
 - **Record-level decisions (parent).** Decision 7: identical PNG bytes are kept, with the stamp off and the PNG text
   chunks stripped (R099.e2). Decision 9: an over-size request is `LIMIT_EXCEEDED` (R099.e2).
-- **Remaining, and what it blocks.** The status stays "Delivered, with open findings". Two §6 rows do not hold as written,
-  and each needs the parent's wording decision before "Accepted (R099.e)" can be set:
-  1. **Schema (contradiction C2).** §6 says a 1.3.0 writer refuses a schema-30 file "with the new-format error". The released
-     1.3.0 CLI refuses it with "Unsupported container field", byte for byte unchanged. That binary cannot change. The
-     parent can amend the row to the container's wording, as for the undo row.
-  2. **Determinism, per-frame metadata.** §6 says "identical per-frame metadata" across two batches. `verifySameFrames`
-     compares the camera, scene, keyframe and source manifest. It does not compare `diagnostics`, which holds Blender's own
-     output from the attempt and is not expected to match between runs. The parent can amend the row to the fields it compares, or ask for the log to be compared too.
-  Owner decisions still open, as the record lists them: the per-frame preparation row (no GLB number), the 250,000-triangle
-  render limit, the byte budgets, and the whole-batch length. The live version-6 assistant run (decision 8) is still not
-  made.
+- **The §6 wording decisions (parent, P4 and P5).** Both rows are amended in place, as the undo row was.
+  1. **Schema (contradiction C2, P4).** The released 1.3.0 CLI refuses a schema-30 file with "Unsupported container
+     field" and leaves it byte for byte unchanged. That binary cannot change, so the row now names the container's
+     wording. The refusal and the unchanged file are what the row protects, and both hold.
+  2. **Determinism, per-frame metadata (P5).** The row now names the fields `verifySameFrames` compares: the camera,
+     scene, keyframe flag and source manifest. `diagnostics` holds Blender's own output from the attempt, with its
+     run times, and is not expected to match between runs.
+  With both made, the Verify line and every §6 row hold, and the status is **Accepted (R099.e)**. Owner decisions 2 to
+  5 (the per-frame preparation row, the whole-batch length, the 250,000-triangle render limit, the byte budgets) are
+  carried to the 1.4.0 release decisions. Decision 8, the live version-6 assistant run, is the corpus run at the 1.4.0
+  RC, which the owner approved on 2026-10-27.
 - **Not run here.** The full CI tier, the sanitizers, the native matrix (X11 and Wayland), and the 960-frame batch. The
   fast tier runs on the PR.

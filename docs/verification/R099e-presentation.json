@@ -57,7 +57,7 @@
     "blender": "Blender 5.2.2 LTS at /usr/bin/blender (build 2026-10-13); CI uses 17:5.2.2-2",
     "conditions": "ADR 0173 §5 names the pinned image and software rendering for the CPU rows; these runs are local, on this machine, with Cycles on the CPU"
   },
-  "status": "delivered with open findings. The Verify line holds. Every section 6 row holds as written except two that need the parent's wording decision: P4 (the schema row's 1.3.0 refusal wording, contradiction C2) and P5 (the determinism row's 'identical per-frame metadata', checked for the fields the batch compares). Section 5: nine of ten rows pass; the per-frame preparation row is not frozen (no row to compare). The owner decisions 2, 3, 4, 5 and 8 remain open. 'Accepted (R099.e)' is not set until P4 and P5 are decided.",
+  "status": "Accepted (R099.e). The Verify line holds. Every section 6 row holds, two as amended by the parent: P4 (the schema row names the released readers' 'Unsupported container field' refusal, contradiction C2) and P5 (the determinism row's per-frame metadata names the fields the batch compares). Section 5: nine of ten rows pass; the per-frame preparation row is not frozen (no row to compare). Owner decisions 2, 3, 4 and 5 are carried to the 1.4.0 release decisions; decision 8 is the live corpus run at the 1.4.0 RC, approved by the owner on 2026-10-27.",
   "verifyLine": "met",
   "checks": {
     "verifyFrameCountAndTiming": "pass: presentation_record_tests (240 inclusive, the formula), presentation_command_tests (8 frames), presentation_export_tests (6 frames; 240 refused); scripted R1 (8 per preset), S6 (12 per preset), refusal e (1,129 frames)",
@@ -72,8 +72,8 @@
     "s6UnrelatedJobFixture": "pass (PR #501, as verifyUnrelatedJobs)",
     "s6Refusals": "pass: broken path, existing destination, symlink destination (presentation_export_tests 481 to 490), over-budget frames and output, absent Blender, preset list over four; scripted a to g leave no folder; the MPEG-4 refusal text names MPEG-4 Part 2 (R099.e3)",
     "s6Records": "pass: create, edit, delete undoable and the exact record restored (presentation_record_tests 221 to 244); after undo every byte of the encoding is equal except the revision, which advances (ADR 0005; the amended wording, parent decision P3); over-budget and malformed refused at load; save and reopen bit for bit (presentation_io_tests 192 to 199)",
-    "s6Schema": "partly, parent decision P4: schema 30 with presentation-v1 reopens; schema 29 without tables (presentation_io_tests 152); the installed 1.3.0 CLI refuses the v30 fixture, unchanged, with 'Unsupported container field' (the §6 row names the newer-format error); parser_fuzz_presentation run locally, no finding (CI does not run it)",
-    "s6Determinism": "partly, parent decision P5: the same capture SHA-256 on two copies; every frame's decoded pixels equal; decoded video frames equal; PNG bytes identical across two real batches with the stamp off and the text chunks stripped (P1, R099.e2; presentation_export_tests lines 1567 to 1592); 'identical per-frame metadata' checked for the camera, scene, keyframe and source manifest, not the diagnostics log"
+    "s6Schema": "pass, as amended by parent decision P4: schema 30 with presentation-v1 reopens; schema 29 without tables (presentation_io_tests 152); the installed 1.3.0 CLI refuses the v30 fixture, unchanged, with 'Unsupported container field' (the §6 row names the newer-format error); parser_fuzz_presentation run locally, no finding (CI does not run it)",
+    "s6Determinism": "pass, as amended by parent decisions P1 and P5: the same capture SHA-256 on two copies; every frame's decoded pixels equal; decoded video frames equal; PNG bytes identical across two real batches with the stamp off and the text chunks stripped (P1, R099.e2; presentation_export_tests lines 1567 to 1592); 'identical per-frame metadata' checked for the camera, scene, keyframe and source manifest, not the diagnostics log"
   },
   "testRuns": {
     "localRelease": "15 of 15 core presentation, job, report-free suites pass under ctest (presentation_export_real with real Blender 36.6 s); presentation_input_tests passes offscreen; presentation_batch_input_tests passes offscreen with the two new blocks; camera_motion_tests passes with the pinned digests",
@@ -209,13 +209,11 @@
     "convention": "the exporter maps Z-up to glTF Y-up as (x, y, z) -> (x, z, -y); the importer maps Y-up to Blender Z-up as (x, y, z) -> (x, -z, y); composed, the identity, so no conversion is applied"
   },
   "gapsCarried": [
-    "P4: the schema row's 1.3.0 wording (C2): needs the parent's decision to amend §6 to the container's wording. Blocks 'Accepted (R099.e)'",
-    "P5: the determinism row's 'identical per-frame metadata': needs the parent's decision to amend §6 to the fields verifySameFrames compares, or to compare the diagnostics log too. Blocks 'Accepted (R099.e)'",
     "Owner decision 2: the per-frame preparation row has no GLB number",
     "Owner decision 3: the whole-batch length (the 960-frame run was not made)",
     "Owner decision 4: 250,000-triangle terrains cannot be rendered or batched (GLB and body limits)",
     "Owner decision 5: the byte budgets (512 KiB, 256 KiB) cannot bind",
-    "Owner decision 8: the live version-6 assistant run before the 1.4.0 release, not made",
+    "Owner decision 8: the live version-6 assistant run, carried to the 1.4.0 RC (one live corpus run approved by the owner on 2026-10-27)",
     "Sanitizer runs of presentation_input_tests, presentation_batch_input_tests and presentation_cli_tests: not in the sanitize lists",
     "parser_fuzz_presentation is not run by CI",
     "No fuzz target for PresentationJobStore",
@@ -233,12 +231,12 @@
     "R099.e2 gap, FIXED in R099.e3: the worker reported no camera (the rendered camera, renderedCamera, is reported and checked)",
     "C4: a 250,000-triangle terrain document is captured, but cannot be prepared: GLB has too many visible faces (glb_export.cpp line 277, observed); a 72,000-face model with 6,000 placements is refused with 'Export artifacts exceed bounds' (JSON over 16 MiB, glb_export.cpp lines 577 and 640, observed); the render snapshot refuses more than 20,000 bodies (render_snapshot.cpp line 250). Owner decision 4 (open)",
     "C3: 'identical PNG bytes': RESOLVED by parent decision P1 (R099.e2): the stamp is off and the PNG text chunks are stripped; the PNG bytes are identical across real batches",
-    "C2: the schema-30 refusal by the released readers uses the container's wording, not the newer-format wording §6 names. Refused and unchanged. OPEN: parent decision P4",
+    "C2: the schema-30 refusal by the released readers uses the container's wording, not the newer-format wording §6 named. Refused and unchanged. RESOLVED by parent decision P4: the §6 row names the container's wording",
     "C1: the per-frame JSON is 70,208 bytes, not about 207 KB (UX 17.11 gap 7; ADR section 5)",
     "C5: a request over 16 KiB: RESOLVED by parent decision P2 (R099.e2): LIMIT_EXCEEDED; a request that cannot be read stays INPUT_ERROR",
     "The capture budget: RESOLVED by PR #500 (p95 160 to 183 ms against 500 ms). The per-frame preparation row has no number (owner decision 2, open)",
     "The whole batch takes about 3.4 hours projected at 240 x 4 at 1024x768 / 32 samples on this machine (owner decision 3, open)",
-    "P5 (open): the determinism row's per-frame metadata clause, checked for the fields verifySameFrames compares"
+    "P5 (decided): the determinism row's per-frame metadata clause names the fields verifySameFrames compares (camera, scene, keyframe flag, source manifest), not the diagnostics log"
   ],
   "decisions": {
     "recordLevel": [
@@ -249,15 +247,15 @@
       "R5 the per-frame preparation row is not frozen (no row to compare with)",
       "R6 the pinned pose digests are at planner level (camera_motion_tests), with the batch's recorded camera compared for equality with the plan (R099.e3)",
       "R7 the native matrix is taken from main's full-tier run 40630475876",
-      "R8 the roadmap status is 'Delivered, with open findings' until P4 and P5 are decided",
+      "R8 the roadmap status was 'Delivered, with open findings' while a clause failed; it is 'Accepted (R099.e)' since R099.e3 and P4 and P5",
       "R9 the benchmark is committed as an EXCLUDE_FROM_ALL tool, as report_benchmark is"
     ],
     "parent": [
       "P1 identical PNG bytes are kept: the stamp is off and the PNG text chunks are stripped (owner item 7, the first option, against the recommendation; R099.e2)",
       "P2 LIMIT_EXCEEDED for an over-size request; INPUT_ERROR for a request that cannot be read (owner item 9; R099.e2)",
       "P3 the §6 Records row's undo wording: every byte of the encoding except the revision, which advances (ADR 0005); amended in place as R101.f amended V5 (R099.e3)",
-      "P4 OPEN: the §6 schema row's 1.3.0 wording (C2). Recommended: amend the row to the container's wording. This decision stops 'Accepted (R099.e)'",
-      "P5 OPEN: the §6 determinism row's per-frame metadata clause. Recommended: amend the row to the fields verifySameFrames compares, or compare the diagnostics log too"
+      "P4 the §6 schema row's 1.3.0 wording (C2) is amended in place to the released readers' 'Unsupported container field' refusal (R099.e3)",
+      "P5 the §6 determinism row's per-frame metadata clause is amended in place to the fields verifySameFrames compares, not the diagnostics log (R099.e3)"
     ],
     "owner": [
       "1 The batch capture budget: resolved by PR #500 (p95 160 to 183 ms against 500 ms); no choice needed",
@@ -267,9 +265,9 @@
       "5 The byte budgets (512 KiB, 256 KiB) cannot bind. OPEN. Recommendation: drop them, or set them at a small multiple of the measured maxima",
       "6 Fix the changed-Blender Start defect (O6) before 1.4.0: FIXED in PR #501",
       "7 'Identical PNG bytes': decided by the parent (P1): the chunks are stripped, the first option",
-      "8 Live version-6 assistant run before 1.4.0 (R099.c). OPEN, not made",
+      "8 Live version-6 assistant run before 1.4.0 (R099.c). Carried to the 1.4.0 RC: one live corpus run approved by the owner on 2026-10-27",
       "9 The 16 KiB refusal code: decided by the parent (P2): LIMIT_EXCEEDED, restored in R099.e2",
-      "10 The roadmap status: kept at 'Delivered, with open findings' until P4 and P5 are decided"
+      "10 The roadmap status: 'Accepted (R099.e)' since O6, the unrelated-job fixture, P4 and P5 are done"
     ]
   },
   "productCodeChanged": true,
