@@ -30,6 +30,9 @@ enum class PresentationVideoCodec { H264, MPEG4 };
 QString presentationVideoCodecName(PresentationVideoCodec codec);
 QString presentationVideoCodecId(PresentationVideoCodec codec);
 PresentationVideoCodec presentationVideoCodecFromName(const QString &name);
+// The refusal Start gives when this Blender's FFmpeg build lacks the codec the batch chose. It
+// names that codec (UX_DESIGN 17.5).
+QString presentationVideoRefusal(PresentationVideoCodec codec);
 // One output of a batch: a name and the render settings. The preset record's ID is not part
 // of the job, so a stored job does not depend on the document's allocator.
 struct PresentationPreset {

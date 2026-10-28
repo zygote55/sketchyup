@@ -410,6 +410,22 @@ int main(int argc, char **argv) {
                   "Without video no video is offered");
             button(*results, "resultsClose")->click();
 
+            // The model changes after the batch finished: its results say so (ADR 0173 §6, the R070
+            // provenance wording).
+            window.document().addFace({{{0, 0, 9}, {1, 0, 9}, {1, 1, 9}, {0, 1, 9}}});
+            list->setCurrentItem(row);
+            button(*window.findChild<QDialog *>("renderJobs"), "openStoredRender")->click();
+            // A closed sheet is kept, so the open one is the visible sheet with this name.
+            QDialog *changed = nullptr;
+            for (auto *sheet : window.findChildren<QDialog *>("presentationResults"))
+                if (sheet->isVisible())
+                    changed = sheet;
+            check(changed, "Show results… opens the results after the model changes");
+            checkText(changed->findChild<QLabel *>("resultsBanner")->text(),
+                      "✓ Completed. 2 presets, 12 frames, 0 videos. The model has changed since.",
+                      "The banner says the model has changed since the batch");
+            button(*changed, "resultsClose")->click();
+
             // §17.6 Remove keeps the output folder, and removes the record and its log.
             list->setCurrentItem(batchRow(list, started.id));
             button(*window.findChild<QDialog *>("renderJobs"), "removeStoredRender")->click();

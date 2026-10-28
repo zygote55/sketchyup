@@ -202,8 +202,13 @@ std::shared_ptr<const BlenderResult> RenderQueue::result(const QString &id) {
     try {
         return store_.result(id);
     } catch (const std::exception &error) {
-        errors_[id] = QString::fromUtf8(error.what());
-        emit changed();
+        // Asking for a result before its job completes is a refused call. The job keeps its
+        // state: only an unreadable result of a completed job is that job's failure.
+        const auto job = store_.jobs().find(id);
+        if (job != store_.jobs().end() && job->second.state == RenderJobState::Completed) {
+            errors_[id] = QString::fromUtf8(error.what());
+            emit changed();
+        }
         throw;
     }
 }

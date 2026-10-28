@@ -177,22 +177,11 @@ void verifyManifest(const QString &output, int expectedFrames) {
     }
     check(frames == expectedFrames, "Manifest lists every verified frame");
 }
-// Each frame's record keeps the camera its Blender job was given. Every coordinate of that camera
-// is the planned pose to within 1 µm, which is 0.001 of a millimetre (ADR 0173 §6).
+// Each frame's record keeps the camera its Blender job was given: the planned pose's camera, bit
+// for bit, as the batch's manifest describes it. The planner's output is pinned in
+// camera_motion_tests (ADR 0173 §6).
 void verifyPoses(const QString &output, const std::vector<CameraFrame> &planned) {
     const auto manifest = QJsonDocument::fromJson(read(output + "/manifest.json")).object();
-    const auto point = [](const QJsonValue &value) {
-        const auto array = value.toArray();
-        check(array.size() == 3, "A recorded camera point has three coordinates");
-        return std::array<double, 3>{array[0].toDouble(), array[1].toDouble(), array[2].toDouble()};
-    };
-    const auto within = [](const std::array<double, 3> &actual,
-                           const std::array<double, 3> &expected) {
-        for (size_t axis = 0; axis < 3; ++axis)
-            if (std::abs(actual[axis] - expected[axis]) > 0.001)
-                return false;
-        return true;
-    };
     int checked = 0;
     for (const auto &presetValue : manifest.value("presets").toArray()) {
         const auto directory = output + "/" + presetValue.toObject().value("directory").toString();
@@ -203,26 +192,103 @@ void verifyPoses(const QString &output, const std::vector<CameraFrame> &planned)
                     .object()
                     .value("camera")
                     .toObject();
-            const auto expected = renderSceneCamera(planned[index].camera);
-            check(within(point(camera.value("position")),
-                         {expected.position.x, expected.position.y, expected.position.z}) &&
-                      within(point(camera.value("target")),
-                             {expected.target.x, expected.target.y, expected.target.z}) &&
-                      within(point(camera.value("up")),
-                             {expected.up.x, expected.up.y, expected.up.z}) &&
-                      std::abs(camera.value("yMag").toDouble() - expected.yMag) <= 0.001 &&
-                      std::abs(camera.value("nearClip").toDouble() - expected.nearClip) <= 0.001 &&
-                      std::abs(camera.value("farClip").toDouble() - expected.farClip) <= 0.001 &&
-                      std::abs(camera.value("verticalFov").toDouble() - expected.verticalFov) <=
-                          1e-9 &&
-                      camera.value("projection").toString() ==
-                          (expected.orthographic ? "orthographic" : "perspective"),
-                  "A frame's recorded camera is the planned pose to within 1 µm");
+            check(camera == describeRenderCamera(renderSceneCamera(planned[index].camera)),
+                  "A frame's recorded camera is the planned pose, bit for bit");
             ++checked;
         }
     }
     check(checked == int(planned.size()) * manifest.value("presets").toArray().size(),
           "Every frame of every preset is checked");
+}
+
+// Largest deviation of each kind over every frame, in model units (a millimetre).
+struct PoseDeviation {
+    double position{}, target{}, up{}, clipping{}, fieldOfView{};
+};
+
+// The camera each frame's Blender rendered (the worker's renderedCamera, in our coordinates) is the
+// planned pose to within 1 µm, which is 0.001 model units (ADR 0173 §6). The position is compared
+// directly. The target and the up direction are compared where they land at the planned distance,
+// so a turn of the camera is measured in the same units. The field of view is an angle: its error,
+// times the planned distance, is how far the frame's edge moves at that distance, and it is held to
+// the same 1 µm.
+PoseDeviation verifyRenderedPoses(const QString &output, const std::vector<CameraFrame> &planned) {
+    using Point = std::array<double, 3>;
+    const auto along = [](const Point &from, const Point &direction, double distance) {
+        return Point{from[0] + direction[0] * distance, from[1] + direction[1] * distance,
+                     from[2] + direction[2] * distance};
+    };
+    const auto gap = [](const Point &a, const Point &b) {
+        return std::max({std::abs(a[0] - b[0]), std::abs(a[1] - b[1]), std::abs(a[2] - b[2])});
+    };
+    const auto manifest = QJsonDocument::fromJson(read(output + "/manifest.json")).object();
+    PoseDeviation worst;
+    int checked = 0;
+    for (const auto &presetValue : manifest.value("presets").toArray()) {
+        const auto directory = output + "/" + presetValue.toObject().value("directory").toString();
+        for (size_t index = 0; index < planned.size(); ++index) {
+            const auto name = QString("frame-%1").arg(index + 1, 4, 10, QChar('0'));
+            const auto rendered =
+                QJsonDocument::fromJson(read(directory + "/frames/" + name + ".json"))
+                    .object()
+                    .value("result")
+                    .toObject()
+                    .value("renderedCamera")
+                    .toObject();
+            const auto values = rendered.value("matrix").toArray();
+            check(values.size() == 16, "A frame records the 4 × 4 camera its Blender rendered");
+            const auto cell = [&](int at) { return values[at].toDouble(); };
+            // Columns are the x, y and z axes, then the position (renderCameraTransform's layout).
+            const Point position{cell(12), cell(13), cell(14)}, up{cell(4), cell(5), cell(6)},
+                forward{-cell(8), -cell(9), -cell(10)};
+            const auto expected = renderSceneCamera(planned[index].camera);
+            const auto basis = renderCameraTransform(expected).m;
+            const Point plannedPosition{basis[12], basis[13], basis[14]},
+                plannedUp{basis[4], basis[5], basis[6]};
+            const double distance = std::sqrt(std::pow(expected.target.x - basis[12], 2) +
+                                              std::pow(expected.target.y - basis[13], 2) +
+                                              std::pow(expected.target.z - basis[14], 2));
+            check(rendered.value("projection").toString() ==
+                      (expected.orthographic ? "orthographic" : "perspective"),
+                  "A frame's rendered projection is the planned one");
+            const double positionError = gap(position, plannedPosition);
+            const double targetError =
+                gap(along(position, forward, distance),
+                    {expected.target.x, expected.target.y, expected.target.z});
+            const double upError =
+                gap(along(position, up, distance), along(plannedPosition, plannedUp, distance));
+            const double clippingError =
+                std::max(std::abs(rendered.value("clipStart").toDouble() - expected.nearClip),
+                         std::abs(rendered.value("clipEnd").toDouble() - expected.farClip));
+            worst.position = std::max(worst.position, positionError);
+            worst.target = std::max(worst.target, targetError);
+            worst.up = std::max(worst.up, upError);
+            worst.clipping = std::max(worst.clipping, clippingError);
+            check(positionError <= 0.001, "A frame's rendered position is the planned one to 1 µm");
+            check(targetError <= 0.001,
+                  "A frame's rendered camera looks at the planned target to 1 µm");
+            check(upError <= 0.001, "A frame's rendered up direction is the planned one to 1 µm");
+            check(clippingError <= 0.001, "A frame's rendered clipping range is the planned one");
+            if (!expected.orthographic) {
+                const double fieldOfViewError =
+                    std::abs(rendered.value("angleY").toDouble() - expected.verticalFov) * distance;
+                worst.fieldOfView = std::max(worst.fieldOfView, fieldOfViewError);
+                check(fieldOfViewError <= 0.001,
+                      "A frame's rendered field of view moves its edge less than 1 µm");
+            }
+            ++checked;
+        }
+    }
+    check(checked == int(planned.size()) * manifest.value("presets").toArray().size(),
+          "Every rendered frame of every preset is checked");
+    return worst;
+}
+
+void reportDeviation(const char *label, const PoseDeviation &worst) {
+    std::cout << "Rendered pose, " << label
+              << ", largest deviation over every frame (model units): position " << worst.position
+              << ", target " << worst.target << ", up " << worst.up << ", clipping "
+              << worst.clipping << ", field of view edge " << worst.fieldOfView << "\n";
 }
 // Two batches of one capture write the same frame records, apart from their output folders: the
 // source manifest, the camera, the scene and the keyframe flag of each frame are equal.
@@ -311,6 +377,7 @@ int main(int argc, char **argv) {
                   "The batch manifest pins the capture, timing and preset layout");
             verifyManifest(output, 12);
             verifyPoses(output, capture.frames());
+            reportDeviation("stand-in", verifyRenderedPoses(output, capture.frames()));
             check(QFileInfo(output + "/01-Draft/frames/frame-0001.png").isFile() &&
                       QFileInfo(output + "/02-Check/frames/frame-0006.png").isFile(),
                   "Each preset writes its own numbered frame folder");
@@ -833,6 +900,15 @@ int main(int argc, char **argv) {
                       "rendered. "
                       "Check again, or clear Write video to render the frames only.",
                   "A probe that reports no codec list refuses rather than assuming a codec");
+            // Start's refusal names the codec the batch chose (the dialog shows this text).
+            check(presentationVideoRefusal(PresentationVideoCodec::H264) ==
+                      "H.264 is not in this Blender's FFmpeg build, so no video can be written. "
+                      "Clear Write video to render the frames only.",
+                  "An H.264 batch's Start refusal names H.264");
+            check(presentationVideoRefusal(PresentationVideoCodec::MPEG4) ==
+                      "MPEG-4 Part 2 is not in this Blender's FFmpeg build, so no video can be "
+                      "written. Clear Write video to render the frames only.",
+                  "An MPEG-4 batch's Start refusal names MPEG-4 Part 2, not H.264");
             check(refuse("malformed", PresentationVideoCodec::H264, "refuse-malformed") ==
                       "The video check did not finish. No frames were rendered. Check again, or "
                       "clear "
@@ -1414,12 +1490,17 @@ int main(int argc, char **argv) {
             real.executable = qEnvironmentVariable("SKETCHYUP_BLENDER_TEST");
             real.timeoutMs = 180000;
             const auto before = encodeDocument(doc);
+            // The plan is deterministic, so the planned frames of a second capture are the batch's.
+            const auto plannedFrames = PresentationCapture::capture(doc, plan(keyframes)).frames();
             batch.start(PresentationCapture::capture(doc, plan(keyframes)), files.filePath("real"),
                         real);
             wait(batch);
             check(batch.state() == PresentationJobState::Completed && batch.completedFrames() == 12,
                   "Real Blender completes every planned frame");
             verifyManifest(files.filePath("real"), 12);
+            verifyPoses(files.filePath("real"), plannedFrames);
+            reportDeviation("real Blender",
+                            verifyRenderedPoses(files.filePath("real"), plannedFrames));
             check(encodeDocument(doc) == before, "Real batch leaves the live document unchanged");
             // Real video: an H.264 MP4 per preset that ffprobe reads back; a cancel writes none.
             auto videoPlan = plan(keyframes);

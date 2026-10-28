@@ -7,7 +7,7 @@ Status: **Accepted (2026-10-23)**: owner decisions 1 to 17 approved as recommend
 [ADR 0106](0106-immutable-animation-capture.md) /
 [ADR 0107](0107-native-animation-frame-export.md) (R072), and on the closed
 1.0 gate (R089). This row takes ADR number 0173 because 0172 is reserved for
-the parallel STEP exchange draft. R099.e, the acceptance record ([R099e-presentation.md](../verification/R099e-presentation.md), 2026-10-27), measures §5 and finds the Verify line partly met: eight of the ten §5 rows pass, batch capture fails (1,747 ms p95 against 500 ms) and the preparation row cannot be frozen (no row to compare with). See Implementation notes (R099.e).
+the parallel STEP exchange draft. R099.e, the acceptance record ([R099e-presentation.md](../verification/R099e-presentation.md), 2026-10-27), measures §5 and finds the Verify line partly met: eight of the ten §5 rows pass, batch capture fails (1,747 ms p95 against 500 ms) and the preparation row cannot be frozen (no row to compare with). PR #500 brings batch capture within budget (p95 160 to 183 ms), PR #501 (R099.e2) and R099.e3 close the other findings, and the parent's two §6 wording decisions (P4, P5) are made in Implementation notes (R099.e3): R099 is **Accepted (R099.e)**, with owner decisions 2 to 5 carried to the 1.4.0 release decisions. See Implementation notes (R099.e), (capture encode, §5 budget), (R099.e2) and (R099.e3).
 
 F05 asks for "named camera paths, export controls and batch presentation jobs;
 no requirement for a general character-animation suite". R099 delivers the first
@@ -254,8 +254,9 @@ Consequences for storage (decision 15):
   promise (the ADR 0163 decision-2 rule) is unchanged: a document without
   presentation records still writes schema 29;
 - the reader's feature-set check gains `presentation-v1`; a 1.3.0 (schema 29)
-  writer **refuses a schema 30 file with the new-format error** rather than
-  silently dropping the tables;
+  writer **refuses a schema 30 file** rather than silently dropping the tables
+  (the released readers name the unknown container field, `Unsupported container
+  field`; R099.e3, parent decision P4);
 - the record decoders get the standard validation (canonical IDs, unique names,
   budget) and a libFuzzer target alongside the other record decoders.
 
@@ -409,9 +410,9 @@ Fixtures (in-repo, generated, no third-party data):
 | Cancellation | Cancel at frame *k*: state `canceled`; frames before *k* kept and hash-verified; no video; the manifest complete and bounded |
 | Retry and resume | A failed frame is retried and completes; a force-killed batch reopens `Interrupted` with its log retained and scratch cleaned; `retry` resumes from the first unverified frame; verified frames are not re-rendered (byte-identical, unmodified); a retried batch never rewrites another job's files (the unrelated-job fixture byte-for-byte) |
 | Refusals | Broken path (named reasons), existing destination, symlinked destination, preset list over 4, over-budget frame count, over-budget output (remaining budget in the message), absent Blender. Each leaves no partial directory and no broken manifest |
-| Records | Create, edit, delete round-trip through an undoable edit; Undo restores the encoding bit for bit; over-budget and malformed records refuse at load; save and reopen bit for bit |
-| Schema | Schema 30 documents carry `presentation-v1` and reopen bit for bit; a document without the tables writes schema 29 (the lowest-schema promise); a 1.3.0 writer refuses a schema 30 file with the new-format error; the record decoders pass the libFuzzer target twice per input |
-| Determinism | The same batch on two copies of the document gives identical planned poses, identical per-frame metadata and identical PNG bytes (same Blender, same settings, same seed) |
+| Records | Create, edit, delete round-trip through an undoable edit; Undo restores every byte of the encoding except the revision, which advances (ADR 0005; amended in R099.e3, parent decision); over-budget and malformed records refuse at load; save and reopen bit for bit |
+| Schema | Schema 30 documents carry `presentation-v1` and reopen bit for bit; a document without the tables writes schema 29 (the lowest-schema promise); a 1.3.0 reader refuses a schema 30 file and leaves it unchanged, with the container's `Unsupported container field` error (amended in R099.e3, parent decision P4: the released readers cannot change); the record decoders pass the libFuzzer target twice per input |
+| Determinism | The same batch on two copies of the document gives identical planned poses, identical per-frame metadata (the camera, scene, keyframe flag and source manifest; not the `diagnostics` log, which is Blender's own output from the attempt; amended in R099.e3, parent decision P5) and identical PNG bytes (same Blender, same settings, same seed) |
 
 The acceptance record (R099.e, `docs/verification/R099e-presentation.md` with a
 JSON summary) covers: the Verify line and every check above; the §5 budgets,
@@ -1338,3 +1339,63 @@ branch's history contains its commits, and the PR's diff is this slice alone.
      belong to PR #499, which is open. The record's §7 and §8 should note O6 fixed, the §6 rows met (unrelated jobs,
      destroy the capture, undo encodings with the revision exception, the PNG bytes), and the decisions 7 and 9 taken.
   5. Not run: the 960-frame batch, the Windows and macOS builds, and the sanitizer and native matrices (CI).
+
+## Implementation notes (R099.e3)
+
+Closes the R099.e2 gaps the code could close (the record's §7 and §8, `docs/verification/R099e-presentation.md`). The
+branch is `fix/r099e3-presentation-close`, on `origin/main` with PR #501 merged.
+
+- **Rendered pose within 1 µm (§6, gap 2).** The worker reports the camera it renders with, read after the scene is set
+  up and the view layer is updated (`blender_worker.py`, `rendered_camera`): the active camera's `matrix_world` (16
+  values, column-major, laid out as `renderCameraTransform` lays its transform), the vertical field of view
+  (`angleY`) and the clipping range. The frame's record keeps it under `result.renderedCamera`.
+  - **Axis convention.** The snapshot exporter maps our Z-up to glTF Y-up as (x, y, z) → (x, z, −y) (the "SketchyUp
+    basis" node in `glb_export.cpp`). The glTF importer maps Y-up to Blender's Z-up as (x, y, z) → (x, −z, y). Composed,
+    the two are the identity, so the matrix needs no conversion. Real Blender confirms it: a wrong convention would move
+    the position by a model's size, not by micrometres.
+  - **Check.** `presentation_export_tests` compares each frame's rendered camera with `renderSceneCamera` of its planned
+    pose. The position is compared directly. The target and the up direction are compared where they land at the planned
+    distance. The field of view is compared as the displacement of the frame edge at that distance (its error times the
+    distance). All values are in model units (a millimetre) and must be within 0.001, which is 1 µm.
+  - **Stand-in.** `blender_job_tests`' fake echoes the camera it was given, through `renderCameraTransform` and
+    `parseRenderOptions`, which is the same code the job uses. The echo's deviation is 0.
+  - **Real Blender** (`presentation_export_tests --real`, 12 frames: two presets, three keyframes, the default camera at
+    a distance of 14 model units, yaw changes only). The largest deviation over every frame: position 2.1 × 10⁻⁶,
+    target 1.5 × 10⁻⁶, up 5.6 × 10⁻⁶, clipping 5 × 10⁻¹¹, field-of-view edge 3.1 × 10⁻⁷ model units. All are about 500
+    times under the 0.001 limit. The run passed again with the PNG hashes of R099.e2.
+  - **Recorded camera, bit for bit.** The frame's `camera` is now compared with `describeRenderCamera(renderSceneCamera(plan))`
+    for equality, not within 1 µm. The planner's output is pinned in `camera_motion_tests`. Both the stand-in and the real
+    run pass. Orthographic cameras are in no fixture, so their rendered field of view and scale are not checked; the
+    projection and the matrix are.
+- **`RenderQueue::result()` on a running job (R099.e2, gap 2).** Cause: `result()` recorded every error from the store as
+  the job's own error. The store refuses a result for any job that is not `Completed`, so asking early put a running job
+  into `errors_`, and `jobs()` reported it as `Failed`. The entry outlived the job: a job that finished later still showed
+  as `Failed`. Fix (`render_queue.cpp`): an error is recorded only for a completed job, whose result cannot be read. Any
+  other refusal is thrown and changes nothing. Test (`render_queue_tests`): ask for the result of a running job and of a
+  queued job, require both refused and their states unchanged, then the existing waits for both to finish. Checked: the
+  test fails on the R099.e2 code (at "A refused result leaves the job's state unchanged") and passes with the fix.
+- **MPEG-4 refusal (R099.e2, gap 3).** Start's refusal named H.264 whatever codec the batch chose. `presentationVideoRefusal`
+  (`presentation_store`) names the chosen codec, and the dialog's Start uses it. The H.264 sentence is unchanged. Test
+  (`presentation_export_tests`): the text for both codecs. The dialog cannot reach the MPEG-4 branch through its own UI,
+  because the codec list follows each new answer, so the test checks the text at the function, not through the dialog.
+- **Provenance wording (§6, Provenance).** The results banner's "The model has changed since." was not asserted. Test
+  (`presentation_batch_input_tests`, the completed batch): after a live edit, Show results reads "The model has changed
+  since." It passed offscreen.
+- **§6 undo row (parent decision).** The Records row now reads "every byte of the encoding except the revision, which
+  advances (ADR 0005)". Undo advances the revision, as ADR 0005 requires, so "bit for bit" cannot hold for that field.
+  Amended in place, as R101.f amended V5. The R099.e2 check compares every other byte.
+- **Record-level decisions (parent).** Decision 7: identical PNG bytes are kept, with the stamp off and the PNG text
+  chunks stripped (R099.e2). Decision 9: an over-size request is `LIMIT_EXCEEDED` (R099.e2).
+- **The §6 wording decisions (parent, P4 and P5).** Both rows are amended in place, as the undo row was.
+  1. **Schema (contradiction C2, P4).** The released 1.3.0 CLI refuses a schema-30 file with "Unsupported container
+     field" and leaves it byte for byte unchanged. That binary cannot change, so the row now names the container's
+     wording. The refusal and the unchanged file are what the row protects, and both hold.
+  2. **Determinism, per-frame metadata (P5).** The row now names the fields `verifySameFrames` compares: the camera,
+     scene, keyframe flag and source manifest. `diagnostics` holds Blender's own output from the attempt, with its
+     run times, and is not expected to match between runs.
+  With both made, the Verify line and every §6 row hold, and the status is **Accepted (R099.e)**. Owner decisions 2 to
+  5 (the per-frame preparation row, the whole-batch length, the 250,000-triangle render limit, the byte budgets) are
+  carried to the 1.4.0 release decisions. Decision 8, the live version-6 assistant run, is the corpus run at the 1.4.0
+  RC, which the owner approved on 2026-10-27.
+- **Not run here.** The full CI tier, the sanitizers, the native matrix (X11 and Wayland), and the 960-frame batch. The
+  fast tier runs on the PR.
