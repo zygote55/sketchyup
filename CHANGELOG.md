@@ -11,6 +11,12 @@
   (`$XDG_DATA_HOME/fonts`, `~/.local/share/fonts` and `~/.fonts`) read-only, so a font installed there is found
   as before, and it reads no other file of yours. The helper's locale is C.UTF-8 whatever yours is.
 
+- Outliner rebuilds (D-048): the Outliner no longer rebuilds on edits that do not change what it shows.
+  Its rows and the Tags rows are rebuilt only when a shown name, tag, hierarchy position, hidden, locked or
+  context state, or the viewport's selection, changes. A placement move on a 100,000-face model no longer
+  rebuilds them: its synchronous work drops from about 148 ms to about 37 ms (Release, p50), and the tree
+  keeps its items, selection and scroll across such an edit.
+
 - Edge stroke drawing (R100.f1, [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)):
   `document.style` takes the optional edge stroke (width, opacity, dash and texture), one labelled
   edit per control. While it is on, the profiles draw with its width, opacity and dash, and with its

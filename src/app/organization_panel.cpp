@@ -607,6 +607,43 @@ void OrganizationPanel::showQuantities() {
 void OrganizationPanel::setModelPath(std::function<QString()> path) {
     quantities_->setModelPath(std::move(path));
 }
+// The rows the Outliner shows for each body, and the state each one displays. A transform changes
+// none of these, so it leaves the tree as it is.
+std::vector<OrganizationPanel::EntityRow> OrganizationPanel::entityRows() const {
+    std::vector<EntityRow> rows;
+    rows.reserve(doc_.bodies().size());
+    const auto &selection = view_.selectionState();
+    for (const auto &[id, body] : doc_.bodies()) {
+        const std::string_view kind = body->referenceImage            ? "Reference image"
+                                      : doc_.instances().contains(id) ? "Component"
+                                      : body->kind == BodyKind::Group ? "Group"
+                                                                      : "Geometry";
+        rows.push_back({id, body->parent, body->name,
+                        body->tag ? doc_.tags().at(body->tag)->name : std::string{}, kind,
+                        selection.hidden(doc_, {id, SelectionKind::Body, 0}),
+                        selection.locked(doc_, id), selection.context() == id});
+    }
+    return rows;
+}
+std::vector<OrganizationPanel::TagRow> OrganizationPanel::tagRows() const {
+    std::vector<TagRow> rows;
+    for (const auto &[id, record] : doc_.tags())
+        rows.push_back({id, record->parent, record->name, record->folder, record->visible,
+                        tagVisible(doc_.tags(), id)});
+    return rows;
+}
+// The tree follows the viewport's selection, but a rejected click (a locked entity, say) leaves its
+// row selected until the next rebuild, so the selection is compared as well as the rows.
+bool OrganizationPanel::selectionShown() const {
+    std::set<Id> wanted;
+    for (auto entity : view_.selectionState().entities())
+        if (doc_.bodies().contains(entity.body))
+            wanted.insert(entity.body);
+    std::set<Id> shown;
+    for (auto *item : outliner_->selectedItems())
+        shown.insert(identity(item));
+    return shown == wanted;
+}
 void OrganizationPanel::refresh() {
     if (syncing_)
         return;
@@ -618,6 +655,11 @@ void OrganizationPanel::refresh() {
         knownTags_.clear();
         session_ = doc_.saveStamp();
     }
+    // D-048: a tree is rebuilt only when the rows it shows, or the viewport's selection, changed.
+    auto nextEntities = entityRows();
+    auto nextTags = tagRows();
+    const bool rebuildOutliner = newDocument || nextEntities != shownEntities_ || !selectionShown();
+    const bool rebuildTags = newDocument || nextTags != shownTags_;
     auto rebuild = [&](QTreeWidget *tree, bool tag) {
         const auto previous = items(tree);
         const auto scroll = newDocument ? 0 : tree->verticalScrollBar()->value();
@@ -645,36 +687,29 @@ void OrganizationPanel::refresh() {
         if (tag) {
             auto *untagged = add(0, 0, "Untagged", "Always");
             untagged->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-            for (const auto &[id, record] : doc_.tags()) {
-                auto *item =
-                    add(id, record->parent,
-                        QString::fromStdString(record->name) + (record->folder ? " /" : ""), {});
+            for (const auto &row : nextTags) {
+                auto *item = add(row.id, row.parent,
+                                 QString::fromStdString(row.name) + (row.folder ? " /" : ""), {});
                 item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-                item->setCheckState(1, record->visible ? Qt::Checked : Qt::Unchecked);
-                item->setToolTip(1, tagVisible(doc_.tags(), id) ? "Visible"
-                                                                : "Hidden by tag or folder");
+                item->setCheckState(1, row.visible ? Qt::Checked : Qt::Unchecked);
+                item->setToolTip(1, row.effective ? "Visible" : "Hidden by tag or folder");
             }
         } else {
-            for (const auto &[id, body] : doc_.bodies()) {
-                const auto &selection = view_.selectionState();
+            for (const auto &row : nextEntities) {
                 QString state;
-                if (selection.hidden(doc_, {id, SelectionKind::Body, 0}))
+                if (row.hidden)
                     state += "H";
-                if (selection.locked(doc_, id))
+                if (row.locked)
                     state += "L";
-                if (selection.context() == id)
+                if (row.context)
                     state += " •";
-                const auto kind = body->referenceImage            ? "Reference image"
-                                  : doc_.instances().contains(id) ? "Component"
-                                  : body->kind == BodyKind::Group ? "Group"
-                                                                  : "Geometry";
-                auto *item = add(id, body->parent,
-                                 QString::fromStdString(body->name) + " #" + sid(id), state);
+                auto *item = add(row.id, row.parent,
+                                 QString::fromStdString(row.name) + " #" + sid(row.id), state);
                 item->setToolTip(
-                    0, QString(kind) + " · " +
-                           (body->tag ? QString::fromStdString(doc_.tags().at(body->tag)->name)
-                                      : "Untagged") +
-                           "\nEnter/double-click to edit this context. H: hidden, L: locked.");
+                    0,
+                    QString::fromUtf8(row.kind.data(), qsizetype(row.kind.size())) + " · " +
+                        (row.tag.empty() ? QString("Untagged") : QString::fromStdString(row.tag)) +
+                        "\nEnter/double-click to edit this context. H: hidden, L: locked.");
             }
         }
         for (const auto &[id, item] : rows) {
@@ -704,9 +739,15 @@ void OrganizationPanel::refresh() {
         for (const auto &[id, item] : rows)
             known.insert(id);
     };
-    rebuild(outliner_, false);
-    rebuild(tags_, true);
-    filter();
+    if (rebuildOutliner) {
+        rebuild(outliner_, false);
+        shownEntities_ = std::move(nextEntities);
+        filter();
+    }
+    if (rebuildTags) {
+        rebuild(tags_, true);
+        shownTags_ = std::move(nextTags);
+    }
     syncing_ = false;
     info_->refresh();
     materials_->refresh();
