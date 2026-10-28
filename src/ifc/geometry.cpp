@@ -4,9 +4,11 @@
 #include <cmath>
 #include <csignal>
 #include <cstdlib>
+#include <exception>
 #include <memory>
 #include <sstream>
 #include <thread>
+#include <tuple>
 #include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -444,6 +446,42 @@ void diagnoseTasks(RunInputs& in, const std::vector<std::vector<int>>& tasks, bo
   }
 }
 
+// The library's messages of one attempt. Its worker threads (four by default) append to the log while the
+// iterator runs: initialize() starts them and returns once the first element is ready. So the log is read
+// only where no worker thread can append: right after the iterator is constructed, and when the attempt
+// ends, after the iterator is destroyed (which joins the threads). Reading in between lost messages and read
+// some half-written ones (ADR 0171, implementation notes of 2026-10-27): a lost GEO191 changed the geometry of
+// some three-thread imports.
+class LibraryMessages {
+public:
+  LibraryMessages(const ifcopenshell::logger& log, std::vector<LibraryMessage>& out) : log_(log), out_(out) {}
+  LibraryMessages(const LibraryMessages&) = delete;
+  LibraryMessages& operator=(const LibraryMessages&) = delete;
+  // Copies the messages logged since the last call.
+  void take() {
+    const auto& list = log_.log_messages();
+    for (; taken_ < list.size(); ++taken_) {
+      const auto& message = list[taken_];
+      LibraryMessage m;
+      m.severity = severityName(message.severity);
+      m.code = std::string(message.code);
+      m.text = message.message;
+      m.instance = stepFromReference(message.instance);
+      m.product = stepFromReference(message.product);
+      out_.push_back(std::move(m));
+    }
+  }
+  ~LibraryMessages() noexcept(false) {
+    // An attempt that unwinds with an exception has no use for its messages.
+    if (std::uncaught_exceptions() == 0) take();
+  }
+
+private:
+  const ifcopenshell::logger& log_;
+  std::vector<LibraryMessage>& out_;
+  std::size_t taken_{0};
+};
+
 // One pass of the iterator over the products matching `include`/`exclude`; elements are added to
 // `result` (replacing earlier ones of the same product when `replace`).
 void iteratePass(RunInputs& in, GeometryResult& result, bool disableOpenings, const std::set<int>* onlyHosts,
@@ -519,11 +557,15 @@ void iteratePass(RunInputs& in, GeometryResult& result, bool disableOpenings, co
         injectFault(options.testFault, tasks.front());
       }
     }
+    // Declared before the iterator, so that it runs after the iterator is destroyed: see LibraryMessages.
+    LibraryMessages libraryMessages(log, messages);
     std::unique_ptr<geom::iterator> iterator;
     bool initialized = false;
     try {
       iterator = std::make_unique<geom::iterator>(geom::kernels::construct(&in.file, options.kernel, settings, log),
                                                   settings, &in.file, filters, threads, log);
+      // The constructor logs the units, and no worker thread exists yet: these are read now.
+      libraryMessages.take();
       initialized = iterator->initialize();
     } catch (const std::exception& problem) {
       result.refusalCode = "geometryUnavailable";
@@ -531,28 +573,6 @@ void iteratePass(RunInputs& in, GeometryResult& result, bool disableOpenings, co
       return;
     }
     result.initialized = result.initialized || initialized;
-    for (const auto& message : log.log_messages()) {
-      LibraryMessage m;
-      m.severity = severityName(message.severity);
-      m.code = std::string(message.code);
-      m.text = message.message;
-      m.instance = stepFromReference(message.instance);
-      m.product = stepFromReference(message.product);
-      messages.push_back(std::move(m));
-    }
-    const auto drainLog = [&](std::size_t from) {
-      const auto& list = log.log_messages();
-      for (std::size_t i = from; i < list.size(); ++i) {
-        LibraryMessage m;
-        m.severity = severityName(list[i].severity);
-        m.code = std::string(list[i].code);
-        m.text = list[i].message;
-        m.instance = stepFromReference(list[i].instance);
-        m.product = stepFromReference(list[i].product);
-        messages.push_back(std::move(m));
-      }
-    };
-    std::size_t drained = log.log_messages().size();
     if (!initialized) {
       // The query matched no representation: retry once with the library's default selection (it
       // also takes only the Body representation of the Model context) and say so.
@@ -685,7 +705,6 @@ void iteratePass(RunInputs& in, GeometryResult& result, bool disableOpenings, co
       throw;  // resource exhaustion ends the run: the application restarts it without the element at fault
     }
     in.progress.done(handled);
-    drainLog(drained);
     return;
   }
 }
@@ -702,6 +721,13 @@ GeometryResult runGeometry(ifcopenshell::file& file, const Model& model, const s
   RunInputs in{file, model, expected, options, report, progress, colours};
   std::vector<LibraryMessage> messages;
   iteratePass(in, result, false, nullptr, messages, true);
+  // With several threads the library's messages arrive in the order the conversions finish. Sorted, the report
+  // and the failure reasons do not depend on that order; one thread keeps the library's order.
+  if (options.threads > 1)
+    std::stable_sort(messages.begin(), messages.end(), [](const LibraryMessage& a, const LibraryMessage& b) {
+      return std::tie(a.code, a.severity, a.text, a.product, a.instance) <
+             std::tie(b.code, b.severity, b.text, b.product, b.instance);
+    });
   if (!result.refusalCode.empty()) return result;
 
   // Hosts and their openings, as the messages show them.
