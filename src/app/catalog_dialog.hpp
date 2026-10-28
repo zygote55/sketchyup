@@ -5,6 +5,7 @@
 // undo step, checked first by the engine's shared dry run. A refused insert opens the
 // missing-dependency report. The dialog never changes a catalog file. A catalog that cannot be read
 // is listed as refused, and its entries are never inserted.
+#include "automation/catalog_commands.hpp"
 #include "core/model.hpp"
 #include "io/catalog_io.hpp"
 
@@ -58,7 +59,9 @@ class CatalogDialog : public QDialog {
     const CatalogSource *sourceAt(const QString &path) const;
     bool matches(const CatalogSource &source, const CatalogEntryReport &entry) const;
     std::vector<Ref> chosen() const;
-    QJsonArray commands(const std::vector<Ref> &refs) const;
+    // The batch for `refs`. A library catalog is named; any other is passed as the package listed
+    // when it was opened, under a key of `opened`, so its bytes are not sent and decoded again.
+    QJsonArray commands(const std::vector<Ref> &refs, OpenedCatalogs &opened) const;
     QString insertLabel(const std::vector<Ref> &refs) const;
 
     void refreshLibrary();

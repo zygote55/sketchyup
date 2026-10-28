@@ -505,6 +505,76 @@ void missingDependencies() {
           "A name shared by two entries is refused, not chosen");
 }
 
+// The opened form (the desktop dialog's dry runs, ADR 0174 section 4) gives each entry the verdict
+// the library form gives for the same file: it commits, or it is refused with the same message. A
+// request names an opened catalog only with the catalogs in hand.
+void openedForm() {
+    const auto folder = libraryFolder();
+    writeFile(folder + "/opened-missing.sketchycat", fixtures().value("missing-dependency"));
+    writeFile(folder + "/opened-tampered.sketchycat", fixtures().value("tampered-asset"));
+    writeFile(folder + "/opened-entry.sketchycat", fixtures().value("tampered-entry"));
+    writeFile(folder + "/opened-basic.sketchycat", fixtures().value("basic"));
+
+    // The verdict of one dry run: empty when the batch would commit, else the refusal's message.
+    const auto verdict = [](Document &doc, const QJsonObject &command,
+                            const OpenedCatalogs *opened) {
+        try {
+            previewBatch(doc, batchRequest(doc, QJsonArray{command}), opened);
+        } catch (const std::exception &error) {
+            return std::string(error.what());
+        }
+        return std::string();
+    };
+    const auto openedImport = [](const char *entry) {
+        return QJsonObject{
+            {"command", "catalog.import"}, {"opened", "1"}, {"entries", names({entry})}};
+    };
+    struct Case {
+        const char *library;
+        const char *entry;
+    };
+    const std::array<Case, 6> cases{{{"opened-missing", "Oak"},
+                                     {"opened-missing", "Oak tint"},
+                                     {"opened-tampered", "Oak tint"},
+                                     {"opened-tampered", "Block"},
+                                     {"opened-entry", "Plain edges"},
+                                     {"opened-basic", "Starting room"}}};
+    int insertable = 0, refused = 0;
+    for (const auto &c : cases) {
+        OpenedCatalogs opened;
+        opened.emplace("1", loadCatalog(folder + "/" + c.library + ".sketchycat"));
+        Document byLibrary = authored().doc;
+        Document byOpened = authored().doc;
+        const auto library =
+            verdict(byLibrary, importCommand(names({c.entry}), c.library), nullptr);
+        const auto openedVerdict = verdict(byOpened, openedImport(c.entry), &opened);
+        check(library == openedVerdict, std::string("The opened and library forms agree on ") +
+                                            c.entry + ": '" + library + "' and '" + openedVerdict +
+                                            "'");
+        if (library.empty())
+            ++insertable;
+        else
+            ++refused;
+    }
+    check(insertable == 2 && refused == 4, "The cases cover insertable and refused entries");
+
+    Document target = authored().doc;
+    OpenedCatalogs held;
+    held.emplace("1", loadCatalog(folder + "/opened-basic.sketchycat"));
+    check(verdict(target, openedImport("Block"), &held).empty(),
+          "An opened catalog's insertable entry commits in a dry run");
+    check(verdict(target, openedImport("Block"), nullptr).find("Unknown command parameter") !=
+              std::string::npos,
+          "A batch from MCP or the CLI cannot name an opened catalog");
+    auto unknown = openedImport("Block");
+    unknown["opened"] = "2";
+    check(verdict(target, unknown, &held).find("not open") != std::string::npos,
+          "A key the caller does not hold is refused");
+    check(rejection([&] { catalogReference(QJsonObject{{"opened", "1"}}); }, "opened, no map")
+                  .find("not open") != std::string::npos,
+          "catalog.list and the CLI cannot name an opened catalog");
+}
+
 // Every refusal leaves the document, its revision and its history as they were.
 void refusalsLeaveDocumentUnchanged() {
     Document target = authored().doc;
@@ -625,6 +695,7 @@ int main() {
         relocation();
         missingDependencies();
         equalHashDifferentPayload();
+        openedForm();
         refusalsLeaveDocumentUnchanged();
         exportRefusals();
         commandSurface();

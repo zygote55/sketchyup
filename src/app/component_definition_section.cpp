@@ -44,9 +44,9 @@ QJsonObject batch(const Document &doc, const QJsonArray &commands, const QString
     return request;
 }
 } // namespace
-QJsonObject dryRun(const Document &doc, const QJsonArray &commands) {
+QJsonObject dryRun(const Document &doc, const QJsonArray &commands, const OpenedCatalogs *opened) {
     try {
-        previewBatch(doc, batch(doc, commands, {}));
+        previewBatch(doc, batch(doc, commands, {}), opened);
         return {};
     } catch (const std::exception &error) {
         auto result = failure(error);
@@ -56,10 +56,10 @@ QJsonObject dryRun(const Document &doc, const QJsonArray &commands) {
         return result;
     }
 }
-QJsonObject publish(Document &doc, Viewport &view, const QJsonArray &commands,
-                    const QString &label) {
+QJsonObject publish(Document &doc, Viewport &view, const QJsonArray &commands, const QString &label,
+                    const OpenedCatalogs *opened) {
     view.cancel();
-    auto result = executeBatch(doc, batch(doc, commands, label));
+    auto result = executeBatch(doc, batch(doc, commands, label), BatchResponse::Full, opened);
     view.refresh();
     emit view.changed();
     return result;

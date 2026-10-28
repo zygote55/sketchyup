@@ -724,6 +724,67 @@ void refusedInsertReport(Window &window, const QTemporaryDir &files,
     undo(window)->trigger();
 }
 
+// ADR 0174 section 4 (R100.g F-1): a catalog opened with Open catalog file… gives the same Insert
+// state and reason as the same file in the library, for each selection; and an insert from it is
+// one undo step. The engine's dry run decides both (the dialog passes the catalog it listed).
+void outsideAndLibraryInserts(Window &window, const QTemporaryDir &files,
+                              const QMap<QString, QByteArray> &fixtures) {
+    const std::vector<QStringList> selections{{"Oak tint"}, {"Oak"}, {"Oak", "Oak tint"}};
+    // The Insert button's state and reason for each selection in turn.
+    const auto readInserts = [&](QDialog &dialog) {
+        auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+        auto *insert = child<QPushButton>(dialog, "catalogInsert");
+        auto *reason = child<QLabel>(dialog, "catalogInsertReason");
+        std::vector<QString> states;
+        for (const auto &selection : selections) {
+            selectOnly(*list, selection, kBasic);
+            states.push_back(
+                QStringLiteral("%1 | %2 | %3")
+                    .arg(insert->isEnabled() ? QStringLiteral("on") : QStringLiteral("off"),
+                         insert->text(), reason->text()));
+        }
+        return states;
+    };
+
+    resetLibrary(files, fixtures, {"missing-dependency"});
+    std::vector<QString> library;
+    catalogDialog(window, [&](QDialog &dialog) { library = readInserts(dialog); });
+
+    resetLibrary(files, fixtures, {});
+    const auto opened = files.path() + "/outside/missing-dependency.sketchycat";
+    writeFile(opened, fixtures.value("missing-dependency"));
+    const auto steps = history(window);
+    const auto definitions = window.document().definitions().size();
+    std::vector<QString> outside;
+    catalogDialog(
+        window,
+        [&](QDialog &dialog) {
+            modal([&] { child<QPushButton>(dialog, "catalogOpen")->click(); },
+                  [&](QDialog &chooser) { chooseFile(chooser, opened); });
+            auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+            check(group(*list, kBasic), "The opened catalog is listed");
+            outside = readInserts(dialog);
+            auto *insert = child<QPushButton>(dialog, "catalogInsert");
+            selectOnly(*list, {"Block"}, kBasic);
+            check(insert->isEnabled() && insert->text() == "Insert component",
+                  "An entry of the opened catalog is insertable");
+            insert->click();
+        },
+        false);
+
+    check(outside.size() == library.size() && outside == library,
+          "The opened and library forms give the same Insert state and reason for each selection");
+    check(library[0].startsWith("on | "), "The insertable selection is on in the library form");
+    check(library[1].startsWith("off | ") && library[1].contains("Asset 9 is not in this catalog"),
+          "The refused selection is off, with its reason, in the library form");
+    check(library[2].startsWith("off | "), "A selection with a refused entry is off");
+    check(history(window) == steps + 1, "The insert from the opened catalog is one undo step");
+    check(window.document().definitions().size() == definitions + 1,
+          "The insert from the opened catalog adds its component");
+    undo(window)->trigger();
+    check(history(window) == steps, "Undo removes the insert from the opened catalog");
+}
+
 // §18.5, §18.7: the Export asset catalog dialog writes the chosen records as a new file. The model
 // is not changed, nothing can be exported with nothing chosen, and an existing file is refused.
 void exportAssetCatalog(Window &window, const QTemporaryDir &files) {
@@ -1830,6 +1891,7 @@ int main(int argc, char **argv) {
         oneComponentUndoStep(window, files, fixtures);
         keyboardReachability(window, files, fixtures);
         refusedInsertReport(window, files, fixtures);
+        outsideAndLibraryInserts(window, files, fixtures);
         exportAssetCatalog(window, files);
         largeText(files, fixtures);
         selectionBudget(window, files);

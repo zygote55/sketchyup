@@ -2,6 +2,7 @@
 #include "app/collapsible_section.hpp"
 #include "app/parameter_messages.hpp"
 #include "app/viewport.hpp"
+#include "automation/catalog_commands.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
 #include <functional>
@@ -26,12 +27,14 @@ Scope scopeOf(const Document &doc, const Viewport &view);
 QJsonObject query(const Document &doc, const QString &name, QJsonObject fields);
 // {code, message, details} of a refusal (a plain exception has only a message).
 QJsonObject failure(const std::exception &error);
-// The refusal of a dry run of `commands`, or an empty object when they would commit.
-QJsonObject dryRun(const Document &doc, const QJsonArray &commands);
+// The refusal of a dry run of `commands`, or an empty object when they would commit. `opened` is
+// the catalogs the commands name by key (the catalog dialog's), if any.
+QJsonObject dryRun(const Document &doc, const QJsonArray &commands,
+                   const OpenedCatalogs *opened = nullptr);
 // Commits `commands` as one entry labelled `label`, then refreshes the viewport and reports
 // the change. Throws on refusal.
-QJsonObject publish(Document &doc, Viewport &view, const QJsonArray &commands,
-                    const QString &label);
+QJsonObject publish(Document &doc, Viewport &view, const QJsonArray &commands, const QString &label,
+                    const OpenedCatalogs *opened = nullptr);
 // "Add parameter Width": the label cut to 64 UTF-8 bytes with "…" (ADR 0166 §1.4).
 QString historyLabel(const QString &verb, const QString &label);
 // The definition member a scene record of the scope placement shows, or 0.
