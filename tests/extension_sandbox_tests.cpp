@@ -3,9 +3,9 @@
 //   under each of
 //     the stdio setups (pipes, files, a pseudo-terminal for stdout) and for stdout as /dev/null
 //     (exit 0), and for a request padded to 300 KiB;
-//   - the attack probes under the policy: socket is EPERM (R109 S6), execve and fork are killed with SIGSYS, abort is
-//     SIGABRT, /etc/passwd and a file outside the worker's directory are EACCES, and the locale can
-//     be read;
+//   - the attack probes under the policy: socket is EPERM (R109 S6), execve and fork are killed
+//     with SIGSYS, abort is SIGABRT, /etc/passwd and a file outside the worker's directory are
+//     EACCES, and the locale can be read;
 //   - a layer that cannot be installed refuses with sandboxUnavailable: simulated in process, and
 //   for the real
 //     worker under a filter that refuses the layer's calls (ADR 0183 section 6.7);

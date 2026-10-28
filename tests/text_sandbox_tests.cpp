@@ -3,8 +3,8 @@
 //   unsandboxed in
 //     a child process, for the Latin requests and for a large one; the mixed-script request
 //     returns;
-//   - the attack probes under the policy: socket is EPERM (R109 S6), execve is killed with SIGSYS, fork is EPERM,
-//   abort is
+//   - the attack probes under the policy: socket is EPERM (R109 S6), execve is killed with SIGSYS,
+//   fork is EPERM, abort is
 //     SIGABRT, /etc/passwd and a file outside the private directory are EACCES, and the fontconfig
 //     configuration can be read;
 //   - a layer that cannot be installed refuses with sandboxUnavailable and no reply geometry:

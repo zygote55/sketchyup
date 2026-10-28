@@ -293,7 +293,7 @@ One slice per helper, after a shared slice. Each slice records its measured numb
 - **S3, text (`src/text/worker_main.cpp`, `src/text/text_worker.cpp`).** Apply in `main` before `QGuiApplication`. Set `HOME`, `XDG_*` and `TMPDIR` to the private directory (`text_worker.cpp:188–190`). Allow-list of 27. Gate: Latin requests identical; the mixed request returns 0.
 - **S4, extension (`src/automation/extension_worker_main.cpp`).** Apply at the top of `main`. Allow-list of 17, no write rule. Gate: panel fixture identical under all three stdio setups.
 - **S5, Blender job (`src/integrations/blender_job.cpp`).** Build the BPF program and the Landlock descriptors before the fork. The child modifier issues only syscalls, then `exec`s Blender. Environment: `ALSOFT_DRIVERS=null`, `HOME`, `XDG_*` and `TMPDIR` to the attempt directory (`blender_job.cpp:568–578`). Add `--offline-mode` (line 583–586). Allow-list of 58 and the rules in §5. Gate: probes identical and the render writes a PNG through the launcher path; `/bin/sh` refused; the negative control dies.
-- **S6, CI.** The required `sandbox_available` check, the fast-tier probe and one-per-helper checks, and the nightly coverage and trace check. Decide the 24.04 and 26.04 behaviour after the first run on each.
+- **S6, CI.** Built: the required `sandbox_available` check, the per-helper selection in the path map, and the sanitized `sandbox` suite. The nightly trace check was not built; the nightly runs the full tier (see Implementation notes (R109 S6)). The 24.04 and 26.04 behaviour is still to be measured on those runners.
 
 No slice starts before the owner accepts this ADR. Slices S1 to S5 can run in any order after S0. S6 needs at least S0.
 
@@ -639,6 +639,56 @@ The path `/usr/sbin/blender` was not the cause: the layout is already canonicali
 2. **The stand-in's libraries.** The stand-in exited with status 127 (`libsketchyup_render.so: cannot open shared object file`) before its own code ran, with no SECCOMP line. The Blender policy grants no read of the build tree, and the stand-in's loader opens the libraries after the policy is in force. S1 and S2 do not meet this, because their sandbox is applied inside the helper, after its loader has run. Under `SKP_WORKER_NO_ADDRESS_LIMIT` the policy now grants read-only on `QCoreApplication::applicationDirPath()` (the build tree, which contains the sanitized libraries). Release links the libraries into each executable, and its policy has no such grant.
 3. **LeakSanitizer.** Its exit check uses `ptrace`, which the policy refuses (SIGSYS). `__lsan_default_options` returning `detect_leaks=0` is in the test code of `blender_job_tests` (the stand-in is this binary) and of `blender_sandbox_tests` (its probe children exit under the policy). It is not in the product. As a result, leak checking is off for these two test binaries in sanitizer builds.
 
-The `ptrace` and `socket` kills that remain in `blender_sandbox_tests` are the intended probes: the ptrace attack and the negative control. The stand-in's `ptrace` is its `sandboxViolation` mode. Results on this machine: the sanitize `ctest` of the seven suites passes 7 of 7; the release `blender_job` and `blender_sandbox` pass 2 of 2. The release policy's calls and grants are unchanged. After the merge of `origin/main` (S3 and S4), the S0 suite `sandbox` passes in release but fails under ASan: its forked children are killed by `sigaltstack`, as above. CI does not run `sandbox` sanitized (only `skp_sandbox`, `text_sandbox` and `extension_sandbox` are), so this is not a CI failure, and the S0 policy has no sanitizer-only set.
+The `ptrace` and `socket` kills that remain in `blender_sandbox_tests` are the intended probes: the ptrace attack and the negative control. The stand-in's `ptrace` is its `sandboxViolation` mode. Results on this machine: the sanitize `ctest` of the seven suites passes 7 of 7; the release `blender_job` and `blender_sandbox` pass 2 of 2. The release policy's calls and grants are unchanged. After the merge of `origin/main` (S3 and S4), the S0 suite `sandbox` passes in release but fails under ASan: its forked children are killed by `sigaltstack`, as above. CI does not run `sandbox` sanitized (only `skp_sandbox`, `text_sandbox` and `extension_sandbox` are), so this is not a CI failure, and the S0 policy has no sanitizer-only set. (Superseded by R109 S6: `sandbox` runs sanitized now, and its policies have a sanitizer-only set.)
 
 **The presentation batch suite (added 2026-10-27).** `presentation_batch_input` (R099.d3, #484) ran its fake Blender as a `/bin/sh` launcher. The Blender policy grants execute on the stand-in only, so the job's child failed to start: `START_FAILED`, "Child process set up failed: execve: Permission denied". The probe never answered, and the suite's 60 s wait failed. No `type=1326` line is logged for it, because Landlock refuses the exec with EACCES, not seccomp. The suite now makes its stand-ins with the helpers of `tests/blender_stand_in.hpp`, as the other suites do. Its unsaved-changes prompt finds the Discard button by its standard role: under the gtk3 platform theme (this machine) the button reads "Close without Saving", and a text match left the prompt open until the 900 s deadline. The policy is unchanged. A real Blender is an ELF binary, which the policy grants, so it is not refused.
+
+## Implementation notes (R109 S6)
+
+Recorded 2026-10-28 on branch `feat/r109s6-sandbox-ci`, based on `origin/main` at `6149f271` (S5, #494). This section covers the required check, the per-helper selection, the sanitized `sandbox` suite, the socket rule and the closing records. Where it differs from the sections above, it says so.
+
+**The required check.** `tests/sandbox_available_tests.cpp` (CTest `sandbox_available`) checks, in order: the kernel and machine, which it logs; the Landlock ABI, read with the version flag; the seccomp actions the policies use (`kill_process`, `errno` and `allow`); `PR_SET_NO_NEW_PRIVS`, accepted and read back; and one whole install in a child, with a policy that allows only `openat`, after which `open("/")` must fail with `EACCES`. A layer that cannot be installed is named on stderr, and the child exits 70. The test never skips. It takes about 0.01 s.
+
+CI runs it as the step `Sandbox availability (required)` in the `fast` job, in shard 1 of 5 (`strategy.job-index == 0`), before that shard's tests. The shard lines exclude it from their `--tests-regex`, so it runs once. A failure fails `fast`, which `CI verdict` requires. The full tier runs it in the `build` job's `ctest --preset dev`.
+
+Choice: the `fast` job runs only when the plan sets `build`, which happens when a changed path maps to the build area. A pull request the plan sends to no fast tier (docs only) does not run the check, as no other fast-tier check runs there (ADR 0170). The owner may want it on every pull request; that costs one short job.
+
+Measured here (Arch host, kernel `7.2.8-9-omarchy`, x86_64): Landlock ABI 10, all three seccomp actions, `PR_SET_NO_NEW_PRIVS` accepted, and the install refuses the open. The CI runner's kernel and ABI are not known yet. The step runs with `-V`, so its job log records both.
+
+**Per-helper suites.** The path map's rule for `src/sandbox/**` and `tests/sandbox*` selects the build, native, blender, `job:ifc`, `job:skp` and `job:sanitize` areas (`ci-plan.py areas src/sandbox/sandbox.cpp`). `ci-plan.py check` holds, including the example "R109 S6: the sandbox library selects every helper's sandbox suite". The suites that run under those areas:
+
+- `skp_sandbox`: the fast build, and the SKP job (release and sanitized);
+- `ifc_sandbox`: the IFC job, in the pinned image;
+- `text_sandbox` and `extension_sandbox`: the fast build and the sanitized build;
+- `blender_sandbox`: the fast build (with stand-ins), the sanitized build and the Blender job, which also runs `blender_sandbox_real` on Blender itself.
+
+**Nightly coverage (ADR §10).** Decision: no new nightly job. The nightly schedule (`cron: "23 6 * * *"`) runs the full tier, and the full tier already runs each helper's sandbox suite on its committed inputs (above), and the real Blender probes in the Blender job. The trace check that §10 asked for was not built, because the observe mode it needed does not exist (§4.5). Part of what it would have caught is covered: a call outside a helper's list ends the helper, so a stale list fails the suite for any call the suite makes. A call that no suite makes is not covered.
+
+**The sanitized `sandbox` suite.** The S0 note above says this suite fails under ASan and is not in the sanitize line. That is no longer true. `sandbox_tests` is in the sanitize build and in the sanitize CTest line. The fixes are in test code only:
+
+- `sanitizerRuntime()` in `tests/sandbox_tests.cpp` is added to every policy the suite builds, behind `SKP_WORKER_NO_ADDRESS_LIMIT`: `pipe2`, `sigaltstack`, `madvise`, `gettid` and `sched_getaffinity`. `fcntl` is not in that set, because the argument-filter checks need every other `fcntl` command refused.
+- The thread-only check also allows `fcntl` with `F_SETFD`, `F_GETFL` and `F_SETFL`, the three commands the text helper allows. ASan's thread start calls `fcntl`.
+- `sandbox_available` allows `sigaltstack` in its install check, behind the same macro.
+- The calls were found in the kernel audit log, where each seccomp kill is one `type=1326` line with its syscall number: `gettid` (186), `sched_getaffinity` (204), `fcntl` (72) and `sigaltstack` (131). After these fixes the sanitized runs log only the intended kills: the `getpid` check of the kill default, and the `execve`, `fork`, `socket` and `ptrace` probes.
+
+**`sched_yield` in the S3 and S4 helpers.** Not added. The IFC helper needed `sched_yield` when four threads contend (#496). In this branch's sanitized runs, the text and extension suites, and every other sandbox suite, logged no `sched_yield` (syscall 24) record. If a sanitized CI run logs one, add it behind `SKP_WORKER_NO_ADDRESS_LIMIT` to `src/text/sandbox_policy.cpp` and `src/automation/extension_sandbox_policy.cpp`, and record it here.
+
+**The socket rule (S1, S3 and S4).** Socket calls are refused with EPERM in every helper (decision 1 above). The `.skp` policy changes from S1's kill to EPERM. The text and extension policies change too, from the kill default that S3 and S4 left them with. `skp_sandbox`, `text_sandbox` and `extension_sandbox` check the return value (EPERM, not a signal). An EPERM refusal is not logged; only a kill is.
+
+**Record and observe modes (§4.5 and §11 S0).** These were designed and not built. The ADR text is corrected in §4.5, §8 and the S0 entry of §11. A refused call is found in the kernel's audit log: `journalctl -k | grep type=1326` lists each seccomp kill with the process (`comm`, `exe`), the signal and the syscall number. Only kills are logged, so a call the policy refuses with EPERM does not appear there.
+
+**Corrections owed.** Checked in this branch and on `main`: ADR 0171 (§1.6, decision 19, and the later references to "later hardening") names ADR 0183 as the sandbox; ADR 0176 (§1, decision 2, and the `tooLarge` reason that #470 fixed) and ADR 0136 (lines 24–27) are updated in S1 and S4. ADR 0180 says its §3.2, §3.3 and §3.5 corrections are moot until DWG is reopened.
+
+**Measured results (2026-10-28, local).**
+
+- Release (`build/release`): 6 of 6 suites pass (`sandbox`, `sandbox_available`, `skp_sandbox`, `text_sandbox`, `extension_sandbox`, `blender_sandbox`), 3.7 s in CTest.
+- Sanitized (ASan and UBSan, `build/sanitize`, under the 10 GB cgroup cap): the same 6 pass, 55 s in CTest, of which `text_sandbox` is 48 s.
+- Pinned image (`sketchyup-ci-pinned:r097a-ifc`, the `ifc-app` preset, which is the `ci-fast` configuration CI uses): `ifc_sandbox` passes in 17.1 s. The IfcOpenShell prefix came from the cache for pin `7ba70197`, and `mold` was installed in the container with pacman, as CI does.
+- `blender_sandbox` passes with its stand-ins. `blender_sandbox_real` is skipped here, because this host has no Blender. The Blender job runs it in CI.
+
+**Gaps.**
+
+- The CI runner's kernel and Landlock ABI are not known until the first fast-tier run on this branch. The step prints them.
+- The 24.04 and 26.04 behaviour (the S6 bullet of §11) is not measured. There is no such runner here.
+- `ifc_sandbox` ran in the `ifc-app` configuration only, which is how CI runs it. The IFC helper's sanitized build does not run it.
+- The full-ci run was not waited for.

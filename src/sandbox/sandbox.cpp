@@ -47,9 +47,10 @@ std::optional<Failure> PreparedPolicy::enter() noexcept {
         return Failure{Layer::landlock, EBADF};
     if (auto failure = restrictWithRuleset(impl_->rulesetFd))
         return failure;
-    // Once the ruleset is in force its descriptor is not needed. It is closed here, before the filter,
-    // so that no call after the filter is installed is the policy's to allow (R109 S6: the destructor
-    // used to close it after the filter, and a policy without close was killed by its own apply()).
+    // Once the ruleset is in force its descriptor is not needed. It is closed here, before the
+    // filter, so that no call after the filter is installed is the policy's to allow (R109 S6: the
+    // destructor used to close it after the filter, and a policy without close was killed by its
+    // own apply()).
     ::close(impl_->rulesetFd);
     impl_->rulesetFd = -1;
     if (simulated && simulated->layer == Layer::seccomp)

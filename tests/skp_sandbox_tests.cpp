@@ -231,9 +231,8 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
     };
 
     Outcome socketCall = inChild(scratch + "/attack-socket.out", armed([] {
-                                     return (socket(AF_INET, SOCK_STREAM, 0) == -1 && errno == EPERM)
-                                                ? 0
-                                                : 1;
+                                     const int fd = socket(AF_INET, SOCK_STREAM, 0);
+                                     return (fd == -1 && errno == EPERM) ? 0 : 1;
                                  }));
     check(!socketCall.signaled && socketCall.code == 0,
           "the sandboxed helper cannot create a socket (EPERM, R109 S6)");
