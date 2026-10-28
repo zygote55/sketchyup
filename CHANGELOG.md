@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Blender job sandbox (R109 S5, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)): the Blender
+  render, preview, encode and handoff run under the helper sandbox. Blender may read its own install, the
+  system libraries and its data, and may write only in the job's attempt directory. It has no network
+  (sockets are refused), no audio server (`ALSOFT_DRIVERS=null`), a private home and temporary directory,
+  and `--offline-mode`. It may execute only Blender. A sandbox violation is reported as such and is not
+  retried. A sandbox that cannot be installed refuses the render, named, and Blender does not start.
 - Helper process sandbox, text and extension (R109 S3 and S4, [ADR 0183](docs/decisions/0183-helper-process-sandbox.md)):
   the text helper that outlines glyphs and the extension worker that resolves an extension's action now run
   under the sandbox. They can read only the system files they need (fonts and their configuration for the text

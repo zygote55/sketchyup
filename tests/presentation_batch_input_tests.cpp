@@ -1,8 +1,8 @@
 // R099.d3 (UX_DESIGN §17.4 to §17.8, §17.10, §17.12): the batch dialog, the Jobs rows for batches,
 // the results sheet and the quit prompt, driven the way a person drives them. Blender is a fake: a
-// launcher script runs blender_job_tests as the worker, so the probe, the frames and the encode
-// behave as the worker does. Every file is made in a temporary folder; HOME and the XDG folders
-// point there.
+// stand-in (tests/blender_stand_in.hpp) runs blender_job_tests as the worker, so the probe, the
+// frames and the encode behave as the worker does. Every file is made in a temporary folder; HOME
+// and the XDG folders point there.
 #include "app/presentation_batch_dialog.hpp"
 #include "app/presentation_batches.hpp"
 #include "app/presentation_results.hpp"
@@ -11,6 +11,7 @@
 #include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "app/window.hpp"
+#include "blender_stand_in.hpp"
 #include "core/presentation_records.hpp"
 #include "integrations/presentation_store.hpp"
 #include "io/scenes_io.hpp"
@@ -20,8 +21,6 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
-#include <QFile>
-#include <QFileDevice>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -102,23 +101,11 @@ void answerPrompt(const QString &text) {
     });
 }
 
-// A launcher script that runs blender_job_tests as the worker. The probe always answers; a render
-// request answers with `renderMode` ("success", or "hang" to keep a frame running until it is
-// canceled).
-QString launcher(const QTemporaryDir &files, const QString &name, const QString &binary,
-                 const QString &renderMode) {
-    const auto path = files.filePath(name);
-    QFile file(path);
-    check(file.open(QIODevice::WriteOnly | QIODevice::Truncate), "Launcher fixture");
-    // The probe is the request whose operation is "probe"; every other request takes renderMode.
-    file.write(("#!/bin/sh\nfor last in \"$@\"; do :; done\nmode=" + renderMode.toUtf8() +
-                "\nif grep -q '\"operation\":\"probe\"' \"$last\"; then mode=success; fi\nexec '" +
-                binary.toUtf8() + "' --fake \"$mode\" \"$@\"\n"));
-    file.close();
-    check(QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                          QFileDevice::ExeOwner),
-          "Launcher is executable");
-    return path;
+// A stand-in Blender in files, running mode: "success" answers every request, and "hang" keeps each
+// launch running until it is stopped, so a frame stays in flight. A shell script cannot be the
+// stand-in: the Blender policy refuses /bin/sh (EACCES), and the job never starts the script.
+QString standIn(const QTemporaryDir &files, const QString &name, const QString &mode) {
+    return blender_stand_in::place(files.filePath(name), mode);
 }
 
 void setBlender(const QString &path) {
@@ -275,9 +262,10 @@ int main(int argc, char **argv) {
     preferences.setValue("recoverySeconds", 0);
     setBlender(files.path() + "/absent");
     try {
-        const auto binary = app.applicationDirPath() + "/blender_job_tests";
-        const auto success = launcher(files, "blender-success", binary, "success");
-        const auto hanging = launcher(files, "blender-hang", binary, "hang");
+        const auto success = standIn(files, "blender-success", "success");
+        // The hanging stand-in is only ever a batch's executable (the cancel and quit blocks start
+        // batches with it); no dialog probes it, so its probe hanging is never reached.
+        const auto hanging = standIn(files, "blender-hang", "hang");
 
         // §17.1 and Ctrl+K: the palette lists the batch dialog, which opens it directly.
         {
@@ -584,7 +572,7 @@ int main(int argc, char **argv) {
             QTimer::singleShot(600, [] {
                 if (auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
                     for (auto *candidate : box->buttons())
-                        if (candidate->text() == "Discard")
+                        if (box->standardButton(candidate) == QMessageBox::Discard)
                             candidate->click();
                 }
             });
@@ -633,7 +621,7 @@ int main(int argc, char **argv) {
             window.show();
             check(QTest::qWaitForWindowExposed(&window), "Fallback window exposed");
             makeModel(window);
-            const auto noH264 = launcher(files, "blender-no-h264", binary, "success");
+            const auto noH264 = standIn(files, "blender-no-h264", "success");
             qputenv("SKETCHYUP_FAKE_CODECS", "no-h264");
             setBlender(noH264);
             auto *dialog = openBatchDialog(window);

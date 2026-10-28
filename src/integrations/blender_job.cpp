@@ -1,4 +1,6 @@
 #include "integrations/blender_job.hpp"
+#include "integrations/blender_sandbox_policy.hpp"
+#include "sandbox/sandbox.hpp"
 #include <QBuffer>
 #include <QCryptographicHash>
 #include <QDir>
@@ -25,6 +27,8 @@ static void initializeBlenderResource() { Q_INIT_RESOURCE(blender_worker); }
 namespace sketchy {
 namespace {
 std::atomic<int> activeJobs{};
+// The test seam of setBlenderTestWritableDirectories (empty in the application).
+QStringList testWritableDirectories;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -62,6 +66,16 @@ bool terminal(BlenderJob::Phase phase) {
 }
 bool backend(const QString &name) {
     return QStringList{"CPU", "CUDA", "OPTIX", "HIP", "ONEAPI", "METAL", "OPENGL"}.contains(name);
+}
+// ADR 0183 sections 4.6 and 7. The reason names the layer ("sandboxUnavailable: landlock (...)").
+QString sandboxRefusalMessage(const QString &reason) {
+    return "Blender was not started: " + reason +
+           ". Check that the kernel offers Landlock and seccomp (Linux 5.13 or later).";
+}
+// A child killed by its seccomp filter (SIGSYS) is a violation, not a crash (ADR 0183 section 4.6).
+QString sandboxViolationMessage() {
+    return "Blender was stopped by its sandbox, because it tried an action its policy does not "
+           "allow. Nothing was rendered.";
 }
 void verifyRasterDevice(const QJsonObject &device) {
     const auto graphics = device.value("graphics").toObject();
@@ -392,6 +406,10 @@ struct BlenderJob::Impl {
     std::optional<QStringList> codecs; // The last probe's validated codec list, when reported.
     std::future<std::shared_ptr<const BlenderVideoResult>> videoVerification;
     std::shared_ptr<const BlenderVideoResult> videoResult;
+    std::unique_ptr<sketchyup::sandbox::PreparedPolicy>
+        childPolicy;        // the child's sandbox, prepared before its fork
+    QString sandboxRefusal; // the child's "sandboxUnavailable" line, when a layer could not be
+                            // installed
     explicit Impl(BlenderJob &owner)
         : owner(owner), process(&owner), deadline(&owner), killTimer(&owner), poll(&owner) {
         deadline.setSingleShot(true);
@@ -567,6 +585,14 @@ struct BlenderJob::Impl {
                                                                 QFileDevice::WriteOwner |
                                                                 QFileDevice::ExeOwner),
                     "Cannot protect Blender attempt directory");
+            // HOME, the XDG directories and TMPDIR of the child live here (ADR 0183 section 5).
+            for (const auto &directory : blender_sandbox::sandboxDirectories())
+                require(QDir(attemptDirectory).mkpath(directory),
+                        "Cannot isolate Blender's home and temporary directories");
+            require(QFile::setPermissions(attemptDirectory + "/xdg/runtime",
+                                          QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                              QFileDevice::ExeOwner),
+                    "Cannot protect Blender's runtime directory");
             initializeBlenderResource();
             QFile script(":/sketchyup/blender_worker.py");
             require(script.open(QIODevice::ReadOnly), "Embedded Blender adapter is unavailable");
@@ -595,25 +621,42 @@ struct BlenderJob::Impl {
             }
             write(attemptDirectory + "/request.json",
                   QJsonDocument(request).toJson(QJsonDocument::Compact));
-            auto environment = QProcessEnvironment::systemEnvironment();
-            for (const auto &key : environment.keys())
-                if (key.startsWith("BLENDER_") || key == "PYTHONPATH" || key == "PYTHONHOME")
-                    environment.remove(key);
-            for (const auto *key : {"DISPLAY", "WAYLAND_DISPLAY"})
-                environment.remove(key);
             require(QDir(attemptDirectory).mkdir("config") &&
                         QDir(attemptDirectory).mkdir("scripts"),
                     "Cannot isolate Blender preferences");
+            auto environment = blender_sandbox::environment(
+                QProcessEnvironment::systemEnvironment(), attemptDirectory);
             environment.insert("BLENDER_USER_CONFIG", attemptDirectory + "/config");
             environment.insert("BLENDER_USER_SCRIPTS", attemptDirectory + "/scripts");
             process.setProcessEnvironment(environment);
             process.setWorkingDirectory(attemptDirectory);
             process.setProcessChannelMode(QProcess::MergedChannels);
             process.setProgram(executable);
+            // --offline-mode: Blender makes no network connection of its own (ADR 0183 decision 6).
             process.setArguments({"--background", "--factory-startup", "--disable-autoexec",
-                                  "--threads", "4", "--python-exit-code", "1", "--python",
-                                  attemptDirectory + "/worker.py", "--",
+                                  "--offline-mode", "--threads", "4", "--python-exit-code", "1",
+                                  "--python", attemptDirectory + "/worker.py", "--",
                                   attemptDirectory + "/request.json"});
+            // The child's policy is built here, before the fork: the rule paths are opened and the
+            // BPF program is built in this process (ADR 0183 section 4.1). A layer that cannot be
+            // prepared refuses the job now, and Blender does not start.
+            blender_sandbox::Layout layout{
+                executable, attemptDirectory, input ? input->sourceDirectory() : QString(), {}};
+            if (encoding)
+                for (const auto &frame : video->frames)
+                    layout.inputFiles.append(frame.path);
+            auto rules = blender_sandbox::policy(layout);
+            for (const auto &directory : testWritableDirectories)
+                rules.files.push_back(
+                    {directory.toStdString(), sketchyup::sandbox::FileAccess::readWrite});
+            childPolicy = std::make_unique<sketchyup::sandbox::PreparedPolicy>();
+            if (const auto failure = childPolicy->prepare(
+                    rules, sketchyup::sandbox::ApplyOptions{options.sandboxSimulation})) {
+                finish(Phase::Unavailable, "sandboxUnavailable",
+                       sandboxRefusalMessage(QString::fromStdString(
+                           sketchyup::sandbox::unavailableReason(*failure))));
+                return;
+            }
             progressText = probing    ? "Checking Blender"
                            : encoding ? "Starting video encoding"
                                       : "Starting Blender";
@@ -624,9 +667,15 @@ struct BlenderJob::Impl {
             }
 #ifdef Q_OS_LINUX
             const auto ownerPid = getpid();
-            process.setChildProcessModifier([ownerPid] {
+            process.setChildProcessModifier([ownerPid, policy = childPolicy.get()] {
+                // Syscalls only from here to exec: no allocation and no lock (ADR 0183
+                // section 4.1).
                 if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != ownerPid)
                     _exit(127);
+                if (const auto failure = policy->enter()) {
+                    sketchyup::sandbox::writeUnavailableLine(*failure);
+                    _exit(blender_sandbox::kRefusedExit);
+                }
             });
 #endif
             process.start();
@@ -674,6 +723,8 @@ struct BlenderJob::Impl {
                 break;
             const auto row = line.left(newline);
             line.remove(0, newline + 1);
+            if (row.startsWith("sandboxUnavailable: ") && row.size() < 512)
+                sandboxRefusal = QString::fromUtf8(row);
             if (row.startsWith("SKETCHYUP_PROGRESS ") && row.size() < 1024 && !stopping) {
                 const auto phase =
                     QJsonDocument::fromJson(row.mid(19)).object().value("phase").toString();
@@ -712,6 +763,19 @@ struct BlenderJob::Impl {
         const auto failure = workerReport.value("code").toString();
         if (code != 0 || status != QProcess::NormalExit ||
             workerReport.value("status") == "failed") {
+            // ADR 0183 sections 4.6 and 7: a sandbox kill and a sandbox refusal are named, and
+            // neither is retried on the CPU, because the same policy would refuse the same call
+            // again.
+            if (status == QProcess::CrashExit && code == SIGSYS) {
+                finish(Phase::Failed, "sandboxViolation", sandboxViolationMessage());
+                return;
+            }
+            if (status == QProcess::NormalExit && code == blender_sandbox::kRefusedExit &&
+                !sandboxRefusal.isEmpty()) {
+                finish(Phase::Unavailable, "sandboxUnavailable",
+                       sandboxRefusalMessage(sandboxRefusal));
+                return;
+            }
             const bool mayRetry =
                 failure.isEmpty() || failure == "render_error" || failure == "device_unavailable";
             if (!probing && attempt == 1 && currentBackend != "CPU" && currentBackend != "OPENGL" &&
@@ -812,6 +876,9 @@ void saveBlenderScene(const BlenderSceneResult &scene, const QString &path) {
     require(output.open(QIODevice::WriteOnly) && output.write(scene.blend) == scene.blend.size() &&
                 output.commit(),
             "Could not save the Blender scene");
+}
+void setBlenderTestWritableDirectories(QStringList directories) {
+    testWritableDirectories = std::move(directories);
 }
 BlenderJob::BlenderJob(QObject *parent) : QObject(parent), impl_(std::make_unique<Impl>(*this)) {}
 BlenderJob::~BlenderJob() = default;
