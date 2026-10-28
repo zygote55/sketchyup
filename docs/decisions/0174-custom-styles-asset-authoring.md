@@ -8,7 +8,7 @@ styles and display controls, delivered) and [R079](../PR_ROADMAP.md#r079)
 options that were weighed and the recommendation. Every owner decision below
 carries a recommended default and a one-line reason, so the owner can "approve
 all". Facts about this repository were read at `34910469` (origin/main);
-anything not verified in the repository is marked as such. **R100.g acceptance record (2026-10-28, [`docs/verification/R100g-custom-styles-assets.md`](../verification/R100g-custom-styles-assets.md)):** the Verify line and every §10 check pass with their evidence; the §9 table below carries the measured values and verdicts, frozen; R100 is Accepted (R100.g) with the findings in the record's §8. F06 is released only through the M10 gate.
+anything not verified in the repository is marked as such. **R100.g acceptance record (2026-10-28, [`docs/verification/R100g-custom-styles-assets.md`](../verification/R100g-custom-styles-assets.md)):** the Verify line and every §10 check pass with their evidence; the §9 table below carries the measured values and verdicts, frozen; R100 is Accepted (R100.g) with the findings in the record's §8. F06 is released only through the M10 gate. **Owner decisions of 2026-10-28 (1.4.0):** the import's progress and Cancel (OD-5) are not in 1.4.0 and are planned for 1.5, and the Styles UX gaps (OD-11) are accepted for 1.4.0 and fixed in 1.5 (§8 and §9).
 
 ## Context
 
@@ -338,6 +338,8 @@ The owner approves a UX design separately, as with R062 and R096. The design
 6. Keyboard, accessibility and 1×/2×/fractional/200 % text for all of the
    above (the R096 §8 pattern).
 
+*Owner decision of 2026-10-28 (OD-11, for 1.4.0):* the desktop Styles gaps are accepted for 1.4.0 and fixed in 1.5. They are: no **Save report…** button (**Copy report** is there), a three-colour usage bar instead of hatched fills, and a refused save worded "Save refused:". The catalog import's progress and Cancel (OD-5) are likewise planned for 1.5, not 1.4.0 (§9, row 4).
+
 ## 9. Budgets (decision 9)
 
 Measured in a Release build, and frozen, by the R100.g record (2026-10-28). The values and
@@ -351,7 +353,7 @@ those two items unmeasured and no row covered them.
 | 1. Apply a style (one labelled style edit) | No measurable cost beyond the existing style edit (appearance rebuild, no retriangulation, ADR 0069) | 10,000 faces: `style.apply` p50 4.45 ms, p95 5.55 ms; the equal `document.style` edit p50 4.03 ms, p95 4.14 ms. The 0.4 ms median excess is the `.sketchystyle` decode | **Marginal**: the edit costs the same; the apply adds 0.4 ms (10 %) at the median, the file's decode |
 | 2. Decode and validate one 130 MiB `.sketchystyle`/`.sketchycat` | Bounded by the 130 MiB envelope; reported | 127.9 MiB catalog: `decodeCatalog` with every hash checked p50 200.5 ms, p95 203.1 ms; `loadCatalog` p50 245.5 ms; CLI `--list-catalog` 0.27 s, 223 MB peak RSS | **Reported** |
 | 3. Catalog scan (one file, full decode) | Reported; within the existing 256 MiB read allowance | `scanCatalogLibrary`, one 128 MiB file: p50 256.3 ms, p95 258.6 ms | **Pass** (inside the allowance) |
-| 4. Import one catalog entry (one composed edit) | ≤ 3 s with progress and cancel for a 130 MiB source (*proposed*) | CLI `--import-catalog`, one entry: 0.59 to 0.61 s wall, 414 to 432 MB peak. In process, load and insert 245 + 41 ms. No progress and no cancel exist | **Partly met**: the time holds; progress and cancel are not built (record F-2) |
+| 4. Import one catalog entry (one composed edit) | ≤ 3 s with progress and cancel for a 130 MiB source (*proposed*) | CLI `--import-catalog`, one entry: 0.59 to 0.61 s wall, 414 to 432 MB peak. In process, load and insert 245 + 41 ms. No progress and no cancel exist | **Partly met**: the time holds; progress and cancel are not built (record F-2). Owner decision of 2026-10-28 (OD-5): not in 1.4.0; planned for 1.5 |
 | 5. Style/catalog relocation re-scan | Reported | CLI listing 0.27 s and library scan 256 ms for the 128 MiB file; the small fixtures moved to tmpfs re-scan identically. The 128 MiB move itself was not run | **Reported** |
 | 6. Added resident memory (decoded catalog) | Within the existing memory budget rows (R082) | CLI: 223 MB (listing), 414 to 432 MB (import). Desktop test process with the 128 MiB catalog open in the dialog: 1.63 GB peak, against 266 MB without it (+1.37 GB) | **Pass** for the CLI. **Miss** for the desktop dialog path, against the 1 GiB supported ceiling of R082.w v2 (record F-3) |
 | 7. *Added by R100.g:* the catalog dialog's dry run on each selection change, large catalog | None in the table; the nearest is row 4 | Opened file: selection p50 2,130.6 ms (max 2,149.7); library folder: p50 304.4 ms. The engine's share: base64url decode of the request bytes 1.15 s, encode 0.20 s, catalog decode 0.20 s | **Finding** (record F-1): the selection runs on the UI thread and is not debounced; BUILD_PLAN's routine feedback budget is 100 ms |

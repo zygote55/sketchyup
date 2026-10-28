@@ -463,7 +463,7 @@ unit, the spaces choice, the georeference choice and the maximum deviation.
   A world coordinate system that is not the identity refuses the file.
 - **Limits.** A file over 128 MiB, or with more than 2,000,000 entities, is refused with the limit
   named. A model over the document limits (100,000 unique vertices or faces, 10,000 bodies) imports
-  partly, and the report names the elements left out. Geometry more than 1,000,000 m from the
+  partly, and the report names the elements left out. A model of about 10,000 bodies imports in about 12 s; that is an accepted limit for 1.4.0. Geometry more than 1,000,000 m from the
   origin is refused.
 - **Not imported.** Advanced breps, NURBS, CSG, swept solids, revolutions and parametric profiles may
   produce geometry, but they are not claimed; check the report. IFC 4.3 infrastructure (alignments,
@@ -481,7 +481,7 @@ unit, the spaces choice, the georeference choice and the maximum deviation.
   counted as omitted. Check the report before you rely on imported dimensions or materials.
 
 **File → Export IFC…** writes an IFC4 (IFC4 ADD2 TC1) file of the open model. No other IFC schema is
-written, and the file is not a buildingSMART certified view: it declares no view definition.
+written, and the file is not a buildingSMART certified view: it declares no view definition. It passes the buildingSMART rules run locally and `ifcopenshell.validate`; it has not been checked by buildingSMART's hosted validation service.
 
 - **What is written.** The spatial structure (project, site, building, storey and space), groups as
   assemblies, bodies as tessellated face sets, materials and colours, properties, and hidden state.
@@ -543,10 +543,14 @@ seconds by default (`--step-deadline` changes that, up to an hour). Import conve
 triangles in total and 100,000 per element. A document holds at most 100,000 faces of unique
 geometry, and a curved surface becomes one face per triangle, so a curved model fills the document at
 about 100,000 triangles; the bodies that would go over it are left out and reported as not imported. An export
-writes into a 256 MiB file and is refused above it. Measured: about 2.4 KB per triangle face, so a
+writes into a 256 MiB file and is refused above it. The export budget is the largest model a document can hold <!-- R098.h export number -->, and the export helper keeps its 4 GiB address-space cap. Measured: about 2.4 KB per triangle face, so a
 model made of triangle faces reaches the limit at about 110,000 faces; large flat faces take about
 0.9 KB per triangle, so the limit is reached at about 280,000 triangles. The export dialog's size
 note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
+
+**Speed and crashes.** Importing a 100-sphere model takes about 14 s, and exporting a 90,954-face model about 17 s. The owner accepted these as limits for 1.4.0; speeding up the conversion step is planned for 1.5. A STEP file that crashes the helper is refused whole, and the model is unchanged; restart-and-exclude is planned for 1.5.
+
+**Fixes in this release (PRs #510 and #511).** A bad solid's surfaces are no longer imported into another part's body. Problems are located in the import report, PMI and GD&T are counted and reported, and parts nested too deeply are counted.
 
 ## Importing .skp files
 
@@ -565,8 +569,8 @@ default 120) to allow the helper more or less time.
 
 | SketchUp that saved the file | Import |
 |---|---|
-| 2021 and later | **Supported.** Tested with a SketchUp 2024 model. A version newer than the ones tested is read and labelled "newer than tested" in the report |
-| 2013 to 2020 | **Best effort**, labelled as such in the report. These files use an older container that the reader handles less completely. Some of them cannot be read: one cause is a text label the reader fails on (OpenSKP issue 442), and the cause of the 2017 to 2020 failures is not yet known. A file it cannot read is refused with the advice below; it is never imported in part |
+| 2024 | **Supported.** One 2024 model was tested. Other 2021-and-later versions use the same container and are untested. Files from SketchUp 2025 and later are read and labelled "newer than tested" in the report |
+| 2013 to 2020 | **Best effort**, labelled as such in the report, and tested only with synthetic files. These files use an older container that the reader handles less completely. Some of them cannot be read: one cause is a text label the reader fails on (OpenSKP issue 442), and the cause of the 2017 to 2020 failures is not yet known. A file it cannot read is refused with the advice below; it is never imported in part |
 | Before 2013 | **Refused:** "This SketchUp file is from before 2013. Save it from SketchUp 2021 or later and try again." |
 
 If a file is refused, save it again from SketchUp 2021 or later and import that copy.
@@ -581,12 +585,12 @@ If a file is refused, save it again from SketchUp 2021 or later and import that 
 - Layers, as tags of the same name. Hidden layers stay hidden. The default layer (Layer0) becomes
   the Untagged tag.
 - Materials with their colour and opacity, and their textures. A texture image in PNG or JPEG form is
-  kept; any other image format is converted to PNG.
+  kept; any other image format is converted to PNG. Textures are tested with synthetic PNG files only.
 - The names of components, groups, instances and materials.
 - Attributes, as properties named `skp.<dictionary>.<key>`. Only text, number and yes/no values come
   across.
 - Dynamic Component attributes (the `dynamic_attributes` dictionary), at instance and definition level,
-  as read-only properties. A length is stored in metres. A definition's values reach each of its
+  as read-only properties. A length is stored in metres. These are tested on synthetic files written by OpenSKP's writer; no SketchUp file with Dynamic Components has been tested. A definition's values reach each of its
   placements, and a placement's own value for the same key wins. Formulas and the `onClick` script come
   across as text: they are shown, never evaluated or run.
 
@@ -621,6 +625,8 @@ does not change the size of the model.
   Anything beyond them is left out and reported.
 - Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
 - Nesting: components nested more than 64 levels deep are left out and reported.
+
+**Fixes in this release (R102.f, PR #513).** A helper run with its output on `/dev/null` is no longer ended by its own sandbox. A large file is hashed in linear time, so it no longer risks the helper's 120 second deadline. The "newer than tested" label applies to files from SketchUp 2025 and later.
 
 ### Trademarks
 
@@ -928,7 +934,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Command line.** `sketchyup-cli --input MODEL.sketchyup --export-presentation REQUEST.json` runs a batch without the desktop. The request names the saved scenes, the presets, the new output folder and whether to write video; `--describe-command export-presentation` lists the fields. Ctrl+C cancels at the next frame and exits with status 130.
 
-**Limits.** A batch needs the optional Blender 5.2 LTS and runs one Blender worker at a time. On a 3,700-body test model, each 1024 × 768 frame at 32 samples took about 13 seconds on the CPU; a full batch of 240 frames for each of four presets (960 frames) is projected at about 3.4 hours at the mean frame time. A batch writes at most 2 GiB. A terrain of 250,000 triangles cannot be rendered. Camera paths and batch output are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A batch needs the optional Blender 5.2 LTS and runs one Blender worker at a time. On a 3,700-body test model, each 1024 × 768 frame at 32 samples took about 13 seconds on the CPU; a full batch of 240 frames for each of four presets (960 frames) is projected at about 3.4 hours at the mean frame time, from a measured 48-frame run. The owner accepted that projection; the full run was not made. A batch writes at most 2 GiB. A terrain of 250,000 triangles cannot be rendered or batched: the GLB export refuses more than 100,000 visible faces, and the render snapshot refuses more than 20,000 bodies. Both limits stay in 1.4.0, and raising them is planned for 1.5. Camera paths and batch output are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Custom styles and asset catalogs
 
@@ -944,7 +950,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Older releases.** An edge stroke saves the file as format 31, and a sized material as format 33. SketchyUp 1.3.x and 1.2.x refuse both with "Unsupported container field". To save a file that those releases must open, turn off the edge stroke and clear the material sizes first; the file then saves in the lowest format its content needs.
 
-**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. A catalog import has no progress and no Cancel in 1.4.0; both are planned for 1.5. The Styles dialog's three gaps are accepted for 1.4.0 and fixed in 1.5: there is no **Save report…** button (**Copy report** is there), the usage bar is in three colours rather than hatched, and a refused save says "Save refused:". Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Troubleshooting
 

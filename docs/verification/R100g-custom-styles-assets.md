@@ -4,7 +4,7 @@
 
 **Status.** The Verify line is **met**. Its four clauses and the eight §10 check rows pass, each with its test, its CI run or a scripted run (§1). The native matrix passes in every cell that CI runs for these suites (§4). The sanitizers pass in CI (§5), and the four local fuzz campaigns find nothing (§5).
 
-Budgets (§6): every §9 row has a measured value and a verdict. Two rows are misses or partial misses, and both are findings for the owner: the import's progress and cancel are not built (F-2), and a catalog dialog selection on a 128 MiB catalog stalls the UI thread for 2.1 s (F-1, and F-3 for its memory). The edge stroke's frame cost has no §9 row, and the software measurements cannot be judged against the BUILD_PLAN reference (F-4).
+Budgets (§6): every §9 row has a measured value and a verdict. Two rows are misses or partial misses, and both are findings for the owner: the import's progress and cancel are not built (F-2), and a catalog dialog selection on a 128 MiB catalog stalls the UI thread for 2.1 s (F-1, and F-3 for its memory). **Owner decisions of 2026-10-28:** the import's progress and Cancel (F-2, OD-5) are not in 1.4.0 and are planned for 1.5; the Styles UX gaps (OD-11) are accepted for 1.4.0 and fixed in 1.5 (§9.2). The edge stroke's frame cost has no §9 row, and the software measurements cannot be judged against the BUILD_PLAN reference (F-4).
 
 The roadmap row's status is therefore "Accepted (R100.g)", with the findings and gaps of §7 and §8 carried. §9 lists the decisions this record made and the owner decisions still open. F06 is released only through the M10 gate, so this record does not claim it for a release.
 
@@ -191,7 +191,7 @@ Each gap that an R100 implementation note recorded is listed here. "Resolved" na
 | R100.f2 | 200 % check shallow | **Carried** |
 | R100.f2 | Row menu not tested through the popup | **Carried** |
 | R100.f2 | The 4,096-entry scan stop not tested | **Resolved**: `style_bundle_tests` `libraryFolder` now scans 4,097 files and checks the stop and its notice (this PR) |
-| R100.f2 | Save to library's refusal for a missing texture says "Save refused:" | **Carried** (OD-11, wording) |
+| R100.f2 | Save to library's refusal for a missing texture says "Save refused:" | **Accepted for 1.4.0; fixed in 1.5** (OD-11, decided 2026-10-28) |
 | R100.f2 | Dash cost measured on software GL only | **Partly resolved** (§6, Release); the reference hardware is **carried** (F-4) |
 | R100.f2 | `document.describe` does not report the edge texture's status (gap 5) | **Carried** (the engine's MCP surface is pinned) |
 | R100.f2 | No fixed library name for MCP or the CLI (gap 3) | **Carried** |
@@ -199,8 +199,8 @@ Each gap that an R100 implementation note recorded is listed here. "Resolved" na
 | R100.f3 | The engine's document-level refusal "Insert is off: …" untested | **Carried** |
 | R100.f3 | The report's keyboard rows and accessible names not checked | **Carried** |
 | R100.f3 | The narrow-dialog stacking rule not tested | **Carried** |
-| R100.f3 | **Save report…** not built (the mock has it) | **Carried** (OD-11) |
-| R100.f3 | The bar fills in three colours, not solid, hatched and cross-hatched (UX §18.7) | **Carried** (OD-11) |
+| R100.f3 | **Save report…** not built (the mock has it) | **Accepted for 1.4.0; fixed in 1.5** (OD-11, decided 2026-10-28) |
+| R100.f3 | The bar fills in three colours, not solid, hatched and cross-hatched (UX §18.7) | **Accepted for 1.4.0; fixed in 1.5** (OD-11, decided 2026-10-28) |
 | R100.f3 | Templates listed and refused | **Carried** (OD-9) |
 | R100.f3 | Placement at the origin only | **Carried** (OD-10) |
 | R100.f3 | Component definitions stored in each entry | **Carried** (OD-8) |
@@ -227,7 +227,7 @@ Each finding is reported, not fixed here. The brief allows a fix only when it is
 - **F-1. The catalog dialog's dry run stalls the UI on a large catalog (defect, performance).** On each selection change the dialog runs `refreshInsert` on the UI thread: it base64url-encodes the whole catalog into the batch when the catalog is not in the library folder, and the engine decodes the bytes again. On a 128 MiB catalog opened with **Open catalog file…**, one selection takes **2.13 s** (p50, five runs), against 0.30 s for the library form. Measured on the engine's path: the base64url encode 0.20 s, the base64url decode of the request's bytes 1.15 s, the catalog decode 0.20 s, and the rest of the dry run about 0.4 s. The cause of the 1.15 s decode was not investigated (Qt's base64url decoder on a 179 MB string). **Options:** (a) pass the catalog by library name or an in-process handle, so the bytes never enter the batch (the library form is 0.30 s); (b) run the dry run on a worker thread, as the Quantities panel does (R101.e2); (c) debounce the refresh. The R100.f3 gap said the same. **Owner decision OD-4.**
 
 **Resolved 2026-10-28** on branch `fix/catalog-dialog-dry-run` (PR open for review, not merged). The dialog no longer encodes the opened file into its batch. It passes the catalog it listed, decoded when the file was opened, to the dry run and the insert, under a key that only the dialog can send. The engine still decides every verdict. Option (a) was taken, with an in-process handle in place of the bytes. Option (b) was not needed, because the selection now costs less than the library form does. Same 128 MiB catalog, Release, offscreen, five selections of "Big 1" per run, two runs each, machine load 12 to 17. Before: opened file p50 5,349 and 4,763 ms (max 6,664 and 5,374 ms); library folder p50 847 and 647 ms. After: opened file p50 90 and 106 ms (max 92 and 109 ms); library folder p50 629 and 742 ms. The target was within twice 0.30 s; the opened form is now about 0.1 s. With five selections, p95 and max are the same value, so the max is given. Details: [ADR 0174, Implementation notes (R100.g F-1, F-3)](../decisions/0174-custom-styles-asset-authoring.md).
-- **F-2. The catalog import has no progress and no cancel (spec miss, ADR §9).** The row asks for "≤ 3 s with progress and cancel". The time is met (0.59 s in the CLI for a 128 MiB file; 0.29 s in process). The desktop insert and the CLI are one synchronous batch. **Owner decision OD-5.**
+- **F-2. The catalog import has no progress and no cancel (spec miss, ADR §9).** The row asks for "≤ 3 s with progress and cancel". The time is met (0.59 s in the CLI for a 128 MiB file; 0.29 s in process). The desktop insert and the CLI are one synchronous batch. **Owner decision OD-5, decided 2026-10-28: not in 1.4.0; planned for 1.5.**
 - **F-3. Memory of the desktop dialog path (miss against the R082 supported class).** With the 128 MiB catalog open, the desktop test process peaks at 1.63 GB, 1.37 GB above the same process without it. The dry runs copy the file's bytes several times (the batch string, its JSON copy, the decoded package), so this is the same root as F-1. **Owner decision OD-4** covers both.
 
 **Resolved 2026-10-28**, by the change in F-1. With the 128 MiB catalog open, the test process peaks at 496 MB (before: 1,538 MB), and the same binary without a catalog peaks at 169 MB. The catalog therefore adds about 327 MB, against 1.37 GB before, and the process is within the R082 1 GiB class. The copies that F-3 counted (the base64url string, its JSON copy and the engine's decoded string) are no longer made on a dry run.
@@ -258,13 +258,13 @@ Each finding is reported, not fixed here. The brief allows a fix only when it is
 - **OD-2. The `edgeStroke` key name** (R100.a asked; implemented as `edgeStroke`).
 - **OD-3. The `.sketchystyle` layout** (a 24-byte header and a manifest, with the texture as the payload; no model; R100.a asked).
 - **OD-4. The catalog dialog's per-selection dry run** (F-1, F-3): choose option (a), (b) or (c), or accept the current stall. Taken as option (a) by branch `fix/catalog-dialog-dry-run` (§8); the owner can confirm or reopen it.
-- **OD-5. Progress and cancel for catalog import** (F-2): build them, or waive the row's "with progress and cancel" clause.
+- **OD-5. Progress and cancel for catalog import** (F-2): build them, or waive the row's "with progress and cancel" clause. **Decided 2026-10-28: not in 1.4.0; planned for 1.5.** A 128 MiB catalog imports in about 0.6 s.
 - **OD-6. The reference-hardware budgets** for the edge stroke (F-4), and the R082 1 GiB ceiling for a desktop session with a large catalog open (F-3).
 - **OD-7. Reference-hardware runs** for the edge stroke frame cost (F-4): when, and on which machine.
 - **OD-8. Component-definition deduplication** in catalogs (R100.c, R100.d, R100.f3): a native-format change (a schema question and an ADR addendum), or accept the duplicates.
 - **OD-9. Templates from a catalog** (R100.d, R100.e, R100.f3): an open-as-new-model command, or keep them refused.
 - **OD-10. Placement of a catalog component** (R100.d, R100.f3; UX §18.9 question 5): add a position field, or keep the origin.
-- **OD-11. The UX deviations** (R100.f3 and R100.f2): build **Save report…**, the hatched bar, the "Save refused:" wording, or accept the deviations.
+- **OD-11. The UX deviations** (R100.f3 and R100.f2): build **Save report…**, the hatched bar, the "Save refused:" wording, or accept the deviations. **Decided 2026-10-28: accepted for 1.4.0; fixed in 1.5.**
 - **OD-12. The Q1 open questions** (ambientCG, the tint, Glass opacity, tile sizes on screen, mipmap aliasing at 1× and 2×).
 - **OD-13. A CI fuzz step** for the three R100 formats (R100.c, this record §5): add it, given the CI time directive.
 - **OD-14. `material_input_tests` in the sanitize job**: add it, given the CI time directive.
