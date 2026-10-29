@@ -191,7 +191,7 @@ Each gap that an R100 implementation note recorded is listed here. "Resolved" na
 | R100.f2 | 200 % check shallow | **Carried** |
 | R100.f2 | Row menu not tested through the popup | **Carried** |
 | R100.f2 | The 4,096-entry scan stop not tested | **Resolved**: `style_bundle_tests` `libraryFolder` now scans 4,097 files and checks the stop and its notice (this PR) |
-| R100.f2 | Save to library's refusal for a missing texture says "Save refused:" | **Accepted for 1.4.0; fixed in 1.5** (OD-11, decided 2026-10-28) |
+| R100.f2 | Save to library's refusal for a missing texture says "Save refused:" | **Fixed (R100.h, PR #520)** |
 | R100.f2 | Dash cost measured on software GL only | **Partly resolved** (§6, Release); the reference hardware is **carried** (F-4) |
 | R100.f2 | `document.describe` does not report the edge texture's status (gap 5) | **Carried** (the engine's MCP surface is pinned) |
 | R100.f2 | No fixed library name for MCP or the CLI (gap 3) | **Carried** |
@@ -199,8 +199,8 @@ Each gap that an R100 implementation note recorded is listed here. "Resolved" na
 | R100.f3 | The engine's document-level refusal "Insert is off: …" untested | **Carried** |
 | R100.f3 | The report's keyboard rows and accessible names not checked | **Carried** |
 | R100.f3 | The narrow-dialog stacking rule not tested | **Carried** |
-| R100.f3 | **Save report…** not built (the mock has it) | **Accepted for 1.4.0; fixed in 1.5** (OD-11, decided 2026-10-28) |
-| R100.f3 | The bar fills in three colours, not solid, hatched and cross-hatched (UX §18.7) | **Accepted for 1.4.0; fixed in 1.5** (OD-11, decided 2026-10-28) |
+| R100.f3 | **Save report…** not built (the mock has it) | **Fixed (R100.h, PR #520)** |
+| R100.f3 | The bar fills in three colours, not solid, hatched and cross-hatched (UX §18.7) | **Fixed (R100.h, PR #520)** |
 | R100.f3 | Templates listed and refused | **Carried** (OD-9) |
 | R100.f3 | Placement at the origin only | **Carried** (OD-10) |
 | R100.f3 | Component definitions stored in each entry | **Carried** (OD-8) |
@@ -281,3 +281,15 @@ Each finding is reported, not fixed here. The brief allows a fix only when it is
 **Commits.** `e3b45be6` is `origin/main` at the start of this work, the product code this record ran at. The commit that adds this record and its publication is the head of PR `docs/r100g-styles-assets-acceptance`. The test and tool changes are in the same PR, as listed in RL-10.
 
 **No product code under `src/` changed.** Local tests, the measurement tools and the record are the only changes. `build/`, `.local/` scratch and the CI logs are not committed.
+
+## R100.h: the Styles and asset-catalog UX gaps (1.5 follow-up 3)
+
+Closes OD-11's three rows, decided 2026-10-28 as fixed in 1.5. PR #520 on `feat/r100h-styles-gaps`, based on `origin/main` at `26e949f1`. There is no schema, command or file-format change.
+
+- **Save report….** The catalog report has a **Save report…** button beside **Copy report**. It writes the report's text (the text Copy report copies) to a `.txt` file the person picks. The system dialog confirms an overwrite, and the report is not stored in the model. The file writer is `writeReportBytes` (`report_sheet.hpp`), which the terrain report's save now also uses.
+- **The accounting bar.** The bar draws its parts as a solid fill (Inserted), a hatched fill (Refused) and a cross-hatched fill (Not inserted). The legend names each fill, so colour is not the only carrier (UX §18.7).
+- **The refusal wording.** A refusal's first line says what did not happen, and the reason follows on its own lines (UX §18.6, §18.7). "Save refused:" became "Nothing was saved." with "Save refused: …" on the next line. The other refusals changed to the same shape: Export style (file exists; missing texture, now "Nothing was written."), every Import style refusal ("Nothing was applied."), Import style's apply failure, every catalog export refusal ("Nothing was written."), and the catalog's unreadable-file row ("Nothing is listed."). Left as designed: the "Insert is off: …" line, and the apply error from the library, which already opened "Nothing was applied.".
+
+**Tests.** `style_catalog_input_tests` drives each change through the UI: the library save's refusal and taken name (`saveToLibraryRefusal`, `saveToLibrary`), the Import style refusals (`importRefusals`), the Export style refusals (`exportStyle`), the catalog export refusal (`exportAssetCatalog`), the unreadable-file row (`openCatalogFile`), the bar's brush styles and painted pixels at 1x and 2x (`reportBarFills`), and Save report… with the overwrite prompt answered No and then a new name (`reportSaveToFile`). The suite and `terrain_import_dialog_tests` pass on X11 1x and 2x and Wayland 1x and 2x, as the native tier runs them (the terrain test on X11 1x and Wayland 2x; the rest of the matrix was not run here).
+
+**Not changed.** The IFC import, IFC export and STEP export reports use the same colour-only bar (`addSegmentBar`). The IFC import report has no **Save report…** in code, although UX §16.5 describes one. Both are outside OD-11 and are left as follow-ups.

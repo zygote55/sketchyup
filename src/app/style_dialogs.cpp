@@ -31,8 +31,9 @@ const QByteArray styleMagic("SKYLIB\0\1", 8);
 constexpr qsizetype styleHeaderSize = 24;
 constexpr qsizetype bytesPerMebibyte = 1024 * 1024;
 
-// A refusal of §18.6: what did not happen is in the title, the reason has the measured number, and
-// the next steps follow. Thrown inside the Import dialog's constructor and shown in its body.
+// A refusal of §18.6: the Import dialog shows "Nothing was applied." first, then `title` (the sentence
+// that says what the file is or lacks), then `reason` (the measured number), then the next steps.
+// Thrown inside the Import dialog's constructor and shown in its body.
 struct StyleImportRefusal {
     QString title, reason;
     QStringList next;
@@ -83,8 +84,9 @@ QLabel *heading(const QString &text) {
     return label;
 }
 
-// The refusal of a missing edge texture, which names it and writes nothing (UX_DESIGN §18.6). Empty
-// when the stroke names no texture or the texture has its bytes.
+// The refusal of a missing edge texture, which names it and writes nothing (UX_DESIGN §18.6, §18.7).
+// The first line says what did not happen; the reason follows on its own line. Empty when the stroke
+// names no texture or the texture has its bytes.
 QString missingTextureRefusal(const Document &doc, const char *verb, const char *outcome) {
     const auto &style = doc.style();
     if (!style.edgeStroke || !style.edgeStroke->texture)
@@ -92,8 +94,16 @@ QString missingTextureRefusal(const Document &doc, const char *verb, const char 
     const auto &asset = doc.assets().at(style.edgeStroke->texture);
     if (asset->payload)
         return {};
-    return QString(verb) + " refused: “" + QString::fromStdString(asset->name) + "” (asset " +
-           QString::number(asset->id) + ") is missing from this model. Nothing was " + outcome + ".";
+    return QString("Nothing was ") + outcome + ".\n" + QString(verb) + " refused: “" +
+           QString::fromStdString(asset->name) + "” (asset " + QString::number(asset->id) +
+           ") is missing from this model.";
+}
+
+// The refusal of a name that is taken (UX_DESIGN §18.6): nothing is saved, and an existing file is
+// never replaced.
+QString takenStyleNameRefusal(const QString &name) {
+    return "Nothing was saved.\nA style named “" + name +
+           "” is already in the library. An existing file is never replaced; choose a new name.";
 }
 
 QLabel *errorLabel(const char *name) {
@@ -112,15 +122,16 @@ void showError(QLabel *label, const QString &text) {
     label->setVisible(!text.isEmpty());
 }
 
-// The §18.6 refusal shape, with its title, its reason and the next steps.
+// The §18.6 refusal shape: the first line says what did not happen (UX_DESIGN §18.7), then the reason,
+// then the next steps. Nothing is applied on any refusal of the import.
 QWidget *refusalBody(const StyleImportRefusal &refusal, QWidget *parent) {
     auto *body = new QWidget(parent);
     auto *layout = new QVBoxLayout(body);
     layout->setContentsMargins(0, 0, 0, 0);
-    auto *title = heading(refusal.title);
+    auto *title = heading("Nothing was applied.");
     title->setObjectName("styleRefusalTitle");
     layout->addWidget(title);
-    auto *reason = new QLabel(refusal.reason);
+    auto *reason = new QLabel(refusal.title + " " + refusal.reason);
     reason->setObjectName("styleRefusalReason");
     reason->setWordWrap(true);
     layout->addWidget(reason);
@@ -286,9 +297,8 @@ StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QStrin
             const auto payload = qFromLittleEndian<quint64>(header.constData() + 12);
             if (payload > quint64(AssetPayload::limit))
                 throw StyleImportRefusal{
-                    "Import refused: the texture is too large",
-                    "The texture is " + fileSize(qsizetype(payload)) +
-                        ", and the limit is 16 MiB. Nothing was applied.",
+                    "Import refused: the texture is too large.",
+                    "The texture is " + fileSize(qsizetype(payload)) + ", and the limit is 16 MiB.",
                     {"Reduce the texture to 16 MiB or less, export the style again, then import "
                      "it."}};
         }
@@ -299,8 +309,7 @@ StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QStrin
         if (!kind.isEmpty() && kind != "style")
             throw StyleImportRefusal{
                 "This file is a " + kind + ", not a style.",
-                "This file is a " + kind + ", and it is not imported as a style. Nothing was "
-                                           "applied.",
+                "A " + kind + " is not imported as a style.",
                 kind == "catalog" ? QStringList{"Use File → Asset catalogs…"} : QStringList{}};
         bundle_ = decodeStyleBundle(bytes_);
         if (bundle_.textureStatus == StyleTextureStatus::Missing)
@@ -315,8 +324,7 @@ StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QStrin
         if (bundle_.textureStatus == StyleTextureStatus::HashMismatch)
             throw StyleImportRefusal{
                 "The edge texture does not match its checksum.",
-                "The bytes do not match the recorded checksum, so the file may be damaged. "
-                "Nothing was applied.",
+                "The bytes do not match the recorded checksum, so the file may be damaged.",
                 {"Copy the file again from its source.", "Or choose another style file."}};
         usable_ = true;
     } catch (const StyleImportRefusal &failure) {
@@ -324,12 +332,10 @@ StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QStrin
     } catch (const std::exception &error) {
         const auto message = QString::fromUtf8(error.what());
         refusal = StyleImportRefusal{
-            "Import style refused",
+            "Import style refused.",
             message.contains("PNG or JPEG")
-                ? QStringLiteral("The texture is not an image SketchyUp can read. Nothing was "
-                                 "applied.")
-                : "This file is not a style SketchyUp can read: " + message +
-                      ". Nothing was applied.",
+                ? QStringLiteral("The texture is not an image SketchyUp can read.")
+                : "This file is not a style SketchyUp can read: " + message + ".",
             {"Choose another style file."}};
     }
 
@@ -475,7 +481,7 @@ void StyleImportDialog::apply() {
         outcome_ = styleApplyOutcome(name, before, doc_.style(), status);
         accept();
     } catch (const std::exception &error) {
-        showError(error_, QString::fromUtf8(error.what()));
+        showError(error_, "Nothing was applied.\n" + QString::fromUtf8(error.what()));
     }
 }
 
@@ -487,11 +493,7 @@ void StyleImportDialog::save() {
         require(rule.isEmpty(), rule.toUtf8().constData());
         const auto target = styleLibraryPath(folder, name);
         if (QFileInfo::exists(target))
-            throw std::runtime_error(("A style named “" + name +
-                                      "” is already in the library. An existing file is never "
-                                      "replaced; choose a new name.")
-                                         .toUtf8()
-                                         .constData());
+            throw std::runtime_error(takenStyleNameRefusal(name).toUtf8().constData());
         QDir().mkpath(folder);
         writeStyleBundle(bytes_, target);
         outcome_ = "Saved “" + name + "” to the style library · Model unchanged";
@@ -624,8 +626,8 @@ void StyleExportDialog::exportFile() {
         if (!path.endsWith(".sketchystyle", Qt::CaseInsensitive))
             path += ".sketchystyle";
         if (QFileInfo::exists(path))
-            throw std::runtime_error("That file already exists. An existing file is never "
-                                     "replaced; choose a new name.");
+            throw std::runtime_error("Nothing was written.\nThat file already exists. An existing "
+                                     "file is never replaced; choose a new name.");
         writeStyleBundle(bytes, path);
         path_ = path;
         accept();
@@ -695,9 +697,7 @@ StyleSaveDialog::StyleSaveDialog(Document &doc, const QString &folder, QWidget *
             showError(error_, rule);
             file_->setText(QString());
         } else if (taken) {
-            showError(error_, "A style named “" + name +
-                                  "” is already in the library. An existing file is never "
-                                  "replaced; choose a new name.");
+            showError(error_, takenStyleNameRefusal(name));
             file_->setText(QFileInfo(styleLibraryPath(folder_, suggestFreeStyleName(folder_, name)))
                                .fileName() +
                            " (suggested, free)");
@@ -715,11 +715,7 @@ StyleSaveDialog::StyleSaveDialog(Document &doc, const QString &folder, QWidget *
             require(rule.isEmpty(), rule.toUtf8().constData());
             const auto target = styleLibraryPath(folder_, name);
             if (QFileInfo::exists(target))
-                throw std::runtime_error(("A style named “" + name +
-                                          "” is already in the library. An existing file is never "
-                                          "replaced; choose a new name.")
-                                             .toUtf8()
-                                             .constData());
+                throw std::runtime_error(takenStyleNameRefusal(name).toUtf8().constData());
             if (const auto refusal = missingTextureRefusal(doc_, "Save", "saved"); !refusal.isEmpty())
                 throw std::runtime_error(refusal.toUtf8().constData());
             StyleMetadata metadata;

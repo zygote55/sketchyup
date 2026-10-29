@@ -1,11 +1,24 @@
 #pragma once
+#include <QByteArray>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QSaveFile>
+#include <QString>
 #include <QWidget>
 #include <QVBoxLayout>
+#include <stdexcept>
 namespace sketchy {
+// Writes a report's bytes to `path` atomically, for Save report… (UX_DESIGN 16.5, 18.5). The file
+// dialog that chose `path` has already confirmed any overwrite. Throws if the file cannot be written.
+inline void writeReportBytes(const QString &path, const QByteArray &bytes) {
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        throw std::runtime_error(file.errorString().toStdString());
+    if (file.write(bytes) != bytes.size() || !file.commit())
+        throw std::runtime_error(file.errorString().toStdString());
+}
 // Common plain-text report presentation; callers provide report-specific rows
 // and explicit actions without making the report itself an editing operation.
 class ReportSheet : public QDialog {

@@ -1,6 +1,7 @@
 #include "app/terrain_import_dialog.hpp"
 #include "app/accessible_names.hpp"
 #include "app/interface_preferences.hpp"
+#include "app/report_sheet.hpp"
 #include "app/terrain_report_view.hpp"
 #include "app/terrain_role_table.hpp"
 #include "app/unit_display.hpp"
@@ -28,7 +29,6 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
-#include <QSaveFile>
 #include <QScreen>
 #include <QScrollArea>
 #include <QSplitter>
@@ -1233,14 +1233,10 @@ QString TerrainImportDialog::reportText() const {
     return out.join('\n') + '\n';
 }
 void TerrainImportDialog::saveReport(const QString &path) const {
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly))
-        throw std::runtime_error(file.errorString().toStdString());
     const auto bytes = path.endsWith(".json", Qt::CaseInsensitive)
                            ? QJsonDocument(report()).toJson(QJsonDocument::Indented)
                            : reportText().toUtf8();
-    if (file.write(bytes) != bytes.size() || !file.commit())
-        throw std::runtime_error(file.errorString().toStdString());
+    writeReportBytes(path, bytes);
 }
 void TerrainImportDialog::refreshReport() {
     const auto terrain = report()["terrain"].toObject();

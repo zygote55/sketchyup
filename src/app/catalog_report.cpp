@@ -1,12 +1,15 @@
 #include "app/catalog_report.hpp"
 
-#include "app/ifc_sheets.hpp"
 #include "app/report_sheet.hpp"
 
 #include <QApplication>
 #include <QClipboard>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
+#include <QPaintEvent>
 #include <QPushButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
@@ -67,6 +70,44 @@ QString entryRow(const CatalogReportEntry &entry) {
 
 } // namespace
 
+CatalogAccountingBar::CatalogAccountingBar(qsizetype inserted, qsizetype refused,
+                                           qsizetype notInserted, QWidget *parent)
+    : QWidget(parent),
+      parts_{Part{inserted, QColor("#3b6ea5"), Qt::SolidPattern},
+             Part{refused, QColor("#8a6d3b"), Qt::BDiagPattern},
+             Part{notInserted, QColor("#777777"), Qt::DiagCrossPattern}} {
+    setFixedHeight(14);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+}
+
+std::vector<Qt::BrushStyle> CatalogAccountingBar::fills() const {
+    std::vector<Qt::BrushStyle> drawn;
+    for (const auto &part : parts_)
+        if (part.count > 0)
+            drawn.push_back(part.fill);
+    return drawn;
+}
+
+// Each segment is filled on the page colour, so a pattern's lines show as lines on the page.
+void CatalogAccountingBar::paintEvent(QPaintEvent *) {
+    qsizetype total = 0;
+    for (const auto &part : parts_)
+        total += part.count;
+    if (total <= 0)
+        return;
+    QPainter painter(this);
+    double left = 0;
+    for (const auto &part : parts_) {
+        if (part.count <= 0)
+            continue;
+        const double right = left + double(width()) * double(part.count) / double(total);
+        const QRectF segment(left, 0, right - left, height());
+        painter.fillRect(segment, palette().base());
+        painter.fillRect(segment, QBrush(part.colour, part.fill));
+        left = right;
+    }
+}
+
 CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport &report) {
     CatalogReportResult result;
     const auto counts = accounting(report);
@@ -102,8 +143,9 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
     counted->setTextFormat(Qt::PlainText);
     left->addWidget(counted);
     left->addWidget(new QLabel("Every entry is accounted for:"));
-    addSegmentBar(left, counts.inserted, counts.refused, counts.notInserted,
-                  QStringLiteral("catalogReportBar"));
+    auto *bar = new CatalogAccountingBar(counts.inserted, counts.refused, counts.notInserted);
+    bar->setObjectName("catalogReportBar");
+    left->addWidget(bar);
     const bool balanced = counts.inserted + counts.refused + counts.notInserted == requested;
     auto *identity = new QLabel(
         balanced ? QStringLiteral("0 + %1 + %2 = %3 ✓ balanced")
@@ -113,9 +155,11 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
                  : QStringLiteral("✕ not balanced: the parts do not add up to %1").arg(requested));
     identity->setObjectName("catalogReportIdentity");
     left->addWidget(identity);
+    // The legend names each fill, so the bar is read without its colour (UX_DESIGN 18.7).
     auto *legend =
-        new QLabel(QStringLiteral("Inserted: 0\nRefused, with its reason: %1\nNot inserted, "
-                                  "because the request was refused: %2")
+        new QLabel(QStringLiteral("Solid · Inserted: 0\nHatched · Refused, with its reason: %1\n"
+                                  "Cross-hatched · Not inserted, because the request was refused: "
+                                  "%2")
                        .arg(counts.refused)
                        .arg(counts.notInserted));
     legend->setObjectName("catalogReportLegend");
@@ -239,17 +283,48 @@ CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport
         sheet.accept();
     });
 
-    // Copy report and Close (the default) sit in the footer.
+    // Copy report, Save report… and Close (the default) sit in the footer. Save report… writes the
+    // same text the clipboard gets, to a .txt file the person chooses (as the terrain report does).
+    auto *status = new QLabel;
+    status->setObjectName("catalogReportStatus");
+    status->setTextFormat(Qt::PlainText);
+    status->setWordWrap(true);
+    sheet.body->addWidget(status);
     auto *copy = new QPushButton("Copy report");
     copy->setObjectName("catalogReportCopy");
     QObject::connect(copy, &QPushButton::clicked, &sheet,
                      [&report] { QApplication::clipboard()->setText(catalogReportText(report)); });
+    auto *save = new QPushButton("Save report…");
+    save->setObjectName("catalogReportSave");
+    save->setAccessibleName("Save report");
+    QObject::connect(save, &QPushButton::clicked, &sheet, [&report, &sheet, status] {
+        // The system Save dialog confirms an overwrite (no DontConfirmOverwrite), and adds .txt
+        // when the name has none, so the name it confirms is the name written.
+        QFileDialog chooser(&sheet, "Save asset catalog report");
+        chooser.setAcceptMode(QFileDialog::AcceptSave);
+        chooser.setFileMode(QFileDialog::AnyFile);
+        chooser.setNameFilter("Report text (*.txt)");
+        chooser.setDefaultSuffix("txt");
+        chooser.selectFile("asset-catalog-report.txt");
+        if (chooser.exec() != QDialog::Accepted || chooser.selectedFiles().isEmpty())
+            return;
+        const auto path = chooser.selectedFiles().constFirst();
+        try {
+            writeReportBytes(path, catalogReportText(report).toUtf8());
+            status->setText(QStringLiteral("Saved the report as “%1”. It is not stored in the model.")
+                                .arg(QFileInfo(path).fileName()));
+        } catch (const std::exception &error) {
+            status->setText(QStringLiteral("Could not save the report: %1")
+                                .arg(QString::fromUtf8(error.what())));
+        }
+    });
     auto *close = new QPushButton("Close");
     close->setObjectName("catalogReportClose");
     close->setDefault(true);
     QObject::connect(close, &QPushButton::clicked, &sheet, &QDialog::reject);
     auto *footerLayout = qobject_cast<QHBoxLayout *>(sheet.footer->layout());
     footerLayout->addWidget(copy);
+    footerLayout->addWidget(save);
     footerLayout->addStretch();
     footerLayout->addWidget(close);
     sheet.buttons->hide();

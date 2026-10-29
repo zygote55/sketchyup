@@ -68,9 +68,10 @@ QString sentence(const QString &reason) {
     return text.isEmpty() ? QString() : capitalised(text) + QLatin1Char('.');
 }
 
-// The reader's failure for a file, as the dialog lists it (UX_DESIGN 18.6).
+// The reader's failure for a file, as the dialog lists it. What did not happen comes first, then the
+// reason (UX_DESIGN 18.6).
 QString unreadable(const QString &reason) {
-    return QStringLiteral("This file is not a catalog SketchyUp can read: %1. Nothing is listed.")
+    return QStringLiteral("Nothing is listed. This file is not a catalog SketchyUp can read: %1.")
         .arg(sentence(reason).chopped(1));
 }
 
