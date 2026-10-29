@@ -41,8 +41,8 @@ evidence, is [verification/F01-1.1.0.md](verification/F01-1.1.0.md). The F02 rel
 uses the same gate; its record, with the 1.2.0 release-candidate evidence, is
 [verification/F02-1.2.0.md](verification/F02-1.2.0.md). The F03 release uses the same gate; its
 record, with the 1.3.0 release-candidate evidence, is [verification/F03-1.3.0.md](verification/F03-1.3.0.md).
-The 1.4.0 group uses the same gate; its record, written at the release candidate, will be
-`docs/verification/G-1.4.0.md`. The [release notes](RELEASE_NOTES.md) list
+The 1.4.0 group uses the same gate; its record, with the 1.4.0 release-candidate evidence, is
+[verification/G-1.4.0.md](verification/G-1.4.0.md). The [release notes](RELEASE_NOTES.md) list
 versions, upgrade and rollback notes and known limitations. The
 [roadmap](PR_ROADMAP.md) traces each Core row to its work.
 
