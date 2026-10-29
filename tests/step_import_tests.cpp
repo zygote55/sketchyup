@@ -133,6 +133,100 @@ StepWorkerOptions workerOptions(const QString &path, int deadlineSeconds = 30) {
 QString stagedPackage(const QString &dir, const QString &name, const QByteArray &bytes) {
     return writeFile(dir, name, bytes);
 }
+// R098.i: the stand-in tessellates base 0 (the root group) and base 1 (the box), as the helper does (P at before each
+// base; P excluded for a base the application left out), and stops on the base named `stopAt` unless the application
+// left it out. `stopCommand` is how it stops. Each run appends a line to `runLog`, so the runs are counted.
+QString restartBody(const QString &packageFile, const QString &runLog, int stopAt, const QString &stopCommand) {
+    return QStringLiteral(R"(
+    out=""
+    prev=""
+    excluded=" "
+    for arg in "$@"; do
+        if [ "$prev" = "--output" ]; then out="$arg"; fi
+        if [ "$prev" = "--exclude-step" ]; then excluded="$excluded$arg "; fi
+        prev="$arg"
+    done
+    [ -n "$out" ] || exit 9
+    echo run >> '@RUNLOG@'
+    echo 'P phase read'
+    echo 'P tasks 2'
+    echo 'P phase tessellate'
+    echo 'P at 0'
+    echo 'P at @STOPAT@'
+    case "$excluded" in
+    *" @STOPAT@ "*) echo 'P excluded @STOPAT@' ;;
+    *) @STOPCOMMAND@ ;;
+    esac
+    echo 'P phase write'
+    echo 'P done 1'
+    cp '@PACKAGE@' "$out" || exit 4
+    echo 'R {"status":"ok","counts":{"solids":1}}'
+    exit 0
+)")
+        .replace("@RUNLOG@", runLog)
+        .replace("@STOPCOMMAND@", stopCommand)
+        .replace("@PACKAGE@", packageFile)
+        .replace("@STOPAT@", QString::number(stopAt));
+}
+// R098.i: a stand-in that stops in the phase `phase` (before the tessellation, or after it), with `base` the one it says it is on
+// (a negative base: no P at line). Each run appends a line to `runLog`.
+QString phaseStopBody(const QString &phase, int base, const QString &runLog) {
+    const QString at = base >= 0 ? QStringLiteral("    echo 'P at @BASE@'\n").replace("@BASE@", QString::number(base)) : QString();
+    return QStringLiteral(R"(
+    echo run >> '@RUNLOG@'
+    echo 'P phase read'
+    echo 'P tasks 2'
+    echo 'P phase @PHASE@'
+@AT@    echo 'stand-in: crashing with SIGSEGV' >&2
+    kill -SEGV $$
+)")
+        .replace("@RUNLOG@", runLog)
+        .replace("@PHASE@", phase)
+        .replace("@AT@", at);
+}
+// R098.i: a stand-in that stops on base N, where N is the number of bases the application has left out so far: each run stops
+// on a base the last one did not, so the restarts run out.
+QString everyRunBody(const QString &runLog) {
+    return QStringLiteral(R"(
+    n=0
+    prev=""
+    for arg in "$@"; do
+        if [ "$prev" = "--exclude-step" ]; then n=$((n + 1)); fi
+        prev="$arg"
+    done
+    echo run >> '@RUNLOG@'
+    echo 'P phase tessellate'
+    echo "P at $n"
+    echo 'stand-in: crashing with SIGSEGV' >&2
+    kill -SEGV $$
+)")
+        .replace("@RUNLOG@", runLog);
+}
+// The number of runs a stand-in logged (one line each).
+int runCount(const QString &runLog) {
+    QFile log(runLog);
+    if (!log.open(QIODevice::ReadOnly))
+        return 0;
+    return int(log.readAll().count('\n'));
+}
+// A partial import's report: the base left out (its step), the reason of its stop, and the restarts counted.
+void checkPartial(const QJsonObject &report, int base, const std::string &reason, int restarts, const std::string &where) {
+    const QJsonArray excluded = report["excluded"].toArray();
+    check(excluded.size() == 1, where + ": one base is left out, got " + std::to_string(excluded.size()));
+    check(excluded.size() == 1 && excluded[0].toObject()["step"].toInt(-1) == base,
+          where + ": the base left out is " + std::to_string(base));
+    check(excluded.size() == 1 && excluded[0].toObject()["reason"].toString() == QString::fromStdString(reason),
+          where + ": the reason of the stop is " + reason);
+    bool restarted = false;
+    for (const QJsonValue &value : report["notices"].toArray()) {
+        const QJsonObject notice = value.toObject();
+        if (notice["code"].toString() == "restarted")
+            restarted = notice["count"].toInt(-1) == restarts;
+    }
+    check(restarted, where + ": the restarted notice counts " + std::to_string(restarts));
+    check(report["engine"].toObject()["restarts"].toInt(-1) == restarts,
+          where + ": the engine counts " + std::to_string(restarts) + " restart(s)");
+}
 } // namespace
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -400,6 +494,96 @@ sys.exit(0)' || exit 1
                 check(size <= 256, "E8: the message is at most 256 bytes, got " + std::to_string(size));
                 check(QJsonDocument(error.report()).toJson(QJsonDocument::Compact).size() <= 64 * 1024,
                       "E8: the report is within 64 KiB");
+            }
+        }
+        // R098.i (ADR 0172 sections 5 and 6, owner decision 7): a stop in the tessellation of a base is restarted with that
+        // base left out, at most three times, and the import is partial and names the base. Every stand-in here logs each
+        // run, so the restarts are counted, not only the result. The deadline is 5 s: the stops are not timed (the
+        // SIGSEGV, the SIGSYS and the read and write stops end at once); only the hang waits for the deadline.
+        {
+            // SIGSEGV on base 1: one restart, the partial import names base 1.
+            const QString runs = root.path() + "/runs-segv.log";
+            const QString worker = executable(root.path(), "worker-restart-segv",
+                                              standIn("{\"ok\":true}", restartBody(staged, runs, 1, "kill -SEGV $$")));
+            const IfcImport partial = importStepFile(fixture("sketchyup-step-box.step"), workerOptions(worker, 30));
+            check(runCount(runs) == 2, "SIGSEGV at base 1: two runs, got " + std::to_string(runCount(runs)));
+            checkPartial(partial.report, 1, "crash", 1, "SIGSEGV at base 1");
+            check(partial.document.bodies().size() == 2, "SIGSEGV at base 1: the document holds the group and the box");
+            check(partial.report["format"].toString() == "STEP", "SIGSEGV at base 1: the report says STEP");
+        }
+        {
+            // A hang past the deadline on base 1: the same restart, the stop's reason is the deadline's.
+            const QString runs = root.path() + "/runs-timeout.log";
+            const QString worker = executable(root.path(), "worker-restart-timeout",
+                                              standIn("{\"ok\":true}", restartBody(staged, runs, 1, "exec /bin/sleep 300")));
+            const IfcImport partial = importStepFile(fixture("sketchyup-step-box.step"), workerOptions(worker, 5));
+            check(runCount(runs) == 2, "timeout at base 1: two runs, got " + std::to_string(runCount(runs)));
+            checkPartial(partial.report, 1, "timeout", 1, "timeout at base 1");
+            check(partial.document.bodies().size() == 2, "timeout at base 1: the document holds the group and the box");
+        }
+        {
+            // A SIGSYS is the sandbox's kill: never restarted, refused whole, as sandboxViolation.
+            const QString runs = root.path() + "/runs-sigsys.log";
+            const QString worker = executable(root.path(), "worker-sigsys",
+                                              standIn("{\"ok\":true}", restartBody(staged, runs, 1, "kill -SYS $$")));
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), workerOptions(worker, 30));
+                check(false, "a SIGSYS kill is a refused import");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "sandboxViolation", "SIGSYS: refused as sandboxViolation: " + error.code());
+                check(runCount(runs) == 1, "SIGSYS: not restarted, one run, got " + std::to_string(runCount(runs)));
+            }
+        }
+        {
+            // A stop in the read phase has no base to leave out: no restart, refused whole.
+            const QString runs = root.path() + "/runs-read.log";
+            const QString worker = executable(root.path(), "worker-read-stop",
+                                              standIn("{\"ok\":true}", phaseStopBody("read", -1, runs)));
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), workerOptions(worker, 30));
+                check(false, "a stop in the read phase is a failed import");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "workerFailed", "read-phase stop: a failed import: " + error.code());
+                check(std::string(error.what()).find("crash") != std::string::npos, "read-phase stop: the reason is a crash");
+                check(runCount(runs) == 1, "read-phase stop: not restarted, one run, got " + std::to_string(runCount(runs)));
+                const QJsonObject report = error.report();
+                check(report["excluded"].toArray().isEmpty(), "read-phase stop: no base is left out");
+            }
+        }
+        {
+            // A stop in the write phase (after the tessellation, with a base named) is not restarted either.
+            const QString runs = root.path() + "/runs-write.log";
+            const QString worker = executable(root.path(), "worker-write-stop",
+                                              standIn("{\"ok\":true}", phaseStopBody("write", 1, runs)));
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), workerOptions(worker, 30));
+                check(false, "a stop in the write phase is a failed import");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "workerFailed", "write-phase stop: a failed import: " + error.code());
+                check(runCount(runs) == 1, "write-phase stop: not restarted, one run, got " + std::to_string(runCount(runs)));
+            }
+        }
+        {
+            // A helper that stops every time: three restarts, then a failed import with the stops, the bases left out
+            // and the log tail. Four runs in all, and the fourth stop is not restarted.
+            const QString runs = root.path() + "/runs-every.log";
+            const QString worker = executable(root.path(), "worker-every-run", standIn("{\"ok\":true}", everyRunBody(runs)));
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), workerOptions(worker, 30));
+                check(false, "a helper that stops every time is a failed import");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "workerFailed", "every run: a failed import: " + error.code());
+                check(std::string(error.what()).find("3 restart(s)") != std::string::npos,
+                      "every run: the failure names the three restarts: " + std::string(error.what()));
+                check(runCount(runs) == 4, "every run: four runs (three restarts), got " + std::to_string(runCount(runs)));
+                const QJsonObject report = error.report();
+                check(report["engine"].toObject()["restarts"].toInt(-1) == 3, "every run: the engine counts three restarts");
+                check(report["engine"].toObject()["stops"].toArray().size() == 4, "every run: four stops are reported");
+                const QJsonArray excluded = report["excluded"].toArray();
+                check(excluded.size() == 3, "every run: three bases are left out, got " + std::to_string(excluded.size()));
+                for (int i = 0; i < excluded.size(); ++i)
+                    check(excluded[i].toObject()["step"].toInt(-1) == i, "every run: base " + std::to_string(i) + " is left out");
+                check(report["logTail"].toString().contains("SIGSEGV"), "every run: the log tail is in the report");
             }
         }
     } catch (const std::exception &error) {

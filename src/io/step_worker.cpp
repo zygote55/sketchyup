@@ -46,10 +46,11 @@ void sweepStale(const QString &root) {
 
 struct RunResult {
     enum Kind { Finished, Refused, Stopped, Cancelled } kind{Stopped};
-    QString reason;     // for Stopped: crash, timeout, memory, error
+    QString reason;     // for Stopped: crash, timeout, memory, error, sandboxViolation
     QJsonObject result; // the "R" line
     QString phase;
-    int at{-1}; // the task the helper is about to start
+    int at{-1}; // the base the helper is about to tessellate (its P at line)
+    QList<int> foundExcluded; // the bases the helper left out itself (its P excluded line)
     QString logTail;
     int exitCode{-1};
 };
@@ -239,7 +240,7 @@ namespace {
 constexpr int sandboxUnavailableExit = 70;
 
 RunResult runOnce(const QString &worker, const QString &directory, const QString &input, const QString &output,
-                  const StepWorkerOptions &options) {
+                  const StepWorkerOptions &options, const QList<int> &excluded) {
     RunResult run;
     QStringList args{"--import-step", input, "--output", output,
                      "--step-deflection-mm", QString::number(options.deflectionMm, 'g', 12),
@@ -248,6 +249,8 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
                      "--step-max-total-triangles", QString::number(options.maxTotalTriangles)};
     if (!options.lengthUnitOverride.isEmpty())
         args << "--step-length-unit" << options.lengthUnitOverride;
+    for (const int base : excluded)
+        args << "--exclude-step" << QString::number(base);
     if (options.addressSpaceBytes > 0)
         args << "--rlimit-as" << QString::number(options.addressSpaceBytes);
     args << "--rlimit-cpu" << QString::number(qint64(options.deadlineSeconds) * 4) << "--rlimit-fsize"
@@ -303,6 +306,13 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
                 run.at = ok ? task : -1;
                 if (ok && options.progress)
                     options.progress("at", task);
+            } else if (line.startsWith("P excluded")) {
+                for (const auto &number : line.mid(10).split(' ', Qt::SkipEmptyParts)) {
+                    bool ok{};
+                    const int base = number.toInt(&ok);
+                    if (ok && run.foundExcluded.size() < 1024)
+                        run.foundExcluded.append(base);
+                }
             } else if (line.startsWith("P done ")) {
                 if (options.progress)
                     options.progress("done", line.mid(7).toLongLong());
@@ -478,34 +488,70 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
             refuse("unreadable", "The private copy of the STEP file cannot be hashed.");
     }
     const QString output = QDir(directory.path()).filePath("package.skifc");
-    const RunResult run = runOnce(workerPath, directory.path(), input, output, worker);
-    if (run.kind == RunResult::Cancelled)
-        throw IfcImportError("cancelled", "The import was cancelled.");
-    if (run.kind != RunResult::Finished && run.kind != RunResult::Refused &&
-        run.reason == "sandboxViolation") {
-        // ADR 0183 sections 4.6 and 7: the helper was stopped for an action its policy does not
-        // allow. It is not restarted, and nothing is imported.
-        QJsonObject report{
-            {"apiVersion", 1},
-            {"format", "STEP"},
-            {"direction", "import"},
-            {"helper",
-             QJsonObject{{"completed", false}, {"stop", run.reason}, {"phase", run.phase}}}};
-        throw IfcImportError("sandboxViolation",
-                             "The STEP helper (sketchyup-ifc-worker) was stopped by its sandbox: "
-                             "the seccomp filter ended it "
-                             "for an action its policy does not allow. Nothing was imported.",
-                             report);
-    }
-    if (run.kind != RunResult::Finished && run.kind != RunResult::Refused) {
-        // The STEP import has no per-element restart protocol: a stop is a failure, reported with what the helper
-        // left behind.
-        QStringList stops{run.reason + " (" + run.phase + ")"};
-        QJsonObject engine{{"completed", false}, {"restarts", 0}, {"stops", QJsonArray::fromStringList(stops)}};
-        QJsonObject report{{"apiVersion", 1}, {"format", "STEP"}, {"direction", "import"},
-                           {"engine", engine},
-                           {"logTail", run.logTail}};
-        throw IfcImportError("workerFailed", "The STEP helper stopped (" + run.reason.toStdString() + ").", report);
+    // R098.i (ADR 0172 sections 5 and 6, owner decision 7): a stop in the tessellation of a base (its P at line) that
+    // is over a limit, the deadline or a signal is run again with that base left out, at most maxRestarts times. A
+    // stop in the read or write phase has no base to leave out, and a sandbox violation is never restarted (ADR 0183
+    // section 4.6): each of those fails the whole file, as before.
+    QList<int> excluded;
+    QJsonArray excludedReport;
+    QStringList stops;
+    QString lastReason = "crash";
+    RunResult run;
+    int restarts = 0;
+    for (;; ++restarts) {
+        QFile::remove(output);
+        run = runOnce(workerPath, directory.path(), input, output, worker, excluded);
+        // What the helper found to stop it and left out itself is recorded whatever happens next.
+        for (const int base : run.foundExcluded) {
+            if (excluded.contains(base))
+                continue;
+            excluded.append(base);
+            excludedReport.append(QJsonObject{{"step", base}, {"reason", lastReason}});
+        }
+        if (run.kind == RunResult::Finished || run.kind == RunResult::Refused)
+            break;
+        if (run.kind == RunResult::Cancelled)
+            throw IfcImportError("cancelled", "The import was cancelled.");
+        if (run.reason == "sandboxViolation") {
+            // ADR 0183 sections 4.6 and 7: the helper was stopped for an action its policy does not
+            // allow. It is not restarted, and nothing is imported.
+            QJsonObject report{
+                {"apiVersion", 1},
+                {"format", "STEP"},
+                {"direction", "import"},
+                {"helper",
+                 QJsonObject{{"completed", false}, {"stop", run.reason}, {"phase", run.phase}}}};
+            throw IfcImportError("sandboxViolation",
+                                 "The STEP helper (sketchyup-ifc-worker) was stopped by its sandbox: "
+                                 "the seccomp filter ended it "
+                                 "for an action its policy does not allow. Nothing was imported.",
+                                 report);
+        }
+        stops.append(run.reason + " (" + run.phase + ")");
+        lastReason = run.reason;
+        const bool restartable = run.phase == "tessellate" && run.at >= 0 &&
+                                 (run.reason == "timeout" || run.reason == "crash" || run.reason == "memory");
+        if (!restartable || restarts >= worker.maxRestarts) {
+            // The failure, reported with what the helper left behind: the stops, the bases left out and the log tail.
+            std::string message = "The STEP helper stopped (" + run.reason.toStdString() + ").";
+            if (restarts > 0 && !restartable)
+                message = "The STEP helper stopped (" + stops.last().toStdString() +
+                          ") outside the tessellation, so no element can be left out.";
+            else if (restarts > 0)
+                message = "The STEP helper stopped (" + stops.last().toStdString() + ") and the import failed after " +
+                          std::to_string(restarts) + " restart(s).";
+            QJsonObject engine{{"completed", false}, {"restarts", restarts}, {"stops", QJsonArray::fromStringList(stops)}};
+            QJsonObject report{{"apiVersion", 1}, {"format", "STEP"}, {"direction", "import"},
+                               {"engine", engine},
+                               {"excluded", excludedReport},
+                               {"logTail", run.logTail}};
+            throw IfcImportError("workerFailed", message, report);
+        }
+        // The base the helper was tessellating is left out, and the next run starts without it.
+        if (!excluded.contains(run.at)) {
+            excluded.append(run.at);
+            excludedReport.append(QJsonObject{{"step", run.at}, {"reason", run.reason}});
+        }
     }
     if (run.kind == RunResult::Refused) {
         // The helper's words are data: a code is a short identifier or it is "workerRefused", a message is bounded.
@@ -542,7 +588,7 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
     IfcRunFacts facts;
     facts.sha256 = QString::fromLatin1(hash.result().toHex());
     facts.bytes = QFileInfo(input).size();
-    facts.run = QJsonObject{{"restarts", 0},
+    facts.run = QJsonObject{{"restarts", restarts},
                             {"deadlineSeconds", worker.deadlineSeconds},
                             {"addressSpaceBytes", worker.addressSpaceBytes},
                             {"completed", true}};
@@ -574,6 +620,17 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
                                        {"converted", converted},
                                        {"supporting", nodes - converted},
                                        {"omitted", omitted}};
+    if (restarts > 0 || !excludedReport.isEmpty()) {
+        // A partial import (R098.i): the same notice and list as the IFC import's (ifc_worker.cpp). The elements left
+        // out are named by their locations (kind excluded, with the part's name and its path).
+        auto notices = report["notices"].toArray();
+        notices.append(QJsonObject{{"code", "restarted"},
+                                   {"count", restarts},
+                                   {"message", "The helper stopped on an element, was restarted, and the element was left out."}});
+        report["notices"] = notices;
+        report["excluded"] = excludedReport;
+        boundIfcReport(report);
+    }
     return imported;
 }
 } // namespace sketchy

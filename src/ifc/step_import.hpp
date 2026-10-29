@@ -5,6 +5,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace sketchyup::ifc {
 
@@ -26,6 +27,10 @@ struct StepImportOptions {
   // Empty: report the metadata only (the R098.a behaviour). Set: also tessellate the
   // transferred solids and write the conversion package.
   std::string output;
+  // R098.i (ADR 0172 section 5): the bases left out, by their index in the tessellation's order (the
+  // value of its `P at` line). The application runs the helper again with the base it stopped on
+  // here. A left-out base is located as excluded and counted as omitted; a group is never left out.
+  std::vector<int> excludeSteps;
 };
 
 // --import-step: read the file and report its metadata as JSON (schema, the units with the

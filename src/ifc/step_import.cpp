@@ -1230,6 +1230,19 @@ int runStepImportPackage(const StepImportOptions& options) {
     const long long entry = firstEntry[baseIndex_];
     const long long label = std::max<long long>(0, entry >= 0 ? order[static_cast<std::size_t>(entry)].tag : base.Tag());
     const std::string where = placeOf(entry);
+    // R098.i (ADR 0172 section 5): a base the worker stopped on in an earlier run is left out before any of its work,
+    // so the stop is not met again. It is located with its name and counted as omitted, and the helper says so with
+    // P excluded (the line IFC uses). The check comes before GetShape: the work that stopped the run is not repeated.
+    if (std::find(options.excludeSteps.begin(), options.excludeSteps.end(), static_cast<int>(baseIndex_)) !=
+        options.excludeSteps.end()) {
+      std::string name = labelName(base);
+      if (name.empty()) name = "(unnamed)";
+      report.notImported("StepPart", "excluded", 1);
+      locate(report, "excluded", label, name + ": left out after the helper stopped on it: not imported" + where);
+      ++omitted;
+      progress.excluded({static_cast<int>(baseIndex_)});
+      continue;
+    }
     TopoDS_Shape shape;
     shapeTool.GetShape(base, shape);
     if (shape.IsNull()) {

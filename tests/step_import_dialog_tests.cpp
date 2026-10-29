@@ -25,6 +25,7 @@
 
 #include "app/ifc_availability.hpp"
 #include "app/ifc_import_dialog.hpp"
+#include "app/import_report.hpp"
 #include "app/report_sheet.hpp"
 #include "app/step_import_runner.hpp"
 #include "app/step_progress_sheet.hpp"
@@ -39,6 +40,8 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -48,6 +51,8 @@
 #include <QTest>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <cstddef>
 #include <functional>
 #include <iostream>
@@ -296,6 +301,8 @@ struct Driver {
     std::map<QString, QString> banner;
     std::map<QString, QString> identity;
     std::map<QString, QString> notes;
+    // R098.i: the report's grouped list, one row per group and per child (the label, a tab, the count).
+    std::map<QString, QStringList> lists;
     std::map<QString, QString> progressFile;
     int progressBar = -1;
     bool sawProgressSteps = false; // a later step was the working one (the helper ran)
@@ -441,6 +448,16 @@ struct Driver {
                     identity[name] = label->text();
                 if (auto *label = report->findChild<QLabel *>("stepReportNote"))
                     notes[name] = label->text();
+                if (auto *list = report->findChild<QTreeWidget *>("stepReportList")) {
+                    QStringList rows;
+                    for (int i = 0; i < list->topLevelItemCount(); ++i) {
+                        const QTreeWidgetItem *group = list->topLevelItem(i);
+                        rows << group->text(0);
+                        for (int j = 0; j < group->childCount(); ++j)
+                            rows << group->child(j)->text(0) + "\t" + group->child(j)->text(1);
+                    }
+                    lists[name] = rows;
+                }
                 if (!report->property("closed").toBool()) {
                     report->setProperty("closed", true);
                     for (auto *button : report->findChildren<QAbstractButton *>())
@@ -694,6 +711,45 @@ int main(int argc, char **argv) {
             check(contains(driver.notes["stepImportReport"], "mesh of flat faces") &&
                       contains(driver.notes["stepImportReport"], "cannot be edited as curves"),
                   "the report's note says the editability loss: " + driver.notes["stepImportReport"].toStdString());
+            // R098.i: a whole import names no element left out and is not restarted.
+            check(!contains(driver.lists["stepImportReport"].join("\n"), "Left out") &&
+                      !contains(driver.lists["stepImportReport"].join("\n"), "restarted"),
+                  "a whole import names no element left out");
+            // R098.i (ADR 0172 section 5): a partial import's report names the element the helper left out, and its
+            // restarted notice. The report is the one the window shows (the same face and the same shared sheet), built here
+            // from the helper's words the application makes for a partial import.
+            {
+                const QJsonObject partial = QJsonDocument::fromJson(R"json({
+                    "format": "STEP",
+                    "source": {"file": "step.model", "bytes": 4096, "schema": "ap214", "sha256": "00"},
+                    "units": {"length": "millimetre", "applied": "declared"},
+                    "tessellation": {"deflectionMm": 1.0, "angleDeg": 30.0, "maxTrianglesPerElement": 100000, "maxTotalTriangles": 1000000},
+                    "step": {"nodes": 3, "meshes": 1, "converted": 2, "omitted": 1, "unsupported": 0, "triangles": 12},
+                    "geometry": {"bodies": 2, "vertices": 8, "faces": 6, "edges": 12},
+                    "accounting": {"entities": 4, "converted": 2, "supporting": 1, "omitted": 1},
+                    "notices": [{"code": "restarted", "count": 1,
+                                 "message": "The helper stopped on an element, was restarted, and the element was left out."}],
+                    "locations": [{"kind": "excluded", "step": 3, "globalId": "",
+                                   "message": "Cylinder: left out after the helper stopped on it: not imported (in step / Assembly)"}],
+                    "excluded": [{"step": 1, "reason": "crash"}],
+                    "engine": {"completed": true, "restarts": 1}
+                })json").object();
+                Driver shown;
+                shown.start();
+                showImportReport(&window, stepImportReportFace(), ImportReportState{true, "", "step.model", partial, 1200, 1});
+                shown.stop();
+                check(shown.sheets == (QStringList{"stepImportReport"}), "the partial import's report sheet was shown");
+                check(contains(shown.banner["stepImportReport"], "1 restart") &&
+                          !contains(shown.banner["stepImportReport"], "2 restarts"),
+                      "the partial import's banner counts one restart: " + shown.banner["stepImportReport"].toStdString());
+                const QStringList rows = shown.lists["stepImportReport"];
+                check(rows.contains("Left out after the helper stopped"),
+                      "the partial import's report has the left-out group");
+                check(rows.contains("Cylinder: left out after the helper stopped on it: not imported (in step / Assembly)\t1"),
+                      "the report names the element left out: " + rows.join(" | ").toStdString());
+                check(rows.contains("The helper stopped on an element, was restarted, and the element was left out.\t1"),
+                      "the partial import's report carries the restarted notice");
+            }
             // The report can be shown again from the menu.
             Driver again;
             again.start();

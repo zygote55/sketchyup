@@ -463,6 +463,59 @@ def main():
                     expect(near(mbox[2], 0.0, absolute=1e-6) and near(mbox[5], 30.0, absolute=1e-6),
                            f"metadata import (the mirrored box): z 0 to 30, got {mbox[2]}..{mbox[5]}")
     
+        # R098.i (ADR 0172 section 5): --exclude-step leaves out one base of the tessellation (the value of its P at line).
+        # The base is absent from the package and reported (a P excluded line, and an excluded location); the bases that
+        # remain are the same bytes as in the run without the option; and a base the file does not have changes nothing.
+        restart_fixture = Path(__file__).resolve().parent.parent / "tests/fixtures/step/sketchyup-step-assembly.step"
+        if restart_fixture.exists():
+            def mesh_blobs(path):
+                data = Path(path).read_bytes()
+                (manifest_bytes,) = struct.unpack_from("<I", data, 8)
+                manifest = json.loads(data[24:24 + manifest_bytes])
+                blobs = []
+                offset = 24 + manifest_bytes
+                for mesh in manifest["meshes"]:
+                    n, t, e = mesh["vertices"], mesh["triangles"], mesh["edges"]
+                    size = n * 24 + t * 12 + t * 4 + e * 8 + (t * 12 if mesh["colors"] else 0)
+                    blobs.append(data[offset:offset + size])
+                    offset += size
+                return manifest, blobs
+
+            base_pkg = temp_path / "exclude-base.pkg"
+            code, base_result = run("--import-step", str(restart_fixture), "--output", str(base_pkg))
+            expect(code == 0 and base_result.get("status") == "ok", "exclude: the run without the option is ok")
+            excl_pkg = temp_path / "exclude-one.pkg"
+            excluded_run = subprocess.run(
+                [str(WORKER), "--import-step", str(restart_fixture), "--output", str(excl_pkg), "--exclude-step", "1"],
+                capture_output=True, text=True, timeout=300)
+            excluded_lines = excluded_run.stdout.splitlines()
+            expect(excluded_run.returncode == 0, f"exclude: the run with --exclude-step 1 exited {excluded_run.returncode}")
+            expect("P excluded 1" in [line.strip() for line in excluded_lines], "exclude: the helper reports P excluded 1")
+            excluded_reports = [line for line in excluded_lines if line.startswith("R ")]
+            excluded_result = json.loads(excluded_reports[-1][2:]) if excluded_reports else {}
+            expect(excluded_result.get("status") == "ok", "exclude: the run with the option is ok")
+            expect(excluded_result.get("converted") == base_result.get("converted", 0) - 1,
+                   f"exclude: one body fewer converted, got {excluded_result.get('converted')}")
+            expect(excluded_result.get("omitted") == base_result.get("omitted", 0) + 1,
+                   f"exclude: one base omitted, got {excluded_result.get('omitted')}")
+            expect(excluded_result.get("meshes") == base_result.get("meshes", 0) - 1,
+                   f"exclude: one mesh fewer, got {excluded_result.get('meshes')}")
+            base_manifest, base_blobs = mesh_blobs(base_pkg)
+            excl_manifest, excl_blobs = mesh_blobs(excl_pkg)
+            expect(len(excl_blobs) == len(base_blobs) - 1, "exclude: the left-out base's mesh is absent from the package")
+            expect(excl_blobs == [blob for blob in base_blobs if blob in excl_blobs],
+                   "exclude: the meshes that remain are the run without the option's, byte for byte and in order")
+            expect(len(excl_manifest["nodes"]) < len(base_manifest["nodes"]), "exclude: the left-out base's nodes are absent")
+            expect(excl_manifest["nodes"][0]["class"] == "IfcStepAssembly", "exclude: the root is still first")
+            located = [loc for loc in excl_manifest["report"].get("locations", []) if loc.get("kind") == "excluded"]
+            expect(len(located) == 1 and "left out after the helper stopped on it" in located[0].get("message", ""),
+                   f"exclude: the left-out base is located as excluded, got {located}")
+            unknown_pkg = temp_path / "exclude-unknown.pkg"
+            code, unknown_result = run("--import-step", str(restart_fixture), "--output", str(unknown_pkg), "--exclude-step", "99")
+            expect(code == 0 and unknown_result.get("status") == "ok", "exclude: a base the file does not have is ok")
+            expect(Path(unknown_pkg).read_bytes() == Path(base_pkg).read_bytes(),
+                   "exclude: a base the file does not have changes nothing (the same package bytes)")
+
     if failures:
         for failure in failures:
             print(f"FAIL: {failure}")

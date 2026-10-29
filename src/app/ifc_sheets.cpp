@@ -576,6 +576,16 @@ ImportReportFace stepImportReportFace() {
         const QJsonObject geometryReport = report["geometry"].toObject();
         for (const char *key : {"bodies", "vertices", "faces", "edges"})
             geometry.second << QStringList{key, QString::number(geometryReport[key].toInteger(0))};
+        // R098.i: a partial import names the elements the helper left out after it stopped on them. Each is
+        // located with its part's name and its path; the group is there only when some were left out.
+        QStringList leftOut;
+        for (const auto &value : report["locations"].toArray()) {
+            const QJsonObject location = value.toObject();
+            if (location["kind"].toString() == "excluded")
+                leftOut << QStringList{location["message"].toString(), QStringLiteral("1")};
+        }
+        if (!leftOut.isEmpty())
+            groups.emplace_back("Left out after the helper stopped", leftOut);
         return groups;
     };
     return face;
