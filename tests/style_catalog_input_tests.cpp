@@ -27,6 +27,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
@@ -39,6 +40,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
@@ -455,8 +457,8 @@ void openCatalogFile(Window &window, const QTemporaryDir &files,
         checkText(refused->child(0)->text(1), "✕ Refused", "The refused state is a word");
         checkText(refused->child(0)->text(2), "This file is not a catalog SketchyUp can read",
                   "The refusal says why");
-        checkText(refused->child(0)->text(2), "Nothing is listed.",
-                  "The refusal says nothing is listed");
+        check(refused->child(0)->text(2).startsWith("Nothing is listed. This file is not a catalog"),
+              "The refusal says first that nothing is listed");
         openFile("huge.sketchycat");
         auto *big = group(*list, "huge.sketchycat · could not be read");
         check(big, "A file over 130 MiB is listed as refused");
@@ -852,6 +854,9 @@ void exportAssetCatalog(Window &window, const QTemporaryDir &files) {
                         nextModal(refusal, [](QDialog &sheet) {
                             check(sheet.objectName() == "catalogExportRefused",
                                   "An existing file is refused");
+                            checkText(child<QLabel>(sheet, "catalogExportFirst")->text(),
+                                      "✕ Nothing was written.",
+                                      "The refusal says first that nothing was written");
                             checkText(child<QLabel>(sheet, "catalogExportSummary")->text(),
                                       "That file already exists. An existing file is never "
                                       "replaced; choose a new name.",
@@ -1423,8 +1428,9 @@ void saveToLibrary() {
               if (!sawTaken) {
                   name->setText("Style B");
                   check(!save->isEnabled() &&
-                            field<QLabel>(*dialog, "libraryStyleError")->text().startsWith("✕ A style named “Style B” is already"),
-                        "A taken name is refused in the dialog");
+                            field<QLabel>(*dialog, "libraryStyleError")->text().startsWith(
+                                "✕ Nothing was saved.\nA style named “Style B” is already"),
+                        "A taken name is refused in the dialog, and nothing was saved");
                   check(field<QLabel>(*dialog, "libraryStyleFile")->text().startsWith("Style B 2.sketchystyle"),
                         "The dialog suggests a free name");
                   sawTaken = true;
@@ -1444,6 +1450,38 @@ void saveToLibrary() {
     check(decodeStyleBundle(read(folder.filePath("Style D.sketchystyle"))).style.edgeStroke->dash ==
               EdgeDash::Dotted,
           "The saved file carries the model's stroke");
+}
+
+// Save to library refuses a missing edge texture before it writes anything. The alert says what did
+// not happen on its first line (UX_DESIGN §18.7), and the reason follows on the next line.
+void saveToLibraryRefusal() {
+    QTemporaryDir folder;
+    setStyleLibraryPreference(folder.path());
+    Window window;
+    window.resize(1180, 850);
+    window.show();
+    check(QTest::qWaitForWindowExposed(&window), "Window exposed");
+    auto &doc = window.document();
+    const auto lost = createAsset(doc, "Lost", "image/png");
+    setModelStyle(window, strokeStyle(2, 1, EdgeDash::Solid, lost));
+    auto &panel = stylesTab(window);
+    const auto history = doc.history().total;
+    bool named = false;
+    drive([&] { field<QPushButton>(panel, "styleSaveLibrary")->click(); }, [&] {
+        auto *dialog = window.findChild<QDialog *>("saveStyleDialog");
+        if (!dialog || !dialog->isVisible())
+            return false;
+        field<QPushButton>(*dialog, "libraryStyleSave")->click();
+        named = field<QLabel>(*dialog, "libraryStyleError")->text() ==
+                "✕ Nothing was saved.\nSave refused: “Lost” (asset " + QString::number(lost) +
+                    ") is missing from this model.";
+        field<QPushButton>(*dialog, "libraryStyleCancel")->click();
+        return true;
+    });
+    check(named, "The library-save refusal opens with \"Nothing was saved.\" and names the texture");
+    check(QDir(folder.path()).entryList({"*.sketchystyle"}).isEmpty(),
+          "A refused library save writes no file");
+    check(doc.history().total == history, "A refused library save changes nothing");
 }
 
 // File > Import style…: the file's facts, Apply (one labelled step, then the same-style result),
@@ -1587,7 +1625,8 @@ void importRefusals() {
     const auto history = doc.history().total;
     auto *importAction = window.findChild<QAction *>("file.importStyle");
 
-    auto refuse = [&](const QString &path, const char *title, const char *reason) {
+    // Each refusal opens "Nothing was applied." first (UX_DESIGN §18.7), then its sentence and reason.
+    auto refuse = [&](const QString &path, const char *sentence, const char *reason) {
         bool seen = false;
         drive([&] { importAction->trigger(); }, [&] {
             if (auto *chooser = window.findChild<QFileDialog *>("styleImportFileDialog");
@@ -1598,24 +1637,25 @@ void importRefusals() {
             auto *dialog = window.findChild<QDialog *>("importStyleRefused");
             if (!dialog || !dialog->isVisible())
                 return false;
-            check(field<QLabel>(*dialog, "styleRefusalReason")->text().contains(reason),
+            check(dialog->findChild<QLabel *>("styleRefusalTitle")->text() == "Nothing was applied.",
+                  "The refusal says first that nothing was applied");
+            const auto text = field<QLabel>(*dialog, "styleRefusalReason")->text();
+            check(text.startsWith(sentence) && text.contains(reason),
                   "The refusal names its reason");
-            check(dialog->findChild<QLabel *>("styleRefusalTitle")->text() == title,
-                  "The refusal has its title");
             seen = true;
             field<QPushButton>(*dialog, "importClose")->click();
             return true;
         });
-        check(seen, title);
+        check(seen, sentence);
         check(doc.history().total == history, "A refusal changes nothing");
     };
     refuse(missing, "The edge texture is not in the file.", "has no bytes");
     refuse(hash, "The edge texture does not match its checksum.", "may be damaged");
-    refuse(gif, "Import style refused", "not an image SketchyUp can read");
+    refuse(gif, "Import style refused.", "not an image SketchyUp can read");
     refuse(catalog, "This file is a catalog, not a style.", "not imported as a style");
-    refuse(wide, "Import style refused", "outside 1 to 8 px");
-    refuse(huge, "Import refused: the texture is too large", "17.0 MiB");
-    refuse(bad, "Import style refused", "not a style SketchyUp can read");
+    refuse(wide, "Import style refused.", "outside 1 to 8 px");
+    refuse(huge, "Import refused: the texture is too large.", "17.0 MiB");
+    refuse(bad, "Import style refused.", "not a style SketchyUp can read");
     check(folder.isValid() && QDir(folder.path()).entryList({"*.sketchystyle"}).isEmpty(),
           "Refusals write nothing to the library");
 
@@ -1677,7 +1717,8 @@ void exportStyle() {
         } else if (stage == 2 && dialog && dialog->isVisible()) {
             refused = field<QLabel>(*dialog, "exportError")
                           ->text()
-                          .startsWith("✕ That file already exists. An existing file is never replaced");
+                          .startsWith("✕ Nothing was written.\nThat file already exists. An existing "
+                                      "file is never replaced");
             queueClick(field<QPushButton>(*dialog, "exportCancel"));
             stage = 3;
         }
@@ -1718,8 +1759,8 @@ void exportStyle() {
             chooserOpened = true;
         if (stage == 0 && dialog && dialog->isVisible()) {
             namedAtOpen = field<QLabel>(*dialog, "exportError")->text() ==
-                          "✕ Export refused: “Lost” (asset " + QString::number(lost) +
-                              ") is missing from this model. Nothing was written.";
+                          "✕ Nothing was written.\nExport refused: “Lost” (asset " +
+                              QString::number(lost) + ") is missing from this model.";
             queueClick(field<QPushButton>(*dialog, "exportPrimary"));
             stage = 1;
         } else if (stage == 1 && dialog && dialog->isVisible()) {
@@ -1822,6 +1863,125 @@ void tabOrder() {
 
 // Runs every style case in order. A failing case is named; the rest still run, and the run fails
 // at the end, so the report lists each failure.
+// UX_DESIGN 18.5 and 18.7: the accounting bar's three parts differ without colour. The bar's brush
+// styles and its painted pixels show solid, hatched and cross-hatched fills, one per part.
+void reportBarFills() {
+    CatalogAccountingBar bar(1, 1, 1);
+    bar.resize(300, 14);
+    check(bar.fills() ==
+              std::vector<Qt::BrushStyle>{Qt::SolidPattern, Qt::BDiagPattern, Qt::DiagCrossPattern},
+          "The three parts are solid, hatched and cross-hatched");
+    // Each part is a third of the painted bar, in device pixels (the image is 2x at a 2x scale). Its
+    // minority share is the share of pixels that differ from the part's most common colour: none for
+    // a solid fill, the lines for a pattern.
+    const auto image = bar.grab().toImage();
+    const int third = image.width() / 3;
+    double minority[3]{};
+    for (int part = 0; part < 3; ++part) {
+        QHash<QRgb, int> colours;
+        for (int x = part * third; x < (part + 1) * third; ++x)
+            for (int y = 0; y < image.height(); ++y)
+                ++colours[image.pixel(x, y)];
+        int most = 0, total = 0;
+        for (auto it = colours.cbegin(); it != colours.cend(); ++it) {
+            most = std::max(most, it.value());
+            total += it.value();
+        }
+        minority[part] = 1.0 - double(most) / total;
+    }
+    check(minority[0] == 0.0, "The solid part paints one colour");
+    check(minority[1] > 0.0 && minority[2] > minority[1],
+          "The hatched part has lines, and the cross-hatched part has more of them");
+}
+
+// Types `path` in a file chooser and presses Save once, after the current timer tick. Save opens the
+// overwrite prompt when the file exists, and a prompt opened inside the tick is never answered, since
+// the tick does not run again while it is open. The accept is queued, so the drive's tick answers it.
+void chooseLater(QFileDialog &chooser, const QString &path) {
+    if (chooser.property("queued").toBool())
+        return;
+    chooser.setProperty("queued", true);
+    auto *name = chooser.findChild<QLineEdit *>("fileNameEdit");
+    check(name, "The file chooser has a file name field");
+    name->setText(path);
+    QMetaObject::invokeMethod(&chooser, "accept", Qt::QueuedConnection);
+}
+
+// Save report… writes the report's text, the text Copy report puts on the clipboard, to a .txt file
+// the person chooses. The system dialog confirms an overwrite: No keeps the file, and a new name is
+// written. The report is not stored in the model.
+void reportSaveToFile(Window &window, const QTemporaryDir &files,
+                      const QMap<QString, QByteArray> &fixtures) {
+    const auto steps = history(window);
+    resetLibrary(files, fixtures, {"basic"});
+    const auto contents = [](const QString &path) {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    };
+    catalogDialog(window, [&](QDialog &dialog) {
+        auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+        auto *insert = child<QPushButton>(dialog, "catalogInsert");
+        selectOnly(*list, {"Block", "Oak tint"}, kBasic);
+        writeFile(libraryFolder() + "/basic.sketchycat", fixtures.value("tampered-asset"));
+        modal([&] { insert->click(); }, [&](QDialog &report) {
+            checkText(child<QLabel>(report, "catalogReportLegend")->text(), "Solid · Inserted",
+                      "The legend names the solid fill");
+            checkText(child<QLabel>(report, "catalogReportLegend")->text(), "Hatched · Refused",
+                      "The legend names the hatched fill");
+            checkText(child<QLabel>(report, "catalogReportLegend")->text(),
+                      "Cross-hatched · Not inserted", "The legend names the cross-hatched fill");
+            check(child<CatalogAccountingBar>(report, "catalogReportBar")->fills() ==
+                      std::vector<Qt::BrushStyle>{Qt::BDiagPattern, Qt::DiagCrossPattern},
+                  "The refused part is hatched and the not-inserted part cross-hatched");
+
+            child<QPushButton>(report, "catalogReportCopy")->click();
+            const auto text = QApplication::clipboard()->text().toUtf8();
+            check(text.startsWith("Asset catalog: nothing was inserted"),
+                  "Copy report puts the report text on the clipboard");
+
+            auto *save = child<QPushButton>(report, "catalogReportSave");
+            check(save->isEnabled() && save->accessibleName() == "Save report",
+                  "Save report is on, and it is named");
+
+            // An existing file asks first. No keeps it, and the chooser is then cancelled.
+            const auto existing = files.filePath("Catalog report.txt");
+            writeFile(existing, QByteArray("keep me"));
+            bool asked = false;
+            drive([&] { save->click(); }, [&] {
+                if (auto *question = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
+                    asked = true;
+                    question->button(QMessageBox::No)->click();
+                    return false;
+                }
+                auto *chooser = qobject_cast<QFileDialog *>(QApplication::activeModalWidget());
+                if (!chooser)
+                    return false;
+                if (asked)
+                    chooser->reject();
+                else
+                    chooseLater(*chooser, existing);
+                return false;
+            });
+            check(asked, "An existing file is confirmed before it is replaced");
+            check(contents(existing) == QByteArray("keep me"), "No keeps the existing file");
+            check(child<QLabel>(report, "catalogReportStatus")->text().isEmpty(),
+                  "A cancelled save reports nothing");
+
+            // A new name writes the report text, which is the text Copy report copied.
+            const auto fresh = files.filePath("Catalog report 2.txt");
+            drive([&] { save->click(); }, [&] {
+                if (auto *chooser = qobject_cast<QFileDialog *>(QApplication::activeModalWidget()))
+                    chooseLater(*chooser, fresh);
+                return false;
+            });
+            check(contents(fresh) == text, "The file holds the text that Copy report copies");
+            checkText(child<QLabel>(report, "catalogReportStatus")->text(),
+                      "Saved the report as “Catalog report 2.txt”", "The status names the file");
+        });
+    });
+    check(history(window) == steps, "Save report changes nothing in the model");
+}
+
 void runAll() {
     struct Test {
         const char *name;
@@ -1833,6 +1993,8 @@ void runAll() {
                           {"library states", libraryStates},
                           {"library bounds", libraryBounds},
                           {"save to library", saveToLibrary},
+                          {"save to library refusal", saveToLibraryRefusal},
+                          {"catalog report bar", reportBarFills},
                           {"import apply and save", importApplyAndSave},
                           {"import refusals", importRefusals},
                           {"export style", exportStyle},
@@ -1891,6 +2053,7 @@ int main(int argc, char **argv) {
         oneComponentUndoStep(window, files, fixtures);
         keyboardReachability(window, files, fixtures);
         refusedInsertReport(window, files, fixtures);
+        style_suite::reportSaveToFile(window, files, fixtures);
         outsideAndLibraryInserts(window, files, fixtures);
         exportAssetCatalog(window, files);
         largeText(files, fixtures);

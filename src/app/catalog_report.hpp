@@ -3,13 +3,17 @@
 // Asset catalogs dialog. A refused insert is laid out as the §16.5 report: a banner, the accounting
 // identity "0 + b + c = n", and a tree of Needs your attention, Not inserted and Notices. A refused
 // entry's row carries its failing dependencies and the reason in words. The report changes nothing;
-// its row actions return to the dialog, which changes the selection.
+// its row actions return to the dialog, which changes the selection. Save report… writes the text
+// form to a .txt file the person chooses; the report is not stored in the model.
+#include <QColor>
 #include <QString>
 #include <QStringList>
+#include <QWidget>
 #include <QtGlobal>
+#include <array>
 #include <vector>
 
-class QWidget;
+class QPaintEvent;
 
 namespace sketchy {
 
@@ -42,7 +46,32 @@ struct CatalogReportResult {
 // choice; the caller applies it to the selection and stays open.
 CatalogReportResult showCatalogReport(QWidget *parent, const CatalogInsertReport &report);
 
-// The report as plain text, for Copy report.
+// The report as plain text, for Copy report and Save report….
 QString catalogReportText(const CatalogInsertReport &report);
+
+// The accounting bar of the report (UX_DESIGN 18.5, 18.7; 16.5): one segment per part, in the order
+// Inserted, Refused and Not inserted. The fills are solid, hatched and cross-hatched, so the parts
+// differ without colour, and the colour is a second carrier. A part with no count has no segment.
+class CatalogAccountingBar : public QWidget {
+    Q_OBJECT
+
+  public:
+    CatalogAccountingBar(qsizetype inserted, qsizetype refused, qsizetype notInserted,
+                         QWidget *parent = nullptr);
+    // The fill of each segment drawn, in order: Qt::SolidPattern, Qt::BDiagPattern (hatched) or
+    // Qt::DiagCrossPattern (cross-hatched).
+    std::vector<Qt::BrushStyle> fills() const;
+
+  protected:
+    void paintEvent(QPaintEvent *event) override;
+
+  private:
+    struct Part {
+        qsizetype count;
+        QColor colour;
+        Qt::BrushStyle fill;
+    };
+    std::array<Part, 3> parts_;
+};
 
 } // namespace sketchy

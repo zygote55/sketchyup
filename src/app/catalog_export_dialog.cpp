@@ -18,14 +18,15 @@
 namespace sketchy {
 namespace {
 
-// The export's refusal (UX_DESIGN 18.6): what did not happen, the reason, and the model unchanged.
-void showExportRefusal(QWidget *parent, const QString &reason, const QString &leading) {
+// The export's refusal (UX_DESIGN 18.6, 18.7): what did not happen is the first line, then the
+// reason, and the model unchanged.
+void showExportRefusal(QWidget *parent, const QString &reason) {
     RefusalSheet face;
     face.sheetName = "catalogExportRefused";
     face.title = "Export asset catalog refused";
     face.prefix = "catalogExport";
-    face.leadingLine = leading;
-    face.summary = QStringLiteral("%1. Nothing was written. Your model is unchanged.").arg(reason);
+    face.leadingLine = QStringLiteral("✕ Nothing was written.");
+    face.summary = QStringLiteral("Export refused: %1. Your model is unchanged.").arg(reason);
     face.closeButton = "OK";
     face.closeSuffix = "OK";
     face.closeIsDefault = true;
@@ -210,8 +211,7 @@ void CatalogExportDialog::exportToFile() {
     try {
         bytes = exportCatalog(doc_, request);
     } catch (const std::exception &failure) {
-        showExportRefusal(this, QString::fromUtf8(failure.what()),
-                          QStringLiteral("✕ Export refused"));
+        showExportRefusal(this, QString::fromUtf8(failure.what()));
         return;
     }
 
@@ -229,17 +229,14 @@ void CatalogExportDialog::exportToFile() {
     const auto path = save.selectedFiles().constFirst();
     const QFileInfo info(path);
     if (info.exists() || info.isSymLink()) {
-        showExportRefusal(this,
-                          QStringLiteral("That file already exists. An existing file is never "
-                                         "replaced; choose a new name"),
-                          QStringLiteral("✕ Export refused"));
+        showExportRefusal(this, QStringLiteral("That file already exists. An existing file is never "
+                                               "replaced; choose a new name"));
         return;
     }
     try {
         writeCatalog(bytes, path);
     } catch (const std::exception &failure) {
-        showExportRefusal(this, QString::fromUtf8(failure.what()),
-                          QStringLiteral("✕ Export refused"));
+        showExportRefusal(this, QString::fromUtf8(failure.what()));
         return;
     }
     exported_ = QStringLiteral("Exported asset catalog “%1”: %2 entries. Your model is unchanged.")
