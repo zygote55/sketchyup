@@ -24,7 +24,7 @@
     "timedBuild": "Release (sketchyup-cli, sketchyup-ifc-worker, ifc_step_export_tests)",
     "debugTimingsDiscarded": true
   },
-  "status": "Accepted (R098.h), with the documented limits of R098d section 12.7: the 100-sphere end-to-end import (14 s, decision 8), the 90,954-face export (16.8 s, decision 8), no restart-and-exclude for STEP (decision 7); the 1,000,000-triangle export budget is replaced by the largest exportable model's row, 23 s, with the 4 GiB cap kept (decision 13). E1 to E5, E7 and E8 pass; E6 passes for the refusals and the stops",
+  "status": "Accepted (R098.h), with the documented limits of R098d section 12.7: the 100-sphere end-to-end import (14 s, decision 8), the 90,954-face export (16.8 s, decision 8), restart-and-exclude for STEP built in R098.i (decision 7; section 13); the 1,000,000-triangle export budget is replaced by the largest exportable model's row, 23 s, with the 4 GiB cap kept (decision 13). E1 to E5, E7 and E8 pass; E6 passes in full (R098.i adds the restart-and-exclude)",
   "verifyLine": "accepted (R098.h), with documented limits; the helper's thread count and entity cap are amended in ADR 0172 section 6 by the parent (2026-10-28)",
   "checks": {
     "E1": "pass (R098.f, parent decision; carried in R098.h)",
@@ -32,7 +32,7 @@
     "E3": "pass (R098.d; carried in R098.h)",
     "E4": "pass (R098.e to R098.f: the bad face and the PMI-only file are reported with locations and counts; R098.g reports the PMI of a converting file and the dropped deep-tree parts)",
     "E5": "pass (R098.d; carried in R098.h)",
-    "E6": "pass for the refusals and the stops (R098.e: step_import C8 to C11; the deadline and cancel C5 and C6); the restart-and-exclude is deferred to 1.5 (owner decision 7, 2026-10-28)",
+    "E6": "pass (R098.e: refusals and stops, step_import C8 to C11, C5 and C6; R098.i: the restart-and-exclude, step_import restart cases and ifc_step_worker exclude checks, section 13; owner decision 7, 2026-10-28)",
     "E7": "pass (R098.d; carried in R098.h)",
     "E8": "pass (R098.e, on a stand-in helper's message; the real helper's texts are clipped to the same 240 bytes)",
     "packaging": "pass: ifc_library_install (L1 to L6, with the STEP-SOURCE and STEP toolkit checks) and ifc_library_source; package acceptance not run",
@@ -118,7 +118,7 @@
     }
   },
   "findings": [
-    "E6 restart-and-exclude is not implemented for STEP (src/io/step_worker.cpp says so); ADR 0172 section 5 and E6 require it",
+    "E6 restart-and-exclude is not implemented for STEP (src/io/step_worker.cpp said so); ADR 0172 section 5 and E6 require it (resolved in R098.i)",
     "The STEP mode has no entity cap and reports one thread; section 6 says it takes the IFC helper's limits",
     "A document holds 100,000 unique faces, and each curved triangle is a unique face: a curved import stops at about 100,000 triangles (documentLimit:faces)",
     "The export dialog's 250,000-triangle size note comes after triangle-faced models pass the 256 MiB limit (about 110,000 faces); threshold not changed; owner decision",
@@ -140,7 +140,7 @@
   "notRun": [
     "package acceptance (verify-package.sh, needs a package build)",
     "cancel latency on the real helper (the command line has no cancel)",
-    "E6 restart for STEP (not implemented; estimate in section 9.2)",
+    "E6 restart for STEP (not implemented at R098.h; estimate in section 9.2; built in R098.i)",
     "E4 bad-face and PMI fixtures beyond the two designed ones (no entity the translator refuses as its own fixture)",
     "E8 message bound on a real helper message (the stand-in gives the long message)",
     "sanitizers for R098.d and R098.e",

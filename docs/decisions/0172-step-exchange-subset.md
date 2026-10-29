@@ -255,9 +255,7 @@ Invalid or unsupported surfaces and entities are **reported, with locations**
   worker that exceeds its `RLIMIT_AS`, its CPU limit or its deadline, or is
   killed mid-run (owner decision 7, 2026-10-28: the whole file is refused,
   with the helper's log tail; the application keeps running and the current
-  document is unchanged. The restart with the element left out, at most three
-  times, and the partial import that names the excluded elements are not in
-  1.4.0 and are planned for 1.5); and a file with no declared
+  document is unchanged. The restart with the element left out, at most three times, and the partial import that names the excluded elements (R098.i, 2026-10-29: built in 1.5, as a stop in the tessellation of a base; a stop with no base, a sandbox kill and a stop past the restarts are refused whole); and a file with no declared
   unit and no `--step-length-unit` option.
 - **Never silently changed scale** (§2): every conversion is explicit and
   appears in the report; a mismatch is a refusal, not a rescale.
@@ -270,7 +268,7 @@ budgets are enforced from the application side, as in ADR 0171 §6.4:
 | | Budget | Rationale |
 |---|---|---|
 | Input file | 128 MiB, checked by the application before the helper starts (size, regular file, `ISO-10303-21` header, a `FILE_SCHEMA` in {AP203, AP214, AP242}) | The IFC precedent; the STEP lex/yacc parse is linear in the file |
-| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s; CPU time 480 s (four threads); output file 256 MiB; four geometry threads | `src/io/ifc_worker.hpp` (120 s, 4 GiB, 4 threads, 3 restarts, 2,000,000 entities); the STEP mode takes the same limits, but has no restarts (owner decision 7, 2026-10-28). *Amended 2026-10-28 (parent decision, R098.h): the STEP mode meshes on one thread, because BRepMesh is single-threaded in the pinned OCCT build, and it has no entity cap; the 128 MiB input limit and the helper's 4 GiB, 120 s and 480 s limits bound a file. An explicit entity cap is a 1.5 follow-up.* |
+| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s; CPU time 480 s (four threads); output file 256 MiB; four geometry threads | `src/io/ifc_worker.hpp` (120 s, 4 GiB, 4 threads, 3 restarts, 2,000,000 entities); the STEP mode takes the same limits and, since R098.i, the same restarts (owner decision 7 deferred them to 1.5; R098.i built them). *Amended 2026-10-28 (parent decision, R098.h): the STEP mode meshes on one thread, because BRepMesh is single-threaded in the pinned OCCT build, and it has no entity cap; the 128 MiB input limit and the helper's 4 GiB, 120 s and 480 s limits bound a file. An explicit entity cap is a 1.5 follow-up.* |
 | Triangles | 1,000,000 in total; 100,000 per element | The native per-body limit; the application merges coplanar triangles into far fewer faces |
 | Package | Manifest at most 32 MiB; mesh chunk at most 128 MiB | Bounds the decoder (ADR 0171 §1.6) |
 | Report / messages | Report ≤ 64 KiB; message ≤ 256 bytes | The IFC bounds |
@@ -293,7 +291,7 @@ changing scale* — is checked by:
 | E3: units | A file that declares inches imports converted, with the factor in the report; a file with no declared unit and no option refuses with the notice, creating nothing; geometry size changes **only** through a declared unit (the no-silent-scale check); an explicit `--step-length-unit` is used only when the file declares no unit |
 | E4: invalid/unsupported | A fixture with broken or unsupported entities (a bad face, an entity the translator refuses, a PMI-only AP242 file) reports with locations and counts, converts the rest, and changes no scale; the accounting identity (converted + supporting + omitted = counted) holds |
 | E5: round trip | Export (AP214, then AP203) of the corpus, then re-import: geometry within the reported deflection, names, colours, `step.Layer`, hidden state and the assembly/instance structure all survive |
-| E6: limits and refusal | The 128 MiB + 1-byte file refuses with the count and the limit named, creating no document; a worker that exceeds `RLIMIT_AS`, its CPU limit or its deadline, or is killed with SIGSEGV mid-run, is restarted with the element it was on excluded (at most three times) and then gives either a partial import that names the excluded elements or a failed import with its log tail; the application keeps running and the current document is unchanged. **Owner decision 7 (2026-10-28): the restart-and-exclude is deferred to 1.5. In 1.4.0 a crash, a limit or a deadline is a refused import with its log tail, and the document is unchanged; the refusals and the stops are the E6 checks that pass.** |
+| E6: limits and refusal | The 128 MiB + 1-byte file refuses with the count and the limit named, creating no document; a worker that exceeds `RLIMIT_AS`, its CPU limit or its deadline, or is killed with SIGSEGV mid-run, is restarted with the element it was on excluded (at most three times) and then gives either a partial import that names the excluded elements or a failed import with its log tail; the application keeps running and the current document is unchanged. **(R098.i) Owner decision 7 (2026-10-28) deferred the restart-and-exclude to 1.5; R098.i built it (2026-10-29). A stop in the tessellation of a base (its `P at` line) that is over RLIMIT_AS, its CPU limit or its deadline, or killed by a signal other than the sandbox's, is restarted with that base left out, at most three times, and then gives a partial import that names it. A stop in the read or write phase, a sandbox kill and a stop after the restarts are used up are refused whole with the log tail; the document is unchanged.** |
 | E7: native | The whole imported document passes native validation (`decodeDocument(encodeDocument())`) and a save and reopen is bit-exact (R073); one edit makes the whole import one undo step; each body's provenance properties (`step.Entity`, `step.Schema`, `step.Source`) resolve to the right source entity |
 | E8: report | Messages ≤ 256 bytes; the report ≤ 64 KiB; the counts are complete past the 32-per-kind location bound |
 
@@ -1164,6 +1162,27 @@ measurement generator is `tests/ifc_step_export_tests.cpp` (its `--largest` mode
   "Accepted (R098.h)", with the documented limits in R098d section 12.7.
 - **Not run.** Cancel and progress on the real helper; package acceptance; the sanitizers; the desktop suites, which run in
   the full tier with the `full-ci` label.
+
+## Implementation notes (R098.i, 2026-10-29)
+
+Owner decision 7 (2026-10-28) moved the STEP restart-and-exclude to 1.5. R098.i builds it. The record is
+[R098d section 13](../verification/R098d-step-exchange.md#13-r098i-restart-and-exclude-for-step-2026-10-29), with the
+tests and runs. Sections 5 and 6 and the E6 row are amended in place above, each marked (R098.i).
+
+- **The protocol.** One helper option, `--exclude-step N` (a base index: the value of the helper's `P at` line), and one
+  progress line, `P excluded N`, the line IFC uses. A left-out base is located as `excluded` with its part's name and its
+  path, and counted as omitted. A group is never left out.
+- **The restart rule** (section 5). A stop is restarted only in the tessellation with a `P at` base, and only for a
+  deadline, a signal other than SIGSYS, or a memory failure. At most three restarts (`StepWorkerOptions::maxRestarts`).
+  A sandbox kill is never restarted (ADR 0183 section 4.6). A stop in the read or write phase is refused whole.
+- **The partial import** carries the `excluded` list, the `restarted` notice (the IFC text), `engine.restarts`, and the
+  `excluded` locations, which the desktop names in the report's "Left out after the helper stopped" group.
+- **Findings that contradict or refine ADR 0172.** (1) Section 5 says "the element"; for STEP the element is a tessellated
+  base (a part), so the `excluded` entries carry the base's index, not the entity label that IFC's `#id` carries. The label
+  is in the location. (2) Section 6's helper row said STEP has no restarts; it is amended. No other clause contradicts the
+  design, and ADR 0171 decision 19 is unchanged: the STEP restart copies its rule.
+- **Measured.** The application's restart tests take 9.04 s in total (the five-second deadline is the only timed step).
+  The helper's STEP suite passes, and so do the sanitized helper suites (6 of 6, 235 s).
 
 ## Appendix: evidence and sources
 

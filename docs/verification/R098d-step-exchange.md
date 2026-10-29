@@ -7,6 +7,8 @@ Qt 6.11.2, Python 3.14), 22 CPUs and a 10 GB container. The checks are those of
 [ADR 0172 §7](../decisions/0172-step-exchange-subset.md#7-verification-the-r098-verify-line) (E1 to E8),
 §6 (the budgets) and §8 (packaging and CI). [Summary](R098d-step-exchange.json).
 
+**Status (after R098.i, 2026-10-29).** E6 now passes in full: the restart-and-exclude that owner decision 7 deferred to 1.5 is built and tested (section 13). Nothing else in this record changes, and the verdict stays as R098.h left it.
+
 **Status (after R098.h, 2026-10-28): Accepted (R098.h)**, with the documented limits of section 12.7: the owner's decisions 7, 8 and 13 are applied (section 12). E1 to E5, E7 and E8 pass; E6 passes for the refusals and the stops, and the restart-and-exclude is deferred to 1.5 (decision 7). The 1,000,000-triangle export budget is replaced by the largest exportable model a document holds, measured under the 4 GiB cap (23 s).
 
 **Status (after R098.f, 2026-10-28).** The Verify line is still **partly met**. R098.f fixed the three STEP import
@@ -47,7 +49,7 @@ the bad box is in it. The accounting is 8 = 1 converted + 1 supporting + 6 omitt
 (R098.e found the bad face counted but unlocated, not an element, and in the good body; the PMI file refused with no
 counts. Section 10 gives the change.) Correction: the AP242 refusal this row cited is not in C2. C2 refuses AP230 (`unsupportedSchema`). The helper reads AP242 (best effort, ADR 0172 section 2) and refuses only the AP242 export. See sections 9 and 10 | df9cc436 (R098.e); df0f218e (R098.f code and tests) |
 | E5 | §7, round trip: AP214 and AP203 export re-imports with geometry, names, colours, `step.Layer`, hidden state and the assembly/instance structure | `ifc_step_export` (`roundTrip` for `ap214` and `ap203`, through the real helper: volumes and bounds of each top-level body, names, colours, layer, hidden, one definition with three instances at three placements; E3 export half: the file declares `.MILLI.`) | pass | 33e175fa |
-| E6 | §7, limits and refusal: a file over 128 MiB refuses with the count and the limit named; a worker over its limits or killed is restarted and the element excluded, or fails with its log tail; the document is unchanged | Refusal: `tests/step_budgets.py` (`refuse-129m`, a run today); **R098.e: `step_import` C8 (the 128 MiB + 1-byte refusal as a CTest)**. Stop and cancel: `step_import` C5 (deadline) and C6 (cancel). **R098.e: `step_import` C9 (SIGSEGV), C10 (RLIMIT_AS) and C11 (RLIMIT_CPU), each with a stand-in helper** | **R098.e: partial.** Pass: the 128 MiB + 1-byte file is refused as `tooLarge` before any helper starts (the stand-in hangs, so a helper that started would time out); exactly 128 MiB passes the application's check. A helper killed by SIGSEGV fails with `crash (tessellate)`; over RLIMIT_AS (the stand-in applies the limit and allocates past it) with `memory` and `bad_alloc` in the log tail; over RLIMIT_CPU (SIGXCPU) with `crash`. Each import throws before anything is created. Stop and cancel: pass with a stand-in helper. **Not met: the restart-and-exclude clause.** `src/io/step_worker.cpp` states that the STEP import "has no per-element restart protocol: a stop is a failure"; ADR 0172 §5 and E6 require up to three restarts and then a partial import naming the excluded elements. Not implemented (section 9 has the estimate) | df9cc436 |
+| E6 | §7, limits and refusal: a file over 128 MiB refuses with the count and the limit named; a worker over its limits or killed is restarted and the element excluded, or fails with its log tail; the document is unchanged | Refusal: `tests/step_budgets.py` (`refuse-129m`, a run today); **R098.e: `step_import` C8 (the 128 MiB + 1-byte refusal as a CTest)**. Stop and cancel: `step_import` C5 (deadline) and C6 (cancel). **R098.e: `step_import` C9 (SIGSEGV), C10 (RLIMIT_AS) and C11 (RLIMIT_CPU), each with a stand-in helper** | **R098.e: partial; R098.i: pass (section 13).** Pass: the 128 MiB + 1-byte file is refused as `tooLarge` before any helper starts (the stand-in hangs, so a helper that started would time out); exactly 128 MiB passes the application's check. A helper killed by SIGSEGV fails with `crash (tessellate)`; over RLIMIT_AS (the stand-in applies the limit and allocates past it) with `memory` and `bad_alloc` in the log tail; over RLIMIT_CPU (SIGXCPU) with `crash`. Each import throws before anything is created. Stop and cancel: pass with a stand-in helper. **The restart-and-exclude clause, not met at R098.e, is built and tested in R098.i** (section 13; owner decision 7): a stop in the tessellation is restarted with its base left out, at most three times, and gives a partial import that names it, or a failed import with its log tail. Section 9 has the estimate that R098.i built | df9cc436 |
 | E7 | §7, native: the document validates (`decodeDocument(encodeDocument())`); save and reopen bit-exact; one undo removes the import; provenance resolves | `ifc_step_export` E7 checks, added in R098.d, run on each round-trip import through the real helper: encode, decode and re-encode bit-exact; one undo empties the document; every geometry body's `step.Source` equals the file's digest in the report | pass (both schemas) | 33e175fa |
 | E8 | §7, report: messages ≤ 256 bytes; report ≤ 64 KiB; counts complete past the 32-per-kind location bound | Report size: `tests/step_budgets.py` (the 100-sphere import's report, 6,166 bytes). **R098.e: `step_import` C12, a refusal whose helper message is 5,000 bytes** | **R098.e: pass (on a stand-in).** The error's message is kept to 240 bytes (it measured 240; the bound is 256), and the report is within 64 KiB. The real helper's texts are clipped to the same 240 bytes (`step_import.cpp`, kernel messages). The counts past 32 locations are not asserted for STEP, because the STEP report keeps no locations (E4) | df9cc436 |
 | Packaging L1 to L6 | §8: the STEP closure is in the private set, `RUNPATH $ORIGIN`, the notices installed | `ifc_library_install` (runs `verify-ifc-library.py install`; the new L3 check requires `STEP-SOURCE.txt` and its toolkit names and tag; the new L6 check requires the worker to record and install `libTKDESTEP` and `libTKXCAF`) | pass | 33e175fa |
@@ -624,3 +626,89 @@ parent). The 4 GiB cap holds for every model the document can hold (section 12.2
 - **Not run.** The cancel and progress of the export on the real helper (the command line has no cancel); the package
   acceptance; the sanitizers; the desktop suites, which run in the full tier with the `full-ci` label. The record's R098.d
   verdict on the helper's thread count and entity cap is not re-measured.
+
+## 13. R098.i: restart-and-exclude for STEP (2026-10-29)
+
+Owner decision 7 (2026-10-28) deferred the restart-and-exclude to 1.5. This section records its build. Branch
+`feat/r098i-step-restart`, [PR #522](https://github.com/zygote55/sketchyup/pull/522). ADR 0172 section 5 and the E6 row
+are amended in place (R098.i), and the design is the one section 9.2 estimated (about 150 to 260 lines; the diff is near
+that).
+
+### 13.1 What was built
+
+- **The helper** (`src/ifc/worker_main.cpp`, `src/ifc/step_import.cpp`, `step_import.hpp`). `--import-step --output PKG`
+  takes `--exclude-step N` (repeatable). In the tessellation, a base whose index is N is left out before any work on it:
+  the check comes before the base's shape is fetched, so the work that stopped the run is not repeated. The base is
+  located as `excluded` with its part's name and its path, counted as omitted, and the helper prints `P excluded N`. A
+  group (an assembly) is never left out, since it has no mesh.
+- **The application** (`src/io/step_worker.cpp`, `step_worker.hpp`). The restart loop in `importStepFile`. A stop is
+  restarted when the helper stopped in the tessellation (`P phase tessellate` with a `P at` base) and its reason is a
+  deadline (`timeout`), a signal other than SIGSYS (`crash`), or a memory failure (`memory`). The base is added to the
+  excluded list and the helper runs again. `StepWorkerOptions::maxRestarts` is 3, as in IFC.
+- **The partial import.** It carries the report's `excluded` list (each entry `step` = the base's index, and `reason`),
+  the `restarted` notice (count = restarts, the IFC text), `engine.restarts`, and the `excluded` locations, which name the
+  elements. A failed import carries `engine` (completed, restarts, stops), `excluded` and `logTail`.
+- **The desktop** (`src/app/ifc_sheets.cpp`, `stepImportReportFace`). A group, "Left out after the helper stopped", lists
+  each excluded location's message (the part's name, its entity label and its path). The group appears only for a partial
+  import. The banner's restart count and the restarted notice were already the IFC face's; the STEP face inherits them.
+
+### 13.2 The protocol change
+
+- One new option on `--import-step`: `--exclude-step N`. N is a base index, the value of the helper's `P at` line (the
+  order of the unique bases in the tessellation), not an entity label.
+- One progress line from the helper: `P excluded N...`, the line IFC uses. For STEP the helper prints it only for a base the
+  application passed, so the application's merge adds nothing new; the line is there so the stop is visible in the log.
+- Unchanged: the package format, the `P at`, `P phase`, `P tasks` and `P done` lines, the R line, the refusals and the
+  limits (4 GiB, 120 s, 480 s CPU, 256 MiB output, 128 MiB input).
+
+### 13.3 The restart rule
+
+| The helper stopped with | Restarted? | Result |
+| --- | --- | --- |
+| a `P at` base in the tessellation, reason `timeout`, `crash` or `memory` | yes, up to three times | the base is left out; a partial import, or a failed import once the restarts are used up |
+| a `P at` base, reason `crash` by SIGSYS (`sandboxViolation`) | never (ADR 0183 section 4.6) | refused whole as `sandboxViolation` |
+| no `P at`, or the read phase, or the write phase | no | refused whole, as before (`workerFailed`, the stop's reason) |
+| a helper refusal (`R` with status `refused`) | not a stop | refused with the helper's words, as before |
+
+The number of runs is at most four: the first run and three restarts. The 120 s deadline applies to each run.
+
+### 13.4 Tests and runs
+
+All run at the tree of the R098.i commits, on the pinned image `sketchyup-ci-pinned:r097a-ifc` (GCC 16.2.1, OCCT 7.9.3,
+Qt 6.11.2), in the worktree mounted at `/src`, `--user` the build's user, `--memory 10g --memory-swap 10g`, `-j4` for builds.
+
+| Suite | What it checks | Result |
+| --- | --- | --- |
+| `step_import` (application, a stand-in helper; `ifc-app` tree, Debug) | the existing checks unchanged; R098.i: SIGSEGV at base 1 gives a partial import naming 1, two runs; a hang past a 5 s deadline at base 1 gives a partial import with reason `timeout`, two runs; a SIGSYS stand-in is refused as `sandboxViolation`, one run; a read-phase stop is refused whole, one run, no base left out; a write-phase stop is refused whole, one run; a helper that stops on every run gives three restarts (four runs), a failed import whose message names the three restarts, with the stops (four), the excluded bases 0, 1 and 2 and the log tail | pass (9.04 s) |
+| `ifc_step_worker` (helper, Python, the committed fixture `sketchyup-step-assembly.step`) | R098.i: `--exclude-step 1` prints `P excluded 1`; one body and one mesh fewer; one base omitted; the meshes that remain are the run without the option's, byte for byte and in order; the root is still first; the left-out base is located as `excluded`; a base the file does not have (`--exclude-step 99`) gives the same package bytes as no option | pass (the direct run in the image, and under ASan, 2.05 s) |
+| `step_import_dialog` (desktop, the `native` tree, default build type) | the existing STEP dialog flow unchanged; a whole import names no element left out; R098.i: a partial import's report shows one restart in the banner, the "Left out after the helper stopped" group with the named element, and the restarted notice | pass on X11 at 1x (`xvfb-run`, `QT_QPA_PLATFORM=xcb`) and on Wayland at 2x (`scripts/test-wayland.sh`, `SKETCHYUP_TEST_SCALE=2`) |
+
+**The CI "IFC library and helper" job's lines, run locally** (from `.github/workflows/native.yml`):
+
+- `ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2`: 8 of 8 pass (54 s),
+  before the Python exclusion checks were added; the Python test's new checks pass when it is run directly in the image.
+- `ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import|import_refusal|ifc_sandbox)$' --output-on-failure --no-tests=error --parallel 2`:
+  10 of 10 pass (44 s).
+- The sanitized helper suites, `ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus|ifc_step_worker)$' --output-on-failure --no-tests=error`, with `ASAN_OPTIONS=detect_leaks=0`: 6 of 6 pass (235 s), with the helper built under ASan and UBSan (`build/ifc-sanitize`, the uninstrumented library).
+
+Not run: `ifc_worker_fault_corpus_full` (the 512-mutation corpus, label `full`), which is in the full tier only.
+
+### 13.5 What was not done
+
+- **The STEP runner is not folded into `runIfcWorker`.** The brief made the fold optional. It needs a progress hook in
+  `runIfcWorker`, and this change is the restart; the fold is left for a later change, and the STEP `runOnce` keeps its own
+  progress parsing (it now parses `P excluded` too).
+- **The refusal sheet** (`showStepRefusal`) is unchanged. A failed restart's details (the stops, the excluded list and the
+  log tail) ride its report and its copy-details. The sheet's own words say the helper stopped, not which base it was on.
+- **A real crashing file.** The restart is tested with stand-in helpers, as the brief asks; no committed STEP fixture
+  makes the pinned helper crash, so the path is not exercised against OCCT's real failure.
+- **Mutation checks** were not run for this slice.
+
+### 13.6 Findings for the parent
+
+- **The `excluded` entries name a base index, not an entity label.** IFC's `excluded` entries carry the product's `#id`.
+  STEP's carry the base's index in the tessellation (the value of `P at`), because that is what the helper reports and
+  what `--exclude-step` takes. The entity label is in the `excluded` location, and the desktop names the element from that.
+- **ADR 0172 section 6's row for the helper's limits** said STEP "has no restarts" (owner decision 7). That row is amended
+  to match (R098.i).
+- No contradiction with ADR 0171: decision 19 and the IFC restart are unchanged, and the STEP restart copies their rule.
