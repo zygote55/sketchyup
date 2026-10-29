@@ -117,11 +117,20 @@ case "$mode" in
 esac
 )PROG");
 }
+// The shell lines that hold the helper until `gate` exists, for at most 20 s (2000 polls of 10 ms).
+// /bin/sleep is absolute: the scrubbed environment has no PATH.
+QString waitForGate(const QString &gate) {
+    return QString("    i=0\n    while [ ! -e '") + gate +
+           QString("' ] && [ \"$i\" -lt 2000 ]; do /bin/sleep 0.01; i=$((i + 1)); done\n");
+}
 // The --import body: take the --output argument, write the converted package there, play a
 // little progress, then report. `sleep` seconds of work, via /bin/sleep (the scrubbed
 // environment has no PATH); `exec` makes the process die at once when the application
-// cancels it. `refuse` reports the helper's refusal line and exits 3 instead.
-QString importBody(const QString &package, const int sleepSeconds, const bool refuse) {
+// cancels it. `refuse` reports the helper's refusal line and exits 3 instead. A `gate` replaces
+// the sleep: the helper holds at its geometry step until the driver has seen that step working
+// (see heldImportBody).
+QString importBody(const QString &package, const int sleepSeconds, const bool refuse,
+                   const QString &gate = QString()) {
     const QString args =
         QString(R"(    out=""
     while [ "$#" -gt 0 ]; do
@@ -136,19 +145,24 @@ QString importBody(const QString &package, const int sleepSeconds, const bool re
         return args + QString(R"(    echo 'R {"status":"refused","code":"tooManyEntities","message":"The file holds more entities than the bound allows."}'
     exit 3
 )");
+    const QString work = gate.isEmpty() ? QString("    /bin/sleep ") + QString::number(sleepSeconds) + QString("\n")
+                                        : waitForGate(gate);
     return args + QString(R"(    /usr/bin/cp ')")
            + package
            + QString(R"(' "$out" || exit 1
     echo 'P phase geometry'
-    /bin/sleep )")
-           + QString::number(sleepSeconds)
-           + QString(R"(
-    echo 'P tasks 3'
+)")
+           + work
+           + QString(R"(    echo 'P tasks 3'
     echo 'P done 3'
     echo 'R {"status":"ok"}'
     exit 0
 )");
 }
+// The --import body of the case that checks the model step: as importBody, with the geometry step
+// held until the driver has seen it working (it creates `gate`; see Driver::releaseHeld). A driver
+// that never sees the step gives up after 20 s and fails the check, rather than hanging the suite.
+QString heldImportBody(const QString &package, const QString &gate) { return importBody(package, 0, false, gate); }
 // Write a helper file and make it executable.
 QString writeExecutable(const QString &dir, const QString &name, const QString &body) {
     const QString path = dir + "/" + name;
@@ -247,6 +261,7 @@ struct Driver {
     std::map<QString, QString> progressFile;
     int progressBar = -1;
     bool sawStep5Working = false; // the model step ran while the geometry converted
+    QString gateFile; // a held helper's gate (heldImportBody): made once the model step is seen
     bool sawStep1Working = false; // the check step was the working one (a hung helper)
     bool progressCancelFound = false;
     QString progressElapsed;
@@ -261,6 +276,14 @@ struct Driver {
         timer.stop();
         if (!actionFailure.isEmpty())
             throw std::runtime_error(("the driver action failed: " + actionFailure).toStdString());
+    }
+    // Releases a held helper: the model step is working, so the helper may go on to its tasks.
+    void releaseHeld() {
+        if (gateFile.isEmpty() || QFileInfo::exists(gateFile))
+            return;
+        QFile gate(gateFile);
+        if (!gate.open(QIODevice::WriteOnly) && actionFailure.isEmpty())
+            actionFailure = "the held helper's gate could not be made";
     }
     void stepBody() {
         for (auto *widget : QApplication::topLevelWidgets()) {
@@ -355,8 +378,10 @@ struct Driver {
                 if (auto *bar = sheet->findChild<QProgressBar *>("ifcProgressBar"))
                     progressBar = std::max(progressBar, bar->value());
                 if (auto *state = sheet->findChild<QLabel *>("ifcProgressStep5State"))
-                    if (state->text() == "\u25CF")
+                    if (state->text() == "\u25CF") {
                         sawStep5Working = true;
+                        releaseHeld();
+                    }
                 if (auto *state = sheet->findChild<QLabel *>("ifcProgressStep1State"))
                     if (state->text() == "\u25CF")
                         sawStep1Working = true;
@@ -425,10 +450,13 @@ int main(int argc, char **argv) {
     const QString available = writeExecutable(
         root.path(), "worker-available", standInScript(probeJson(true, {}),
                                                       importBody(seed, 1, false)));
+    // The limited helper's geometry step is held until the driver has seen the model step working
+    // (see heldImportBody); only the limited case's model check uses it.
+    const QString gate = root.path() + "/geometry-step.gate";
     const QString limited = writeExecutable(
         root.path(), "worker-limited",
         standInScript(probeJson(false, "the OpenCASCADE kernel is not installed"),
-                     importBody(seed, 1, false)));
+                      heldImportBody(seed, gate)));
     const QString broken = writeExecutable(
         root.path(), "worker-broken",
         standInScript(QStringLiteral("echo 'error: cannot load the IfcOpenShell library' "
@@ -671,12 +699,14 @@ int main(int argc, char **argv) {
             check(doc.history().total == 0, "nothing was changed");
         }
 
-        // S3: a limited helper, the full mouse flow.
+        // S3: a limited helper, the full mouse flow. The helper holds its geometry step until the
+        // driver has seen the model step working, so that step is always sampled.
         {
             window.setIfcWorkerPath(limited);
             const auto history = window.document().history().total;
             Driver driver;
             driver.choose = model;
+            driver.gateFile = gate;
             driver.onDialog = [] (IfcImportDialog *dialog) {
                 // The mouse flow: click Import. The dialog's state is asserted below, from
                 // the driver's records of the dialog while it was open.

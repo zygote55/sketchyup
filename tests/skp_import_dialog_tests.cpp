@@ -86,12 +86,32 @@ done
 )PROG") + importBody;
 }
 
+// The end of a successful --import body: the parse and package phases, the package copied to
+// --output, and the helper's own line.
+QString successTail(const QString &package) {
+    return QString("echo 'P phase parse'\necho 'P phase package'\n/usr/bin/cp '") + package +
+           QString("' \"$out\" || exit 1\necho 'R {\"status\":\"ok\",\"bytes\":900}'\nexit 0\n");
+}
+
 // The --import body that succeeds: the helper's phases are played (read, parse, package), the package
 // is written to --output after `sleepSeconds` of read work, and the helper reports its own line.
 QString importBody(const QString &package, const QString &sleepSeconds) {
-    return QString("echo 'P phase read'\n/bin/sleep ") + sleepSeconds +
-           QString("\necho 'P phase parse'\necho 'P phase package'\n/usr/bin/cp '") + package +
-           QString("' \"$out\" || exit 1\necho 'R {\"status\":\"ok\",\"bytes\":900}'\nexit 0\n");
+    return QString("echo 'P phase read'\n/bin/sleep ") + sleepSeconds + QString("\n") + successTail(package);
+}
+
+// The shell lines that hold the helper until `gate` exists, for at most 20 s (2000 polls of 10 ms).
+// /bin/sleep is absolute: the scrubbed environment has no PATH.
+QString waitForGate(const QString &gate) {
+    return QString("i=0\nwhile [ ! -e '") + gate +
+           QString("' ] && [ \"$i\" -lt 2000 ]; do /bin/sleep 0.01; i=$((i + 1)); done\n");
+}
+
+// The --import body of case S8: as importBody, but the read step is held until the driver has seen
+// it working (it creates `gate`; see Driver::releaseHeld). The helper is still in its read step when
+// the check looks, so the check does not depend on when a 20 ms poll lands. A driver that never sees
+// the step gives up after 20 s and fails the check, rather than hanging the suite.
+QString heldImportBody(const QString &package, const QString &gate) {
+    return QString("echo 'P phase read'\n") + waitForGate(gate) + successTail(package);
 }
 
 // The --import body that refuses: the helper's own refusal line, and exit 3.
@@ -233,6 +253,7 @@ struct Driver {
     int unexpectedPrompts = 0; // a prompt the plan did not answer: rejected, so a flow cannot hang on it
     bool progressSeen = false;
     bool sawReadStep = false; // the read step was the working one (the helper ran)
+    QString gateFile; // a held helper's gate (heldImportBody): made once the read step is seen
     bool progressCancelFound = false;
     QString progressFile;
     QStringList sheets;
@@ -254,6 +275,14 @@ struct Driver {
         timer.stop();
         if (!actionFailure.isEmpty())
             throw std::runtime_error(("the driver action failed: " + actionFailure).toStdString());
+    }
+    // Releases a held helper: the read step is working, so the helper may go on to parse.
+    void releaseHeld() {
+        if (gateFile.isEmpty() || QFileInfo::exists(gateFile))
+            return;
+        QFile gate(gateFile);
+        if (!gate.open(QIODevice::WriteOnly) && actionFailure.isEmpty())
+            actionFailure = "the held helper's gate could not be made";
     }
     void stepBody() {
         for (auto *widget : QApplication::topLevelWidgets()) {
@@ -298,8 +327,10 @@ struct Driver {
             if (auto *sheet = qobject_cast<SkpProgressSheet *>(widget)) {
                 progressSeen = true;
                 if (auto *state = sheet->findChild<QLabel *>("skpProgressStep2State"))
-                    if (state->text() == "●")
+                    if (state->text() == "●") {
                         sawReadStep = true;
+                        releaseHeld();
+                    }
                 if (auto *file = sheet->findChild<QLabel *>("skpProgressFile"))
                     progressFile = file->text();
                 if (sheet->findChild<QPushButton *>("skpProgressCancel"))
@@ -378,6 +409,9 @@ int main(int argc, char **argv) {
     const QString package = writeFixture(root.path(), "package.skskpp", standInPackage(false));
     const QString omitted = writeFixture(root.path(), "omitted.skskpp", standInPackage(true));
     const QString available = writeExecutable(root.path(), "worker-available", standInScript(importBody(package, "0.3")));
+    // The read step of case S8 is held until the driver has seen it (see heldImportBody).
+    const QString gate = root.path() + "/read-step.gate";
+    const QString held = writeExecutable(root.path(), "worker-held", standInScript(heldImportBody(package, gate)));
     const QString slowWorker = writeExecutable(root.path(), "worker-slow", standInScript(importBody(package, "3")));
     const QString sleeper = writeExecutable(root.path(), "worker-sleeper", standInScript(slowBody("4")));
     const QString withOmitted = writeExecutable(root.path(), "worker-omitted", standInScript(importBody(omitted, "0")));
@@ -521,12 +555,14 @@ int main(int argc, char **argv) {
         }
         // S8: a full import. The progress sheet runs its steps, the model is one labelled edit, the
         // report shows the version, the identity per kind, the notices, what is not carried and the
-        // trademark note, the chip offers the report, and the source file is untouched.
+        // trademark note, the chip offers the report, and the source file is untouched. The helper
+        // holds its read step until the driver has seen the step working, so that is always sampled.
         {
-            window.setSkpWorkerPath(available);
+            window.setSkpWorkerPath(held);
             const auto history = window.document().history().total;
             Driver driver;
             driver.choose = model;
+            driver.gateFile = gate;
             driver.start();
             importAction->trigger();
             driver.stop();
