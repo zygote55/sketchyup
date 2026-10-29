@@ -775,6 +775,16 @@ and one defect that the limit tests found. Each finding's status, fix, test and 
 **Where the code and the ADR disagree now.** None, beyond what the R102.e record already listed. Section 2's "newer
 than tested" now applies to a 2025 file, as the section says. The S-checks in the tests are the section 7 checks.
 
+## Implementation notes (D-070)
+
+D-070 is a test defect (PR #519): case S8 of `skp_import_dialog_tests` could miss the read step. No product code changed.
+
+- **Cause.** The sheet sets the step to "●" when the runner's `read` phase reaches the main thread, and clears it at `package`, about 0.3 s later (the stand-in's sleep). The driver sampled the sheet every 20 ms. Under load on a one-CPU Wayland 2x run, the main thread stalled for 0.2 to 1.2 s. In the failing runs the sheet processed `read`, then `parse`, `package`, `build` and `create` with no poll between them. The unmodified suite failed S8 in 9 of 13 loaded runs (7 of 10 in the first batch).
+- **Fix.** The stand-in holds its read step until the driver has seen "●". The driver creates a gate file, and the stand-in waits for it for at most 20 s. The check still requires the step to be working while the helper is in its read step, and it no longer depends on when a poll lands. The STEP tessellate check and the IFC model check sampled the same way, and get the same hold.
+- **Why not observe the change directly.** The preferred fix connects to the sheet's step change. QLabel emits no signal on `setText`. The only hook, `ExchangeRunner::phaseChanged`, is not reachable from the test before the sheet is shown, because the sheet keeps the runner private. A product accessor would be needed, so the hold is used instead.
+- **Measured.** Unloaded, the suite takes 11 s before and after. Under load, the hold lasted 0.4 to 0.9 s in instrumented runs; none reached the 20 s bound. Passes: 35 of 35 loaded Wayland 2x (one CPU shared with two CPU hogs); 8 of 8 X11 1x; IFC and STEP 13 of 13 loaded each. A negative control, with the read step never shown, fails S8 after the 20 s bound.
+- **Where this ADR and the implementation disagree.** Nothing. The S-checks keep the section 7 meaning.
+
 ## Sources
 
 - OpenSKP: <https://github.com/iamahsanmehmood/openskp> (README, `packages/cpp`, issue

@@ -95,12 +95,21 @@ case "$mode" in
 esac
 )PROG");
 }
+// The shell lines that hold the helper until `gate` exists, for at most 20 s (2000 polls of 10 ms).
+// /bin/sleep is absolute: the scrubbed environment has no PATH.
+QString waitForGate(const QString &gate) {
+    return QString("    i=0\n    while [ ! -e '") + gate +
+           QString("' ] && [ \"$i\" -lt 2000 ]; do /bin/sleep 0.01; i=$((i + 1)); done\n");
+}
 // The --import-step body: take the --output argument, write the package there, play the
 // STEP progress protocol (read, tessellate, write; the bar the task counts drive), then
 // report the helper's own line. `sleep` seconds of work, via /bin/sleep (the scrubbed
 // environment has no PATH); `exec` makes the process die at once when the application
-// cancels it. `refuse` reports the helper's refusal line and exits 3 instead.
-QString importStepBody(const QString &package, const int sleepSeconds, const bool refuse, const QString &reportLine = QString()) {
+// cancels it. `refuse` reports the helper's refusal line and exits 3 instead. A `gate` replaces
+// the 0.3 s of tessellate work with a hold until the driver has seen that step working (see
+// Driver::releaseHeld).
+QString importStepBody(const QString &package, const int sleepSeconds, const bool refuse,
+                       const QString &reportLine = QString(), const QString &gate = QString()) {
     // The shell body of the stand-in: --output is read the helper's way (a flag and its value), the
     // progress protocol is played, and the package (or a refusal) is written. `exec` makes the
     // process die at once when the application cancels it. Named raw-string delimiters: the refusal
@@ -122,10 +131,10 @@ QString importStepBody(const QString &package, const int sleepSeconds, const boo
     echo 'R {"status":"refused","code":"units","message":"The file declares no length unit and no --step-length-unit was given; it is refused (a unit is never guessed)"}'
     exit 3
 )STEP");
+    const QString work = gate.isEmpty() ? QString("    /bin/sleep 0.3\n") : waitForGate(gate);
     QString tail = QString(R"STEP(
     echo 'P phase tessellate'
-    /bin/sleep 0.3
-    echo 'P tasks 1'
+)STEP") + work + QString(R"STEP(    echo 'P tasks 1'
     echo 'P at 0'
     echo 'P done 1'
     echo 'P phase write'
@@ -290,6 +299,7 @@ struct Driver {
     std::map<QString, QString> progressFile;
     int progressBar = -1;
     bool sawProgressSteps = false; // a later step was the working one (the helper ran)
+    QString gateFile; // a held helper's gate (importStepBody): made once the tessellate step is seen
     bool progressCancelFound = false;
     QString progressElapsed;
     QString actionFailure;
@@ -303,6 +313,14 @@ struct Driver {
         timer.stop();
         if (!actionFailure.isEmpty())
             throw std::runtime_error(("the driver action failed: " + actionFailure).toStdString());
+    }
+    // Releases a held helper: the tessellate step is working, so the helper may go on to its tasks.
+    void releaseHeld() {
+        if (gateFile.isEmpty() || QFileInfo::exists(gateFile))
+            return;
+        QFile gate(gateFile);
+        if (!gate.open(QIODevice::WriteOnly) && actionFailure.isEmpty())
+            actionFailure = "the held helper's gate could not be made";
     }
     void stepBody() {
         for (auto *widget : QApplication::topLevelWidgets()) {
@@ -383,8 +401,10 @@ struct Driver {
             }
             if (auto *sheet = qobject_cast<StepProgressSheet *>(widget)) {
                 if (auto *state = sheet->findChild<QLabel *>("stepProgressStep4State"))
-                    if (state->text() == "\u25CF")
+                    if (state->text() == "\u25CF") {
                         sawProgressSteps = true;
+                        releaseHeld();
+                    }
                 if (auto *file = sheet->findChild<QLabel *>("stepProgressFile"))
                     progressFile[sheet->objectName()] = file->text();
                 if (auto *bar = sheet->findChild<QProgressBar *>("stepProgressBar"))
@@ -456,10 +476,13 @@ int main(int argc, char **argv) {
     const QString available = writeExecutable(
         root.path(), "worker-available", standInScript(probeJson(true, {}),
                                                       importStepBody(package, 1, false)));
+    // The limited helper's tessellate step is held until the driver has seen it working (see
+    // importStepBody); only the limited case's progress check uses it.
+    const QString gate = root.path() + "/tessellate-step.gate";
     const QString limited = writeExecutable(
         root.path(), "worker-limited",
         standInScript(probeJson(false, "the OpenCASCADE kernel is not installed"),
-                       importStepBody(package, 1, false)));
+                       importStepBody(package, 1, false, QString(), gate)));
     const QString broken = writeExecutable(
         root.path(), "worker-broken",
         standInScript(QStringLiteral("echo 'error: cannot start' 1>&2; exit 1"), QString()));
@@ -602,12 +625,14 @@ int main(int argc, char **argv) {
             check(window.ifcProbe().state == IfcState::Broken && !chip->isVisible(),
                   "the broken state is recorded and the chip stays hidden");
         }
-        // S3: a limited helper (no kernel) still imports: the STEP import needs none.
+        // S3: a limited helper (no kernel) still imports: the STEP import needs none. The helper holds
+        // its tessellate step until the driver has seen it working, so that step is always sampled.
         {
             window.setIfcWorkerPath(limited);
             const auto history = window.document().history().total;
             Driver driver;
             driver.choose = stepFile;
+            driver.gateFile = gate;
             driver.onDialog = [] (IfcImportDialog *dialog) {
                 if (auto *go = dialog->findChild<QPushButton *>("ifcImportGo"))
                     QTest::mouseClick(go, Qt::LeftButton);
