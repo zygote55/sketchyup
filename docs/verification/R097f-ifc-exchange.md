@@ -10,7 +10,7 @@ PR #438). Product code is unchanged by this record; the one file it adds is the 
 **Determinism (2026-10-28, the F04 close, item 8).** The four-thread determinism check was re-run on today's main, 60
 runs per fixture, and every package and R line was identical (section "Determinism re-run" below).
 
-**Status (after R097.g, 2026-10-28): Accepted (R097.g)**, subject to the native matrix row (the full tier on PR <number>, run by the parent; section R097.g). Owner decision 9 accepts the 10,000-body budget row as a documented limit, and owner decision 10 skips the buildingSMART hosted validation for 1.4.0, so the IFC export claim rests on the local buildingSMART rules and `ifcopenshell.validate`, and has not been checked by buildingSMART's hosted service.
+**Status (after R097.g, 2026-10-28): Accepted (R097.g)**, with the native matrix from the full tier of PR #515 (run 40790714698 on 7c77e4ef; section R097.g). Owner decision 9 accepts the 10,000-body budget row as a documented limit, and owner decision 10 skips the buildingSMART hosted validation for 1.4.0, so the IFC export claim rests on the local buildingSMART rules and `ifcopenshell.validate`, and has not been checked by buildingSMART's hosted service.
 
 **Status (before R097.g, 2026-10-25).** Every check that a run can prove has been run and passes, with the exceptions named in its row. Two
 items are not complete: the buildingSMART hosted validation service, which needs a person (owner, section G1; the export
@@ -384,7 +384,7 @@ them in:
 
 | Row | Result |
 | --- | --- |
-| Native matrix and the damaged-file corpus at 512 (label `full`) | the full tier on PR <number>, run by the parent |
+| Native matrix and the damaged-file corpus at 512 (label `full`) | **pass**: the full tier of PR #515, run 40790714698 on 7c77e4ef. Native tests X11 1x and 2x, Wayland 1x and 2x, audit and accessibility, and fractional scaling all pass; the IFC job passes its eight helper suites, `ifc_worker_fault_corpus_full` (512 mutations per file, 290 s) and the ten application suites, and the sanitized IFC suites pass; the Arch package and sanitized builds jobs pass |
 
 **Status: Accepted (R097.g)**, subject to the native matrix row above. The parent completes that row when the full tier
 passes.
