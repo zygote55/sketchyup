@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Asset catalogs insert (R100.i, [PR #521](https://github.com/zygote55/sketchyup/pull/521)): a large catalog's insert runs off the UI thread; a progress sheet opens after a second, and Cancel leaves the model and the library folder unchanged.
 - Styles and asset catalogs (R100.h, [PR #520](https://github.com/zygote55/sketchyup/pull/520)): the asset catalog report has **Save report…**, its accounting bar is solid, hatched and cross-hatched with a legend, and the Styles refusals open with "Nothing was saved." or "Nothing was applied." (1.5 follow-up 3; [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)).
 
 ## 1.4.0 — 2026-10-29
