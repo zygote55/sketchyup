@@ -1,0 +1,727 @@
+{
+  "layer": "1.4.0 group release record (G-1.4.0)",
+  "date": "2026-10-29",
+  "procedure": "docs/M10_ACCEPTANCE.md (Required evidence at the RC; Release record)",
+  "rows": [
+    "F04",
+    "F05",
+    "F06",
+    "F07",
+    "C01 (import only)",
+    "C03 (R104.a only)",
+    "C04 (R105.a only)",
+    "C06 (R107.a only)",
+    "R109"
+  ],
+  "version": "1.4.0",
+  "recordComplete": true,
+  "gateStatus": "awaiting owner approval of the tag and the release",
+  "ownerApproval": {
+    "tag": null,
+    "release": null,
+    "corpusGate": null,
+    "cellsNotRun": null,
+    "shipWithD070D071": null
+  },
+  "tagCreated": false,
+  "releaseCreated": false,
+  "published": false,
+  "rc": {
+    "name": "RC1",
+    "commit": "9ed43c900739a04d450db32dcc9be80258bc5492",
+    "branch": "release/1.4.0",
+    "mergeOf": "PR #515 (R097.g, R098.h)",
+    "headOfMainAtCut": true,
+    "sourceArchive": {
+      "file": "sketchyup-1.4.0.tar.gz",
+      "sha256": "b51330337c8c89935dcfa7ad31ba3e20dd435b102122156dc37a18512141d00f"
+    },
+    "packages": [
+      {
+        "file": "sketchyup-1.4.0-1-x86_64.pkg.tar.zst",
+        "name": "sketchyup",
+        "version": "1.4.0-1",
+        "sha256": "0d3dd1503fae3ef372956bd40f6d8d0a176d813b4bd8e71595cc978048c4a3d7"
+      },
+      {
+        "file": "sketchyup-ifc-1.4.0-1-x86_64.pkg.tar.zst",
+        "name": "sketchyup-ifc",
+        "version": "1.4.0-1",
+        "optional": true,
+        "sha256": "2a78005e6ead1d910626d88684f917dc6273e5133d994917432a4cd5d344e622"
+      }
+    ],
+    "thirdPartyNotices": {
+      "file": "THIRD_PARTY_NOTICES",
+      "sha256": "17306a0d238f13e44460a1412d5f6ccabe38d389c18e25c146fffa07be1ba8de"
+    },
+    "sha256sumsSha256": "c3585fa290b1ec76038b7d0dcaaa6e1bee8df7627971b85419a783b61b1ffc8f",
+    "manifestSha256": "daea32713d273986c20c4285e8a2b4c1754cfa2dc694a5fba72031bb4f10c6e2",
+    "pkgbuildSha256": "62c41c8a7d61523b179c2de34f9c8cc85bc72070df49bb6dbb4a211c1ce4bb19",
+    "manifestBuildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+    "priorRelease": {
+      "file": "sketchyup-1.3.0-1-x86_64.pkg.tar.zst",
+      "sha256": "5f5c0cf8ca876d278e375304ff95257ac22decc8dc641096da4c62013cfa833b",
+      "source": "published v1.3.0 asset; equals the verify-package.sh pin"
+    },
+    "qt68ReferencePackageSha256": "bbc18bffaaf35dccb47791417446ffd61fadb8b83d7b24c76460bd7d4bf237e1",
+    "qt68ReferencePriorPackageSha256": "d40c0042fef2ee71c244de6c85cb70b6acc9d1cfdb22827e6da8c31b4e0253b4",
+    "releaseArtifactsRuns": 2,
+    "archiveStableAcrossRuns": true,
+    "releaseVersionScript": "1.4.0",
+    "run1": {
+      "sha256sumsSha256": "c144ec9030d3b5f9c4ff4b781c521117aeceebc86bb28782417d1a57c52659aa",
+      "manifestSha256": "32b03dbfdf82480b9b9033f3229f237505931ca6b3662d1865a3cc9c3bff1936",
+      "packages": []
+    },
+    "walkthrough": "docs/verification/G-1.4.0.md#local-walkthrough-at-rc1",
+    "supersededRcs": []
+  },
+  "images": {
+    "packageBuild": {
+      "name": "sketchyup-build:20261002",
+      "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+    },
+    "pinned": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+    "fresh": {
+      "name": "archlinux:base-devel",
+      "created": "2026-10-27",
+      "pulled": "2026-10-28",
+      "id": "sha256:624bdc7fc6615155d67bc34cf7146c0c9fd0e3c92943977da63a630e4ca49c30"
+    },
+    "reference": {
+      "name": "archlinux:base-devel-20241013.0.269705",
+      "id": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2"
+    }
+  },
+  "ciAtRc": {
+    "run": 40801765717,
+    "url": "https://github.com/zygote55/sketchyup/actions/runs/40801765717",
+    "event": "push",
+    "branch": "release/1.4.0",
+    "tier": "full",
+    "headSha": "9ed43c900739a04d450db32dcc9be80258bc5492",
+    "conclusion": "success",
+    "attempts": 2,
+    "completedAt": "2026-10-29T03:49:37Z",
+    "firstAttempt": {
+      "passed": 12,
+      "failed": [
+        "Native tests: Wayland 2x (D-070)"
+      ],
+      "failedJob": 123225428669
+    },
+    "secondAttempt": "reran the failed job only; passed 2026-10-29T03:49:30Z",
+    "jobs": [
+      "Development build and checks",
+      "Native tests: X11 1x",
+      "Native tests: X11 2x",
+      "Native tests: Wayland 1x",
+      "Native tests: Wayland 2x",
+      "Native tests: audit and accessibility",
+      "Native tests: fractional scaling, Blender worker and M5",
+      "Blender interoperability",
+      "Sanitized builds",
+      "IFC library and helper",
+      "SKP parser, helper and import",
+      "Qt 6.8 reference compile",
+      "Arch package acceptance"
+    ],
+    "ctest": {
+      "dev": "279/279",
+      "dxfReal": "1/1",
+      "pdfReal": "2/2",
+      "sanitize": [
+        "74/74",
+        "145/145",
+        "7/7",
+        "1/1"
+      ],
+      "ifc": [
+        "8/8",
+        "1/1",
+        "10/10",
+        "6/6"
+      ],
+      "skp": [
+        "11/11",
+        "5/5"
+      ],
+      "packageCheck": "278/278"
+    },
+    "suites140AllFourCells": [
+      "ifc_import_dialog_tests",
+      "ifc_export_dialog_tests",
+      "step_import_dialog_tests",
+      "step_export_dialog_tests",
+      "skp_import_dialog_tests",
+      "quantities_input_tests",
+      "presentation_input_tests",
+      "presentation_batch_input_tests",
+      "render_input_tests",
+      "style_catalog_input_tests",
+      "material_input_tests"
+    ]
+  },
+  "frozenProviderInputs": {
+    "manifest": {
+      "file": "tests/provider-release-corpus-v6.json",
+      "sha256": "3500d055abfa7e2b505678171256eab06bb9f7bb1ef91dc309fe2f0ed90d0e74"
+    },
+    "scorer": "ba50fa5a131a2de113e4c78e03d9724867748835c0fcfc0a437e761712b57784",
+    "providerTrial": "1de16d4d68d1d6a3b5755157428ddc1c183a4a3ed22eab0555f98e1ab64a1680",
+    "instructions": "313b9f911735f28e21bb1c9310d727416568d0c460971c43315faf4dd1f376be"
+  },
+  "prs": {
+    "R097": [
+      412,
+      420,
+      413,
+      414,
+      417,
+      418,
+      419,
+      421,
+      422,
+      428,
+      433,
+      442,
+      492,
+      493,
+      495,
+      496
+    ],
+    "R098": [
+      425,
+      427,
+      429,
+      430,
+      434,
+      438,
+      440,
+      444,
+      509,
+      510,
+      511,
+      515
+    ],
+    "exchangeScreens": [
+      436
+    ],
+    "R099": [
+      424,
+      451,
+      446,
+      448,
+      449,
+      473,
+      475,
+      484,
+      499,
+      500,
+      501,
+      506
+    ],
+    "R100": [
+      423,
+      460,
+      456,
+      457,
+      458,
+      459,
+      471,
+      477,
+      482,
+      485,
+      488,
+      490,
+      503,
+      504
+    ],
+    "R101": [
+      426,
+      454,
+      479,
+      450,
+      452,
+      453,
+      455,
+      478,
+      480,
+      489,
+      507
+    ],
+    "R102": [
+      431,
+      435,
+      437,
+      439,
+      441,
+      445,
+      463,
+      470,
+      472,
+      512,
+      513
+    ],
+    "R104.a": [
+      462,
+      474
+    ],
+    "R105.a": [
+      464,
+      476
+    ],
+    "R107.a": [
+      466,
+      483
+    ],
+    "R109": [
+      469,
+      481,
+      487,
+      491,
+      494,
+      502,
+      505
+    ],
+    "D-048 and finding 22": [
+      497,
+      498
+    ],
+    "1.4.0 preparation and owner decisions": [
+      508,
+      514
+    ],
+    "other": [
+      408,
+      404,
+      409,
+      410,
+      411,
+      432,
+      443,
+      447,
+      486,
+      467,
+      461,
+      465,
+      468
+    ]
+  },
+  "ciAtMergedHeads": {
+    "mergesFromV130ToRc": 107,
+    "everyPrHeadPassed": true,
+    "failedMainPushRuns": [
+      {
+        "commit": "61e7e136",
+        "pr": 489,
+        "run": 40603137576,
+        "job": "IFC library and helper (import through the application)",
+        "fixedBy": [
+          492,
+          493
+        ]
+      },
+      {
+        "commit": "91a74fed",
+        "pr": 492,
+        "run": 40603219711,
+        "job": "IFC library and helper (import through the application)",
+        "fixedBy": [
+          493
+        ]
+      },
+      {
+        "commit": "20094d84",
+        "pr": 483,
+        "run": 40603811892,
+        "job": "IFC library and helper (helper under the sanitizers)",
+        "fixedBy": [
+          495,
+          496
+        ]
+      },
+      {
+        "commit": "3f9234c0",
+        "pr": 485,
+        "run": 40617677853,
+        "job": "IFC library and helper (helper under the sanitizers)",
+        "fixedBy": [
+          495,
+          496
+        ]
+      },
+      {
+        "commit": "169804e9",
+        "pr": 502,
+        "run": 40682837424,
+        "job": "fast tier tests (D-063)",
+        "fixedBy": [
+          505
+        ]
+      }
+    ]
+  },
+  "localWalkthrough": {
+    "trim": "M10 owner trim (2026-10-15), narrowed as at 1.3.0",
+    "releaseArtifacts": {
+      "runs": [
+        "2026-10-28T18:44-07:00",
+        "2026-10-29T06:16-07:00"
+      ],
+      "firstAttempt": true,
+      "logSha256": "264f1e99fe07ed4389d41a2ac48bc9795b9f02158a680f8a94ef07dacba2800b"
+    },
+    "packageAcceptance": {
+      "run": "rc140-package-acceptance",
+      "image": "sketchyup-build:20261002",
+      "exit": 0,
+      "limits": "5 GiB, 2 CPUs, two compiler jobs (1.3.0: 10 GiB, six CPUs, -j4)",
+      "starts": 2,
+      "firstStart": "stopped before building: makepkg could not resolve the IFC makedepends (boost, eigen, opencascade, patchelf); harness fault, not a product defect",
+      "ctestCheck": "278/278",
+      "priorReads": 29,
+      "newerFixturesRefusedUnchanged": 4,
+      "assembliesByteIdentical": 6,
+      "installedMigrations": 36,
+      "outputLogSha256": "c9b4370d3312c48b781935b0781c87b89c91c619446bdff542de08a4c7904167",
+      "jobLogSha256": "bb96098617564b9602a8149d6918245eb3fbd2bcfa3de311ddd745cf7fcbadb0"
+    },
+    "cleanMachines": {
+      "method": "R087.u lifecycle extended for 1.4.0; --network none; 2 CPUs; 4 GiB",
+      "pinned": {
+        "qt": "6.11.2",
+        "mesa": "26.2.3",
+        "glibc": "2.44",
+        "archive": "2026/10/02",
+        "closure": 60,
+        "ifcClosure": 0,
+        "firstAttempt": true,
+        "steps": [
+          "network-isolated",
+          "install-and-closure",
+          "ifc-install-and-closure",
+          "cli-open-save",
+          "offscreen-launch",
+          "xvfb-launch",
+          "migrations=36",
+          "sheets-preflight-blocks",
+          "sheets-cli-smoke",
+          "mcp-sheet-queries",
+          "assemblies-rebuild-identical=6",
+          "f02-parameter-fixture",
+          "mcp-parameter-queries",
+          "f03-terrain-import",
+          "f03-terrain-xvfb",
+          "mcp-terrain-queries",
+          "smoke-140",
+          "downgrade-window",
+          "remove-ifc-clean",
+          "remove-clean",
+          "upgrade-preferences-remove",
+          "lifecycle"
+        ],
+        "mcpTools": 67,
+        "logSha256": "7495d39424777c5a8f0178b913611a1692e18022fc6b6f7e21d0a5500ffd5584"
+      },
+      "fresh": {
+        "qt": "6.12.0",
+        "mesa": "26.2.5",
+        "glibc": "2.44",
+        "archive": "2026/10/27",
+        "closure": 60,
+        "ifcClosure": 0,
+        "firstAttempt": true,
+        "steps": [
+          "network-isolated",
+          "install-and-closure",
+          "ifc-install-and-closure",
+          "cli-open-save",
+          "offscreen-launch",
+          "xvfb-launch",
+          "migrations=36",
+          "sheets-preflight-blocks",
+          "sheets-cli-smoke",
+          "mcp-sheet-queries",
+          "assemblies-rebuild-identical=6",
+          "f02-parameter-fixture",
+          "mcp-parameter-queries",
+          "f03-terrain-import",
+          "f03-terrain-xvfb",
+          "mcp-terrain-queries",
+          "smoke-140",
+          "downgrade-window",
+          "remove-ifc-clean",
+          "remove-clean",
+          "upgrade-preferences-remove",
+          "lifecycle"
+        ],
+        "mcpTools": 67,
+        "logSha256": "2dccc535f707c18bed8259d7e60b0d0e42c0115bb5fa9a0b10fce9759eab6ddb"
+      },
+      "qt68Reference": {
+        "qt": "6.8.0",
+        "mesa": "24.2.4",
+        "glibc": "2.40",
+        "gcc": "14.2.1",
+        "cmake": "3.30.5",
+        "archive": "2024/10/15",
+        "build": {
+          "script": "build-snapshot-140.sh",
+          "exit": 0,
+          "firstAttempt": true,
+          "seconds": 1675,
+          "withoutIfc": true,
+          "makepkgFlags": "--nocheck --nodeps",
+          "logSha256": "6a5aa60f86ac7d1c433a80beef08cbc6e9d7f94303d74cc9cbd28670f5b63322"
+        },
+        "closure": 64,
+        "ifcPackage": "not installed",
+        "firstAttempt": true,
+        "mcpTools": 67,
+        "smoke": "smoke-140-ref.sh (no IFC or STEP steps)",
+        "priorPackage": "reference-built 1.3.0-1 d40c0042fef2ee71c244de6c85cb70b6acc9d1cfdb22827e6da8c31b4e0253b4",
+        "logSha256": "f5eff493ccca2f354fc43c7cd986922646d52adb23281410f511a957e8cec439"
+      }
+    },
+    "smoke140": [
+      "help lists the 1.4.0 options",
+      "IFC import, deterministic export, re-import (21 bodies)",
+      "STEP import, AP214 export, re-import (6 faces, 8 vertices)",
+      ".skp import of the synthetic box (6 faces)",
+      "quantities report CSV and JSON",
+      "style apply, export, re-apply to the same bytes",
+      "presentation.describe",
+      "geographic site record round trip at schema 32"
+    ],
+    "downgradeWindow": {
+      "priorCli": "published 1.3.0-1, reads up to 29",
+      "refusedUnchanged": 8,
+      "refusalMessage": "Unsupported container field",
+      "openedUnchanged": [
+        "schema-29 terrain written by 1.4.0",
+        "schema-28 parameter fixture",
+        "schema-27 sheet fixture"
+      ],
+      "sheetFreeSaveAccepted": true
+    },
+    "d036": {
+      "poppler": "26.10.0",
+      "qpdf": "12.4.2",
+      "pages": 2,
+      "syntaxErrors": 0,
+      "qpdfCheck": "clean",
+      "title": "SketchyUp drawing sheets",
+      "creator": "SketchyUp",
+      "textSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940",
+      "machines": [
+        "pinned",
+        "fresh",
+        "reference"
+      ],
+      "reportSha256": "ed9d800423dc4ebab801a304f8d39cff3c39787eb2397306a7271c56da026a60"
+    },
+    "rollbackCheck": {
+      "withIfcInstalled": "pacman refuses (breaks dependency 'sketchyup=1.4.0' required by sketchyup-ifc), exit 1, nothing changed",
+      "afterRemovingIfc": "1.3.0-1 installs",
+      "defect": "D-071"
+    },
+    "harnessSha256": {
+      "lifecycle-140.sh": "8731ee1d3a9858e28f030fc9a7b7955d504ea4b6f4f6b3eb9a123f748bd64557",
+      "smoke-140.sh": "93d2d98efeff899be05048e2b71d2d2bf4d40b67cf73f9046a790d3935150e06",
+      "downgrade-140.sh": "710171d520369fe64f99e829fd154e1b48606c042fcbfb29d15db8fd99de0b80",
+      "run-lifecycle-140.sh": "4542fffb512537677e03161d8380433464b015cd888a330d4ae08e22213e7f75",
+      "terrain-grid.xyz": "6c65b19ae79bb8e309a20e16def2e5cb7456e293f9fb688faa623ac3e172089e",
+      "lifecycle-140-ref.sh": "96b4da3106ecca291c84f0aa24e9ec6635b517bf8c9e43b699dda66d654799bf",
+      "smoke-140-ref.sh": "6b96705aa6ac1cf22cbdcdefe2b0505e82af1808558a7aa159d84c3c57411597",
+      "run-lifecycle-140-ref.sh": "3af28ff174f142511158abd90872a23b2caf96382b40815da13003e68dfd1462",
+      "build-snapshot-140.sh": "d31e9df08d12d5978363b53b197cc825c7453c96cacf306be99c0a073e7e51bd"
+    }
+  },
+  "rowAcceptance": {
+    "F04 IFC": {
+      "records": [
+        "R097.f",
+        "R097.g"
+      ],
+      "accepted": true,
+      "limits": [
+        "decision 9",
+        "decision 10"
+      ]
+    },
+    "F04 STEP": {
+      "records": [
+        "R098.d",
+        "R098.e",
+        "R098.f",
+        "R098.g",
+        "R098.h"
+      ],
+      "accepted": true,
+      "limits": [
+        "decision 7",
+        "decision 8",
+        "decision 13"
+      ]
+    },
+    "F05": {
+      "records": [
+        "R099.e"
+      ],
+      "accepted": true,
+      "limits": [
+        "decision 1",
+        "decision 2",
+        "decision 3",
+        "decision 4"
+      ]
+    },
+    "F06": {
+      "records": [
+        "R100.g"
+      ],
+      "accepted": true,
+      "limits": [
+        "decision 5",
+        "decision 6"
+      ]
+    },
+    "F07": {
+      "records": [
+        "R101.f"
+      ],
+      "accepted": true
+    },
+    "C01": {
+      "records": [
+        "R102.e",
+        "R102.f"
+      ],
+      "accepted": "on the narrowed claim (decision 11)"
+    },
+    "C03": {
+      "records": [
+        "ADR 0178"
+      ],
+      "accepted": "R104.a only (decision 12)"
+    },
+    "C04": {
+      "records": [
+        "ADR 0179"
+      ],
+      "accepted": "R105.a only (decision 12)"
+    },
+    "C06": {
+      "records": [
+        "ADR 0181 implementation notes (R107.a)"
+      ],
+      "accepted": "R107.a only"
+    },
+    "R109": {
+      "records": [
+        "ADR 0183 implementation notes S0-S6"
+      ],
+      "accepted": true
+    }
+  },
+  "ownerDecisions20261028": 13,
+  "provider": {
+    "profile": "chatgpt-astra",
+    "model": "gpt-6-astra",
+    "connection": "chatgpt-plan",
+    "record": "docs/verification/R086h-rc140-remote-evaluation.md",
+    "corpusVersion": 6,
+    "window": "2026-10-28T18:46:16-07:00/2026-10-28T18:58:58-07:00",
+    "elapsedMs": 760263,
+    "reportedTokens": 1690513,
+    "providerAttempts": 119,
+    "successfulResponses": 110,
+    "toolCalls": 151,
+    "toolCallErrors": 3,
+    "largestRunReportedTokens": 166889,
+    "maximumProviderTurns": 9,
+    "maximumElapsedMs": 74193,
+    "monetaryCost": null,
+    "reviewer": "Claude Opus 5.5 (orchestrator: receipt, geometry-oracle and final-text review of every run); not independent human release sign-off",
+    "reviewBundleSha256": "caf3260cc950400583ac93317ca035f1bb63e93d293d1d8468059fe8f5326a07",
+    "corpusPassed": true,
+    "blockers": [],
+    "releaseAccepted": false,
+    "ranAt": "9ed43c90 (RC1)"
+  },
+  "triage": {
+    "open": 26,
+    "releaseBlocking": 0,
+    "major": 0,
+    "minor": 12,
+    "limitation": 14,
+    "minorIds": [
+      "D-006",
+      "D-007",
+      "D-008",
+      "D-009",
+      "D-019",
+      "D-031",
+      "D-034",
+      "D-040",
+      "D-068",
+      "D-069",
+      "D-070",
+      "D-071"
+    ],
+    "limitationIds": [
+      "D-001",
+      "D-004",
+      "D-005",
+      "D-010",
+      "D-011",
+      "D-012",
+      "D-013",
+      "D-014",
+      "D-015",
+      "D-016",
+      "D-017",
+      "D-018",
+      "D-020",
+      "D-029"
+    ],
+    "fixedDuring140": "D-048 to D-067 (20 rows; Major: D-048, D-050, D-055, D-062)",
+    "newFromGate": [
+      {
+        "id": "D-070",
+        "class": "Minor",
+        "found": "RC1 full tier, Wayland 2x attempt 1"
+      },
+      {
+        "id": "D-071",
+        "class": "Minor",
+        "found": "RC walkthrough rollback check"
+      }
+    ]
+  },
+  "waivedAdr0161": [
+    "Intel campaigns and the sharing-off memory control",
+    "X11 output hotplug",
+    "suspend/resume",
+    "a physical 150% output",
+    "physical pointer capture",
+    "input methods",
+    "D-020 on Hyprland",
+    "automatic X11 output placement",
+    "an interactive Orca session",
+    "the manual walkthrough on the installed RC"
+  ],
+  "notRunAtRc": [
+    "native and dialog-audit cells that no CI line runs",
+    "local sanitized build",
+    "sketchyup-ifc on the Qt 6.8 reference machine"
+  ],
+  "followUps": [
+    "D-070 test fix on main",
+    "D-071 release notes on main and in the GitHub release notes",
+    "M10 row-acceptance cell (R097.f partial, R098.d partly met) updated on main",
+    "CHANGELOG 1.4.0 date set to the release date on main"
+  ]
+}
