@@ -685,10 +685,10 @@ Qt 6.11.2), in the worktree mounted at `/src`, `--user` the build's user, `--mem
 
 **The CI "IFC library and helper" job's lines, run locally** (from `.github/workflows/native.yml`):
 
-- `ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2`: 8 of 8 pass (54 s),
-  before the Python exclusion checks were added; the Python test's new checks pass when it is run directly in the image.
+- `ctest --test-dir build/ifc -R '^ifc_' -LE full --output-on-failure --no-tests=error --parallel 2`: 8 of 8 pass (38 s) on
+  the final tree, with the new exclusion checks in `ifc_step_worker`.
 - `ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import|import_refusal|ifc_sandbox)$' --output-on-failure --no-tests=error --parallel 2`:
-  10 of 10 pass (44 s).
+  10 of 10 pass (38 s) on the final tree.
 - The sanitized helper suites, `ctest --test-dir build/ifc-sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus|ifc_step_worker)$' --output-on-failure --no-tests=error`, with `ASAN_OPTIONS=detect_leaks=0`: 6 of 6 pass (235 s), with the helper built under ASan and UBSan (`build/ifc-sanitize`, the uninstrumented library).
 
 Not run: `ifc_worker_fault_corpus_full` (the 512-mutation corpus, label `full`), which is in the full tier only.
