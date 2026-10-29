@@ -150,7 +150,9 @@ MP4) and D-018 (the RC1 provider run, [R086.h](R086h-rc140-remote-evaluation.md)
 PR #498, merged. D-029 is still open: the PKGBUILD changed only `pkgver`. The other open rows are
 unchanged. The Wayland harness, the Weston mitigation and the deadlines are as before, and no
 changed file cited by an open row alters its evidence. Nothing is release-blocking, and no Major row
-is open. See [Release-candidate triage (1.4.0 RC1)](#release-candidate-triage-140-rc1-2026-10-28).
+is open. RC1's full tier added D-070 (Minor, a test sampling window in `skp_import_dialog_tests`), and
+the RC walkthrough added D-071 (Minor, the release notes' rollback omits removing `sketchyup-ifc`;
+2026-10-29). See [Release-candidate triage (1.4.0 RC1)](#release-candidate-triage-140-rc1-2026-10-28).
 Before the RC update, this was a working triage list of known defects against `main`. It was
 not the release-candidate triage, and it is not a release sign-off: it does not accept
 R089, M9 or any Core row. It consolidates defects that are recorded in prose across
@@ -252,6 +254,8 @@ problem. **Limitation** means a documented, intended boundary.
 | D-067 | The `.skp` "newer than tested" notice fires one major version late | [R102e §6](R102e-skp-import.md#6-defects-and-contradictions-found) F1; [§11.1](R102e-skp-import.md#111-findings) | C01 (`.skp` import) | **Fixed 2026-10-28** (PR #513). Was: the check was `major > 25`, so 2025 files had no notice, while ADR 0176 §2 applies the label above the tested corpus (2024). It now applies above 24. The owner has not separately confirmed the threshold ([R102e §12](R102e-skp-import.md#12-owner-decision-2026-10-28)). | Minor | A missing diagnostic for 2025 files; no import was wrong | Fixed (PR #513) |
 | D-068 | The Quantities Tags popover prints a Qt Wayland popup warning | [R101f](R101f-quantities-reports.md#7-gaps) gap 8 | F07 (Quantities panel), Wayland test | **Open.** Both Wayland cells print `qt.qpa.wayland: Failed to create grabbing popup … quantitiesTagsPopupWindow`. Qt says the popup needs a transient parent and a parent window that has received input. The cause in the Tags popover was not investigated. The test passes. | Minor | A warning on Wayland; the test passes, and the record shows no effect | R101 follow-up (not yet planned) |
 | D-069 | Two compiler warnings in the desktop build | [R101f](R101f-quantities-reports.md#7-gaps) gap 9 | F07 (Quantities panel) | **Open.** `src/app/quantities_panel.cpp:882` (missing field initializers `areaText` and `volumeText`) and `tests/quantities_input_tests.cpp:100` (the `qWaitFor` result is ignored). Found in CI logs; the record calls them cheap to fix. | Minor | Compiler warnings only; no wrong behaviour is recorded | R101 follow-up (not yet planned) |
+| D-070 | `skp_import_dialog_tests` missed the progress sheet's read step once on Wayland 2× at the 1.4.0 RC1 | [RC1 full tier run 40801765717](https://github.com/zygote55/sketchyup/actions/runs/40801765717) (attempt 1, job 123225428669, `9ed43c90`) | C01 (`.skp` import dialog), test harness | **Open.** Case S8 (a full import) failed one check, "FAIL: the read step was the working one while the helper ran", in `SKETCHYUP_TEST_SCALE=2 scripts/test-wayland.sh build/dev/skp_import_dialog_tests`. No other check in the suite failed. The driver polls the progress sheet every 20 ms and must see `skpProgressStep2State` read "●" while the stand-in helper runs for about 0.3 s (`importBody(package, "0.3")` in `tests/skp_import_dialog_tests.cpp`); on a loaded runner no poll landed in that window. The rerun of the job (attempt 2) passed, and the same line passed on the full tier of PR #515 (run 40790714698). | Minor | A sampling window in the test: no product check failed, and the import itself completed | Test fix on `main` after 1.4.0 (not in the RC): record the step from the sheet itself, or hold the stand-in until the driver has seen the step |
+| D-071 | The release notes' rollback fails while `sketchyup-ifc` is installed | [G-1.4.0](G-1.4.0.md#triage-at-the-140-rc) (the 1.4.0 RC walkthrough, 2026-10-29) | Packaging, release notes (rollback) | **Open.** `docs/RELEASE_NOTES.md` 1.4.0 says to roll back with `pacman -U sketchyup-1.3.0-1-x86_64.pkg.tar.zst`. With `sketchyup-ifc` 1.4.0-1 installed, which requires `sketchyup=1.4.0`, pacman refuses: "installing sketchyup (1.3.0-1) breaks dependency 'sketchyup=1.4.0' required by sketchyup-ifc", exit 1, and both packages stay at 1.4.0-1. After `pacman -R sketchyup-ifc` the same command installs 1.3.0-1. Checked offline on the pinned image with the RC packages. | Minor | A missing documentation step: pacman refuses the whole transaction, so nothing is changed or lost, and its message names the package to remove | Release notes on `main` after 1.4.0, and the GitHub release's notes at publication (the installed notes are fixed at the RC) |
 
 ## Candidates checked and not carried forward
 
@@ -948,6 +952,19 @@ completion or unreported partial commit was recorded.
 **Open (1.4.0 records, not fixed): D-068, D-069.** Both are Minor and carried by R101.f with no
 wrong result recorded.
 
+**Added at RC1 by the full tier: D-070 (Minor).** RC1's full-tier run
+[40801765717](https://github.com/zygote55/sketchyup/actions/runs/40801765717) failed one job on its
+first attempt: Wayland 2×, where `skp_import_dialog_tests` missed the progress sheet's read step
+during a 0.3 s stand-in helper run. Every other job passed on the first attempt, and the rerun of
+the failed job passed, so the run's CI verdict is green. The fault is the test's sampling window,
+not the import; the test fix goes to `main` after the release, so RC1 stands.
+
+**Added by the RC walkthrough: D-071 (Minor).** The release notes' rollback (`pacman -U` of the
+1.3.0-1 package) fails while `sketchyup-ifc` is installed, because it requires `sketchyup=1.4.0`.
+Pacman refuses the transaction and changes nothing; removing `sketchyup-ifc` first works. The
+installed notes are fixed at the RC, so the step goes into the GitHub release's notes and into
+`RELEASE_NOTES.md` on `main` ([G-1.4.0](G-1.4.0.md#upgrade-and-rollback)).
+
 **Not carried as defects.** These appear in the 1.4.0 records, and none is a defect with a wrong
 result in a shipped build:
 - R098d finding 4 (the export size note came too late above 100,000 triangles): fixed in the same
@@ -1113,9 +1130,9 @@ Closed by the D-028 fix (2026-10-18, branch `test/d027-d028-tooling`):
 | --- | ---: | --- |
 | Release-blocking | 0 | None |
 | Major | 0 | None |
-| Minor | 10 | D-006–D-009, D-019, D-031, D-034, D-040, D-068, D-069 |
+| Minor | 12 | D-006–D-009, D-019, D-031, D-034, D-040, D-068–D-071 |
 | Limitation | 14 | D-001, D-004, D-005, D-010–D-018, D-020, D-029 |
-| **Total open** | **24** | |
+| **Total open** | **26** | |
 | Fixed since the 2026-10-11 refresh | 42 | D-003, D-024 (added and fixed 2026-10-12), D-025 (fixed by #301), D-026 (added by R084.u and fixed by R084.v, 2026-10-13), D-035 (Major, added and fixed 2026-10-15), D-036 (Minor, added at the 1.1.0 RC and fixed by 1.1.1), D-037 (Major, added at the 1.2.0 RC and fixed 2026-10-17), D-041 (Major, added at the 1.2.0 RC2 and fixed at RC3), D-038 (Minor, added at the 1.2.0 RC and fixed 2026-10-17 after 1.2.0), D-039 (Minor, added at the 1.2.0 RC and fixed after 1.2.0), D-021 (Minor, fixed 2026-10-17 after 1.2.0), D-032 (Minor, added by R091.h and fixed 2026-10-17 after 1.2.0), D-027 and D-028 (Minor, added at the RC and fixed 2026-10-18), D-022 (Minor, fixed 2026-10-18 in the fuzz harness), D-023 (Minor, fixed 2026-10-18), D-042 (Release-blocking, added and fixed 2026-10-18), D-043 (Major, added and fixed 2026-10-19), D-045 (Minor, added by R095.f and closed 2026-10-19 by restating the budget), D-044 (Minor, added by R095.f and fixed 2026-10-19), D-046 (Minor, added at the 1.3.0 RC1 and fixed 2026-10-21), D-047 (Major, added at the 1.3.0 RC2 and fixed 2026-10-21), D-048 (Major, reclassified 2026-10-27 by the parent; fixed in PR #498, merged 2026-10-27), D-049 to D-067 (1.4.0 RC1 rows; see the list in the RC section) |
 
 At the RC (2026-10-13): 24 open (0 release-blocking, 0 Major, 10 Minor, 14 Limitation).
@@ -1172,7 +1189,9 @@ fix on that branch closes it. PR #498 merged it on 2026-10-27.
 
 At the 1.4.0 RC1 `9ed43c90` (2026-10-28): 24 open (0 release-blocking, 0 Major, 10 Minor, 14
 Limitation). Release-blocking: none. The 1.4.0 rows D-049 to D-067 are fixed on `main`, and D-068 and
-D-069 are open Minor rows. The 1.4.0 items that are not known defects are listed under
+D-069 are open Minor rows. RC1's full tier then added D-070 (Minor, a test sampling window), and the RC
+walkthrough added D-071 (Minor, a missing rollback step), so at the RC record (2026-10-29): 26 open
+(0 release-blocking, 0 Major, 12 Minor, 14 Limitation). The 1.4.0 items that are not known defects are listed under
 [Open acceptance work](#open-acceptance-work-that-is-not-a-known-defect).
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
