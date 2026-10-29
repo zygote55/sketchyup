@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.4.0 — 2026-10-28
+## 1.4.0 — 2026-10-29
+
+Tag `v1.4.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.4.0).
 
 A minor release that adds the 1.4.0 group of Extended rows: IFC and STEP exchange (scope row F04),
 camera paths and batch presentations (F05), custom styles and asset catalogs (F06), quantities,

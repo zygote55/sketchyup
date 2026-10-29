@@ -15,17 +15,18 @@
   ],
   "version": "1.4.0",
   "recordComplete": true,
-  "gateStatus": "awaiting owner approval of the tag and the release",
+  "gateStatus": "published",
   "ownerApproval": {
-    "tag": null,
-    "release": null,
-    "corpusGate": null,
-    "cellsNotRun": null,
-    "shipWithD070D071": null
+    "tag": "approved 2026-10-29",
+    "release": "approved 2026-10-29",
+    "date": "2026-10-29",
+    "corpusGate": "accepted by the owner with the tag and the release (R086.h at RC1)",
+    "cellsNotRun": "accepted: the native and dialog-audit cells that no CI line runs stay recorded as not run",
+    "shipWithD070D071": "accepted: RC1 ships with D-070 and D-071 open (both Minor); no RC2"
   },
-  "tagCreated": false,
-  "releaseCreated": false,
-  "published": false,
+  "tagCreated": true,
+  "releaseCreated": true,
+  "published": true,
   "rc": {
     "name": "RC1",
     "commit": "9ed43c900739a04d450db32dcc9be80258bc5492",
@@ -699,7 +700,12 @@
         "class": "Minor",
         "found": "RC walkthrough rollback check"
       }
-    ]
+    ],
+    "afterRelease": {
+      "open": 25,
+      "minor": 11,
+      "d071": "fixed on main 2026-10-29; the 1.4.0 package's installed notes keep the old text"
+    }
   },
   "waivedAdr0161": [
     "Intel campaigns and the sharing-off memory control",
@@ -719,9 +725,35 @@
     "sketchyup-ifc on the Qt 6.8 reference machine"
   ],
   "followUps": [
-    "D-070 test fix on main",
-    "D-071 release notes on main and in the GitHub release notes",
-    "M10 row-acceptance cell (R097.f partial, R098.d partly met) updated on main",
-    "CHANGELOG 1.4.0 date set to the release date on main"
-  ]
+    "D-070 test fix on main (open)",
+    "D-071: done (GitHub release notes; RELEASE_NOTES.md on main)",
+    "M10 row-acceptance cell: done on main",
+    "CHANGELOG 1.4.0 date 2026-10-29: done on main"
+  ],
+  "publishedRelease": {
+    "tag": "v1.4.0",
+    "tagType": "annotated",
+    "tagMessage": "SketchyUp 1.4.0",
+    "tagObject": "2ab957ba06870685fa4fc8f95b74a30cde1339e5",
+    "taggerDate": "2026-10-29T06:00:27-07:00",
+    "pointsAt": "9ed43c900739a04d450db32dcc9be80258bc5492",
+    "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.4.0",
+    "title": "SketchyUp 1.4.0",
+    "publishedAt": "2026-10-29T14:00:37Z",
+    "latest": true,
+    "prerelease": false,
+    "draft": false,
+    "assets": {
+      "sketchyup-1.4.0.tar.gz": "b51330337c8c89935dcfa7ad31ba3e20dd435b102122156dc37a18512141d00f",
+      "sketchyup-1.4.0-1-x86_64.pkg.tar.zst": "0d3dd1503fae3ef372956bd40f6d8d0a176d813b4bd8e71595cc978048c4a3d7",
+      "sketchyup-ifc-1.4.0-1-x86_64.pkg.tar.zst": "2a78005e6ead1d910626d88684f917dc6273e5133d994917432a4cd5d344e622",
+      "PKGBUILD": "62c41c8a7d61523b179c2de34f9c8cc85bc72070df49bb6dbb4a211c1ce4bb19",
+      "SHA256SUMS": "c3585fa290b1ec76038b7d0dcaaa6e1bee8df7627971b85419a783b61b1ffc8f",
+      "MANIFEST.json": "daea32713d273986c20c4285e8a2b4c1754cfa2dc694a5fba72031bb4f10c6e2",
+      "THIRD_PARTY_NOTICES": "17306a0d238f13e44460a1412d5f6ccabe38d389c18e25c146fffa07be1ba8de"
+    },
+    "assetsVerified": "downloaded from the release; sha256sum -c SHA256SUMS passes (archive, both packages, THIRD_PARTY_NOTICES); archive, packages and notices equal MANIFEST.json; all seven digests equal the artifact manifest and GitHub's asset digests",
+    "notesAddD071RollbackStep": true,
+    "recordPr": "PR #517 merged as 1eda7474 before publication (awaiting the owner)"
+  }
 }

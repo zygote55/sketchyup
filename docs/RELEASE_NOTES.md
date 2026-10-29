@@ -7,8 +7,8 @@ SketchyUp 1.4.0 is a minor release. It adds one named group of Extended rows, th
 camera paths and batch presentations (F05), custom styles and asset catalogs (F06), quantities,
 reports and schedules (F07), `.skp` import (C01, import only), offline geographic coordinates (C06,
 offline only) and the helper process sandbox (R109). The group is gated as one release, and it is
-not claimed until its record is accepted. The release record, written at the release candidate,
-will be `docs/verification/G-1.4.0.md`. The [support matrix](SUPPORT_MATRIX.md)
+not claimed until its record is accepted. The release record, with the release-candidate evidence,
+is [verification/G-1.4.0.md](verification/G-1.4.0.md). The [support matrix](SUPPORT_MATRIX.md)
 states what is supported, and the [user guide](USER_GUIDE.md) describes each workflow.
 
 Existing commands, queries and schemas keep their shapes; everything new is additive, as a minor
@@ -186,7 +186,9 @@ Run `pacman -U sketchyup-1.4.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helpe
 1.3.0-1 package built from the release source to 1.4.0-1, and checks that the 1.3.0-1 CLI refuses
 each newer file unchanged.
 
-To roll back, install `sketchyup-1.3.0-1-x86_64.pkg.tar.zst` with `pacman -U`. A document with a
+To roll back, install `sketchyup-1.3.0-1-x86_64.pkg.tar.zst` with `pacman -U`. If `sketchyup-ifc` is
+installed, remove it first with `pacman -R sketchyup-ifc`: it requires `sketchyup` 1.4.0, so pacman
+refuses the rollback while it is installed and changes nothing (D-071). A document with a
 camera path or preset, an edge stroke, a geographic site or a material texture size does not open
 in 1.3.0. Copy such a document before you open it in 1.4.0 if you may need 1.3.0. When 1.4.0 saves
 over an existing document, the previous bytes are kept as `NAME.sketchyup.bak`.
