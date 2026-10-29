@@ -35,9 +35,11 @@ struct CatalogImportResult {
 
 // Refuses (throws, changing nothing) when a named entry is missing, ambiguous, a template, or not
 // importable. The reason names the entry and the missing dependency id. `parent` is the folder the
-// components are placed in, 0 for the root.
+// components are placed in, 0 for the root. `cancelled` is checked before each entry and before the
+// edit is published; when it returns true the insert throws CatalogCancelled and changes nothing.
 CatalogImportResult importCatalogEntries(Document &doc, const CatalogPackage &package,
-                                         const QStringList &names, Id parent = 0);
+                                         const QStringList &names, Id parent = 0,
+                                         const CatalogCancelCheck &cancelled = {});
 
 struct CatalogExportRequest {
     QString name, description, version, licenseIdentifier;

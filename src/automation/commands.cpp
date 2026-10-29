@@ -578,7 +578,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                                               BatchResponse response,
                                               const Document *outerScene = nullptr,
                                               Id excludedInstance = 0,
-                                              const OpenedCatalogs *opened = nullptr) {
+                                              const OpenedCatalogs *opened = nullptr,
+                                              const CatalogCancelCheck &cancelled = {}) {
     fields(request, {"apiVersion", "documentId", "expectedRevision", "commands", "history"});
     if (!request["apiVersion"].isDouble() || request["apiVersion"].toDouble() != 1)
         throw std::runtime_error("Unsupported API version");
@@ -765,7 +766,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
         } else if (isStyleCommand(name)) {
             styleOperations.append(executeStyleCommand(staged, command));
         } else if (isCatalogCommand(name)) {
-            catalogOperations.append(executeCatalogCommand(staged, command, opened));
+            catalogOperations.append(executeCatalogCommand(staged, command, opened, cancelled));
         } else if (isDrawingSheetCommand(name)) {
             executeDrawingSheetCommand(staged, command, baseRevision);
         } else if (isComponentParameterCommand(name)) {
@@ -1606,7 +1607,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                              {"commands", scopedCommands}},
                             response == BatchResponse::Full ? BatchResponse::Full
                                                             : BatchResponse::Changes,
-                            scopeInstance ? &staged : nullptr, scopeInstance, opened);
+                            scopeInstance ? &staged : nullptr, scopeInstance, opened, cancelled);
                         if (scopeInstance)
                             scopeDraft = draft;
                         return decodedChanges(innerResult["changes"].toObject());
@@ -2020,9 +2021,9 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     return result;
 }
 QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchResponse response,
-                         const OpenedCatalogs *opened) {
+                         const OpenedCatalogs *opened, const CatalogCancelCheck &cancelled) {
     try {
-        return executeBatchWithReferences(doc, request, response, nullptr, 0, opened);
+        return executeBatchWithReferences(doc, request, response, nullptr, 0, opened, cancelled);
     } catch (const ComponentParameterError &error) {
         // Keep ADR 0165's codes and context for sessions, MCP, staging and the CLI.
         throw InspectionError(error.code(), error.what(), componentParameterErrorDetails(error));

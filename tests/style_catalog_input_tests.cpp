@@ -47,10 +47,15 @@
 #include <QSplitter>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QThread>
 #include <QTimer>
+#include <QProgressBar>
+#include <QGuiApplication>
+#include <QWindow>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 
+#include <atomic>
 #include <exception>
 #include <functional>
 #include <iostream>
@@ -178,6 +183,35 @@ void modal(const std::function<void()> &open, const std::function<void(QDialog &
             dialog->reject();
     });
     open();
+    if (failure)
+        std::rethrow_exception(failure);
+}
+
+// Like modal(), for a dialog that opens only when a background insert has ended. `open` starts the
+// insert and returns when the insert has settled, as with modal(). `act` runs on the first modal
+// dialog that is not `parent`, which a poll finds however late it opens, so a report that the insert
+// opens is driven too. A failure in `act` is thrown again after `open` has returned.
+void modalAfter(QDialog &parent, const std::function<void()> &open,
+                const std::function<void(QDialog &)> &act) {
+    std::exception_ptr failure;
+    QTimer poll;
+    poll.setInterval(5);
+    QObject::connect(&poll, &QTimer::timeout, [&] {
+        auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if (!dialog || dialog == &parent)
+            return;
+        poll.stop();
+        try {
+            act(*dialog);
+        } catch (...) {
+            failure = std::current_exception();
+        }
+        if (dialog->isVisible())
+            dialog->reject();
+    });
+    poll.start();
+    open();
+    poll.stop();
     if (failure)
         std::rethrow_exception(failure);
 }
@@ -658,7 +692,7 @@ void refusedInsertReport(Window &window, const QTemporaryDir &files,
         check(insert->isEnabled(), "The selection is insertable as it was listed");
         // The catalog changes on disk after the listing: its shared texture is now tampered.
         writeFile(libraryFolder() + "/basic.sketchycat", fixtures.value("tampered-asset"));
-        modal([&] { insert->click(); },
+        modalAfter(dialog, [&] { insert->click(); },
               [&](QDialog &report) {
                   check(report.objectName() == "catalogInsertReport",
                         "A refused insert opens the report");
@@ -707,7 +741,7 @@ void refusedInsertReport(Window &window, const QTemporaryDir &files,
             auto *insert = child<QPushButton>(dialog, "catalogInsert");
             selectOnly(*list, {"Block", "Oak tint"}, kBasic);
             writeFile(libraryFolder() + "/basic.sketchycat", fixtures.value("tampered-asset"));
-            modal([&] { insert->click(); },
+            modalAfter(dialog, [&] { insert->click(); },
                   [&](QDialog &report) {
                       auto *remove = child<QPushButton>(report, "catalogReportRemove");
                       check(remove->isEnabled() &&
@@ -904,6 +938,265 @@ void largeText(const QTemporaryDir &files, const QMap<QString, QByteArray> &fixt
         });
     }
     QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 100);
+}
+
+// The library folder's files, by name, with their bytes: a cancelled insert must leave them as they were.
+QMap<QString, QByteArray> libraryContents() {
+    QMap<QString, QByteArray> contents;
+    for (const auto &name : QDir(libraryFolder()).entryList(QDir::Files)) {
+        QFile file(libraryFolder() + "/" + name);
+        check(file.open(QIODevice::ReadOnly), "Read the library file back");
+        contents[name] = file.readAll();
+    }
+    return contents;
+}
+
+// True once the platform has given the sheet the keyboard focus. A person clicks Cancel after that, and
+// a click before it waits for the platform's focus (the settled close of a prompt, UX_DESIGN 16.9).
+bool hasFocus(const QDialog *sheet) {
+    return sheet->windowHandle() && QGuiApplication::focusWindow() == sheet->windowHandle();
+}
+
+// Restores the insert's test hooks when a test leaves, whatever happens in it.
+struct InsertHooksRestored {
+    ~InsertHooksRestored() {
+        CatalogDialog::insertGateForTesting = nullptr;
+        CatalogDialog::insertProgressDelayMs = 1000;
+    }
+};
+
+// R100.i (ADR 0174 section 9 row 4; UX_DESIGN 18.5): an insert that runs long shows a progress sheet
+// with its three steps and the catalog's name, and Cancel ends it. A cancelled insert makes no undo
+// step, adds no record, and leaves the library folder as it was. A quick insert shows no sheet, and a
+// completed insert is one labelled undo step. The slow insert is held by the test's gate until the
+// sheet has been seen, and Cancel is clicked then, so no check depends on a timing window.
+void insertProgressAndCancel(Window &window, const QTemporaryDir &files,
+                             const QMap<QString, QByteArray> &fixtures) {
+    resetLibrary(files, fixtures, {"basic"});
+    InsertHooksRestored restored;
+    const auto steps = history(window);
+    const auto definitions = window.document().definitions().size();
+    const auto materials = window.document().materials().size();
+    const auto style = window.document().style();
+    const auto library = libraryContents();
+
+    // A slow insert: the worker waits at the gate until the test has seen the sheet and clicked Cancel.
+    CatalogDialog::insertProgressDelayMs = 0;
+    CatalogDialog::insertGateForTesting = [](const std::function<bool()> &cancelled) {
+        // Bounded, so that a sheet that never opens fails the check below instead of hanging the run.
+        QElapsedTimer held;
+        held.start();
+        while (!cancelled() && held.elapsed() < 20000)
+            QThread::msleep(2);
+    };
+    struct Seen {
+        bool sheet = false, cancelled = false, busy = false;
+        QStringList steps, states;
+        QString file, reason;
+        double closeMs = -1;
+    } seen;
+    QElapsedTimer clock;
+    catalogDialog(window, [&](QDialog &dialog) {
+        auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+        auto *insert = child<QPushButton>(dialog, "catalogInsert");
+        selectOnly(*list, {"Block"}, kBasic);
+        QTimer poll;
+        poll.setInterval(5);
+        int stage = 0; // 0: waiting for the sheet; 1: waiting for its focus; 2: Cancel clicked
+        QElapsedTimer focusWait;
+        QObject::connect(&poll, &QTimer::timeout, &dialog, [&] {
+            auto *sheet = dialog.findChild<QDialog *>("catalogInsertProgressSheet");
+            if (!sheet || !sheet->isVisible() || stage == 2)
+                return;
+            if (stage == 0) {
+                seen.sheet = true;
+                // The sheet's own close, as the time Cancel takes to close it.
+                QObject::connect(sheet, &QDialog::finished, sheet, [&] {
+                    if (seen.closeMs < 0)
+                        seen.closeMs = clock.nsecsElapsed() / 1e6;
+                });
+                for (int i = 1; i <= 3; ++i) {
+                    const auto prefix = QStringLiteral("catalogInsertProgressStep%1").arg(i);
+                    const auto *name = sheet->findChild<QLabel *>(prefix);
+                    const auto *state = sheet->findChild<QLabel *>(prefix + "State");
+                    seen.steps << (name ? name->text() : QString());
+                    seen.states << (state ? state->text() : QString());
+                }
+                if (const auto *file = sheet->findChild<QLabel *>("catalogInsertProgressFile"))
+                    seen.file = file->text();
+                if (const auto *bar = sheet->findChild<QProgressBar *>("catalogInsertProgressBar"))
+                    seen.busy = bar->maximum() == 0;
+                stage = 1;
+                focusWait.start();
+            }
+            if (!hasFocus(sheet) && focusWait.elapsed() < 1000)
+                return;
+            stage = 2;
+            seen.cancelled = true;
+            clock.start();
+            if (auto *cancel = sheet->findChild<QPushButton *>("catalogInsertProgressCancel"))
+                cancel->click();
+        });
+        poll.start();
+        insert->click();
+        poll.stop();
+        seen.reason = child<QLabel>(dialog, "catalogInsertReason")->text();
+        check(seen.sheet, "The progress sheet opens for a slow insert");
+        check(seen.steps == QStringList{"Read the catalog", "Verify its hashes", "Insert the entries"},
+              "The sheet names the three phases");
+        check(seen.states == QStringList{"●", "○", "○"},
+              "The first phase is working when the sheet opens");
+        check(seen.file.contains("Fixture catalog"), "The sheet names the catalog");
+        check(seen.busy, "The sheet's bar is busy: no step has a count");
+        check(seen.closeMs >= 0, "Cancel closes the sheet");
+        std::cout << "insert cancel: the sheet closed " << seen.closeMs << " ms after Cancel"
+                  << std::endl;
+        check(history(window) == steps, "A cancelled insert adds no undo step");
+        check(window.document().definitions().size() == definitions,
+              "A cancelled insert adds no component definition");
+        check(window.document().materials().size() == materials,
+              "A cancelled insert adds no material");
+        check(window.document().style() == style, "A cancelled insert changes no style");
+        check(libraryContents() == library, "A cancelled insert leaves the library folder as it was");
+        check(seen.reason.startsWith("Insert cancelled. Nothing was inserted"),
+              "The dialog says the insert was cancelled and nothing was inserted");
+        check(insert->isEnabled(), "Insert is on again after a cancel");
+        check(dialog.isVisible(), "The dialog stays open after a cancel");
+    });
+
+    // A quick insert: the delay is longer than the insert, so no sheet is ever made, and the insert is
+    // one labelled undo step.
+    CatalogDialog::insertGateForTesting = nullptr;
+    CatalogDialog::insertProgressDelayMs = 60000;
+    bool sheetMade = false;
+    catalogDialog(
+        window,
+        [&](QDialog &dialog) {
+            auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+            auto *insert = child<QPushButton>(dialog, "catalogInsert");
+            selectOnly(*list, {"Block"}, kBasic);
+            QTimer poll;
+            poll.setInterval(5);
+            QObject::connect(&poll, &QTimer::timeout, &dialog, [&] {
+                if (dialog.findChild<QDialog *>("catalogInsertProgressSheet"))
+                    sheetMade = true;
+            });
+            poll.start();
+            insert->click();
+            poll.stop();
+            check(!sheetMade, "A quick insert shows no progress sheet");
+        },
+        false);
+    check(history(window) == steps + 1, "A completed insert is one undo step");
+    check(lastLabel(window) == "Insert component “Block”", "The undo step is labelled");
+    check(window.document().definitions().size() == definitions + 1, "The component is inserted");
+    undo(window)->trigger();
+    check(history(window) == steps, "Undo removes the completed insert");
+    check(window.document().definitions().size() == definitions, "Undo removes the component");
+}
+
+// R100.i (ADR 0174 section 9 row 4): the insert's cost on a large catalog. It runs only when
+// SKETCHYUP_R100I_CATALOG names a catalog (`style_catalog_benchmark write` makes one), so no CI run
+// does it. It prints three measurements: one insert of one entry with the default delay, the longest
+// stop of the UI thread during that insert (the gap between ticks of a 10 ms timer, as
+// quantities_large_input_tests measures it), and the time from Cancel to the sheet's close, with Cancel
+// clicked as soon as the sheet opens.
+void insertBudget(Window &window, const QTemporaryDir &files) {
+    const auto source = qEnvironmentVariable("SKETCHYUP_R100I_CATALOG");
+    if (source.isEmpty())
+        return;
+    InsertHooksRestored restored;
+    resetLibrary(files, {}, {});
+    check(QFile::copy(source, libraryFolder() + "/budget.sketchycat"),
+          "Copy the budget catalog into the library");
+    CatalogDialog::insertGateForTesting = nullptr;
+    // One insert of one entry, timed, with the longest stop of the UI thread during it.
+    const auto timedInsert = [&](int delayMs, const char *label) {
+        CatalogDialog::insertProgressDelayMs = delayMs;
+        const auto steps = history(window);
+        catalogDialog(window, [&](QDialog &dialog) {
+            auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+            auto *insert = child<QPushButton>(dialog, "catalogInsert");
+            check(list->topLevelItemCount() == 1, "The library's budget catalog is listed");
+            selectOnly(*list, {"Big 1"}, list->topLevelItem(0)->text(0));
+            std::vector<double> ticks{0};
+            QElapsedTimer clock;
+            QTimer ticker;
+            ticker.setInterval(10);
+            QObject::connect(&ticker, &QTimer::timeout, &dialog,
+                             [&] { ticks.push_back(clock.nsecsElapsed() / 1e6); });
+            clock.start();
+            ticker.start();
+            insert->click();
+            ticker.stop();
+            const double total = clock.nsecsElapsed() / 1e6;
+            ticks.push_back(total);
+            double stall = 0;
+            for (std::size_t i = 0; i + 1 < ticks.size(); ++i)
+                stall = std::max(stall, ticks[i + 1] - ticks[i]);
+            std::cout << label << ": " << total << " ms; the UI thread's longest stop " << stall
+                      << " ms; one undo step: " << (history(window) == steps + 1 ? "yes" : "no")
+                      << std::endl;
+            check(history(window) == steps + 1, "The budget insert is one undo step");
+        }, false);
+        undo(window)->trigger();
+    };
+    timedInsert(1000, "insert one entry, default delay (no sheet)");
+    timedInsert(0, "insert one entry, sheet from the start");
+
+    // Cancel at several points of one insert: the time from Cancel to the sheet's close. The dialog stays
+    // open after each cancel, so the same insert is run again.
+    CatalogDialog::insertProgressDelayMs = 0;
+    catalogDialog(window, [&](QDialog &dialog) {
+        auto *list = child<QTreeWidget>(dialog, "catalogEntries");
+        auto *insert = child<QPushButton>(dialog, "catalogInsert");
+        selectOnly(*list, {"Big 1"}, list->topLevelItem(0)->text(0));
+        const auto steps = history(window);
+        for (const int afterMs : {0, 50, 150, 250}) {
+            double cancelMs = -1;
+            bool clicked = false;
+            QElapsedTimer clock, shownFor;
+            bool shown = false;
+            QTimer poll;
+            poll.setInterval(1);
+            QObject::connect(&poll, &QTimer::timeout, &dialog, [&] {
+                auto *sheet = dialog.findChild<QDialog *>("catalogInsertProgressSheet");
+                if (clicked || !sheet || !sheet->isVisible())
+                    return;
+                if (!shown) {
+                    shown = true;
+                    shownFor.start();
+                }
+                // `afterMs` counts from the sheet's opening, so Cancel lands that far into the insert.
+                if (shownFor.elapsed() < afterMs)
+                    return;
+                auto *cancel = sheet->findChild<QPushButton *>("catalogInsertProgressCancel");
+                if (!cancel)
+                    return;
+                clicked = true;
+                QObject::connect(sheet, &QDialog::finished, sheet, [&] {
+                    if (cancelMs < 0)
+                        cancelMs = clock.nsecsElapsed() / 1e6;
+                });
+                clock.start();
+                cancel->click();
+            });
+            poll.start();
+            insert->click();
+            poll.stop();
+            // An insert whose composed edit was complete before Cancel took effect is committed, as a
+            // finished insert is; it is reported, and undone so the next cancel starts from the same model.
+            const bool committed = history(window) != steps;
+            std::cout << "insert cancel, " << afterMs << " ms into the insert: "
+                      << (!clicked ? std::string("the insert ended first")
+                          : committed
+                              ? std::string("the insert finished before Cancel took effect")
+                              : "the sheet closed " + std::to_string(cancelMs) + " ms after Cancel")
+                      << std::endl;
+            if (committed)
+                undo(window)->trigger();
+        }
+    });
 }
 
 // R100.g (ADR 0174 section 9; UX_DESIGN 18.5): the time each selection change takes on a large
@@ -1923,7 +2216,7 @@ void reportSaveToFile(Window &window, const QTemporaryDir &files,
         auto *insert = child<QPushButton>(dialog, "catalogInsert");
         selectOnly(*list, {"Block", "Oak tint"}, kBasic);
         writeFile(libraryFolder() + "/basic.sketchycat", fixtures.value("tampered-asset"));
-        modal([&] { insert->click(); }, [&](QDialog &report) {
+        modalAfter(dialog, [&] { insert->click(); }, [&](QDialog &report) {
             checkText(child<QLabel>(report, "catalogReportLegend")->text(), "Solid · Inserted",
                       "The legend names the solid fill");
             checkText(child<QLabel>(report, "catalogReportLegend")->text(), "Hatched · Refused",
@@ -2033,34 +2326,49 @@ int main(int argc, char **argv) {
     preferences.setValue("recoverySeconds", 0);
     preferences.setValue("render/blenderPath", files.path() + "/absent");
     const auto fixtures = catalog_fixture::fixtures();
+    // SKETCHYUP_CATALOG_CASE names one case to run alone (the R100.i case is run that way under load).
+    const auto only = qEnvironmentVariable("SKETCHYUP_CATALOG_CASE");
     try {
-        style_suite::runAll();
+        if (only.isEmpty())
+            style_suite::runAll();
         Window window;
         window.resize(1280, 900);
         window.show();
         check(QTest::qWaitForWindowExposed(&window), "The window is exposed");
         window.demo();
         window.viewport()->refresh();
-        fileMenuEntries(window);
-        libraryFolderRemembered(window, files, fixtures);
-        listsAndStates(window, files, fixtures);
-        searchAndKindFilter(window, files, fixtures);
-        openCatalogFile(window, files, fixtures);
-        detailsPane(window, files, fixtures);
-        insertOffWithReason(window, files, fixtures);
-        templatesRefused(window, files, fixtures);
-        severalEntriesOneUndoStep(window, files, fixtures);
-        oneComponentUndoStep(window, files, fixtures);
-        keyboardReachability(window, files, fixtures);
-        refusedInsertReport(window, files, fixtures);
-        style_suite::reportSaveToFile(window, files, fixtures);
-        outsideAndLibraryInserts(window, files, fixtures);
-        exportAssetCatalog(window, files);
-        largeText(files, fixtures);
-        selectionBudget(window, files);
+        if (only.isEmpty()) {
+            fileMenuEntries(window);
+            libraryFolderRemembered(window, files, fixtures);
+            listsAndStates(window, files, fixtures);
+            searchAndKindFilter(window, files, fixtures);
+            openCatalogFile(window, files, fixtures);
+            detailsPane(window, files, fixtures);
+            insertOffWithReason(window, files, fixtures);
+            templatesRefused(window, files, fixtures);
+            severalEntriesOneUndoStep(window, files, fixtures);
+            oneComponentUndoStep(window, files, fixtures);
+            keyboardReachability(window, files, fixtures);
+            refusedInsertReport(window, files, fixtures);
+            style_suite::reportSaveToFile(window, files, fixtures);
+            outsideAndLibraryInserts(window, files, fixtures);
+            insertProgressAndCancel(window, files, fixtures);
+            exportAssetCatalog(window, files);
+            largeText(files, fixtures);
+            selectionBudget(window, files);
+            insertBudget(window, files);
+        } else if (only == "insertProgress") {
+            insertProgressAndCancel(window, files, fixtures);
+        } else {
+            throw std::runtime_error("SKETCHYUP_CATALOG_CASE names no case");
+        }
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;
+    }
+    if (!only.isEmpty()) {
+        std::cout << "Asset catalogs case " << only.toStdString() << " passes\n";
+        return 0;
     }
     std::cout
         << "Asset catalogs checks pass: File menu, library folder, listing and states, search and "

@@ -342,6 +342,71 @@ void oneUndoStep() {
           "One undo removes every record the import added");
 }
 
+// R100.i (ADR 0174 sections 4 and 7; UX_DESIGN 18.5): a cancelled read or insert throws and changes
+// nothing; a check that never cancels gives the result of no check at all. The reader is cancelled in
+// its byte read and in its hash verification, so a long read stops early.
+template <class E, class F> bool throwsType(F f) {
+    try {
+        f();
+    } catch (const E &) {
+        return true;
+    }
+    return false;
+}
+
+void cancellation() {
+    const auto file = fixtures().value("edge-texture");
+    const auto never = [] { return false; };
+    const auto always = [] { return true; };
+    check(throwsType<CatalogCancelled>([&] { decodeCatalog(file, always); }),
+          "A cancelled decode stops with CatalogCancelled");
+    // Cancelled at the third check: the reader stops inside its verification, not at the end.
+    int checks = 0;
+    check(throwsType<CatalogCancelled>([&] { decodeCatalog(file, [&] { return ++checks > 2; }); }),
+          "A cancel inside the hash verification stops the decode");
+    check(checks == 3, "The decode stopped at the third check");
+    QTemporaryDir bytes;
+    const auto path = bytes.path() + "/edge-texture.sketchycat";
+    writeFile(path, file);
+    check(throwsType<CatalogCancelled>([&] { loadCatalogBytes(path, always); }),
+          "A cancelled read stops with CatalogCancelled");
+    check(loadCatalogBytes(path, never) == loadCatalogBytes(path),
+          "A read that never cancels returns the same bytes");
+    const auto plain = decodeCatalog(file);
+    const auto checked = decodeCatalog(file, never);
+    check(checked.file == plain.file && encodeCatalogListing(checked) == encodeCatalogListing(plain),
+          "A decode that never cancels gives the same catalog");
+
+    const auto package = plain;
+    const QStringList entries{"Block", "Oak", "Edge style"};
+    Document target;
+    const auto before = snapshot(target);
+    check(throwsType<CatalogCancelled>([&] { importCatalogEntries(target, package, entries, 0, always); }),
+          "A cancelled insert stops with CatalogCancelled");
+    requireUnchanged(target, before, "a cancelled insert");
+    // Cancelled after the first entry: nothing of it is published.
+    int steps = 0;
+    check(throwsType<CatalogCancelled>([&] {
+              importCatalogEntries(target, package, entries, 0, [&] { return ++steps > 1; });
+          }),
+          "A cancel between entries stops the insert");
+    requireUnchanged(target, before, "a cancel between entries");
+
+    Document plainTarget, checkedTarget;
+    const auto plainResult = importCatalogEntries(plainTarget, package, entries);
+    const auto checkedResult = importCatalogEntries(checkedTarget, package, entries, 0, never);
+    // Two documents have their own identities, so their bytes differ; the records and the report do not.
+    check(catalogImportReport(package, checkedResult) == catalogImportReport(package, plainResult),
+          "An insert that never cancels gives the same report");
+    check(checkedTarget.bodies().size() == plainTarget.bodies().size() &&
+              checkedTarget.definitions().size() == plainTarget.definitions().size() &&
+              checkedTarget.materials().size() == plainTarget.materials().size() &&
+              checkedTarget.assets().size() == plainTarget.assets().size() &&
+              checkedTarget.style() == plainTarget.style() &&
+              checkedTarget.history().total == plainTarget.history().total,
+          "An insert that never cancels gives the same records and history");
+}
+
 // Relocation: a catalog copied elsewhere and read from there imports the same records, and a
 // catalog renamed inside the library is found by its new name only.
 void relocation() {
@@ -699,6 +764,7 @@ int main() {
         refusalsLeaveDocumentUnchanged();
         exportRefusals();
         commandSurface();
+        cancellation();
         std::cout << "catalog import tests passed\n";
         return 0;
     } catch (const std::exception &error) {

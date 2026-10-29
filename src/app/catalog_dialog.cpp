@@ -2,6 +2,7 @@
 
 #include "app/catalog_report.hpp"
 #include "app/component_definition_section.hpp"
+#include "app/exchange_progress_sheet.hpp"
 #include "app/interface_preferences.hpp"
 #include "io/catalog_insert.hpp"
 #include "io/library_bundle.hpp"
@@ -12,6 +13,7 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QKeyEvent>
@@ -22,12 +24,16 @@
 #include <QResizeEvent>
 #include <QSettings>
 #include <QSplitter>
+#include <QThread>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
 #include <iterator>
 #include <map>
+#include <memory>
+#include <optional>
 #include <stdexcept>
 
 namespace sketchy {
@@ -267,6 +273,132 @@ QString CatalogSource::title() const {
         return package->metadata.name;
     return QFileInfo(path).fileName();
 }
+
+// What an insert's worker hands back to the dialog (R100.i). The worker fills it in, and the dialog
+// reads it once the worker has finished.
+struct CatalogInsertOutcome {
+    QString title;   // the catalog, or the catalogs, the progress sheet names
+    QString label;   // the undo step's label
+    QString summary; // the first part of the status line, for a commit
+    bool style{};    // a single style, whose neutral result is worded for a style
+    std::map<QString, CatalogPackage> read;     // each catalog as the worker read it, by path
+    std::map<QString, QString> unreadable;      // why a catalog could not be read, by path
+    std::optional<Document::PreparedEdit> edit; // the composed insert, committed on the UI thread
+};
+
+namespace {
+
+// One catalog an insert reads: its key in the listing, and where it is read from.
+struct CatalogRead {
+    QString path;
+    bool fromLibrary{};
+    QString folder, name;
+};
+
+// A selected entry: its catalog's path and its index in that catalog.
+using EntryRef = std::pair<QString, size_t>;
+
+// The batch an insert sends (R100.i): one catalog.import per catalog the selection uses, each naming
+// its entries by the package the insert read. Every catalog is passed under a key of `opened`, so the
+// engine reads no file of its own and no bytes are encoded into the batch.
+QJsonArray insertBatch(const std::vector<EntryRef> &refs,
+                       const std::map<QString, CatalogPackage> &read, OpenedCatalogs &opened) {
+    std::map<QString, QStringList> byPath;
+    std::vector<QString> order;
+    for (const auto &[path, index] : refs) {
+        const auto found = read.find(path);
+        if (found == read.end())
+            throw std::runtime_error("Nothing was inserted. A catalog the selection uses was not read.");
+        if (index >= found->second.entries.size())
+            throw std::runtime_error(
+                QStringLiteral("Nothing was inserted. %1 changed since it was listed, and the entry "
+                               "is no longer there. Choose the entries again.")
+                    .arg(quoted(found->second.metadata.name))
+                    .toStdString());
+        if (!byPath.contains(path))
+            order.push_back(path);
+        byPath[path].append(found->second.entries[index].name);
+    }
+    QJsonArray result;
+    for (const auto &path : order) {
+        const auto key = QString::number(opened.size());
+        opened.emplace(key, read.at(path));
+        QJsonArray names;
+        for (const auto &name : byPath[path])
+            names.append(name);
+        result.append(QJsonObject{{"command", "catalog.import"}, {"opened", key}, {"entries", names}});
+    }
+    return result;
+}
+
+// The insert, on the worker thread (R100.i). It reads each catalog the selection uses and verifies it,
+// then composes the insert against the snapshot of the model. Nothing is changed here: the UI thread
+// commits the composed edit. A cancel is checked between the steps, between the entries and inside the
+// reader, and a cancelled insert leaves no partial result.
+ExchangeResult runCatalogInsert(const ExchangeWorkerHooks &hooks,
+                                const std::shared_ptr<const Document> &snapshot,
+                                const std::vector<CatalogRead> &reads,
+                                const std::vector<EntryRef> &refs,
+                                const std::function<void(const std::function<bool()> &)> &gate,
+                                const std::shared_ptr<CatalogInsertOutcome> &outcome) {
+    const CatalogCancelCheck cancelled = hooks.cancelled;
+    ExchangeResult result;
+    try {
+        if (gate)
+            gate(cancelled);
+        hooks.progress(QStringLiteral("read"), 0);
+        std::vector<std::pair<QString, QByteArray>> bytes;
+        for (const auto &catalog : reads) {
+            try {
+                const auto file = catalog.fromLibrary
+                                      ? catalogLibraryPath(catalog.folder, catalog.name)
+                                      : catalog.path;
+                bytes.emplace_back(catalog.path, loadCatalogBytes(file, cancelled));
+            } catch (const CatalogCancelled &) {
+                throw;
+            } catch (const std::exception &failure) {
+                outcome->unreadable[catalog.path] = unreadable(QString::fromUtf8(failure.what()));
+            }
+        }
+        hooks.progress(QStringLiteral("verify"), 0);
+        for (const auto &[path, data] : bytes) {
+            try {
+                outcome->read[path] = decodeCatalog(data, cancelled);
+            } catch (const CatalogCancelled &) {
+                throw;
+            } catch (const std::exception &failure) {
+                outcome->unreadable[path] = unreadable(QString::fromUtf8(failure.what()));
+            }
+        }
+        if (!outcome->unreadable.empty()) {
+            result.code = "unreadable";
+            return result;
+        }
+        hooks.progress(QStringLiteral("insert"), 0);
+        OpenedCatalogs opened;
+        const auto commands = insertBatch(refs, outcome->read, opened);
+        const QJsonObject request{
+            {"apiVersion", 1},
+            {"documentId", QString::fromStdString(snapshot->identity())},
+            {"expectedRevision", QString::number(snapshot->revision())},
+            {"commands", commands},
+            {"history", QJsonObject{{"label", outcome->label}}}};
+        outcome->edit = snapshot->prepareEdit([&](Document &candidate) {
+            executeBatch(candidate, request, BatchResponse::Changes, &opened, cancelled);
+        });
+        // A Cancel that arrived while the edit was composed still wins: nothing is committed.
+        if (cancelled())
+            throw CatalogCancelled();
+        result.done = true;
+    } catch (const CatalogCancelled &) {
+        result.cancelled = true;
+        result.code = "cancelled";
+    }
+    return result;
+}
+
+} // namespace
+
 
 CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
     : QDialog(parent), doc_(doc), view_(view),
@@ -827,70 +959,163 @@ QString CatalogDialog::insertLabel(const std::vector<Ref> &refs) const {
 }
 
 void CatalogDialog::insertSelected() {
-    if (!insertEnabled_)
+    if (!insertEnabled_ || insertRunner_)
         return;
+    const auto refs = chosen();
+    const auto outcome = std::make_shared<CatalogInsertOutcome>();
+    outcome->label = insertLabel(refs);
+    outcome->style =
+        refs.size() == 1 && sourceAt(refs.front().first)->package->entries[refs.front().second].kind ==
+                                CatalogEntryKind::Style;
+    // Each catalog the selection uses is read again on the worker, so the check and the insert see
+    // the file as it is now. The entries are named as the listing has them.
+    std::vector<CatalogRead> reads;
+    std::vector<EntryRef> entryRefs;
     std::set<QString> paths;
-    for (const auto &ref : chosen())
-        paths.insert(ref.first);
-    // Each catalog the selection uses is read again, so the check and the insert see the file as it
-    // is now. A file that changed since the listing refuses the insert, and the report says why.
-    reloadSources(paths);
-    if (!insertEnabled_) {
-        showReport(refusal_);
+    QStringList titles;
+    for (const auto &ref : refs) {
+        const auto *source = sourceAt(ref.first);
+        entryRefs.push_back(ref);
+        if (paths.insert(ref.first).second) {
+            reads.push_back({source->path, source->fromLibrary, source->folder, source->name});
+            titles << source->title();
+        }
+    }
+    outcome->title = titles.join(QStringLiteral(", "));
+    outcome->summary =
+        refs.size() == 1
+            ? QStringLiteral("Inserted %1 at the model’s origin")
+                  .arg(quoted(sourceAt(refs.front().first)->package->entries[refs.front().second].name))
+            : QStringLiteral("Inserted %1 at the model’s origin")
+                  .arg(countWord(qsizetype(refs.size())));
+    // The composed edit is built against this snapshot. The model cannot change under the insert: the
+    // progress sheet is modal, and the commit checks the revision again.
+    const auto snapshot = std::make_shared<const Document>(doc_.readSnapshot());
+    const auto gate = insertGateForTesting;
+    insertOutcome_ = outcome;
+    insertRunner_ = std::make_unique<ExchangeRunner>();
+    insertRunner_->begin(
+        [snapshot, reads, entryRefs, gate, outcome](const ExchangeWorkerHooks &hooks) {
+            return runCatalogInsert(hooks, snapshot, reads, entryRefs, gate, outcome);
+        },
+        QStringLiteral("The catalog insert failed."));
+    connect(insertRunner_.get(), &QThread::finished, this, &CatalogDialog::insertFinished);
+    // The sheet opens only if the insert is still running after the delay, so a quick insert shows none.
+    insertDelay_ = new QTimer(this);
+    insertDelay_->setSingleShot(true);
+    connect(insertDelay_, &QTimer::timeout, this, &CatalogDialog::showInsertProgress);
+    insertDelay_->start(insertProgressDelayMs);
+    insert_->setEnabled(false);
+    reason_->setText(QStringLiteral("Inserting…"));
+    // The caller sees the settled result, as it did when the insert ran in line. The dialog keeps
+    // handling events meanwhile, and the progress sheet, when it opens, is modal.
+    QEventLoop loop;
+    insertLoop_ = &loop;
+    loop.exec();
+    insertLoop_ = nullptr;
+}
+
+void CatalogDialog::showInsertProgress() {
+    if (!insertRunner_ || !insertRunner_->isRunning() || insertSheet_)
+        return;
+    insertSheet_ = new ExchangeProgressSheet(insertRunner_.get(), catalogInsertProgressConfig(),
+                                             insertOutcome_->title, this);
+    // Modal, so the dialog behind it takes no input while the insert runs.
+    insertSheet_->setModal(true);
+    insertSheet_->show();
+}
+
+void CatalogDialog::insertFinished() {
+    if (!insertRunner_)
+        return;
+    insertRunner_->wait();
+    if (insertDelay_) {
+        insertDelay_->stop();
+        insertDelay_->deleteLater();
+        insertDelay_ = nullptr;
+    }
+    // The sheet closes itself when the run ends (its own finished handler, which waits for the
+    // platform's focus as every settled prompt does), so the result is settled once it has closed.
+    if (insertSheet_ && insertSheet_->isVisible()) {
+        connect(insertSheet_, &QDialog::finished, this, &CatalogDialog::settleInsert,
+                Qt::SingleShotConnection);
         return;
     }
-    const auto refs = chosen();
-    const auto label = insertLabel(refs);
-    try {
-        OpenedCatalogs opened;
-        const auto batch = commands(refs, opened);
-        authoring::publish(doc_, view_, batch, label, &opened);
-    } catch (const std::exception &failure) {
-        const QString message = QString::fromUtf8(failure.what());
+    settleInsert();
+}
+
+void CatalogDialog::settleInsert() {
+    // However the insert ends, the loop in insertSelected returns once it has been settled here.
+    struct ReturnToCaller {
+        QEventLoop *loop;
+        ~ReturnToCaller() {
+            if (loop)
+                loop->quit();
+        }
+    } returnToCaller{insertLoop_};
+    const auto runner = std::move(insertRunner_);
+    const auto outcome = std::move(insertOutcome_);
+    if (insertSheet_) {
+        insertSheet_->deleteLater();
+        insertSheet_ = nullptr;
+    }
+    insert_->setEnabled(insertEnabled_);
+    // A cancel changes nothing: no undo step, and no catalog is listed again.
+    if (runner->wasCancelled()) {
+        reason_->setText(
+            QStringLiteral("Insert cancelled. Nothing was inserted, and your model is unchanged."));
+        return;
+    }
+    if (runner->code() == "unreadable") {
+        reportRefusal(*outcome, QString());
+        return;
+    }
+    if (!runner->hasResult()) {
+        const auto message = runner->message();
         if (message == QStringLiteral("Batch has no committed changes")) {
-            // The model already has these entries: a neutral result, not a refusal
-            // (UX_DESIGN 18.2).
-            const bool style =
-                refs.size() == 1 &&
-                sourceAt(refs.front().first)->package->entries[refs.front().second].kind ==
-                    CatalogEntryKind::Style;
-            inserted_ =
-                style ? QStringLiteral("This model already has this style. Nothing changed.")
-                      : QStringLiteral("This model already has these entries. Nothing changed.");
+            // The model already has these entries: a neutral result, not a refusal (UX_DESIGN 18.2).
+            inserted_ = outcome->style
+                            ? QStringLiteral("This model already has this style. Nothing changed.")
+                            : QStringLiteral("This model already has these entries. Nothing changed.");
             accept();
             return;
         }
-        showReport(message);
+        reportRefusal(*outcome, message);
         return;
     }
-    const auto summary =
-        refs.size() == 1
-            ? QStringLiteral("Inserted %1 at the model’s origin")
-                  .arg(quoted(
-                      sourceAt(refs.front().first)->package->entries[refs.front().second].name))
-            : QStringLiteral("Inserted %1 at the model’s origin")
-                  .arg(countWord(qsizetype(refs.size())));
-    inserted_ = QStringLiteral("%1. Undo: %2.").arg(summary, label);
+    // The commit: the composed edit, as one labelled undo step.
+    try {
+        view_.applyPreparedEdit(*outcome->edit);
+    } catch (const std::exception &failure) {
+        reportRefusal(*outcome, QString::fromUtf8(failure.what()));
+        return;
+    }
+    inserted_ = QStringLiteral("%1. Undo: %2.").arg(outcome->summary, outcome->label);
     accept();
 }
 
-void CatalogDialog::reloadSources(const std::set<QString> &paths) {
+// The report of an insert that did not commit. The listing takes what the insert read. The refusal
+// line is the engine's own only when the dialog says the insert is on, as refreshInsert decides; when a
+// listed entry is blocked by its own reason, the entry's row says why, as it always has.
+void CatalogDialog::reportRefusal(const CatalogInsertOutcome &outcome, const QString &refusal) {
+    applyReads(outcome);
+    refreshInsert();
+    showReport(insertEnabled_ ? refusal : refusal_);
+}
+
+void CatalogDialog::applyReads(const CatalogInsertOutcome &outcome) {
     for (auto &source : sources_) {
-        if (!paths.contains(source.path))
-            continue;
-        source.package.reset();
-        source.error.clear();
-        try {
-            source.package = source.fromLibrary
-                                 ? loadCatalogLibraryEntry(source.folder, source.name)
-                                 : loadCatalog(source.path);
-        } catch (const std::exception &failure) {
-            source.error = unreadable(QString::fromUtf8(failure.what()));
+        if (const auto read = outcome.read.find(source.path); read != outcome.read.end()) {
+            source.package = read->second;
+            source.error.clear();
+        }
+        if (const auto failed = outcome.unreadable.find(source.path);
+            failed != outcome.unreadable.end()) {
+            source.package.reset();
+            source.error = failed->second;
         }
     }
     rebuildTree();
-    refreshInsert();
-    showDetails();
 }
 
 void CatalogDialog::showReport(const QString &refusal) {
