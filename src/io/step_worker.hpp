@@ -3,9 +3,11 @@
 // (--import-step). The application checks the cheap things in its own bounded code, copies the file
 // into a private directory and hashes the copy, runs the helper with a fixed argv, no shell, a
 // scrubbed environment, resource limits and a deadline, and decodes what it wrote with the checked
-// package decoder. The STEP import has no per-element restart protocol (the whole file is read at
-// once and one solid's tessellation is not separable from the run): a stop is a failure, a
-// refusal is the helper's words, and the conversion is the application's, as in the IFC import.
+// package decoder. R098.i (ADR 0172 section 5, owner decision 7): a stop in the tessellation of a
+// base (its `P at` line) that is over a limit, the deadline or a signal, is restarted with that base
+// left out, at most maxRestarts times, and the import is partial. A stop in the read or write phase
+// has no base to leave out and fails the whole file. A refusal is the helper's words, and the
+// conversion is the application's, as in the IFC import.
 #include "io/ifc_import.hpp"
 #include <QString>
 #include <functional>
@@ -27,6 +29,8 @@ struct StepWorkerOptions {
     int deadlineSeconds{120};
     // RLIMIT_AS of the helper; 0 for none (sanitizer builds map huge shadow memory).
     qint64 addressSpaceBytes{qint64(4) << 30};
+    // The restarts a stop in the tessellation may cost, each with its base left out (ADR 0172 section 5).
+    int maxRestarts{3};
     // Where the private directory is made (empty: the system temporary directory).
     QString scratchRoot;
     // Checked while the helper runs; true cancels (terminate, then kill after a second).
@@ -44,7 +48,9 @@ struct StepScan {
     QString unit; // the declared unit's name (empty when none is declared)
 };
 StepScan checkStepSource(const QString &path);
-// Runs the whole import of one file into a new unsaved document. Throws IfcImportError (with the
-// report so far when there is one) for a refusal, a stop, or a cancel.
+// Runs the whole import of one file into a new unsaved document. A restarted stop gives a partial
+// import that names the bases left out (its report's excluded list and the restarted notice). Throws
+// IfcImportError (with the report so far when there is one) for a refusal, a stop that is not
+// restarted or that used up the restarts, a sandbox violation, or a cancel.
 IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker);
 } // namespace sketchy
