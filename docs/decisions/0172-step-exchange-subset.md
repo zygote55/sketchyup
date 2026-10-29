@@ -1,6 +1,6 @@
 # 0172 — STEP exchange subset
 
-**Status: Accepted (2026-10-23).** Owner decisions 1 to 10 approved as recommended on 2026-10-23. This is the design for [R098](../PR_ROADMAP.md#r098)
+**Status: Accepted (2026-10-23).** Owner decisions 1 to 10 approved as recommended on 2026-10-23. Amended on 2026-10-28 by owner decisions 7, 8 and 13 (sections 5, 6 and 7; the R098.h notes). This is the design for [R098](../PR_ROADMAP.md#r098)
 ("Deliver a documented STEP exchange subset"), the second exchange format of scope row
 F04, and it follows on from the accepted
 [ADR 0171](0171-ifc-exchange-subset.md) (the IFC exchange subset, R097). No
@@ -253,10 +253,11 @@ Invalid or unsupported surfaces and entities are **reported, with locations**
   (checked by the application before the helper starts, together with the
   `ISO-10303-21` header and a `FILE_SCHEMA` in {AP203, AP214, AP242}); a
   worker that exceeds its `RLIMIT_AS`, its CPU limit or its deadline, or is
-  killed mid-run (restarted with the element it was on left out, at most
-  three times, and then either a partial import that names the excluded
-  elements, or a failed import with its log tail; the application keeps
-  running and the current document is unchanged); and a file with no declared
+  killed mid-run (owner decision 7, 2026-10-28: the whole file is refused,
+  with the helper's log tail; the application keeps running and the current
+  document is unchanged. The restart with the element left out, at most three
+  times, and the partial import that names the excluded elements are not in
+  1.4.0 and are planned for 1.5); and a file with no declared
   unit and no `--step-length-unit` option.
 - **Never silently changed scale** (§2): every conversion is explicit and
   appears in the report; a mismatch is a refusal, not a rescale.
@@ -269,14 +270,15 @@ budgets are enforced from the application side, as in ADR 0171 §6.4:
 | | Budget | Rationale |
 |---|---|---|
 | Input file | 128 MiB, checked by the application before the helper starts (size, regular file, `ISO-10303-21` header, a `FILE_SCHEMA` in {AP203, AP214, AP242}) | The IFC precedent; the STEP lex/yacc parse is linear in the file |
-| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s; CPU time 480 s (four threads); output file 256 MiB; four geometry threads | `src/io/ifc_worker.hpp` (120 s, 4 GiB, 4 threads, 3 restarts, 2,000,000 entities); the STEP mode takes the same limits |
+| Helper resource limits | Address space 4 GiB (not in sanitizer builds); wall-clock deadline 120 s; CPU time 480 s (four threads); output file 256 MiB; four geometry threads | `src/io/ifc_worker.hpp` (120 s, 4 GiB, 4 threads, 3 restarts, 2,000,000 entities); the STEP mode takes the same limits, but has no restarts (owner decision 7, 2026-10-28). *Amended 2026-10-28 (parent decision, R098.h): the STEP mode meshes on one thread, because BRepMesh is single-threaded in the pinned OCCT build, and it has no entity cap; the 128 MiB input limit and the helper's 4 GiB, 120 s and 480 s limits bound a file. An explicit entity cap is a 1.5 follow-up.* |
 | Triangles | 1,000,000 in total; 100,000 per element | The native per-body limit; the application merges coplanar triangles into far fewer faces |
 | Package | Manifest at most 32 MiB; mesh chunk at most 128 MiB | Bounds the decoder (ADR 0171 §1.6) |
 | Report / messages | Report ≤ 64 KiB; message ≤ 256 bytes | The IFC bounds |
 | Application memory during import | ≤ 1 GiB | The R082.w v2 budget; the decoded package plus the document being built |
 | Parse and transfer a 64 MiB, 1,000,000-instance file | ≤ 3 s (a 128 MiB, 2,000,000-instance file ≤ 6 s) | To be measured in R098.a before the budget is frozen (the IFC precedent: 0.76 s / 1.5 s for the same shapes) |
-| Tessellate the fixture model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns control in ≤ 100 ms and ends the helper within 1 s | To be measured; the IFC kernel measured 6.5–11 s for 240,000 triangles on four threads (ADR 0171 §6.4) |
-| Export of the 1,000,000-triangle model | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | The IFC export precedent (ADR 0171 §6.4) |
+| Tessellate the fixture model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns control in ≤ 100 ms and ends the helper within 1 s | Owner decision 8 (2026-10-28), **a documented limit for 1.4.0**: the helper alone takes 4.0 s on the 100-sphere model (R098.e), but the end-to-end import takes about 14 s against 10 s. Speeding up the application's conversion step is for 1.5. The IFC kernel measured 6.5–11 s for 240,000 triangles on four threads (ADR 0171 §6.4) |
+| Export of the 1,000,000-triangle model (**replaced in R098.h, owner decision 13**, by the row below) | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | The IFC export precedent (ADR 0171 §6.4). Not met in R098.e: 61 s for the helper alone, 975 MB of output, and a crash at the 4 GiB address-space limit; the model cannot be built in one document |
+| **Export of the largest exportable model a document holds: M2, five placements of a 200 × 250 grid of triangle faces (100,000 distinct triangles, 500,000 materialized faces) (replaced in R098.h, owner decision 13)** | **≤ 23 s**, with progress and cancel; output ≤ 256 MiB; the **4 GiB address-space cap is kept** (owner decision 13: not raised) | Measured in R098.h, Release, the helper's default limits: p50 18.6 s, maximum 22.3 s over fifteen runs (14 of 15 at 18.5 to 19.6 s); helper peak 2,045 MiB; output 216 MB. The largest helper memory measured is M4 (10,000 solids, 2,474 MiB, 256 MB output), also under the cap. The new row's maximum rounds up to 23 s. The record is [R098d section 12](../verification/R098d-step-exchange.md#12-r098h-the-f04-step-close-2026-10-28) |
 
 ## 7. Verification (the R098 Verify line)
 
@@ -291,7 +293,7 @@ changing scale* — is checked by:
 | E3: units | A file that declares inches imports converted, with the factor in the report; a file with no declared unit and no option refuses with the notice, creating nothing; geometry size changes **only** through a declared unit (the no-silent-scale check); an explicit `--step-length-unit` is used only when the file declares no unit |
 | E4: invalid/unsupported | A fixture with broken or unsupported entities (a bad face, an entity the translator refuses, a PMI-only AP242 file) reports with locations and counts, converts the rest, and changes no scale; the accounting identity (converted + supporting + omitted = counted) holds |
 | E5: round trip | Export (AP214, then AP203) of the corpus, then re-import: geometry within the reported deflection, names, colours, `step.Layer`, hidden state and the assembly/instance structure all survive |
-| E6: limits and refusal | The 128 MiB + 1-byte file refuses with the count and the limit named, creating no document; a worker that exceeds `RLIMIT_AS`, its CPU limit or its deadline, or is killed with SIGSEGV mid-run, is restarted with the element it was on excluded (at most three times) and then gives either a partial import that names the excluded elements or a failed import with its log tail; the application keeps running and the current document is unchanged |
+| E6: limits and refusal | The 128 MiB + 1-byte file refuses with the count and the limit named, creating no document; a worker that exceeds `RLIMIT_AS`, its CPU limit or its deadline, or is killed with SIGSEGV mid-run, is restarted with the element it was on excluded (at most three times) and then gives either a partial import that names the excluded elements or a failed import with its log tail; the application keeps running and the current document is unchanged. **Owner decision 7 (2026-10-28): the restart-and-exclude is deferred to 1.5. In 1.4.0 a crash, a limit or a deadline is a refused import with its log tail, and the document is unchanged; the refusals and the stops are the E6 checks that pass.** |
 | E7: native | The whole imported document passes native validation (`decodeDocument(encodeDocument())`) and a save and reopen is bit-exact (R073); one edit makes the whole import one undo step; each body's provenance properties (`step.Entity`, `step.Schema`, `step.Source`) resolve to the right source entity |
 | E8: report | Messages ≤ 256 bytes; the report ≤ 64 KiB; the counts are complete past the 32-per-kind location bound |
 
@@ -1134,6 +1136,34 @@ depth limit while the notice said they were attached. The product changes are in
   converted + supporting + omitted = entities.
 - `ifc_sandbox` counts the STEP fixtures: 17 became 19 (the two new files). That count is the one change to an existing
   test.
+
+## Implementation notes (R098.h, 2026-10-28)
+
+The F04 close applies owner decisions 7, 8 and 13 (2026-10-28) to sections 5, 6 and 7 above. No product code changed. The
+measurement generator is `tests/ifc_step_export_tests.cpp` (its `--largest` modes). The runs and the verdicts are in
+[R098d section 12](../verification/R098d-step-exchange.md#12-r098h-the-f04-step-close-2026-10-28).
+
+- **Decision 13, the largest exportable model.** The 4 GiB address-space cap is kept. The §6 row is M2: five placements of
+  a 200 × 250 grid of triangle faces, which is 100,000 distinct triangles (the most one body can hold at the element cap)
+  and 500,000 materialized faces. Five placements, not six, because six would give 902,700 materialized edges, over the
+  900,000 limit. Its export takes p50 18.6 s and 22.3 s at most, over fifteen runs, so the budget is 23 s. Three other
+  models were measured, all under 4 GiB: 10,000 closed solids (maximum 17.7 s, helper 2,474 MiB, output 256 MB, the
+  largest helper memory); six placements of a 100,000-vertex definition, the 600,000 materialized vertices (maximum
+  6.6 s, helper 851 MiB); and 20,000 placements of a triangle (maximum 2.7 s, helper 366 MiB).
+- **A contradiction with §6, accepted and recorded:** the 1,000,000-triangle export cannot be reached by a document. A
+  document holds at most 100,000 unique faces, and placed copies share one mesh in the export, so about 100,000 distinct
+  triangles reach it. The 1,000,000 total stays in the code as a cap that no document reaches.
+- **The 600,000-vertex figure is a materialized limit.** Plain bodies hold 100,000 unique vertices. The 600,000 needs
+  placements, and placements add no export triangles (§6 notes, R098d section 12.1).
+- **The 64 MiB edit history.** One edit that creates a large model is refused (`src/core/model.cpp`). The measurement builds
+  its models in edits that fit. Imports are not tested for this here.
+- **Decision 7 (E6).** The restart-and-exclude is deferred to 1.5. E6 passes for the refusals and the stops (R098.e, C8 to C11).
+- **Decision 8.** The 100-sphere import (14 s against 10 s) and the 90,954-face export (16.8 s against 5 s, 13.1 s of it in
+  the OCCT writer) are documented limits for 1.4.0. Speeding up the application's conversion step is for 1.5.
+- **Verdicts.** E1, E2, E3, E4, E5, E7 and E8 pass; E6 passes for the refusals and the stops. The status is
+  "Accepted (R098.h)", with the documented limits in R098d section 12.7.
+- **Not run.** Cancel and progress on the real helper; package acceptance; the sanitizers; the desktop suites, which run in
+  the full tier with the `full-ci` label.
 
 ## Appendix: evidence and sources
 

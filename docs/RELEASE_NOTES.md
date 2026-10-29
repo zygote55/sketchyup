@@ -230,7 +230,8 @@ The 1.3.0 limitations still apply where a row above does not lift them. For the 
   110,000 triangle faces of curved imports. A limit breach fails the import. A STEP file that crashes the
   helper is refused whole, and the model is unchanged. Restart-and-exclude is planned for 1.5. Cancel
   latency on the real helper was not measured.
-- **STEP export budget:** the largest model a document can hold <!-- R098.h export number -->. The export
+- **STEP export budget:** the largest model a document can hold, five placements of a 100,000-triangle grid, exports in about
+  19 s, within its 23 s budget (R098.h). The export
   helper keeps its 4 GiB address-space cap.
 - **`.skp` import is tested on one model.** The release tested one 2024 model and 15 synthetic files. SketchUp 2024 files import; other 2021-and-later versions use the same container and are untested. 2013 to 2020 files are best effort, tested only with synthetic files. Some 2013 to 2020 files fail:
   one cause, in a text label, is known (OpenSKP issue 442), and another, in files from 2017 to 2020, is not

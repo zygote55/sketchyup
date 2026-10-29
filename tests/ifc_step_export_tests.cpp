@@ -11,6 +11,7 @@
 #include "geometry/surface.hpp"
 #include "io/document_io.hpp"
 #include "io/ifc_worker.hpp"
+#include "io/native_limits.hpp"
 #include "io/step_export.hpp"
 #include "io/step_worker.hpp"
 
@@ -24,12 +25,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <numbers>
 #include <set>
 #include <string>
+#include <sys/resource.h>
 
 using namespace sketchy;
 namespace {
@@ -373,30 +376,216 @@ void refusals(const Document &doc, const QString &directory) {
 
 // The budget (ADR 0172 section 6): a generated model of 1,000,000 triangles (ten bodies, each a thousand planar 102-gons of
 // 100 triangles), exported and timed. The 5 s target and the 256 MiB output cap are reported as measured; nothing is assumed.
+// A planar regular polygon of `sides` vertices, radius 0.5 m, at height z.
+std::vector<Vec3> regularLoop(int sides, double z) {
+    std::vector<Vec3> loop;
+    for (int k = 0; k < sides; ++k) {
+        const double angle = 2 * std::numbers::pi * k / sides;
+        loop.push_back({0.5 * std::cos(angle), 0.5 * std::sin(angle), z});
+    }
+    return loop;
+}
+
+// Body `index` of the budget style: `facesPerBody` 102-gons, then one `tailSides`-gon when tailSides is over 2 (R098.h: the
+// tail fills a body to the per-body vertex limit).
+std::shared_ptr<Body> budgetBody(Id id, int index, int facesPerBody, int tailSides) {
+    constexpr int sides = 102;
+    auto body = std::make_shared<Body>();
+    body->id = id;
+    body->name = "Budget " + std::to_string(index);
+    for (int f = 0; f < facesPerBody; ++f)
+        body->surface.addFace({regularLoop(sides, f * 0.002 + index * 3.0)});
+    if (tailSides > 2)
+        body->surface.addFace({regularLoop(tailSides, facesPerBody * 0.002 + index * 3.0)});
+    body->topology = Topology::rebuild(body->surface, {});
+    return body;
+}
+
+// A planar grid of `columns` x `rows` quads, each split into two triangle faces: 2 x columns x rows faces and about 1.5 edges
+// per face. The vertices and faces are entered directly: Surface::vertex searches every vertex and addFace copies the surface,
+// which is quadratic at this size.
+std::shared_ptr<Body> gridBody(Id id, int columns, int rows) {
+    auto body = std::make_shared<Body>();
+    body->id = id;
+    body->name = "Grid";
+    constexpr double pitch = 0.01;
+    Surface &surface = body->surface;
+    const int width = rows + 1;
+    std::vector<Id> corner;
+    corner.reserve(std::size_t(columns + 1) * width);
+    for (int i = 0; i <= columns; ++i)
+        for (int j = 0; j <= rows; ++j) {
+            corner.push_back(surface.nextId++);
+            surface.vertices.emplace(corner.back(), Vec3{i * pitch, j * pitch, 0.0});
+        }
+    auto at = [&](int i, int j) { return corner[std::size_t(i) * width + j]; };
+    for (int i = 0; i < columns; ++i)
+        for (int j = 0; j < rows; ++j) {
+            surface.addFaceIds({{at(i, j), at(i + 1, j), at(i + 1, j + 1)}});
+            surface.addFaceIds({{at(i, j), at(i + 1, j + 1), at(i, j + 1)}});
+        }
+    body->topology = Topology::rebuild(body->surface, {});
+    return body;
+}
+
 Document budgetModel(int bodies, int facesPerBody) {
     Document doc;
     Edit edit{"Budget model", {}};
-    constexpr int sides = 102;
     Id next = 1;
     for (int b = 0; b < bodies; ++b) {
-        auto body = std::make_shared<Body>();
-        body->id = next++;
-        body->name = "Budget " + std::to_string(b);
-        for (int f = 0; f < facesPerBody; ++f) {
-            std::vector<Vec3> loop;
-            const double z = f * 0.002 + b * 3.0;
-            for (int k = 0; k < sides; ++k) {
-                const double angle = 2 * std::numbers::pi * k / sides;
-                loop.push_back({0.5 * std::cos(angle), 0.5 * std::sin(angle), z});
-            }
-            body->surface.addFace({loop});
-        }
-        body->topology = Topology::rebuild(body->surface, {});
+        auto body = budgetBody(next++, b, facesPerBody, 0);
         edit.changes.push_back({body->id, nullptr, body});
     }
     edit.nextIdFloor = next;
     doc.apply(std::move(edit), doc.revision());
     return doc;
+}
+
+// The R098.h model: the largest model a document holds (src/core/document_limits.hpp). A definition is one body under a group,
+// from `makeMember`; it is placed `placements` times, so the materialized counts are placements x the body's. The unique
+// geometry is one body (the unique limits count the definition's members once). One edit per placement: one edit of the whole
+// model is refused by the 64 MiB history budget (src/core/model.cpp).
+// A single triangle of 10 mm: the smallest member, for the placement and body limits.
+std::shared_ptr<Body> triangleBody(Id id) {
+    auto body = std::make_shared<Body>();
+    body->id = id;
+    body->name = "Triangle";
+    Surface &surface = body->surface;
+    const Id a = surface.nextId++, b = surface.nextId++, c = surface.nextId++;
+    surface.vertices.emplace(a, Vec3{0.0, 0.0, 0.0});
+    surface.vertices.emplace(b, Vec3{0.01, 0.0, 0.0});
+    surface.vertices.emplace(c, Vec3{0.0, 0.01, 0.0});
+    surface.addFaceIds({{a, b, c}});
+    body->topology = Topology::rebuild(body->surface, {});
+    return body;
+}
+
+// `bodies` separate closed pentagonal bipyramids (7 vertices, 10 triangle faces each), one body per record: the unique limits
+// for bodies (10,000), vertices (70,000) and faces (100,000) at once. Each is a solid when exported.
+Document solidsModel(int bodies, int perEdit) {
+    Document doc;
+    Id next = 1;
+    for (int b = 0; b < bodies;) {
+        Edit edit{"Solids", {}};
+        for (int k = 0; k < perEdit && b < bodies; ++k, ++b) {
+            auto body = std::make_shared<Body>();
+            body->id = next++;
+            body->name = "Solid " + std::to_string(b);
+            Surface &surface = body->surface;
+            const Id top = surface.nextId++, bottom = surface.nextId++;
+            surface.vertices.emplace(top, Vec3{2.0 * b, 0.0, 0.5});
+            surface.vertices.emplace(bottom, Vec3{2.0 * b, 0.0, -0.5});
+            Id ring[5];
+            for (int r = 0; r < 5; ++r) {
+                ring[r] = surface.nextId++;
+                const double angle = 2 * std::numbers::pi * r / 5;
+                surface.vertices.emplace(ring[r], Vec3{2.0 * b + 0.5 * std::cos(angle), 0.5 * std::sin(angle), 0.0});
+            }
+            for (int r = 0; r < 5; ++r) {
+                surface.addFaceIds({{top, ring[r], ring[(r + 1) % 5]}});
+                surface.addFaceIds({{bottom, ring[(r + 1) % 5], ring[r]}});
+            }
+            body->topology = Topology::rebuild(body->surface, {});
+            edit.changes.push_back({body->id, nullptr, body});
+        }
+        edit.nextIdFloor = next;
+        doc.apply(std::move(edit), doc.revision());
+    }
+    return doc;
+}
+
+using MemberFactory = std::function<std::shared_ptr<Body>(Id)>;
+// `perEdit` placements per edit (one for the large members; the history budget counts each edit).
+Document largestModel(int placements, const MemberFactory &makeMember, int perEdit) {
+    Document doc;
+    Edit definitionEdit{"Largest definition", {}};
+    auto definition = std::make_shared<ComponentDefinition>();
+    definition->id = 1;
+    definition->root = 2;
+    definition->name = "Largest";
+    auto root = group(2, 0, "Largest");
+    auto member = makeMember(3);
+    member->parent = 2;
+    definition->members[2] = root;
+    definition->members[3] = member;
+    definition->nextMemberId = 4;
+    definitionEdit.definitions.push_back({1, nullptr, definition});
+    definitionEdit.nextDefinitionFloor = 2;
+    definitionEdit.nextIdFloor = 10;
+    doc.apply(std::move(definitionEdit), doc.revision());
+    Id next = 10;
+    for (int p = 0; p < placements;) {
+        Edit edit{"Largest placement", {}};
+        for (int k = 0; k < perEdit && p < placements; ++k, ++p) {
+            auto instance = std::make_shared<ComponentInstance>();
+            instance->definition = 1;
+            auto placedRoot = std::make_shared<Body>(*root);
+            placedRoot->id = next++;
+            placedRoot->transform = Transform::translation({2.0 * p, 0, 0});
+            auto placedMember = std::make_shared<Body>(*member);
+            placedMember->id = next++;
+            placedMember->parent = placedRoot->id;
+            instance->members[2] = placedRoot->id;
+            instance->members[3] = placedMember->id;
+            edit.changes.push_back({placedRoot->id, nullptr, placedRoot});
+            edit.changes.push_back({placedMember->id, nullptr, placedMember});
+            edit.instances.push_back({placedRoot->id, nullptr, instance});
+        }
+        edit.nextIdFloor = next;
+        doc.apply(std::move(edit), doc.revision());
+    }
+    return doc;
+}
+
+// R098.h (ADR 0172 section 6, owner decision 13): the largest model a document holds, exported through exportStepFile with the
+// helper's default limits (4 GiB address space, 120 s deadline, four threads), which is what the application and sketchyup-cli
+// pass. The model is largestModel(PLACEMENTS, the member). Each run's helper peak is the largest child's resident size
+// (getrusage RUSAGE_CHILDREN), so after run n it is the peak of the largest of the n helpers so far.
+void largest(const QString &directory, const std::function<Document()> &build, const std::string &shape, int runs) {
+    QElapsedTimer clock;
+    clock.start();
+    const Document doc = build();
+    const qint64 built = clock.elapsed();
+    std::size_t vertices = 0, faces = 0, edges = 0, triangles = 0;
+    for (const auto &[id, body] : doc.bodies()) {
+        (void)id;
+        vertices += body->surface.vertices.size();
+        faces += body->surface.faces.size();
+        edges += body->surface.edges().size();
+        for (const auto &[faceId, face] : body->surface.faces) {
+            (void)face;
+            triangles += body->surface.triangulateExact(faceId).size();
+        }
+    }
+    std::cout << "model: " << shape << ", built in " << built << " ms: " << vertices
+              << " materialized vertices (limit 600,000), " << faces << " faces (600,000), " << edges << " edges (900,000), "
+              << triangles << " triangles (materialized)" << std::endl;
+    try {
+        std::cout << "native: " << encodeDocument(doc).size() << " bytes (the file limit is " << NativeLimits::fileBytes << ")"
+                  << std::endl;
+    } catch (const std::exception &problem) {
+        std::cout << "native: not encoded: " << problem.what() << std::endl;
+    }
+    for (int run = 1; run <= runs; ++run) {
+        IfcWorkerOptions options;
+        options.workerPath = helperPath();
+        const QString path = QDir(directory).filePath(QStringLiteral("largest-%1.step").arg(run));
+        QElapsedTimer timer;
+        timer.start();
+        const auto exported = exportStepFile(doc, path, StepExportOptions{}, options);
+        const qint64 milliseconds = timer.elapsed();
+        rusage children{};
+        getrusage(RUSAGE_CHILDREN, &children);
+        std::cout << "run " << run << ": export " << milliseconds << " ms, " << exported.bytes << " bytes, helper peak "
+                  << children.ru_maxrss / 1024 << " MiB (largest child so far)" << std::endl;
+        if (run == 1)
+            std::cout << "report: " << QJsonDocument(exported.report).toJson(QJsonDocument::Compact).left(2400).toStdString()
+                      << std::endl;
+        QFile::remove(path);
+    }
+    rusage self{};
+    getrusage(RUSAGE_SELF, &self);
+    std::cout << "this process peak " << self.ru_maxrss / 1024 << " MiB" << std::endl;
 }
 
 void budget(const QString &directory, int bodies, int facesPerBody) {
@@ -432,6 +621,49 @@ int main(int argc, char **argv) {
             // ifc_step_export_tests --budget [BODIES FACES]: the default is 2 x 100 (20,000 triangles, seconds); the
             // 1,000,000-triangle model is 20 500 (its model takes hours to build through the document API, see ADR 0172).
             budget(directory.path(), argc > 2 ? std::stoi(argv[2]) : 2, argc > 3 ? std::stoi(argv[3]) : 100);
+            return 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "--largest") {
+            // ifc_step_export_tests --largest [PLACEMENTS FACES TAIL RUNS]: the R098.h measurement. The default is the largest model
+            // the document holds in this style: six placements of a definition of 980 102-gons and one 40-gon (600,000 materialized
+            // vertices, 100,000 unique), five exports.
+            const int placements = argc > 2 ? std::stoi(argv[2]) : 6;
+            const int faces = argc > 3 ? std::stoi(argv[3]) : 980;
+            const int tail = argc > 4 ? std::stoi(argv[4]) : 40;
+            const std::string shape = std::to_string(placements) + " placements of 102-gons: " + std::to_string(faces) + " 102-gons and one " +
+                                      std::to_string(tail) + "-gon (100,000 vertices)";
+            largest(directory.path(), [&] { return largestModel(placements, [&](Id id) { return budgetBody(id, 0, faces, tail); }, 1); },
+                    shape, argc > 5 ? std::stoi(argv[5]) : 5);
+            return 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "--largest-placements") {
+            // ifc_step_export_tests --largest-placements [PLACEMENTS RUNS]: the R098.h placement worst case, 20,000 placements of
+            // a triangle under a group: 40,000 materialized bodies, 60,000 vertices, the placement and body limits, five exports.
+            const int placements = argc > 2 ? std::stoi(argv[2]) : 20000;
+            largest(directory.path(), [&] { return largestModel(placements, [](Id id) { return triangleBody(id); }, 1000); },
+                    std::to_string(placements) + " placements of one triangle under a group (two bodies each)",
+                    argc > 3 ? std::stoi(argv[3]) : 5);
+            return 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "--largest-grid") {
+            // ifc_step_export_tests --largest-grid [PLACEMENTS COLUMNS ROWS RUNS]: the R098.h export worst case within the unique
+            // limits, a grid of 200 x 250 quads (100,000 triangle faces, 50,451 vertices, 150,450 edges), five exports.
+            const int placements = argc > 2 ? std::stoi(argv[2]) : 5;
+            const int columns = argc > 3 ? std::stoi(argv[3]) : 200;
+            const int rows = argc > 4 ? std::stoi(argv[4]) : 250;
+            const std::string shape = std::to_string(placements) + " placements of a " + std::to_string(columns) + " x " +
+                                      std::to_string(rows) + " grid of triangle faces (100,000 faces)";
+            largest(directory.path(), [&] { return largestModel(placements, [&](Id id) { return gridBody(id, columns, rows); }, 1); },
+                    shape, argc > 5 ? std::stoi(argv[5]) : 5);
+            return 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "--largest-solids") {
+            // ifc_step_export_tests --largest-solids [BODIES RUNS]: the R098.h body worst case, 10,000 separate closed solids of
+            // 10 triangles each (100,000 unique faces, 70,000 vertices, 10,000 bodies): the unique limits, five exports.
+            const int bodies = argc > 2 ? std::stoi(argv[2]) : 10000;
+            largest(directory.path(), [&] { return solidsModel(bodies, 500); },
+                    std::to_string(bodies) + " separate closed pentagonal bipyramids (7 vertices and 10 faces each)",
+                    argc > 3 ? std::stoi(argv[3]) : 5);
             return 0;
         }
         const Document doc = roundTripModel();

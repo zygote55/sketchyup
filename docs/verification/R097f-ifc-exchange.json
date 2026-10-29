@@ -1,6 +1,6 @@
 {
   "layer": "R097.f",
-  "date": "2026-10-25 (R097.f); item 8 updated 2026-10-28",
+  "date": "2026-10-25 (R097.f); item 8 updated 2026-10-28; R097.g (owner decisions 9 and 10) 2026-10-28",
   "branch": "docs/r097f-ifc-acceptance",
   "base": {
     "main": "78058393"
@@ -13,8 +13,8 @@
     "record": 442,
     "nativeMatrixLabel": "full-ci"
   },
-  "status": "evidence complete except the owner's buildingSMART hosted validation and the native matrix (CI pending); not yet accepted",
-  "verifyLine": "partial: every 6.3 check that is proven by a run passes; G1 hosted validation is pending the owner; the native matrix is pending CI",
+  "status": "Accepted (R097.g), with the native matrix from the full tier of PR #515 (run 40790714698 on 7c77e4ef). The buildingSMART hosted validation is skipped for 1.4.0 (owner decision 10)",
+  "verifyLine": "accepted (R097.g): every 6.3 check that a run proves passes; the buildingSMART hosted service is skipped for 1.4.0 (decision 10); the native matrix comes from the full tier on the pull request",
   "checks": {
     "A1": "pass",
     "A2": "pass",
@@ -49,7 +49,7 @@
     "F2": "pass",
     "F3": "pass",
     "F4": "pass",
-    "G1": "partial: ifcopenshell.validate passed; buildingSMART hosted service pending owner",
+    "G1": "pass on the local rules (R097.d) and ifcopenshell.validate (R097.f); the buildingSMART hosted service is skipped for 1.4.0 (owner decision 10, 2026-10-28)",
     "G2": "pass",
     "G3": "pass",
     "G4": "pass",
@@ -101,13 +101,13 @@
     "faces100k_bodies5k": {
       "budget": "<= 10 s",
       "measured": "9.01-9.66 s",
-      "verdict": "met (100k faces)",
+      "verdict": "met (100k faces; the row now measures this model, owner decision 9)",
       "frozen": null
     },
     "bodies10k": {
       "budget": "<= 10 s, same model",
       "measured": "11.14-11.76 s (9,996 bodies, partial)",
-      "verdict": "missed",
+      "verdict": "missed; accepted as a documented limit (owner decision 9, 2026-10-28): the document holds 10,000 body records and 100,000 unique vertices",
       "frozen": null
     },
     "cancel": {
@@ -165,7 +165,7 @@
       "statements": 0,
       "positiveControlStatements": 1
     },
-    "buildingSMARTHosted": "pending: owner"
+    "buildingSMARTHosted": "skipped for 1.4.0 (owner decision 10, 2026-10-28); no result recorded"
   },
   "vendoredTree": {
     "files": 326,
@@ -191,5 +191,14 @@
     },
     "result": "pass: 120 of 120 identical; the race is rare, so this is evidence, not proof",
     "nativeMatrix": "left to the 1.4.0 release candidate's full tier"
+  },
+  "r097g": {
+    "date": "2026-10-28",
+    "decisions": {
+      "9": "The 10,000-body budget row is accepted as a documented limit (11.1 to 11.8 s against 10 s). The row now measures the 100,000-face model in 5,000 bodies (9.0 to 9.7 s, met). ADR 0171 section 6.4 is corrected: a 100,000-face, 10,000-body model cannot be held by one document.",
+      "10": "The buildingSMART hosted validation is skipped for 1.4.0. The IFC export claim passes the buildingSMART rules run locally (R097.d) and ifcopenshell.validate (R097.f), and has not been checked by buildingSMART's hosted service."
+    },
+    "nativeMatrix": "pass: the full tier of PR #515, run 40790714698 on 7c77e4ef (native X11 1x/2x, Wayland 1x/2x, audit and accessibility, fractional scaling; IFC helper suites, ifc_worker_fault_corpus_full at 512 per file, the application suites and the sanitized IFC suites; Arch package and sanitized builds)",
+    "status": "Accepted (R097.g), subject to nativeMatrix"
   }
 }
