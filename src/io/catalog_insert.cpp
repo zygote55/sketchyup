@@ -177,7 +177,13 @@ std::uint32_t exportedAsset(CatalogBuilder &builder, const Document &doc, Id ass
 } // namespace
 
 CatalogImportResult importCatalogEntries(Document &doc, const CatalogPackage &package,
-                                         const QStringList &names, Id parent) {
+                                         const QStringList &names, Id parent,
+                                         const CatalogCancelCheck &cancelled) {
+    const auto checkCancelled = [&] {
+        if (cancelled && cancelled())
+            throw CatalogCancelled();
+    };
+    checkCancelled();
     if (names.isEmpty())
         throw std::runtime_error("Choose at least one catalog entry to import");
     // Each name must match exactly one entry; a name that matches several is refused, not chosen.
@@ -223,6 +229,7 @@ CatalogImportResult importCatalogEntries(Document &doc, const CatalogPackage &pa
     CatalogImportResult result;
     std::map<std::uint32_t, Id> mapped;
     for (const auto index : closure) {
+        checkCancelled();
         const auto &entry = package.entries[index];
         CatalogImportEntry out;
         out.name = entry.name;
@@ -243,6 +250,7 @@ CatalogImportResult importCatalogEntries(Document &doc, const CatalogPackage &pa
         }
         result.entries.push_back(std::move(out));
     }
+    checkCancelled();
     publish(doc, draft);
     return result;
 }

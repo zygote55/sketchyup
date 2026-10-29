@@ -115,6 +115,30 @@ ExchangeProgressConfig stepExportProgressConfig() {
     config.prefix = "stepExportProgress";
     return config;
 }
+ExchangeProgressConfig catalogInsertProgressConfig() {
+    // The Asset catalogs insert (R100.i, UX_DESIGN 18.5). The worker reads each catalog ("read"),
+    // checks its hashes and entries ("verify"), and composes the insert against the model ("insert");
+    // the window then commits the composed edit as one undo step. No step has a count, so the bar is
+    // busy. A cancelled insert closes at once: nothing is inserted, and the dialog says so.
+    ExchangeProgressConfig config;
+    config.sheetName = "catalogInsertProgressSheet";
+    config.windowTitle = "Inserting from a catalog";
+    config.prefix = "catalogInsertProgress";
+    config.steps = {"Read the catalog", "Verify its hashes", "Insert the entries"};
+    config.stepForPhase = [](const QString &phase) {
+        if (phase == "read")
+            return 0;
+        if (phase == "verify")
+            return 1;
+        if (phase == "insert")
+            return 2;
+        return -1;
+    };
+    config.busyBar = true;
+    config.closeOnCancel = true;
+    return config;
+}
+
 ExchangeProgressSheet::ExchangeProgressSheet(ExchangeRunner *runner, const ExchangeProgressConfig &cfg,
                                             const QString &fileName, QWidget *parent)
     : Settled<QDialog>(parent), runner(runner), config(cfg),

@@ -93,13 +93,13 @@ QJsonObject catalogImportReport(const CatalogPackage &package, const CatalogImpo
 }
 
 QJsonObject executeCatalogCommand(Document &doc, const QJsonObject &command,
-                                  const OpenedCatalogs *opened) {
+                                  const OpenedCatalogs *opened, const CatalogCancelCheck &cancelled) {
     if (command["command"].toString() != QStringLiteral("catalog.import"))
         throw std::runtime_error("Unknown catalog command");
     const auto package = catalogReference(command, opened);
     const auto names = textList(command["entries"]);
     const Id parent = command.contains("parent") ? stableIdText(command["parent"], true) : 0;
-    const auto result = importCatalogEntries(doc, package, names, parent);
+    const auto result = importCatalogEntries(doc, package, names, parent, cancelled);
     return catalogImportReport(package, result);
 }
 

@@ -210,15 +210,6 @@ EntryFailure entryFailure(const std::vector<CatalogEntryReport> &entries, std::s
     }
     return {};
 }
-QByteArray loadCatalogBytes(const QString &path) {
-    QFile file(path);
-    require(file.open(QIODevice::ReadOnly) && file.size() <= qint64(libraryBundleLimit),
-            "Cannot read bounded catalog");
-    const auto bytes = file.read(libraryBundleLimit + 1);
-    require(file.error() == QFileDevice::NoError && bytes.size() <= libraryBundleLimit,
-            "Catalog read failed");
-    return bytes;
-}
 qsizetype payloadStart(const QByteArray &file) {
     return headerSize + qFromLittleEndian<quint32>(file.constData() + 8);
 }
@@ -412,7 +403,34 @@ QByteArray CatalogBuilder::encode() const {
             throw std::runtime_error(entry.reason.toStdString());
     return encoded;
 }
-CatalogPackage decodeCatalog(const QByteArray &bytes) {
+QByteArray loadCatalogBytes(const QString &path, const CatalogCancelCheck &cancelled) {
+    QFile file(path);
+    require(file.open(QIODevice::ReadOnly) && file.size() <= qint64(libraryBundleLimit),
+            "Cannot read bounded catalog");
+    // The same bound as one read of libraryBundleLimit + 1 bytes, in chunks, so that a cancel is
+    // seen during the read. The buffer is sized first, so the chunks do not regrow it.
+    constexpr qint64 chunkBytes = 8 * 1024 * 1024;
+    QByteArray bytes;
+    bytes.reserve(qsizetype(file.size()));
+    while (qint64(bytes.size()) <= qint64(libraryBundleLimit)) {
+        if (cancelled && cancelled())
+            throw CatalogCancelled();
+        const auto chunk = file.read(chunkBytes);
+        if (chunk.isEmpty())
+            break;
+        bytes.append(chunk);
+    }
+    require(file.error() == QFileDevice::NoError && bytes.size() <= libraryBundleLimit,
+            "Catalog read failed");
+    return bytes;
+}
+
+CatalogPackage decodeCatalog(const QByteArray &bytes, const CatalogCancelCheck &cancelled) {
+    const auto checkCancelled = [&] {
+        if (cancelled && cancelled())
+            throw CatalogCancelled();
+    };
+    checkCancelled();
     require(bytes.size() >= headerSize && bytes.size() <= qsizetype(libraryBundleLimit) &&
                 bytes.startsWith(magic),
             "Invalid or oversized catalog");
@@ -554,9 +572,12 @@ CatalogPackage decodeCatalog(const QByteArray &bytes) {
         });
         require(referenced, "Catalog asset is not referenced by any entry");
     }
-    for (auto &asset : assets)
+    for (auto &asset : assets) {
+        checkCancelled();
         asset.verified = digestOf(region.sliced(asset.offset, asset.bytes)) == asset.sha256;
+    }
     for (std::size_t index = 0; index < entries.size(); ++index) {
+        checkCancelled();
         auto failure = entryFailure(entries, index, assets, region);
         entries[index].importable = failure.reason.isEmpty();
         entries[index].reason = std::move(failure.reason);
@@ -643,7 +664,7 @@ bool isCatalogLibraryName(const QString &name) {
     return pattern.match(name).hasMatch();
 }
 
-CatalogPackage loadCatalogLibraryEntry(const QString &folder, const QString &name) {
+QString catalogLibraryPath(const QString &folder, const QString &name) {
     require(isCatalogLibraryName(name),
             "Catalog library names are 1 to 64 letters, digits, spaces, dots, underscores or "
             "hyphens, starting and ending with a letter, digit, underscore or hyphen");
@@ -652,7 +673,11 @@ CatalogPackage loadCatalogLibraryEntry(const QString &folder, const QString &nam
     require(info.exists(), "No catalog with that name is in the catalog library");
     require(!info.isSymLink() && info.isFile(),
             "Catalog library entries must be regular files, not links or folders");
-    return loadCatalog(info.absoluteFilePath());
+    return info.absoluteFilePath();
+}
+
+CatalogPackage loadCatalogLibraryEntry(const QString &folder, const QString &name) {
+    return loadCatalog(catalogLibraryPath(folder, name));
 }
 
 CatalogLibrary scanCatalogLibrary(const QString &folder) {

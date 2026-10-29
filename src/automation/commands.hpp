@@ -25,7 +25,10 @@ QJsonObject previewAmend(const Document &doc, const Document::AmendStamp &stamp,
 // the desktop dialog passes it.
 QJsonObject previewBatch(const Document &doc, const QJsonObject &request,
                          const OpenedCatalogs *opened = nullptr);
+// `cancelled` is checked by a catalog.import in the batch (R100.i): when it returns true the batch
+// throws CatalogCancelled and changes nothing. The desktop insert passes it; nothing else does.
 QJsonObject executeBatch(Document &doc, const QJsonObject &request,
                          BatchResponse response = BatchResponse::Full,
-                         const OpenedCatalogs *opened = nullptr);
+                         const OpenedCatalogs *opened = nullptr,
+                         const CatalogCancelCheck &cancelled = {});
 } // namespace sketchy

@@ -66,4 +66,6 @@ ExchangeProgressConfig stepImportProgressConfig();
 ExchangeProgressConfig skpImportProgressConfig();
 ExchangeProgressConfig ifcExportProgressConfig();
 ExchangeProgressConfig stepExportProgressConfig();
+// The Asset catalogs insert (R100.i, UX_DESIGN 18.5): read, verify and insert, with a busy bar.
+ExchangeProgressConfig catalogInsertProgressConfig();
 } // namespace sketchy

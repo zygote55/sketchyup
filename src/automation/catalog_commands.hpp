@@ -25,7 +25,8 @@ CatalogPackage catalogReference(const QJsonObject &request, const OpenedCatalogs
 // the referenced catalog into the batch's document, as one edit, and reports the entries it took.
 bool isCatalogCommand(const QString &name);
 QJsonObject executeCatalogCommand(Document &doc, const QJsonObject &command,
-                                  const OpenedCatalogs *opened = nullptr);
+                                  const OpenedCatalogs *opened = nullptr,
+                                  const CatalogCancelCheck &cancelled = {});
 // The report of one import, shared with the CLI's --import-catalog (R100.e).
 QJsonObject catalogImportReport(const CatalogPackage &package, const CatalogImportResult &result);
 

@@ -7,8 +7,10 @@
 #include <QStringList>
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
+#include <stdexcept>
 #include <vector>
 namespace sketchy {
 // `.sketchycat` (ADR 0174 section 4): an authored, self-contained catalog on the `.sketchylib`
@@ -124,7 +126,18 @@ struct CatalogPackage {
     std::vector<CatalogEntryReport> entries;
     QByteArray file; // the validated envelope; implicitly shared with the bytes decoded
 };
-CatalogPackage decodeCatalog(const QByteArray &bytes);
+// Cancellation (R100.i, UX_DESIGN 18.5): the reader and the insert check it between their steps,
+// and throw CatalogCancelled when it returns true. An empty check is never cancelled, so a call
+// without one gives the same result.
+using CatalogCancelCheck = std::function<bool()>;
+struct CatalogCancelled : std::runtime_error {
+    CatalogCancelled() : std::runtime_error("The catalog operation was cancelled") {}
+};
+
+// The file's bytes, read in chunks so that a cancel is seen during the read (at most the bounded
+// size, as always).
+QByteArray loadCatalogBytes(const QString &path, const CatalogCancelCheck &cancelled = {});
+CatalogPackage decodeCatalog(const QByteArray &bytes, const CatalogCancelCheck &cancelled = {});
 CatalogPackage loadCatalog(const QString &path);
 // Decodes first, then publishes a new file only (never overwriting, ADR 0133).
 void writeCatalog(const QByteArray &bytes, const QString &newPath);
@@ -141,6 +154,8 @@ QString catalogLibraryFolder();
 // A name is 1 to 64 letters, digits, spaces, dots, underscores or hyphens. It starts and ends with
 // a letter, digit, underscore or hyphen, so no separator, dot-prefix or link can be named.
 bool isCatalogLibraryName(const QString &name);
+// The path of `<folder>/<name>.sketchycat`. A missing file, a link or a non-file is refused by name.
+QString catalogLibraryPath(const QString &folder, const QString &name);
 // Loads `<folder>/<name>.sketchycat`. A missing file, a link or a non-file is refused by name.
 CatalogPackage loadCatalogLibraryEntry(const QString &folder, const QString &name);
 
