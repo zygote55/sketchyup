@@ -4,6 +4,7 @@
 #include "core/face_textures.hpp"
 #include "core/shading_normals.hpp"
 #include "core/section_records.hpp"
+#include "core/source_credits.hpp"
 #include "io/assets.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
@@ -107,6 +108,7 @@ struct Writer {
         wires{}, guides{}, curves{}, backDifferences{}, cutEdges{}, capTriangles{}, textSources{},
         referenceImages{};
     Bounds bounds;
+    SourceCredits credits; // R107.c1: the DEM notices of the terrain written
     explicit Writer(const RenderSnapshot &snapshot)
         : snapshot(snapshot), doc(snapshot.document()) {}
     int buffer(const QByteArray &data, bool attributes) {
@@ -468,6 +470,9 @@ struct Writer {
             trs(record->transform);
             nodeMap[owner] = nodes.size();
             const auto [geometry, faceMap, sectionInfo] = mesh(owner, *record);
+            if (geometry >= 0)
+                if (const auto *dem = demSourceOf(doc, owner))
+                    credits.add(*dem);
             QJsonObject node{{"name", QString::fromStdString(record->name)},
                              {"matrix", matrix(record->transform)},
                              {"extras", QJsonObject{{"sketchyupBody", id(owner)}}}};
@@ -555,8 +560,12 @@ struct Writer {
             {"analyticCurvesTessellatedOrOmitted", double(curves)},
             {"textureAssetsPreservedWithoutUVMapping", int(usedAssets.size()) - textures.size()},
             {"missingAssets", double(missingAssets)}};
+        // glTF 2.0 asset.copyright (ADR 0181 §3.3): present only when the scene holds DEM terrain.
+        QJsonObject assetInfo{{"version", "2.0"}, {"generator", "SketchyUp GLB snapshot v1"}};
+        if (!credits.empty())
+            assetInfo["copyright"] = QString::fromStdString(credits.joined());
         QJsonObject gltf{
-            {"asset", QJsonObject{{"version", "2.0"}, {"generator", "SketchyUp GLB snapshot v1"}}},
+            {"asset", assetInfo},
             {"scene", 0},
             {"scenes", QJsonArray{QJsonObject{{"nodes", QJsonArray{0}}}}},
             {"nodes", nodes},
@@ -630,6 +639,12 @@ struct Writer {
             {"colorPolicy", "Linear PBR swatch factor times normalized sRGB straight-alpha image"}};
         if (snapshot.sourceScene())
             manifest["sceneView"] = id(*snapshot.sourceScene());
+        if (!credits.empty()) {
+            QJsonArray notices;
+            for (const auto &notice : credits.notices())
+                notices.append(QString::fromStdString(notice));
+            manifest["credits"] = notices;
+        }
         QByteArray environment;
         if (snapshot.environment()) {
             manifest["environment"] = describeRenderEnvironment(*snapshot.environment());

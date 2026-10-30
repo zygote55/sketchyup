@@ -1,4 +1,5 @@
 #include "io/dxf_export.hpp"
+#include "core/source_credits.hpp"
 #include "io/new_file.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
@@ -23,6 +24,7 @@ struct Writer {
     QJsonObject losses;
     QJsonArray layerNames;
     std::map<Id, QString> layers;
+    SourceCredits credits; // R107.c1: the DEM notices of the terrain written
     // Set only for "Write site coordinates" (ADR 0168 section 4).
     const SiteOrigin *site{};
     Writer(const Document &d, double s, bool siteCoordinates)
@@ -232,6 +234,15 @@ struct Writer {
                                               {"dxfName", name}});
             }
         require(layers.size() <= 1024, "DXF export exceeds 1024 flat layers");
+        // R107.c1 (ADR 0181 §3.3): the DEM notices of the bodies whose edges are written below (the same
+        // bodies as the entity loop), each a group-code 999 comment ahead of the header.
+        for (const auto &[id, body] : doc.bodies())
+            if (body->kind != BodyKind::Group && body->kind != BodyKind::ReferenceImage &&
+                !body->topology.edges.empty())
+                if (const auto *dem = demSourceOf(doc, id))
+                    credits.add(*dem);
+        for (const auto &notice : credits.notices())
+            field(999, QByteArray::fromStdString(notice));
         text(0, "SECTION");
         text(2, "HEADER");
         text(9, "$ACADVER");
@@ -304,6 +315,12 @@ struct Writer {
             {"bytes", qint64(bytes.size())},
             {"sha256", hash(bytes)},
             {"notices", notices}};
+        if (!credits.empty()) {
+            QJsonArray written;
+            for (const auto &notice : credits.notices())
+                written.append(QString::fromStdString(notice));
+            result.report["credits"] = written;
+        }
         return std::move(result);
     }
 };

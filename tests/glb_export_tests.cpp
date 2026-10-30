@@ -3,7 +3,9 @@
 #include "core/face_orientation.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
+#include "core/source_credits.hpp"
 #include "core/tags.hpp"
+#include "dem_export_fixture.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
 #include "report_fixtures.hpp"
@@ -108,6 +110,57 @@ template <class F> std::string refusal(F operation) {
 // (ADR 0168), not the 100,000-face modelling limit. The manifest bound is 128 MiB: exactly the
 // bound is written, one byte more is refused by name. The render snapshot keeps its 20,000-body
 // limit: 6,666 placements of the 12-face part are 19,998 bodies, and 6,667 are 20,001.
+// R107.c1 (ADR 0181 §3.3, §3.4, V6): a scene that holds DEM terrain carries the credit in asset.copyright
+// and in the manifest, once per notice, in document order. A scene without visible terrain has neither.
+void checkDemCredits() {
+    const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+    const auto usgs = QString::fromUtf8(demCreditUsgs), glo30 = QString::fromUtf8(demCreditGlo30);
+    Document terrain;
+    importDemFixture(terrain, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    const auto scene = exportGlb(RenderSnapshot::capture(terrain));
+    const Parsed parsed(scene);
+    check(parsed.root["asset"].toObject()["copyright"].toString() == usgs,
+          "GLB asset.copyright holds the 3DEP credit exactly");
+    check(scene.manifest["credits"] == QJsonArray{usgs}, "GLB manifest lists the 3DEP credit");
+    check(parsed.root["asset"].toObject()["generator"] == "SketchyUp GLB snapshot v1",
+          "The asset keeps its version and generator");
+
+    Document joined;
+    importDemFixture(joined, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    importDemFixture(joined, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    importDemFixture(joined, fixtures, "glo30-like-pixel-point-f32.tif", DemProduct::Glo30, "EGM2008");
+    const auto both = exportGlb(RenderSnapshot::capture(joined));
+    check(Parsed(both).root["asset"].toObject()["copyright"].toString() == usgs + "; " + glo30,
+          "Two sources are joined in document order, and the 3DEP notice appears once");
+    check(both.manifest["credits"] == QJsonArray{usgs, glo30}, "The manifest lists each notice once");
+
+    // Hidden terrain is not in the scene. The box keeps the scene non-empty.
+    auto mixed = box();
+    importDemFixture(mixed, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    SelectionSet hidden;
+    for (const auto &[id, body] : mixed.bodies())
+        if (body->kind == BodyKind::Terrain)
+            hidden.insert({id, SelectionKind::Body, 0});
+    const auto shown = exportGlb(RenderSnapshot::capture(mixed));
+    check(Parsed(shown).root["asset"].toObject().contains("copyright"),
+          "A visible DEM terrain puts its credit in the scene");
+    const auto without = exportGlb(RenderSnapshot::capture(mixed, {}, hidden));
+    check(!Parsed(without).root["asset"].toObject().contains("copyright") &&
+              !without.manifest.contains("credits"),
+          "A hidden DEM terrain leaves no credit");
+    check(!Parsed(exportGlb(RenderSnapshot::capture(box()))).root["asset"].toObject().contains("copyright"),
+          "A scene without DEM terrain has no asset.copyright");
+
+    // The notice is one line and joins as the record writes it (ADR 0181 §3.1).
+    SourceCredits credits;
+    TerrainDemSource dem;
+    dem.credit = "Credit: U.S. Geological Survey";
+    credits.add(dem);
+    credits.add(dem);
+    check(credits.notices().size() == 1 && credits.joined() == "Credit: U.S. Geological Survey",
+          "A repeated notice is written once");
+}
+
 void checkLargeCaptureLimits(const QString &directory) {
     const auto mesh = report_fixtures::flatGrid(230, 1.); // 105,800 triangles, over 100,000 faces.
     Document terrain;
@@ -438,6 +491,7 @@ int main(int argc, char **argv) {
               "CLI rejects mixed modes before effects");
         check(cli({"--render-settings", "missing"}).first != 0, "Orphan render settings rejected");
 #endif
+        checkDemCredits();
         checkLargeCaptureLimits(files.path());
         std::cout
             << "GLB snapshot, geometry, hierarchy, assets, cameras and publication checks passed\n";

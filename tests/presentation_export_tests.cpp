@@ -1,5 +1,6 @@
 #include "automation/presentation_commands.hpp"
 #include "blender_stand_in.hpp"
+#include "dem_export_fixture.hpp"
 #include "core/camera_motion.hpp"
 #include "core/presentation.hpp"
 #include "core/scenes.hpp"
@@ -1592,6 +1593,34 @@ int main(int argc, char **argv) {
 
             std::cout << "Real Blender presentation batch and video verified\n";
             return 0;
+        }
+        // R107.c1 (ADR 0181 §3.3, owner decision 8): a batch whose frames show DEM terrain lists the notice in
+        // its capture and its manifest, once each. The batch above, with no terrain, has no credits key.
+        {
+            const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+            Document terrain;
+            importDemFixture(terrain, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+            importDemFixture(terrain, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+            SceneSnapshot terrainView;
+            terrainView.camera = SceneCamera{};
+            const auto terrainFirst = createScene(terrain, "A", terrainView);
+            terrainView.camera->yaw = 90;
+            const auto terrainSecond = createScene(terrain, "B", terrainView);
+            const auto capture =
+                PresentationCapture::capture(terrain, plan({terrainFirst, terrainSecond}));
+            check(capture.credits() == std::vector<std::string>{demCreditUsgs},
+                  "The capture carries the 3DEP notice once");
+            PresentationJobStore terrainJobs(files.filePath("terrain-store"), limits);
+            PresentationExport terrainBatch(terrainJobs);
+            const auto terrainOutput = files.filePath("terrain");
+            terrainBatch.start(capture, terrainOutput, blender(files.filePath("count-terrain")));
+            wait(terrainBatch);
+            check(terrainBatch.state() == PresentationJobState::Completed,
+                  "The terrain batch completes");
+            const auto manifest =
+                QJsonDocument::fromJson(read(terrainOutput + "/manifest.json")).object();
+            check(manifest.value("credits") == QJsonArray{QString::fromUtf8(demCreditUsgs)},
+                  "The batch manifest lists the notice");
         }
         std::cout << "Presentation batch capture, frame sequence, cancellation, resume, damage and "
                      "refusal checks passed\n";

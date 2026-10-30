@@ -1,5 +1,6 @@
 #include "integrations/presentation_batch.hpp"
 #include "core/presentation_records.hpp"
+#include "core/source_credits.hpp"
 #include "integrations/render_snapshot.hpp"
 #include "io/document_io.hpp"
 #include "io/presentation_io.hpp"
@@ -260,11 +261,42 @@ void PresentationVideoChecks::setClock(
     std::function<std::chrono::steady_clock::time_point()> clock) {
     impl_->clock = std::move(clock);
 }
+namespace {
+// R107.c1 (ADR 0181 §3.3): the DEM notices of the terrain each keyframe scene shows. A frame shows its
+// keyframe's visible geometry, so a terrain hidden in every keyframe adds no notice. A document without
+// a GeoTIFF terrain takes no snapshot here.
+std::vector<std::string> keyframeCredits(const Document &document, const PresentationPlan &plan) {
+    bool anyTerrain = false;
+    for (const auto &[id, body] : document.bodies())
+        anyTerrain = anyTerrain || demSourceOf(document, id) != nullptr;
+    if (!anyTerrain)
+        return {};
+    SourceCredits credits;
+    RenderOptions options;
+    options.settings = plan.presets.front().settings;
+    for (const auto scene : plan.keyframes) {
+        const auto snapshot = RenderSnapshot::captureSavedScene(document, scene, options);
+        for (const auto &[id, body] : document.bodies()) {
+            const auto *dem = demSourceOf(document, id);
+            if (!dem)
+                continue;
+            for (const auto &[face, record] : body->surface.faces) {
+                if (snapshot.visible(id, face)) {
+                    credits.add(*dem);
+                    break;
+                }
+            }
+        }
+    }
+    return credits.notices();
+}
+} // namespace
+
 PresentationCapture::PresentationCapture(Document document, QByteArray encoded,
                                          PresentationPlan plan)
     : document_(std::move(document)), encoded_(std::move(encoded)), sha256_(digest(encoded_)),
       documentId_(document_.identity()), revision_(document_.revision()), plan_(std::move(plan)),
-      frames_(planFrames(document_, plan_)) {}
+      frames_(planFrames(document_, plan_)), credits_(keyframeCredits(document_, plan_)) {}
 PresentationCapture PresentationCapture::capture(const Document &document, PresentationPlan plan) {
     validatePresentationPlan(plan);
     // Refuse a broken path on the live document, before the freeze costs anything.
@@ -387,24 +419,31 @@ struct PresentationExport::Impl {
         QJsonArray keyframes;
         for (const auto scene : plan.keyframes)
             keyframes.append(QString::number(scene));
-        const QJsonObject value{{"apiVersion", 1},
-                                {"adapter", "sketchyup-presentation-v1"},
-                                {"jobId", id},
-                                {"state", status},
-                                {"message", message},
-                                {"path", plan.path},
-                                {"keyframes", keyframes},
-                                {"documentId", QString::fromStdString(capture->documentId())},
-                                {"revision", QString::number(capture->revision())},
-                                {"captureSha256", capture->sha256()},
-                                {"framesPerSecond", plan.timing.framesPerSecond},
-                                {"videoRequested", plan.video},
-                                {"videoCodec", presentationVideoCodecName(plan.videoCodec)},
-                                {"framesPerPreset", int(capture->frames().size())},
-                                {"totalFrames", int(capture->frames().size() * records.size())},
-                                {"completedFrames", completed()},
-                                {"totalBytes", bytes},
-                                {"presets", presets}};
+        QJsonObject value{{"apiVersion", 1},
+                          {"adapter", "sketchyup-presentation-v1"},
+                          {"jobId", id},
+                          {"state", status},
+                          {"message", message},
+                          {"path", plan.path},
+                          {"keyframes", keyframes},
+                          {"documentId", QString::fromStdString(capture->documentId())},
+                          {"revision", QString::number(capture->revision())},
+                          {"captureSha256", capture->sha256()},
+                          {"framesPerSecond", plan.timing.framesPerSecond},
+                          {"videoRequested", plan.video},
+                          {"videoCodec", presentationVideoCodecName(plan.videoCodec)},
+                          {"framesPerPreset", int(capture->frames().size())},
+                          {"totalFrames", int(capture->frames().size() * records.size())},
+                          {"completedFrames", completed()},
+                          {"totalBytes", bytes},
+                          {"presets", presets}};
+        // R107.c1 (ADR 0181 §3.3): the notices of the DEM terrain the frames show, when there is any.
+        if (!capture->credits().empty()) {
+            QJsonArray credits;
+            for (const auto &notice : capture->credits())
+                credits.append(QString::fromStdString(notice));
+            value["credits"] = credits;
+        }
         publish(output + "/manifest.json", QJsonDocument(value).toJson());
     }
     // The record and the bytes of a frame whose image and metadata both agree with its manifest
