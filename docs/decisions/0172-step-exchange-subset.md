@@ -1229,7 +1229,7 @@ with the numbers and the tests. The section 6 row is amended in place (R098.k).
 - **The threads: measured, one thread kept.** The pinned OCCT can mesh in parallel. `BRepMesh_IncrementalMesh` takes an
   `isInParallel` flag, and the work runs on OCCT's own pool (the mesh libraries do not link TBB). On the 100-sphere
   model, 4 threads gave the same package bytes as 1 thread, for every committed fixture and for repeated runs, and no
-  speed-up: a p50 of 3.97 s against 3.96 s, and the CPU time shows that no second thread worked. Each body is one face,
+  speed-up: a p50 of 3.97 s against 3.96 s, and the CPU time shows that no second thread worked. Each sphere is one face,
   and the tessellation makes one `BRepMesh` call per base, so a call has no second face to share. The brief's rule keeps
   one thread unless the parallel mesh is both identical and faster, so the STEP mode keeps one thread. The engine
   section of the package still records `threads` 1.
