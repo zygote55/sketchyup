@@ -2,6 +2,7 @@
 #include "automation/extension.hpp"
 #include "io/catalog_io.hpp"
 #include "io/dxf_source.hpp"
+#include "io/geotiff.hpp"
 #include "io/model_style_io.hpp"
 #include "io/gltf_import.hpp"
 #include "io/ifc_package.hpp"
@@ -50,7 +51,8 @@ inline constexpr const char *formats[] = {"native-json",
                                           "edge-style",
                                           "catalog",
                                           "material-texture-size",
-                                          "geographic-site"};
+                                          "geographic-site",
+                                          "geotiff"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -508,6 +510,35 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             require(decodeGeographicSite(encoded) == first &&
                         encodeGeographicSite(decodeGeographicSite(encoded)) == encoded,
                     "accepted geographic record re-encodes canonically");
+        } else if (format == "geotiff") {
+            // R107.b1 (ADR 0181 §8 V7): an accepted GeoTIFF is one image of the subset. Every refusal
+            // is named (GeoTiffRefusal) and a sample of its posts is finite, or a named void.
+            const std::vector<std::uint8_t> file(bytes.begin(), bytes.end());
+            GeoTiffMemory memory(file);
+            GeoTiffHeader header;
+            try {
+                header = readGeoTiffHeader(memory);
+            } catch (const GeoTiffRefusal &) {
+                return false;
+            }
+            accepted = true;
+            require(header.width >= 2 && header.height >= 2, "a raster has two posts a side");
+            require(header.offsets.size() == header.byteCounts.size() &&
+                        header.offsets.size() == std::size_t(header.blocksAcross) * header.blocksDown,
+                    "one offset and one byte count per block");
+            GeoTiffRaster raster(memory, header);
+            const double columns[]{0, 0.5, header.width / 2.0 - 0.25, header.width - 1.0};
+            const double rows[]{0, 0.25, header.height / 2.0, header.height - 1.0};
+            try {
+                for (const double column : columns)
+                    for (const double row : rows) {
+                        bool isVoid = false;
+                        const double value = raster.sample(column, row, isVoid);
+                        require(isVoid || std::isfinite(value), "a sampled post is finite or void");
+                    }
+            } catch (const GeoTiffRefusal &) {
+                // A corrupt block: refused by name when it is read.
+            }
         } else if (format == "parameter-expression") {
             // R093.a: one expression, checked and evaluated against the fixed table.
             bool expression = false;

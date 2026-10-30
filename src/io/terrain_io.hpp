@@ -21,7 +21,9 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record);
 // With `legacy`, a record in the R095 development form (no source ids, no tiling, no edits) is
 // accepted unvalidated and *legacy set: the document decoder derives the ids and the tiling
 // (deriveLegacyTerrain) and then validates it. Without `legacy` that form is refused.
-TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy = nullptr);
+// demAllowed: the document is schema 34 or later, which carries the GeoTIFF source record.
+TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy = nullptr,
+                                  bool demAllowed = false);
 // R096.a edit entries: {id, kind, ...the kind's fields}. The kind's codec writes and reads its
 // own fields; R096.a registers none in production (tests register theirs).
 struct TerrainEditCodec {

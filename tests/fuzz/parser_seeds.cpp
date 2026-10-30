@@ -642,6 +642,26 @@ int main(int argc, char **argv) {
                             bytes(QJsonObject{{"width", 1}, {"height", 1}, {"depth", 1}}),
                             "unknown-field");
             const char *digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+            // R107.b1 (ADR 0181 §8 V7): the synthetic GeoTIFF fixtures, accepted and refused by name.
+            const auto fixture = [](const char *name) {
+                QFile file(QStringLiteral(SOURCE_DIR "/tests/fixtures/geotiff/") + QString::fromLatin1(name));
+                fuzz::require(file.open(QIODevice::ReadOnly), "GeoTIFF fixture");
+                return file.readAll();
+            };
+            for (const char *name :
+                 {"plane-f32-strip-none-le.tif", "plane-f32-strip-none-be.tif",
+                  "plane-f32-tile-deflate-pred3-le.tif", "plane-f32-tile-deflate-pred3-be.tif",
+                  "plane-i16-strip-deflate-pred2-le.tif", "plane-i16-tile-none-be.tif",
+                  "paraboloid-f32-tile-deflate-pred3-le.tif", "void-f32-tile-deflate-pred3-le.tif",
+                  "glo30-like-pixel-point-f32.tif", "dep-like-nad83-f32.tif",
+                  "with-vertical-navd88-f32.tif"})
+                publish("geotiff", fixture(name), QString::fromLatin1(name));
+            for (const char *name :
+                 {"refuse-multiband.tif", "refuse-float64.tif", "refuse-lzw.tif",
+                  "refuse-two-images.tif", "refuse-osgb36.tif", "refuse-etrs89.tif",
+                  "refuse-projected.tif", "refuse-transform.tif", "refuse-vertical-code.tif",
+                  "refuse-bigtiff.tif"})
+                publishRejected("geotiff", fixture(name), QString::fromLatin1(name));
             publish("geographic-site",
                     bytes(geographic(51.50735, -0.12776, 30, "WGS84", "unknown", "typed", "")),
                     "london-typed");

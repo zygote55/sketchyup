@@ -50,6 +50,7 @@ re-encode to a canonical object. Its seeds are four accepted strokes (the defaul
 with a texture, a dashed and a dotted stroke with the largest id) and eight rejected inputs (a
 width of 0.5 and of 8.5, an opacity of zero and of 1.5, an unknown dash, a non-canonical id, a
 negative id and an unknown field).
+One more covers the R107.b1 GeoTIFF reader (`geotiff`; [ADR 0181 section 7.2](decisions/0181-maps-geolocation-feasibility.md#72-the-subset-r107b-would-support-if-approved)): a bounded reader for one image of the elevation subset. The harness reads the header, refuses by name, and samples the corners and the middle of an accepted file, which must give finite posts or named voids. Its seeds are the synthetic fixtures in `tests/fixtures/geotiff`, the accepted ones and the refused ones. The first run found a heap overflow (a tag typed SHORT read as doubles), fixed before the record; the reader's tag readers now check the type.
 One more covers the R107.a geographic site record (`geographic-site`; [ADR 0181 section 2.1](decisions/0181-maps-geolocation-feasibility.md#21-stored-form)): the site origin's `geographic`
 object, with its latitude and longitude, datum label, UTM zone and hemisphere, convergence, vertical
 reference and provenance. The harness decodes each input twice and requires equal results; an accepted

@@ -121,6 +121,8 @@ void validateTerrainRecord(const TerrainRecord &record) {
         !std::isfinite(provenance.metresPerUnit) || provenance.metresPerUnit <= 0 ||
         provenance.metresPerUnit > 1e6)
         throw std::runtime_error("Invalid terrain import provenance");
+    if (provenance.dem)
+        validateTerrainDemSource(*provenance.dem);
     validateTerrainDisplay(record.display);
     // A deferred digest is a SHA-256 by construction; checking it would compute it now.
     if (!record.meshDigest.pending() && !sha256Text(record.meshDigest.value()))
@@ -204,6 +206,44 @@ void validateTerrainRecord(const TerrainRecord &record) {
     if (terrainEditBytes(record.edits) > TerrainLimits::editBytes)
         throw std::runtime_error("Terrain edit list exceeds 8 MiB");
 }
+void validateTerrainDemSource(const TerrainDemSource &dem) {
+    const auto invalid = [](const char *what) {
+        throw std::runtime_error(std::string("Invalid GeoTIFF terrain source: ") + what);
+    };
+    for (const auto *text : {&dem.product, &dem.sourceName, &dem.licence, &dem.credit,
+                             &dem.disclaimer, &dem.datum, &dem.vertical, &dem.elevation,
+                             &dem.verticalNote})
+        if (!boundedText(*text, TerrainDemSource::textBytes))
+            invalid("a text field is over 256 bytes");
+    for (const auto *text : {&dem.product, &dem.sourceName, &dem.credit, &dem.datum,
+                             &dem.vertical, &dem.elevation})
+        if (text->empty())
+            invalid("a required text field is empty");
+    if (dem.datum != "WGS84" && dem.datum != "NAD83")
+        invalid("the datum is not WGS84 or NAD83");
+    if (dem.vertical != "NAVD88" && dem.vertical != "EGM2008" && dem.vertical != "EGM96")
+        invalid("the vertical reference is not NAVD88, EGM2008 or EGM96");
+    if (dem.elevation != "bare earth" && dem.elevation != "surface")
+        invalid("the elevation kind is not bare earth or surface");
+    if (!std::isfinite(dem.verticalOffset) || std::abs(dem.verticalOffset) > 10000 ||
+        (dem.verticalOffset != 0 && dem.verticalNote.empty()))
+        invalid("the vertical offset is out of range or has no note");
+    if (dem.zone < 1 || dem.zone > 60)
+        invalid("the UTM zone is outside 1 to 60");
+    for (const double value : {dem.easting0, dem.northing0, dem.easting1, dem.northing1,
+                               dem.spacing, dem.nominalSpacing})
+        if (!std::isfinite(value))
+            invalid("a grid value is not finite");
+    if (!(dem.easting1 > dem.easting0) || !(dem.northing1 > dem.northing0))
+        invalid("the window is empty");
+    if (!(dem.spacing > 0) || dem.spacing < dem.nominalSpacing)
+        invalid("the spacing is finer than the file's post or not positive");
+    if (dem.columns < 2 || dem.rows < 2 || dem.columns > TerrainLimits::sourceVertices ||
+        dem.rows > TerrainLimits::sourceVertices || dem.columns * dem.rows > TerrainLimits::sourceVertices ||
+        2 * (dem.columns - 1) * (dem.rows - 1) > TerrainLimits::triangles)
+        invalid("the grid is outside the terrain limits");
+}
+
 void validateTerrainDisplay(const TerrainDisplay &display) {
     if (!std::isfinite(display.contourInterval) ||
         display.contourInterval < terrainContourIntervalMin ||

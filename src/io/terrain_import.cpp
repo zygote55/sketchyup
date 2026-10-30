@@ -440,6 +440,33 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
         prepared.origin = prepared.proposed;
         prepared.originSource = "proposed";
     }
+    // R107.b1 (ADR 0181 §2.7, §2.2, V5): a GeoTIFF terrain is placed in its file's UTM zone and
+    // heights in its file's vertical reference. A zone that differs from the site's is refused; a
+    // vertical reference that differs from the site's is refused unless an offset and a note are
+    // given. A site with no vertical label (unknown) has nothing to mix with, and a notice says so.
+    if (set.dem && site && site->geographic) {
+        const auto &geographic = *site->geographic;
+        const auto &dem = *set.dem;
+        if (geographic.utmZone != dem.zone || geographic.utmNorth != dem.north)
+            report.locate(Severity::Refusal, "zone-mismatch",
+                          "The file's UTM grid is not the site's zone; a terrain cannot be placed "
+                          "across zones (ADR 0181 §2.2).",
+                          {"zone", {}, std::nullopt,
+                           std::to_string(dem.zone) + (dem.north ? "N" : "S") + " file, " +
+                               std::to_string(geographic.utmZone) +
+                               (geographic.utmNorth ? "N" : "S") + " site"});
+        const auto &label = geographic.verticalReference;
+        if (label == "unknown")
+            report.add(Severity::Notice, "site-vertical-unlabelled", 1,
+                       "The site's elevation names no vertical reference; the terrain's " +
+                           dem.vertical + " label is recorded only (ADR 0181 §2.7).");
+        else if (label != dem.vertical && dem.verticalNote.empty())
+            report.locate(Severity::Refusal, "vertical-mismatch",
+                          "The terrain's vertical reference differs from the site's. Enter an "
+                          "offset and a note to mix them (ADR 0181 §2.7, V5).",
+                          {"vertical", {}, std::nullopt,
+                           dem.vertical + " terrain, " + label + " site"});
+    }
     const auto origin = prepared.origin;
     for (const double value : {origin.easting, origin.northing, origin.elevation})
         if (!std::isfinite(value) || std::abs(value) > siteCoordinateLimit)
@@ -1060,6 +1087,7 @@ TerrainImportResult importDryRun(const TerrainSourceSet &set, const TerrainImpor
     record.parameters.steinerFill = options.triangulation.steinerFill;
     record.generator = terrainGenerator;
     record.provenance = {text(set.sha256), text(set.unit.name), scale};
+    record.provenance.dem = set.dem; // R107.b1: the GeoTIFF source record (ADR 0181 §3.2)
     if (!site)
         result.establish = SiteOrigin{origin.easting,
                                       origin.northing,

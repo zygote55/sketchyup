@@ -354,10 +354,12 @@ int main(int argc, char **argv) {
         // The policy constants: 28 is written for parameters (29 only adds terrain and
         // the site origin, ADR 0168; 30 adds camera paths and presets, ADR 0173; 31 adds
         // an edge stroke on the style, ADR 0174; 32 adds a geographic site record, ADR 0181;
-        // 33 adds a material texture size, ADR 0174 section 3); parameter-free content stays 27
+        // 33 adds a material texture size, ADR 0174 section 3; 34 adds a GeoTIFF terrain source
+        // record, ADR 0181 section 3.2); parameter-free content stays 27
         // or 26.
         static_assert(
-            nativeDocumentVersion == 33 && nativeEdgeStylesDocumentVersion == 31 &&
+            nativeDocumentVersion == 34 && nativeDemTerrainDocumentVersion == 34 &&
+            nativeEdgeStylesDocumentVersion == 31 &&
             nativePresentationDocumentVersion == 30 && nativeTerrainDocumentVersion == 29 &&
             nativeTerrainFreeDocumentVersion == 28 && nativeParameterFreeDocumentVersion == 27 &&
             nativeSheetFreeDocumentVersion == 26);
