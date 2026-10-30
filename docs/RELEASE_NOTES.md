@@ -1,5 +1,241 @@
 # SketchyUp release notes
 
+## 1.5.0
+
+SketchyUp 1.5.0 is a minor release. It carries the five follow-ups that the 1.4.0 owner decisions left for 1.5
+(STEP restart-and-exclude, STEP speed, the STEP entity cap, render limits for terrains and large captures, and the
+Styles and catalog dialogs), the first elevation import from files the user downloads (R107.b, part of offline
+geographic work under C06), the source credits that GeoTIFF terrains add to exports (R107.c), the documentation of
+that import (R107.e) and the defect fixes D-068 to D-074. The release is gated through its
+[M10 acceptance](M10_ACCEPTANCE.md#the-150-release); its record is `verification/G-1.5.0.md`,
+written at the release candidate. The [support matrix](SUPPORT_MATRIX.md) states what is supported, and the
+[user guide](USER_GUIDE.md) describes each workflow. C06 stays in the Investigate class until its R107.d
+geocoding is accepted, so this release does not claim C06 as delivered.
+
+Existing commands, queries and schemas keep their shapes; everything new is additive, as a minor version allows
+([ADR 0162](decisions/0162-release-versioning.md)). A document that has no GeoTIFF terrain is written exactly as
+1.4.0 writes it.
+
+### Elevation from a downloaded GeoTIFF (R107.b, part of C06)
+
+- **Desktop.** **File → Import terrain…** accepts a `.tif` or `.tiff` file and opens a GeoTIFF page. The page
+  takes the product (USGS 3DEP or Copernicus GLO-30), the window in UTM or in latitude and longitude, a Fit to the
+  file action, the vertical reference, and, for a mismatch, the offset and a note. It shows the import report, the
+  located voids and the credit under Source in Entity info ([R107.b4](decisions/0181-maps-geolocation-feasibility.md),
+  [UX §20](UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop), [PR #536](https://github.com/zygote55/sketchyup/pull/536)).
+- **Command line.** `sketchyup-cli --import-terrain` reads a GeoTIFF in a UTM window with `--dem-source`,
+  `--dem-window`, `--dem-zone`, `--dem-vertical`, `--dem-vertical-offset` and `--dem-vertical-note`. It labels the
+  datum and the vertical reference and stores the source record with the terrain ([R107.b1](decisions/0181-maps-geolocation-feasibility.md),
+  [PR #529](https://github.com/zygote55/sketchyup/pull/529); [R107.b3](https://github.com/zygote55/sketchyup/pull/534)).
+- **Products.** USGS 3DEP at 1/3 or 1 arc-second, and Copernicus GLO-30 at 1 arc-second north to south and 1 or
+  1.5 arc-second east to west, as pixel-is-point posts. Other posts are refused by name.
+- **File format.** GeoTIFF, classic TIFF only (BigTIFF is refused), one band, int16 or float32 heights, no
+  compression, LZW or Deflate, stripped or tiled. LZW is read because USGS distributes 3DEP with it
+  ([R107.b1.1](https://github.com/zygote55/sketchyup/pull/530)). The reduced-resolution overview images of a 3DEP
+  tile are skipped, so a tile as USGS distributes it imports ([R107.b1.2](https://github.com/zygote55/sketchyup/pull/531)).
+  Other inputs are refused by name, such as a second full-resolution image or a transparency mask.
+- **Tested.** One real 3DEP 1 arc-second tile (USGS `n35w119`) imports as downloaded. One real 1/3 arc-second tile
+  was tested only with its overview links removed, not as downloaded. GLO-30 was tested with synthetic files
+  shaped like the product, and one real tile's header and one block were decoded in memory, not imported.
+- **Datum and vertical reference.** WGS84 is taken as typed. NAD83 is a labelled approximation, with a notice.
+  ETRS89 and OSGB36 are refused by name. The files carry no vertical reference, so the user chooses NAVD88, EGM2008
+  or EGM96. There is no geoid model. A mismatch between the file and the site needs a non-zero offset and a note,
+  and a zero offset is refused.
+- **Voids.** A window with a void (no-data) post is refused, not filled. The located list covers the first 4,096
+  void posts.
+- **Limits.** Every post must lie inside the file, in one UTM zone. A model's terrains together may hold 250,000
+  triangles. A window whose grid would pass that limit is decimated to fit, with a notice.
+- **Measured** on the record's synthetic windows. A 1 km window at 1 arc-second imports in 18 ms, against a 2 s
+  budget. A 12 km window, decimated to fit, imports in 0.36 s, holds at most 13.1 MiB of raster at a time (budget
+  64 MiB), and peaks at 97 MiB in the process (budget 1 GiB). The desktop GeoTIFF path is not read whole, so the 64 MiB
+  file limit that applies to DXF and point files does not apply to it ([R107.b1](decisions/0181-maps-geolocation-feasibility.md), [R107.b3](decisions/0181-maps-geolocation-feasibility.md)).
+- **Not in this release.** Orthophoto placement (R107.b2, optional), geocoding (R107.d, held), any online lookup, and
+  MCP or assistant import: `terrain.import` takes DXF and point files only.
+- **Downloads.** SketchyUp fetches no elevation data. Download steps, the credit each product asks for, and the
+  non-affiliation wording are in the user guide, under [Terrain from a downloaded elevation file](USER_GUIDE.md#terrain-from-a-downloaded-elevation-file)
+  ([R107.e](https://github.com/zygote55/sketchyup/pull/537)).
+
+### Source credits in exports (R107.c)
+
+- **Data exports.** A terrain made from a GeoTIFF file adds its source notice to the GLB `asset.copyright`, the OBJ
+  comment lines, the IFC site's property set `SketchyUp_SourceCredits` (only when the site origin came from the
+  file), the STL export report and the presentation batch manifest's `credits` ([R107.c1](https://github.com/zygote55/sketchyup/pull/533)).
+- **DXF.** A DXF export carries the notice only for a terrain whose every height is zero. DXF export refuses a real
+  elevation terrain, since it writes world XY only.
+- **STEP.** No notice is written. This was decided, not omitted.
+- **Documents with no GeoTIFF source** write no credit keys, and the notices cannot be removed from an export of a
+  GeoTIFF terrain.
+- **Visible credits** ([R107.c2](https://github.com/zygote55/sketchyup/pull/535)). A PDF sheet page, and a measured PDF
+  or SVG drawing, print a "Sources" line in the bottom margin, and export is blocked when the margin has no room. A
+  presentation frame of a GeoTIFF terrain carries a burned-in note, and a note over 700 bytes is refused.
+
+### STEP restart-and-exclude (R098.i)
+
+- A STEP file whose tessellation crashes the helper, or overruns its limits, is restarted without the part it stopped
+  on, up to three times. The import is then partial, and the report names the part that was left out
+  ([PR #522](https://github.com/zygote55/sketchyup/pull/522)).
+- A sandbox kill, or a stop before tessellation, still refuses the whole file, and the model is unchanged.
+- Limit: no committed STEP fixture makes the pinned helper crash. The restarts were tested with stand-in helpers, and
+  the mutation checks were not run.
+
+### STEP speed and entity cap (R098.j, R098.k)
+
+- **Speed.** Measured on the release machine, against the 1.4.0 numbers:
+
+  | Case | 1.5.0 | Budget | 1.4.0 |
+  | --- | --- | --- | --- |
+  | Import of the 100-sphere model, with a new native file | 10.17 s (max 10.23 s) | 10 s, missed | 14.70 s |
+  | Import of the same model, with no output file | 6.87 s (max 6.96 s) | 10 s, met | 10.32 s |
+  | Export of the 90,954-face model | 9.96 s (max 9.96 s) | 5 s, missed | 16.56 s |
+
+  The export writes 100,551,450 bytes, against 223,950,330. Peak memory is 700 MiB for the import, against 724 MiB,
+  and 1,034 MiB for the export, against 1,926 MiB ([R098.j](verification/R098d-step-exchange.md#14-r098j-step-conversion-speed-2026-10-29),
+  [PR #524](https://github.com/zygote55/sketchyup/pull/524)). The two misses are the ones the owner accepted as limits
+  for 1.4.0 (decision 8, 2026-10-28), and they remain accepted limits in 1.5.0.
+- **Entity cap.** A STEP file whose reader holds more than 2,000,000 entities is refused before any transfer, with
+  the count and the limit (`--step-max-entities`) ([R098.k](https://github.com/zygote55/sketchyup/pull/525)).
+- **Threads.** STEP keeps one tessellation thread. On the 100-sphere model, parallel meshing gave identical output and
+  no speed-up (3.97 s at four threads, 3.96 s at one). A body with many faces was not measured, and that is the one
+  case where the decision could change.
+
+### Render limits for terrains and large captures (R099.f)
+
+- **Terrains.** A terrain of 249,218 triangles exports and renders, with a 75.36 MB manifest and a median preparation
+  of 3.69 s. A terrain counts against its own 250,000-triangle class, not the 100,000-face modelling budget.
+- **Large captures.** A capture of 19,998 bodies (79,992 faces) exports and renders, with a 29.12 MB manifest and a
+  median preparation of 1.70 s.
+- **Manifest bound.** The bound rises from 16 MiB to 128 MiB, which is the largest manifest the admitted limits can
+  produce.
+- **Still refused.** A 10,000-placement capture (30,257 bodies, 119.16 MB) is refused by name. The GLB modelling
+  limit of 100,000 faces and the render snapshot's limit of 20,000 bodies are unchanged.
+- **Budget.** The per-frame budget is 1 s at the 95th percentile. The terrain and the 20,000-body capture are over it;
+  the record gives only their medians. The 3,700-body model prepares in 303 ms (95th percentile 304 ms)
+  ([R099.f](verification/R099e-presentation.md#12-r099f-render-limits-for-terrains-and-large-captures),
+  [PR #526](https://github.com/zygote55/sketchyup/pull/526)).
+
+### Catalog progress and Cancel (R100.i) and the Styles dialog (R100.h)
+
+- **Insert.** An asset catalog insert runs off the interface thread. A progress sheet names the phases (read, verify,
+  insert) and the catalog, and opens after one second, so a sub-second insert shows none
+  ([PR #521](https://github.com/zygote55/sketchyup/pull/521)).
+- **Cancel.** Cancel before the edit is composed changes nothing: the undo history, definitions, materials, assets,
+  style and library folder stay as they were. A Cancel after the edit is composed comes too late, and the insert
+  commits. Measured on a 128 MiB catalog, one entry takes 0.59 to 0.61 s in the command line, and 342 to 357 ms in
+  the worker. The longest interface stop was 11.6 to 16.5 ms, and a Cancel clicked at once took 4.6 to 4.8 ms.
+- **Styles.** **Save report…** writes the asset catalog report as a text file, with an overwrite prompt. The accounting
+  bar is solid, hatched and cross-hatched, with a legend, and refusals open with "Nothing was saved." or "Nothing was
+  applied." ([R100.h](decisions/0174-custom-styles-asset-authoring.md), [PR #520](https://github.com/zygote55/sketchyup/pull/520)).
+  The IFC import, IFC export and STEP export reports keep a colour-only bar, and the IFC import report has no
+  **Save report…**.
+
+### Defects fixed since 1.4.0
+
+From the [open-defect triage](verification/R089a-defect-triage.md). Each row there states its cause and its test.
+
+- **D-068 and D-069** ([PR #527](https://github.com/zygote55/sketchyup/pull/527)): the Quantities Tags popover no
+  longer prints a Qt Wayland popup warning, and the desktop build's compiler warnings are fixed.
+- **D-070** ([PR #519](https://github.com/zygote55/sketchyup/pull/519)): a test harness fix. The `.skp` import dialog
+  test holds its import stand-ins until the driver sees the progress step.
+- **D-071**: the 1.4.0 release notes' rollback steps now say to remove `sketchyup-ifc` first
+  ([PR #518](https://github.com/zygote55/sketchyup/pull/518)).
+- **D-072** ([PR #523](https://github.com/zygote55/sketchyup/pull/523)): a 96-byte Wayland proxy that the sanitized
+  native MCP step leaked at exit. A test fix.
+- **D-073** ([PR #528](https://github.com/zygote55/sketchyup/pull/528)): a catalog insert that finished at once could
+  wait forever. It came with R100.i, after 1.4.0, and it was fixed before 1.5.0.
+- **D-074** ([PR #534](https://github.com/zygote55/sketchyup/pull/534)): a GeoTIFF import whose window was narrower
+  than its spacing never ended. It came with R107.b1 and was never in a release.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.5.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch packages | `sketchyup` 1.5.0-1, x86_64; `sketchyup-ifc` 1.5.0-1 (optional, IFC and STEP helper) |
+| Native document | Schema 34 at most, in SKUPDOC container version 2; reads versions 1 through 34. Saves record the writer `SketchyUp/1.5.0`. The public schema changed only for the native document (`sketchyup-document-v34`) |
+| MCP, inspection, transactions, recipes and other public schemas | Unchanged from 1.4.0 |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the 1.2.0 limits, as in 1.4.0. Corpus v6, unchanged in content; its `inputSha256` values are re-pinned for the 1.5.0 writer. Evaluated at the release candidate; the results are in the release record |
+| New third-party code | None. The GeoTIFF reader uses the inflater of miniz, which 1.4.0 already ships (MIT, in `sketchyup`). The elevation data are the user's own downloads |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.4.0.
+
+### File format
+
+1.5.0 reads document versions 1 through 34 and writes the schema each document needs:
+
+| Schema | Feature | Written when |
+| --- | --- | --- |
+| 34 | `terrain-dem-v1` | the terrain was made from a GeoTIFF file (its source record) |
+| 33 | `material-texture-size-v1` | a material has a texture size |
+| 32 | `geographic-site-v1` | the site has a geographic record |
+| 31 | `edge-styles-v1` | the document style has an edge stroke |
+| 30 | `presentation-v1` | the document has a camera path or a render preset |
+| 29 | `terrain-v1` | the document has a terrain or a site origin |
+| 28, 27, 26 | component parameters, sheets, none | as in 1.4.0 |
+
+A document with more than one feature is written at the highest schema it needs.
+
+SketchyUp 1.4.0 reads schemas 1 through 33 and refuses schema 34 with "Invalid required features", leaving the
+file unchanged. The package acceptance runs the same checks: the 1.4.0-1 CLI must refuse the schema-34 fixture and open the
+schema 27 to 33 fixtures unchanged ([ADR 0162](decisions/0162-release-versioning.md)).
+
+### Upgrade from 1.4.0-1
+
+Run `pacman -U sketchyup-1.5.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helper, also install
+`sketchyup-ifc-1.5.0-1-x86_64.pkg.tar.zst`; the helper is optional. Package acceptance upgrades a 1.4.0-1 package built
+from the release source to 1.5.0-1, and checks that the 1.4.0-1 CLI refuses the schema-34 file unchanged and opens
+the schema 27 to 33 files unchanged.
+
+### Rollback
+
+To roll back, first remove `sketchyup-ifc` if it is installed (`pacman -R sketchyup-ifc`). It requires the exact
+`sketchyup` version, so pacman refuses the rollback while it is installed and changes nothing (D-071). Then install
+`sketchyup-1.4.0-1-x86_64.pkg.tar.zst` with `pacman -U`. A document with a GeoTIFF terrain does not open in 1.4.0, so
+copy such a document before you open it in 1.5.0 if you may need 1.4.0.
+
+### Known limitations
+
+The 1.4.0 limitations still apply where a row above does not lift them. In particular:
+
+- **IFC** is unchanged from 1.4.0: it is not yet accepted, its buildingSMART hosted validation has not been run, and a
+  10,000-body import takes about 12 s against a 10 s budget. The owner accepted that as a limit on 2026-10-28.
+- **STEP** is partly met. Its speed budgets are missed, as above, and they are accepted limits. A 1,000,000-triangle
+  export has not been measured since R098.j. The 1.4.0 record shows a crash at 21.6 s under the 4 GiB cap, and says
+  the model cannot be built in one document. The other STEP limits of 1.4.0 hold: 128 MiB input, 1,000,000 triangles
+  and 100,000 per element, a document of 100,000 faces of unique geometry, and an export refused above 256 MiB.
+  Cancel latency on the real helper was not measured.
+- **Render limits:** the 10,000-placement capture is refused, and the terrain and the 20,000-body capture are over the
+  1 s per-frame budget at their medians. The batch projection (960 frames, about 3.4 hours) is from a 48-frame run,
+  and the full run was not made. An EEVEE preset with no finished frame cannot resume.
+- **Styles and catalogs:** the IFC and STEP report bars are colour-only, and the IFC import report has no
+  **Save report…**. A catalog component is placed at the origin only, and a template in a catalog cannot be opened as
+  a model. Selecting an entry in a catalog opened from a file still runs its check on the interface thread, about
+  0.1 s on a 128 MiB catalog.
+- **GeoTIFF elevation:**
+  - Heights are not checked against control points. The R083 sanitized failure matrix was not run for this reader;
+    its fuzz target ran, and the others did not.
+  - The 1/3 arc-second 3DEP tile was tested only with its overview links removed. GLO-30 was tested with synthetic files.
+  - WGS84 and NAD83 only. NAD83 is an approximation. There is no geoid model.
+  - A window with a void is refused, not filled.
+  - A model's terrains together hold at most 250,000 triangles, and a larger window is decimated, with a notice.
+  - There is no MCP or assistant import.
+- **Source credits:** STL has a report line, not a field. DXF refuses a real elevation terrain. The IFC property set is
+  written only when the site origin came from the file, and STEP writes none.
+- **Geographic coordinates** (R107.a): unchanged from 1.4.0. There is no online lookup.
+- **Desktop link:** the GeoTIFF page's link to its user-guide page is in [PR #538](https://github.com/zygote55/sketchyup/pull/538),
+  which was open when this section was written. The user guide page itself is in this release.
+- **Defects:** the triage lists 22 open defects at the 1.5.0 preparation, none release-blocking and none Major. The
+  record gives the count at the release candidate.
+- **Quantities, the helper sandbox, online libraries, `.skp` import, camera paths and the assistant:** as in 1.4.0.
+
+### Not in this release
+
+- R107.b2 (orthophoto placement, optional) and R107.d (geocoding, held). C06 stays Investigate until R107.d is accepted.
+- The buildingSMART hosted validation of the IFC export. That is the owner's own task and is not a gate for this release.
+- Rows the owner deferred: R103 (2026-10-27), R106 and R108, and R104.b (formula mapping). R105.b to R105.d are design
+  only, and Sketchfab (R105.d) is deferred.
+- The 1.4.0 list still holds: Ruby extensions (C02), DWG (C05), collaboration (C07), `.skp` export, IFC2X3 and IFC4X3
+  export, STEP AP242 export, and any import format beyond those listed.
+
 ## 1.4.0
 
 SketchyUp 1.4.0 is a minor release. It adds one named group of Extended rows, the group that

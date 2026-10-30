@@ -15,7 +15,9 @@ the `.skp` import of C01, import only ([ADR 0176](decisions/0176-skp-import.md))
 of C06, R107.a only ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md)); and the helper process
 sandbox, R109 ([ADR 0183](decisions/0183-helper-process-sandbox.md)). It is one release, SketchyUp 1.4.0,
 with one record, `docs/verification/G-1.4.0.md`, written at its release candidate. It was released as
-SketchyUp 1.4.0 on 2026-10-29.
+SketchyUp 1.4.0 on 2026-10-29. The fifth is SketchyUp 1.5.0, which follows the same gate and is set out in
+[The 1.5.0 release](#the-150-release) below. Its record is `docs/verification/G-1.5.0.md`, written at its
+release candidate.
 
 The gate builds on the accepted 1.0 gate ([M9 acceptance](M9_ACCEPTANCE.md),
 [record](verification/M9.md)). It does not re-audit M0–M9. It shows that the
@@ -52,7 +54,7 @@ build image or packaged files invalidates every check that depends on it. Re-run
 those checks, or name a new RC. A provider product or prompt change also requires a
 new corpus version and a complete new evaluation, as R086.a states.
 
-The release tag (`v1.1.0` for F01, `v1.2.0` for F02, `v1.3.0` for F03, `v1.4.0` for the 1.4.0 group) points at the RC commit itself. Records written
+The release tag (`v1.1.0` for F01, `v1.2.0` for F02, `v1.3.0` for F03, `v1.4.0` for the 1.4.0 group, `v1.5.0` for 1.5.0) points at the RC commit itself. Records written
 after the RC, such as verification records and the release record, are evidence
 about the RC, not part of its artifacts, so adding them does not invalidate it. The
 installed documentation (user guide, support matrix), the release notes and the
@@ -123,3 +125,43 @@ documents are fixed at the RC. The 1.1.0 record
 
 No credential or private provider artifact belongs in public evidence. The owner
 approves the tag and the release after the record is accepted.
+
+## The 1.5.0 release
+
+SketchyUp 1.5.0 is one release with one record, `docs/verification/G-1.5.0.md`, written at its release
+candidate. It follows the gate above, with the differences below. It is not a new Extended row. It
+carries three things:
+
+- the 1.5 follow-ups of the 1.4.0 owner decisions: R098.i (STEP restart-and-exclude), R098.j (STEP
+  speed), R098.k (the STEP entity cap), R099.f (render limits for terrains and large captures), R100.h (the
+  Styles dialog gaps) and R100.i (catalog import progress and Cancel);
+- the GeoTIFF elevation import of R107.b, as a part of C06: R107.b1, R107.b1.1, R107.b1.2, R107.b3 and
+  R107.b4, at document schema 34 (`terrain-dem-v1`);
+- the source credits of R107.c (R107.c1 in the data exports, R107.c2 on visible sheets, drawings and frames),
+  the documentation of R107.e, and the defect fixes D-068 to D-074 from the [open-defect triage](verification/R089a-defect-triage.md).
+
+SCOPE C06 stays Investigate until R107.d is accepted ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md)
+§11). R107.b2 (orthophoto placement) and R107.d (geocoding) are not in 1.5.0. The buildingSMART hosted
+validation of the IFC export is the owner's own task and is not a gate here.
+
+**Roadmap entries and records 1.5.0 rests on.** [R098](PR_ROADMAP.md#r098) (its section 13 to 15 in
+[R098d](verification/R098d-step-exchange.md)), [R099](PR_ROADMAP.md#r099) (section 12 of
+[R099e](verification/R099e-presentation.md)), [R100](PR_ROADMAP.md#r100) (the R100.h and R100.i rows in
+[R100g](verification/R100g-custom-styles-assets.md)), [R107](PR_ROADMAP.md#r107) (the ADR 0181 implementation
+notes for R107.b1 to R107.e), and the defect triage [R089a](verification/R089a-defect-triage.md). The
+prior release is the 1.4.0 record, [G-1.4.0](verification/G-1.4.0.md). Every merged head of those entries
+must have a green CI verdict (the fast tier) before the record is accepted.
+
+**What the 1.5.0 release record must show, in addition to the required evidence above:**
+
+| Area | Required for 1.5.0 |
+| --- | --- |
+| RC | Named on `main` after this preparation merges, with `release-version.sh` printing `1.5.0`, `pkgver` 1.5.0 and `pkgrel` 1. The record gives the commit, the source-archive and package SHA-256 values and the image digest |
+| CI | The full tier passes at the RC (`full-ci` label, `gh workflow run native.yml --ref <branch> -f tier=full`, or the `v*` tag). Its Arch package acceptance uses the published 1.4.0-1 as the prior release (`SKETCHYUP_PRIOR_RELEASE_PACKAGE`, SHA-256 `0d3dd150…`, pinned in `verify-package.sh` and `native.yml`) |
+| Downgrade window | The released 1.4.0 CLI refuses the schema-34 GeoTIFF terrain, `tests/fixtures/terrain-dem-v34.sketchyup`, and leaves it unchanged (`terrain_io`), and opens the schema-27 to 33 fixtures unchanged. The release notes say that a document with a GeoTIFF terrain does not open in 1.4.0 |
+| Split-package rollback | With `sketchyup-ifc` 1.5.0-1 installed, `pacman -U` of the 1.4.0-1 package is refused, so the record shows the documented steps (remove `sketchyup-ifc` first, then install `sketchyup-1.4.0-1`) run on a machine with both packages installed (D-071's lesson) |
+| Corpus | The owner approves a fresh live run of the supported provider profile against corpus v6 at the RC. The 1.4.0 approval does not carry over. The offline checks (`provider_release_corpus`, `assistant_tool_surface`) pass in CI at the RC. The corpus `inputSha256` values match the RC's writer |
+| Clean machines | The RC package installs and opens migrated documents on a clean machine, as for 1.4.0 ([R087.u](verification/R087u-clean-machine-packages.md)) |
+| Accepted misses | The STEP speed budgets missed at 1.4.0 (import with a native file 10.17 s against 10 s; export 9.96 s against 5 s, from R098.j) stay accepted limits, and the record says so. The render limits of R099.f stay as measured (a 10,000-placement capture is refused by name; a 20,000-body capture prepares over the 1 s budget) |
+| Triage | Every open defect at the RC is not release-blocking. D-068 to D-074 are fixed, and the triage count is recorded at the RC |
+| Documentation | The release notes, the support matrix, the user guide, the changelog (its date set at the tag), SCOPE, the roadmap entry and ADR 0162's notes match the record. The changelog's date is set when the tag is made |

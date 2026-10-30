@@ -463,7 +463,7 @@ unit, the spaces choice, the georeference choice and the maximum deviation.
   A world coordinate system that is not the identity refuses the file.
 - **Limits.** A file over 128 MiB, or with more than 2,000,000 entities, is refused with the limit
   named. A model over the document limits (100,000 unique vertices or faces, 10,000 bodies) imports
-  partly, and the report names the elements left out. A model of about 10,000 bodies imports in about 12 s; that is an accepted limit for 1.4.0. Geometry more than 1,000,000 m from the
+  partly, and the report names the elements left out. A model of about 10,000 bodies imports in about 12 s; that is an accepted limit (2026-10-28), unchanged in 1.5.0. Geometry more than 1,000,000 m from the
   origin is refused.
 - **Not imported.** Advanced breps, NURBS, CSG, swept solids, revolutions and parametric profiles may
   produce geometry, but they are not claimed; check the report. IFC 4.3 infrastructure (alignments,
@@ -548,7 +548,7 @@ model made of triangle faces reaches the limit at about 110,000 faces; large fla
 0.9 KB per triangle, so the limit is reached at about 280,000 triangles. The export dialog's size
 note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
 
-**Speed and crashes.** Importing a 100-sphere model takes about 14 s, and exporting a 90,954-face model about 17 s. The owner accepted these as limits for 1.4.0; speeding up the conversion step is planned for 1.5. A STEP file that crashes the helper is refused whole, and the model is unchanged; restart-and-exclude is planned for 1.5.
+**Speed and crashes.** In 1.5.0, importing a 100-sphere model with a new native file takes about 10.2 s (10.17 s measured) against a 10 s budget, and about 6.9 s without a file. Exporting a 90,954-face model takes about 10 s (9.96 s measured) against a 5 s budget. The owner accepted both misses as limits (2026-10-28). A STEP file whose tessellation crashes the helper or overruns its limits is restarted without the part it stopped on, up to three times, and the import names that part. A file that a sandbox kill stops, or that stops before tessellation, is still refused whole, and the model is unchanged. A file over 2,000,000 entities is refused before any transfer.
 
 **Fixes in this release (PRs #510 and #511).** A bad solid's surfaces are no longer imported into another part's body. Problems are located in the import report, PMI and GD&T are counted and reported, and parts nested too deeply are counted.
 
@@ -1111,7 +1111,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Command line.** `sketchyup-cli --input MODEL.sketchyup --export-presentation REQUEST.json` runs a batch without the desktop. The request names the saved scenes, the presets, the new output folder and whether to write video; `--describe-command export-presentation` lists the fields. Ctrl+C cancels at the next frame and exits with status 130.
 
-**Limits.** A batch needs the optional Blender 5.2 LTS and runs one Blender worker at a time. On a 3,700-body test model, each 1024 × 768 frame at 32 samples took about 13 seconds on the CPU; a full batch of 240 frames for each of four presets (960 frames) is projected at about 3.4 hours at the mean frame time, from a measured 48-frame run. The owner accepted that projection; the full run was not made. A batch writes at most 2 GiB. A terrain of 250,000 triangles cannot be rendered or batched: the GLB export refuses more than 100,000 visible faces, and the render snapshot refuses more than 20,000 bodies. Both limits stay in 1.4.0, and raising them is planned for 1.5. Camera paths and batch output are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A batch needs the optional Blender 5.2 LTS and runs one Blender worker at a time. On a 3,700-body test model, each 1024 × 768 frame at 32 samples took about 13 seconds on the CPU; a full batch of 240 frames for each of four presets (960 frames) is projected at about 3.4 hours at the mean frame time, from a measured 48-frame run. The owner accepted that projection; the full run was not made. A batch writes at most 2 GiB. A terrain has its own limit of 250,000 triangles, and a terrain of that size renders and batches in 1.5.0. The GLB export still refuses more than 100,000 visible modelling faces, and the render snapshot still refuses more than 20,000 bodies; a 20,000-body capture renders, but it prepares in about 1.7 s, over the 1 s per-frame budget. A capture of 10,000 placements is refused by name. Camera paths and batch output are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Custom styles and asset catalogs
 
@@ -1127,7 +1127,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Older releases.** An edge stroke saves the file as format 31, and a sized material as format 33. SketchyUp 1.3.x and 1.2.x refuse both with "Unsupported container field". To save a file that those releases must open, turn off the edge stroke and clear the material sizes first; the file then saves in the lowest format its content needs.
 
-**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. A catalog import has no progress and no Cancel in 1.4.0; both are planned for 1.5. The Styles dialog's three gaps are accepted for 1.4.0 and fixed in 1.5: there is no **Save report…** button (**Copy report** is there), the usage bar is in three colours rather than hatched, and a refused save says "Save refused:". Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. A catalog insert shows a progress sheet after one second, and **Cancel** stops it before its edit is composed. Once the insert has been composed, Cancel comes too late and the insert is kept. The Styles dialog's gaps are fixed in 1.5.0 for the asset catalog and the Styles tab: **Save report…** writes the report as text, the usage bar is solid, hatched and cross-hatched with a legend, and a refusal opens with "Nothing was saved." or "Nothing was applied." The IFC import, IFC export and STEP export reports keep a colour-only bar. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Troubleshooting
 
