@@ -3,10 +3,21 @@
 // banner and changes nothing, a successful import is one undoable edit, the report copies as
 // text, and choosing a location zooms the preview. `--screenshots DIR` also saves the dialog
 // in its Sources, Surface and refusal states.
+// R107.b4 (UX_DESIGN §20): the GeoTIFF page of the same dialog, on the committed fixtures: the
+// product and the vertical reference, the default window, latitude and longitude entry, Fit to the
+// file, the refusals (file and window), the located voids, the mismatch with an offset and a note,
+// the report with Copy and Save, the import as one undoable edit that writes the site's record, the
+// Credit line in Entity info, and the keyboard order and accessible names.
+#include "app/entity_info_panel.hpp"
+#include "app/organization_panel.hpp"
+#include "app/terrain_dem_window.hpp"
 #include "app/terrain_import_dialog.hpp"
+#include "app/terrain_section.hpp"
 #include "app/window.hpp"
 #include "core/terrain.hpp"
+#include "geo/geographic.hpp"
 #include "io/document_io.hpp"
+#include "io/geotiff_terrain.hpp"
 #include "native_dialog_audit.hpp"
 #include "terrain_import_fixtures.hpp"
 #include "terrain_run_hold.hpp"
@@ -20,6 +31,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLineEdit>
+#include <QLocale>
 #include <QFile>
 #include <QFileDialog>
 #include <QLabel>
@@ -135,13 +147,20 @@ QByteArray smallPnezd() {
     return (lines.join('\n') + '\n').toUtf8();
 }
 
+// The committed GeoTIFF fixtures (tests/fixtures/geotiff, made by its generator).
+QString geotiffFile(const char *name) {
+    return QString::fromStdString(std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/" + name);
+}
+
 struct Fixture {
     Window &window;
     std::unique_ptr<TerrainImportDialog> dialog;
-    Fixture(Window &w, const QString &name, const QByteArray &bytes) : window(w) {
+    // `path` is a GeoTIFF's file (R107.b4); the text formats pass their bytes.
+    Fixture(Window &w, const QString &name, const QByteArray &bytes, const QString &path = {})
+        : window(w) {
         dialog = std::make_unique<TerrainImportDialog>(
-            window.document(), TerrainImportDialog::Setup{name, bytes, themeColors(false)},
-            &window);
+            window.document(),
+            TerrainImportDialog::Setup{name, bytes, themeColors(false), path, {}}, &window);
         dialog->show();
         check(QTest::qWaitForWindowExposed(dialog.get(), 5000), "The dialog shows");
         settle(*dialog);
@@ -323,8 +342,8 @@ void refusalChangesNothing(Window &window, const QString &screenshots) {
     auto &dialog = *f.dialog;
     auto *banner = child<QFrame>(dialog, "terrainImportBanner");
     check(banner->isVisible(), "A refusal shows the banner");
-    check(child<QLabel>(dialog, "terrainImportBannerText")->text().contains("Nothing was changed"),
-          "The banner says nothing was changed");
+    check(child<QLabel>(dialog, "terrainImportBannerText")->text().contains("Nothing was imported"),
+          "The banner says nothing was imported");
     auto *import = child<QPushButton>(dialog, "terrainImportConfirm");
     check(!import->isEnabled(), "A refusal keeps Import disabled");
     check(child<QLabel>(dialog, "terrainImportStatus")->text().startsWith("Refused"),
@@ -347,7 +366,7 @@ void refusalChangesNothing(Window &window, const QString &screenshots) {
     QTest::mouseClick(child<QPushButton>(dialog, "terrainImportCopyReport"), Qt::LeftButton);
     const auto text = QGuiApplication::clipboard()->text();
     check(text == dialog.reportText(), "Copy report puts the text on the clipboard");
-    check(text.contains("Outcome: refused. Nothing was changed.") && text.contains("Refusals") &&
+    check(text.contains("Outcome: refused. Nothing was imported.") && text.contains("Refusals") &&
               text.contains("[crossing-constraints]") && text.contains("more not listed") &&
               text.contains("Notices"),
           "The report text has the outcome, the groups and the truncation");
@@ -404,9 +423,10 @@ void refusalChangesNothing(Window &window, const QString &screenshots) {
 // The dialog audit's checks (R084.u) on the open dialog, in its point-file (units not chosen) and
 // refusal-with-report states: every Tab stop named, Tab and Shift+Tab reach every control in
 // mirrored reading order, and Import is the default button.
-void keyboardAudit(Window &window, const QString &name, const QByteArray &bytes, bool report) {
+void keyboardAudit(Window &window, const QString &name, const QByteArray &bytes, bool report,
+                   const QString &path = {}) {
     window.demo();
-    Fixture f(window, name, bytes);
+    Fixture f(window, name, bytes, path);
     auto &dialog = *f.dialog;
     if (report)
         QTest::mouseClick(child<QPushButton>(dialog, "terrainImportShowReport"), Qt::LeftButton);
@@ -563,6 +583,324 @@ void progressAndCancel(Window &window) {
     }
 }
 
+// ---- R107.b4: the GeoTIFF page (UX_DESIGN §20) ----------------------------------------------
+
+template <class T> T *widgetOf(Window &window) {
+    for (auto *widget : window.findChildren<QWidget *>())
+        if (auto *found = dynamic_cast<T *>(widget))
+            return found;
+    return nullptr;
+}
+QString number(int value) { return QLocale().toString(value); }
+
+// The large plane (700 by 700 posts at 1 arc-second, around 0.1 W 51.5 N): the defaults, the
+// latitude and longitude entry, the live counts, the report with Copy and Save, one undoable import
+// that writes the site's record, and the Credit line under Source in Entity info.
+void geotiffImport(Window &window) {
+    window.demo();
+    auto &doc = window.document();
+    check(!doc.site(), "The demo model has no site origin");
+    const auto history = doc.history().total;
+    Fixture f(window, "plane-f32-tile-deflate-pred3-large-le.tif", {},
+               geotiffFile("plane-f32-tile-deflate-pred3-large-le.tif"));
+    auto &dialog = *f.dialog;
+    auto *import = child<QPushButton>(dialog, "terrainImportConfirm");
+    auto *status = child<QLabel>(dialog, "terrainImportStatus");
+    check(child<QComboBox>(dialog, "terrainImportFormat")->currentData() == "geotiff",
+          "A .tif opens the GeoTIFF format");
+    check(!child<QComboBox>(dialog, "terrainImportUnits")->isVisible(), "A GeoTIFF offers no units");
+    check(!child<QRadioButton>(dialog, "terrainImportDep3")->isChecked() &&
+              !child<QRadioButton>(dialog, "terrainImportGlo30")->isChecked(),
+          "A 1 arc-second file fits both products, so neither is chosen");
+    check(child<QRadioButton>(dialog, "terrainImportDep3")->accessibleName() ==
+              "Source product: USGS 3DEP",
+          "The product radio has its accessible name");
+    check(!import->isEnabled() && status->text() == "Choose the source product: USGS 3DEP or Copernicus GLO-30.",
+          "Import waits for the product: " + status->text().toStdString());
+    QTest::mouseClick(child<QRadioButton>(dialog, "terrainImportDep3"), Qt::LeftButton);
+    settle(dialog);
+    check(status->text() == "Choose the vertical reference to import.",
+          "The file names no vertical reference, so one is asked for: " + status->text().toStdString());
+    check(!dialog.preview()->overlays().file.empty() && !dialog.preview()->overlays().window.empty(),
+          "The file's outline and the window are drawn before the first run");
+    choose(child<QComboBox>(dialog, "terrainImportVertical"), "NAVD88");
+    settle(dialog);
+    check(import->isEnabled() && status->text().startsWith("Ready: ") && status->text().contains("triangles"),
+          "A product and a vertical reference make it ready: " + status->text().toStdString());
+    check(child<QRadioButton>(dialog, "terrainImportWindowCentre")->isChecked(),
+          "With no site origin the window is centre and size");
+    check(child<QDoubleSpinBox>(dialog, "terrainImportWidth")->value() == 1000 &&
+              child<QDoubleSpinBox>(dialog, "terrainImportHeight")->value() == 1000,
+          "The default window is 1,000 m square");
+    const auto grid = child<QLabel>(dialog, "terrainImportDemGrid")->text();
+    check(grid.startsWith("Grid 33 × 33 = " + number(1089) + " posts") && grid.contains("not decimated") &&
+              grid.contains("room left in this model"),
+          "The live counts: " + grid.toStdString());
+    // Latitude and longitude convert to UTM in the window's zone (UX §20.8 question 1).
+    const GeoPosition point{51.5, -0.1};
+    child<QDoubleSpinBox>(dialog, "terrainImportCentreLat")->setValue(point.latitude);
+    child<QDoubleSpinBox>(dialog, "terrainImportCentreLon")->setValue(point.longitude);
+    settle(dialog);
+    const auto utm = geoToUtm(point, 30);
+    check(std::abs(child<QDoubleSpinBox>(dialog, "terrainImportCentreE")->value() - utm.easting) < 0.05 &&
+              std::abs(child<QDoubleSpinBox>(dialog, "terrainImportCentreN")->value() - utm.northing) < 0.05,
+          "A latitude and longitude set the UTM centre");
+    check(import->isEnabled(), "The window at the new centre imports: " + status->text().toStdString());
+    // The report: the source, the digest, the window, the spacing, the labels, the posts and the credit.
+    const auto report = dialog.reportText();
+    const auto digest = dialog.report()["sha256"].toString();
+    check(report.startsWith("Terrain import report: plane-f32-tile-deflate-pred3-large-le.tif") &&
+              report.contains("Outcome: ready") && report.contains("SHA-256: " + digest) &&
+              report.contains("Window: zone 30N · E ") && report.contains(number(1000) + " m square") &&
+              report.contains("Spacing: 31 m (nominal 31 m) · not decimated") &&
+              report.contains("Grid: 33 × 33 = " + number(1089) + " posts") &&
+              report.contains("Datum: WGS84") &&
+              report.contains("Heights: NAVD88, chosen (the file names none) · offset 0.00 m") &&
+              report.contains("Credit: U.S. Geological Survey"),
+          "The report lists the GeoTIFF's facts:\n" + report.toStdString());
+    check(report.contains("Geographic record: written at the origin"),
+          "The report says the import writes the site's record");
+    QTest::mouseClick(child<QPushButton>(dialog, "terrainImportCopyReport"), Qt::LeftButton);
+    check(QGuiApplication::clipboard()->text() == dialog.reportText(),
+          "Copy report puts the report on the clipboard");
+    QTemporaryDir directory;
+    dialog.saveReport(directory.filePath("report.txt"));
+    QFile saved(directory.filePath("report.txt"));
+    check(saved.open(QIODevice::ReadOnly) && QString::fromUtf8(saved.readAll()) == dialog.reportText(),
+          "Save report writes the report text");
+    const auto &overlays = dialog.preview()->overlays();
+    check(overlays.window.size() == 4 && overlays.grid.size() == 4 && overlays.file.size() > 8 &&
+              !overlays.windowOutside,
+          "The preview draws the file, the window and the grid");
+    check(dialog.preview()->accessibleDescription().startsWith(
+              "Window " + number(1000) + " by " + number(1000) + " metres in zone 30N"),
+          "The preview's description gives the window: " +
+              dialog.preview()->accessibleDescription().toStdString());
+    QTest::mouseClick(import, Qt::LeftButton);
+    check(QTest::qWaitFor([&] { return !dialog.isVisible(); }, 5000), "Import closes the dialog");
+    check(dialog.result() == QDialog::Accepted, "Import accepts");
+    check(doc.history().total == history + 1 && doc.history().entries.back().label == "Import terrain",
+          "Import is one labelled edit");
+    const auto terrain = Id(dialog.operation()["terrain"].toString().toULongLong());
+    const auto &site = doc.site();
+    check(site && site->geographic && site->geographic->verticalReference == "NAVD88" &&
+              site->geographic->provenance.kind == "imported" && site->geographic->utmZone == 30 &&
+              site->geographic->utmNorth && site->geographic->provenance.sha256 == digest.toStdString(),
+          "The import writes the site's geographic record, imported, with the file's digest");
+    // The Credit line sits under Source in Entity info (UX §20.7 item 10).
+    window.viewport()->setSelection(terrain);
+    QTest::qWait(5);
+    widgetOf<OrganizationPanel>(window)->showInfo();
+    auto *panel = widgetOf<EntityInfoPanel>(window);
+    check(panel && panel->terrain(), "Entity info has a Terrain section");
+    QTest::qWait(10);
+    panel->refresh();
+    auto *section = panel->terrain();
+    section->refresh();
+    auto *credit = child<QLabel>(*section, "terrainCredit");
+    check(section->isVisible() && credit->isVisible() &&
+              credit->text().startsWith("plane-f32-tile-deflate-pred3-large-le.tif · Credit: U.S. Geological Survey"),
+          "The Terrain section shows the Credit under Source: " + credit->text().toStdString());
+    doc.undo();
+    check(!doc.bodies().contains(terrain) && !doc.site(), "Undo removes the terrain and the site origin");
+    window.viewport()->refresh();
+}
+
+// The 48 by 40 plane (1 arc-second, both products): a window wider than the file is refused by the
+// window; Fit to the file makes it import, its corners lie inside the file, and a GLO-30 import
+// carries its surface notice and its licence in the report.
+void geotiffFit(Window &window) {
+    window.demo();
+    auto &doc = window.document();
+    const auto history = doc.history().total;
+    Fixture f(window, "plane-f32-strip-none-le.tif", {}, geotiffFile("plane-f32-strip-none-le.tif"));
+    auto &dialog = *f.dialog;
+    auto *import = child<QPushButton>(dialog, "terrainImportConfirm");
+    auto *status = child<QLabel>(dialog, "terrainImportStatus");
+    auto *banner = child<QLabel>(dialog, "terrainImportBannerText");
+    QTest::mouseClick(child<QRadioButton>(dialog, "terrainImportGlo30"), Qt::LeftButton);
+    choose(child<QComboBox>(dialog, "terrainImportVertical"), "EGM2008");
+    settle(dialog);
+    check(child<QFrame>(dialog, "terrainImportBanner")->isVisible() &&
+              banner->text().startsWith("✕ Refused. Nothing was imported. Your model is unchanged.") &&
+              banner->text().contains("outside the file"),
+          "A window wider than the file is refused by name: " + banner->text().toStdString());
+    check(!child<QPushButton>(dialog, "terrainImportChooseOther")->isVisible(),
+          "A window refusal does not ask for another file");
+    check(child<QWidget>(dialog, "terrainImportDemBox")->isEnabled() && !import->isEnabled() &&
+              status->text().startsWith("Refused. Nothing was imported."),
+          "The settings stay on, and Import stays off: " + status->text().toStdString());
+    QTest::mouseClick(child<QPushButton>(dialog, "terrainImportFitFile"), Qt::LeftButton);
+    settle(dialog);
+    check(child<QRadioButton>(dialog, "terrainImportWindowCorners")->isChecked(),
+          "Fit to the file sets the window to corners");
+    check(!child<QFrame>(dialog, "terrainImportBanner")->isVisible() && import->isEnabled(),
+          "The fitted window imports: " + status->text().toStdString());
+    // Every post of the fitted window lies in the file (the same test the reader makes per post).
+    const auto facts = geoTiffFacts(geotiffFile("plane-f32-strip-none-le.tif"));
+    const DemWindow fitted{30, true, child<QDoubleSpinBox>(dialog, "terrainImportSwE")->value(),
+                           child<QDoubleSpinBox>(dialog, "terrainImportSwN")->value(),
+                           child<QDoubleSpinBox>(dialog, "terrainImportNeE")->value(),
+                           child<QDoubleSpinBox>(dialog, "terrainImportNeN")->value()};
+    check(demWindowInside(facts, fitted, 16), "The fitted window lies inside the file");
+    const auto report = dialog.reportText();
+    check(report.contains("Outcome: ready, with notices") &&
+              report.contains("Credit: produced using Copernicus WorldDEM-30") &&
+              report.contains("do not incur any liability") &&
+              report.contains("GLO-30 heights are a surface model: buildings and trees are included.") &&
+              report.contains("Heights: EGM2008, chosen (the file names none) · offset 0.00 m") &&
+              report.contains("Datum: WGS84"),
+          "The GLO-30 report carries its licence, notice and surface note:\n" + report.toStdString());
+    check(!child<QFrame>(dialog, "terrainImportMismatch")->isVisible(),
+          "No site, so no mismatch block");
+    QTest::mouseClick(import, Qt::LeftButton);
+    check(QTest::qWaitFor([&] { return !dialog.isVisible(); }, 5000), "Import closes the dialog");
+    check(dialog.result() == QDialog::Accepted && doc.history().total == history + 1,
+          "The fitted import is one edit");
+    doc.undo();
+    window.viewport()->refresh();
+}
+
+// The refusals of the file itself (the banner's first line, the settings grey out, Choose another
+// file), and a window that covers a void post: refused, with its void posts located on the preview.
+void geotiffRefusals(Window &window) {
+    window.demo();
+    auto &doc = window.document();
+    const auto encoded = encodeContainer(doc);
+    const auto revision = doc.revision();
+    const auto history = doc.history().total;
+    for (const char *name : {"refuse-projected.tif", "refuse-jpeg.tif", "refuse-bigtiff.tif"}) {
+        Fixture f(window, name, {}, geotiffFile(name));
+        auto &dialog = *f.dialog;
+        auto *text = child<QLabel>(dialog, "terrainImportBannerText");
+        check(child<QFrame>(dialog, "terrainImportBanner")->isVisible() &&
+                  text->text().startsWith("✕ Refused. Nothing was imported. Your model is unchanged."),
+              std::string(name) + " is refused, and its first line says so: " + text->text().toStdString());
+        check(child<QPushButton>(dialog, "terrainImportChooseOther")->isVisible(),
+              "A refused file offers Choose another file");
+        check(!child<QWidget>(dialog, "terrainImportDemBox")->isEnabled() &&
+                  !child<QPushButton>(dialog, "terrainImportConfirm")->isEnabled(),
+              "The settings grey out and Import stays off");
+        check(dialog.reportText().contains("Outcome: refused. Nothing was imported."),
+              "The report says the file was refused");
+        dialog.reject();
+    }
+    check(encodeContainer(doc) == encoded && doc.revision() == revision && doc.history().total == history,
+          "Refused files change nothing");
+    // A window over the void post (20, 15): its centre is 20.5 by 15.5 arc-seconds into the tile.
+    Fixture f(window, "void-f32-tile-deflate-pred3-le.tif", {}, geotiffFile("void-f32-tile-deflate-pred3-le.tif"));
+    auto &dialog = *f.dialog;
+    QTest::mouseClick(child<QRadioButton>(dialog, "terrainImportDep3"), Qt::LeftButton);
+    choose(child<QComboBox>(dialog, "terrainImportVertical"), "NAVD88");
+    child<QDoubleSpinBox>(dialog, "terrainImportWidth")->setValue(200);
+    child<QDoubleSpinBox>(dialog, "terrainImportHeight")->setValue(200);
+    child<QDoubleSpinBox>(dialog, "terrainImportCentreLat")->setValue(51.6 - 15.5 / 3600);
+    child<QDoubleSpinBox>(dialog, "terrainImportCentreLon")->setValue(-0.2 + 20.5 / 3600);
+    settle(dialog);
+    const auto banner = child<QLabel>(dialog, "terrainImportBannerText")->text();
+    check(banner.contains("Nothing was imported.") && banner.contains("depend on no-data posts"),
+          "A window over a void is refused by name: " + banner.toStdString());
+    check(!dialog.preview()->overlays().voids.empty() &&
+              dialog.preview()->overlays().voidLabel.contains("void posts"),
+          "The void posts are located on the preview");
+    check(dialog.reportText().contains("Void posts, E and N in metres"), "The report lists the void posts");
+    dialog.reject();
+    check(encodeContainer(doc) == encoded && doc.history().total == history,
+          "A refused window changes nothing");
+}
+
+// The whole large tile, fitted: more posts than the terrain's limits allow at 31 m, so the grid is
+// decimated. The grid line says so, the amber notice under the spacing names both spacings, and the
+// report carries the decimation's notice (UX §20.2).
+void geotiffDecimation(Window &window) {
+    window.demo();
+    Fixture f(window, "plane-f32-tile-deflate-pred3-large-le.tif", {},
+              geotiffFile("plane-f32-tile-deflate-pred3-large-le.tif"));
+    auto &dialog = *f.dialog;
+    QTest::mouseClick(child<QRadioButton>(dialog, "terrainImportDep3"), Qt::LeftButton);
+    choose(child<QComboBox>(dialog, "terrainImportVertical"), "NAVD88");
+    QTest::mouseClick(child<QPushButton>(dialog, "terrainImportFitFile"), Qt::LeftButton);
+    settle(dialog);
+    const auto grid = child<QLabel>(dialog, "terrainImportDemGrid")->text();
+    check(grid.contains("decimated") && !grid.contains("not decimated"),
+          "The grid line says it is decimated: " + grid.toStdString());
+    const auto caption = child<QLabel>(dialog, "terrainImportDemSpacingCaption")->text();
+    check(caption.startsWith("⚠ Too many triangles at 31 m, so the spacing is "),
+          "The amber notice names both spacings: " + caption.toStdString());
+    const auto report = dialog.reportText();
+    check(report.contains("Spacing: ") && report.contains("(nominal 31 m) · decimated") &&
+              report.contains("Too many triangles at 31 m, so the spacing is "),
+          "The report carries the decimation:\n" + report.toStdString());
+    check(child<QPushButton>(dialog, "terrainImportConfirm")->isEnabled(),
+          "A decimated window still imports: " +
+              child<QLabel>(dialog, "terrainImportStatus")->text().toStdString());
+    dialog.reject();
+}
+
+// The mismatch with the site's vertical reference: the terrain's EGM2008 against the site's NAVD88
+// record. The refusal names both references, the block asks for an offset and a note, and with
+// them the import is one edit that keeps the site's record (it is never overwritten).
+void geotiffMismatch(Window &window) {
+    window.demo();
+    auto &doc = window.document();
+    {
+        Fixture f(window, "plane-f32-strip-none-le.tif", {}, geotiffFile("plane-f32-strip-none-le.tif"));
+        auto &dialog = *f.dialog;
+        QTest::mouseClick(child<QRadioButton>(dialog, "terrainImportDep3"), Qt::LeftButton);
+        choose(child<QComboBox>(dialog, "terrainImportVertical"), "NAVD88");
+        QTest::mouseClick(child<QPushButton>(dialog, "terrainImportFitFile"), Qt::LeftButton);
+        settle(dialog);
+        QTest::mouseClick(child<QPushButton>(dialog, "terrainImportConfirm"), Qt::LeftButton);
+        check(QTest::qWaitFor([&] { return !dialog.isVisible(); }, 5000), "The first import closes");
+    }
+    check(doc.site() && doc.site()->geographic && doc.site()->geographic->verticalReference == "NAVD88",
+          "The site's record is NAVD88");
+    const auto history = doc.history().total;
+    const auto position = doc.history().position;
+    Fixture f(window, "plane-f32-strip-none-le.tif", {}, geotiffFile("plane-f32-strip-none-le.tif"));
+    auto &dialog = *f.dialog;
+    auto *import = child<QPushButton>(dialog, "terrainImportConfirm");
+    auto *offset = child<QDoubleSpinBox>(dialog, "terrainImportOffset");
+    QTest::mouseClick(child<QRadioButton>(dialog, "terrainImportDep3"), Qt::LeftButton);
+    choose(child<QComboBox>(dialog, "terrainImportVertical"), "EGM2008");
+    QTest::mouseClick(child<QPushButton>(dialog, "terrainImportFitFile"), Qt::LeftButton);
+    settle(dialog);
+    auto *mismatch = child<QFrame>(dialog, "terrainImportMismatch");
+    check(mismatch->isVisible() &&
+              child<QLabel>(dialog, "terrainImportMismatchText")->text() ==
+                  "The heights are EGM2008. The site's elevation is NAVD88.",
+          "The mismatch block names both references");
+    check(!import->isEnabled() &&
+              child<QLabel>(dialog, "terrainImportBannerText")->text().contains(
+                  "The heights are EGM2008, and the site's elevation is NAVD88. Enter an offset and a note"),
+          "The refusal names both references: " +
+              child<QLabel>(dialog, "terrainImportBannerText")->text().toStdString());
+    check(dialog.reportText().contains("Geographic record: not written: the site keeps its own record"),
+          "The report says the site keeps its record");
+    offset->setValue(0.5);
+    QTest::keyClicks(child<QLineEdit>(dialog, "terrainImportWhy"), "Survey datum shift");
+    settle(dialog);
+    check(import->isEnabled(), "An offset and a note let the mixed heights in: " +
+                                   child<QLabel>(dialog, "terrainImportStatus")->text().toStdString());
+    QTest::mouseClick(import, Qt::LeftButton);
+    check(QTest::qWaitFor([&] { return !dialog.isVisible(); }, 5000), "Import closes the dialog");
+    check(dialog.result() == QDialog::Accepted && doc.history().total == history + 1,
+          "The mixed import is one edit");
+    const auto terrain = Id(dialog.operation()["terrain"].toString().toULongLong());
+    const auto &record = *doc.bodies().at(terrain)->terrain;
+    check(record.provenance.dem && record.provenance.dem->verticalOffset == 0.5 &&
+              record.provenance.dem->verticalNote == "Survey datum shift" &&
+              record.provenance.dem->vertical == "EGM2008",
+          "The terrain keeps its offset, its note and its own reference");
+    check(doc.site()->geographic->verticalReference == "NAVD88" &&
+              doc.site()->geographic->provenance.kind == "imported",
+          "The site's record is not overwritten");
+    doc.undo();
+    check(doc.history().position == position && !doc.bodies().contains(terrain),
+          "Undo takes the mixed import back");
+    window.viewport()->refresh();
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -589,11 +927,22 @@ int main(int argc, char **argv) {
         std::cout << "refusal changes nothing; report copy; location zoom\n";
         keyboardAudit(window, "survey.csv", smallPnezd(), false);
         keyboardAudit(window, "invalid.dxf", terrain_fixture::terrainInvalid(), true);
+        keyboardAudit(window, "plane-f32-strip-none-le.tif", {}, false, geotiffFile("plane-f32-strip-none-le.tif"));
         std::cout << "keyboard audit\n";
         menuImport(window, screenshots);
         std::cout << "menu import is one undoable edit\n";
         progressAndCancel(window);
         std::cout << "progress and cancel\n";
+        geotiffImport(window);
+        std::cout << "GeoTIFF page: defaults, latitude and longitude, the report, the import and the Credit\n";
+        geotiffFit(window);
+        std::cout << "GeoTIFF page: a window outside the file, Fit to the file, the GLO-30 report\n";
+        geotiffRefusals(window);
+        std::cout << "GeoTIFF refusals, and the located voids\n";
+        geotiffDecimation(window);
+        std::cout << "GeoTIFF decimation: the grid line, the amber notice and the report\n";
+        geotiffMismatch(window);
+        std::cout << "GeoTIFF mismatch: an offset and a note, the site's record kept\n";
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;

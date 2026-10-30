@@ -821,6 +821,21 @@ inline std::vector<Case> cases(Context &ctx) {
          terrainSettles,
          {chooseFile("Import terrain", QDir(ctx.files).filePath("contours.dxf"))},
          "Import adds the terrain to the open model in one undoable edit."});
+    // R107.b4 (UX §20.6): a GeoTIFF with neither product nor vertical reference chosen; Import waits.
+    add({"terrain-import-geotiff",
+         "import",
+         "Import terrain (GeoTIFF, product and vertical reference not chosen)",
+         "Import terrain… > file name",
+         writeImportSources,
+         viaPalette("Import terrain…"),
+         named("terrainImportDialog"),
+         Enter::Disabled,
+         "Import",
+         Return::Viewport,
+         {},
+         terrainSettles,
+         {chooseFile("Import terrain", source("tests/fixtures/geotiff/plane-f32-strip-none-le.tif"))},
+         "Import waits for the source product and the vertical reference."});
     // R095.e1: the terrain actions on the selected terrain (command search; the Entity info
     // Terrain section's buttons trigger the same actions).
     const auto settingsSettle = [](QWidget &dialog) {

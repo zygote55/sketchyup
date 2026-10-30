@@ -69,6 +69,11 @@ TerrainSection::TerrainSection(Document &doc, Viewport &view, QWidget *parent)
     name_ = field(form, "Name", "terrainName");
     triangles_ = field(form, "Triangles", "terrainTriangles");
     source_ = field(form, "Source", "terrainSource");
+    // R107.b4 (UX §20.7 item 10, §20.8 question 4): a DEM terrain's credit, under its Source.
+    credit_ = field(form, "Credit", "terrainCredit");
+    creditRow_ = form->labelForField(credit_);
+    creditRow_->hide();
+    credit_->hide();
     sources_ = field(form, "Sources", "terrainSources");
     elevation_ = field(form, "Elevation", "terrainElevation");
     generator_ = field(form, "Generator", "terrainGenerator");
@@ -213,6 +218,17 @@ void TerrainSection::refresh() {
         source_->setToolTip("SHA-256 " + digest);
     }
     source_->setAccessibleDescription(source_->toolTip());
+    // The credit and the no-liability notice of the product, in full, with the file's name.
+    const auto &dem = provenance.dem;
+    credit_->setVisible(bool(dem));
+    creditRow_->setVisible(bool(dem));
+    if (dem) {
+        auto text = QString::fromStdString(dem->sourceName) + " · " + QString::fromStdString(dem->credit);
+        if (!dem->disclaimer.empty())
+            text += "\n" + QString::fromStdString(dem->disclaimer) + ".";
+        credit_->setText(text);
+        credit_->setAccessibleDescription(text);
+    }
     std::size_t contours = 0, breaklines = 0, boundaries = 0, holes = 0, points = 0;
     for (const auto &source : record.sources)
         switch (source.role) {
