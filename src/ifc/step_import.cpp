@@ -39,6 +39,7 @@
 #include "BRep_Builder.hxx"
 #include "BRep_Tool.hxx"
 #include "HeaderSection_FileSchema.hxx"
+#include "OSD_ThreadPool.hxx"
 #include "IFSelect_ReturnStatus.hxx"
 #include "Interface_EntityIterator.hxx"
 #include "Interface_InterfaceModel.hxx"
@@ -425,12 +426,11 @@ bool mirrorLocation(const TopLoc_Location& loc) {
 // it outward, and a reversed face under a mirror instance is stored forward.
 SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, const double angleRadians,
                           const double metresPerUnit, const bool instanceMirror, const FaceColours& faceColours,
-                          const ColorDecision& partColour) {
+                          const ColorDecision& partColour, const bool inParallel) {
   SolidMesh out;
   try {
-    // The constructor performs the meshing (OCCT 7.9.3; not parallel, so the output is
-    // deterministic).
-    BRepMesh_IncrementalMesh(solid, deflectionMm, Standard_False, angleRadians, Standard_False);
+    // The constructor performs the meshing: in parallel on OCCT's default pool when the options ask for threads (R098.k).
+    BRepMesh_IncrementalMesh(solid, deflectionMm, Standard_False, angleRadians, inParallel);
   } catch (const Standard_Failure& failure) {
     out.error = failure.GetMessageString();
     return out;
@@ -752,6 +752,11 @@ std::string engineReportJson() {
   return j.str();
 }
 
+// The refusal of a file over the entity cap (R098.k): the count and the limit, under the 240 bytes a refusal carries.
+std::string entityLimitMessage(long long entities, long long limit) {
+  return "The file has " + std::to_string(entities) + " entities; the limit is " + std::to_string(limit) + ".";
+}
+
 }  // namespace
 
 std::string importStep(const StepImportOptions& options) {
@@ -787,11 +792,16 @@ std::string importStep(const StepImportOptions& options) {
     // The unit the import applies (ADR 0172 decision 4): the file's declared unit is
     // authoritative, the option stands only when nothing is declared, and a unit is never
     // guessed.
-    model = readStepModel(options.file);
-    units = decideUnits(file, model, options.lengthUnitOverride);
-    status = units.status;
-    notices = units.notices;
-    mmPerUnit = units.mmPerUnit;
+    model = readStepModel(options.file, options.maxEntities);
+    if (model.overEntityLimit) {
+      status = "refused-entities";
+      notices.push_back(entityLimitMessage(model.entities, options.maxEntities));
+    } else {
+      units = decideUnits(file, model, options.lengthUnitOverride);
+      status = units.status;
+      notices = units.notices;
+      mmPerUnit = units.mmPerUnit;
+    }
   }
 
   if (!model.read) model = readStepModel(options.file);
@@ -884,6 +894,7 @@ int runStepImportPackage(const StepImportOptions& options) {
   if (!std::isfinite(options.angleDeg) || options.angleDeg <= 0.0 || options.angleDeg > 180.0) return refuse("angle", "The crease angle must be in (0, 180] degrees.");
   if (options.maxTrianglesPerElement < 1) return refuse("cap", "The per-element triangle cap must be at least 1.");
   if (options.maxTotalTriangles < 1) return refuse("cap", "The total triangle cap must be at least 1.");
+  if (options.maxEntities < 1) return refuse("cap", "The entity cap must be at least 1.");
 
   // ADR 0172 §2 decision 4 (the probe's facts as the source): the file's declaration wins a mismatch,
   // the option stands only for a file that declares nothing, an unconvertible unit is refused, a unit
@@ -891,9 +902,10 @@ int runStepImportPackage(const StepImportOptions& options) {
   // (a resolved unit context normalises it to the cascade unit, millimetres; without one it stays in
   // the file's own unit), so the one scale step is the file's unit to metres (toMetres, the report's
   // mmPerUnit). Nothing is ever silently rescaled.
-  const StepModelFacts model = readStepModel(options.file);
+  const StepModelFacts model = readStepModel(options.file, options.maxEntities);
   if (!model.read || !model.error.empty())
     return refuse("read", model.error.empty() ? "The STEP reader failed to read the file." : clip(model.error, 200));
+  if (model.overEntityLimit) return refuse("entityLimit", entityLimitMessage(model.entities, options.maxEntities));
   const UnitDecision units = decideUnits(file, model, options.lengthUnitOverride);
   if (!units.status.empty()) return refuse(units.status == "refused-option" ? "option" : "units", units.notices.front());
   const double toMetres = units.mmPerUnit * 0.001;  // file unit -> metres: the package's unit, the only scale step
@@ -1217,6 +1229,11 @@ int runStepImportPackage(const StepImportOptions& options) {
                                                           // state) -> its package mesh
   const double deflection = options.deflectionMm / units.mmPerUnit;  // millimetres, in the shape's (file's) unit
   const double angleRadians = options.angleDeg * kPi / 180.0;
+  // R098.k (ADR 0172 section 6): the tessellation's threads, clamped as the IFC import's are. BRepMesh runs on OCCT's
+  // default pool, which takes its size from its first use.
+  const int threads = std::max(1, std::min(options.threads, 4));
+  const bool parallel = threads > 1;
+  if (parallel) OSD_ThreadPool::DefaultPool(threads);
   progress.phase("tessellate");
   progress.tasks(static_cast<std::uint32_t>(baseLabels.size()));
   for (std::size_t baseIndex_ = 0; baseIndex_ < baseLabels.size(); ++baseIndex_) {
@@ -1298,7 +1315,7 @@ int runStepImportPackage(const StepImportOptions& options) {
     // 0172 section 7 rule; the instance's mirror is the second factor, the flip argument).
     const ColorDecision color = colorOf(base);  // the file's colour (the reader's colour propagation)
     const FaceColours faceColours = faceColoursOf(shapeTool, base);
-    SolidMesh mesh = tessellateSolid(solidShape, deflection, angleRadians, toMetres, false, faceColours, color);
+    SolidMesh mesh = tessellateSolid(solidShape, deflection, angleRadians, toMetres, false, faceColours, color, parallel);
     if (!mesh.ok) {
       report.notImported("StepPart", "tessellation-failed", 1);
       report.kernelMessage("tessellation", clip(mesh.error, 64), "error", clip(mesh.error, 240));
@@ -1367,7 +1384,7 @@ int runStepImportPackage(const StepImportOptions& options) {
         break;
       }
     if (needMirror) {
-      SolidMesh mirror = tessellateSolid(solidShape, deflection, angleRadians, toMetres, true, faceColours, color);
+      SolidMesh mirror = tessellateSolid(solidShape, deflection, angleRadians, toMetres, true, faceColours, color, parallel);
       if (mirror.ok && mirror.triangles > 0 && mirror.triangles <= options.maxTrianglesPerElement
           && triangles + mirror.triangles <= options.maxTotalTriangles) {
         PackageMesh mpm;

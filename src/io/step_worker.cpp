@@ -246,7 +246,8 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
                      "--step-deflection-mm", QString::number(options.deflectionMm, 'g', 12),
                      "--step-angle-deg", QString::number(options.angleDeg, 'g', 12),
                      "--step-max-triangles", QString::number(options.maxTrianglesPerElement),
-                     "--step-max-total-triangles", QString::number(options.maxTotalTriangles)};
+                     "--step-max-total-triangles", QString::number(options.maxTotalTriangles),
+                     "--step-max-entities", QString::number(options.maxEntities)};
     if (!options.lengthUnitOverride.isEmpty())
         args << "--step-length-unit" << options.lengthUnitOverride;
     for (const int base : excluded)

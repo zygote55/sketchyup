@@ -340,7 +340,7 @@ StepShapeFacts shapeFacts(const TopoDS_Shape& shape) {
 
 }  // namespace
 
-StepModelFacts readStepModel(const std::string& path) {
+StepModelFacts readStepModel(const std::string& path, long long maxEntities) {
   StepModelFacts facts;
   // The "declared" fact: the reader has no API for it (no FileUnitsDeclared in 7.9.3), so
   // the raw text is asked: a LENGTH_UNIT entity is a declared unit, whatever the reader
@@ -401,6 +401,11 @@ StepModelFacts readStepModel(const std::string& path) {
     }
     facts.entities = reader.Model()->NbEntities();
     facts.roots = reader.NbRootsForTransfer();
+    // R098.k: the cap is checked before the first transfer, so a file over it costs the read and no more.
+    if (maxEntities > 0 && facts.entities > maxEntities) {
+      facts.overEntityLimit = true;
+      return facts;
+    }
     facts.transferred = reader.TransferRoots();
     for (int i = 1; i <= reader.NbShapes(); ++i) {
       StepShapeFacts shape = shapeFacts(reader.Shape(i));

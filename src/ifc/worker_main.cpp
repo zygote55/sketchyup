@@ -74,6 +74,7 @@ void usage(std::FILE* stream) {
       "           read a STEP file with the basic OCCT reader and print what it reports as JSON\n"
       "       sketchyup-ifc-worker --import-step FILE.step [--output PKG] [--step-length-unit mm|cm|m|in|ft]\n"
       "           [--step-deflection-mm N] [--step-angle-deg N] [--step-max-triangles N] [--step-max-total-triangles N]\n"
+      "           [--step-max-entities N]\n"
       "           [--exclude-step N]...\n"
       "           [--rlimit-as BYTES] [--rlimit-cpu SECONDS] [--rlimit-fsize BYTES]\n"
       "           read a STEP file, apply the ADR 0172 unit policy; without --output print the metadata as\n"
@@ -285,6 +286,8 @@ int main(int argc, char** argv) {
         else if (argument == "--step-angle-deg" && hasValue) options.angleDeg = std::stod(argv[++i]);
         else if (argument == "--step-max-triangles" && hasValue) options.maxTrianglesPerElement = std::stoull(argv[++i]);
         else if (argument == "--step-max-total-triangles" && hasValue) options.maxTotalTriangles = std::stoull(argv[++i]);
+        else if (argument == "--step-max-entities" && hasValue) options.maxEntities = std::stoll(argv[++i]);
+        else if (argument == "--step-threads" && hasValue) options.threads = std::stoi(argv[++i]);
         else if (argument == "--exclude-step" && hasValue) options.excludeSteps.push_back(std::stoi(argv[++i]));
         else if (argument == "--rlimit-as" && hasValue) { if (!setLimit(RLIMIT_AS, argv[++i])) return fail("cannot set RLIMIT_AS"); }
         else if (argument == "--rlimit-cpu" && hasValue) { if (!setLimit(RLIMIT_CPU, argv[++i])) return fail("cannot set RLIMIT_CPU"); }
