@@ -746,3 +746,63 @@ What R107.b1.1 built, what it refused, and what it measured. The sections above 
 
 - §7.3 refuses "more than one image in a file". The 3DEP tiles contain overview images. Stated above; a decision is needed.
 - §7.2 and §2.8: the post-step bound (1e-9) refused the real 1/3 arc-second step. The ADR's own subset includes 1/3 arc-second, so this was a defect against the ADR, now fixed.
+
+## Implementation notes (R107.b1.2)
+
+What R107.b1.2 built, what it refused, and what it measured. The sections above stay as the design, and §7.2 and §7.3 are amended in place (marked "R107.b1.2, parent decision 2026-10-30"). The brief was the parent's decision of 2026-10-30, which delivers owner decision 3 for 3DEP: read the full-resolution image, skip the reduced-resolution overviews as GDAL does by default, and keep refusing any further image that is not reduced-resolution.
+
+**The rule as built** (`src/io/geotiff.cpp`: `readDirectory`, `readLaterImage` and `checkFurtherImages`).
+
+- **The first image** is refused by name if its NewSubfileType has bit 0 set (an overview) or bit 2 set (a transparency mask). The brief asked for the bit 0 check only. The bit 2 check is an addition: a mask read as elevation would give wrong heights with no error. The parent should confirm it.
+- **Each later image** is walked by its directory only. The reader reads its link to the next directory and its NewSubfileType (tag 254), and no other tag value. Its blocks are never read or decoded.
+  - Bit 0 set: the image is an overview. It is skipped.
+  - Bit 0 clear: it is refused by name, with its number in the file and the reason. A second full-resolution image is "a second full-resolution image (NewSubfileType N, bit 0 clear)". A mask without bit 0 is "a transparency mask without the reduced-resolution bit (NewSubfileType N)".
+- **The bound.** At most 16 later images are walked. The 17th link is refused by name before its directory is read.
+- **Links.** A link below offset 8, or at or past the end of the file, is refused by name. A link to a directory already walked is a loop, refused by name.
+- A NewSubfileType tag that is not one SHORT or LONG value is refused as malformed.
+
+**The real 3DEP tile, as downloaded.** USGS `n35w119`, 1 arc-second, from the `prd-tnm` bucket, downloaded 2026-10-30 into the worktree's ignored `build/` and not committed. It is 54,875,665 bytes with SHA-256 `7e378d44621ce06260c81b3d6330f4e03d5f3caed9559323a959eb035130cba8`. It holds four images: the full image (3612 by 3612 posts, no NewSubfileType) and three overviews (1806, 903 and 451 posts a side, NewSubfileType 1). All four are tiled LZW. tifffile 2026.10.15 reads the same four pages.
+
+Command, on the file unmodified:
+
+```
+sketchyup-cli --import-terrain USGS_1_n35w119.tif --dem-source 3dep \
+  --dem-window 361789.4,3818118.4,362789.4,3819118.4 --dem-zone 11N \
+  --dem-vertical NAVD88 --output window-1km.sketchyup
+```
+
+| Measure | Result |
+|---|---|
+| Outcome | `importedWithNotices`: the NAD83 datum approximation and the vertical label from the option |
+| Posts read | 1,089 (33 by 33 at 31 m, the nominal size); 0 voids; 0 outside the file |
+| Blocks decoded | 1 |
+| Triangles | 2,048 |
+| Heights (the file's heights, since the origin's elevation is 0) | 500.44 to 717.46 m |
+| Peak raster held | 2,982,695 bytes (2.8 MiB) |
+| Wall time | 0.160 s on the first run (the file just downloaded); 0.064 to 0.081 s on three warm runs |
+| Peak RSS | 29.6 MiB (first run); 30.5 to 31.2 MiB (warm runs) |
+| Native file | schema 34, 119,358 bytes; `--validate-native` reports `valid: true` |
+
+These match the R107.b1.1 measurements of the same window on the copy with the overview links removed: 33 by 33 posts, 2,048 triangles, one block, no voids and a 2.8 MiB peak raster. The reader decodes the same full-resolution blocks as before; only the overviews are new to the walk.
+
+**Fixtures** (`tests/fixtures/geotiff`, from `make_geotiff_fixtures.py`). The generator writes further images from its `overviews` key. The 38 committed fixtures regenerate byte for byte.
+
+- Accepted: `plane-f32-tile-lzw-pred3-overviews-le.tif` (the plane, with two LZW overviews of 24 by 20 and 12 by 10 posts, as in the real tile); `plane-f32-tile-lzw-pred3-overviews-undecodable-le.tif` (the same, but its overview blocks are undecodable LZW, so the file is read only if no overview is decoded); `plane-f32-strip-none-overviews16-le.tif` (sixteen overviews, the bound).
+- Refused: `refuse-mask-image.tif` (a mask after the full image); `refuse-ifd-loop.tif` (the overview links back to the full image); `refuse-overviews-17.tif` (seventeen overviews); `refuse-reduced-first.tif` (the first image is an overview); `refuse-mask-first.tif` (the first image is a mask).
+- Kept: `refuse-two-images.tif`, a second full-resolution image. Its refusal now names image 2 and the reason.
+
+**Tests.** `geotiff` gets the case `overviews and further images (R107.b1.2)`: the plane is exact at every post of each accepted file; the full image keeps its 1 arc-second scale and its nine tiles; the second image is named by number and reason; and a link past the end of the file is refused by name. The refusal list covers the five new refusals. The corruption sweep also edits the overview file's links, and no edit reaches a crash or an exception other than `GeoTiffRefusal`.
+
+- Release (GCC, CLI on, desktop off): `geotiff`, `terrain_import` and `parser_fault_corpus` pass.
+- The sanitize preset (AddressSanitizer and UBSan): `geotiff`, `terrain_import` and `parser_fault_corpus` pass. Running `geotiff_tests` directly reports no sanitizer message. The sanitize preset builds `geotiff_tests` only with the CLI on, so the configure adds `-DSKETCHYUP_BUILD_CLI=ON`.
+
+**Fuzzing** (ADR 0181 §8 V7). `parser_fuzz_geotiff` was built with clang (RelWithDebInfo, `-O1 -g`, with the libFuzzer, AddressSanitizer and UBSan options of `docs/PARSER_FUZZING.md`). Its seeds are 44: the 36 from R107.b1.1 and the 8 new fixtures. The run lasted 661 seconds with `-max_len=1048576 -timeout=10 -rss_limit_mb=3072`: 8,406,500 executions, no crash, no sanitizer report, no artifact, and a peak RSS of 597 MB. Coverage grew from 1,380 to 1,873 edges and the corpus from 40 to 526 units.
+
+**Contradictions and open points.**
+
+- §7.3 refused "more than one image in a file". The 3DEP tiles hold overviews, so the refusal now names only a second full-resolution image or a mask. This closes the question R107.b1.1 left open.
+- The first-image mask refusal (bit 2) goes beyond the parent's decision. See above.
+- The sanitized failure matrix of R083 was not run for this target, as for R107.b1 and R107.b1.1.
+- The full CI tier was not waited for; the fast tier is the gate for this PR.
+
+**Not done in this slice.** The desktop import dialog, lat/lon windows and holes for voids (all as in R107.b1.1). Heights were not compared pixel by pixel with tifffile in this run. The structure of the real file was checked with tifffile, and the decode path is the one R107.b1.1 checked.
