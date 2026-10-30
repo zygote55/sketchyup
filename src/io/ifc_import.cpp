@@ -91,6 +91,11 @@ struct MeshGeometry {
     std::shared_ptr<Body> body; // geometry only; ids, name, tag, transform and properties are the node's
     GeometryStats stats;
     Vec3 lo{}, hi{};
+    // R098.j: the feature edges, the edge appearances and the materials are made by finishMeshGeometry, when the
+    // document accepts the body. They count against no limit, and a body the document refuses does not need them.
+    bool finished{};
+    std::vector<Id> vertexOf;  // mesh vertex -> welded vertex
+    std::map<Id, Id> desired; // face -> material (0: none); colours are kept in body.faceColors
 };
 struct TriRecord {
     Id a, b, c;
@@ -301,10 +306,32 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     }
     body.topology = Topology::rebuild(surface, {});
     result.stats.edges = body.topology.edges.size();
+    bool first = true;
+    for (const auto &[id, p] : surface.vertices) {
+        if (first) {
+            result.lo = result.hi = p;
+            first = false;
+        }
+        result.lo = {std::min(result.lo.x, p.x), std::min(result.lo.y, p.y), std::min(result.lo.z, p.z)};
+        result.hi = {std::max(result.hi.x, p.x), std::max(result.hi.y, p.y), std::max(result.hi.z, p.z)};
+    }
+    result.vertexOf = std::move(vertexOf);
+    result.desired = std::move(desired);
+    return result;
+}
+
+// R098.j: the rest of what a body needs (ADR 0171 section 3.3), made once, when the document accepts it. The
+// topology and its counts were made by buildMeshGeometry. These maps are the bulk of the work for a body the
+// document refuses, and no limit counts them.
+void finishMeshGeometry(MeshGeometry &result, const IfcPackageMesh &mesh) {
+    if (result.finished)
+        return;
+    Body &body = *result.body;
+    Surface &surface = body.surface;
     // Edges: the worker's feature edges stay visible; the interior of a surface becomes soft and smooth.
     std::set<std::pair<Id, Id>> feature;
     for (const auto &edge : mesh.featureEdges) {
-        Id a = vertexOf[edge[0]], b = vertexOf[edge[1]];
+        Id a = result.vertexOf[edge[0]], b = result.vertexOf[edge[1]];
         if (a == b)
             continue;
         feature.insert({std::min(a, b), std::max(a, b)});
@@ -322,7 +349,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     // The body's default material is the most used one; a face that differs (including a face with
     // none, or with a colour of its own) keeps an explicit assignment.
     std::map<Id, std::size_t> counts;
-    for (const auto &[face, material] : desired)
+    for (const auto &[face, material] : result.desired)
         ++counts[material];
     Id best = 0;
     std::size_t bestCount = 0;
@@ -332,19 +359,10 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
             bestCount = count;
         }
     body.materials = MaterialSides{best, best};
-    for (const auto &[face, material] : desired)
+    for (const auto &[face, material] : result.desired)
         if (material != best)
             body.faceMaterials[face] = MaterialSides{material, material};
-    bool first = true;
-    for (const auto &[id, p] : surface.vertices) {
-        if (first) {
-            result.lo = result.hi = p;
-            first = false;
-        }
-        result.lo = {std::min(result.lo.x, p.x), std::min(result.lo.y, p.y), std::min(result.lo.z, p.z)};
-        result.hi = {std::max(result.hi.x, p.x), std::max(result.hi.y, p.y), std::max(result.hi.z, p.z)};
-    }
-    return result;
+    result.finished = true;
 }
 
 // ---- Tags ----------------------------------------------------------------------------------------
@@ -650,7 +668,7 @@ class Converter {
     void note(const std::string &code, long long count = 1) { notices[code] += count; }
     Id tagFor(const IfcPackageNode &node);
     Id materialFor(std::uint32_t index);
-    const MeshGeometry &geometryFor(std::size_t mesh);
+    MeshGeometry &geometryFor(std::size_t mesh);
     std::vector<NodeProps> planProperties(std::size_t aggregateBudget);
     Attempt build(std::size_t aggregateBudget);
     // The worker's georeference block, checked: the report's block, and the site origin the document gets (if any).
@@ -727,7 +745,7 @@ Id Converter::materialFor(std::uint32_t index) {
     return record->id;
 }
 
-const MeshGeometry &Converter::geometryFor(std::size_t mesh) {
+MeshGeometry &Converter::geometryFor(std::size_t mesh) {
     const auto found = geometry.find(mesh);
     if (found != geometry.end())
         return found->second;
@@ -1077,7 +1095,7 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
         }
         const bool hasMesh = node.mesh >= 0;
         const auto meshIndex = std::size_t(std::max<std::int64_t>(node.mesh, 0));
-        const MeshGeometry *mesh = nullptr;
+        MeshGeometry *mesh = nullptr;
         if (hasMesh) {
             mesh = &geometryFor(meshIndex);
             if (mesh->stats.empty) {
@@ -1141,6 +1159,8 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
             skipNode(i, "documentLimit:" + exceeded);
             continue;
         }
+        if (geometric)
+            finishMeshGeometry(*mesh, pkg.meshes[meshIndex]);
 
         const Id tag = tagFor(node);
         const std::string name = plainText(node.name, 256);
