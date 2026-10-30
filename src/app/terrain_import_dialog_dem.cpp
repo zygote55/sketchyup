@@ -5,6 +5,8 @@
 #include "io/geotiff_terrain.hpp"
 #include <QButtonGroup>
 #include <QComboBox>
+#include <QCoreApplication>
+#include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
 #include <QFrame>
@@ -17,6 +19,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QStringList>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
@@ -94,6 +97,14 @@ std::optional<std::pair<int, bool>> utmOfCrs(const std::string &crs) {
         return std::pair{code - 32700, false};
     return std::nullopt;
 }
+// The installed user guide, at the GeoTIFF page's section (UX §20.1). The package puts it in
+// share/doc/sketchyup beside the application's bin folder, as the assemblies are found.
+QUrl userGuideUrl() {
+    const auto base = QCoreApplication::applicationDirPath();
+    QUrl url = QUrl::fromLocalFile(QDir::cleanPath(base + "/../share/doc/sketchyup/USER_GUIDE.md"));
+    url.setFragment("terrain-from-a-downloaded-elevation-file");
+    return url;
+}
 } // namespace
 
 void TerrainImportDialog::buildGeoTiff(QVBoxLayout *column) {
@@ -158,6 +169,22 @@ void TerrainImportDialog::buildGeoTiff(QVBoxLayout *column) {
     verticalRow->addWidget(captionLabel("Vertical"), 0, 0, Qt::AlignTop);
     verticalRow->addLayout(verticalColumn, 0, 1);
     box->addLayout(source);
+
+    // Where to get the file (UX §20.1): the guide explains the download, and nothing is fetched.
+    auto *getFile = new QHBoxLayout;
+    getFile->setSpacing(10);
+    auto *getFileText = captionLabel("Get the file: the user guide explains how to download a 3DEP "
+                                     "or GLO-30 tile. SketchyUp does not download it.");
+    getFileText->setTextFormat(Qt::PlainText);
+    getFileText->setWordWrap(true);
+    userGuide_ = new QPushButton("Open the user guide");
+    userGuide_->setObjectName("terrainImportUserGuide");
+    userGuide_->setAccessibleName("Open the user guide");
+    userGuide_->setAutoDefault(false);
+    userGuide_->setEnabled(bool(setup_.openUserGuide));
+    getFile->addWidget(getFileText, 1);
+    getFile->addWidget(userGuide_, 0, Qt::AlignTop);
+    box->addLayout(getFile);
 
     auto *affiliation = captionLabel("Provider names identify the sources only. SketchyUp is not "
                                      "affiliated with USGS or Copernicus.");
@@ -355,7 +382,8 @@ void TerrainImportDialog::buildGeoTiff(QVBoxLayout *column) {
 
     // The page's own Tab order (UX §20.6); the units and the point settings sit around it.
     setTabOrder(dep3_, glo30_);
-    setTabOrder(glo30_, windowOrigin_);
+    setTabOrder(glo30_, userGuide_);
+    setTabOrder(userGuide_, windowOrigin_);
     setTabOrder(windowOrigin_, windowCentre_);
     setTabOrder(windowCentre_, centreE_);
     setTabOrder(centreE_, centreN_);
@@ -450,6 +478,11 @@ void TerrainImportDialog::buildGeoTiff(QVBoxLayout *column) {
         schedule(400);
     });
     connect(demFit_, &QPushButton::clicked, this, [this] { fitToFile(); });
+    connect(userGuide_, &QPushButton::clicked, this, [this] {
+        if (setup_.openUserGuide && !setup_.openUserGuide(userGuideUrl()))
+            status_->setText("Could not open the user guide. Its file is USER_GUIDE.md in "
+                             "share/doc/sketchyup.");
+    });
     connect(siteSettings_, &QPushButton::clicked, this, [this] {
         if (!setup_.openSiteSettings)
             return;

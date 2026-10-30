@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- User guide link on the GeoTIFF page (R107.b4 link, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [PR #538](https://github.com/zygote55/sketchyup/pull/538)): the terrain import dialog's GeoTIFF page has an "Open the user guide" button that opens the installed guide at the download section; nothing is fetched.
 - Visible source credits (R107.c2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): a PDF sheet page, a measured PDF or SVG drawing and a presentation frame that show GeoTIFF terrain print its source notice, a "Sources" line in the page margin or a burned-in note on the frame.
 - GeoTIFF elevation in File > Import terrain… (R107.b4, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [PR #536](https://github.com/zygote55/sketchyup/pull/536)): a `.tif` file opens a GeoTIFF page in the terrain import dialog, with the 3DEP or GLO-30 product, a window in UTM or latitude and longitude, Fit to the file, the vertical reference and the offset and note for a mismatch, the report, the located voids and the Credit under Source in Entity info; the user-guide link waits for its page (R107.e).
 - Downloaded elevation files (R107.e, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): the user guide page "Terrain from a downloaded elevation file" and the support-matrix row for importing a USGS 3DEP or Copernicus GLO-30 GeoTIFF, with the download pages, the credits and the non-affiliation wording; documentation only.

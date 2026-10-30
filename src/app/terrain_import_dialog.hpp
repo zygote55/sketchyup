@@ -33,6 +33,7 @@ class QRadioButton;
 class QTableWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
+class QUrl;
 class QVBoxLayout;
 class QWidget;
 namespace sketchy {
@@ -55,10 +56,11 @@ struct TerrainImportDryRun;
 //
 // R107.b4 (UX_DESIGN §20): a .tif or .tiff file is the GeoTIFF elevation format, the third source of
 // this dialog. Its file is read in windows from its path (`Setup::path`), so `bytes` stays empty.
-// Its settings are the product, the window (around the site origin, centre and size, or corners,
-// in UTM with latitude and longitude beside each point), the spacing, and the vertical reference
-// with the offset and note a mismatch needs. Every dry run is the engine's (parseGeoTiffTerrainRequest
-// and runTerrainImport); the dialog chooses the window and words the refusals.
+// Its settings are the product, the link to the user guide, the window (around the site origin,
+// centre and size, or corners, in UTM with latitude and longitude beside each point), the spacing,
+// and the vertical reference with the offset and note a mismatch needs. Every dry run is the
+// engine's (parseGeoTiffTerrainRequest and runTerrainImport); the dialog chooses the window and
+// words the refusals.
 class TerrainImportDialog final : public Settled<QDialog> {
   public:
     struct Setup {
@@ -68,6 +70,9 @@ class TerrainImportDialog final : public Settled<QDialog> {
         QString path; // R107.b4: a GeoTIFF's file, read from its path in windows
         // R107.b4: Site settings…, opened by the window (it holds the viewport the dialog does not).
         std::function<void()> openSiteSettings;
+        // R107.b4 (UX §20.1): the installed user guide at the GeoTIFF page's anchor, opened by the
+        // window. Returns false when the system could not open it.
+        std::function<bool(const QUrl &)> openUserGuide;
     };
     TerrainImportDialog(Document &doc, Setup setup, QWidget *parent);
     ~TerrainImportDialog() override;
@@ -197,7 +202,7 @@ class TerrainImportDialog final : public Settled<QDialog> {
     QDoubleSpinBox *centreE_{}, *centreN_{}, *centreLat_{}, *centreLon_{};
     QDoubleSpinBox *swE_{}, *swN_{}, *swLat_{}, *swLon_{};
     QDoubleSpinBox *neE_{}, *neN_{}, *neLat_{}, *neLon_{};
-    QPushButton *demFit_{}, *siteSettings_{};
+    QPushButton *demFit_{}, *siteSettings_{}, *userGuide_{};
     QDoubleSpinBox *spacing_{};
     QFrame *mismatchBox_{};
     QLabel *mismatchTitle_{}, *mismatchText_{}, *mismatchCaption_{};

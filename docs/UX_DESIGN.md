@@ -2530,7 +2530,7 @@ These are gaps to close before the dialog can import a GeoTIFF. Each is a note f
 10. **The credit is not shown in the app.** The source record holds the credit, the disclaimer and the licence (`provenance.dem`). The Source row of the Terrain section shows only the file's name, the digest and the units (`src/app/terrain_section.cpp`). The credit appears only in the report. Open question 4. (closed in R107.b4, PR #536)
 11. **Void posts are counted, not located.** Any void refuses the window, so the report's voids are always 0 for an import, and the refusal gives a count only. The preview cannot show where the voids are. A bounded list of void-post positions in the refusal would let it, and open question 3 depends on it. (closed in R107.b3, PR #534)
 12. **The preview overlays are new UI.** The file's extent, the window and the grid's outline are not drawn anywhere today. This is dialog work, not an engine gap. (closed in R107.b4, PR #536)
-13. **Other rows.** The user-guide page that the download link opens is R107.e's. Credits in exports are R107.c's. Neither belongs to this dialog, and the link must not ship before its page.
+13. **Other rows.** The user-guide page that the download link opens is R107.e's. Credits in exports are R107.c's. Neither belongs to this dialog, and the link must not ship before its page. (closed in R107.b4 link, PR #538)
 
 Items 1 to 4 and item 6 are needed before a GeoTIFF can be imported from the dialog. Items 5, 7 and 11 change the existing path, and items 8 to 10 and 12 are dialog work.
 
