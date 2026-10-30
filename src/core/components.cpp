@@ -848,7 +848,7 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     const auto beforeVariants = doc.componentVariantRecords();
     result.changes = publish(doc, definitions, bindings, doc.bodies(), doc.nextId(),
                              draft.nextDefinitionId(), doc.nextComponentDriverId(),
-                             "Edit shared component definition", {id, report, false});
+                             "Edit shared component definition", {id, report, false, {}});
     if (moved)
         result.movedGeometry[original->root] = moved;
     result.parameterWarnings = std::move(warnings);

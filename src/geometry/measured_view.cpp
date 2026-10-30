@@ -163,7 +163,7 @@ MeasuredLines measuredHiddenLines(const MeasuredPage &page, const std::vector<Me
         });
         std::sort(hidden.begin(), hidden.end());
         std::vector<std::pair<double, double>> united;
-        for (const auto interval : hidden) {
+        for (const auto &interval : hidden) {
             if (united.empty() || interval.first > united.back().second + 1e-12)
                 united.push_back(interval);
             else

@@ -398,8 +398,8 @@ int main(int argc, char **argv) {
         await([&] { return f.field->text() == typed; },
               QString("Keypad decimal types '%1' (field has '%2')").arg(typed, f.field->text()));
         keys.stroke(plain(Enter));
-        QTest::qWaitFor([&] { return f.view->hasFocus(); }, 3000);
-        check(f.view->hasFocus(),
+        const bool focusReached = QTest::qWaitFor([&] { return f.view->hasFocus(); }, 3000);
+        check(focusReached,
               QString("Measurements accepts the keypad decimal (field has '%1', invalid=%2)")
                   .arg(f.field->text(), f.field->property("invalid").toBool() ? "yes" : "no"));
         bool threeQuarters = false;

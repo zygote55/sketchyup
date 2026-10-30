@@ -320,7 +320,7 @@ TerrainSourceSet parseTerrainPoints(const QByteArray &bytes, const TerrainPointO
     const bool delimiterDetected = !delimiter;
     if (!delimiter) {
         const std::size_t sample = std::min<std::size_t>(data.size(), 20);
-        for (const auto [candidate, separator] :
+        for (const auto &[candidate, separator] :
              {std::pair{TerrainDelimiter::Comma, QChar(',')},
               std::pair{TerrainDelimiter::Tab, QChar('\t')},
               std::pair{TerrainDelimiter::Semicolon, QChar(';')}}) {

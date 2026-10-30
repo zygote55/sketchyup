@@ -1457,7 +1457,7 @@ void Viewport::rebuild() {
                         vertices = clippedVertices(vertices, *cut);
                     const auto &first = vertices[0];
                     bool imageTransparency = false;
-                    for (const auto side : {std::pair{front.material, first.image},
+                    for (const auto &side : {std::pair{front.material, first.image},
                                             std::pair{back.material, first.backImage}}) {
                         if (side.second)
                             imageTransparency |= textureImages_.at(side.second)->hasTransparency();

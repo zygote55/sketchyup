@@ -239,8 +239,8 @@ void validation(Fixture &f) {
           "Esc restores the stored value and clears the error");
     f.type(width, "0.3 m");
     const QString below = "300 mm is below the minimum, 400 mm. Nothing was changed.";
-    QTest::qWaitFor([&] { return row->error() == below; }, 5000);
-    check(row->error() == below,
+    const bool settled = QTest::qWaitFor([&] { return row->error() == below; }, 5000);
+    check(settled && row->error() == below,
           "Below the minimum, got " + row->error().toStdString());
     QTest::keyClick(width, Qt::Key_Escape);
     // A count step outside the bounds is refused, never clamped.
@@ -292,8 +292,8 @@ void regeneration(Fixture &f) {
     f.type(size, "-200");
     const QString refused = "At -200 mm Slab would pass its stretch plane (Stretch Slab). Nothing "
                             "was changed.";
-    QTest::qWaitFor([&] { return f.field("size")->error() == refused; }, 5000);
-    check(f.field("size")->error() == refused,
+    const bool settled = QTest::qWaitFor([&] { return f.field("size")->error() == refused; }, 5000);
+    check(settled && f.field("size")->error() == refused,
           "The check refuses an unregenerable value, got " +
               f.field("size")->error().toStdString());
     f.enter(size);

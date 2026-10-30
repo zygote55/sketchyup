@@ -59,10 +59,10 @@ QWidget *focused() { return QApplication::focusWidget(); }
 // Makes `dialog` the active window and gives `first` focus, as the first Tab of a keyboard user
 // would find it. Offscreen, nothing gives focus back on its own.
 void focusIn(QWidget *dialog, QWidget *first) {
-    QApplication::setActiveWindow(dialog);
     dialog->activateWindow();
     first->setFocus(Qt::OtherFocusReason);
-    QTest::qWaitFor([&] { return focused() == first; }, 2000);
+    check(QTest::qWaitFor([&] { return focused() == first; }, 2000),
+          "The dialog's first control takes focus");
 }
 
 // Presses Tab until `target` has focus, as a keyboard user reaches it.

@@ -968,7 +968,8 @@ int main(int argc, char **argv) {
             f.view()->standardView(0);
             f.view()->fit();
             f.type(window.findChild<QLineEdit *>("parameterPreview_width"), "1500");
-            QTest::qWaitFor([&] { return f.view()->parameterGhostShown(); }, 2000);
+            check(QTest::qWaitFor([&] { return f.view()->parameterGhostShown(); }, 2000),
+                  "The parameter ghost is shown before the capture");
             QTest::qWait(60);
             std::cout << "screenshot: ghost " << f.view()->parameterGhostShown() << " edges "
                       << f.view()->parameterGhostEdges() << " plane "

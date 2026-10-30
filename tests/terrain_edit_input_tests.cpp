@@ -398,7 +398,7 @@ void menuAndRail(Window &window) {
               "[ and ] have no other model-scope meaning");
     // Shift+S starts Sculpt.
     window.activateWindow();
-    QTest::qWaitForWindowActive(&window, 2000);
+    check(QTest::qWaitForWindowActive(&window, 2000), "The window is active for shortcuts");
     view->setFocus();
     QTest::keyClick(view, Qt::Key_S, Qt::ShiftModifier);
     QTest::qWait(10);
