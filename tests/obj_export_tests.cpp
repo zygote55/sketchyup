@@ -89,7 +89,8 @@ void checkDemCredits(const QString &directory) {
     const QString usgs = QString::fromUtf8(demCreditUsgs), glo30 = QString::fromUtf8(demCreditGlo30);
     Document doc;
     importDemFixture(doc, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
-    importDemFixture(doc, fixtures, "glo30-like-pixel-point-f32.tif", DemProduct::Glo30, "EGM2008");
+    importDemFixture(doc, fixtures, "glo30-like-pixel-point-f32.tif", DemProduct::Glo30, "EGM2008",
+                     0.5, "Test fixture: an EGM2008 terrain on a NAVD88 site, offset by hand");
     importDemFixture(doc, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
     const auto package = exportObj(doc, {.001, ObjUpAxis::Y});
     const QByteArray head = "# SketchyUp OBJ; units and axis are recorded in manifest.json\n# " +
