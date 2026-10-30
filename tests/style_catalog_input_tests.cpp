@@ -54,12 +54,14 @@
 #include <QWindow>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QtGui/qguiapplication_platform.h>
 
 #include <atomic>
 #include <exception>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <wayland-client.h>
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -1243,6 +1245,29 @@ void selectionBudget(Window &window, const QTemporaryDir &files) {
         report("dialog selection, library folder", timed(*list, list->topLevelItem(0)->text(0)));
     });
 }
+
+// Waits until the compositor answers a sync on the display's default queue. The answer comes after
+// the events the compositor sent earlier, and those are dispatched first. Qt's
+// QGuiApplication::sync is not a round trip on Wayland (see window_diagnostics.cpp). Without this,
+// the focus change after the last window closes can stay queued at exit: its clipboard offer is a
+// new-id proxy, and libwayland leaks it when it releases the queue (D-072). Off Wayland there is
+// nothing to drain.
+bool drainWaylandEvents() {
+    auto *native = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>();
+    if (!native)
+        return true;
+    bool answered = false;
+    wl_callback *callback = wl_display_sync(native->display());
+    if (!callback)
+        return false;
+    static const wl_callback_listener listener{[](void *data, wl_callback *done, std::uint32_t) {
+        *static_cast<bool *>(data) = true;
+        wl_callback_destroy(done);
+    }};
+    wl_callback_add_listener(callback, &listener, &answered);
+    wl_display_flush(native->display());
+    return QTest::qWaitFor([&] { return answered; }, 5000);
+}
 } // namespace
 
 // R100.f2 (UX_DESIGN §18.1 to §18.3, §18.6, §18.7): the Styles tab's edge stroke and style library,
@@ -2364,6 +2389,12 @@ int main(int argc, char **argv) {
         }
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
+        return 1;
+    }
+    // The window above is destroyed with the try block. Dispatch the focus events its destruction
+    // sent before the display is released (D-072).
+    if (!drainWaylandEvents()) {
+        std::cerr << "The compositor did not answer the sync before exit\n";
         return 1;
     }
     if (!only.isEmpty()) {

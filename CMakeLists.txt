@@ -1732,7 +1732,8 @@ if(SKETCHYUP_BUILD_DESKTOP)
     # missing-dependency report and the Export asset catalog dialog, driven the way a person drives
     # them. The catalog cases are in their own test functions; R100.f2 adds its style cases here.
     add_executable(style_catalog_input_tests tests/style_catalog_input_tests.cpp)
-    target_link_libraries(style_catalog_input_tests PRIVATE sketchyup_desktop Qt6::Test)
+    target_link_libraries(style_catalog_input_tests PRIVATE sketchyup_desktop Qt6::Test
+                          PkgConfig::WaylandClient)
     target_include_directories(style_catalog_input_tests PRIVATE tests)
     target_compile_definitions(style_catalog_input_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME style_catalog_input COMMAND style_catalog_input_tests)
