@@ -2,12 +2,28 @@
 #include "core/edge_appearance.hpp"
 #include "core/section_records.hpp"
 #include <QJsonArray>
+#include <algorithm>
+#include <limits>
 #include <set>
 namespace sketchy {
 namespace {
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
+}
+// Whether the page points (already projected) have a bounding box that meets the page's content
+// area: the margin inside, which the export clips to.
+bool reachesContent(const MeasuredPage &page, const std::vector<Vec3> &points) {
+    double left = std::numeric_limits<double>::infinity(), right = -left, top = left,
+           bottom = -left;
+    for (const auto &q : points) {
+        left = std::min(left, q.x);
+        right = std::max(right, q.x);
+        top = std::min(top, q.y);
+        bottom = std::max(bottom, q.y);
+    }
+    return right >= page.marginMm && left <= page.widthMm - page.marginMm &&
+           bottom >= page.marginMm && top <= page.heightMm - page.marginMm;
 }
 } // namespace
 MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredPage page) {
@@ -25,6 +41,7 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
     result.precision = doc.displayPrecision();
     std::vector<MeasuredEdge> edges;
     std::vector<MeasuredTriangle> occluders;
+    SourceCredits lineCredits, appearanceCredits; // R107.c2: DEM terrain that reaches the page.
     QJsonObject losses;
     std::set<QString> rasterReasons;
     size_t faceCount{}, edgeCount{}, triangleCount{}, bodyCount{}, annotationCount{}, vertexCount{},
@@ -54,6 +71,7 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
             rasterReasons.insert("referenceImages");
             continue;
         }
+        const auto firstEdge = edges.size(), firstOccluder = occluders.size();
         require(body.topology.edges.size() <= 100000 - edgeCount,
                 "Measured drawing source edge budget exceeded");
         edgeCount += body.topology.edges.size();
@@ -157,8 +175,29 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
                 loss("unfilledSectionContours");
             }
         }
+        // R107.c2 (ADR 0181 §3.3): a DEM terrain's opaque surfaces that reach the page are its
+        // appearance. Its lines, below, are its vector credit, so a terrain outside the picture
+        // adds no notice.
+        if (const auto *dem = demSourceOf(doc, id)) {
+            bool reaches = false;
+            for (size_t i = firstOccluder; i < occluders.size() && !reaches; ++i) {
+                std::vector<Vec3> corners;
+                for (const auto &v : occluders[i].vertices)
+                    corners.push_back(page.project(v));
+                reaches = reachesContent(page, corners);
+            }
+            if (reaches)
+                appearanceCredits.add(*dem);
+        }
     }
     result.geometry = measuredHiddenLines(page, edges, occluders);
+    for (const auto &line : result.geometry.lines) {
+        const auto *dem = demSourceOf(doc, result.sources.at(line.source).body);
+        if (dem && reachesContent(page, {line.a, line.b})) {
+            lineCredits.add(*dem);
+            appearanceCredits.add(*dem);
+        }
+    }
     for (const auto &[id, ptr] : doc.annotations()) {
         (void)id;
         require(++annotationCount <= annotationRecordLimit,
@@ -213,8 +252,8 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
                      {"cameraDepthClipping", false},
                      {"surfaceColorAndLighting", "unfilled technical line drawing"},
                      {"annotationTextScale", "96 logical pixels per inch; fixed physical size"}};
-    // R107.c2 (ADR 0181 §3.3): the DEM notices of the terrain the drawing's scene shows.
-    result.credits = sceneDemCredits(doc, snapshot);
+    result.credits = std::move(lineCredits);
+    result.appearanceCredits = std::move(appearanceCredits);
     return result;
 }
 } // namespace sketchy

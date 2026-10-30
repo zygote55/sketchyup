@@ -134,7 +134,9 @@ struct SourcesLine {
 std::optional<SourcesLine> sourcesLine(const PreparedPage &page, const SourceCredits &credits) {
     const auto &paper = page.sheet.sheet.paper;
     const auto margin = page.sheet.sheet.marginMm;
-    auto strip = layoutCreditStrip(credits.joined(), paper.widthMm - 2 * margin, margin);
+    // The line is labelled; its notice text follows the label unchanged.
+    auto strip =
+        layoutCreditStrip("Sources: " + credits.joined(), paper.widthMm - 2 * margin, margin);
     if (!strip)
         return std::nullopt;
     const QPointF topLeft(margin, paper.heightMm - margin + (margin - strip->heightMm) / 2);
@@ -240,9 +242,16 @@ Preparation prepare(const Document &doc, const SheetExportOptions &options) {
             plan.changed = !plan.broken && view.evaluation.status.state == DrawingViewState::Stale;
             plan.raster = !plan.broken && view.raster;
             plan.rasterUnavailable = plan.raster && !options.rasterRenderer;
-            if (const auto credit = page.viewCredits.find(view.record.id);
-                credit != page.viewCredits.end() && !plan.broken && !plan.rasterUnavailable)
-                plan.credits = credit->second;
+            // A to-scale view's drawing knows which DEM terrain reaches its frame; a perspective
+            // view (no drawing) takes the notices of its scene.
+            if (!plan.broken && !plan.rasterUnavailable) {
+                if (view.evaluation.drawing)
+                    plan.credits = plan.raster ? view.evaluation.drawing->appearanceCredits
+                                               : view.evaluation.drawing->credits;
+                else if (const auto credit = page.viewCredits.find(view.record.id);
+                         credit != page.viewCredits.end())
+                    plan.credits = credit->second;
+            }
             if (plan.raster)
                 std::tie(plan.rasterPixels, plan.rasterDpi) =
                     rasterSize(view.record.frame, options.rasterDpi);

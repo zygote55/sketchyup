@@ -2,6 +2,7 @@
 #include "core/assets.hpp"
 #include "core/face_textures.hpp"
 #include "core/materials.hpp"
+#include "dem_export_fixture.hpp"
 #include "integrations/blender_job.hpp"
 #include "integrations/render_snapshot.hpp"
 #include "io/assets.hpp"
@@ -16,6 +17,7 @@
 #include <QJsonDocument>
 #include <QThread>
 #include <QTimer>
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
@@ -469,6 +471,27 @@ void wait(BlenderJob &job, int limit = 15000) {
         job.cancel();
     check(job.done(), "Job terminated before test deadline");
 }
+// One prepared frame, rendered by the real worker and verified (R107.c2 reads its pixels).
+std::shared_ptr<const BlenderResult> renderFrame(std::shared_ptr<const PreparedRender> input,
+                                                 const BlenderJob::Options &real) {
+    BlenderJob job;
+    job.start(input, real);
+    wait(job, 65000);
+    check(job.phase() == Phase::Succeeded && job.result(), "Real frame render");
+    return job.result();
+}
+// Text-bright pixels in a frame's top 24 rows, where the credit note is burned in. The note is
+// light grey on a translucent box (lightness up to 204); the grey scene behind it is 138.
+int brightTopRows(const QImage &image) {
+    int count = 0;
+    for (int y = 0; y < std::min(24, image.height()); ++y)
+        for (int x = 0; x < image.width(); ++x) {
+            const auto c = image.pixelColor(x, y);
+            count += c.red() > 180 && c.green() > 180 && c.blue() > 180;
+        }
+    return count;
+}
+
 int main(int argc, char **argv) {
     QStringList raw;
     for (int i = 0; i < argc; ++i)
@@ -558,6 +581,35 @@ int main(int argc, char **argv) {
                 for (int x = 0; x < result->image.width(); ++x)
                     variation |= result->image.pixel(x, y) != result->image.pixel(0, 0);
             check(variation, "Real render contains scene pixels");
+            // R107.c2 (ADR 0181 §3.3): a frame that shows DEM terrain has the notice burned in at
+            // its top, by Blender's stamp. A scene without DEM terrain has none, and the same scene
+            // renders the same bytes.
+            {
+                Document terrain;
+                importDemFixture(terrain, std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/",
+                                 "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+                RenderOptions demOptions;
+                demOptions.settings = {512, 384, 4, 0};
+                const auto demInput =
+                    PreparedRender::prepare(RenderSnapshot::capture(terrain, demOptions));
+                const auto demFrame = renderFrame(demInput, real);
+                const auto demAgain = renderFrame(demInput, real);
+                Document plainScene;
+                plainScene.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
+                const auto plainInput =
+                    PreparedRender::prepare(RenderSnapshot::capture(plainScene, demOptions));
+                const auto plainFrame = renderFrame(plainInput, real);
+                const auto credits = demInput->manifest().value("credits").toArray();
+                check(credits.size() == 1 &&
+                          credits[0].toString() == QString::fromStdString(demCreditUsgs),
+                      "The DEM frame's scene manifest lists the 3DEP notice");
+                check(!plainInput->manifest().contains("credits"),
+                      "A frame without DEM terrain lists no notice");
+                check(demAgain->png == demFrame->png,
+                      "The same DEM frame renders the same PNG bytes");
+                check(brightTopRows(demFrame->image) >= 50 && brightTopRows(plainFrame->image) < 50,
+                      "The notice is burned into the top of the DEM frame");
+            }
             if (const auto output = qEnvironmentVariable("SKETCHYUP_RENDER_EVIDENCE");
                 !output.isEmpty()) {
                 write(output + ".png", result->png);

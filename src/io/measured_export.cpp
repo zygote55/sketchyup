@@ -245,13 +245,15 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
     // so the drawing keeps its place and its scale. A raster is composed with the strip in its own
     // bottom margin (white outside the drawing), so the image keeps its size and the strip is part
     // of it.
+    // A raster shows the surfaces its appearance reaches; a vector drawing shows only its lines.
+    const auto &credits = pageRaster ? drawing.appearanceCredits : drawing.credits;
     std::optional<CreditStrip> strip;
-    if (!drawing.credits.empty()) {
-        strip = layoutCreditStrip(drawing.credits.joined(), page.widthMm - 2 * page.marginMm,
-                                  page.marginMm);
+    if (!credits.empty()) {
+        strip =
+            layoutCreditStrip(credits.joined(), page.widthMm - 2 * page.marginMm, page.marginMm);
         require(strip.has_value(),
                 "The source credit does not fit the page margin; use a larger page margin");
-        result.report["credits"] = creditNoticesJson(drawing.credits);
+        result.report["credits"] = creditNoticesJson(credits);
         result.report["creditPlacement"] = pageRaster ? "composedRasterMargin" : "bottomMargin";
     }
     const QPointF stripTopLeft(page.marginMm,
