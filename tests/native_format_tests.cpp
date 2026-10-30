@@ -1,6 +1,7 @@
 #include "core/component_parameters.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
+#include "core/terrain_records.hpp"
 #include "sketchyup/version.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
