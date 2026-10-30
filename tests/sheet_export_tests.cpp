@@ -3,6 +3,8 @@
 #include "core/drawing_item_records.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
+#include "dem_export_fixture.hpp"
+#include "io/credit_strip.hpp"
 #include "io/document_io.hpp"
 #include "io/drawing_items.hpp"
 #include "io/drawing_sheet_paint.hpp"
@@ -19,6 +21,7 @@
 #include <QJsonDocument>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimeZone>
 #include <cmath>
@@ -436,6 +439,71 @@ void atomicAndReadOnly() {
 }
 
 // Poppler: measured scale and clipping from the rasterized PDF, and extractable text.
+// R107.c2 (ADR 0181 §3.3): a page that shows DEM terrain prints its notice on a "Sources" line in
+// its bottom margin. A page that shows none prints nothing. A line the margin cannot hold blocks
+// the export.
+struct DemSheet {
+    Document doc;
+    Id sheet{};
+    DemSheet(double marginMm, DrawingFrame frame) {
+        const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+        importDemFixture(doc, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+        auto plan = planScene();
+        plan.camera->target = {0, 0, 0};
+        const auto scene = createScene(doc, "Terrain plan", plan);
+        sheet = createDrawingSheet(doc, "Terrain", {420, 297}, "A-201", marginMm);
+        // 1:1000: the 300 m terrain window fills the frame, so its lines reach the page.
+        createDrawingView(doc, viewRecord(sheet, scene, "Terrain plan", frame, 2000));
+        acceptAll(doc);
+    }
+};
+void sourcesLine() {
+    const QString usgs = QString::fromStdString(demCreditUsgs);
+    DemSheet dem(10, {20, 20, 200, 150});
+    const auto exported = renderSheetsPdf(dem.doc, {});
+    check(!exported.preflight.blocked() && !find(exported.preflight, "sourcesNoRoom") &&
+              !find(exported.preflight, "sourcesOverlap"),
+          "A 10 mm margin holds the Sources line of a DEM sheet");
+    const auto notices = exported.report["credits"].toArray();
+    check(notices.size() == 1 && notices[0].toString() == usgs,
+          "The report lists the 3DEP notice once");
+    const auto page = exported.report["pages"].toArray()[0].toObject();
+    check(page["credits"].toArray() == notices, "The page lists the same notice");
+    // The line's text is the helper's notice, word for word, wrapped to the frame's width.
+    const auto glo30 = layoutCreditStrip(demCreditGlo30, 420 - 20, 10);
+    check(glo30 && glo30->lines.size() > 0 && glo30->heightMm <= 10,
+          "The GLO-30 notice fits a 10 mm margin");
+    QStringList words;
+    for (const auto &line : glo30->lines)
+        words.append(line);
+    check(words.join(' ') == QString::fromUtf8(demCreditGlo30),
+          "The line keeps the notice's words");
+    check(layoutCreditStrip(demCreditGlo30, 128 - 20, 10).has_value(),
+          "A narrow A5 page still fits the GLO-30 notice in 10 mm");
+    check(!layoutCreditStrip(demCreditGlo30, 128 - 20, 0).has_value(), "No margin, no line");
+    // A page with no DEM terrain has no line and no credit in its report.
+    Fixture plain;
+    const auto none = renderSheetsPdf(plain.doc, {});
+    check(!none.report.contains("credits") &&
+              !none.report["pages"].toArray()[0].toObject().contains("credits"),
+          "A page without DEM terrain names no credit");
+    // A zero margin cannot hold the line: the preflight names it, and the export is refused.
+    DemSheet bare(0, {20, 20, 200, 150});
+    check(find(preflightSheetExport(bare.doc, {}), "sourcesNoRoom") != nullptr,
+          "A zero margin on a DEM sheet is a finding");
+    check(rejects([&] { renderSheetsPdf(bare.doc, {}); }) == "EXPORT_BLOCKED",
+          "A DEM sheet with no room for its line is not exported");
+    // Page content in the margin would overlap the line: the export is blocked, not overlapped.
+    DemSheet crowded(10, {20, 20, 200, 150});
+    DrawingTextItem note;
+    note.frame = {30, 288, 80, 8};
+    note.text = "General notes";
+    createDrawingItem(crowded.doc, crowded.sheet, note);
+    check(find(preflightSheetExport(crowded.doc, {}), "sourcesOverlap") != nullptr,
+          "Content in the bottom margin is a finding");
+    std::cout << "sources line: ok\n";
+}
+
 int popplerChecks() {
     const auto executable = qEnvironmentVariable("SKETCHYUP_PDF_TEST");
     if (executable.isEmpty())
@@ -535,6 +603,26 @@ int popplerChecks() {
               " pixels outside, in " + std::to_string(stray.x()) + "," + std::to_string(stray.y()) +
               " " + std::to_string(stray.width()) + "x" + std::to_string(stray.height()));
     std::cout << "poppler scale, text and clipping: ok\n";
+    // R107.c2: a DEM page's Sources line is text in the PDF's text layer, and the file passes the
+    // PDF syntax check (D-036: qpdf --check where qpdf is installed).
+    DemSheet dem(10, {20, 20, 200, 150});
+    const auto demFile = scratch.filePath("dem.pdf");
+    exportSheetsPdf(dem.doc, {}, demFile);
+    const auto keep = qEnvironmentVariable("SKETCHYUP_PDF_OUT");
+    if (!keep.isEmpty()) {
+        QFile::remove(keep);
+        check(QFile::copy(demFile, keep), "Copy the DEM sheet PDF for inspection");
+    }
+    const auto pdftotext = QFileInfo(executable).dir().filePath("pdftotext");
+    const auto sourcesText =
+        QString::fromUtf8(run(pdftotext, {"-f", "1", "-l", "1", demFile, "-"}));
+    check(sourcesText.simplified().contains("Sources: " + QString::fromStdString(demCreditUsgs)),
+          "pdftotext reads the Sources line: " + sourcesText.simplified().toStdString());
+    const auto qpdf = QStandardPaths::findExecutable("qpdf");
+    if (!qpdf.isEmpty())
+        run(qpdf, {"--check", demFile});
+    std::cout << "poppler sources line: ok" << (qpdf.isEmpty() ? " (qpdf not installed)" : "")
+              << "\n";
     return 0;
 }
 
@@ -684,6 +772,7 @@ int main(int argc, char **argv) {
         pagesAndPaperSizes();
         documentInformation();
         realTextAndClipping();
+        sourcesLine();
         preflightFindings();
         atomicAndReadOnly();
         anchorsSurviveEdgeSplit();

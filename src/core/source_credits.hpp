@@ -28,6 +28,9 @@ const TerrainDemSource *demSourceOfSite(const Document &document);
 class SourceCredits {
   public:
     void add(const TerrainDemSource &dem);
+    // Adds every notice of `other` that is not here yet, in its order (R107.c2: a page or a
+    // frame joins the notices of its views).
+    void merge(const SourceCredits &other);
     bool empty() const { return notices_.empty(); }
     const std::vector<std::string> &notices() const { return notices_; }
     // The notices joined by "; ", for a single text field (GLB asset.copyright, an IFC property).

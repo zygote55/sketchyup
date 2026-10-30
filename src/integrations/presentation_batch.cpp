@@ -274,20 +274,9 @@ std::vector<std::string> keyframeCredits(const Document &document, const Present
     SourceCredits credits;
     RenderOptions options;
     options.settings = plan.presets.front().settings;
-    for (const auto scene : plan.keyframes) {
-        const auto snapshot = RenderSnapshot::captureSavedScene(document, scene, options);
-        for (const auto &[id, body] : document.bodies()) {
-            const auto *dem = demSourceOf(document, id);
-            if (!dem)
-                continue;
-            for (const auto &[face, record] : body->surface.faces) {
-                if (snapshot.visible(id, face)) {
-                    credits.add(*dem);
-                    break;
-                }
-            }
-        }
-    }
+    for (const auto scene : plan.keyframes)
+        credits.merge(
+            sceneDemCredits(document, RenderSnapshot::captureSavedScene(document, scene, options)));
     return credits.notices();
 }
 } // namespace
@@ -763,7 +752,7 @@ struct PresentationExport::Impl {
             // result keeps the worker's own report. Nothing else repeats the log (UX_DESIGN 17.11).
             auto workerManifest = result->manifest;
             const auto attempts = workerManifest.take("attempts");
-            const QJsonObject record{
+            QJsonObject record{
                 {"index", int(index)},
                 {"file", name + ".png"},
                 {"bytes", result->png.size()},
@@ -776,6 +765,10 @@ struct PresentationExport::Impl {
                 {"result", workerManifest},
                 {"diagnostics", QJsonObject{{"executable", finished->report().value("executable")},
                                             {"attempts", attempts}}}};
+            // R107.c2 (ADR 0181 §3.3): the notice the worker burned into this frame, when the frame
+            // shows DEM terrain. The frame's own scene manifest holds it, so it is this frame's.
+            if (input->manifest().contains("credits"))
+                record["credits"] = input->manifest().value("credits");
             const auto metadata = QJsonDocument(record).toJson();
             const auto cost = qint64(result->png.size()) + metadata.size();
             if (metadata.size() > metadataLimit || cost > limit - bytes)
