@@ -274,7 +274,7 @@ budgets are enforced from the application side, as in ADR 0171 §6.4:
 | Report / messages | Report ≤ 64 KiB; message ≤ 256 bytes | The IFC bounds |
 | Application memory during import | ≤ 1 GiB | The R082.w v2 budget; the decoded package plus the document being built |
 | Parse and transfer a 64 MiB, 1,000,000-instance file | ≤ 3 s (a 128 MiB, 2,000,000-instance file ≤ 6 s) | To be measured in R098.a before the budget is frozen (the IFC precedent: 0.76 s / 1.5 s for the same shapes) |
-| Tessellate the fixture model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns control in ≤ 100 ms and ends the helper within 1 s | Owner decision 8 (2026-10-28), **a documented limit for 1.4.0**: the helper alone takes 4.0 s on the 100-sphere model (R098.e), but the end-to-end import takes about 14 s against 10 s. Speeding up the application's conversion step is for 1.5. The IFC kernel measured 6.5–11 s for 240,000 triangles on four threads (ADR 0171 §6.4) |
+| Tessellate the fixture model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns control in ≤ 100 ms and ends the helper within 1 s | Owner decision 8 (2026-10-28), **a documented limit for 1.4.0**: the helper alone takes 4.0 s on the 100-sphere model (R098.e), but the end-to-end import takes about 14 s against 10 s. Speeding up the application's conversion step was for 1.5 and is R098.j: with a new native file the import takes 10.2 s (missed by 0.2 s, accepted; was 14.1 s), and without an output file 6.9 s (met; was 10.2 s) (R098.j). The IFC kernel measured 6.5–11 s for 240,000 triangles on four threads (ADR 0171 §6.4) |
 | Export of the 1,000,000-triangle model (**replaced in R098.h, owner decision 13**, by the row below) | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | The IFC export precedent (ADR 0171 §6.4). Not met in R098.e: 61 s for the helper alone, 975 MB of output, and a crash at the 4 GiB address-space limit; the model cannot be built in one document |
 | **Export of the largest exportable model a document holds: M2, five placements of a 200 × 250 grid of triangle faces (100,000 distinct triangles, 500,000 materialized faces) (replaced in R098.h, owner decision 13)** | **≤ 23 s**, with progress and cancel; output ≤ 256 MiB; the **4 GiB address-space cap is kept** (owner decision 13: not raised) | Measured in R098.h, Release, the helper's default limits: p50 18.6 s, maximum 22.3 s over fifteen runs (14 of 15 at 18.5 to 19.6 s); helper peak 2,045 MiB; output 216 MB. The largest helper memory measured is M4 (10,000 solids, 2,474 MiB, 256 MB output), also under the cap. The new row's maximum rounds up to 23 s. The record is [R098d section 12](../verification/R098d-step-exchange.md#12-r098h-the-f04-step-close-2026-10-28) |
 
@@ -1183,6 +1183,37 @@ tests and runs. Sections 5 and 6 and the E6 row are amended in place above, each
   design, and ADR 0171 decision 19 is unchanged: the STEP restart copies its rule.
 - **Measured.** The application's restart tests take 9.04 s in total (the five-second deadline is the only timed step).
   The helper's STEP suite passes, and so do the sanitized helper suites (6 of 6, 235 s).
+
+## Implementation notes (R098.j, 2026-10-29)
+
+Owner decision 8 (2026-10-28) moved the speed of the application's conversion step to 1.5. R098.j does that work. The record
+is [R098d section 14](../verification/R098d-step-exchange.md#14-r098j-step-conversion-speed-2026-10-29), with the profile,
+the changes, the before and after numbers and the proof that the output is unchanged.
+
+- **The conversion (section 3's merge, and the section 6 import rows).** The feature edges, the edge appearances and the
+  materials of a body are made when the document accepts the body, not when its mesh is merged. The document refuses 89 of
+  the 100 spheres on their faces; their topology and materials were the bulk of the merge. The topology rebuild (which holds
+  every count the limits check), the face count and the refusal reasons are unchanged. The planar merge's edge lookups use
+  flat runs, and its maps are filled at their ends. No refusal, count or byte of the document changes.
+- **What the merge still costs for a refused body.** The merged faces must be counted exactly to refuse a body on its faces,
+  so the regions are still grown for every mesh. The face count is not a lower bound that can be read before the regions
+  are grown, so the refusal cannot move ahead of the merge without changing how it is decided. Recorded as a finding; not a
+  contradiction of section 3.
+- **The export writes no parametric curves.** The XDE writer's `WriteSurfaceCurMode` is turned off (the transfer's
+  parameter; the process-wide `write.surfacecurve.mode` has no effect, because the transfer takes its options from the
+  parameter). Each edge keeps its 3D curve, so the reader's geometry is the same, and the file is 1.77 million entities
+  instead of 3.82 million for the 90,954-face model (100 MB, not 224 MB). This changes the file's content and not its
+  geometry: section 7's E5 round trip holds (the re-import has the source's counts), and the E3, E5 and E8 checks pass. Before
+  the change the application could not read its own export of that model back (above the 128 MiB input limit).
+- **Measured (section 6).** The tessellation row: 10.17 s with a new native file, against 10 s (missed by 0.17 s, accepted
+  under owner decision 8; was 14.1 s); 6.87 s without an output file (met; was 10.2 s); the helper alone 3.96 s, unchanged.
+  The export of the 90,954-face model: 9.96 s against 5 s (missed, accepted; was 16.8 s). The 1,000,000-triangle and the
+  largest-model export rows were not measured again.
+- **Not changed.** The native save (its round-trip check, which compares the document's own encodings, is the larger part of
+  its 3.6 s, and cutting it would change what it checks); the helper's tessellation (its parameters are output-affecting,
+  section 3); the STEP export's tessellated representation, which would need AP242 (section 2 refuses it).
+- **Contradictions.** None of the decisions. The export's file content changes (no pcurves), and the round trip is what
+  section 7's E5 checks; that check passes.
 
 ## Appendix: evidence and sources
 

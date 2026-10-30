@@ -75,7 +75,7 @@ struct Welder {
                             return id;
                 }
         const Id id = surface.nextId++;
-        surface.vertices.emplace(id, p);
+        surface.vertices.emplace_hint(surface.vertices.end(), id, p);
         cells[base].push_back(id);
         return id;
     }
@@ -91,6 +91,11 @@ struct MeshGeometry {
     std::shared_ptr<Body> body; // geometry only; ids, name, tag, transform and properties are the node's
     GeometryStats stats;
     Vec3 lo{}, hi{};
+    // R098.j: the feature edges, the edge appearances and the materials are made by finishMeshGeometry, when the
+    // document accepts the body. They count against no limit, and a body the document refuses does not need them.
+    bool finished{};
+    std::vector<Id> vertexOf;  // mesh vertex -> welded vertex
+    std::map<Id, Id> desired; // face -> material (0: none); colours are kept in body.faceColors
 };
 struct TriRecord {
     Id a, b, c;
@@ -98,6 +103,57 @@ struct TriRecord {
     std::uint32_t material;
     std::optional<std::array<float, 3>> color;
 };
+
+// R098.j: the directed edges of a mesh's triangles, grouped by their start vertex. Welded vertex ids run from 1 to
+// the surface's nextId, so each start vertex has a run of entries, sorted by end vertex and then by triangle: the
+// lowest-numbered triangle along an edge comes first, as the first triangle of a map of vectors did.
+struct DirectedEdges {
+    struct Entry {
+        Id to;
+        std::uint32_t triangle;
+    };
+    std::vector<std::uint32_t> runStart; // the run of start vertex v is runStart[v] to runStart[v + 1]
+    std::vector<Entry> entries;
+};
+
+DirectedEdges directedEdgesOf(const std::vector<TriRecord> &triangles, Id vertexBound) {
+    DirectedEdges result;
+    result.runStart.assign(vertexBound + 1, 0);
+    const auto forEachEdge = [&](const auto &visit) {
+        for (std::uint32_t t = 0; t < triangles.size(); ++t) {
+            const auto &r = triangles[t];
+            visit(r.a, r.b, t);
+            visit(r.b, r.c, t);
+            visit(r.c, r.a, t);
+        }
+    };
+    forEachEdge([&](Id from, Id, std::uint32_t) { ++result.runStart[from + 1]; });
+    for (std::size_t v = 1; v < result.runStart.size(); ++v)
+        result.runStart[v] += result.runStart[v - 1];
+    result.entries.resize(result.runStart.back());
+    std::vector<std::uint32_t> fill(result.runStart.begin(), result.runStart.end());
+    forEachEdge([&](Id from, Id to, std::uint32_t t) { result.entries[fill[from]++] = {to, t}; });
+    for (Id v = 0; v + 1 < result.runStart.size(); ++v)
+        std::sort(result.entries.begin() + result.runStart[v], result.entries.begin() + result.runStart[v + 1],
+                  [](const DirectedEdges::Entry &x, const DirectedEdges::Entry &y) {
+                      return x.to != y.to ? x.to < y.to : x.triangle < y.triangle;
+                  });
+    return result;
+}
+
+// The triangles along the directed edge from -> to: how many, and the lowest-numbered of them.
+struct EdgeUses {
+    std::size_t count{};
+    std::uint32_t first{};
+};
+
+EdgeUses edgeUses(const DirectedEdges &edges, Id from, Id to) {
+    const auto *begin = edges.entries.data() + edges.runStart[from];
+    const auto *end = edges.entries.data() + edges.runStart[from + 1];
+    const auto low = std::lower_bound(begin, end, to, [](const DirectedEdges::Entry &e, Id v) { return e.to < v; });
+    const auto high = std::upper_bound(low, end, to, [](Id v, const DirectedEdges::Entry &e) { return v < e.to; });
+    return {std::size_t(high - low), low == high ? 0u : low->triangle};
+}
 
 // The planar-patch merge (ADR 0171 section 3.3): coplanar triangles that share an edge and a look become
 // one polygon face, with holes where the outline requires; everything else stays triangles.
@@ -110,6 +166,9 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     std::vector<Id> vertexOf(mesh.vertices.size());
     for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
         vertexOf[i] = welder.vertex(mesh.vertices[i]);
+    std::vector<Vec3> positions(surface.nextId); // by welded id: surface.vertices, without the map's lookups
+    for (const auto &[id, p] : surface.vertices)
+        positions[id] = p;
     result.stats.sourceTriangles = mesh.triangles.size();
     std::vector<TriRecord> triangles;
     triangles.reserve(mesh.triangles.size());
@@ -120,7 +179,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
             ++result.stats.degenerate;
             continue;
         }
-        const auto pa = surface.vertices.at(a), pb = surface.vertices.at(b), pc = surface.vertices.at(c);
+        const auto pa = positions[a], pb = positions[b], pc = positions[c];
         const auto cr = cross(pb - pa, pc - pa);
         const double twiceArea = length(cr);
         // Faces below 1e-12 m^2 are below what the tessellator keeps (and about a millionth of a metre).
@@ -137,14 +196,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
         result.stats.empty = true;
         return result;
     }
-    // Directed edge -> triangles that run along it.
-    std::map<std::pair<Id, Id>, std::vector<std::uint32_t>> directed;
-    for (std::uint32_t t = 0; t < triangles.size(); ++t) {
-        const auto &r = triangles[t];
-        directed[{r.a, r.b}].push_back(t);
-        directed[{r.b, r.c}].push_back(t);
-        directed[{r.c, r.a}].push_back(t);
-    }
+    const DirectedEdges directed = directedEdgesOf(triangles, surface.nextId);
     const auto sameLook = [&](const TriRecord &x, const TriRecord &y) {
         return x.material == y.material && x.color == y.color;
     };
@@ -152,15 +204,16 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     std::vector<std::uint32_t> region(triangles.size(), unvisited);
     std::vector<std::vector<std::uint32_t>> regions;
     std::set<std::uint32_t> nonPlanarTriangles;
+    std::deque<std::uint32_t> queue;
     for (std::uint32_t seed = 0; seed < triangles.size(); ++seed) {
         if (region[seed] != unvisited)
             continue;
         const auto id = std::uint32_t(regions.size());
         regions.emplace_back();
-        std::deque<std::uint32_t> queue{seed};
+        queue.assign({seed});
         region[seed] = id;
         const auto &first = triangles[seed];
-        const Vec3 origin = surface.vertices.at(first.a);
+        const Vec3 origin = positions[first.a];
         while (!queue.empty()) {
             const auto t = queue.front();
             queue.pop_front();
@@ -168,12 +221,11 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
             const auto &r = triangles[t];
             const std::array<std::pair<Id, Id>, 3> edges{{{r.a, r.b}, {r.b, r.c}, {r.c, r.a}}};
             for (const auto &[u, v] : edges) {
-                const auto here = directed.find({u, v});
-                const auto there = directed.find({v, u});
-                if (here == directed.end() || there == directed.end() || here->second.size() != 1 ||
-                    there->second.size() != 1)
+                const auto here = edgeUses(directed, u, v);
+                const auto there = edgeUses(directed, v, u);
+                if (here.count != 1 || there.count != 1)
                     continue; // a boundary or a non-manifold edge: no merge across it
-                const auto q = there->second.front();
+                const auto q = there.first;
                 if (region[q] != unvisited || !sameLook(r, triangles[q]))
                     continue;
                 const auto &other = triangles[q];
@@ -181,7 +233,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
                 bool flat = cosine >= 1 - 1e-9;
                 if (flat)
                     for (const Id vertexId : {other.a, other.b, other.c})
-                        if (std::abs(dot(surface.vertices.at(vertexId) - origin, first.n)) > planeTolerance * 0.5)
+                        if (std::abs(dot(positions[vertexId] - origin, first.n)) > planeTolerance * 0.5)
                             flat = false;
                 if (flat) {
                     region[q] = id;
@@ -194,18 +246,20 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     }
     result.stats.nonPlanar = nonPlanarTriangles.size();
     std::map<Id, Id> desired; // face -> material (0: none); colours are kept in body.faceColors
+    // The faces are numbered in the order they are made (surface.nextId only grows), so each insertion below is at the
+    // end of its map (R098.j: no search).
     const auto sideFor = [&](const TriRecord &r, Id face) {
         if (r.color) {
-            body.faceColors[face] = *r.color;
-            desired[face] = 0;
+            body.faceColors.emplace_hint(body.faceColors.end(), face, *r.color);
+            desired.emplace_hint(desired.end(), face, Id(0));
         } else {
-            desired[face] = nativeMaterial(r.material);
+            desired.emplace_hint(desired.end(), face, nativeMaterial(r.material));
         }
     };
     const auto addTriangle = [&](std::uint32_t t) {
         const auto &r = triangles[t];
         const Id face = surface.nextId++;
-        surface.faces[face] = Face{face, {{r.a, r.b, r.c}}};
+        surface.faces.emplace_hint(surface.faces.end(), face, Face{face, {{r.a, r.b, r.c}}});
         sideFor(r, face);
     };
     for (const auto &members : regions) {
@@ -278,7 +332,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
             for (auto &hole : holes)
                 face.push_back(std::move(hole));
             const Id id = surface.nextId;
-            surface.faces[id] = Face{id, std::move(face)};
+            surface.faces.emplace_hint(surface.faces.end(), id, Face{id, std::move(face)});
             try {
                 (void)surface.triangulate(id);
                 ++surface.nextId;
@@ -301,10 +355,32 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     }
     body.topology = Topology::rebuild(surface, {});
     result.stats.edges = body.topology.edges.size();
+    bool first = true;
+    for (const auto &[id, p] : surface.vertices) {
+        if (first) {
+            result.lo = result.hi = p;
+            first = false;
+        }
+        result.lo = {std::min(result.lo.x, p.x), std::min(result.lo.y, p.y), std::min(result.lo.z, p.z)};
+        result.hi = {std::max(result.hi.x, p.x), std::max(result.hi.y, p.y), std::max(result.hi.z, p.z)};
+    }
+    result.vertexOf = std::move(vertexOf);
+    result.desired = std::move(desired);
+    return result;
+}
+
+// R098.j: the rest of what a body needs (ADR 0171 section 3.3), made once, when the document accepts it. The
+// topology and its counts were made by buildMeshGeometry. These maps are the bulk of the work for a body the
+// document refuses, and no limit counts them.
+void finishMeshGeometry(MeshGeometry &result, const IfcPackageMesh &mesh) {
+    if (result.finished)
+        return;
+    Body &body = *result.body;
+    Surface &surface = body.surface;
     // Edges: the worker's feature edges stay visible; the interior of a surface becomes soft and smooth.
     std::set<std::pair<Id, Id>> feature;
     for (const auto &edge : mesh.featureEdges) {
-        Id a = vertexOf[edge[0]], b = vertexOf[edge[1]];
+        Id a = result.vertexOf[edge[0]], b = result.vertexOf[edge[1]];
         if (a == b)
             continue;
         feature.insert({std::min(a, b), std::max(a, b)});
@@ -322,7 +398,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     // The body's default material is the most used one; a face that differs (including a face with
     // none, or with a colour of its own) keeps an explicit assignment.
     std::map<Id, std::size_t> counts;
-    for (const auto &[face, material] : desired)
+    for (const auto &[face, material] : result.desired)
         ++counts[material];
     Id best = 0;
     std::size_t bestCount = 0;
@@ -332,19 +408,10 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
             bestCount = count;
         }
     body.materials = MaterialSides{best, best};
-    for (const auto &[face, material] : desired)
+    for (const auto &[face, material] : result.desired)
         if (material != best)
             body.faceMaterials[face] = MaterialSides{material, material};
-    bool first = true;
-    for (const auto &[id, p] : surface.vertices) {
-        if (first) {
-            result.lo = result.hi = p;
-            first = false;
-        }
-        result.lo = {std::min(result.lo.x, p.x), std::min(result.lo.y, p.y), std::min(result.lo.z, p.z)};
-        result.hi = {std::max(result.hi.x, p.x), std::max(result.hi.y, p.y), std::max(result.hi.z, p.z)};
-    }
-    return result;
+    result.finished = true;
 }
 
 // ---- Tags ----------------------------------------------------------------------------------------
@@ -650,7 +717,7 @@ class Converter {
     void note(const std::string &code, long long count = 1) { notices[code] += count; }
     Id tagFor(const IfcPackageNode &node);
     Id materialFor(std::uint32_t index);
-    const MeshGeometry &geometryFor(std::size_t mesh);
+    MeshGeometry &geometryFor(std::size_t mesh);
     std::vector<NodeProps> planProperties(std::size_t aggregateBudget);
     Attempt build(std::size_t aggregateBudget);
     // The worker's georeference block, checked: the report's block, and the site origin the document gets (if any).
@@ -727,7 +794,7 @@ Id Converter::materialFor(std::uint32_t index) {
     return record->id;
 }
 
-const MeshGeometry &Converter::geometryFor(std::size_t mesh) {
+MeshGeometry &Converter::geometryFor(std::size_t mesh) {
     const auto found = geometry.find(mesh);
     if (found != geometry.end())
         return found->second;
@@ -1077,7 +1144,7 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
         }
         const bool hasMesh = node.mesh >= 0;
         const auto meshIndex = std::size_t(std::max<std::int64_t>(node.mesh, 0));
-        const MeshGeometry *mesh = nullptr;
+        MeshGeometry *mesh = nullptr;
         if (hasMesh) {
             mesh = &geometryFor(meshIndex);
             if (mesh->stats.empty) {
@@ -1141,6 +1208,8 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
             skipNode(i, "documentLimit:" + exceeded);
             continue;
         }
+        if (geometric)
+            finishMeshGeometry(*mesh, pkg.meshes[meshIndex]);
 
         const Id tag = tagFor(node);
         const std::string name = plainText(node.name, 256);
