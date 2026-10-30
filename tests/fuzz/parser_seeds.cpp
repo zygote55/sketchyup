@@ -666,10 +666,15 @@ int main(int argc, char **argv) {
                  {"refuse-multiband.tif", "refuse-float64.tif", "refuse-jpeg.tif",
                   "refuse-two-images.tif", "refuse-osgb36.tif", "refuse-etrs89.tif",
                   "refuse-projected.tif", "refuse-transform.tif", "refuse-vertical-code.tif",
-                  "refuse-bigtiff.tif", "refuse-lzw-bad-code.tif", "refuse-lzw-table-overflow.tif",
+                  "refuse-bigtiff.tif"})
+                publishRejected("geotiff", fixture(name), QString::fromLatin1(name));
+            // R107.b1.1: a corrupt LZW stream has a header the reader accepts. It is refused by name
+            // when its block is decoded, so these are accepted seeds, and the harness samples them.
+            for (const char *name :
+                 {"refuse-lzw-bad-code.tif", "refuse-lzw-table-overflow.tif",
                   "refuse-lzw-truncated.tif", "refuse-lzw-short.tif", "refuse-lzw-more-output.tif",
                   "refuse-lzw-old-style.tif"})
-                publishRejected("geotiff", fixture(name), QString::fromLatin1(name));
+                publish("geotiff", fixture(name), QString::fromLatin1(name));
             publish("geographic-site",
                     bytes(geographic(51.50735, -0.12776, 30, "WGS84", "unknown", "typed", "")),
                     "london-typed");
