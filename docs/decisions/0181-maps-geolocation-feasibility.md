@@ -903,6 +903,91 @@ Where this differs from ADR 0181 and UX §20:
 - **Which extent "Fit to the file" uses.** §20.2 describes a 1 by 1 degree file. This record's extent is the posts' centres, which is a little less than the tile's outer edges. R107.b4 must choose which one the window's "Fit to the file" uses; the centres are the ones the reader can sample.
 - **Command-line behaviour, changed where the old behaviour was wrong or unsafe.** (a) A GeoTIFF imported into a model that has terrains is now decimated to the room, and its dry run counts that room; before, the room was not counted when the spacing was chosen. (b) An `--origin` outside the file's zone is refused, because no record can be written for it. (c) A zero offset with a note is refused. (d) A window narrower than its spacing is refused, instead of looping. The command line's existing outputs are unchanged for every other input: `geotiff_tests`, `terrain_import_tests`, `terrain_io_tests` and `geographic_site_tests` pass without change to their expected output, except the zero-offset case that now gives its own refusal.
 
+## Implementation notes (R107.c2)
+
+What R107.c2 built: the visible credits of §3.3, the second half of R107.c (owner decision 8). The data exports are R107.c1 (above). The design sections above stay as they were.
+
+**Where each credit goes.** The notice text is the shared helper's (`src/core/source_credits.cpp`). Each output places it as follows.
+
+| Output | Placement | Example | Image or page size |
+|---|---|---|---|
+| PDF sheets (`src/io/sheet_export.cpp`) | A "Sources" line in the bottom page margin, below the frame, left-aligned with the frame and centred in the margin. Printing (`printSheets`) paints the same line | `Sources: Credit: U.S. Geological Survey` | Unchanged. The default margin is 10 mm |
+| Measured PDF and SVG, vector (`src/io/measured_export.cpp`) | The notice as real text in the bottom page margin, outside the drawing's clip. In the PDF it is in the text layer | `Credit: U.S. Geological Survey` | Unchanged |
+| Measured PDF and SVG, raster appearance | The image is composed: white outside the drawing's content rectangle, the drawing in that rectangle, and the notice painted into the image's bottom margin. The SVG's group is not clipped in this case | The notice is pixels in the image | Unchanged: the image keeps its width and height, and the strip sits inside the existing size |
+| Presentation frames (`src/integrations/blender_worker.py`) | Blender's own text stamp: `render.use_stamp`, `use_stamp_note` and `stamp_note_text`, with `stamp_background` (0, 0, 0, 0.5). Blender draws the note at the top left and wraps it | The notice, burned into the frame's top rows | Unchanged. Video is encoded from these stills, so it carries the note |
+
+**How it looks.** The line is set in DejaVu Sans, which the measured annotations use. The size starts at 2.5 mm (about 7 pt) and steps down through 2.2, 2.0, 1.8, 1.6 and 1.4 mm (about 4 pt) until the notice fits the margin's width in whole words. A notice that cannot fit at 1.4 mm is refused, never cut. The GLO-30 notice, with its no-liability sentence, fits a 10 mm margin on a 128 mm wide page (a test). The line is labelled "Sources:"; the notice's own words follow unchanged.
+
+**Which content counts** (a rule, not a test).
+- A to-scale view or a measured drawing counts a DEM terrain when one of its own lines reaches the page's content rectangle. A raster appearance counts a DEM terrain when one of its opaque surfaces reaches it. The lines are the vector credit; the surfaces are the raster credit. A terrain outside the picture adds no notice.
+- A perspective (not-to-scale) view has no drawing. It counts any DEM terrain its scene shows.
+- A frame counts a DEM terrain when its scene manifest lists one. The GLB writer lists `credits` only when a visible DEM terrain tile emits faces (R107.c1). This rule does not test whether the camera sees the terrain (see gaps).
+
+**Preflight.** A page that shows DEM terrain and cannot print its line blocks the export (no opt-in, because the credit is required). `sourcesNoRoom` means the margin cannot hold the line at any size, which includes a zero margin. `sourcesOverlap` means page content (a view, an item or the title block) reaches into the bottom margin. The line never overlaps the frame, the views or the title block, because each of those must stay out of the margin.
+
+**Reports.** Each export's report lists the notices it wrote. The PDF sheet report has a top-level `credits` and `pages[].credits`. The measured report has `credits` and `creditPlacement` (`bottomMargin` or `composedRasterMargin`). The batch manifest keeps `credits` (R107.c1), and each frame's record now carries the `credits` its scene manifest listed. A document without DEM content writes none of these keys.
+
+**Frame method and the Blender facts checked.**
+- Blender's stamp is on only for a frame whose scene manifest lists credits. Every other stamp flag stays off, so a frame without DEM content is unchanged. A handoff keeps the scene's own settings, as before.
+- Blender's stamp draws the note in its own font at the top left, with a translucent box. It does not change the image size.
+- Blender keeps 767 bytes of a stamp note. A probe in the CI image (Blender 5.2.2) set notes of 700, 767, 768, 769 and 1000 bytes and read each back: 700 and 767 were kept whole, and longer notes were cut to 767 bytes. The worker therefore refuses a credit note longer than 700 bytes, so a required notice is never cut short.
+
+**Determinism evidence.** The same DEM scene rendered twice by the real worker gives identical PNG bytes (`blender_job_tests --real`, "The same DEM frame renders the same PNG bytes"). A 400 × 300 probe scene with a note rendered twice in the CI image gave the same sha256 both times (`1dbbe4d7…`). The stamp draws the same text and the stripped PNG text chunks are the same, as ADR 0173 §6 requires.
+
+**The tests (V6).**
+- Sheets: a DEM sheet's report lists the 3DEP notice once, on its page; a page without DEM names no credit; a zero margin and a crowded margin block the export. `pdftotext` finds `Sources: Credit: U.S. Geological Survey` on the page (`sheet_export_tests --pdf-real`). `qpdf --check` passes on the same file, run on the host (qpdf is not in the CI image).
+- Measured: the SVG's `<text>` sits in the bottom margin and reads the notice exactly; the PDF's text layer carries it (`pdftotext`); a 1000 × 800 raster keeps its size, its drawing stays in the margins and its top margin stays white, and its bottom margin holds more than 50 dark pixels of text. Without DEM the raster is not composed and the SVG has no `<text>`.
+- Frames: the real worker renders a DEM frame with the credit in its manifest and a scene without DEM without it; the DEM frame's top 24 rows hold at least 50 text-bright pixels (lightness above 180, where the scene behind is 138) and the other frame fewer than 50.
+
+**Unchanged output.** A document with no DEM terrain writes no `credits` key, no notice text, no `<text>` element and no composed raster. The code paths for those outputs return early on an empty credit set: `paintSources` (`src/io/sheet_export.cpp`) and the measured strip (`src/io/measured_export.cpp`). The worker's stamp stays off unless a manifest lists credits. No golden or fixture file was changed or regenerated. PDF bytes are not identical from run to run in any case: the creation date is set when the file is written. For PDFs, the proof is the code path above plus the existing suites. Raster pixels and SVG bytes are the same as before for such a document.
+
+**Limits and gaps.**
+- The frame credit is a visibility rule. A DEM terrain that is visible in a camera's scene but outside its frame adds a notice to that frame. The R107.c1 rule is carried over unchanged.
+- The stamp note sits at the top left of a frame and covers part of the picture. Blender places it, and the layout cannot be moved. The owner should decide whether that is acceptable.
+- UX section 17 designs no control for the frame credit, so the credit is always on, as decision 8 says. No control was added. The owner may want a way to turn it off, which would need a UX decision.
+- Printing a sheet paints the line too, but only the PDF output is tested.
+- The batch record's `credits` key and the video output are not covered by a test of their own. The frame's stamp is covered by the real-worker test, and video is encoded from those same stills.
+- The native (X11 and Wayland) suites that cover the sheet and measured dialogs were not run here, because no dialog changed. The full CI tier runs them.
+- SVG is not named in §3.3 for the measured output. It shares the export path, so it gets the same line. The owner should confirm that.
+
+**Contradictions with the design.** None of the design rules are contradicted. Two points go beyond §3.3. The raster credit does not shrink the image; it keeps the image size and uses the bottom margin. The raster and vector credits follow different content rules (a surface or a line), because a vector drawing shows only its lines.
+
+## Implementation notes (R107.b4)
+
+What this record adds: the desktop GeoTIFF page of the terrain import dialog, [UX_DESIGN §20](UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop) 20.1 to 20.6, built on the R107.b3 engine, which is unchanged. It closes UX §20.7 items 8, 10 and 12. The page is `src/app/terrain_import_dialog_dem.cpp`; its pure rules and texts (the footprint, the fit window, the refusal next steps, the notice wording) are `src/app/terrain_dem_window.cpp`; the dry run's struct, which both files use, is `src/app/terrain_import_dry_run.hpp`; the overlays and the summary are in `src/app/terrain_preview.cpp`. `src/app/window_terrain.cpp` reads a `.tif` from its path, not whole, and `src/app/terrain_section.cpp` adds the Credit row.
+
+Measured on the committed fixtures in `tests/fixtures/geotiff`: the 700 by 700 plane tile (1 arc-second, near 51.5 N, 0.1 W), with a default window of 1,000 m on the file's centre, gives a 33 by 33 grid (1,089 posts) at 31 m, not decimated, and 2,048 triangles, the figures of §20.4's example. Fitted to the whole tile, the grid is decimated, and the amber line of §20.2 names both spacings. The 48 by 40 plane tile fits both products, so neither is chosen until the person chooses; a window wider than it is refused by name.
+
+Tests: `terrain_import_dialog_tests` passes on X11 at 1× (Xvfb), on Wayland at 2× (`scripts/test-wayland.sh`) and offscreen. `native_accessibility_audit --dialogs-keyboard=import` passes all four terrain import cases, the new GeoTIFF one included. `terrain_desktop_tests`, `entity_info_input_tests`, `geotiff_tests` and `terrain_import_tests` pass under Xvfb.
+
+Item by item, in the order of §20:
+
+- **20.1 Entry.** The chooser's terrain filter gains "GeoTIFF elevation (*.tif, *.tiff)". A `.tif` or `.tiff` opens the dialog with GeoTIFF as its only format. The product radios are enabled only for the products the posts fit (`geoTiffFacts`): a 1 arc-second file fits both, so neither is chosen and the caption says why; a 1/3 arc-second file is 3DEP only. A file that fits neither is refused as `post-size`, in the words the reader would give.
+- **20.2 Window.** The default is 1,000 m square on the site origin when the site has one (in the zone of its geographic record or of its UTM CRS label), and otherwise on the file's centre (see the differences below). The window takes corners or a centre and size in UTM, and latitude and longitude beside each point, converted in the window's zone with R107.a's series. A position outside the zone is named under the window. Fit to the file sets the corners to the file's post-centre extent, as the facts call returns it. The live grid line gives the posts, the spacing with its nominal size, decimation, the triangles and the room left in the model; the amber line of §20.2 is under the spacing when the grid is decimated.
+- **20.3 Labels.** The datum reads "NAD83, labelled approximation" with ⚠ Approximation and the NAD83 caption. The vertical reference menu starts at "Choose…" (or "From the file: …", read-only, when the file names one), and Import waits for a choice. The mismatch block appears when the site's record names a different reference: it names both, and Import waits for a non-zero offset and a note. The engine's own refusal of the mismatch is shown too, and it names both references. A site with no record says its zone and reference are not checked.
+- **20.4 Report.** `reportText()` has a GeoTIFF branch: the source and the post, the licence, the SHA-256 in full, the window, the spacing, the grid with its voids and outside counts, the datum, the heights with the offset, the triangles, the credit (with the no-liability line for GLO-30), the geographic record, and the notices once each in §20.4's words. Copy report and Save report use the same text and `writeReportBytes`.
+- **20.5 Refusals.** Every refusal of this dialog starts "✕ Refused. Nothing was imported. Your model is unchanged.", then the reader's or the engine's plain sentence (by refusal code, never the command line's text), then numbered next steps from the table. A file-level refusal (`demFileRefusal`) greys the settings and shows Choose another file…. The DXF and point-file banners say "Refused. Nothing was imported." too (decision 6). Voids are refused and listed, up to 4,096 in the engine, and the preview shows them as crosses.
+- **20.6 Keyboard and names.** The tab order follows the section's list: product radios, window radios, the window fields, Zone, Fit, Spacing, Vertical reference, Offset, Why, Site settings…, then Show report, Cancel, Import. Radio groups are one Tab stop. The accessible names are §20.6's. The preview's description gives the window, the file and the grid in words. Not run: the 200 % text-size layout.
+- **§20.7 item 10 (credit).** The Terrain section shows a "Credit" row under Source for a DEM terrain: the file's name, then the credit, then the GLO-30 disclaimer, from the source record (decision 4).
+- **§20.7 item 12 (overlays).** The preview draws the file's extent dashed, the window solid (the failure colour when it leaves the file), the grid as a light fill, the origin as a cross, and the void posts as crosses, each with a label.
+- **Decision 5 (geographic record).** The engine writes the record when the import establishes the origin (R107.b3). The report and the outcome line say so; when the site already has its origin, the report says the site keeps its record.
+
+Applied owner decisions: 1 (latitude and longitude in the dialog only), 2 (1,000 m default), 3 (voids refused and located), 4 (Credit line), 5 (record written and reported, never overwritten), 6 ("Nothing was imported." in every refusal of the dialog).
+
+Where this differs from ADR 0181 and UX §20:
+
+- **Default window with no site origin.** The brief sets the file's centre, so the window is 1,000 m on the centre. §20.2 says "Centre and size" with an empty centre, and Import waits. The brief's choice is built.
+- **Fit to the file.** The brief asks for the post-centre extent the facts call returns. Its UTM bounding box is not inside the file, since a UTM rectangle's corners fall outside a footprint rotated by grid convergence. So the window is that box inset, by bisection, until every sampled point of its perimeter lies in the file, plus one metre so that rounding the spin boxes to a tenth of a metre cannot push a corner out. The fitted window is smaller than the box.
+- **Refusal wording.** The banner's first words are "✕ Refused. Nothing was imported." (§20.5 and §20.6). The brief's form, which begins with "Nothing was imported.", is kept as the sentence that follows.
+- **Vertical reference position.** The row sits below Spacing, where §20.6's Tab order puts it, so the reading order and the Tab order agree. §20.3 draws it in the source block.
+- **User-guide link.** Left out. `docs/USER_GUIDE.md` has no anchor for the download (R107.e writes it).
+- **Choose another file….** On a refused file it closes the dialog, and the window opens the chooser again. §20.5 asks for focus to move there instead.
+- **Site settings….** The window passes its Site settings dialog to the import dialog, which has no viewport of its own.
+- **Notice wording.** The decimation line is §20.2's. The other kinds use §20.4's wording. An engine message with no wording of its own has its ADR citation removed.
+- **Keyboard audit.** `tests/native_dialog_audit.hpp` took an unchecked radio group as unreachable by Tab when no button of the group was checked. Both products fit a 1 arc-second file, so neither is checked, and Qt enters such a group at its first button. The audit now does the same. This changes a shared test helper; the import group and the existing cases pass with it.
+
+Risks: the file's outline in the preview is drawn from the samples that fall in the window's zone, so a file that crosses a zone edge is drawn approximately. The page reads the file's header on the UI thread (bounded by the reader). Not run: the 200 % layout, a dialog screenshot, and the full tier (`full-ci`), which the parent adds.
+
 ## Implementation notes (R107.e)
 
 What R107.e wrote, and the sources it read. Documents only: no code, and no test was run. The sections above stay as the design.

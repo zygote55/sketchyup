@@ -49,6 +49,12 @@ void SourceCredits::add(const TerrainDemSource &dem) {
         notices_.push_back(std::move(notice));
 }
 
+void SourceCredits::merge(const SourceCredits &other) {
+    for (const auto &notice : other.notices_)
+        if (std::find(notices_.begin(), notices_.end(), notice) == notices_.end())
+            notices_.push_back(notice);
+}
+
 std::string SourceCredits::joined() const {
     std::string text;
     for (const auto &notice : notices_)

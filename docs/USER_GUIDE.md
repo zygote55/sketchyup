@@ -924,7 +924,8 @@ elevation selected. The dialog has these settings:
    dialog reads its post size. A file whose posts fit one product selects it, and the caption says why. A
    file at 1 arc-second in both directions fits both products, so neither is selected until you choose.
 2. **Window.** Choose **Around the site origin**, **Centre and size**, or **Corners**. Around the site origin
-   is the default when the site has a geographic location: a 1,000 m square centred on the origin. Centre
+   is the default when the site has a geographic location: a 1,000 m square centred on the origin. A model
+   with no site origin starts with a 1,000 m square centred on the file, and the import sets the origin. Centre
    and corners take UTM metres, or latitude and longitude, which are converted into the window's zone. **Zone**
    sets the one UTM zone for the window and the grid. **Fit to the file** sets the window to the file's extent
    in that zone.

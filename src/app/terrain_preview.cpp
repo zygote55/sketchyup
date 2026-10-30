@@ -1,6 +1,7 @@
 #include "app/terrain_preview.hpp"
 #include <QAccessible>
 #include <QKeyEvent>
+#include <QPolygonF>
 #include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
@@ -104,15 +105,50 @@ void TerrainPreview::setColors(const ThemeColors &colors) {
     colors_ = colors;
     changed();
 }
+void TerrainPreview::setOverlays(TerrainPreviewOverlays overlays) {
+    overlays_ = std::move(overlays);
+    // The view follows the overlays too, until the person moves it.
+    if (autoFit_)
+        fit();
+    changed();
+}
+void TerrainPreview::setSummary(const QString &summary) {
+    summary_ = summary;
+    describe();
+}
+// The data's extent and the overlays' together: what a fit must show.
+QRectF TerrainPreview::contentBounds() const {
+    double minX = INFINITY, minY = INFINITY, maxX = -INFINITY, maxY = -INFINITY;
+    auto take = [&](QPointF p) {
+        minX = std::min(minX, p.x());
+        maxX = std::max(maxX, p.x());
+        minY = std::min(minY, p.y());
+        maxY = std::max(maxY, p.y());
+    };
+    if (data_ && !data_->bounds.isNull()) {
+        take(data_->bounds.topLeft());
+        take(data_->bounds.bottomRight());
+    }
+    for (const auto *outline : {&overlays_.file, &overlays_.window, &overlays_.grid})
+        for (const auto &p : *outline)
+            take(p);
+    if (overlays_.origin)
+        take(*overlays_.origin);
+    for (const auto &p : overlays_.voids)
+        take(p);
+    if (minX > maxX)
+        return {};
+    return QRectF(QPointF(minX, minY), QPointF(maxX, maxY));
+}
 void TerrainPreview::fit() {
-    if (!data_ || data_->bounds.isNull()) {
+    const auto bounds = contentBounds();
+    if (bounds.isNull()) {
         scale_ = 1;
         centre_ = {};
         autoFit_ = true;
         changed();
         return;
     }
-    const auto bounds = data_->bounds;
     const double w = std::max(bounds.width(), 1e-3), h = std::max(bounds.height(), 1e-3);
     // 24 px around, plus room for the legend band at the bottom.
     const double margin = 24, legend = 28;
@@ -162,6 +198,8 @@ void TerrainPreview::describe() {
                     .arg(marker_->x(), 0, 'f', 2)
                     .arg(marker_->y(), 0, 'f', 2);
     text += ". Arrow keys pan, plus and minus zoom, Shift+Z fits.";
+    if (!summary_.isEmpty())
+        text = summary_ + ". " + text;
     if (accessibleDescription() != text) {
         setAccessibleDescription(text);
         QAccessibleEvent event(this, QAccessible::DescriptionChanged);
@@ -283,6 +321,79 @@ void TerrainPreview::render(QImage &image) const {
         p.drawPoints(bands[band].data(), int(bands[band].size()));
     }
 }
+// R107.b4: the overlays, over the cached drawing. Every outline and mark has its label, drawn on a
+// band of the canvas colour so it reads in both themes.
+void TerrainPreview::paintOverlays(QPainter &p) const {
+    const auto &o = overlays_;
+    auto polygon = [&](const std::vector<QPointF> &points) {
+        QPolygonF poly;
+        poly.reserve(qsizetype(points.size()));
+        for (const auto &point : points)
+            poly << toScreen(point);
+        return poly;
+    };
+    auto label = [&](QPointF at, const QString &text, QColor colour) {
+        if (text.isEmpty())
+            return;
+        const auto metrics = p.fontMetrics();
+        auto band = colors_.canvas;
+        band.setAlphaF(.85);
+        const QRectF box(at.x() - 3, at.y() - metrics.ascent() - 2,
+                         metrics.horizontalAdvance(text) + 6, metrics.height() + 2);
+        p.setPen(Qt::NoPen);
+        p.setBrush(band);
+        p.drawRect(box);
+        p.setBrush(Qt::NoBrush);
+        p.setPen(colour);
+        p.drawText(at, text);
+    };
+    // The top-left corner of an outline on screen, where its label sits.
+    auto corner = [&](const std::vector<QPointF> &points) {
+        QRectF box;
+        for (const auto &point : points)
+            box = box.isNull() ? QRectF(toScreen(point), QSizeF(0, 0))
+                               : box.united(QRectF(toScreen(point), QSizeF(0, 0)));
+        return box.topLeft() + QPointF(6, 14);
+    };
+    p.setRenderHint(QPainter::Antialiasing);
+    if (o.grid.size() >= 3) {
+        auto fill = colors_.accent;
+        fill.setAlphaF(.16);
+        p.setPen(Qt::NoPen);
+        p.setBrush(fill);
+        p.drawPolygon(polygon(o.grid));
+        label(corner(o.grid), o.gridLabel, colors_.ink);
+    }
+    if (o.file.size() >= 3) {
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(colors_.information, 1.5, Qt::DashLine));
+        p.drawPolygon(polygon(o.file));
+        label(corner(o.file), o.fileLabel, colors_.ink);
+    }
+    if (o.window.size() >= 3) {
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(o.windowOutside ? colors_.failure : colors_.accent, 2));
+        p.drawPolygon(polygon(o.window));
+        label(corner(o.window), o.windowLabel, o.windowOutside ? colors_.failure : colors_.ink);
+    }
+    if (o.origin) {
+        const auto s = toScreen(*o.origin);
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(colors_.ink, 1.5));
+        p.drawLine(s + QPointF(-7, 0), s + QPointF(7, 0));
+        p.drawLine(s + QPointF(0, -7), s + QPointF(0, 7));
+        label(s + QPointF(8, -6), QStringLiteral("Origin"), colors_.ink);
+    }
+    // A void post is a cross in the failure colour, so the mark carries the meaning, not colour alone.
+    p.setPen(QPen(colors_.failure, 2));
+    for (const auto &point : o.voids) {
+        const auto s = toScreen(point);
+        p.drawLine(s + QPointF(-4, -4), s + QPointF(4, 4));
+        p.drawLine(s + QPointF(-4, 4), s + QPointF(4, -4));
+    }
+    if (!o.voids.empty())
+        label(toScreen(o.voids.front()) + QPointF(6, -6), o.voidLabel, colors_.failure);
+}
 void TerrainPreview::paintEvent(QPaintEvent *) {
     QPainter p(this);
     const qreal ratio = devicePixelRatioF();
@@ -294,11 +405,16 @@ void TerrainPreview::paintEvent(QPaintEvent *) {
     }
     p.drawImage(0, 0, cache_);
     p.setRenderHint(QPainter::Antialiasing);
-    if (!placeholder_.isEmpty() || !data_) {
+    const bool overlaid = !overlays_.empty();
+    if (!overlaid && (!placeholder_.isEmpty() || !data_)) {
         p.setPen(colors_.muted);
         p.drawText(rect().adjusted(16, 16, -16, -16), Qt::AlignCenter | Qt::TextWordWrap,
                    placeholder_);
-    } else if (mode_ == Mode::Sources && !shading_) {
+    } else if (!placeholder_.isEmpty()) {
+        // With overlays, the placeholder (the dry run's stage) sits at the foot, not over them.
+        p.setPen(colors_.muted);
+        p.drawText(rect().adjusted(16, 0, -16, -8), Qt::AlignBottom | Qt::AlignLeft, placeholder_);
+    } else if (data_ && mode_ == Mode::Sources && !shading_) {
         // The legend, bottom left on a band of the canvas colour, wrapping when narrow.
         const auto metrics = p.fontMetrics();
         struct Entry {
@@ -344,6 +460,8 @@ void TerrainPreview::paintEvent(QPaintEvent *) {
             p.drawText(QPointF(at.x() + 20, y), entry->text);
         }
     }
+    if (overlaid)
+        paintOverlays(p);
     if (marker_) {
         const auto s = toScreen(*marker_);
         p.setBrush(Qt::NoBrush);

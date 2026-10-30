@@ -44,8 +44,9 @@ class TerrainSection : public CollapsibleSection {
     QFrame *chip_{};
     QLabel *chipText_{};
     QPushButton *regenerate_{}, *settings_{}, *explode_{};
-    QLabel *name_{}, *triangles_{}, *source_{}, *sources_{}, *elevation_{}, *generator_{},
+    QLabel *name_{}, *triangles_{}, *source_{}, *credit_{}, *sources_{}, *elevation_{}, *generator_{},
         *flat_{}, *error_{}, *contourStatus_{};
+    QWidget *creditRow_{}; // the Credit label's row caption, shown with the line
     QCheckBox *contours_{};
     QDoubleSpinBox *interval_{};
     QComboBox *shading_{};

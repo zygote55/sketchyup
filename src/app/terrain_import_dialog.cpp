@@ -1,4 +1,5 @@
 #include "app/terrain_import_dialog.hpp"
+#include "app/terrain_import_dry_run.hpp"
 #include "app/accessible_names.hpp"
 #include "app/interface_preferences.hpp"
 #include "app/report_sheet.hpp"
@@ -6,6 +7,7 @@
 #include "app/terrain_role_table.hpp"
 #include "app/unit_display.hpp"
 #include "automation/terrain_commands.hpp"
+#include "geo/geographic.hpp"
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -33,6 +35,7 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QStringDecoder>
+#include <QStringList>
 #include <QStyle>
 #include <QTableWidget>
 #include <QTreeWidget>
@@ -41,22 +44,6 @@
 #include <cmath>
 namespace sketchy {
 
-// One dry run: the core's terrain.import without the edit, for one set of settings.
-struct TerrainImportDryRun {
-    QJsonObject command;
-    bool unitsChosen{};
-    bool cancelled{}; // D-044: stopped by its TerrainRunControl; never shown
-    std::uint64_t revision{};
-    QString error;              // the source could not be read or the request was refused
-    bool unitsMissing{};        // DXF: no usable $INSUNITS, so units must be chosen
-    QString headerUnit;         // DXF: the unit $INSUNITS declares, when it does
-    std::vector<TerrainSourceLayer> layers;
-    QJsonObject sourceReport;   // the parser's report (delimiter, header, columns, ...)
-    double metresPerUnit{1};
-    std::optional<TerrainImportResult> result; // when units are chosen and the source parsed
-    std::string name{"Terrain"};
-    std::shared_ptr<const TerrainPreviewData> preview;
-};
 
 namespace {
 QString count(double value) { return QLocale().toString(qulonglong(std::llround(value))); }
@@ -166,11 +153,85 @@ std::shared_ptr<const TerrainPreviewData> previewOf(const TerrainSourceRequest &
     return data;
 }
 
+// R107.b4: the GeoTIFF page's settings, as the command carries them (the "dem" object), in the
+// reader's options. The room the model leaves is passed separately, as the dry run counts it.
+GeoTiffTerrainOptions demOptions(const QJsonObject &command, std::size_t otherTriangles) {
+    const auto dem = command["dem"].toObject();
+    GeoTiffTerrainOptions options;
+    options.product = demProduct(dem["product"].toString()).value_or(DemProduct::Dep3);
+    options.zone = dem["zone"].toInt();
+    options.north = dem["north"].toBool(true);
+    options.easting0 = dem["easting0"].toDouble();
+    options.northing0 = dem["northing0"].toDouble();
+    options.easting1 = dem["easting1"].toDouble();
+    options.northing1 = dem["northing1"].toDouble();
+    if (dem.contains("spacing"))
+        options.spacing = dem["spacing"].toDouble();
+    options.vertical = dem["vertical"].toString().toStdString();
+    if (dem.contains("offset"))
+        options.verticalOffset = dem["offset"].toDouble();
+    options.verticalNote = dem["note"].toString().toStdString();
+    options.otherTerrainTriangles = otherTriangles;
+    return options;
+}
+
+// R107.b4: the GeoTIFF dry run, as the command line's importGeoTiffTerrain makes it: the file is
+// read from its path in windows (parseGeoTiffTerrainRequest), then checked and sized as the other
+// sources are (runTerrainImport). A refusal keeps the reader's code and sentence for the dialog.
+std::shared_ptr<TerrainImportDryRun> demDryRun(const QString &path, const QJsonObject &command,
+                                               const std::optional<SiteOrigin> &site,
+                                               std::size_t otherTriangles, std::uint64_t revision,
+                                               TerrainProgress &progress) {
+    auto run = std::make_shared<TerrainImportDryRun>();
+    run->command = command;
+    run->unitsChosen = true;
+    run->revision = revision;
+    run->geotiff = true;
+    std::optional<TerrainSourceRequest> request;
+    try {
+        request = parseGeoTiffTerrainRequest(path, demOptions(command, otherTriangles), command,
+                                             &progress);
+    } catch (const TerrainCancelled &) {
+        throw;
+    } catch (const TerrainError &error) {
+        run->error = QString::fromUtf8(error.what());
+        run->refusal = error.refusal();
+        run->sentence = QString::fromStdString(error.sentence());
+        if (const auto *voids = dynamic_cast<const GeoTiffVoidRefusal *>(&error)) {
+            run->voidCount = voids->count();
+            run->voids = voids->positions();
+        }
+        return run;
+    } catch (const std::exception &error) {
+        run->error = QString::fromUtf8(error.what());
+        return run;
+    }
+    run->sourceReport = request->set.report;
+    run->layers = request->set.layers;
+    run->metresPerUnit = request->set.unit.metresPerUnit;
+    run->name = request->name;
+    try {
+        run->result = runTerrainImport(request->set, request->options, site, request->provenance,
+                                       &progress);
+    } catch (const std::exception &error) {
+        run->error = QString::fromUtf8(error.what());
+        return run;
+    }
+    if (run->result->cancelled)
+        throw TerrainCancelled();
+    run->preview = previewOf(*request, *run->result);
+    progress.check();
+    return run;
+}
+
 // The worker: parse and dry-run exactly as terrain.inspect_source and terrain.import do.
-std::shared_ptr<TerrainImportDryRun> dryRun(const QByteArray &bytes, QJsonObject command,
-                                            bool unitsChosen, std::optional<SiteOrigin> site,
+std::shared_ptr<TerrainImportDryRun> dryRun(const QByteArray &bytes, const QString &path,
+                                            QJsonObject command, bool unitsChosen,
+                                            std::optional<SiteOrigin> site,
                                             std::size_t otherTriangles, std::uint64_t revision,
                                             TerrainProgress &progress) {
+    if (command["format"].toString() == "geotiff")
+        return demDryRun(path, command, site, otherTriangles, revision, progress);
     auto run = std::make_shared<TerrainImportDryRun>();
     run->command = command;
     run->unitsChosen = unitsChosen;
@@ -277,6 +338,7 @@ TerrainImportDialog::TerrainImportDialog(Document &doc, Setup setup, QWidget *pa
     progressPoll_.setInterval(50);
     connect(&progressPoll_, &QTimer::timeout, this, [this] { refreshProgress(); });
     build();
+    initGeoTiff(); // R107.b4: reads the file's header, before the first refresh
     setTheme(setup_.colors);
     refresh();
     schedule(0);
@@ -302,6 +364,7 @@ void TerrainImportDialog::cancelRun() {
 }
 
 bool TerrainImportDialog::points() const { return format_->currentData().toString() == "points"; }
+bool TerrainImportDialog::geotiff() const { return format_ && format_->currentData().toString() == "geotiff"; }
 
 void TerrainImportDialog::build() {
     setObjectName("terrainImportDialog");
@@ -359,6 +422,17 @@ void TerrainImportDialog::build() {
     bannerText_->setTextFormat(Qt::PlainText);
     bannerText_->setWordWrap(true);
     bannerRow->addWidget(bannerText_, 1);
+    // R107.b4 (UX §20.5): a file the reader refuses is replaced by another, chosen here.
+    chooseOther_ = new QPushButton("Choose another file…");
+    chooseOther_->setObjectName("terrainImportChooseOther");
+    chooseOther_->setAccessibleName("Choose another file");
+    chooseOther_->setAutoDefault(false);
+    chooseOther_->hide();
+    connect(chooseOther_, &QPushButton::clicked, this, [this] {
+        chooseAnother_ = true;
+        reject();
+    });
+    bannerRow->addWidget(chooseOther_, 0, Qt::AlignTop);
     auto *bannerHolder = new QHBoxLayout;
     bannerHolder->setContentsMargins(22, 0, 22, 10);
     bannerHolder->addWidget(banner_);
@@ -391,10 +465,15 @@ void TerrainImportDialog::build() {
     format_ = new QComboBox;
     format_->setObjectName("terrainImportFormat");
     format_->setAccessibleName("Source format");
-    format_->addItem("DXF contours", "dxf");
-    format_->addItem("Point file (CSV, TXT, XYZ, PTS)", "points");
-    {
-        const auto suffix = QFileInfo(setup_.fileName).suffix().toLower();
+    // R107.b4 (UX §20.1): a .tif or .tiff file is a GeoTIFF elevation file, and only that format
+    // is offered for it; the other files keep the DXF and point-file choices.
+    const auto suffix = QFileInfo(setup_.fileName).suffix().toLower();
+    const bool tiff = suffix == "tif" || suffix == "tiff";
+    if (tiff)
+        format_->addItem("GeoTIFF elevation (*.tif, *.tiff)", "geotiff");
+    else {
+        format_->addItem("DXF contours", "dxf");
+        format_->addItem("Point file (CSV, TXT, XYZ, PTS)", "points");
         format_->setCurrentIndex(suffix == "dxf" ? 0 : 1);
     }
     source->addWidget(caption("Format"), 0, 0);
@@ -402,9 +481,11 @@ void TerrainImportDialog::build() {
     units_ = new QComboBox;
     units_->setObjectName("terrainImportUnits");
     units_->setAccessibleName("Source units (required)");
-    source->addWidget(caption("Units"), 1, 0);
+    unitsCaption_ = caption("Units");
+    source->addWidget(unitsCaption_, 1, 0);
     source->addWidget(units_, 1, 1);
     column->addLayout(source);
+    buildGeoTiff(column); // R107.b4: the GeoTIFF page, shown for a GeoTIFF only
 
     // Point files: delimiter, header row and a meaning per column above a sample.
     pointsBox_ = new QWidget;
@@ -522,7 +603,8 @@ void TerrainImportDialog::build() {
     originColumn->addWidget(documentOrigin_);
     originColumn->addWidget(originBox_);
     site->addLayout(originColumn, 1, 1);
-    site->addWidget(caption("CRS label"), 2, 0);
+    crsCaption_ = caption("CRS label");
+    site->addWidget(crsCaption_, 2, 0);
     crs_ = new QLineEdit;
     crs_->setObjectName("terrainImportCrs");
     crs_->setAccessibleName("CRS label (optional, informational)");
@@ -537,8 +619,13 @@ void TerrainImportDialog::build() {
     site->addWidget(localExtents_, 4, 1);
     column->addLayout(site);
 
-    // Triangulation (TerrainImportOptions).
-    column->addWidget(heading("Triangulation"));
+    // Triangulation (TerrainImportOptions). R107.b4: a GeoTIFF is triangulated on its posts, so the
+    // section is hidden for it.
+    triangulationBox_ = new QWidget;
+    triangulationBox_->setObjectName("terrainImportTriangulation");
+    auto *triColumn = new QVBoxLayout(triangulationBox_);
+    triColumn->setContentsMargins(0, 0, 0, 0);
+    triColumn->addWidget(heading("Triangulation"));
     auto *tri = new QGridLayout;
     tri->setHorizontalSpacing(10);
     tri->setVerticalSpacing(8);
@@ -568,7 +655,8 @@ void TerrainImportDialog::build() {
     steiner_ = new QCheckBox("Fill remaining flat areas with Steiner points");
     steiner_->setObjectName("terrainImportSteiner");
     tri->addWidget(steiner_, 3, 0, 1, 2);
-    column->addLayout(tri);
+    triColumn->addLayout(tri);
+    column->addWidget(triangulationBox_);
     column->addStretch(1);
     scroll->setWidget(settings);
     split->addWidget(scroll);
@@ -683,10 +771,13 @@ void TerrainImportDialog::build() {
     footer->addWidget(import_);
     layout->addLayout(footer);
 
-    // Tab order: settings top to bottom, the preview column, then the footer.
+    // Tab order: settings top to bottom, the preview column, then the footer. The GeoTIFF page
+    // sits between the units and the point-file settings, and its own chain is set in buildGeoTiff.
     const std::vector<QWidget *> order{format_, units_, preset_, delimiter_, header_};
     for (size_t i = 1; i < order.size(); ++i)
         setTabOrder(order[i - 1], order[i]);
+    setTabOrder(units_, dep3_);
+    setTabOrder(siteSettings_, preset_);
 
     // ---- Behaviour -------------------------------------------------------------------------
     auto changed = [this](int delay) {
@@ -829,6 +920,10 @@ QString TerrainImportDialog::styleSheetFor(const ThemeColors &colors) const {
 QFrame#terrainImportBanner {border:2px solid $failure;border-radius:8px;background:$failureSurface;}
 #terrainImportBannerText {background:transparent;color:$ink;}
 #terrainImportStatus[refused="true"] {color:$failure;font-weight:600;}
+#terrainImportDemDatumNote,#terrainImportDemAffiliation,#terrainImportDemWindowCaption,#terrainImportDemSpacingCaption,#terrainImportDemProductCaption,#terrainImportDemVerticalCaption,#terrainImportDemSite,#terrainImportMismatchCaption {color:$muted;}
+#terrainImportDemGrid,#terrainImportDemFile {color:$ink;}
+QFrame#terrainImportMismatch {border:2px solid $warningBorder;border-radius:8px;background:$warningSurface;}
+#terrainImportMismatchTitle {color:$ink;}
 #terrainImportConfirm {background:$accent;color:$onAccent;font-weight:600;border:2px solid $accent;border-radius:6px;padding:4px 14px;}
 #terrainImportConfirm:focus {border:2px solid $surface;}
 #terrainImportConfirm:disabled {background:$hover;color:$muted;border-color:$hover;}
@@ -839,6 +934,8 @@ QFrame#terrainImportBanner {border:2px solid $failure;border-radius:8px;backgrou
     style.replace("$titlePx", QString::number(interfaceExtent(18, percent)) + "px");
     style.replace("$headingPx", QString::number(interfaceExtent(14, percent)) + "px");
     style.replace("$onAccent", colors.dark ? "#172019" : "#ffffff");
+    style.replace("$warningSurface", colors.warningSurface.name());
+    style.replace("$warningBorder", colors.warningBorder.name());
     style.replace("$failureSurface", colors.failureSurface.name());
     style.replace("$failure", colors.failure.name());
     style.replace("$surface", colors.surface.name());
@@ -853,6 +950,36 @@ QFrame#terrainImportBanner {border:2px solid $failure;border-radius:8px;backgrou
 
 // ---- Settings ------------------------------------------------------------------------------
 QJsonObject TerrainImportDialog::command() const {
+    if (geotiff()) {
+        // R107.b4: the GeoTIFF's settings, as the engine's options (the "dem" object). The spacing
+        // and the offset are sent only when the person set them, so the engine's defaults hold.
+        QJsonObject command{{"command", "terrain.import"}, {"format", "geotiff"}};
+        if (originEdited_ && !doc_.site())
+            command["origin"] = QJsonObject{{"easting", originE_->value()},
+                                            {"northing", originN_->value()},
+                                            {"elevation", originZ_->value()}};
+        if (!setup_.fileName.isEmpty())
+            command["sourceName"] = QFileInfo(setup_.fileName).fileName().left(int(siteSourceBytes));
+        const auto window = demWindow().value_or(DemWindow{});
+        const auto zone = zone_->currentData().toString();
+        QJsonObject dem{{"product", dep3_->isChecked() ? "3dep" : "glo30"},
+                        {"zone", zone.chopped(1).toInt()},
+                        {"north", zone.endsWith('N')},
+                        {"easting0", window.e0},
+                        {"northing0", window.n0},
+                        {"easting1", window.e1},
+                        {"northing1", window.n1}};
+        if (spacingEdited_)
+            dem["spacing"] = spacing_->value();
+        if (facts_ && facts_->verticalReference.empty())
+            dem["vertical"] = verticalChoice_->currentData().toString();
+        if (mismatchBox_->isVisible() && offset_->value() != 0) {
+            dem["offset"] = offset_->value();
+            dem["note"] = why_->text().trimmed();
+        }
+        command["dem"] = dem;
+        return command;
+    }
     QJsonObject command{{"command", "terrain.import"},
                         {"format", format_->currentData().toString()}};
     const auto unit = units_->currentData().toString();
@@ -894,6 +1021,8 @@ QJsonObject TerrainImportDialog::command() const {
     return command;
 }
 QString TerrainImportDialog::settingsProblem() const {
+    if (geotiff())
+        return {};
     const auto mode = boundary_->currentData().toString();
     const auto roles = roleTable_->roles();
     const bool hasBoundary = std::any_of(roles.begin(), roles.end(), [](const auto &entry) {
@@ -910,6 +1039,10 @@ QString TerrainImportDialog::settingsProblem() const {
 }
 bool TerrainImportDialog::checking() const { return running_ || pending_ || rerun_.isActive(); }
 bool TerrainImportDialog::canImport() const {
+    if (geotiff())
+        return !checking() && dryRun_ && dryRun_->result && dryRun_->result->ok &&
+               dryRun_->error.isEmpty() && !fileBlocked() && dryRun_->command == command() &&
+               dryRun_->revision == doc_.revision() && demBlocker().isEmpty();
     const auto unit = units_->currentData().toString();
     return !unit.isEmpty() && !checking() && dryRun_ && dryRun_->result && dryRun_->result->ok &&
            dryRun_->error.isEmpty() && dryRun_->command == command() &&
@@ -917,6 +1050,8 @@ bool TerrainImportDialog::canImport() const {
 }
 
 void TerrainImportDialog::refreshUnits() {
+    if (geotiff())
+        return; // a GeoTIFF's heights are in metres, and the units are not offered
     const bool wasUpdating = updating_;
     updating_ = true;
     const auto previous = units_->currentData().toString();
@@ -1100,6 +1235,10 @@ void TerrainImportDialog::refreshSample() {
     }
 }
 void TerrainImportDialog::refreshRoles() {
+    rolesHeading_->setVisible(!geotiff());
+    roleTable_->setVisible(!geotiff());
+    if (geotiff())
+        return;
     rolesHeading_->setText(points() ? "Description code roles" : "Layer roles");
     roleTable_->setHeadings(points() ? "Code" : "Layer",
                             points() ? "Description code roles" : "Layer roles");
@@ -1176,6 +1315,7 @@ void TerrainImportDialog::refreshSite() {
     }
 }
 void TerrainImportDialog::refreshTriangulation() {
+    triangulationBox_->setVisible(!geotiff());
     const auto mode = boundary_->currentData().toString();
     maxEdge_->setEnabled(mode != "convexHull");
     maxEdge_->setSpecialValueText(mode == "maxEdgeLength" ? "Required" : "Not set");
@@ -1183,13 +1323,25 @@ void TerrainImportDialog::refreshTriangulation() {
 
 // ---- Report --------------------------------------------------------------------------------
 QJsonObject TerrainImportDialog::report() const {
-    return dryRun_ && dryRun_->result ? dryRun_->result->report : QJsonObject();
+    if (dryRun_ && dryRun_->result)
+        return dryRun_->result->report;
+    // R107.b4: a GeoTIFF the reader refused has no import report; its refusal is the report.
+    if (dryRun_ && dryRun_->geotiff && !dryRun_->error.isEmpty())
+        return QJsonObject{{"format", "geotiff"},
+                           {"outcome", "refused"},
+                           {"refusal", QJsonObject{{"code", QString::fromStdString(dryRun_->refusal)},
+                                                   {"sentence", dryRun_->sentence.isEmpty()
+                                                                    ? dryRun_->error
+                                                                    : dryRun_->sentence}}}};
+    return {};
 }
 QString TerrainImportDialog::reportText() const {
+    if (geotiff())
+        return demReportText();
     QStringList out;
     out << "Terrain import report: " + QFileInfo(setup_.fileName).fileName();
     if (dryRun_ && !dryRun_->error.isEmpty()) {
-        out << "Outcome: refused. Nothing was changed.";
+        out << "Outcome: refused. Nothing was imported.";
         out << dryRun_->error;
         return out.join('\n') + '\n';
     }
@@ -1200,7 +1352,7 @@ QString TerrainImportDialog::reportText() const {
         return out.join('\n') + '\n';
     }
     const auto outcome = terrain["outcome"].toString();
-    out << "Outcome: " + (outcome == "refused"               ? QString("refused. Nothing was changed.")
+    out << "Outcome: " + (outcome == "refused"               ? QString("refused. Nothing was imported.")
                           : outcome == "importedWithNotices" ? QString("ready, with notices")
                                                              : QString("ready"));
     out << QString("Format: %1 · Units: %2 (%3 m per unit)")
@@ -1238,17 +1390,21 @@ void TerrainImportDialog::refreshReport() {
     const QSignalBlocker block(reportList_);
     reportList_->clear();
     QString base;
-    if (dryRun_ && !dryRun_->error.isEmpty())
-        base = "Nothing was changed. " + dryRun_->error;
+    std::string code;
+    const auto refusal = geotiff() ? demRefusalSentence(code) : QString();
+    if (!refusal.isEmpty() && terrain.isEmpty())
+        base = "Refused. Nothing was imported. " + demPlainMessage(refusal);
+    else if (dryRun_ && !dryRun_->error.isEmpty())
+        base = "Refused. Nothing was imported. " + dryRun_->error;
     else if (terrain.isEmpty())
         base = "The report appears once the source has been checked.";
     else
         base = terrain["outcome"].toString() == "refused"
-                   ? "Refused: nothing was changed. Choose a location to show it in the preview."
+                   ? "Refused. Nothing was imported. Choose a location to show it in the preview."
                    : "Choose a location to show it in the preview.";
     reportSummary_->setProperty("base", base);
     reportSummary_->setText(base);
-    copyReport_->setEnabled(!terrain.isEmpty() || (dryRun_ && !dryRun_->error.isEmpty()));
+    copyReport_->setEnabled(!terrain.isEmpty() || (dryRun_ && !dryRun_->error.isEmpty()) || fileBlocked());
     saveReport_->setEnabled(copyReport_->isEnabled());
     if (terrain.isEmpty())
         return;
@@ -1288,6 +1444,8 @@ void TerrainImportDialog::schedule(int delayMs) {
 }
 void TerrainImportDialog::documentChanged() {
     refreshSite();
+    if (geotiff())
+        refreshGeoTiff(); // the origin and the site's record change the window and its checks
     if (!dryRun_ || dryRun_->revision != doc_.revision())
         schedule(150);
 }
@@ -1301,24 +1459,40 @@ void TerrainImportDialog::start() {
         refreshFooter();
         return;
     }
+    // R107.b4: a GeoTIFF runs only when its settings say enough (the product, the vertical
+    // reference, a spacing that is not finer than the file's posts). A refused file is not read
+    // again: the file does not change with the settings. Until then the footer says why.
+    if (geotiff()) {
+        if (!factsRefusal_.empty() || (dryRun_ && demFileRefusal(dryRun_->refusal))) {
+            pending_ = false;
+            refresh();
+            return;
+        }
+        if (!demBlocker().isEmpty()) {
+            pending_ = false;
+            dryRun_.reset(); // the old settings' result is no longer the one to show
+            refresh();
+            return;
+        }
+    }
     running_ = true;
     pending_ = false;
     const auto generation = ++generation_;
     revision_ = doc_.revision();
     const auto unit = units_->currentData().toString();
-    const bool chosen = !unit.isEmpty();
+    const bool chosen = geotiff() || !unit.isEmpty();
     QPointer<TerrainImportDialog> guard(this);
     control_ = std::make_shared<TerrainRunControl>();
-    // The worker owns copies of its inputs: the source bytes (shared, read-only), the request,
-    // the site origin and the document's other terrain triangles. It never reads the document.
-    // It shares only its TerrainRunControl with the dialog.
-    pool_.start([bytes = setup_.bytes, command = command(), chosen, site = doc_.site(),
-                 other = doc_.materializedTotals().terrainTriangles, revision = revision_,
-                 generation, guard, control = control_] {
+    // The worker owns copies of its inputs: the source bytes (shared, read-only), the file's path
+    // (a GeoTIFF is read from it), the request, the site origin and the document's other terrain
+    // triangles. It never reads the document. It shares only its TerrainRunControl with the dialog.
+    pool_.start([bytes = setup_.bytes, path = setup_.path, command = command(), chosen,
+                 site = doc_.site(), other = doc_.materializedTotals().terrainTriangles,
+                 revision = revision_, generation, guard, control = control_] {
         std::shared_ptr<TerrainImportDryRun> result;
         auto progress = terrainRunProgress(control);
         try {
-            result = dryRun(bytes, command, chosen, site, other, revision, progress);
+            result = dryRun(bytes, path, command, chosen, site, other, revision, progress);
         } catch (const TerrainCancelled &) {
             result = std::make_shared<TerrainImportDryRun>();
             result->command = command;
@@ -1364,18 +1538,45 @@ void TerrainImportDialog::finished(std::uint64_t generation,
 void TerrainImportDialog::refresh() {
     const bool wasUpdating = updating_;
     updating_ = true;
-    subline_->setText(QFileInfo(setup_.fileName).fileName() + " · " +
-                      plural(double(setup_.bytes.size()), "byte", "bytes") +
-                      " · adds a terrain to the open model in one undoable edit");
+    const bool dem = geotiff();
+    subline_->setText(dem ? QString("Adds a terrain to this model. The file is read and never changed.")
+                          : QFileInfo(setup_.fileName).fileName() + " · " +
+                                plural(double(setup_.bytes.size()), "byte", "bytes") +
+                                " · adds a terrain to the open model in one undoable edit");
     refreshSample();
     refreshRoles();
     refreshSite();
     refreshTriangulation();
+    // R107.b4: the units and the CRS label are not offered for a GeoTIFF (its heights are metres,
+    // and its CRS label follows its zone); the GeoTIFF page is, and it greys out when refused.
+    unitsCaption_->setVisible(!dem);
+    units_->setVisible(!dem);
+    crsCaption_->setVisible(!dem);
+    crs_->setVisible(!dem);
+    demBox_->setVisible(dem);
+    demBox_->setEnabled(!fileBlocked());
     updating_ = wasUpdating;
+    if (dem)
+        refreshGeoTiff();
     refreshReport();
     // The preview.
     const auto unit = units_->currentData().toString();
-    if (unit.isEmpty() && !showsRun())
+    if (dem) {
+        const auto blocker = demBlocker();
+        if (fileBlocked())
+            preview_->setPlaceholder("The file cannot be imported.");
+        else if (!blocker.isEmpty())
+            preview_->setPlaceholder(blocker);
+        else if (!dryRun_ || !dryRun_->preview) {
+            const auto stage = terrainRunStageText(control_ ? control_->stage.load() : -1);
+            preview_->setPlaceholder(stage.isEmpty() ? QString("Checking the source…")
+                                                     : "Checking the source: " + stage + "…");
+        } else
+            preview_->setPlaceholder({});
+        // A result the settings no longer match is not shown (the blocker or the next run replaces it).
+        if (preview_->data() && (!dryRun_ || !dryRun_->preview))
+            preview_->setData({});
+    } else if (unit.isEmpty() && !showsRun())
         preview_->setPlaceholder(dryRun_ && dryRun_->unitsMissing
                                      ? "This DXF does not declare its units. Choose them to "
                                        "preview the terrain."
@@ -1393,8 +1594,10 @@ void TerrainImportDialog::refresh() {
         preview_->setData(dryRun_->preview);
     // The banner: a refusal changes nothing.
     QString banner;
-    if (dryRun_ && !dryRun_->error.isEmpty())
-        banner = "Nothing was changed. This source cannot be imported: " + dryRun_->error;
+    if (dem)
+        banner = demRefusalBanner();
+    else if (dryRun_ && !dryRun_->error.isEmpty())
+        banner = "✕ Refused. Nothing was imported. This source cannot be imported: " + dryRun_->error;
     else if (const auto terrain = report()["terrain"].toObject();
              terrain["outcome"].toString() == "refused") {
         const auto refusals = terrain["refusals"].toArray();
@@ -1405,7 +1608,7 @@ void TerrainImportDialog::refresh() {
                                         : refusals.first().toObject()["message"].toString();
         if (first.endsWith('.'))
             first.chop(1);
-        banner = "Import refused. Nothing was changed. " + first +
+        banner = "✕ Refused. Nothing was imported. " + first +
                  (refusals.size() > 2   ? QString(" (and %1 other kinds)").arg(refusals.size() - 1)
                   : refusals.size() == 2 ? QString(" (and 1 other kind)")
                                          : QString()) +
@@ -1415,6 +1618,7 @@ void TerrainImportDialog::refresh() {
     bannerText_->setText(banner);
     bannerText_->setAccessibleName(banner);
     banner_->setVisible(!banner.isEmpty());
+    chooseOther_->setVisible(dem && fileBlocked());
     refreshFooter();
 }
 void TerrainImportDialog::refreshFooter() {
@@ -1423,8 +1627,24 @@ void TerrainImportDialog::refreshFooter() {
     const bool current = dryRun_ && dryRun_->command == command() && !checking();
     QString text;
     bool refused = false;
-    if (current && !dryRun_->error.isEmpty()) {
-        text = "Cannot import: nothing was changed.";
+    if (geotiff()) {
+        // R107.b4: the outcome line. A refusal says that nothing was imported; a blocker says what
+        // to choose; a ready import says what it adds, and whether it writes the site's record.
+        if (fileBlocked()) {
+            text = "Refused. Nothing was imported.";
+            refused = true;
+        } else if (!demBlocker().isEmpty() && !running_)
+            text = demBlocker();
+        else if (!current) {
+            const auto stage = terrainRunStageText(control_ ? control_->stage.load() : -1);
+            text = stage.isEmpty() ? QString("Checking…") : "Checking: " + stage + "…";
+        } else if (!dryRun_->error.isEmpty() || terrain["outcome"].toString() == "refused") {
+            text = "Refused. Nothing was imported.";
+            refused = true;
+        } else if (!terrain.isEmpty())
+            text = demReadyText();
+    } else if (current && !dryRun_->error.isEmpty()) {
+        text = "Refused. Nothing was imported.";
         refused = true;
     } else if (unit.isEmpty() && !showsRun())
         text = dryRun_ && dryRun_->unitsMissing
@@ -1436,7 +1656,7 @@ void TerrainImportDialog::refreshFooter() {
         text = stage.isEmpty() ? QString("Checking…") : "Checking: " + stage + "…";
     } else if (terrain["outcome"].toString() == "refused") {
         refused = true;
-        text = QString("Refused: %1 · nothing was changed")
+        text = QString("Refused: %1 · nothing was imported")
                    .arg(plural(double(terrain["refusals"].toArray().size()), "kind of problem",
                                "kinds of problem"));
     } else if (const auto problem = settingsProblem(); !problem.isEmpty())
@@ -1457,11 +1677,15 @@ void TerrainImportDialog::refreshFooter() {
     showReport_->setText(reportPanel_->isVisible() ? "Hide report" : "Show report");
     showReport_->setAccessibleName(showReport_->text());
     import_->setEnabled(canImport());
+    // Import says why it is off, as its description, when the reason is a setting.
     import_->setToolTip(import_->isEnabled() ? "Add the terrain to the open model" : text);
+    import_->setAccessibleDescription(import_->toolTip());
 }
 // A dry run of the chosen units is a full one, and so is a DXF's first, which reads its header
 // units; a point file without units is only listed.
 bool TerrainImportDialog::showsRun() const {
+    if (geotiff())
+        return running_;
     return running_ && (!units_->currentData().toString().isEmpty() || (!points() && !dryRun_));
 }
 void TerrainImportDialog::refreshProgress() {
@@ -1496,4 +1720,5 @@ void TerrainImportDialog::importNow() {
     }
     accept();
 }
+
 } // namespace sketchy

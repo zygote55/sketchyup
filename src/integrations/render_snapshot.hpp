@@ -1,6 +1,7 @@
 #pragma once
 #include "core/render_settings.hpp"
 #include "core/selection.hpp"
+#include "core/source_credits.hpp"
 #include "integrations/render_environment.hpp"
 #include <QJsonObject>
 namespace sketchy {
@@ -64,6 +65,11 @@ class RenderSnapshot {
     std::optional<RenderEnvironment> environment_;
     SelectionSet hidden_;
 };
+// R107.c2 (ADR 0181 §3.3): the DEM notices of the terrain a scene shows: each DEM body that has a
+// visible face in the snapshot. A document without DEM terrain, or a scene that hides it, gives
+// none.
+SourceCredits sceneDemCredits(const Document &document, const RenderSnapshot &snapshot);
+
 struct DrawingViewCapture {
     std::optional<RenderSnapshot> snapshot; // Absent when broken.
     // Stable broken-reason codes, in this order when present: sceneMissing,

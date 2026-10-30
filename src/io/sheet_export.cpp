@@ -1,5 +1,8 @@
 #include "io/sheet_export.hpp"
 #include "core/drawing_sheets.hpp"
+#include "core/source_credits.hpp"
+#include "integrations/render_snapshot.hpp"
+#include "io/credit_strip.hpp"
 #include "io/drawing_sheet_paint.hpp"
 #include "io/new_file.hpp"
 #include "io/pdf_info.hpp"
@@ -18,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <set>
 namespace sketchy {
 namespace {
@@ -86,6 +90,7 @@ struct PreparedPage {
     std::string label; // "A-101", or "page 3" for a sheet without a number.
     PreparedDrawingSheet sheet;
     std::map<Id, DrawingViewEvaluationInput> rasterInputs; // Raster views only.
+    std::map<Id, SourceCredits> viewCredits; // R107.c2: each view's scene, DEM notices.
 };
 enum class ViewOutcome { Vector, Raster, EmptyFrame };
 // Per view: how it is exported, and why.
@@ -93,6 +98,7 @@ struct ViewPlan {
     const PreparedPage *page{};
     const PreparedDrawingView *view{};
     bool broken{}, changed{}, raster{}, rasterUnavailable{};
+    SourceCredits credits; // R107.c2: the DEM notices the view's content shows, when it paints any.
     QSize rasterPixels;
     double rasterDpi{};
 };
@@ -110,6 +116,44 @@ bool brokenView(const PreparedDrawingView &view) {
 std::string viewLabel(const ViewPlan &plan) {
     return plan.page->label + " view " + std::to_string(plan.view->number) + " " +
            quoted(plan.view->record.name);
+}
+// R107.c2 (ADR 0181 §3.3): a page that shows DEM terrain carries its notice on a "Sources" line in
+// the bottom page margin, below the frame. The line overlaps neither the views nor the title block,
+// because nothing of the page may reach into that margin.
+QRectF sourcesBand(const PreparedPage &page) {
+    const auto &paper = page.sheet.sheet.paper;
+    const auto margin = page.sheet.sheet.marginMm;
+    return {0, paper.heightMm - margin, paper.widthMm, margin};
+}
+struct SourcesLine {
+    CreditStrip strip;
+    QPointF topLeftMm;
+};
+// The line, left-aligned with the frame and centred in the margin. Nullopt when the margin cannot
+// hold the notice at any size (a zero margin holds none).
+std::optional<SourcesLine> sourcesLine(const PreparedPage &page, const SourceCredits &credits) {
+    const auto &paper = page.sheet.sheet.paper;
+    const auto margin = page.sheet.sheet.marginMm;
+    // The line is labelled; its notice text follows the label unchanged.
+    auto strip =
+        layoutCreditStrip("Sources: " + credits.joined(), paper.widthMm - 2 * margin, margin);
+    if (!strip)
+        return std::nullopt;
+    const QPointF topLeft(margin, paper.heightMm - margin + (margin - strip->heightMm) / 2);
+    return SourcesLine{std::move(*strip), topLeft};
+}
+// Whether page content (a view, an item or the title block; never the frame) reaches into the band.
+bool reachesBand(const PreparedPage &page, const QRectF &band) {
+    for (const auto &p : page.sheet.primitives) {
+        if (p.layer == DrawingSheetLayer::MarginFrame)
+            continue;
+        auto box = p.rasterView ? p.rasterRectMm : p.path.boundingRect();
+        if (!p.clipMm.isEmpty())
+            box = box.intersected(p.clipMm);
+        if (box.intersects(band))
+            return true;
+    }
+    return false;
 }
 // The pixel size of a raster view at the requested DPI, within the per-view caps.
 std::pair<QSize, double> rasterSize(const DrawingFrame &frame, int dpi) {
@@ -180,6 +224,12 @@ Preparation prepare(const Document &doc, const SheetExportOptions &options) {
                 for (const auto &input : capture.views)
                     if (input.view == view.record.id)
                         page.rasterInputs.emplace(input.view, input);
+        // R107.c2: the DEM notices of each view's scene (a view with no snapshot is broken).
+        for (const auto &input : capture.views)
+            if (input.capture.snapshot)
+                page.viewCredits.emplace(
+                    input.view,
+                    sceneDemCredits(input.capture.snapshot->document(), *input.capture.snapshot));
         result.preflight.pages.push_back(page.page);
         result.pages.push_back(std::move(page));
     }
@@ -192,6 +242,16 @@ Preparation prepare(const Document &doc, const SheetExportOptions &options) {
             plan.changed = !plan.broken && view.evaluation.status.state == DrawingViewState::Stale;
             plan.raster = !plan.broken && view.raster;
             plan.rasterUnavailable = plan.raster && !options.rasterRenderer;
+            // A to-scale view's drawing knows which DEM terrain reaches its frame; a perspective
+            // view (no drawing) takes the notices of its scene.
+            if (!plan.broken && !plan.rasterUnavailable) {
+                if (view.evaluation.drawing)
+                    plan.credits = plan.raster ? view.evaluation.drawing->appearanceCredits
+                                               : view.evaluation.drawing->credits;
+                else if (const auto credit = page.viewCredits.find(view.record.id);
+                         credit != page.viewCredits.end())
+                    plan.credits = credit->second;
+            }
             if (plan.raster)
                 std::tie(plan.rasterPixels, plan.rasterDpi) =
                     rasterSize(view.record.frame, options.rasterDpi);
@@ -514,6 +574,33 @@ std::vector<SheetExportFinding> findings(const Preparation &prepared,
             out.push_back(std::move(finding));
         }
     }
+    // The Sources line of a page that shows DEM terrain (R107.c2). Required: no opt-in, so
+    // Blocking.
+    for (const auto &page : prepared.pages) {
+        SourceCredits credits;
+        for (const auto &plan : prepared.views)
+            if (plan.page == &page)
+                credits.merge(plan.credits);
+        if (credits.empty())
+            continue;
+        const auto margin = QString::number(page.sheet.sheet.marginMm, 'g', 6).toStdString();
+        const bool fits = sourcesLine(page, credits).has_value();
+        const bool overlaps = reachesBand(page, sourcesBand(page));
+        if (fits && !overlaps)
+            continue;
+        SheetExportFinding finding;
+        finding.severity = SheetExportSeverity::Blocking;
+        finding.code = fits ? "sourcesOverlap" : "sourcesNoRoom";
+        finding.sheets = {page.page.sheet};
+        finding.message =
+            page.label +
+            " shows DEM terrain, so its “Sources” line must print in the bottom margin. " +
+            (fits ? "Page content reaches into that margin: move it inside the frame."
+                  : "The margin is " + margin +
+                        " mm, too narrow for the line: increase the sheet margin.");
+        finding.detail = {{"margin", page.sheet.sheet.marginMm}};
+        out.push_back(std::move(finding));
+    }
     std::stable_sort(out.begin(), out.end(),
                      [](const auto &a, const auto &b) { return a.severity < b.severity; });
     return out;
@@ -711,6 +798,24 @@ bool emptyFrame(const ViewPlan &plan, const RenderedRasters &rasters) {
            std::find(rasters.failures.begin(), rasters.failures.end(), plan.view->record.id) !=
                rasters.failures.end();
 }
+// The DEM notices a page shows: the views that paint their content, not the empty frames (R107.c2).
+SourceCredits sourcesOf(const Preparation &prepared, const PreparedPage &page,
+                        const RenderedRasters &rendered) {
+    SourceCredits credits;
+    for (const auto &plan : prepared.views)
+        if (plan.page == &page && !emptyFrame(plan, rendered))
+            credits.merge(plan.credits);
+    return credits;
+}
+// Paints a page's Sources line, after the page's drawing, when the page shows DEM terrain.
+void paintSources(QPainter &painter, const PreparedPage &page, const SourceCredits &credits) {
+    if (credits.empty())
+        return;
+    const auto line = sourcesLine(page, credits);
+    require(line.has_value(), "A Sources line does not fit its page margin");
+    paintCreditStrip(painter, drawingSheetDeviceTransform(*painter.device()), line->strip,
+                     line->topLeftMm);
+}
 } // namespace
 
 SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &options) {
@@ -730,6 +835,7 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
                        {"text", "real text with embedded font subsets"},
                        {"geometry", "vector"}};
     QJsonArray pages, exportedAsIs, exportedEmpty, substitutions;
+    SourceCredits allCredits; // R107.c2: the DEM notices of every page, each once.
     size_t viewIndex = 0;
     for (size_t index = 0; index < prepared.pages.size(); ++index) {
         const auto &page = prepared.pages[index];
@@ -757,7 +863,7 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
         for (const auto &item : page.sheet.items)
             if (item.evaluation.state == DrawingItemState::Broken)
                 brokenItems.append(QString::number(item.record.id));
-        pages.append(QJsonObject{
+        QJsonObject pageReport{
             {"page", int(index + 1)},
             {"sheet", QString::number(page.page.sheet)},
             {"number", QString::fromStdString(page.page.number)},
@@ -765,7 +871,13 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
             {"paperMm", QJsonObject{{"width", page.page.widthMm}, {"height", page.page.heightMm}}},
             {"views", views},
             {"items", int(page.sheet.items.size())},
-            {"brokenItems", brokenItems}});
+            {"brokenItems", brokenItems}};
+        const auto credits = sourcesOf(prepared, page, rendered);
+        if (!credits.empty()) {
+            pageReport["credits"] = creditNoticesJson(credits);
+            allCredits.merge(credits);
+        }
+        pages.append(pageReport);
     }
     QJsonArray outlinedFonts;
     for (const auto &finding : preflight.findings) {
@@ -782,6 +894,8 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
     for (const auto &page : prepared.pages)
         missingGlyphs += page.sheet.missingGlyphs;
     report["pages"] = pages;
+    if (!allCredits.empty())
+        report["credits"] = creditNoticesJson(allCredits);
     report["fontSubstitutions"] = substitutions;
     report["outlinedFonts"] = outlinedFonts;
     report["missingFontGlyphs"] = double(missingGlyphs);
@@ -830,6 +944,7 @@ SheetExport renderSheetsPdf(const Document &doc, const SheetExportOptions &optio
             // Placeholders appear only where the plan already said "empty frame".
             require(painted.rasterPlaceholders.empty() || options.allowBroken,
                     "A raster view would print as a placeholder");
+            paintSources(painter, page, sourcesOf(prepared, page, rendered));
         }
         require(painter.end(), "PDF painter could not finish");
     }
@@ -884,6 +999,8 @@ SheetPrint printSheets(const Document &doc, const SheetExportOptions &options,
                                                pagePaint(prepared.pages[index], rendered));
         require(painted.rasterPlaceholders.empty() || options.allowBroken,
                 "A raster view would print as a placeholder");
+        paintSources(painter, prepared.pages[index],
+                     sourcesOf(prepared, prepared.pages[index], rendered));
     }
     require(painter.end(), "The printer could not finish");
     result.pages = prepared.pages.size();
