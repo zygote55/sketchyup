@@ -17,6 +17,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QFrame;
 class QLabel;
 class QListWidget;
 class QProgressBar;
@@ -46,6 +47,11 @@ class QuantitiesPanel : public QWidget {
 
     // View → Quantities: focus lands on Group by.
     void focusGroupBy();
+
+    // The Tags, Materials or Definitions popover, filled and not shown; a click on its value shows
+    // it. A Wayland test fills it through here: Qt's Wayland popups need an input serial that
+    // synthetic input cannot supply, so showing one there prints a warning (D-068).
+    QFrame *buildPicker(const QString &kind);
 
     // Tests only: called on the worker thread before each pass or export, with the run's cancel
     // flag, so a test can hold the work until it is cancelled. Empty in the application.

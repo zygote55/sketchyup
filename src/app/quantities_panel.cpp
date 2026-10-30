@@ -879,7 +879,7 @@ void QuantitiesPanel::showResult(const Result &result) {
         for (auto &group : groups)
             if (group.key == key)
                 return group;
-        groups.push_back(Group{key, name});
+        groups.push_back(Group{key, name, {}, {}});
         return groups.back();
     };
     for (const auto &value : data["counts"].toArray()) {
@@ -1205,7 +1205,7 @@ void QuantitiesPanel::refreshMissing() {
     missing_->setVisible(!found.isEmpty());
 }
 
-void QuantitiesPanel::pickerMenu(const QString &kind, QWidget *anchor) {
+QFrame *QuantitiesPanel::buildPicker(const QString &kind) {
     // The popover is a popup of check rows: Up and Down move, Space checks, Esc closes (§19.10).
     auto *popup = new QFrame(this, Qt::Popup);
     popup->setObjectName("quantities" + kind + "Popup");
@@ -1216,15 +1216,12 @@ void QuantitiesPanel::pickerMenu(const QString &kind, QWidget *anchor) {
                              : kind == "Materials" ? &materials_
                                                    : &definitions_;
     const QString noun = kind == "Tags" ? "Tag" : kind == "Materials" ? "Material" : "Definition";
-    QCheckBox *first = nullptr;
     auto add = [&](Id id, const QString &text, const QString &accessible) {
         auto *check = new QCheckBox(text);
         check->setObjectName(QString("quantities%1Check%2").arg(kind).arg(id));
         check->setAccessibleName(accessible);
         check->setChecked(selected->contains(id));
         layout->addWidget(check);
-        if (!first)
-            first = check;
         connect(check, &QCheckBox::toggled, this, [this, selected, id](bool on) {
             if (on)
                 selected->insert(id);
@@ -1273,10 +1270,16 @@ void QuantitiesPanel::pickerMenu(const QString &kind, QWidget *anchor) {
         note->setWordWrap(true);
         layout->addWidget(note);
     }
+    return popup;
+}
+
+void QuantitiesPanel::pickerMenu(const QString &kind, QWidget *anchor) {
+    auto *popup = buildPicker(kind);
     popup->adjustSize();
     popup->move(anchor->mapToGlobal(QPoint(0, anchor->height())));
     popup->show();
-    if (first)
+    // The first row takes focus, so Up, Down and Space work at once.
+    if (auto *first = popup->findChild<QCheckBox *>())
         first->setFocus(Qt::PopupFocusReason);
 }
 

@@ -158,11 +158,11 @@ void testAttacks(const std::string &scratch) {
         QDir(QString::fromStdString(attempt)).mkpath(".");
         QDir(QString::fromStdString(input)).mkpath(".");
         QFile file(QString::fromStdString(input + "/scene.glb"));
-        file.open(QIODevice::WriteOnly);
+        check(file.open(QIODevice::WriteOnly), "the input fixture opens");
         file.write("scene");
         file.close();
         QFile outside(QString::fromStdString(sibling));
-        outside.open(QIODevice::WriteOnly);
+        check(outside.open(QIODevice::WriteOnly), "the outside fixture opens");
         outside.write("outside");
         outside.close();
     }

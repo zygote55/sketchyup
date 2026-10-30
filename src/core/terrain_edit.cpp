@@ -270,7 +270,7 @@ MaterialSides defaultTileMaterials(const Document &doc, const std::vector<BodyPt
     const auto id = doc.nextMaterialId();
     created = MaterialChange{id, nullptr,
                              std::make_shared<MaterialRecord>(MaterialRecord{
-                                 id, terrainMaterialName, terrainMaterialColor, 1, 0})};
+                                 id, terrainMaterialName, terrainMaterialColor, 1, 0, std::nullopt})};
     return {id, id};
 }
 } // namespace

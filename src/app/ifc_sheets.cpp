@@ -212,7 +212,7 @@ void showImportReport(QWidget *parent, const ImportReportFace &face, const Impor
     for (const auto &group : face.groups(state)) {
         auto *item = new QTreeWidgetItem(list, {group.first, QString()});
         // The face's rows are flat "label, value, label, value…" pairs.
-        for (size_t i = 0; i + 1 < group.second.size(); i += 2)
+        for (qsizetype i = 0; i + 1 < group.second.size(); i += 2)
             new QTreeWidgetItem(item, {group.second[i], group.second[i + 1]});
     }
     auto *notices = new QTreeWidgetItem(list, {"Notices", QString()});

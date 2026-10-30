@@ -108,4 +108,3 @@ void ExchangeRunner::run() {
     QMetaObject::invokeMethod(this, [this] { emit runFinished(); }, Qt::QueuedConnection);
 }
 } // namespace sketchy
-#include "app/exchange_runner.moc"

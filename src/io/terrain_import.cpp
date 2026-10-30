@@ -83,7 +83,7 @@ struct EdgeRef {
 };
 class EdgeGrid {
   public:
-    explicit EdgeGrid(const std::vector<Polygon> &polygons) : polygons_(polygons) {
+    explicit EdgeGrid(const std::vector<Polygon> &polygons) {
         std::size_t edges = 0;
         minX_ = minY_ = std::numeric_limits<double>::infinity();
         double maxX = -minX_, maxY = -minY_;
@@ -145,7 +145,6 @@ class EdgeGrid {
             for (int i = i0; i <= i1; ++i)
                 f(cells_[std::size_t(j) * std::size_t(side_) + std::size_t(i)]);
     }
-    const std::vector<Polygon> &polygons_;
     double minX_{}, minY_{}, cell_{1};
     int side_{0};
     std::vector<std::vector<EdgeRef>> cells_;
@@ -1066,7 +1065,7 @@ TerrainImportResult importDryRun(const TerrainSourceSet &set, const TerrainImpor
                                       origin.northing,
                                       origin.elevation,
                                       provenance.crs,
-                                      {provenance.sourceName, text(set.sha256)}};
+                                      {provenance.sourceName, text(set.sha256)}, std::nullopt};
     // The report.
     const QString outcome = !result.ok            ? "refused"
                             : report.hasNotices() ? "importedWithNotices"

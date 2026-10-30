@@ -13,7 +13,6 @@ namespace sketchy {
 namespace {
 using Corners = std::array<Vec3, 3>;
 constexpr double localBound = 1e6;
-constexpr double xyTolerance = 1e-7;
 
 TerrainVec2 v2(const Vec3 &p) { return {p.x, p.y}; }
 int orient(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c) { return terrainOrientation(a, b, c); }

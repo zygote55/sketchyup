@@ -99,7 +99,7 @@ QPolygonF Viewport::stretchPlaneOutline() const {
     const double margin =
         .08 * std::max({high.x - low.x, high.y - low.y, high.z - low.z, 1e-3});
     QPolygonF outline;
-    for (const auto [a, b] : {std::pair{0, 0}, std::pair{1, 0}, std::pair{1, 1}, std::pair{0, 1}}) {
+    for (const auto &[a, b] : {std::pair{0, 0}, std::pair{1, 0}, std::pair{1, 1}, std::pair{0, 1}}) {
         Vec3 corner{};
         setCoordinate(corner, axis, stretchPlane_->at);
         setCoordinate(corner, u, a ? coordinate(high, u) + margin : coordinate(low, u) - margin);

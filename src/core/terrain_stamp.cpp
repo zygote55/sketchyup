@@ -17,7 +17,6 @@ namespace {
 using Plan2 = std::array<double, 2>;
 using Box = std::array<double, 4>;
 constexpr double localBound = 1e6;
-constexpr double pi = 3.14159265358979323846;
 TerrainVec2 v2(const Vec3 &p) { return {p.x, p.y}; }
 TerrainVec2 v2(const Plan2 &p) { return {p[0], p[1]}; }
 int orient(TerrainVec2 a, TerrainVec2 b, TerrainVec2 c) { return terrainOrientation(a, b, c); }

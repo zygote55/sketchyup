@@ -664,14 +664,14 @@ void annotate(Window &window, const QString &path, const Fixture &f) {
         auto *pages = tray->pages();
         const auto width = tray->width();
         tray->setFixedWidth(248);
-        QTest::qWaitFor(
+        const bool fitted = QTest::qWaitFor(
             [&] {
                 return !pages->horizontalScrollBar()->isVisible() &&
                        pages->header()->length() <= pages->viewport()->width();
             },
             5000);
         QCoreApplication::processEvents();
-        check(!pages->horizontalScrollBar()->isVisible() &&
+        check(fitted && !pages->horizontalScrollBar()->isVisible() &&
                   pages->header()->length() <= pages->viewport()->width(),
               "Pages fits 248 px: columns " + std::to_string(pages->header()->length()) + " in " +
                   std::to_string(pages->viewport()->width()));

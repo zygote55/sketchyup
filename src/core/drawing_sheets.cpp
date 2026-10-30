@@ -77,7 +77,7 @@ Id createDrawingSheet(Document &doc, std::string name, DrawingPaper paper, std::
     const auto id = doc.nextDrawingSheetId();
     auto sheet = std::make_shared<DrawingSheetRecord>(DrawingSheetRecord{
         id, std::move(name), static_cast<std::uint32_t>(doc.drawingSheets().size()), paper,
-        std::move(number), marginMm ? *marginMm : defaultDrawingSheetMarginMm(paper)});
+        std::move(number), marginMm ? *marginMm : defaultDrawingSheetMarginMm(paper), {}});
     auto edit = sheetEdit("Create sheet");
     edit.drawingSheets.push_back({id, nullptr, sheet});
     doc.apply(std::move(edit), doc.revision());

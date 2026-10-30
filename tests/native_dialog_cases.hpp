@@ -94,7 +94,9 @@ inline std::function<void(Context &)> keyOnSchedule(int key) {
         // Focus and the key are sent together, after the palette has released focus.
         QTimer::singleShot(0, list, [&context, list, key] {
             context.window.activateWindow();
-            QTest::qWaitForWindowActive(&context.window, 2000);
+            // This slot cannot throw, so the activation goes into the case's phase record rather
+            // than an assertion; the case itself fails if the key does not open the dialog.
+            context.phase["keyWindowActive"] = QTest::qWaitForWindowActive(&context.window, 2000);
             list->setFocus(Qt::OtherFocusReason);
             QTest::keyClick(list, Qt::Key(key));
         });

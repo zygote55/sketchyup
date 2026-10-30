@@ -85,13 +85,6 @@ constexpr RoleChoice roleChoices[]{{"auto", "Automatic"}, {"contour", "Contour"}
                                    {"breakline", "Breakline"}, {"boundary", "Boundary"},
                                    {"hole", "Hole"},           {"ground", "Ground points"},
                                    {"ignore", "Ignore"}};
-QString roleLabel(const QString &code) {
-    for (const auto &choice : roleChoices)
-        if (code == choice.code)
-            return choice.label;
-    return code;
-}
-
 constexpr const char *columnNames[]{"point", "easting", "northing", "elevation", "description",
                                     "ignore"};
 constexpr const char *columnLabels[]{"Point number", "Easting", "Northing", "Elevation",
