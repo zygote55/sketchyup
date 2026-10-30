@@ -7,7 +7,8 @@
 // product and the vertical reference, the default window, latitude and longitude entry, Fit to the
 // file, the refusals (file and window), the located voids, the mismatch with an offset and a note,
 // the report with Copy and Save, the import as one undoable edit that writes the site's record, the
-// Credit line in Entity info, and the keyboard order and accessible names.
+// Credit line in Entity info, the keyboard order and accessible names, and the link to the user
+// guide (UX §20.1) with its Tab order and the section it asks for.
 #include "app/entity_info_panel.hpp"
 #include "app/organization_panel.hpp"
 #include "app/terrain_dem_window.hpp"
@@ -43,6 +44,7 @@
 #include <QTest>
 #include <QTimer>
 #include <QTreeWidget>
+#include <QUrl>
 #include <iostream>
 using namespace sketchy;
 namespace {
@@ -155,12 +157,16 @@ QString geotiffFile(const char *name) {
 struct Fixture {
     Window &window;
     std::unique_ptr<TerrainImportDialog> dialog;
-    // `path` is a GeoTIFF's file (R107.b4); the text formats pass their bytes.
-    Fixture(Window &w, const QString &name, const QByteArray &bytes, const QString &path = {})
+    // `path` is a GeoTIFF's file (R107.b4); the text formats pass their bytes. `openGuide` takes
+    // the user guide's request in place of the system's viewer, so a test never launches one.
+    Fixture(Window &w, const QString &name, const QByteArray &bytes, const QString &path = {},
+            std::function<bool(const QUrl &)> openGuide = [](const QUrl &) { return true; })
         : window(w) {
         dialog = std::make_unique<TerrainImportDialog>(
             window.document(),
-            TerrainImportDialog::Setup{name, bytes, themeColors(false), path, {}}, &window);
+            TerrainImportDialog::Setup{name, bytes, themeColors(false), path, {},
+                                       std::move(openGuide)},
+            &window);
         dialog->show();
         check(QTest::qWaitForWindowExposed(dialog.get(), 5000), "The dialog shows");
         settle(*dialog);
@@ -901,6 +907,51 @@ void geotiffMismatch(Window &window) {
     window.viewport()->refresh();
 }
 
+// The GeoTIFF page's link to the user guide (UX §20.1, §20.6): the button is named and enabled, the
+// Tab order runs from the product radios to it and on to the window's radios, and activating it,
+// with the keyboard or the mouse, asks for the installed guide at the page's section. A refused
+// open says so in the footer.
+void geotiffUserGuide(Window &window) {
+    window.demo();
+    std::vector<QUrl> requested;
+    bool refuse = false;
+    Fixture f(window, "plane-f32-strip-none-le.tif", {}, geotiffFile("plane-f32-strip-none-le.tif"),
+              [&](const QUrl &url) {
+                  requested.push_back(url);
+                  return !refuse;
+              });
+    auto &dialog = *f.dialog;
+    auto *guide = child<QPushButton>(dialog, "terrainImportUserGuide");
+    auto *status = child<QLabel>(dialog, "terrainImportStatus");
+    check(guide->text() == "Open the user guide" &&
+              guide->accessibleName() == "Open the user guide" && guide->isEnabled(),
+          "The guide button is named and enabled");
+    dialog.activateWindow();
+    check(QTest::qWaitForWindowActive(&dialog), "The dialog activates");
+    child<QRadioButton>(dialog, "terrainImportGlo30")->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(dialog.focusWidget(), Qt::Key_Tab);
+    check(dialog.focusWidget() == guide, "Tab from the product reaches the guide button");
+    // A radio group takes Tab on its checked button only: the demo site has no origin, so the window
+    // is Centre and size, and Around the site origin is passed over.
+    QTest::keyClick(dialog.focusWidget(), Qt::Key_Tab);
+    check(dialog.focusWidget() == child<QRadioButton>(dialog, "terrainImportWindowCentre"),
+          "Tab from the guide button reaches the window's checked radio: " +
+              (dialog.focusWidget() ? dialog.focusWidget()->objectName() : QString()).toStdString());
+    guide->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(guide, Qt::Key_Space);
+    QTest::mouseClick(guide, Qt::LeftButton);
+    check(requested.size() == 2, "Each activation asks once");
+    for (const auto &url : requested)
+        check(url.scheme() == "file" &&
+                  url.toLocalFile().endsWith("/share/doc/sketchyup/USER_GUIDE.md") &&
+                  url.fragment() == "terrain-from-a-downloaded-elevation-file",
+              "The guide's file and section: " + url.toString().toStdString());
+    refuse = true;
+    QTest::mouseClick(guide, Qt::LeftButton);
+    check(requested.size() == 3 && status->text().startsWith("Could not open the user guide"),
+          "A refused open is said in the footer: " + status->text().toStdString());
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -943,6 +994,8 @@ int main(int argc, char **argv) {
         std::cout << "GeoTIFF decimation: the grid line, the amber notice and the report\n";
         geotiffMismatch(window);
         std::cout << "GeoTIFF mismatch: an offset and a note, the site's record kept\n";
+        geotiffUserGuide(window);
+        std::cout << "GeoTIFF user guide: the link, its Tab order, and the section it asks for\n";
     } catch (const std::exception &error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;

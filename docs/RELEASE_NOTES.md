@@ -221,8 +221,9 @@ The 1.4.0 limitations still apply where a row above does not lift them. In parti
 - **Source credits:** STL has a report line, not a field. DXF refuses a real elevation terrain. The IFC property set is
   written only when the site origin came from the file, and STEP writes none.
 - **Geographic coordinates** (R107.a): unchanged from 1.4.0. There is no online lookup.
-- **Desktop link:** the GeoTIFF page's link to its user-guide page is in [PR #538](https://github.com/zygote55/sketchyup/pull/538),
-  which was open when this section was written. The user guide page itself is in this release.
+- **Desktop link:** the GeoTIFF page's **Open the user guide** button ([PR #538](https://github.com/zygote55/sketchyup/pull/538))
+  opens the installed guide (`/usr/share/doc/sketchyup/USER_GUIDE.md`) at its download section with the system's
+  default viewer. A Markdown viewer may open the file without scrolling to the section. Nothing is fetched.
 - **Defects:** the triage lists 22 open defects at the 1.5.0 preparation, none release-blocking and none Major. The
   record gives the count at the release candidate.
 - **Quantities, the helper sandbox, online libraries, `.skp` import, camera paths and the assistant:** as in 1.4.0.
