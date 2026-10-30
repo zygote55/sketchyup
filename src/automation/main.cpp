@@ -10,6 +10,7 @@
 #include "automation/session.hpp"
 #include "automation/style_catalog_cli.hpp"
 #include "automation/terrain_commands.hpp"
+#include "io/geotiff_terrain.hpp"
 #include "integrations/glb_export.hpp"
 #include "integrations/presentation_request.hpp"
 #include "integrations/presentation_store.hpp"
@@ -197,7 +198,7 @@ int main(int argc, char **argv) {
     parser.addOption({"terrain-units",
                       "Terrain source unit: mm, cm, m, in, ft, usft, or header for DXF", "unit"});
     parser.addOption(
-        {"terrain-format", "Terrain source format: dxf or points (default: by extension)", "format"});
+        {"terrain-format", "Terrain source format: dxf, points or geotiff (default: by extension)", "format"});
     parser.addOption({"origin", "Explicit site origin in metres: E,N[,Z]", "E,N[,Z]"});
     parser.addOption({"terrain-crs", "Informational CRS label for a new site origin", "label"});
     parser.addOption({"terrain-columns",
@@ -212,6 +213,22 @@ int main(int argc, char **argv) {
                       "breakline, boundary, hole, ground, ignore",
                       "roles"});
     parser.addOption({"terrain-name", "Name of the imported terrain", "name"});
+    // R107.b1 (ADR 0181 §7.2): a GeoTIFF elevation file, read in a window the user names in UTM.
+    parser.addOption({"dem-source", "GeoTIFF product: 3dep (USGS 3DEP) or glo30 (Copernicus GLO-30)",
+                      "product"});
+    parser.addOption({"dem-window", "GeoTIFF window in UTM metres: E0,N0,E1,N1 (with --dem-zone)",
+                      "E0,N0,E1,N1"});
+    parser.addOption({"dem-zone", "UTM zone of the window and grid, with N or S: 30N", "zone"});
+    parser.addOption({"dem-spacing", "Grid spacing in metres (default: the file's post size, rounded)",
+                      "metres"});
+    parser.addOption({"dem-vertical",
+                      "Vertical reference of the file's heights when it names none, or to confirm it: "
+                      "NAVD88, EGM2008 or EGM96",
+                      "reference"});
+    parser.addOption({"dem-vertical-offset",
+                      "Metres added to the file's heights to reach the site's vertical reference", "metres"});
+    parser.addOption({"dem-vertical-note", "Why the heights are offset (required with the offset)",
+                      "text"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption(
@@ -461,7 +478,10 @@ int main(int argc, char **argv) {
             const QStringList allowed{"import-terrain",    "terrain-units",  "terrain-format",
                                       "origin",            "terrain-crs",    "terrain-columns",
                                       "terrain-delimiter", "terrain-header", "terrain-roles",
-                                      "terrain-name",      "input",          "output"};
+                                      "terrain-name",      "input",          "output",
+                                      "dem-source",        "dem-window",     "dem-zone",
+                                      "dem-spacing",       "dem-vertical",   "dem-vertical-offset",
+                                      "dem-vertical-note"};
             for (const auto &option : parser.optionNames())
                 if (!allowed.contains(option))
                     invalid("Terrain import is a standalone operation");
@@ -469,13 +489,76 @@ int main(int argc, char **argv) {
                 invalid("Unexpected positional arguments");
             const auto path = parser.value("import-terrain");
             QJsonObject command{{"command", "terrain.import"}};
+            const bool tiff = path.endsWith(".tif", Qt::CaseInsensitive) ||
+                              path.endsWith(".tiff", Qt::CaseInsensitive);
             command["format"] = parser.isSet("terrain-format")
                                     ? parser.value("terrain-format")
-                                    : (path.endsWith(".dxf", Qt::CaseInsensitive) ? "dxf" : "points");
+                                    : (path.endsWith(".dxf", Qt::CaseInsensitive) ? "dxf"
+                                       : tiff                                    ? "geotiff"
+                                                                                 : "points");
+            // R107.b1: a GeoTIFF source takes its window and labels from the --dem options and no
+            // units, columns or roles; the other formats take none of the --dem options.
+            const bool geotiff = command["format"] == "geotiff";
+            const QStringList demOptions{"dem-source",      "dem-window",          "dem-zone",
+                                         "dem-spacing",     "dem-vertical",        "dem-vertical-offset",
+                                         "dem-vertical-note"};
+            if (geotiff) {
+                for (const auto *option : {"terrain-units", "terrain-columns", "terrain-delimiter",
+                                           "terrain-header", "terrain-roles", "terrain-crs"})
+                    if (parser.isSet(option))
+                        invalid("A GeoTIFF source has no units, columns, delimiter, header, roles "
+                                "or CRS option; use the --dem options");
+            } else
+                for (const auto &option : demOptions)
+                    if (parser.isSet(option))
+                        invalid("The --dem options need --terrain-format geotiff");
             if (parser.isSet("terrain-units"))
                 command["units"] = parser.value("terrain-units");
             else if (command["format"] == "points")
                 invalid("Point files have no units; choose --terrain-units");
+            sketchy::GeoTiffTerrainOptions dem;
+            if (geotiff) {
+                const auto product = sketchy::demProduct(parser.value("dem-source"));
+                if (!product)
+                    invalid("--dem-source is 3dep (USGS 3DEP) or glo30 (Copernicus GLO-30)");
+                dem.product = *product;
+                const auto window = parser.value("dem-window").split(',');
+                if (window.size() != 4)
+                    invalid("--dem-window is E0,N0,E1,N1 in UTM metres");
+                double corners[4]{};
+                for (qsizetype i = 0; i < 4; ++i) {
+                    bool ok{};
+                    corners[i] = window[i].trimmed().toDouble(&ok);
+                    if (!ok)
+                        invalid("--dem-window is E0,N0,E1,N1 in UTM metres");
+                }
+                dem.easting0 = corners[0];
+                dem.northing0 = corners[1];
+                dem.easting1 = corners[2];
+                dem.northing1 = corners[3];
+                const auto zone = parser.value("dem-zone").trimmed().toUpper();
+                bool zoneOk{};
+                const int number = zone.size() > 1 ? zone.chopped(1).toInt(&zoneOk) : 0;
+                if (!zoneOk || number < 1 || number > 60 || (zone.back() != 'N' && zone.back() != 'S'))
+                    invalid("--dem-zone is 1 to 60 with N or S, such as 30N");
+                dem.zone = number;
+                dem.north = zone.back() == 'N';
+                const auto optionNumber = [&](const char *name) {
+                    bool ok{};
+                    const double value = parser.value(name).trimmed().toDouble(&ok);
+                    if (!ok || !std::isfinite(value))
+                        invalid((std::string("--") + name + " is a number").c_str());
+                    return value;
+                };
+                if (parser.isSet("dem-spacing"))
+                    dem.spacing = optionNumber("dem-spacing");
+                if (parser.isSet("dem-vertical"))
+                    dem.vertical = parser.value("dem-vertical").toStdString();
+                if (parser.isSet("dem-vertical-offset"))
+                    dem.verticalOffset = optionNumber("dem-vertical-offset");
+                if (parser.isSet("dem-vertical-note"))
+                    dem.verticalNote = parser.value("dem-vertical-note").toStdString();
+            }
             if (parser.isSet("origin")) {
                 const auto parts = parser.value("origin").split(',');
                 QJsonObject origin;
@@ -524,15 +607,21 @@ int main(int argc, char **argv) {
             if (parser.isSet("terrain-name"))
                 command["name"] = parser.value("terrain-name");
             command["sourceName"] = QFileInfo(path).fileName().left(256);
-            QFile file(path);
-            const QFileInfo info(path);
-            if (!info.isFile() || info.size() > 64 * 1024 * 1024 ||
-                !file.open(QIODevice::ReadOnly))
-                throw sketchy::InspectionError("INPUT_ERROR",
-                                               "A terrain source is a regular file of at most 64 MiB");
-            const auto bytes = file.read(64 * 1024 * 1024 + 1);
-            if (file.error() != QFileDevice::NoError || bytes.size() > 64 * 1024 * 1024)
-                throw sketchy::InspectionError("INPUT_ERROR", "Cannot read the terrain source");
+            // The text formats are read whole (at most 64 MiB); a GeoTIFF is read in windows by its
+            // importer, so it is never loaded here.
+            QByteArray bytes;
+            if (!geotiff) {
+                QFile file(path);
+                const QFileInfo info(path);
+                if (!info.isFile() || info.size() > 64 * 1024 * 1024 ||
+                    !file.open(QIODevice::ReadOnly))
+                    throw sketchy::InspectionError(
+                        "INPUT_ERROR", "A terrain source is a regular file of at most 64 MiB");
+                bytes = file.read(64 * 1024 * 1024 + 1);
+                if (file.error() != QFileDevice::NoError || bytes.size() > 64 * 1024 * 1024)
+                    throw sketchy::InspectionError("INPUT_ERROR", "Cannot read the terrain source");
+            } else if (!QFileInfo(path).isFile())
+                throw sketchy::InspectionError("INPUT_ERROR", "A GeoTIFF terrain source is a regular file");
             auto document = parser.isSet("input") ? sketchy::loadDocument(parser.value("input"))
                                                   : sketchy::Document();
             // D-044: stage progress on stderr, only when stderr is a terminal, so scripts and
@@ -564,7 +653,8 @@ int main(int argc, char **argv) {
             QJsonObject operation;
             try {
                 const EndLine endLine{shown};
-                operation = sketchy::importTerrainSource(document, bytes, command, &progress);
+                operation = geotiff ? sketchy::importGeoTiffTerrain(document, path, dem, command, &progress)
+                                    : sketchy::importTerrainSource(document, bytes, command, &progress);
             } catch (const sketchy::TerrainImportError &error) {
                 throw sketchy::InspectionError(error.code(), error.what(),
                                                QJsonObject{{"importReport", error.report()}});

@@ -691,6 +691,70 @@ TerrainTileKey decodeTerrainTileMarker(const QJsonValue &value, bool *legacy) {
         *legacy = false;
     return result;
 }
+// R107.b1 (ADR 0181 §3.2): the GeoTIFF source record, written only when the terrain has one.
+QJsonObject encodeDemSource(const TerrainDemSource &dem) {
+    const auto qs = [](const std::string &value) { return QString::fromStdString(value); };
+    return QJsonObject{
+        {"product", qs(dem.product)},         {"sourceName", qs(dem.sourceName)},
+        {"licence", qs(dem.licence)},         {"credit", qs(dem.credit)},
+        {"disclaimer", qs(dem.disclaimer)},   {"datum", qs(dem.datum)},
+        {"vertical", qs(dem.vertical)},       {"elevation", qs(dem.elevation)},
+        {"verticalOffset", dem.verticalOffset}, {"verticalNote", qs(dem.verticalNote)},
+        {"zone", dem.zone},                   {"north", dem.north},
+        {"window", QJsonObject{{"easting0", dem.easting0},
+                               {"northing0", dem.northing0},
+                               {"easting1", dem.easting1},
+                               {"northing1", dem.northing1}}},
+        {"spacing", dem.spacing},             {"nominalSpacing", dem.nominalSpacing},
+        {"columns", double(dem.columns)},     {"rows", double(dem.rows)}};
+}
+TerrainDemSource decodeDemSource(const QJsonObject &dem) {
+    exactFields(dem,
+                {"product", "sourceName", "licence", "credit", "disclaimer", "datum", "vertical",
+                 "elevation", "verticalOffset", "verticalNote", "zone", "north", "window",
+                 "spacing", "nominalSpacing", "columns", "rows"},
+                "GeoTIFF terrain source");
+    const auto window = object(dem["window"]);
+    exactFields(window, {"easting0", "northing0", "easting1", "northing1"}, "GeoTIFF window");
+    const auto whole = [](const QJsonValue &value) {
+        const double number_ = number(value);
+        if (number_ != std::floor(number_) || number_ < 0 || number_ > 1e15)
+            throw std::runtime_error("Invalid whole number in GeoTIFF terrain source");
+        return std::uint64_t(number_);
+    };
+    TerrainDemSource out;
+    out.product = text(dem["product"]);
+    out.sourceName = text(dem["sourceName"]);
+    out.licence = text(dem["licence"]);
+    out.credit = text(dem["credit"]);
+    out.disclaimer = text(dem["disclaimer"]);
+    out.datum = text(dem["datum"]);
+    out.vertical = text(dem["vertical"]);
+    out.elevation = text(dem["elevation"]);
+    out.verticalOffset = number(dem["verticalOffset"]);
+    out.verticalNote = text(dem["verticalNote"]);
+    out.zone = int(whole(dem["zone"]));
+    out.north = flag(dem["north"]);
+    out.easting0 = number(window["easting0"]);
+    out.northing0 = number(window["northing0"]);
+    out.easting1 = number(window["easting1"]);
+    out.northing1 = number(window["northing1"]);
+    out.spacing = number(dem["spacing"]);
+    out.nominalSpacing = number(dem["nominalSpacing"]);
+    out.columns = whole(dem["columns"]);
+    out.rows = whole(dem["rows"]);
+    validateTerrainDemSource(out);
+    return out;
+}
+QJsonObject encodeTerrainProvenance(const TerrainProvenance &provenance) {
+    QJsonObject encoded{{"sha256", QString::fromStdString(provenance.sha256)},
+                        {"units", QString::fromStdString(provenance.units)},
+                        {"metresPerUnit", provenance.metresPerUnit}};
+    if (provenance.dem)
+        encoded["dem"] = encodeDemSource(*provenance.dem);
+    return encoded;
+}
+
 QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
     validateTerrainRecord(record);
     QJsonArray sources;
@@ -710,10 +774,7 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
                                        {"flipFlatTriangles", parameters.flipFlatTriangles},
                                        {"steinerFill", parameters.steinerFill}}},
             {"generator", QString::fromStdString(record.generator)},
-            {"provenance",
-             QJsonObject{{"sha256", QString::fromStdString(record.provenance.sha256)},
-                         {"units", QString::fromStdString(record.provenance.units)},
-                         {"metresPerUnit", record.provenance.metresPerUnit}}},
+            {"provenance", encodeTerrainProvenance(record.provenance)},
             {"meshDigest", QString::fromStdString(record.meshDigest)},
             {"tiling", QJsonObject{{"origin", QJsonArray{record.tiling.originX,
                                                          record.tiling.originY}},
@@ -740,7 +801,7 @@ QJsonObject encodeTerrainRecord(const TerrainRecord &record) {
         encoded["display"] = display;
     return encoded;
 }
-TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy) {
+TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy, bool demAllowed) {
     const auto root = object(value);
     // R096.a: `tiling` is required; its absence marks the R095 development form.
     const bool old = !root.contains("tiling");
@@ -796,10 +857,19 @@ TerrainRecord decodeTerrainRecord(const QJsonValue &value, bool *legacy) {
     record.parameters.steinerFill = flag(parameters["steinerFill"]);
     record.generator = text(root["generator"]);
     const auto provenance = object(root["provenance"]);
-    exactFields(provenance, {"sha256", "units", "metresPerUnit"}, "terrain provenance");
+    exactFields(provenance,
+                provenance.contains("dem") ? QStringList{"sha256", "units", "metresPerUnit", "dem"}
+                                           : QStringList{"sha256", "units", "metresPerUnit"},
+                "terrain provenance");
     record.provenance.sha256 = text(provenance["sha256"]);
     record.provenance.units = text(provenance["units"]);
     record.provenance.metresPerUnit = number(provenance["metresPerUnit"]);
+    if (provenance.contains("dem")) {
+        // R107.b1: schema 34 (terrain-dem-v1) is the only schema that carries this record.
+        if (!demAllowed)
+            throw std::runtime_error("GeoTIFF terrain source needs schema 34 (terrain-dem-v1)");
+        record.provenance.dem = decodeDemSource(object(provenance["dem"]));
+    }
     record.meshDigest = text(root["meshDigest"]);
     if (root.contains("display")) {
         const auto display = object(root["display"]);

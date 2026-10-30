@@ -11,9 +11,11 @@
 #include "core/terrain_records.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_stamp.hpp"
+#include "io/geotiff_terrain.hpp"
 #include "io/terrain_import.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QString>
 namespace sketchy {
 // R095.c: terrain.import is a batch command; terrain.inspect_source parses and dry-runs a
 // source without changing anything (a batch holding only that command returns
@@ -55,6 +57,13 @@ QJsonObject inspectTerrainCommand(const Document &doc, const QJsonObject &comman
 // changes nothing.
 QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
                                  const QJsonObject &command);
+// R107.b1: a GeoTIFF elevation file, read in the window the options name, imported as the same
+// labelled edit as importTerrainSource (the file is read from disk, never through `data`). The
+// command's origin and name apply as for the other sources; a refusal throws TerrainImportError or
+// TerrainError and changes nothing.
+QJsonObject importGeoTiffTerrain(Document &doc, const QString &path,
+                                 const GeoTiffTerrainOptions &options, const QJsonObject &command,
+                                 TerrainProgress *progress = nullptr);
 // D-044: `progress` reports parse, prepare, triangulate and tile (the CLI's stage progress).
 // A cancelled run throws TerrainImportError CANCELLED and changes nothing.
 QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes, const QJsonObject &command,

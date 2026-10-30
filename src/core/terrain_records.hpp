@@ -82,11 +82,34 @@ struct TerrainParameters {
     bool flipFlatTriangles{true}, steinerFill{false};
     bool operator==(const TerrainParameters &) const = default;
 };
+// R107.b1 (ADR 0181 §3.2, §2.7, §2.8): the source record of a terrain made from a GeoTIFF
+// elevation file (USGS 3DEP or Copernicus GLO-30), as the user downloaded it. Each text field is
+// at most 256 bytes (ADR 0181 §3.2). The file's SHA-256 is the terrain's provenance digest.
+struct TerrainDemSource {
+    static constexpr std::size_t textBytes = 256;
+    std::string product;        // "USGS 3DEP" or "Copernicus DEM GLO-30"
+    std::string sourceName;     // the file's name, not its path
+    std::string licence;        // the licence the product is taken under
+    std::string credit;         // the notice the product's licence or the agency asks for
+    std::string disclaimer;     // the no-liability sentence (GLO-30); empty for 3DEP
+    std::string datum;          // "WGS84", or "NAD83" as a labelled approximation
+    std::string vertical;       // "NAVD88", "EGM2008" or "EGM96"
+    std::string elevation;      // "bare earth" (3DEP) or "surface" (GLO-30, a surface model)
+    double verticalOffset{};    // metres added to the file's heights to reach the site's reference
+    std::string verticalNote;   // required when the offset is not zero
+    int zone{};                 // the UTM zone of the grid, 1 to 60
+    bool north{true};           // its hemisphere
+    double easting0{}, northing0{}, easting1{}, northing1{}; // the window, metres
+    double spacing{}, nominalSpacing{};                     // metres; the post size of the file
+    std::uint64_t columns{}, rows{};                        // grid posts per row and column
+    bool operator==(const TerrainDemSource &) const = default;
+};
 // Import provenance: source file digest, its unit name and the unit scale.
 struct TerrainProvenance {
     std::string sha256; // Lowercase hex, or empty for terrains built from model edges.
     std::string units{"m"};
     double metresPerUnit{1};
+    std::optional<TerrainDemSource> dem; // R107.b1: set for a terrain made from a GeoTIFF file
     bool operator==(const TerrainProvenance &) const = default;
 };
 // R095.e2 display settings (ADR 0168 "Decisions > Interaction design", Appearance). Derived
@@ -268,6 +291,8 @@ class TerrainError : public std::runtime_error {
 };
 void validateTerrainRecord(const TerrainRecord &record);
 void validateTerrainDisplay(const TerrainDisplay &display);
+// R107.b1: the GeoTIFF source record's fields, bounds and labels (ADR 0181 §3.2).
+void validateTerrainDemSource(const TerrainDemSource &dem);
 std::size_t terrainRecordBytes(const TerrainRecord &record);
 // R096.a: the history charge of a record change (ADR 0169 §2, structural sharing): both
 // records' own fields, plus the shared parts (the source block and the edit entries) that only

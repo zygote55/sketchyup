@@ -2477,6 +2477,27 @@ TerrainSourceRequest parseTerrainSourceRequest(const QByteArray &bytes,
                                                TerrainProgress *progress) {
     return parseSource(bytes, command, importing, progress);
 }
+QJsonObject importGeoTiffTerrain(Document &doc, const QString &path,
+                                 const GeoTiffTerrainOptions &options, const QJsonObject &command,
+                                 TerrainProgress *progress) {
+    TerrainImportOptions importOptions;
+    if (command.contains("origin")) {
+        const auto origin = command["origin"].toObject();
+        importOptions.origin = TerrainOriginMetres{
+            origin["easting"].toDouble(), origin["northing"].toDouble(),
+            origin.contains("elevation") ? origin["elevation"].toDouble() : 0.0};
+    }
+    auto set = readGeoTiffTerrain(path, options, progress);
+    // The site origin's CRS label follows the grid's zone (informational, as for other sources).
+    TerrainImportProvenance provenance;
+    provenance.sourceName = set.dem->sourceName;
+    provenance.crs = "EPSG:" + std::to_string((options.north ? 32600 : 32700) + options.zone);
+    const std::string name = command.contains("name") ? boundedText(command, "name", 1024) : "Terrain";
+    return applyTerrainImport(
+        doc,
+        runTerrainImport(set, importOptions, doc.site(), provenance, progress),
+        name);
+}
 QJsonObject importTerrainSource(Document &doc, const QByteArray &bytes, const QJsonObject &command,
                                 TerrainProgress *progress) {
     const auto parsed = parseSource(bytes, command, true, progress);

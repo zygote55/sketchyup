@@ -1,5 +1,6 @@
 #include "io/drawing_sheets_io.hpp"
 #include "core/model.hpp"
+#include "core/terrain_records.hpp"
 #include "io/native_format.hpp"
 #include <QJsonObject>
 #include <QStringList>
@@ -212,6 +213,13 @@ bool usesTextureSizes(const Document &document) {
             return true;
     return false;
 }
+// Schema 34 (ADR 0181 §3.2): a terrain made from a GeoTIFF elevation file carries its source record.
+bool usesDemTerrain(const Document &document) {
+    for (const auto &[id, body] : document.bodies())
+        if (body->terrain && body->terrain->provenance.dem)
+            return true;
+    return false;
+}
 // Schema 31 (ADR 0174 §2): the document style or a saved scene's style carries an edge stroke.
 bool usesEdgeStrokes(const Document &document) {
     if (document.style().edgeStroke)
@@ -224,6 +232,9 @@ bool usesEdgeStrokes(const Document &document) {
 } // namespace
 
 int nativeDocumentVersionFor(const Document &document) {
+    // Schema 34 (ADR 0181 §3.2): a GeoTIFF terrain source record.
+    if (usesDemTerrain(document))
+        return nativeDemTerrainDocumentVersion;
     // Schema 33 (ADR 0174 section 3): a material has a real-world texture size.
     if (usesTextureSizes(document))
         return nativeMaterialTextureSizeDocumentVersion;

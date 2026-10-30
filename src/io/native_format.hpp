@@ -8,9 +8,13 @@ QJsonObject createNativeFile(const Document &document, const QString &output);
 // The newest schema this build reads and can write (ADR 0174 section 3): a material with a
 // real-world texture size, with required feature material-texture-size-v1. A geographic site
 // record (ADR 0181 §2.1) is schema 32; the two features are independent.
-inline constexpr int nativeDocumentVersion = 33, nativeContainerVersion = 2;
+inline constexpr int nativeDocumentVersion = 34, nativeContainerVersion = 2;
 // The schema of the R100.b2 material texture size (ADR 0174 section 3), after R107.a's 32.
 inline constexpr int nativeMaterialTextureSizeDocumentVersion = 33;
+// The schema of the R107.b1 GeoTIFF terrain source record (ADR 0181 §3.2, §2.7): a terrain made
+// from a downloaded elevation file carries it with required feature terrain-dem-v1. A document
+// without one is written as before.
+inline constexpr int nativeDemTerrainDocumentVersion = 34;
 // The schema of the R107.a geographic site record (ADR 0181 §2.1).
 inline constexpr int nativeGeographicSiteDocumentVersion = 32;
 // The schema of the R100.a edge stroke (ADR 0174 §2), the newest one before 32.

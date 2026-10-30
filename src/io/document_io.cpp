@@ -576,7 +576,8 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
         if (o.contains("textSource")) b->textSource = decodeTextSource(object(o["textSource"]));
         if (o.contains("terrain")) {
             bool old = false;
-            b->terrain = decodeTerrainRecord(o["terrain"], legacy ? &old : nullptr);
+            b->terrain = decodeTerrainRecord(o["terrain"], legacy ? &old : nullptr,
+                                             version >= nativeDemTerrainDocumentVersion);
             if (old)
                 legacy->insert(b->id);
         }

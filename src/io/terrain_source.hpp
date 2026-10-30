@@ -8,6 +8,7 @@
 // layer or description code. Structural failures (budgets, units, malformed DXF) throw one
 // message, as the other importers do; located value problems in point files are collected
 // into the report so every bad line can be named.
+#include "core/terrain_records.hpp"
 #include "geometry/terrain_triangulation.hpp"
 #include <QByteArray>
 #include <QJsonObject>
@@ -33,11 +34,12 @@ QString terrainUnitNames(); // "mm, cm, m, in, ft or usft"
 
 // Where an item comes from. R095.c2: a model edge is (body, edge), `value` the edge ID.
 struct TerrainSourceRef {
-    enum class Kind : std::uint8_t { Handle, Entity, Line, Edge };
+    // Post: a GeoTIFF elevation post, `value` its row and `body` its column (R107.b1).
+    enum class Kind : std::uint8_t { Handle, Entity, Line, Edge, Post };
     Kind kind{Kind::Line};
     std::uint64_t value{};
     std::uint64_t body{};     // Kind::Edge only
-    std::string text() const; // "handle 2F", "entity 12", "line 7" or "body 4 edge 9"
+    std::string text() const; // "handle 2F", "entity 12", "line 7", "body 4 edge 9" or "post 3, 5"
     auto operator<=>(const TerrainSourceRef &) const = default;
 };
 struct TerrainSourcePolyline {
@@ -125,6 +127,8 @@ struct TerrainSourceSet {
     // Problems found while parsing (located point-file values, arc segmentation,
     // ignored entities).
     TerrainReport problems;
+    // R107.b1: the GeoTIFF source record, set when format is "geotiff" (ADR 0181 §3.2).
+    std::optional<TerrainDemSource> dem;
     // The source report in the existing importer shape: apiVersion, format, metresPerUnit,
     // sha256, bytes and the format's counts.
     QJsonObject report;
