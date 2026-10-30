@@ -7,12 +7,16 @@
 // per frame of that capture) and probe (the codec probe: first, then cached). Each mode prints one
 // JSON line with the runs, the p50, p95 and maximum in milliseconds, and its facts. The program
 // asserts no budget; the record compares the numbers with ADR 0173 §5.
+// R099.f: glb terrain|placements|bodies <count> [runs] exports one case's GLB and prepares it, and
+// reports the sizes the GLB bounds apply to and the peak resident memory (run one case per process);
+// write-case <new file> terrain|placements|bodies <count> saves a case with two scenes and a path.
 #include "core/camera_motion.hpp"
 #include "core/presentation.hpp"
 #include "core/presentation_records.hpp"
 #include "core/render_settings.hpp"
 #include "core/scenes.hpp"
 #include "integrations/blender_job.hpp"
+#include "integrations/glb_export.hpp"
 #include "integrations/presentation_batch.hpp"
 #include "integrations/presentation_store.hpp"
 #include "integrations/presentation_request.hpp"
@@ -23,8 +27,11 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
+
+#include <sys/resource.h>
 
 #include <algorithm>
 #include <chrono>
@@ -309,6 +316,96 @@ void writeModelMode(const QString &path) {
     print("write-model", Stats{1, 0, 0, 0}, ",\"bodies\":3700,\"triangles\":92500,\"scenes\":4,\"presets\":6");
 }
 
+// The R099.f cases (ADR 0173 §5, Implementation notes R099.f). "terrain" is quantities-b's
+// 249,218-triangle terrain; "placements" adds quantities-b's 12-face parts; "bodies" is the parts
+// alone, for a capture at the body limit.
+Document caseDocument(const std::string &kind, std::size_t count) {
+    if (kind == "terrain")
+        return report_fixtures::buildQuantitiesB(0);
+    if (kind == "placements")
+        return report_fixtures::buildQuantitiesB(count);
+    if (kind == "bodies") {
+        Document doc;
+        report_fixtures::buildPartsModel(doc, count, false);
+        return doc;
+    }
+    throw std::runtime_error("The case must be terrain, placements or bodies");
+}
+
+std::string number(double value) { return std::to_string(value); }
+
+double peakResidentMiB() {
+    rusage usage{};
+    getrusage(RUSAGE_SELF, &usage);
+    return double(usage.ru_maxrss) / 1024;
+}
+
+// One GLB export and one prepared render (PreparedRender::prepare, the per-frame preparation) of a
+// capture on the default camera and the default settings (1024 by 768, 32 samples, Cycles). The
+// facts name the sizes the GLB bounds apply to and the process's peak resident memory, so run one
+// case per process.
+void glbMode(const std::string &kind, std::size_t count, int runs) {
+    const auto doc = caseDocument(kind, count);
+    const auto captureStart = std::chrono::steady_clock::now();
+    const auto snapshot = RenderSnapshot::capture(doc, RenderOptions{});
+    const double captureMs = millis(std::chrono::steady_clock::now() - captureStart);
+    const auto exported = exportGlb(snapshot);
+    std::size_t faces = 0;
+    for (const auto &entry : exported.manifest["bodies"].toArray())
+        faces += entry.toObject()["faces"].toArray().size();
+    const auto *glb = reinterpret_cast<const unsigned char *>(exported.glb.constData());
+    const std::size_t glbJsonBytes = glb[12] | (glb[13] << 8) | (glb[14] << 16) | (glb[15] << 24);
+    const auto compactManifest =
+        QJsonDocument(exported.manifest).toJson(QJsonDocument::Compact).size();
+    const auto writtenManifest = QJsonDocument(exported.manifest).toJson().size();
+    const std::string facts =
+        ",\"case\":\"" + kind + "\",\"count\":" + std::to_string(count) +
+        ",\"bodies\":" + std::to_string(doc.bodies().size()) +
+        ",\"faces\":" + std::to_string(faces) +
+        ",\"triangles\":" + number(exported.manifest["visibleTriangles"].toDouble()) +
+        ",\"glbBytes\":" + std::to_string(exported.glb.size()) +
+        ",\"glbJsonBytes\":" + std::to_string(glbJsonBytes) +
+        ",\"manifestCompactBytes\":" + std::to_string(compactManifest) +
+        ",\"manifestBytes\":" + std::to_string(writtenManifest) +
+        ",\"captureMs\":" + number(captureMs);
+    print("glb-export", summarize(sample(runs, [&] { sink += exportGlb(snapshot).glb.size(); })),
+          facts);
+    print("glb-prepare", summarize(sample(runs, [&] {
+              sink += PreparedRender::prepare(snapshot)->manifestHash().size();
+          })),
+          facts + ",\"peakRssMiB\":" + number(peakResidentMiB()));
+}
+
+// A saved model for the CLI's batch runs (R099.f): the case, two saved scenes and the default
+// preset ("Final", 1024 by 768 at 32 samples). Written to a new file only.
+void writeCaseMode(const QString &path, const std::string &kind, std::size_t count) {
+    auto doc = caseDocument(kind, count);
+    // Two views that look at the case's extent: the terrain is 353 m square, the parts sit in
+    // 100 columns of 2 m, rising about 134 m for 6,666 placements.
+    const Vec3 target = kind == "terrain" ? Vec3{176.5, 176.5, 0} : Vec3{100, 70, 0};
+    const double distance = kind == "terrain" ? 450 : 320;
+    std::vector<Id> scenes;
+    for (int i = 0; i < 2; ++i) {
+        SceneSnapshot view;
+        view.camera = SceneCamera{};
+        view.camera->target = target;
+        view.camera->distance = distance;
+        view.camera->yaw = -60 + 40.0 * i;
+        view.camera->pitch = 35;
+        scenes.push_back(createScene(doc, "Scene " + std::to_string(i + 1), view));
+    }
+    createCameraPath(doc, "Tour", {scenes[0], scenes[1]});
+    createRenderPreset(doc, "Final", RenderSettings{});
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly))
+        throw std::runtime_error("The model file must be new");
+    if (file.write(encodeDocument(doc)) <= 0)
+        throw std::runtime_error("The model file could not be written");
+    print("write-case", Stats{1, 0, 0, 0},
+          ",\"case\":\"" + kind + "\",\"count\":" + std::to_string(count) +
+              ",\"bodies\":" + std::to_string(doc.bodies().size()));
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -333,8 +430,14 @@ int main(int argc, char **argv) {
             describeMode(runs > 0 ? runs : 5);
         else if (mode == "write-model" && arguments.size() > 2)
             writeModelMode(arguments.value(2));
+        else if (mode == "glb" && arguments.size() > 3)
+            glbMode(arguments.value(2).toStdString(), arguments.value(3).toULongLong(),
+                    arguments.size() > 4 ? arguments.value(4).toInt() : 3);
+        else if (mode == "write-case" && arguments.size() > 4)
+            writeCaseMode(arguments.value(2), arguments.value(3).toStdString(),
+                          arguments.value(4).toULongLong());
         else {
-            std::fprintf(stderr, "usage: presentation_benchmark plan|edit|load|capture|prepare|probe|describe [runs] | write-model <new file>\n");
+            std::fprintf(stderr, "usage: presentation_benchmark plan|edit|load|capture|prepare|probe|describe [runs] | write-model <new file> | glb terrain|placements|bodies <count> [runs] | write-case <new file> terrain|placements|bodies <count>\n");
             return 2;
         }
     } catch (const std::exception &error) {
