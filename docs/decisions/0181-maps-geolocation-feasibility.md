@@ -569,3 +569,113 @@ What R107.a built, and what it measured. Plain record of this slice; the section
 **Gaps.** The sanitizer and libFuzzer builds ran only in CI, if at all. The full CI tier has not run for this PR. The site location dialog takes only WGS84 and NAD83 from the user. The solar sign has no sun-path check. Terrain Z labels and the mixed-reference refusal (V5) wait for R107.b. The geocoding and attribution slices are not started.
 
 **Inventory (risk 12).** `dependencies.json` on `main` already lists Manifold and cgltf, so no change was needed here.
+
+## Implementation notes (R107.b1)
+
+What R107.b1 built, what it refused, and what it measured. The sections above stay as the design. The brief for this slice was the design's §2.8, §2.9, §3.2, §7.2, §7.3, §8 (V2, V3, V5, V7) and §9. Where the built slice differs from the design, the difference is named below.
+
+**Licence reads (2026-10-30).** Owner decision 11 is replaced (no counsel). The two licences the product uses were re-read for this slice.
+
+- **Copernicus DEM GLO-30.** The licence PDF, "Licence for Copernicus DEM instance COP-DEM-GLO-30-F Global 30m Full, Free & Open" (its body titled "Licence for the use of the Copernicus WorldDEM-30"), at `documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/DEM/resources/license/License-COPDEM-30.pdf`. The fetch tool could not read its compressed text, so the text layer was extracted with `pdftotext` from the copy the fetch saved. The PDF's metadata date is 2020-10-29; no version number appears in the text. Quoted sentences:
+  - Article 2: "a Digital Surface Model providing a horizontal sampling of 30m". So the product is a surface model.
+  - Article 3: "The rights granted under this Licence are worldwide and without limitation in time."
+  - Article 5: "The use rights granted under this licence are free of charge to the User."
+  - Article 6(a), on communicating or distributing to the General Public: "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved."
+  - Article 6(b), for adapted or modified data: "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved".
+  - Article 6(c): the sentence "The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any use of the Copernicus WorldDEM-30" must be added to a licence or notice on distribution or communication to the General Public.
+  - Article 7: no liability for the Licensor and the Provider, and the user protects them against claims.
+  - The licence does not state a commercial-use limit or a redistribution limit beyond Article 6. ADR 0181 §1.3 listed the commercial clauses as unverified; the text read here gives Article 3 and Article 5 for use and Article 6 for notices.
+  - **Which notice the product uses.** The import resamples and crops the source, so the data are adapted, and the Article 6(b) notice applies. The record's credit is the 6(b) text, and the Article 6(c) sentence is the record's disclaimer.
+- **USGS copyrights and credits page** (`usgs.gov/information-policies-and-instructions/copyrights-and-credits`, read 2026-10-30; no date shown). "USGS-authored or produced data and information are considered to be in the U.S. Public Domain." "When using information from USGS information products, publications, or websites, we ask that proper credit be given." "Credit can be provided by including a citation such as the following:" then "Credit: U.S. Geological Survey". The 3DEP record's credit is "Credit: U.S. Geological Survey".
+- **USGS 3DEP program page** (`usgs.gov/3d-elevation-program`, read 2026-10-30; the free-of-charge sentence carries no date). "All 3DEP products are available free of charge and without use restrictions." **The page has no sentence that says all 3DEP products are public domain.** ADR 0181 §1.3 (read 2026-10-26) recorded "All 3DEP products are public domain" against this page, and that sentence is not on it. The record's licence text says what the two pages say: free of charge and without use restrictions, and USGS-produced data are U.S. Public Domain. The 2026-10-26 sentence must not be cited.
+
+**Real files read (2026-10-30).** The headers were read by HTTP range (the first 16 KiB of each file, parsed by hand). A GLO-30 block was also decoded in memory to settle the predictor. Nothing was saved.
+
+| File | Format | Compression | Geo keys | Vertical key | Nodata |
+|---|---|---|---|---|---|
+| GLO-30, N51 E000 (`copernicus-dem-30m` bucket, COG) | classic, little-endian; 2400 by 3600 posts; float32; tiles 1024 by 1024 | Deflate (8), predictor 3 | model 2, raster type 2 (pixel-is-point), GeographicType 4326 | none | none |
+| 3DEP 1/3 arc-second, n35w119 (`prd-tnm` bucket) | classic; 10812 by 10812; float32; tiles 512 by 512 | **LZW (5)**, predictor 3 | model 2, raster type 1, GeographicType 4269 (NAD83) | none | -999999 |
+| 3DEP 1 arc-second, n35w119 (`prd-tnm` bucket) | classic; 3612 by 3612; float32; tiles 512 by 512 | **LZW (5)**, predictor 3 | as above | none | -999999 |
+
+- The predictor 3 convention was checked on the GLO-30 block (a little-endian file): the bytes of each row are differenced across the row, and byte plane k holds byte k of each sample, most significant plane first. Most-significant-first gave 21.5 to 161.0 m with a mean step of 0.99 m between neighbours; the other order gave values near ±10⁶ m. The reader does this.
+- **GLO-30 posts are 1 arc-second north-south and 1.5 arc-seconds east-west** (pixel scale 1/2400 by 1/3600 degree). ADR 0181 §1.3 and §2.8 said 1 arc-second. The reader accepts 1.5 arc-second east-west for GLO-30 only.
+- **GLO-30 is pixel-is-point** (GeoKey 1025 = 2). Pixel-is-point is supported: the tie is the centre of the first post.
+- **Neither product's files carry a vertical key.** The vertical reference must therefore come from `--dem-vertical` (NAVD88 for 3DEP over the conterminous US, EGM2008 for GLO-30). ADR 0181 §2.7 allowed this ("read from the file where present, or given by option").
+
+**Conflict with ADR 0181 §7.2 (the most important point in this record).** The subset in §7.2 is "uncompressed or Deflate-compressed". **The USGS 3DEP tiles are LZW-compressed** (both the 1/3 and the 1 arc-second, as read above). As built, LZW is refused by name, as §7.3 requires. So **a 3DEP tile as USGS distributes it is refused** until it is converted, for example with `gdal_translate -co COMPRESS=DEFLATE` or `-co COMPRESS=NONE`. Adding LZW is a small reader change (TIFF LZW with early change), but it extends the subset past §7.2 and the brief, so it is left to the owner. The refusal message says what to do.
+
+**The reader's subset as built** (`src/io/geotiff.cpp`; Qt-free; the vendored miniz `tinfl` inflater only, `sketchyup_tinfl`).
+
+- Classic TIFF, little- or big-endian. The first image only. BigTIFF is refused by name.
+- One sample per pixel; int16 (signed, 16-bit) or float32. 64-bit, unsigned and other sample formats are refused by name.
+- Compression: none (1) or Deflate (8; Adobe Deflate, 32946, decodes the same way). LZW, JPEG, PackBits, ZSTD, WebP and LERC are refused by name.
+- Predictor 1; predictor 2 for int16; predictor 3 for float32 (verified above). Any other combination is refused.
+- Strips or tiles. A block holds at most 4,194,304 samples (16 MiB of float32), and the file has at most 1,000,000 blocks. Every block's offset and byte count is checked against the file before it is read, and a stored size must match the uncompressed size (Deflate may be a little larger than that size, to a fixed bound).
+- Georeferencing: one pixel scale and one tie point; a transformation matrix (rotated raster) is refused. The model must be geographic (a projected model is refused by name). GeographicType 4326 (WGS84) or 4269 (NAD83, a labelled approximation with a notice); 4258 (ETRS89) and 4277 (OSGB36) are refused by name, as ADR 0181 §2.3 requires; others are refused. Pixel-is-area and pixel-is-point are both supported. Vertical units other than metres (9001) are refused.
+- Vertical GeoKey: 5703 is NAVD88, 3855 is EGM2008, 5773 is EGM96. Any other code is refused by name. No key means the option must give one.
+- GDAL_NODATA is read as an ASCII number. A NaN or infinite post is void as well.
+- Sizes: 2 to 1,000,000 posts per side.
+
+**Post size and product rules** (`src/io/geotiff_terrain.cpp`). 3DEP is accepted at 1/3 or 1 arc-second, north-south and east-west. GLO-30 is accepted at 1 arc-second north-south and at 1 or 1.5 arc-seconds east-west. Any other post is refused by name, so a 3DEP option on a GLO-30 file is refused (the test checks this).
+
+**Refusals by name** (each tested, and each a named message in the CLI): multi-band; 64-bit; LZW; more than one image; projected CRS; transformation matrix; OSGB36; ETRS89; a vertical reference the file does not name, when no option gives one (named as an INPUT_ERROR that says which option to give); a vertical code the subset does not know (5714 is refused); BigTIFF; a non-TIFF file; a directory outside the file. A corrupted or truncated file is refused by name or read; it never crashes (the test makes 400 random edits and truncates the file every 37 bytes).
+
+**Window, grid and resampling** (ADR 0181 §2.8, §2.9).
+
+- The window is in UTM metres: `--dem-window E0,N0,E1,N1` with `--dem-zone` (for example `30N`). **The design left the window's coordinate system open** (lat/lon or UTM, "whichever matches the existing site tools"). The site and the terrain origin are projected metres, so UTM was chosen. A lat/lon window is not built.
+- Each window corner must convert with R107.a's conversion. A window outside the zone's 6° band or the UTM latitude band is refused by that conversion's own message (the test uses a window at about 85°N).
+- The grid is regular in UTM. Its posts are at whole multiples of the spacing from the window's west and south edges. Each post is converted to WGS84 with R107.a, and its value comes from the file by **bilinear interpolation at pixel centres**.
+- **Nominal post size.** The file's north-south and east-west steps are converted to metres at the window's centre with the WGS84 radii, and the larger of the two is rounded to whole metres. The same formula gives 31 m for 1 arc-second (GLO-30 and 3DEP 1 arc-second) and about 10 m for 1/3 arc-second (computed at 51.6°N; no 1/3 arc-second file was imported).
+- **Spacing.** The default is the nominal post size. A spacing finer than the nominal size is refused, since it would only interpolate.
+- **Decimation.** A grid whose triangles (2 per cell) exceed 250,000, or whose posts exceed 250,000, is decimated to the smallest whole-metre spacing that fits. The report names it, and the notice "spacing-decimated" says the spacing used. There is no silent truncation.
+- **Void policy (chosen: refuse, do not fill).** A grid post is void when a neighbour with weight in its bilinear interpolation is void (no-data, NaN or infinite). Any void post in the window refuses the import, and the message gives the count. Holes were considered, but the existing triangulation cannot cut interior holes (its maximum-edge rule only removes triangles on the outer boundary), and a hole needs a boundary polygon per void. Filling would invent elevations (ADR 0168 owner decision 6). A window must be chosen without voids.
+- **Outside the file.** A grid post outside the file's post centres refuses the window, with the count. A window is never silently clipped.
+- The grid is triangulated as ordinary terrain points with the existing triangulation (ConvexHull mode, which for a full grid is the rectangle), so the terrain's regenerate and edit paths are unchanged.
+- The terrain is placed relative to the site origin: local = UTM − origin. The origin is the site's, or a rounded proposed origin when the document has none, as for other sources.
+
+**Vertical references and zones** (ADR 0181 §2.7, V5).
+
+- The label is the file's key or the option's; a file key and a different option are refused ("the file's vertical reference is X; the option names Y").
+- If the site has a geographic record: a zone or hemisphere that differs from the site's is refused ("zone-mismatch"). A vertical reference that differs from the site's (a site label other than "unknown") is refused, unless an offset and a note are given. The refusal names both references ("NAVD88 terrain, EGM2008 site"). A site with the label "unknown" is accepted with the notice "site-vertical-unlabelled".
+- The offset is added to the file's heights before the origin is subtracted, and the note is stored with it. The note is required with a non-zero offset. The reader checks this, and so does the record.
+- A site with no geographic record has no label, so nothing is checked and no label is compared. The terrain's label is recorded only. This is the same as ADR 0181 §2.7 ("a site without a record has no label").
+
+**Schema step (ADR 0162 rules).** The GeoTIFF source record is stored with the terrain's provenance (`provenance.dem`), with the file's SHA-256 as the provenance digest. The record has the product, the file name (not its path), the licence and credit texts, the disclaimer, the datum, the vertical reference and its offset and note, the elevation kind (bare earth or surface), the UTM zone and hemisphere, the window, the spacing, the nominal spacing and the grid size. Each text is at most 256 bytes, and `validateTerrainDemSource` checks every field on read and on write.
+
+- **Schema 34**, required feature **`terrain-dem-v1`**. A document with a GeoTIFF terrain is written as schema 34 (chunk encoding `json-v34`, payload version 34); a document without one is written as before (verified: a terrain without the record stays schema 29, and the texture-size documents stay 33). The container refuses the feature with the same newer-format path as schemas 30 to 33, and the decoder refuses the record in a document older than 34.
+- Fixtures: the round trip is in `geotiff_tests` (a terrain built from the plane fixture is saved, reopened and compared, and its record is equal); the CLI output of a GeoTIFF import is a schema-34 file (`plane.sketchyup`, checked by hand).
+- **Downgrade check.** `/usr/bin/sketchyup-cli` is the released 1.4.0. `sketchyup-cli --validate-native` on the schema-34 file exits 1 with `Unsupported container field`, and the file's SHA-256 is unchanged (`e20b7bbe…`). The current build validates the same file with exit 0.
+- `docs/api/native-format-v1.json` is regenerated from `--format-capabilities`: `documentVersion` 34, `publicSchema` `sketchyup-document-v34`, and 34 added to `readDocumentVersions`. Only those three keys changed. The contract test (`native_format`) checks the shipped file against the build.
+- `docs/PR_ROADMAP.md` and `dependencies.json` record the miniz use: the inflater (`miniz_tinfl.c`) is now linked into `sketchyup_io`, and the rest of miniz is not.
+
+**Fuzzing (ADR 0181 §8 V7).** `parser_fuzz_geotiff` is registered with the other parser targets (`tests/fuzz/parser_harness.hpp`, `tests/fuzz/parser_seeds.cpp`). Its seeds are the 21 synthetic fixtures: 11 accepted and 10 refused by name.
+
+- First run, 345,000 executions: an AddressSanitizer **heap-buffer-overflow** in `tagDoubles`. A tag typed SHORT (a pixel scale of three SHORT values) was read as doubles. The double reader now checks the tag type, as the integer reader already did. The crashing input is kept as a corpus seed.
+- Second run after the fix, 9 minutes, 2,317,626 executions, no crash, no invariant failure.
+- Non-finite posts are void, which the fuzzer also checks: a sampled post is finite or a named void.
+- The sanitized failure matrix of R083 (ADR 0181 §8 V7, "runs on it") was not run. The campaign's other targets were not run either; only this target was.
+
+**Measurements (ADR 0181 §9).** A GLO-30-shaped file: 2400 by 3600 posts, float32, Deflate, predictor 3, 1024 tiles, pixel-is-point, 10 MB (a smooth synthetic surface, from `make_geotiff_fixtures.py --budget`; not committed). Release build, `tests/geotiff_budget_benchmark.cpp`, three runs each, on a machine with a load average near 15 from other workers. Parse includes the file's SHA-256 and the block decodes; import is the whole `runTerrainImport`.
+
+| Window | Posts | Spacing | Triangles | Parse | Import | Total | Raster held (peak) | Process max RSS |
+|---|---|---|---|---|---|---|---|---|
+| 1 km at 1 arc-second | 1,089 | 31 m | 2,048 | 16 ms | 2 ms | 18 ms | 9.1 MiB (1 block) | 35 MiB |
+| 12 km, decimated | 124,609 | 34 m (nominal 31 m) | 247,808 | 74 ms | 285 ms | 0.36 s | 13.1 MiB (2 blocks) | 97 MiB |
+
+- Budgets: 1 km at 1 arc-second under 2 s (met: 18 ms); at most 64 MiB of raster held (met: 13.1 MiB peak); at most 1 GiB of application memory (met: 97 MiB).
+- The synthetic file's block sizes and compression are close to a real GLO-30 tile (1024 tiles, Deflate, predictor 3). The real tile's decode speed was not measured beyond the one block decoded above.
+
+**Tests.** `geotiff` (CTest, `tests/geotiff_tests.cpp`) passes: the reader on every positive fixture, exact at every post; voids; every named refusal; corruption; the analytic plane at every post of a window (V3: worst position 0 m, worst elevation 2.8e-14 m); the GLO-30 record and its credit wording; the NAD83 notice; the refused windows (outside the file, finer than the post, out of the UTM band, void posts, unlabelled vertical, conflicting vertical, product post, zone, offset without a note); the V5 offset; decimation (12 km at 34 m, 247,808 triangles); a missing file; and the save-and-reopen round trip (V9). It also passes under the cgroup cap, in a build that compiles every target with ASan and UBSan (the fuzz configuration). The sanitize-preset build is in the PR notes.
+
+**V2 (offline).** `unshare -n` is not permitted in this sandbox ("Operation not permitted"), so V2 was shown another way. An `LD_PRELOAD` guard (`socket`, `connect`, `getaddrinfo`, `sendto` abort the process) was tested with `getent hosts example.com`, which it stopped with exit 99. Then the GLO-30-shaped import and the save and validation of its native file ran under the guard: exit 0, no guard message. The import path has no socket or QtNetwork include. The CLI binary also links `libcrypto`; this slice does not change that link, and the import path was not checked for calls into it.
+
+**Not done in this slice.** The desktop import dialog (the UX section comes first; roadmap R107 says so). LZW (§7.2 conflict above). Lat/lon windows. Holes for voids. The R083 sanitized failure matrix for the new target. The Google, Esri, Ordnance Survey, NAIP and SRTM rechecks in ADR 0181 §11 (those are for later rows; R107.b1 uses only the two licences above). The export credits (R107.c). The user guide and the support matrix (R107.e).
+
+**Conflicts with ADR 0181 and ADR 0168.**
+
+- ADR 0181 §7.2: the subset is "uncompressed or Deflate". The USGS 3DEP tiles use LZW (see above). Owner decision needed.
+- ADR 0181 §1.3 and §2.8: GLO-30 posts are 1 arc-second. Its east-west step is 1.5 arc-seconds, and it is pixel-is-point.
+- ADR 0181 §1.3: "All 3DEP products are public domain" was recorded against the 3DEP program page. The page does not say it (read 2026-10-30).
+- ADR 0181 §2.8: the void policy and the window coordinate system were open. Chosen here: refuse voids; UTM window.
+- ADR 0168 §1 deferred GeoTIFF rasters to a later row. The terrain importer now takes GeoTIFF (through `--terrain-format geotiff`, which defaults from the `.tif` extension), and the terrain record carries a source record (schema 34). The DXF and point-file paths are unchanged. ADR 0168 §2's record format is extended by `provenance.dem` only when a GeoTIFF terrain is made.
+- ADR 0181 §7.3 names "unlabelled vertical" as a refusal of the DEM. As built, an unlabelled file is refused unless the option gives a label, which is the same rule (§2.7: labels "read from the file where present, or given by option").

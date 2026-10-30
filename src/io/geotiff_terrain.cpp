@@ -278,7 +278,7 @@ TerrainSourceSet readGeoTiffTerrain(const QString &path, const GeoTiffTerrainOpt
     const bool dep3 = options.product == DemProduct::Dep3;
     dem.product = dep3 ? "USGS 3DEP" : "Copernicus DEM GLO-30";
     dem.sourceName = sourceNameOf(path);
-    dem.licence = dep3 ? "U.S. Geological Survey public domain (3DEP)"
+    dem.licence = dep3 ? "Free of charge, without use restrictions (USGS 3DEP program page); USGS-produced data are U.S. Public Domain (USGS copyrights and credits page)"
                        : "Licence for the use of the Copernicus WorldDEM-30 (COP-DEM-GLO-30-F)";
     dem.credit = dep3 ? "Credit: U.S. Geological Survey"
                       : "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and "
