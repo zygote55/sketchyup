@@ -2396,6 +2396,9 @@ Grid    33 × 33 = 1,089 posts · spacing 31 m (nominal 31 m) · not decimated
 - **Spacing.** A field in whole metres, defaulting to the nominal post size: 31 m at 1 arc-second, about 10 m at 1/3 arc-second, rounded to whole metres. A value below the nominal size is refused in the field before any run: "Finer than the file's posts (31 m) would only interpolate. Use 31 m or more." A coarser value is accepted. If the grid would pass the limits, the engine decimates, and an amber notice says so: "Too many triangles at 31 m, so the spacing is 34 m."
 - **Origin outside the window.** If the site origin lies outside the window, a caption says how far away it is. The terrain is still placed relative to the origin, as for other sources.
 
+
+**As built (R107.b4, PR #536; parent notes 2026-10-30).** With no site origin, the window starts as a 1,000 m square centred on the file, not empty, and the import sets the origin; this is a parent change to the paragraph above, recorded for the owner. Centre and Corners also take latitude and longitude as input, converted into the window's zone, as the owner approved in 20.8 question 1 (the read-only latitude and longitude above are superseded). "Fit to the file" uses the post-centre extent, inset so that the window stays inside the file in that zone.
+
 ### 20.3 The labels
 
 ```text
