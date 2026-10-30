@@ -2355,7 +2355,7 @@ Each screen also renders at 200 % text as `mockups/quantities/<name>-200.png`, w
 
 ## 20. Terrain from a downloaded elevation file (desktop)
 
-**Status: drafted 2026-10-30 for owner approval. Not approved and not implemented.** This section designs the desktop side of R107.b: importing an elevation file that the person downloaded from USGS 3DEP or Copernicus GLO-30 as a terrain. The engine and the command line already do the import (R107.b1, R107.b1.1 and R107.b1.2; [ADR 0181](decisions/0181-maps-geolocation-feasibility.md) §7.2 and §7.3). The product never downloads a file.
+**Status: approved by the owner on 2026-10-30**, with every 20.8 choice as recommended. Not implemented. This section designs the desktop side of R107.b: importing an elevation file that the person downloaded from USGS 3DEP or Copernicus GLO-30 as a terrain. The engine and the command line already do the import (R107.b1, R107.b1.1 and R107.b1.2; [ADR 0181](decisions/0181-maps-geolocation-feasibility.md) §7.2 and §7.3). The product never downloads a file.
 
 The import extends the terrain import dialog of section 15 and adds no second dialog. A GeoTIFF is a third source format in that dialog, with its settings column, live preview, report and footer. Section 15.1 places the menu entry, and the dialog's layout is described in its header comment (`src/app/terrain_import_dialog.hpp`). The import adds no rail slot, tool, shortcut or tray panel.
 
@@ -2532,6 +2532,8 @@ These are gaps to close before the dialog can import a GeoTIFF. Each is a note f
 Items 1 to 4 and item 6 are needed before a GeoTIFF can be imported from the dialog. Items 5, 7 and 11 change the existing path, and items 8 to 10 and 12 are dialog work.
 
 ### 20.8 Open questions for the owner
+
+**Decided 2026-10-30: the owner approved all six as recommended.**
 
 1. **Typing the window in latitude and longitude.** The engine takes UTM only, with a zone (`--dem-window`, `--dem-zone`), and no latitude and longitude window is built (R107.b1). The site location already takes typed latitude and longitude, to six decimal places, with WGS84 or NAD83 and a 1 m match to the origin. *Recommended: yes, in the dialog only. The Centre and Corners fields take latitude and longitude as well as UTM, converted with R107.a's series into one zone, and the engine and the command line stay in UTM. Reason: file names and map tools use degrees, and the conversion is already in the application, so the engine needs no change.*
 2. **The default window size.** *Recommended: 1,000 m square, centred on the site origin. Reason: at 1 arc-second it is 33 by 33 posts and 2,048 triangles, and the measured 1 km window reads in 0.16 s with the file's hash included (R107.b1.1). One terrain's limit allows a square of about 8.8 to 10.9 km at 1 arc-second and 2.9 to 3.6 km at 1/3 arc-second (ADR 0181 §2.9), so the default leaves room to enlarge.*
