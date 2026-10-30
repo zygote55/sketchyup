@@ -1,16 +1,20 @@
 #pragma once
 // R107.b1 (ADR 0181 §2.8, §7.2, §7.3, §9): a bounded GeoTIFF reader for the elevation subset.
 // R107.b1.1 adds LZW (ADR 0181 §7.2, parent decision 2026-10-30).
+// R107.b1.2 skips reduced-resolution overview images (ADR 0181 §7.2 and §7.3, parent decision
+// 2026-10-30), so a 3DEP tile as USGS distributes it is read.
 //
-// Qt-free and offline. The reader walks the one image's IFD, checks every count and offset
-// against the bytes it has, and decodes one strip or tile at a time into a block cache of at
-// most 64 MiB of raster (ADR 0181 §9). Anything outside the subset is refused by name with
+// Qt-free and offline. The reader walks the full-resolution image's IFD, checks every count and
+// offset against the bytes it has, and decodes one strip or tile at a time into a block cache of
+// at most 64 MiB of raster (ADR 0181 §9). Anything outside the subset is refused by name with
 // GeoTiffRefusal; a malformed file is refused as GeoTiffRefusal too, with the offset named.
 //
-// The subset: classic TIFF, little or big byte order; one image; one sample per pixel; int16 or
-// float32 samples; no compression, LZW or Deflate; predictor 1, 2 (int16) or 3 (float32); stripped
-// or tiled; a geographic model (EPSG:4326 WGS84, or 4269 NAD83 as a labelled approximation) with
-// pixel-is-area raster type, no rotation, and a vertical reference the caller can label.
+// The subset: classic TIFF, little or big byte order; one full-resolution image, with any number of
+// reduced-resolution overviews after it (at most GeoTiffBounds::furtherImages); one sample per
+// pixel; int16 or float32 samples; no compression, LZW or Deflate; predictor 1, 2 (int16) or 3
+// (float32); stripped or tiled; a geographic model (EPSG:4326 WGS84, or 4269 NAD83 as a labelled
+// approximation) with pixel-is-area raster type, no rotation, and a vertical reference the caller
+// can label.
 #include <cstddef>
 #include <cstdint>
 #include <list>
@@ -57,6 +61,7 @@ struct GeoTiffBounds {
     static constexpr std::size_t blockSamples = 4u * 1024 * 1024;     // 16 MiB of float32
     static constexpr std::size_t blockCount = 1000000;                // strips or tiles
     static constexpr std::size_t rasterBytes = 64u * 1024 * 1024;     // raster held at once
+    static constexpr std::size_t furtherImages = 16;                  // images walked after the first
 };
 
 enum class GeoTiffSampleType : std::uint8_t { Int16, Float32 };
@@ -88,8 +93,9 @@ struct GeoTiffHeader {
     void fromPixel(double column, double row, double &longitude, double &latitude) const;
 };
 
-// Parses and checks the file's one image. Throws GeoTiffRefusal for any file or feature outside
-// the subset. Reads only the directory, the tags it needs and the GeoKeys.
+// Parses and checks the file's full-resolution image. Throws GeoTiffRefusal for any file or feature
+// outside the subset. Reads the directories (the first image's tags and GeoKeys, and each later
+// image's NewSubfileType and link), never the blocks of an overview.
 GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes);
 
 // Samples of a checked file, read in windows. Bilinear sampling at pixel-centre indices; no

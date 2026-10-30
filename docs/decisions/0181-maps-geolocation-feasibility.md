@@ -360,6 +360,7 @@ This section applies ADR 0179's N1–N9 to R107 and names where R107 differs.
 ### 7.2 The subset R107.b would support, if approved
 
 - **Elevation.** GeoTIFF rasters, single band, float32 or int16 samples, uncompressed, LZW-compressed or Deflate-compressed, stripped or tiled. 3DEP 1/3 arc-second and 1 arc-second, and GLO-30 at 30 m. (R107.b1.1, parent decision 2026-10-30: 3DEP is distributed LZW-compressed; owner decision 3 asks for 3DEP)
+- **Images (R107.b1.2, parent decision 2026-10-30).** The reader reads the full-resolution image, which is the first image in the file. A further image marked reduced-resolution (TIFF NewSubfileType, tag 254, bit 0 set) is an overview: it is skipped, only its directory is read, and its blocks are never decoded. GDAL skips overviews by default too. A 3DEP tile as USGS distributes it holds three overviews after its full image. The reader walks at most 16 further images. Each link must lie inside the file, and a loop is refused by name. A further image that is not reduced-resolution is refused by name: a second full-resolution image, or a transparency mask (bit 2 without bit 0). The first image itself is refused by name if it is reduced-resolution or a mask.
 - **Read in windows.** The importer reads a window the user chooses, within the triangle limit (§2.9). The window and spacing are in the report.
 - **Labels.** Horizontal datum (WGS84 or NAD83 as a labelled approximation) and vertical reference (NAVD88, EGM2008, EGM96) are read from the file or chosen by the user, and recorded.
 - **Report.** The source name, SHA-256, window, spacing, datum and vertical labels, the number of posts read, and any void or no-data posts.
@@ -367,7 +368,7 @@ This section applies ADR 0179's N1–N9 to R107 and names where R107 differs.
 
 ### 7.3 Refusals, each named
 
-- Any GeoTIFF outside the subset: compressed formats other than LZW and Deflate (R107.b1.1, parent decision 2026-10-30: 3DEP is distributed LZW-compressed; owner decision 3 asks for 3DEP), multi-band or 64-bit samples, and more than one image in a file.
+- Any GeoTIFF outside the subset: compressed formats other than LZW and Deflate (R107.b1.1, parent decision 2026-10-30: 3DEP is distributed LZW-compressed; owner decision 3 asks for 3DEP), multi-band or 64-bit samples, and more than one full-resolution image in a file (R107.b1.2, parent decision 2026-10-30: reduced-resolution overviews are skipped, and a second full-resolution image, a transparency mask without bit 0, a loop, a link outside the file, more than 16 further images, or a first image that is an overview or a mask is refused by name).
 - Formats: DTED, BIL, ASCII grid, LAZ and COPC point clouds, LandXML, GeoJSON, and LAS (each is a later row; ADR 0168 §1).
 - Any reprojection beyond WGS84 ↔ UTM (State Plane, OSGB, ETRS89 transforms).
 - OSGB36 coordinates, and any coordinate outside UTM's range.
