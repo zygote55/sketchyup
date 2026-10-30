@@ -1222,7 +1222,8 @@ int main(int argc, char **argv) {
                     name == "component-parameters-v28.sketchyup" ||
                     name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup" ||
                     name == "geographic-site-v32.sketchyup" ||
-                    name == "material-texture-size-v33.sketchyup")
+                    name == "material-texture-size-v33.sketchyup" ||
+                    name == "terrain-dem-v34.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);

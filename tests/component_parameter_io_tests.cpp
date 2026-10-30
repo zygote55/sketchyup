@@ -1093,12 +1093,12 @@ int main(int argc, char **argv) {
                 fixtures.entryList({"*.sketchyup", "raw-*.json"}, QDir::Files, QDir::Name);
             int historical{}, exact{};
             for (const auto &name : names) {
-                // Schema-28, schema-30, schema-31, schema-32 and schema-33 fixtures carry records this loop is
-                // not about.
+                // Schema-28 and schema-30 to schema-34 fixtures carry records this loop is not about.
                 if (name == "component-parameters-v28.sketchyup" ||
                     name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup" ||
                     name == "geographic-site-v32.sketchyup" ||
-                    name == "material-texture-size-v33.sketchyup")
+                    name == "material-texture-size-v33.sketchyup" ||
+                    name == "terrain-dem-v34.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);
