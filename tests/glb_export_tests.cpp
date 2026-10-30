@@ -490,6 +490,18 @@ int main(int argc, char **argv) {
                   read(native) == nativeBytes && !QFileInfo::exists(files.path() + "/mixed"),
               "CLI rejects mixed modes before effects");
         check(cli({"--render-settings", "missing"}).first != 0, "Orphan render settings rejected");
+        // R107.c1: the CLI prints the GLB manifest, which lists the notice of the DEM terrain it writes.
+        {
+            Document terrainDocument;
+            importDemFixture(terrainDocument, std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/",
+                             "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+            const auto demNative = files.path() + "/dem.sketchyup";
+            saveDocument(terrainDocument, demNative);
+            const auto printed = cli({"--input", demNative, "--export-glb", files.path() + "/dem-cli"});
+            const auto credits = QJsonDocument::fromJson(printed.second).object()["credits"].toArray();
+            check(printed.first == 0 && credits == QJsonArray{QString::fromUtf8(demCreditUsgs)},
+                  "The CLI's GLB report lists the DEM notice");
+        }
 #endif
         checkDemCredits();
         checkLargeCaptureLimits(files.path());
