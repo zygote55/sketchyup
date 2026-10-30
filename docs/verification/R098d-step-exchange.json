@@ -333,5 +333,92 @@
       "a tessellated export would need AP242, which ADR 0172 section 2 refuses",
       "the helper's tessellation (BRepMesh, 3.96 s) is output-affecting and unchanged"
     ]
+  },
+  "r098k": {
+    "date": "2026-10-29",
+    "branch": "feat/r098k-step-cap-threads",
+    "base": {
+      "main": "3b1fb961"
+    },
+    "commits": {
+      "cap": "the work-in-progress commit that adds the cap (see the PR)",
+      "record": "the commit that adds section 15 and the ADR notes (see the PR)"
+    },
+    "entityCap": {
+      "option": "--step-max-entities N, on --import-step (default 2000000, from StepWorkerOptions::maxEntities)",
+      "code": "entityLimit",
+      "message": "The file has N entities; the limit is M.",
+      "metadataStatus": "refused-entities (exit 2)",
+      "checkPlace": "readStepModel, after the read and before the first transfer (TransferRoots)",
+      "countSource": "Interface_InterfaceModel::NbEntities() of the reader model (the metadata entities field)",
+      "fixture": {
+        "file": "tests/fixtures/step/sketchyup-step-assembly.step",
+        "entities": 494,
+        "capOf494": "imported, status ok",
+        "capOf493": "refused, entityLimit, message names 494 and 493, no package written"
+      },
+      "verdict": "met"
+    },
+    "threads": {
+      "available": "yes: BRepMesh_IncrementalMesh(..., isInParallel) on OCCT 7.9.3 OSD_ThreadPool; no TBB in the kernel and mesh libraries or the helper (only libTKIVtk and libTKIVtkDraw link libtbb)",
+      "experiment": "Release helper, tessellation with the parallel flag and a four-thread default pool, the 100-sphere model (step_budget_model OUT 100 1000)",
+      "determinism": {
+        "inputs": "the 19 committed STEP fixtures and the 100-sphere model",
+        "packagesIdentical": 18,
+        "refusedIdenticalOnBothCounts": 2,
+        "refusedFixtures": [
+          "e4-pmi-ap242.step",
+          "spaced-units.step"
+        ],
+        "sphereBytes": 27907347,
+        "repeatedFourThreadRunsIdentical": "4 of 4"
+      },
+      "timing": {
+        "oneThreadSeconds": {
+          "runs": [
+            3.96,
+            3.96,
+            4.0,
+            3.93
+          ],
+          "p50": 3.96,
+          "min": 3.93,
+          "max": 4.0
+        },
+        "fourThreadSeconds": {
+          "runs": [
+            3.97,
+            3.97,
+            3.98,
+            4.04
+          ],
+          "p50": 3.97,
+          "min": 3.97,
+          "max": 4.04
+        },
+        "interleaved": true
+      },
+      "cpuCheck": {
+        "oneThread": {
+          "wallSeconds": 3.87,
+          "cpuSeconds": 3.86
+        },
+        "fourThreads": {
+          "wallSeconds": 4.0,
+          "cpuSeconds": 3.98
+        }
+      },
+      "decision": "one thread kept; threads stays 1; no thread option shipped (the brief rule: keep one thread unless identical and faster)",
+      "contradiction": "ADR 0172 section 6 (R098.h amendment) and R098d finding 2: BRepMesh is not single-threaded in the pinned build",
+      "notMeasured": "a body with many faces"
+    },
+    "testRuns": {
+      "helperPython": "tests/ifc_step_worker_tests.py prints ok (the R098.k cap block included)",
+      "applicationStepImport": "step_import passes in 8.7 s (the R098.k block included)",
+      "ciIfcAppSelection": "10 of 10 pass (build/ifc-app, the CI selection)",
+      "ciIfcHelperTree": "8 of 8 pass (build/ifc, -R ^ifc_ -LE full; ifc_step_worker 0.9 s)",
+      "ciSanitizedHelper": "6 of 6 pass (build/ifc-sanitize, ASan and UBSan; ifc_step_worker 2.4 s)",
+      "notRun": "the full tier (the 512-mutation corpus, label full); the desktop dialog suites (no dialog changed)"
+    }
   }
 }

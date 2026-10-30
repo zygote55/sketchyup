@@ -202,6 +202,23 @@ QString everyRunBody(const QString &runLog) {
 )")
         .replace("@RUNLOG@", runLog);
 }
+// R098.k: a stand-in that refuses for the entity cap the way the helper does. Its count is 3520, and the limit it names is
+// the one the application passed (--step-max-entities), so the test sees the option reach the helper. Each run appends a
+// line to `runLog`.
+QString entityLimitBody(const QString &runLog) {
+    return QStringLiteral(R"(
+    limit=""
+    prev=""
+    for arg in "$@"; do
+        if [ "$prev" = "--step-max-entities" ]; then limit="$arg"; fi
+        prev="$arg"
+    done
+    echo run >> '@RUNLOG@'
+    echo "R {\"status\":\"refused\",\"code\":\"entityLimit\",\"message\":\"The file has 3520 entities; the limit is $limit.\"}"
+    exit 3
+)")
+        .replace("@RUNLOG@", runLog);
+}
 // The number of runs a stand-in logged (one line each).
 int runCount(const QString &runLog) {
     QFile log(runLog);
@@ -585,6 +602,27 @@ sys.exit(0)' || exit 1
                     check(excluded[i].toObject()["step"].toInt(-1) == i, "every run: base " + std::to_string(i) + " is left out");
                 check(report["logTail"].toString().contains("SIGSEGV"), "every run: the log tail is in the report");
             }
+        }
+        // R098.k (ADR 0172 section 6): the entity cap. The helper refuses a file over the cap with its count and the limit, the
+        // refusal is not restarted, and the application passes the cap it was given (2,000,000 by default).
+        {
+            check(StepWorkerOptions{}.maxEntities == 2000000, "R098.k: the entity cap defaults to 2,000,000");
+            const QString runs = root.path() + "/runs-entities.log";
+            const QString worker = executable(root.path(), "worker-entities", standIn("{\"ok\":true}", entityLimitBody(runs)));
+            StepWorkerOptions options = workerOptions(worker, 30);
+            options.maxEntities = 3000;
+            try {
+                importStepFile(fixture("sketchyup-step-box.step"), options);
+                check(false, "R098.k: a file over the entity cap is refused");
+            } catch (const IfcImportError &error) {
+                check(error.code() == "entityLimit", "R098.k: the refusal's code is entityLimit: " + error.code());
+                const std::string words(error.what());
+                check(words.find("3520 entities") != std::string::npos && words.find("limit is 3000") != std::string::npos,
+                      "R098.k: the refusal names the count and the limit: " + words);
+                check(words.size() <= 256, "R098.k: the message is at most 256 bytes");
+                check(error.report()["format"].toString() == "STEP", "R098.k: the refusal report says STEP");
+            }
+            check(runCount(runs) == 1, "R098.k: refused, not restarted: one run, got " + std::to_string(runCount(runs)));
         }
     } catch (const std::exception &error) {
         std::cerr << "failure: " << error.what() << '\n';

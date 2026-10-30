@@ -32,6 +32,9 @@ struct StepModelFacts {
   double lengthMetres = 0.0;  // the factor of metres of the unit the model resolves, from the
                               // name (0.0: not resolved, or the name is not a known unit)
   long long entities = 0;
+  // R098.k (ADR 0172 section 6): the model holds more entities than the cap the read was given. It is set before any
+  // transfer, so nothing is transferred; the entity count is still reported.
+  bool overEntityLimit = false;
   long long roots = 0;
   long long transferred = 0;
   std::vector<StepShapeFacts> shapes;
@@ -48,7 +51,9 @@ struct StepModelFacts {
 // file's own units. A bare ReadFile never sets the model's LocalLengthUnit (SystemLengthUnit
 // stays 1.0; the DESTEP XCAF provider is the only thing that sets it), so the factor is
 // resolved from the FileUnits name. The shapes are the roots as transferred, un-scaled by us.
-StepModelFacts readStepModel(const std::string& path);
+// maxEntities (R098.k, ADR 0172 section 6): a model with more entities than this is not transferred; overEntityLimit
+// is set and the count is reported. 0 (the default) is no cap, as the probe reads.
+StepModelFacts readStepModel(const std::string& path, long long maxEntities = 0);
 
 // The raw-text facts (the ADR 0172 unit policy reads the file as written): the ISO-10303-21
 // header, the FILE_SCHEMA name and its family (ap203 / ap214 / ap242 / other) and the unit

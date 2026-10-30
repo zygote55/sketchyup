@@ -516,6 +516,40 @@ def main():
             expect(Path(unknown_pkg).read_bytes() == Path(base_pkg).read_bytes(),
                    "exclude: a base the file does not have changes nothing (the same package bytes)")
 
+        # R098.k (ADR 0172 section 6): the entity cap. A file the reader holds more entities than the cap is refused before any
+        # transfer, the refusal names the count and the limit, and no package is written. A file of exactly the cap passes.
+        # The caps are the fixture's own count from the metadata, and one less (the committed fixture has about 500 entities;
+        # the default is 2,000,000, which no committed fixture comes near).
+        if restart_fixture.exists():
+            code, counted = run("--import-step", str(restart_fixture))
+            entities = counted.get("entities", 0)
+            expect(code == 0 and entities > 1, f"entity cap: the fixture's entity count is in the metadata, got {entities}")
+            at_cap_pkg = temp_path / "entity-at-cap.pkg"
+            code, at_cap = run("--import-step", str(restart_fixture), "--output", str(at_cap_pkg),
+                               "--step-max-entities", str(entities))
+            expect(code == 0 and at_cap.get("status") == "ok",
+                   f"entity cap: a file of exactly the cap is imported, got {code} / {at_cap.get('status')}")
+            over_pkg = temp_path / "entity-over-cap.pkg"
+            code, over = run("--import-step", str(restart_fixture), "--output", str(over_pkg),
+                             "--step-max-entities", str(entities - 1))
+            expect(code == 3 and over.get("status") == "refused",
+                   f"entity cap: a file over the cap is refused, got {code} / {over.get('status')}")
+            expect(over.get("code") == "entityLimit", f"entity cap: the code is entityLimit, got {over.get('code')}")
+            message = over.get("message", "")
+            expect(f"has {entities} entities" in message and f"limit is {entities - 1}" in message,
+                   f"entity cap: the message names the count and the limit, got {message!r}")
+            expect(len(message.encode("utf-8")) <= 256, "entity cap: the message is at most 256 bytes")
+            expect(not over_pkg.exists(), "entity cap: a refusal writes no package")
+            code, metadata_over = run("--import-step", str(restart_fixture), "--step-max-entities", str(entities - 1))
+            expect(code == 2 and metadata_over.get("status") == "refused-entities",
+                   f"entity cap: the metadata import refuses too, got {code} / {metadata_over.get('status')}")
+            notices = metadata_over.get("notices", [])
+            expect(len(notices) == 1 and f"has {entities} entities" in notices[0] and f"limit is {entities - 1}" in notices[0],
+                   f"entity cap: the metadata notice names the count and the limit, got {notices}")
+            code, zero_cap = run("--import-step", str(restart_fixture), "--output", str(temp_path / "entity-zero.pkg"),
+                                 "--step-max-entities", "0")
+            expect(code == 3 and zero_cap.get("code") == "cap", f"entity cap: a cap of 0 is refused as cap, got {zero_cap.get('code')}")
+
     if failures:
         for failure in failures:
             print(f"FAIL: {failure}")

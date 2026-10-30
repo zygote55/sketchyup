@@ -24,6 +24,9 @@ struct StepImportOptions {
   // options lower them to check the refusal and the per-element report.
   long long maxTrianglesPerElement = 100000;
   long long maxTotalTriangles = 1000000;
+  // R098.k (ADR 0172 section 6): the entity cap, as the IFC import's. A file whose reader holds more entities is refused
+  // before any transfer or tessellation, naming the count and the limit. The tests lower it.
+  long long maxEntities = 2000000;
   // Empty: report the metadata only (the R098.a behaviour). Set: also tessellate the
   // transferred solids and write the conversion package.
   std::string output;
