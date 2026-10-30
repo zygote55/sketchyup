@@ -138,7 +138,7 @@ carries three things:
 - the GeoTIFF elevation import of R107.b, as a part of C06: R107.b1, R107.b1.1, R107.b1.2, R107.b3 and
   R107.b4, at document schema 34 (`terrain-dem-v1`);
 - the source credits of R107.c (R107.c1 in the data exports, R107.c2 on visible sheets, drawings and frames),
-  the documentation of R107.e, and the defect fixes D-068 to D-074 from the [open-defect triage](verification/R089a-defect-triage.md).
+  the documentation of R107.e, and the defect fixes D-068 to D-075 from the [open-defect triage](verification/R089a-defect-triage.md).
 
 SCOPE C06 stays Investigate until R107.d is accepted ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md)
 §11). R107.b2 (orthophoto placement) and R107.d (geocoding) are not in 1.5.0. The buildingSMART hosted
@@ -163,5 +163,5 @@ must have a green CI verdict (the fast tier) before the record is accepted.
 | Corpus | The owner approves a fresh live run of the supported provider profile against corpus v6 at the RC. The 1.4.0 approval does not carry over. The offline checks (`provider_release_corpus`, `assistant_tool_surface`) pass in CI at the RC. The corpus `inputSha256` values match the RC's writer |
 | Clean machines | The RC package installs and opens migrated documents on a clean machine, as for 1.4.0 ([R087.u](verification/R087u-clean-machine-packages.md)) |
 | Accepted misses | The STEP speed budgets missed at 1.4.0 (import with a native file 10.17 s against 10 s; export 9.96 s against 5 s, from R098.j) stay accepted limits, and the record says so. The render limits of R099.f stay as measured (a 10,000-placement capture is refused by name; a 20,000-body capture prepares over the 1 s budget) |
-| Triage | Every open defect at the RC is not release-blocking. D-068 to D-074 are fixed, and the triage count is recorded at the RC |
+| Triage | Every open defect at the RC is not release-blocking. D-068 to D-075 are fixed, and the triage count is recorded at the RC |
 | Documentation | The release notes, the support matrix, the user guide, the changelog (its date set at the tag), SCOPE, the roadmap entry and ADR 0162's notes match the record. The changelog's date is set when the tag is made |

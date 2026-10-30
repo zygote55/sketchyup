@@ -6,7 +6,7 @@ SketchyUp 1.5.0 is a minor release. It carries the five follow-ups that the 1.4.
 (STEP restart-and-exclude, STEP speed, the STEP entity cap, render limits for terrains and large captures, and the
 Styles and catalog dialogs), the first elevation import from files the user downloads (R107.b, part of offline
 geographic work under C06), the source credits that GeoTIFF terrains add to exports (R107.c), the documentation of
-that import (R107.e) and the defect fixes D-068 to D-074. The release is gated through its
+that import (R107.e) and the defect fixes D-068 to D-075. The release is gated through its
 [M10 acceptance](M10_ACCEPTANCE.md#the-150-release); its record is `verification/G-1.5.0.md`,
 written at the release candidate. The [support matrix](SUPPORT_MATRIX.md) states what is supported, and the
 [user guide](USER_GUIDE.md) describes each workflow. C06 stays in the Investigate class until its R107.d
@@ -144,6 +144,11 @@ From the [open-defect triage](verification/R089a-defect-triage.md). Each row the
   wait forever. It came with R100.i, after 1.4.0, and it was fixed before 1.5.0.
 - **D-074** ([PR #534](https://github.com/zygote55/sketchyup/pull/534)): a GeoTIFF import whose window was narrower
   than its spacing never ended. It came with R107.b1 and was never in a release.
+- **D-075** ([PR #540](https://github.com/zygote55/sketchyup/pull/540)): editing a component whose definition holds
+  more than half the unique-geometry limit was refused, because the edit counted that definition twice. An explode or
+  make-unique that left a definition with no placement also kept counting it. The edit now counts the definition once,
+  and an explode or make-unique removes a definition that nothing uses any more, in the same edit, so one undo brings
+  it back. A batch response lists such definitions in `removedDefinitions`.
 
 ### Versions
 
