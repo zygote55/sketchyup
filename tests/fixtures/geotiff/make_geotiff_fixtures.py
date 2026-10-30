@@ -13,6 +13,11 @@ where col and row are pixel indexes from the upper-left post. Each file's tie is
 corner (pixel-is-area) unless noted.
 
 Refusal fixtures each carry one feature of ADR 0181 §7.3 that the reader must name.
+
+R107.b1.1 (ADR 0181 §7.2): LZW (compression 5) is written by lzw_encode, a TIFF 6.0 encoder
+written here from the specification, and checked against tifffile (see the notes in the
+R107.b1.1 implementation record). The corrupt LZW streams are built with lzw_pack, which writes
+codes the way the decoder reads them, so each one is wrong in exactly one way.
 """
 import math
 import os
@@ -24,6 +29,7 @@ WIDTH, HEIGHT = 48, 40
 TIE_LON, TIE_LAT = -0.2, 51.6
 SCALE = 1.0 / 3600.0  # one arc-second, both ways
 NODATA = -9999.0
+LZW_CLEAR, LZW_END, LZW_FIRST = 256, 257, 258
 
 
 def plane(col, row):
@@ -32,6 +38,109 @@ def plane(col, row):
 
 def paraboloid(col, row):
     return 50 + (col - 24) ** 2 + (row - 20) ** 2
+
+
+def noise(col, row):
+    """A pseudo-random int16 surface: a 32-bit integer hash of the position. Its predictor-2
+    differences are random, so LZW's table fills and clears on it and every code width is used."""
+    h = (col * 0x9E3779B1 + row * 0x85EBCA77 + 0x27D4EB2F) & 0xFFFFFFFF
+    h ^= h >> 15
+    h = (h * 0x2C1B3C6D) & 0xFFFFFFFF
+    h ^= h >> 12
+    h = (h * 0x297A2D39) & 0xFFFFFFFF
+    h ^= h >> 15
+    return (h & 0xFFFF) - 32768
+
+
+class MsbBits:
+    """Packs codes most significant bit first, as TIFF LZW reads them."""
+
+    def __init__(self):
+        self.value = 0
+        self.count = 0
+        self.out = bytearray()
+
+    def put(self, code, width):
+        self.value = (self.value << width) | code
+        self.count += width
+        while self.count >= 8:
+            self.count -= 8
+            self.out.append((self.value >> self.count) & 0xFF)
+        self.value &= (1 << self.count) - 1
+
+    def finish(self):
+        if self.count:
+            self.out.append((self.value << (8 - self.count)) & 0xFF)
+            self.count = 0
+            self.value = 0
+        return bytes(self.out)
+
+
+def lzw_width(next_code):
+    """The code width when the decoder's next free code is next_code. The early change: 10 bits
+    from code 511, 11 bits from 1023 and 12 bits from 2047 (TIFF 6.0, section 13)."""
+    if next_code < 511:
+        return 9
+    if next_code < 1023:
+        return 10
+    if next_code < 2047:
+        return 11
+    return 12
+
+
+def lzw_encode(data):
+    """One TIFF LZW block: a ClearCode, the greedy longest-match codes, and an EndOfInformation
+    code. The encoder clears its table (a ClearCode) before the 4,096 codes are used up. Its width
+    is one code late against its own table, which is the decoder's early change."""
+    bits = MsbBits()
+    table = {}
+    width, next_code = 9, LZW_FIRST
+    bits.put(LZW_CLEAR, width)
+    if not data:
+        bits.put(LZW_END, width)
+        return bits.finish()
+    current = data[0]
+    for byte in data[1:]:
+        key = (current, byte)
+        if key in table:
+            current = table[key]
+            continue
+        bits.put(current, width)
+        table[key] = next_code
+        next_code += 1
+        if next_code > (1 << width) - 1 and width < 12:
+            width += 1
+        if next_code >= 4094:
+            bits.put(LZW_CLEAR, width)
+            table = {}
+            width, next_code = 9, LZW_FIRST
+        current = byte
+    bits.put(current, width)
+    # The decoder adds one entry for this last code, so the width follows as if the encoder had.
+    next_code += 1
+    if next_code > (1 << width) - 1 and width < 12:
+        width += 1
+    bits.put(LZW_END, width)
+    return bits.finish()
+
+
+def lzw_pack(codes):
+    """Packs codes as the decoder reads them: a ClearCode resets the table, and each code after the
+    first in a run adds one entry. For streams that are wrong on purpose (refusal fixtures)."""
+    bits = MsbBits()
+    width, next_code, previous = 9, LZW_FIRST, None
+    for code in codes:
+        bits.put(code, width)
+        if code == LZW_CLEAR:
+            width, next_code, previous = 9, LZW_FIRST, None
+        elif code == LZW_END:
+            break
+        else:
+            if previous is not None:
+                next_code += 1
+            previous = code
+            width = lzw_width(next_code)
+    return bits.finish()
 
 
 def predictor3_encode(row_values, big_endian_planes=True):
@@ -61,10 +170,11 @@ def predictor2_encode(row_values, little):
 
 def build(path, spec):
     """spec keys: values(col,row)->number, dtype 'f32'|'i16', little (bool), layout 'strip'|'tile',
-    compression 1|8, predictor 1|2|3, tie_lon, tie_lat, scale_x, scale_y, width, height,
+    compression 1|5|7|8, predictor 1|2|3, tie_lon, tie_lat, scale_x, scale_y, width, height,
     nodata (str or None), raster_type 1|2, geo_key 4326|4269|4258|4277 (default 4326),
     vertical (int or None), samples (1), bits (override), sample_format (override),
-    extra_ifd (bool), projected (int or None), transform (bool), lzw (bool)."""
+    extra_ifd (bool), projected (int or None), transform (bool), rows_per_strip (int),
+    payloads (bytes per block, written as they are instead of the encoded blocks)."""
     little = spec.get('little', True)
     e = '<' if little else '>'
     w = spec.get('width', WIDTH)
@@ -129,11 +239,11 @@ def build(path, spec):
         data = bytes(out)
         if compression == 8:
             data = zlib.compress(data, 9)
+        elif compression == 5:
+            data = lzw_encode(data)
         payloads.append(data)
-
-    if spec.get('lzw'):
-        payloads = [bytes(len(p)) for p in payloads]
-        compression = 5
+    if spec.get('payloads') is not None:
+        payloads = list(spec['payloads'])
 
     # Layout: header, block data, then the tags' values and the directory.
     header_len = 8
@@ -281,11 +391,40 @@ def main(argv):
         # PixelIsPoint, NAD83, and a pixel scale of 1/3 arc-second, to match the product rules.
         'glo30-like-pixel-point-f32.tif': dict(values=plane, dtype='f32', little=True, layout='tile', compression=8, predictor=3, raster_type=2, scale_x=1.0 / 2400.0, scale_y=SCALE),
         'dep-like-nad83-f32.tif': dict(values=plane, dtype='f32', little=True, layout='strip', compression=1, geo_key=4269, nodata='-999999', scale_x=1.0 / 10800.0, scale_y=1.0 / 10800.0, width=60, height=50),
+        # The 1/3 arc-second step as USGS writes it (R107.b1.1): 2e-9 from 1/10800, and accepted as 3DEP.
+        'dep13-usgs-scale-f32.tif': dict(values=plane, dtype='f32', little=True, scale_x=9.25925927753796e-05, scale_y=9.25925927753796e-05, width=60, height=50),
         'with-vertical-navd88-f32.tif': dict(values=plane, dtype='f32', little=True, vertical=5703),
+        # LZW (R107.b1.1, ADR 0181 §7.2): int16 with predictor 2 and float32 with predictor 3, stripped
+        # and tiled, in both byte orders. The noise surface fills and clears the table, so every code
+        # width (9 to 12 bits) and a ClearCode in the middle of a block are read.
+        'plane-i16-strip-lzw-pred2-le.tif': dict(values=plane, dtype='i16', little=True, compression=5, predictor=2),
+        'plane-i16-strip-lzw-pred2-be.tif': dict(values=plane, dtype='i16', little=False, compression=5, predictor=2),
+        'plane-i16-tile-lzw-pred2-le.tif': dict(values=plane, dtype='i16', little=True, layout='tile', compression=5, predictor=2),
+        'plane-i16-tile-lzw-pred2-be.tif': dict(values=plane, dtype='i16', little=False, layout='tile', compression=5, predictor=2),
+        'plane-f32-strip-lzw-pred3-le.tif': dict(values=plane, dtype='f32', little=True, compression=5, predictor=3),
+        'plane-f32-strip-lzw-pred3-be.tif': dict(values=plane, dtype='f32', little=False, compression=5, predictor=3),
+        'plane-f32-tile-lzw-pred3-le.tif': dict(values=plane, dtype='f32', little=True, layout='tile', compression=5, predictor=3),
+        'plane-f32-tile-lzw-pred3-be.tif': dict(values=plane, dtype='f32', little=False, layout='tile', compression=5, predictor=3),
+        'noise-i16-strip-lzw-pred2-le.tif': dict(values=noise, dtype='i16', little=True, compression=5, predictor=2, width=96, height=96, rows_per_strip=96),
         # Refusal fixtures (ADR 0181 §7.3).
         'refuse-multiband.tif': dict(values=plane, dtype='f32', little=True, samples=3),
         'refuse-float64.tif': dict(values=plane, dtype='f32', little=True, bits=64, sample_format=3),
-        'refuse-lzw.tif': dict(values=plane, dtype='f32', little=True, layout='tile', compression=8, predictor=3, lzw=True),
+        'refuse-jpeg.tif': dict(values=plane, dtype='f32', little=True, compression=7),
+        # Corrupt LZW streams, each one block: a 64 by 64 int16 tile (8,192 bytes of output) unless
+        # noted. Each is wrong in one way, and the reader names it.
+        'refuse-lzw-bad-code.tif': dict(values=plane, dtype='i16', little=True, layout='tile', tile=(64, 64), width=64, height=64, compression=5, predictor=2,
+                                        payloads=[lzw_pack([LZW_CLEAR, 65, 400, LZW_END])]),
+        'refuse-lzw-table-overflow.tif': dict(values=plane, dtype='i16', little=True, layout='tile', tile=(64, 64), width=64, height=64, compression=5, predictor=2,
+                                              payloads=[lzw_pack([LZW_CLEAR] + [code % 256 for code in range(4200)] + [LZW_END])]),
+        'refuse-lzw-truncated.tif': dict(values=plane, dtype='i16', little=True, layout='tile', tile=(64, 64), width=64, height=64, compression=5, predictor=2,
+                                         payloads=[lzw_pack([LZW_CLEAR, 65, 66, 67])]),
+        'refuse-lzw-short.tif': dict(values=plane, dtype='i16', little=True, layout='tile', tile=(64, 64), width=64, height=64, compression=5, predictor=2,
+                                     payloads=[lzw_pack([LZW_CLEAR, 65, 66, LZW_END])]),
+        # 2,100 literal codes write 2,100 bytes into a block of 32 by 32 int16 (2,048 bytes).
+        'refuse-lzw-more-output.tif': dict(values=plane, dtype='i16', little=True, layout='tile', tile=(32, 32), width=32, height=32, compression=5, predictor=2,
+                                           payloads=[lzw_pack([LZW_CLEAR] + [code % 256 for code in range(2100)] + [LZW_END])]),
+        'refuse-lzw-old-style.tif': dict(values=plane, dtype='i16', little=True, layout='tile', tile=(64, 64), width=64, height=64, compression=5, predictor=2,
+                                         payloads=[b'\x00\x01' + bytes(20)]),
         'refuse-two-images.tif': dict(values=plane, dtype='f32', little=True, extra_ifd=True),
         'refuse-osgb36.tif': dict(values=plane, dtype='f32', little=True, geo_key=4277),
         'refuse-etrs89.tif': dict(values=plane, dtype='f32', little=True, geo_key=4258),

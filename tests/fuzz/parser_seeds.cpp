@@ -654,14 +654,27 @@ int main(int argc, char **argv) {
                   "plane-i16-strip-deflate-pred2-le.tif", "plane-i16-tile-none-be.tif",
                   "paraboloid-f32-tile-deflate-pred3-le.tif", "void-f32-tile-deflate-pred3-le.tif",
                   "glo30-like-pixel-point-f32.tif", "dep-like-nad83-f32.tif",
-                  "with-vertical-navd88-f32.tif"})
+                  "with-vertical-navd88-f32.tif",
+                  // R107.b1.1 (ADR 0181 §7.2): LZW, and the noise surface that reaches 12-bit codes.
+                  "plane-i16-strip-lzw-pred2-le.tif", "plane-i16-strip-lzw-pred2-be.tif",
+                  "plane-i16-tile-lzw-pred2-le.tif", "plane-i16-tile-lzw-pred2-be.tif",
+                  "plane-f32-strip-lzw-pred3-le.tif", "plane-f32-strip-lzw-pred3-be.tif",
+                  "plane-f32-tile-lzw-pred3-le.tif", "plane-f32-tile-lzw-pred3-be.tif",
+                  "noise-i16-strip-lzw-pred2-le.tif"})
                 publish("geotiff", fixture(name), QString::fromLatin1(name));
             for (const char *name :
-                 {"refuse-multiband.tif", "refuse-float64.tif", "refuse-lzw.tif",
+                 {"refuse-multiband.tif", "refuse-float64.tif", "refuse-jpeg.tif",
                   "refuse-two-images.tif", "refuse-osgb36.tif", "refuse-etrs89.tif",
                   "refuse-projected.tif", "refuse-transform.tif", "refuse-vertical-code.tif",
                   "refuse-bigtiff.tif"})
                 publishRejected("geotiff", fixture(name), QString::fromLatin1(name));
+            // R107.b1.1: a corrupt LZW stream has a header the reader accepts. It is refused by name
+            // when its block is decoded, so these are accepted seeds, and the harness samples them.
+            for (const char *name :
+                 {"refuse-lzw-bad-code.tif", "refuse-lzw-table-overflow.tif",
+                  "refuse-lzw-truncated.tif", "refuse-lzw-short.tif", "refuse-lzw-more-output.tif",
+                  "refuse-lzw-old-style.tif"})
+                publish("geotiff", fixture(name), QString::fromLatin1(name));
             publish("geographic-site",
                     bytes(geographic(51.50735, -0.12776, 30, "WGS84", "unknown", "typed", "")),
                     "london-typed");

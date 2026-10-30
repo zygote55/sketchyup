@@ -359,7 +359,7 @@ This section applies ADR 0179's N1–N9 to R107 and names where R107 differs.
 
 ### 7.2 The subset R107.b would support, if approved
 
-- **Elevation.** GeoTIFF rasters, single band, float32 or int16 samples, uncompressed or Deflate-compressed, stripped or tiled. 3DEP 1/3 arc-second and 1 arc-second, and GLO-30 at 30 m.
+- **Elevation.** GeoTIFF rasters, single band, float32 or int16 samples, uncompressed, LZW-compressed or Deflate-compressed, stripped or tiled. 3DEP 1/3 arc-second and 1 arc-second, and GLO-30 at 30 m. (R107.b1.1, parent decision 2026-10-30: 3DEP is distributed LZW-compressed; owner decision 3 asks for 3DEP)
 - **Read in windows.** The importer reads a window the user chooses, within the triangle limit (§2.9). The window and spacing are in the report.
 - **Labels.** Horizontal datum (WGS84 or NAD83 as a labelled approximation) and vertical reference (NAVD88, EGM2008, EGM96) are read from the file or chosen by the user, and recorded.
 - **Report.** The source name, SHA-256, window, spacing, datum and vertical labels, the number of posts read, and any void or no-data posts.
@@ -367,7 +367,7 @@ This section applies ADR 0179's N1–N9 to R107 and names where R107 differs.
 
 ### 7.3 Refusals, each named
 
-- Any GeoTIFF outside the subset: compressed formats other than Deflate, multi-band or 64-bit samples, and more than one image in a file.
+- Any GeoTIFF outside the subset: compressed formats other than LZW and Deflate (R107.b1.1, parent decision 2026-10-30: 3DEP is distributed LZW-compressed; owner decision 3 asks for 3DEP), multi-band or 64-bit samples, and more than one image in a file.
 - Formats: DTED, BIL, ASCII grid, LAZ and COPC point clouds, LandXML, GeoJSON, and LAS (each is a later row; ADR 0168 §1).
 - Any reprojection beyond WGS84 ↔ UTM (State Plane, OSGB, ETRS89 transforms).
 - OSGB36 coordinates, and any coordinate outside UTM's range.
@@ -679,3 +679,69 @@ What R107.b1 built, what it refused, and what it measured. The sections above st
 - ADR 0181 §2.8: the void policy and the window coordinate system were open. Chosen here: refuse voids; UTM window.
 - ADR 0168 §1 deferred GeoTIFF rasters to a later row. The terrain importer now takes GeoTIFF (through `--terrain-format geotiff`, which defaults from the `.tif` extension), and the terrain record carries a source record (schema 34). The DXF and point-file paths are unchanged. ADR 0168 §2's record format is extended by `provenance.dem` only when a GeoTIFF terrain is made.
 - ADR 0181 §7.3 names "unlabelled vertical" as a refusal of the DEM. As built, an unlabelled file is refused unless the option gives a label, which is the same rule (§2.7: labels "read from the file where present, or given by option").
+
+## Implementation notes (R107.b1.1)
+
+What R107.b1.1 built, what it refused, and what it measured. The sections above stay as the design, and §7.2 and §7.3 are amended in place. The brief was the parent's decision of 2026-10-30 to add LZW, so that owner decision 3 (3DEP) can be met.
+
+**Why LZW.** USGS distributes 3DEP tiles LZW-compressed with predictor 3 (R107.b1 found this; the two tiles below). The R107.b1 subset refused LZW, so a 3DEP tile was refused as downloaded. LZW is now in the subset (§7.2). The reader still refuses every other compression by name, including JPEG (7).
+
+**The decoder** (`src/io/geotiff.cpp`, `decodeLzw`; Qt-free; no new library; the repository has no vendored LZW decoder, so none was reused).
+
+- TIFF 6.0 LZW: MSB-first codes of 9 to 12 bits, ClearCode 256, EndOfInformation 257, and the first free code 258. The early change: the width grows when the next free code is 511, 1023 or 2047.
+- Output is exactly the block's expected size, which comes from the block's shape. The output buffer is never grown from the input. A stream that would write past that size is refused; so is a stream that ends short of it, and a stream that ends before its EndOfInformation code.
+- Refused by name, when the block is decoded (the header of such a file is accepted): a code beyond the table; a table that would pass 4,096 codes without a ClearCode; a truncated stream; output short of the block or past it; and old-style LZW, which uses least-significant-bit codes and is detected as libtiff detects it (the stream starts 0x00 and then a byte with its low bit set).
+- Stored-size bound (the Deflate check's counterpart): a compressed block may store 1.5 times its output plus 1 KiB. LZW spends at most 12 bits on a code, and each code that writes output writes at least one byte, so a legal block without redundant ClearCodes stores at most 1.5 bytes per byte of output. The 1 KiB covers the first ClearCode and the end code. Deflate's bound (a sixteenth and 1 KiB) is unchanged.
+- Predictors 2 (int16) and 3 (float32) run after decoding, as for Deflate.
+- Memory. The table is 4,096 entries (about 32 KiB), held for one block. The largest block (4,194,304 float32 samples) decodes to 16 MiB and stores at most 24 MiB, so with its samples it needs 56 MiB of the 64 MiB raster budget (ADR 0181 §9).
+
+**Fixtures** (`tests/fixtures/geotiff`, from `make_geotiff_fixtures.py`).
+
+- LZW positives: int16 with predictor 2 and float32 with predictor 3, stripped and tiled, in both byte orders (8 files, the plane surface). `noise-i16-strip-lzw-pred2-le.tif` is 96 by 96 int16 with a hash surface. Its one block (25,196 bytes) uses 1,270 nine-bit codes, 2,560 ten-bit, 5,120 eleven-bit and 9,012 twelve-bit codes, and holds five ClearCodes, one at its start and four in the middle. The plane fixtures use only nine-bit codes, so the noise fixture is what exercises the wider codes and the clear.
+- Refusals: `refuse-jpeg.tif` (compression 7), and six corrupt LZW streams, each a single 64 by 64 int16 tile unless noted: `refuse-lzw-bad-code.tif`, `refuse-lzw-table-overflow.tif` (4,200 literal codes with no ClearCode), `refuse-lzw-truncated.tif`, `refuse-lzw-short.tif`, `refuse-lzw-more-output.tif` (a 32 by 32 tile, with 2,100 literal codes), and `refuse-lzw-old-style.tif`. `refuse-lzw.tif`, a zero-filled stand-in, is removed.
+- `dep13-usgs-scale-f32.tif`: the 1/3 arc-second step as USGS writes it (see the post-step tolerance below).
+- **How the encoder was checked.** The generator's `lzw_encode` is written from the TIFF 6.0 specification. Its streams decode back exactly under `imagecodecs` 2026.10.10 (libtiff's LZW decoder) for 18 inputs, from 0 to 200,000 bytes, random and repetitive. Every LZW fixture is read by `tifffile` 2026.10.15 and matches its analytic surface exactly. Pillow is not installed in the CI image or here, so it was not used. The CI image has no tifffile, imagecodecs or GDAL either, so both were installed in a venv under the worktree's ignored `build/` directory, for these checks only.
+
+**The real 3DEP tiles.** Two tiles from the USGS TNM bucket (`prd-tnm`), downloaded on 2026-10-30 into the worktree's ignored `build/` directory and not committed. Both are LZW, predictor 3, 512-pixel tiles, NAD83 (GeographicType 4269), nodata -999999, pixel-is-area, with a tie at the top-left corner. The metadata extent of the 1 arc-second tile (33.998 to 35.002 N, 119.002 to 117.998 W) agrees with its tie point.
+
+| File | Bytes | Size | Pixel scale | As distributed |
+|---|---|---|---|---|
+| `USGS_1_n35w119.tif` (1 arc-second) | 54,875,665 | 3612 by 3612 | 1/3600 | **Refused**: "More than one image in the file" |
+| `USGS_13_n35w119.tif` (1/3 arc-second) | 454,839,551 | 10812 by 10812 | 1/10800 | **Refused**, for the same reason |
+
+**The as-distributed refusal (not resolved here).** Each tile holds four IFDs: the full-resolution image, and three reduced-resolution overview images (NewSubfileType 1), each tiled and LZW. The reader refuses any file whose first IFD links to a second one, and ADR 0181 §7.3 lists "more than one image in a file" as a refusal. R107.b1 read only the header, so it did not see the links. Whether overviews count as images is a decision about the subset, and it was not made here. **Recommendation:** read the full-resolution image, and skip reduced-resolution subfiles (NewSubfileType bit 0), refusing any second full-resolution image. GDAL reads a file this way by default. Until the owner or parent decides, a 3DEP tile as downloaded is refused.
+
+**Measurements on the real tiles, with the overview links removed.** For each measurement, a copy was made in which the first IFD's next-IFD pointer is zero. The image data are unchanged, so this is the reader's path for the full-resolution image. The copies are in the ignored `build/` directory and are not committed. The record's SHA-256 is the copy's.
+
+| Window (UTM 11N) | File | Posts | Voids | Blocks decoded | Triangles | Wall time | Peak CLI RSS | Peak raster |
+|---|---|---|---|---|---|---|---|---|
+| 1 km, 361789.4,3818118.4 to 362789.4,3819118.4 | 1 arc-second | 33 by 33 at 31 m (1,089) | 0 | 1 | 2,048 | 0.159 s | 36.9 MiB | 2.8 MiB |
+| 4 km, 366308.9,3809143.7 to 370308.9,3813143.7 | 1 arc-second | 130 by 130 at 31 m (16,900) | 0 | 4 | 33,282 | 1.44 s | 79.2 MiB | 5.8 MiB |
+| 1 km, the same corners | 1/3 arc-second | 101 by 101 at 10 m (10,201) | 0 | 1 | 20,000 | 1.03 s | 59.1 MiB | 2.8 MiB |
+
+- **Wall time includes the whole-file SHA-256** (`fileSha256`, 1 MiB reads), so it covers the whole 54.9 MB or 454.8 MB file.
+- **Whole-file SHA-256 cost.** `hashlib` (OpenSSL) over the same bytes takes 0.031 s for the 1 arc-second file and 0.243 s for the 454.8 MB 1/3 arc-second file. Both digests match the CLI's `sha256` field. The product's own hash was not timed alone, so the wall times above are the measured cost. The 450 MB tile's cost, which R107.b1 left unmeasured, is about a quarter of a second.
+- **Heights against tifffile.** Each post was sampled from tifffile's decode of the same file, bilinearly at its pixel centre, as the reader does. The minimum and maximum post heights agree with the CLI's reported extents to within 2.3 µm (1 km at 1 arc-second: -2.2 µm and -0.7 µm; 4 km at 1 arc-second: -0.2 µm and +1.1 µm). This comparison checks the decoded values across four blocks. The residual of about a micrometre comes from the UTM inversion in the check script, which I did not verify separately.
+- **The 1/3 arc-second import** was run on the copy, not the file as distributed. It exercises the post-step tolerance below, which the real tile needed.
+
+**Post-step tolerance** (`src/io/geotiff_terrain.cpp`). The subset's post steps were compared to their nominal values within 1e-9 relative. USGS writes its 1/3 arc-second step as `9.25925927753796e-05`, which is 2e-9 from 1/10800, so the real 1/3 arc-second tile was refused. The 1 arc-second step is 9e-10 from 1/3600, which passed by a hair. The bound is now 1e-6 relative. Any step that is not 1/10800 or 1/3600 (or 1/2400 for GLO-30) is still refused. The fixture `dep13-usgs-scale-f32.tif` and the test `USGS 1/3 arc-second step` cover it.
+
+**Fuzzing (ADR 0181 §8 V7).** `parser_fuzz_geotiff` built with clang (RelWithDebInfo, the fuzzer and ASan and UBSan options of `docs/PARSER_FUZZING.md`), from the 36 GeoTIFF seeds: 20 accepted (the 11 earlier positives and the 9 LZW ones), 6 corrupt LZW streams that the header accepts (the harness samples them, and they are refused by name), and 10 refused at the header (including JPEG). The run lasted 661 seconds, which is over the 10 minutes the brief asks for: 8,519,954 executions, no crash, no sanitizer report, no invariant failure, and no artifact. Coverage grew from 1,173 edges (the seeds) to 1,630. Peak RSS was 584 MB under the 3 GB limit. The campaign found nothing to fix, so no crash input was kept as a seed.
+
+**Harness change.** The six corrupt LZW streams are seeds the reader accepts at the header, so they are accepted seeds (`publish`), not rejected ones. Calling them rejected failed the seed generator's invariant. The harness samples them, and their named refusals are caught there.
+
+**Tests.** `geotiff` (CTest, `tests/geotiff_tests.cpp`) passes in the headless build, with 16 cases: the LZW positives read exactly at every post; the noise surface; the named refusals (including JPEG); the six LZW stream refusals, named when their block is decoded; corruption (cuts and random edits) on the LZW files as well as the Deflate file; and the USGS 1/3 arc-second step. It also passes under the sanitize preset (ASan and UBSan, shared libraries), with no sanitizer report. `terrain_import`, `terrain_io` and `parser_fault_corpus` pass. `terrain_io` prints that the prior-release CLI check was not run (`SKETCHYUP_PRIOR_CLI` is not set); that check is not exercised here.
+
+**Not done in this slice.**
+
+- Reduced-resolution overviews are refused, so a 3DEP tile as downloaded is still refused (see above; a decision for the owner or parent).
+- The R083 sanitized failure matrix was not run for this target (as for R107.b1).
+- The desktop import dialog (as for R107.b1).
+- Other compressions remain refused by name: JPEG, PackBits, ZSTD, WebP and LERC.
+- Old-style detection reads only the first two bytes, as libtiff does. A new-style stream that starts with a literal 0 instead of ClearCode can match it. TIFF writers start with ClearCode, so none is expected to.
+- GLO-30 is unchanged (Deflate, predictor 3, pixel-is-point).
+
+**Contradictions with the ADR.**
+
+- §7.3 refuses "more than one image in a file". The 3DEP tiles contain overview images. Stated above; a decision is needed.
+- §7.2 and §2.8: the post-step bound (1e-9) refused the real 1/3 arc-second step. The ADR's own subset includes 1/3 arc-second, so this was a defect against the ADR, now fixed.

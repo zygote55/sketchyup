@@ -1,5 +1,6 @@
 #pragma once
 // R107.b1 (ADR 0181 §2.8, §7.2, §7.3, §9): a bounded GeoTIFF reader for the elevation subset.
+// R107.b1.1 adds LZW (ADR 0181 §7.2, parent decision 2026-10-30).
 //
 // Qt-free and offline. The reader walks the one image's IFD, checks every count and offset
 // against the bytes it has, and decodes one strip or tile at a time into a block cache of at
@@ -7,8 +8,8 @@
 // GeoTiffRefusal; a malformed file is refused as GeoTiffRefusal too, with the offset named.
 //
 // The subset: classic TIFF, little or big byte order; one image; one sample per pixel; int16 or
-// float32 samples; no compression or Deflate; predictor 1, 2 (int16) or 3 (float32); stripped or
-// tiled; a geographic model (EPSG:4326 WGS84, or 4269 NAD83 as a labelled approximation) with
+// float32 samples; no compression, LZW or Deflate; predictor 1, 2 (int16) or 3 (float32); stripped
+// or tiled; a geographic model (EPSG:4326 WGS84, or 4269 NAD83 as a labelled approximation) with
 // pixel-is-area raster type, no rotation, and a vertical reference the caller can label.
 #include <cstddef>
 #include <cstdint>
@@ -66,7 +67,7 @@ struct GeoTiffHeader {
     std::uint32_t width{}, height{};
     GeoTiffSampleType sampleType{GeoTiffSampleType::Float32};
     bool littleEndian{true};
-    std::uint16_t compression{1}; // 1 none, 8 Deflate
+    std::uint16_t compression{1}; // 1 none, 5 LZW, 8 Deflate
     std::uint16_t predictor{1};   // 1 none, 2 horizontal (int16), 3 floating point (float32)
     bool tiled{};
     std::uint32_t blockWidth{}, blockHeight{}; // a tile, or the width and rows of a strip
