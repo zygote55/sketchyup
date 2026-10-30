@@ -78,10 +78,14 @@ model coordinates so the camera can frame models at the edge of the modeling
 range.
 
 Capture is limited to 256 MiB of retained document data and 20,000 records (the
-current model also has its own tighter limits). Export caps 100,000 visible faces,
+current model also has its own tighter limits). Export caps 100,000 visible
+modelling faces (a terrain's triangles count against its own 250,000-triangle
+class, [ADR 0168](0168-terrain-import-and-surfaces.md); R099.f),
 2,000,000 face-vertex references, 1,000,000 triangles and 4,096 appearances. GLB
-is capped at 256 MiB, JSON and sidecar at 16 MiB each. Unsupported geometry or
-limits fail before publication.
+is capped at 256 MiB, its JSON chunk and sidecar at 16 MiB each, and
+`manifest.json` at 128 MiB (R099.f; 16 MiB before, see
+[ADR 0173](0173-camera-paths-batch-output.md), Implementation notes (R099.f)).
+Unsupported geometry or limits fail before publication.
 
 `sketchyup-cli --input MODEL --export-glb NEW_DIRECTORY` is an exclusive mode;
 `--render-settings FILE` is optional and limited to 16 KiB. It never overwrites an
