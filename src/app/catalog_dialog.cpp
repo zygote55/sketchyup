@@ -999,7 +999,11 @@ void CatalogDialog::insertSelected() {
             return runCatalogInsert(hooks, snapshot, reads, entryRefs, gate, outcome);
         },
         QStringLiteral("The catalog insert failed."));
-    connect(insertRunner_.get(), &QThread::finished, this, &CatalogDialog::insertFinished);
+    // runFinished, not QThread::finished (D-073): the runner posts runFinished to this thread, so it
+    // arrives after this function returns to an event loop, however fast the job is. QThread::finished
+    // is emitted by the worker as it exits, and a refused read can exit before this connect is made;
+    // then nothing settles the insert and the loop below never quits.
+    connect(insertRunner_.get(), &ExchangeRunner::runFinished, this, &CatalogDialog::insertFinished);
     // The sheet opens only if the insert is still running after the delay, so a quick insert shows none.
     insertDelay_ = new QTimer(this);
     insertDelay_->setSingleShot(true);
