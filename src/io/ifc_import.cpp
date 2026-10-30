@@ -1006,7 +1006,7 @@ std::pair<QJsonObject, std::optional<SiteOrigin>> Converter::evaluateGeoreferenc
     std::string digest = facts.sha256.toStdString();
     if (digest.size() != 64 || !std::all_of(digest.begin(), digest.end(), [](char ch) { return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'); }))
         digest.clear();
-    SiteOrigin origin{*pe, *pn, *ph, crsLabel, {"IfcMapConversion", digest}};
+    SiteOrigin origin{*pe, *pn, *ph, crsLabel, {"IfcMapConversion", digest}, std::nullopt};
     try {
         validateSiteOrigin(origin);
     } catch (const std::exception &error) {

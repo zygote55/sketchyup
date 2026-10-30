@@ -25,6 +25,7 @@
 #include <QFileDialog>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -460,8 +461,16 @@ int main(int argc, char **argv) {
         // 7. Stale rows, the other models' count and an unreadable store (§19.7).
         // A tag with no bodies, so the model allows deleting it: the schedule then goes stale.
         const auto spareTag = createTag(doc, "Spare");
-        child<QPushButton>(panel, "quantitiesTagsValue")->click();
-        auto *tagPopup = panel->findChild<QFrame *>("quantitiesTagsPopup");
+        // On Wayland, synthetic input cannot open a grabbing popup (D-068), so the popover is built
+        // and not shown there. X11 opens it with the click.
+        const bool popups = QGuiApplication::platformName() == "xcb";
+        QFrame *tagPopup = nullptr;
+        if (popups) {
+            child<QPushButton>(panel, "quantitiesTagsValue")->click();
+            tagPopup = panel->findChild<QFrame *>("quantitiesTagsPopup");
+        } else {
+            tagPopup = panel->buildPicker("Tags");
+        }
         check(tagPopup != nullptr, "The Tags popover opens");
         child<QCheckBox>(tagPopup,
                          QString("quantitiesTagsCheck%1").arg(spareTag).toUtf8().constData())

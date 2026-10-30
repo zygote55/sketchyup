@@ -1066,7 +1066,7 @@ TerrainImportResult importDryRun(const TerrainSourceSet &set, const TerrainImpor
                                       origin.northing,
                                       origin.elevation,
                                       provenance.crs,
-                                      {provenance.sourceName, text(set.sha256)}};
+                                      {provenance.sourceName, text(set.sha256)}, std::nullopt};
     // The report.
     const QString outcome = !result.ok            ? "refused"
                             : report.hasNotices() ? "importedWithNotices"

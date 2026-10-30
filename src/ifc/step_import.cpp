@@ -452,7 +452,7 @@ SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, 
         // node transform on top of the mesh; a negative-determinant transform reverses
         // the winding a second time, so a mirror instance stores the base's winding
         // flipped and comes out outward).
-        const bool flip = (f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc) != instanceMirror;
+        const bool flip = ((f.Orientation() == TopAbs_REVERSED) != mirrorLocation(loc)) != instanceMirror;
         std::optional<std::array<float, 3>> faceColour;
         if (const auto found = faceColours.find(f.TShape().operator->()); found != faceColours.end()) faceColour = found->second;
         else if (partColour.rgb) faceColour = partColour.color;

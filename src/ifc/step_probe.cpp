@@ -705,7 +705,7 @@ std::string writeStep(const std::string& directory) {
       TDF_Label longName = tool.AddShape(BRepPrimAPI_MakeBox(10, 20, 30).Shape(), Standard_False, Standard_False);
       const std::string longNameText(3000, 'A');
       TDataStd_Name::Set(longName, TCollection_ExtendedString(longNameText.c_str()));
-      TDF_Label anonymous = tool.AddShape(BRepPrimAPI_MakeCylinder(5, 20).Shape(), Standard_False, Standard_False);
+      tool.AddShape(BRepPrimAPI_MakeCylinder(5, 20).Shape(), Standard_False, Standard_False);
       Handle(XSControl_WorkSession) wws(new XSControl_WorkSession());
       STEPCAFControl_Writer writer(wws, Standard_False);
       writer.SetNameMode(Standard_True);

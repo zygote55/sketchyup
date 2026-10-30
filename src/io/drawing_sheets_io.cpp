@@ -158,7 +158,7 @@ decodeDrawingSheets(const QJsonValue &sheetsValue, Id nextSheet, const QJsonValu
             DrawingSheetRecord{id(record["id"]), name(record["name"]),
                                static_cast<std::uint32_t>(position), size,
                                record["number"].toString().toStdString(),
-                               number(record["marginMm"])});
+                               number(record["marginMm"]), {}});
         sheet->dimensionFormat = decodeDrawingDimensionFormat(record["dimensionFormat"]);
         // Canonical tables are written in ascending ID order.
         if (!sheets.empty() && sheet->id <= sheets.rbegin()->first)

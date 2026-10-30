@@ -325,4 +325,3 @@ void IfcImportDialog::chooseFile() {
         setFile(path);
 }
 } // namespace sketchy
-#include "app/ifc_import_dialog.moc"

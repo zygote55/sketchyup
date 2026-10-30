@@ -268,4 +268,3 @@ void ExchangeProgressSheet::phase(const QString &name, qint64 value) {
     markStep(step, true);
 }
 } // namespace sketchy
-#include "app/exchange_progress_sheet.moc"

@@ -904,7 +904,7 @@ std::optional<SiteOrigin> decodeSiteOrigin(const QJsonValue &value, bool geograp
                       number(root["northing"]),
                       number(root["elevation"]),
                       text(root["crs"]),
-                      {text(established["source"]), text(established["sha256"])}};
+                      {text(established["source"]), text(established["sha256"])}, std::nullopt};
     if (root.contains("geographic"))
         origin.geographic = decodeGeographicSite(root["geographic"]);
     validateSiteOrigin(origin);

@@ -341,25 +341,25 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
     // The stored locations never exceed the totals.
     for (const auto &place : package.locations)
         require(package.locationTotals[place.kind] >= 1, "a location kind has no total");
-    std::map<std::string, int> storedPerKind;
+    std::map<std::string, std::size_t> storedPerKind;
     for (const auto &place : package.locations)
         require(++storedPerKind[place.kind] <= SkpPackageLimits::locationsPerKind,
                 "a location kind has more than 32 stored locations");
 
     // The manifest's counts agree with its arrays.
     const auto textureEntries = array(manifest["textures"], SkpPackageLimits::textures, "textures");
-    require(std::size_t(package.counts.textures) == textureEntries.size(),
+    require(std::size_t(package.counts.textures) == std::size_t(textureEntries.size()),
             "texture count disagrees with the manifest");
     const auto materialEntries =
         array(manifest["materials"], SkpPackageLimits::materials, "materials");
-    require(std::size_t(package.counts.materials) == materialEntries.size(),
+    require(std::size_t(package.counts.materials) == std::size_t(materialEntries.size()),
             "material count disagrees with the manifest");
     const auto tagEntries = array(manifest["tags"], SkpPackageLimits::tags, "tags");
-    require(std::size_t(package.counts.tags) == tagEntries.size(),
+    require(std::size_t(package.counts.tags) == std::size_t(tagEntries.size()),
             "tag count disagrees with the manifest");
     const auto definitionEntries =
         array(manifest["definitions"], SkpPackageLimits::definitions, "definitions");
-    require(std::size_t(package.counts.definitions) == definitionEntries.size(),
+    require(std::size_t(package.counts.definitions) == std::size_t(definitionEntries.size()),
             "definition count disagrees with the manifest");
     const auto manifestCounts = object(manifest["counts"], "counts");
     onlyKeys(manifestCounts,
@@ -459,7 +459,7 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
     const auto *end = geometryData + geometryBytes;
     long long verticesTotal = 0, edgesTotal = 0, facesTotal = 0, instancesTotal = 0, holesTotal = 0,
               uvTotal = 0, attributesTotal = 0;
-    for (std::size_t i = 0; i < definitionEntries.size(); ++i) {
+    for (std::size_t i = 0; i < std::size_t(definitionEntries.size()); ++i) {
         const auto d = object(definitionEntries[i], "definition");
         onlyKeysOr(d, {"name", "guid", "vertices", "edges", "faces", "instances"},
                    {"instanceNames", "instanceAttributes", "attributes"}, "definition");
@@ -605,13 +605,13 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
         if (d.contains("instanceNames")) {
             const auto names = array(d["instanceNames"], std::size_t(instanceCount), "instance names");
             require(std::uint64_t(names.size()) == instanceCount, "instance names disagree with the instances");
-            for (std::size_t n = 0; n < names.size(); ++n)
+            for (std::size_t n = 0; n < std::size_t(names.size()); ++n)
                 definition.instances[n].name = text(names[n], SkpPackageLimits::nameBytes, "instance name");
         }
         if (d.contains("instanceAttributes")) {
             const auto lists = array(d["instanceAttributes"], std::size_t(instanceCount), "instance attributes");
             require(std::uint64_t(lists.size()) == instanceCount, "instance attributes disagree with the instances");
-            for (std::size_t n = 0; n < lists.size(); ++n) {
+            for (std::size_t n = 0; n < std::size_t(lists.size()); ++n) {
                 const auto list = array(lists[n], SkpPackageLimits::attributesPerInstance, "an instance's attributes");
                 for (const auto &entry : list) {
                     definition.instances[n].attributes.push_back(decodeAttribute(entry));
