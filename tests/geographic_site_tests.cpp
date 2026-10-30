@@ -288,11 +288,12 @@ void solarAgreement() {
           "The solar description warns when the locations differ by more than 1 m");
 }
 
-// The released 1.3.0 reader refuses a schema-32 file and leaves it unchanged (ADR 0181 §2.11).
+// The released 1.4.x reader, the first to read schema 32, opens a schema-32 file and leaves it
+// unchanged (ADR 0181 §2.11; the 1.3.0 reader refused it).
 void priorRelease(const QString &directory) {
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (prior.isEmpty()) {
-        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release refusal not exercised\n";
+        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release check not exercised\n";
         return;
     }
     const auto path = directory + "/prior-geographic-site.sketchyup";
@@ -300,9 +301,9 @@ void priorRelease(const QString &directory) {
     write(path, bytes);
     QProcess process;
     process.start(prior, {"--validate-native", path});
-    check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == bytes,
-          "The prior release refuses a schema-32 file unchanged");
-    std::cout << "prior release refusal: " << process.readAllStandardError().trimmed().toStdString()
+    check(process.waitForFinished(30000) && process.exitCode() == 0 && read(path) == bytes,
+          "The prior release opens a schema-32 file unchanged");
+    std::cout << "prior release check: " << process.readAllStandardError().trimmed().toStdString()
               << '\n';
 }
 

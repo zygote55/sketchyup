@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(SketchyUp VERSION 1.4.0 LANGUAGES CXX)
+project(SketchyUp VERSION 1.5.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -568,6 +568,7 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_test(NAME solar_commands COMMAND solar_command_tests)
     add_executable(terrain_io_tests tests/terrain_io_tests.cpp)
     target_link_libraries(terrain_io_tests PRIVATE sketchyup_io)
+    target_compile_definitions(terrain_io_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME terrain_io COMMAND terrain_io_tests)
     # R099.e2: presentation_record_tests' encoding checks use the document encoder, which exists only
     # in Qt builds (the Qt-free core sanitizer build compiles the suite without them).

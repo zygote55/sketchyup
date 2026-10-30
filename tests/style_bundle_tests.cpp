@@ -590,12 +590,13 @@ void commands() {
     check(apply, "The command catalogue lists style.apply");
 }
 
-// The released reader refuses the schema-31 fixture unchanged (SKETCHYUP_PRIOR_CLI is set by the
-// package acceptance; see ADR 0174 §6 and packaging/arch/verify-package.sh).
+// The released reader opens the schema-31 file unchanged (SKETCHYUP_PRIOR_CLI is set by the
+// package acceptance to a 1.4.x CLI, the first to read schema 31; see ADR 0174 §6 and
+// packaging/arch/verify-package.sh).
 void priorRelease(const QString &directory) {
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (prior.isEmpty()) {
-        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release refusal not exercised\n";
+        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release check not exercised\n";
         return;
     }
     const auto path = directory + "/prior-edge-styles.sketchyup";
@@ -603,9 +604,9 @@ void priorRelease(const QString &directory) {
     write(path, bytes);
     QProcess process;
     process.start(prior, {"--validate-native", path});
-    check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == bytes,
-          "The prior release refuses a schema-31 file unchanged");
-    std::cout << "prior release refusal: " << process.readAllStandardError().trimmed().toStdString()
+    check(process.waitForFinished(30000) && process.exitCode() == 0 && read(path) == bytes,
+          "The prior release opens a schema-31 file unchanged");
+    std::cout << "prior release check: " << process.readAllStandardError().trimmed().toStdString()
               << '\n';
 }
 

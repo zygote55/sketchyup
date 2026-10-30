@@ -86,3 +86,36 @@ informational: readers accept any writer string, and retained fixtures that reco
   `catalog`, `catalog_fuzz`, `catalog_import` and `style_catalog_cli` tests pass on them.
 - Contradiction, not changed: `tests/provider_release_corpus_tests.py` says in its header that v5 is
   authoritative, but its `CURRENT` manifest is v6 (added by R099.c). The header is stale.
+
+## Implementation notes (1.5.0 release preparation)
+
+- The prior release for the 1.5.0-1 package is the published `sketchyup-1.4.0-1-x86_64.pkg.tar.zst`
+  (SHA-256 `0d3dd1503fae3ef372956bd40f6d8d0a176d813b4bd8e71595cc978048c4a3d7`, checked against the
+  `gh release download v1.4.0` asset). Unpacked into a private directory without pacman, its
+  `sketchyup-cli --format-capabilities` reports `documentVersion` 33 and `readDocumentVersions` 1 through 33.
+  It refuses the schema-34 GeoTIFF terrain with "Invalid required features" and leaves the file unchanged.
+- The split package's prior release needs no pin. `verify-package.sh` unpacks only the `sketchyup` package, and
+  it rebuilds the preceding version from the same source. No script reads the published `sketchyup-ifc-1.4.0-1`
+  package; its SHA-256 (`2a78005e…4d344e622`) was checked against the release asset anyway.
+- The `released_packages` table and `known_release_sha256` gained 1.4.0-1. Both the 1.4.0 and 1.5.0 entries are
+  now in the table, so `vercmp` orders the pair and 1.5.0-1 upgrades from 1.4.0-1.
+- Prior-release tests (`SKETCHYUP_PRIOR_CLI`). The 1.3.0 reader refused schemas 30 to 33, but the 1.4.0 reader
+  opens them. `presentation_io`, `style_bundle`, `geographic_site` and `material_texture_size` therefore check that
+  the released reader opens their schema-30 to 33 fixture unchanged. `component_parameter_io` accepts a prior that
+  reads 26 to 33. `terrain_io` checks that the released reader opens the schema-29 file and refuses the
+  schema-34 file `tests/fixtures/terrain-dem-v34.sketchyup` unchanged; that file is a GeoTIFF terrain
+  (R107.b1), written by `terrain_import_tests --write-fixture` from the synthetic
+  `geotiff/plane-f32-strip-none-le.tif`. This build reads it back bit for bit.
+- The writer string is part of the fixture bytes. Bumping it to `SketchyUp/1.5.0` changed `geographic-site-v32`
+  and `material-texture-size-v33` (regenerated with `--write-fixture`), the five catalog fixtures (regenerated with
+  `catalog_tests --write-fixtures` into a new directory; only the writer string and the digests changed), and the
+  eight `inputSha256` values in each of the six corpus manifests (`provider_trial --describe gpt-6-astra` for each
+  task, twice, prompts unchanged).
+- The IFC export goldens (`tests/fixtures/ifc/export/*.ifc`) changed on their `FILE_NAME` and `IFCAPPLICATION`
+  lines only, regenerated with `IFC_UPDATE_GOLDENS=1 ifc_export_tests`. The helper was built against the
+  IfcOpenShell 0.9.0 prefix that an earlier build made from the same vendored commit (`7ba70197`), mounted
+  read-only, not rebuilt. CI builds its own prefix.
+- The corpus stays at v6. The assistant's tool surface did not change since 1.4.0: the baseline file was last
+  re-pinned in `cb7a536a` (R099.c), before 1.4.0, and `assistant_tool_surface_tests` passes against it.
+- Contradiction, not changed: `tests/provider_release_corpus_tests.py` still says in its header that v5 is
+  authoritative, while its `CURRENT` manifest is v6 (see the 1.4.0 notes above).

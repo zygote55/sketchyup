@@ -1100,7 +1100,7 @@ int main(int argc, char **argv) {
             // sketchyup-cli (the R090.b scripted check uses it). SketchyUp 1.0.0 reports
             // "Unsupported container field": its manifest check runs before the
             // required-feature check, so it never reaches the features message. A prior
-            // release that reads schema 27 or later (1.1.x, 1.2.x and 1.3.x) opens the sheet
+            // release that reads schema 27 or later (1.1.x through 1.4.x) opens the sheet
             // documents instead, unchanged.
             const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
             if (!prior.isEmpty()) {
@@ -1222,7 +1222,8 @@ int main(int argc, char **argv) {
                     name == "component-parameters-v28.sketchyup" ||
                     name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup" ||
                     name == "geographic-site-v32.sketchyup" ||
-                    name == "material-texture-size-v33.sketchyup")
+                    name == "material-texture-size-v33.sketchyup" ||
+                    name == "terrain-dem-v34.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);
