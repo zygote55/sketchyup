@@ -67,7 +67,9 @@ void postMetres(const GeoTiffHeader &header, double latitude, double &northSouth
 
 // The post steps the subset accepts (ADR 0181 §7.2): 3DEP at 1/3 and 1 arc-second, and GLO-30 at
 // 1 arc-second north-south and 1 or 1.5 arc-seconds east-west (GLO-30 tiles store 1.5).
-bool nearly(double value, double target) { return std::abs(value - target) <= 1e-9 * target; }
+// The steps are compared to the nominal values within a millionth. USGS writes its 1/3 arc-second
+// step as 9.25925927753796e-05, about 2e-9 from 1/10800, so a tighter bound refused real tiles.
+bool nearly(double value, double target) { return std::abs(value - target) <= 1e-6 * target; }
 bool postAccepted(DemProduct product, const GeoTiffHeader &header) {
     const double third = 1.0 / 10800.0, one = 1.0 / 3600.0, oneAndHalf = 1.0 / 2400.0;
     if (product == DemProduct::Dep3)

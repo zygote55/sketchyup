@@ -2,6 +2,8 @@
 // window import, on the committed synthetic fixtures (tests/fixtures/geotiff, made by its
 // generator). The analytic plane is checked at every post (V3: elevation within 1e-6 m, position
 // within 1e-9 m); each §7.3 refusal names its feature; a corrupted file is refused, never crashes.
+// R107.b1.1 (ADR 0181 §7.2): LZW fixtures read exactly, the noise surface that uses every code width
+// and a ClearCode, and each malformed LZW stream refused by name when its block is decoded.
 #include "core/terrain_records.hpp"
 #include "core/model.hpp"
 #include "core/terrain.hpp"
@@ -68,6 +70,16 @@ GeoTiffMemory memoryOf(const std::string &name) { return GeoTiffMemory(bytesOf(n
 double plane(double col, double row) { return 10 + 2 * col + 3 * row; }
 double paraboloid(double col, double row) {
     return 50 + (col - 24) * (col - 24) + (row - 20) * (row - 20);
+}
+// The noise surface (make_geotiff_fixtures.py): a 32-bit hash of the position, as int16.
+double noise(double col, double row) {
+    std::uint32_t h = std::uint32_t(col) * 0x9E3779B1u + std::uint32_t(row) * 0x85EBCA77u + 0x27D4EB2Fu;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    h *= 0x297A2D39u;
+    h ^= h >> 15;
+    return double(std::int32_t(h & 0xFFFFu) - 32768);
 }
 
 // The fixtures' geography: the upper-left post at 0.2 W, 51.6 N; one arc-second posts.
@@ -139,6 +151,40 @@ void testReaderFixtures() {
     check(readGeoTiffHeader(navd).verticalReference == "NAVD88", "NAVD88 read from the GeoKey");
 }
 
+// R107.b1.1 (ADR 0181 §7.2): LZW, stripped and tiled, int16 with predictor 2 and float32 with
+// predictor 3, in both byte orders; each is exact at every post, as the Deflate fixtures are.
+void testLzwFixtures() {
+    const char *names[] = {"plane-i16-strip-lzw-pred2-le.tif", "plane-i16-strip-lzw-pred2-be.tif",
+                           "plane-i16-tile-lzw-pred2-le.tif", "plane-i16-tile-lzw-pred2-be.tif",
+                           "plane-f32-strip-lzw-pred3-le.tif", "plane-f32-strip-lzw-pred3-be.tif",
+                           "plane-f32-tile-lzw-pred3-le.tif", "plane-f32-tile-lzw-pred3-be.tif"};
+    for (const char *name : names) {
+        check(readGeoTiffHeader(memoryOf(name)).compression == 5, std::string(name) + ": LZW (5)");
+        testReaderExactAtPosts(name, plane, std::string(name).find("-f32-") != std::string::npos);
+    }
+}
+
+// The noise surface fills and clears LZW's table: every code width from 9 to 12 bits is read, and
+// a ClearCode arrives in the middle of the block (the generator's count: 5 clears, 9,012 twelve-bit
+// codes).
+void testLzwNoise() {
+    const auto memory = memoryOf("noise-i16-strip-lzw-pred2-le.tif");
+    const auto header = readGeoTiffHeader(memory);
+    check(header.compression == 5 && header.predictor == 2 && header.sampleType == GeoTiffSampleType::Int16,
+          "noise: LZW, predictor 2, int16");
+    check(header.width == 96 && header.height == 96, "noise: size");
+    GeoTiffRaster raster(memory, header);
+    for (std::uint32_t row = 0; row < header.height; ++row)
+        for (std::uint32_t col = 0; col < header.width; ++col) {
+            bool isVoid = false;
+            const double value = raster.sample(col, row, isVoid);
+            check(!isVoid, "noise: a post is void");
+            if (value != noise(col, row))
+                throw std::runtime_error("noise: post " + std::to_string(col) + "," + std::to_string(row) +
+                                         " is " + std::to_string(value));
+        }
+}
+
 void testVoids() {
     const auto memory = memoryOf("void-f32-tile-deflate-pred3-le.tif");
     const auto header = readGeoTiffHeader(memory);
@@ -166,7 +212,7 @@ void testRefusals() {
     };
     refuses("refuse-multiband.tif", "samples per pixel");
     refuses("refuse-float64.tif", "64-bit");
-    refuses("refuse-lzw.tif", "LZW");
+    refuses("refuse-jpeg.tif", "JPEG (7)");
     refuses("refuse-two-images.tif", "More than one image");
     refuses("refuse-osgb36.tif", "OSGB36");
     refuses("refuse-etrs89.tif", "ETRS89");
@@ -176,9 +222,31 @@ void testRefusals() {
     refuses("refuse-bigtiff.tif", "BigTIFF");
 }
 
-// Corrupted and truncated files are refused by name, or read; never a crash or another error.
-void testCorruption() {
-    const auto original = bytesOf("plane-f32-tile-deflate-pred3-le.tif");
+// A malformed LZW stream sits in a block the header does not read: the file opens, and the
+// refusal names the stream when its block is decoded (ADR 0181 §7.3, R107.b1.1).
+void testLzwRefusals() {
+    const auto refusesBlock = [](const char *name, const char *part) {
+        const auto memory = memoryOf(name);
+        const auto header = readGeoTiffHeader(memory);
+        const auto message = refusal([&] {
+            GeoTiffRaster raster(memory, header);
+            bool isVoid = false;
+            raster.sample(0, 0, isVoid);
+        }, std::string(name) + " decodes");
+        check(contains(message, part), std::string(name) + " refused without naming '" + part + "': " + message);
+    };
+    refusesBlock("refuse-lzw-bad-code.tif", "beyond the table");
+    refusesBlock("refuse-lzw-table-overflow.tif", "fills the LZW table past 4,096 codes");
+    refusesBlock("refuse-lzw-truncated.tif", "truncated LZW stream");
+    refusesBlock("refuse-lzw-short.tif", "are expected");
+    refusesBlock("refuse-lzw-more-output.tif", "more than its 2048 bytes");
+    refusesBlock("refuse-lzw-old-style.tif", "old-style LZW");
+}
+
+// Corrupted and truncated files are refused by name, or read; never a crash or another error. The
+// LZW files are corrupted too: their streams are decoded on every sample, so an edit reaches them.
+void corruptionOf(const char *name) {
+    const auto original = bytesOf(name);
     std::uint32_t seed = 12345;
     const auto next = [&seed] {
         seed = seed * 1664525u + 1013904223u;
@@ -210,6 +278,13 @@ void testCorruption() {
         } catch (const GeoTiffRefusal &) {
         }
     }
+}
+
+void testCorruption() {
+    corruptionOf("plane-f32-tile-deflate-pred3-le.tif");
+    corruptionOf("plane-f32-tile-lzw-pred3-le.tif");
+    corruptionOf("noise-i16-strip-lzw-pred2-le.tif");
+    const auto original = bytesOf("plane-f32-tile-deflate-pred3-le.tif");
     // A directory offset outside the file and a non-TIFF file are refused by name.
     auto bytes = original;
     bytes[4] = 0xFF;
@@ -315,6 +390,19 @@ void testDatumNotice() {
     const auto set = readGeoTiffTerrain(path, options);
     check(set.dem->datum == "NAD83", "NAD83 is labelled");
     check(set.problems.count("datum-approximation") == 1, "NAD83 is a named notice");
+}
+
+// R107.b1.1: USGS writes the 1/3 arc-second step as 9.25925927753796e-05, about 2e-9 from 1/10800.
+// It is 3DEP (a post of about 10 m), not a refused post.
+void testUsgsThirdArcSecond() {
+    const auto path = QString::fromStdString(fixtures + "dep13-usgs-scale-f32.tif");
+    const auto memory = memoryOf("dep13-usgs-scale-f32.tif");
+    double lon = 0, lat = 0;
+    readGeoTiffHeader(memory).fromPixel(20, 15, lon, lat);
+    const auto set = readGeoTiffTerrain(path, optionsAround(utmOf(lon, lat), 40));
+    check(set.dem->product == "USGS 3DEP", "the USGS 1/3 arc-second step is 3DEP");
+    check(set.dem->nominalSpacing >= 9 && set.dem->nominalSpacing <= 11,
+          "a 1/3 arc-second post is about 10 m: " + std::to_string(set.dem->nominalSpacing));
 }
 
 void testRefusedWindows() {
@@ -469,12 +557,16 @@ int main() {
     };
     const Case cases[]{
         {"reader fixtures", testReaderFixtures},
+        {"lzw fixtures (R107.b1.1)", testLzwFixtures},
+        {"lzw noise: every code width and a clear", testLzwNoise},
         {"voids", testVoids},
         {"refusals", testRefusals},
+        {"lzw refusals (R107.b1.1)", testLzwRefusals},
         {"corruption", testCorruption},
         {"alignment (V3)", testAlignment},
         {"glo-30 record", testGloRecord},
         {"datum notice", testDatumNotice},
+        {"USGS 1/3 arc-second step (R107.b1.1)", testUsgsThirdArcSecond},
         {"refused windows", testRefusedWindows},
         {"vertical offset (V5)", testOffset},
         {"decimation", testDecimation},

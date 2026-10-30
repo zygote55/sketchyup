@@ -31,7 +31,11 @@ constexpr std::uint16_t tagImageWidth = 256, tagImageLength = 257, tagBitsPerSam
                         tagGeoDoubles = 34736, tagGeoAscii = 34737, tagGdalNoData = 42113;
 constexpr std::uint16_t keyModelType = 1024, keyRasterType = 1025, keyGeographicType = 2048,
                         keyProjectedType = 3072, keyVerticalType = 4096, keyVerticalUnits = 4099;
-constexpr std::uint16_t compressionNone = 1, compressionDeflate = 8, compressionAdobeDeflate = 32946;
+constexpr std::uint16_t compressionNone = 1, compressionLzw = 5, compressionDeflate = 8,
+                        compressionAdobeDeflate = 32946;
+// LZW (TIFF 6.0, section 13): the codes, the first free code, and the table's size in codes.
+constexpr std::uint32_t lzwClearCode = 256, lzwEndCode = 257, lzwFirstCode = 258,
+                        lzwTableCodes = 4096;
 
 // The bytes of one tag: its type, its count and where its values are.
 struct Tag {
@@ -220,6 +224,94 @@ std::map<std::uint16_t, Tag> readDirectory(const GeoTiffBytes &bytes, const Read
     return tags;
 }
 
+// The TIFF LZW decoder (TIFF 6.0, section 13): MSB-first codes of 9 to 12 bits, ClearCode 256,
+// EndOfInformation 257, and the early code-width change: the width grows when the next free code
+// is 511, 1023 or 2047, one code before the table would need it. The output is exactly `expected`
+// bytes, sized from the block's shape and never from the input. Refused by name: a code beyond the
+// table, a table that would pass 4,096 codes without a ClearCode, output past `expected`, a stream
+// that ends before its EndOfInformation code, and a stream that ends short of `expected` bytes.
+std::vector<std::uint8_t> decodeLzw(const std::uint8_t *in, std::size_t size, std::size_t expected,
+                                    std::size_t index) {
+    const std::string block = "Block " + std::to_string(index);
+    if (size >= 2 && in[0] == 0 && (in[1] & 1))
+        throw GeoTiffRefusal(block + " is old-style LZW (least-significant-bit codes, from TIFF 5.0 "
+                                     "writers), which is not in the supported subset (ADR 0181 §7.3)");
+    struct Entry {
+        std::uint16_t prefix{}; // the code this entry extends
+        std::uint8_t suffix{};  // the byte it adds to that code's string
+        std::uint8_t first{};   // the string's first byte
+        std::uint16_t length{}; // the string's length in bytes
+    };
+    std::vector<Entry> table(lzwTableCodes);
+    for (std::uint32_t code = 0; code < 256; ++code)
+        table[code] = Entry{0, std::uint8_t(code), std::uint8_t(code), 1};
+    std::vector<std::uint8_t> out(expected);
+    const std::uint64_t bits = std::uint64_t(size) * 8;
+    std::uint64_t at = 0;              // the next bit to read
+    unsigned width = 9;                // the code width in bits
+    std::uint32_t next = lzwFirstCode; // the next table code to add
+    bool hasPrevious = false;          // a code has been read since the last ClearCode
+    std::uint32_t previous = 0;
+    std::size_t written = 0;
+    for (;;) {
+        if (at + width > bits)
+            throw GeoTiffRefusal(block + " is a truncated LZW stream: it ends before its "
+                                         "EndOfInformation code");
+        std::uint32_t code = 0;
+        for (unsigned taken = 0; taken < width;) {
+            const unsigned avail = 8 - unsigned(at & 7);
+            const unsigned take = std::min(avail, width - taken);
+            const unsigned byte = in[at >> 3];
+            code = (code << take) | ((byte >> (avail - take)) & ((1u << take) - 1));
+            at += take;
+            taken += take;
+        }
+        if (code == lzwEndCode)
+            break;
+        if (code == lzwClearCode) {
+            width = 9;
+            next = lzwFirstCode;
+            hasPrevious = false;
+            continue;
+        }
+        if (code > next || (!hasPrevious && code > 255))
+            throw GeoTiffRefusal(block + " has LZW code " + std::to_string(code) +
+                                 ", beyond the table (its next free code is " +
+                                 std::to_string(next) + ")");
+        // A code equal to the next free code is the previous string and its own first byte.
+        const bool repeat = hasPrevious && code == next;
+        const std::size_t length = repeat ? table[previous].length + 1u : table[code].length;
+        if (length > expected - written)
+            throw GeoTiffRefusal(block + " is an LZW stream that decodes to more than its " +
+                                 std::to_string(expected) + " bytes");
+        std::uint32_t walk = repeat ? previous : code;
+        for (std::size_t k = written + (repeat ? length - 1 : length); k-- > written;) {
+            out[k] = table[walk].suffix;
+            walk = table[walk].prefix;
+        }
+        if (repeat)
+            out[written + length - 1] = table[previous].first;
+        if (hasPrevious) {
+            if (next >= lzwTableCodes)
+                throw GeoTiffRefusal(block + " fills the LZW table past 4,096 codes without a "
+                                             "ClearCode");
+            table[next] = Entry{std::uint16_t(previous), out[written], table[previous].first,
+                                std::uint16_t(table[previous].length + 1u)};
+            ++next;
+            if (width < 12 && next == (1u << width) - 1)
+                ++width;
+        }
+        written += length;
+        previous = code;
+        hasPrevious = true;
+    }
+    if (written != expected)
+        throw GeoTiffRefusal(block + " is an LZW stream that decodes to " +
+                             std::to_string(written) + " bytes; " + std::to_string(expected) +
+                             " are expected");
+    return out;
+}
+
 } // namespace
 
 bool GeoTiffMemory::read(std::uint64_t offset, std::size_t count, std::uint8_t *out) const {
@@ -320,11 +412,12 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     const auto bytesPerSample = header.sampleType == GeoTiffSampleType::Int16 ? 2u : 4u;
 
     const auto compression = scalar(tagCompression, compressionNone);
-    if (compression != compressionNone && compression != compressionDeflate &&
-        compression != compressionAdobeDeflate)
+    if (compression != compressionNone && compression != compressionLzw &&
+        compression != compressionDeflate && compression != compressionAdobeDeflate)
         throw GeoTiffRefusal("Compression " + compressionName(compression) +
-                             " is not in the supported subset (none or Deflate, ADR 0181 §7.3)");
-    header.compression = compression == compressionNone ? compressionNone : compressionDeflate;
+                             " is not in the supported subset (none, LZW or Deflate, ADR 0181 §7.3)");
+    header.compression = compression == compressionAdobeDeflate ? compressionDeflate
+                                                                : std::uint16_t(compression);
 
     const auto predictor = scalar(tagPredictor, 1);
     if (predictor == 2 && header.sampleType != GeoTiffSampleType::Int16)
@@ -381,11 +474,19 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
         const auto stored = header.byteCounts[b];
         if (header.offsets[b] > bytes.size() || stored > bytes.size())
             throw GeoTiffRefusal("Block " + std::to_string(b) + " lies outside the file");
-        if (header.compression == compressionNone ? stored != expected
-                                                  : stored > expected + expected / 16 + 1024)
-            throw GeoTiffRefusal("Block " + std::to_string(b) + " stores " +
-                                 std::to_string(stored) + " bytes; " + std::to_string(expected) +
-                                 " are expected");
+        // A compressed block may store more than it decodes to, up to a bound. Deflate's is a
+        // sixteenth and 1 KiB. LZW's worst case is a 12-bit code for each byte of output (1.5 bytes
+        // a byte), and 1 KiB covers the clear and end codes, so its bound is 1.5 times and 1 KiB.
+        const bool compressed = header.compression != compressionNone;
+        const std::uint64_t limit = header.compression == compressionLzw
+                                        ? expected + expected / 2 + 1024
+                                        : expected + expected / 16 + 1024;
+        if (compressed ? stored > limit : stored != expected)
+            throw GeoTiffRefusal(
+                "Block " + std::to_string(b) + " stores " + std::to_string(stored) + " bytes" +
+                (compressed ? "; the block decodes to " + std::to_string(expected) +
+                                  " bytes, so at most " + std::to_string(limit) + " may be stored"
+                            : "; " + std::to_string(expected) + " are expected"));
         if (header.offsets[b] + stored > bytes.size())
             throw GeoTiffRefusal("Block " + std::to_string(b) + " runs past the end of the file");
     }
@@ -559,7 +660,9 @@ std::vector<float> GeoTiffRaster::decode(std::size_t index) const {
     if (stored != 0 && !bytes_.read(h.offsets[index], stored, raw.data()))
         throw GeoTiffRefusal("Block " + std::to_string(index) + " cannot be read");
     std::vector<std::uint8_t> out;
-    if (h.compression == compressionDeflate) {
+    if (h.compression == compressionLzw) {
+        out = decodeLzw(raw.data(), stored, expected, index);
+    } else if (h.compression == compressionDeflate) {
         out.resize(expected);
         const auto got = tinfl_decompress_mem_to_mem(out.data(), expected, raw.data(), stored,
                                                      TINFL_FLAG_PARSE_ZLIB_HEADER |

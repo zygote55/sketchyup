@@ -359,7 +359,7 @@ This section applies ADR 0179's N1–N9 to R107 and names where R107 differs.
 
 ### 7.2 The subset R107.b would support, if approved
 
-- **Elevation.** GeoTIFF rasters, single band, float32 or int16 samples, uncompressed or Deflate-compressed, stripped or tiled. 3DEP 1/3 arc-second and 1 arc-second, and GLO-30 at 30 m.
+- **Elevation.** GeoTIFF rasters, single band, float32 or int16 samples, uncompressed, LZW-compressed or Deflate-compressed, stripped or tiled. 3DEP 1/3 arc-second and 1 arc-second, and GLO-30 at 30 m. (R107.b1.1, parent decision 2026-10-30: 3DEP is distributed LZW-compressed; owner decision 3 asks for 3DEP)
 - **Read in windows.** The importer reads a window the user chooses, within the triangle limit (§2.9). The window and spacing are in the report.
 - **Labels.** Horizontal datum (WGS84 or NAD83 as a labelled approximation) and vertical reference (NAVD88, EGM2008, EGM96) are read from the file or chosen by the user, and recorded.
 - **Report.** The source name, SHA-256, window, spacing, datum and vertical labels, the number of posts read, and any void or no-data posts.
@@ -367,7 +367,7 @@ This section applies ADR 0179's N1–N9 to R107 and names where R107 differs.
 
 ### 7.3 Refusals, each named
 
-- Any GeoTIFF outside the subset: compressed formats other than Deflate, multi-band or 64-bit samples, and more than one image in a file.
+- Any GeoTIFF outside the subset: compressed formats other than LZW and Deflate (R107.b1.1, parent decision 2026-10-30: 3DEP is distributed LZW-compressed; owner decision 3 asks for 3DEP), multi-band or 64-bit samples, and more than one image in a file.
 - Formats: DTED, BIL, ASCII grid, LAZ and COPC point clouds, LandXML, GeoJSON, and LAS (each is a later row; ADR 0168 §1).
 - Any reprojection beyond WGS84 ↔ UTM (State Plane, OSGB, ETRS89 transforms).
 - OSGB36 coordinates, and any coordinate outside UTM's range.
