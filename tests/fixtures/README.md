@@ -108,3 +108,11 @@ whose placement overrides it, a table at its defaults, and a table that override
 width, shelves and finish, so two repeat copies are bound. The test requires the
 records to equal the builder's and exact re-encoding apart from the writer string, and
 the prior release must refuse it unchanged. It is original synthetic project data.
+
+`terrain-dem-v34.sketchyup` is a schema-34 document with a GeoTIFF terrain (R107.b1). It is written by
+`build/dev/terrain_import_tests --write-fixture tests/fixtures/terrain-dem-v34.sketchyup`, which runs
+`sketchyup-cli --import-terrain` on the synthetic `geotiff/plane-f32-strip-none-le.tif` as USGS 3DEP:
+a 300 m square window in UTM zone 30N, referenced to NAVD88. The terrain carries its source record in
+`provenance.dem`. `terrain_io_tests` requires this build to read the file and write it back bit for
+bit, and the 1.4.x reader to refuse it and leave it unchanged. It is original synthetic data
+(`geotiff/make_geotiff_fixtures.py`).

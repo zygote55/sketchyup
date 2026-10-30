@@ -447,20 +447,21 @@ void independentFeatures() {
           "A schema-33 file with both features reopens both and re-encodes bit for bit");
 }
 
-// The released-reader refusal (ADR 0174 section 6): the schema-33 file is refused unchanged.
+// The released reader, a 1.4.x CLI (the first to read schema 33), opens the schema-33 file
+// unchanged (ADR 0174 section 6).
 void priorRelease(const QString &directory, const QByteArray &bytes) {
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (prior.isEmpty()) {
-        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release refusal not exercised\n";
+        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release check not exercised\n";
         return;
     }
     const auto path = directory + "/prior-material-texture-size.sketchyup";
     write(path, bytes);
     QProcess process;
     process.start(prior, {"--validate-native", path});
-    check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == bytes,
-          "The prior release refuses a schema-33 file unchanged");
-    std::cout << "prior release refusal: " << process.readAllStandardError().trimmed().toStdString()
+    check(process.waitForFinished(30000) && process.exitCode() == 0 && read(path) == bytes,
+          "The prior release opens a schema-33 file unchanged");
+    std::cout << "prior release check: " << process.readAllStandardError().trimmed().toStdString()
               << '\n';
 }
 

@@ -310,6 +310,19 @@ void persistence(const QTemporaryDir &files) {
               sameDocument(decodeContainer(encodeContainer(parametric)), parametric),
           "Without the terrain it writes schema 28 again");
 }
+// The retained schema-34 fixture (R107.b1; tests/fixtures/README.md): a GeoTIFF terrain, written by
+// `terrain_import_tests --write-fixture`. This build reads it and writes it back bit for bit.
+QByteArray demFixture() {
+    const auto bytes = read(QString::fromUtf8(SOURCE_DIR) + "/tests/fixtures/terrain-dem-v34.sketchyup");
+    const auto doc = decodeContainer(bytes);
+    bool dem = false;
+    for (const auto &[id, body] : doc.bodies())
+        dem = dem || (body->terrain && body->terrain->provenance.dem);
+    check(nativeDocumentVersionFor(doc) == 34 && dem, "The schema-34 fixture holds a GeoTIFF terrain");
+    check(encodeContainer(doc) == bytes, "The schema-34 fixture re-encodes bit for bit");
+    return bytes;
+}
+
 void decoderLimits(const QTemporaryDir &files) {
     auto f = fixture();
     const auto bytes = encodeContainer(f.doc);
@@ -406,7 +419,9 @@ void decoderLimits(const QTemporaryDir &files) {
            }).empty(),
           "Schema 28 cannot carry terrain");
     // A released reader (SKETCHYUP_PRIOR_CLI, 1.3.x, the first to read schema 29) opens a
-    // schema-29 file unchanged. The 1.2.x reader refused this file.
+    // schema-29 file unchanged. The 1.2.x reader refused this file. A 1.4.x reader, which reads
+    // schemas 1 to 33, refuses the schema-34 GeoTIFF file below unchanged.
+    const auto dem = demFixture();
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (!prior.isEmpty()) {
         const auto path = files.filePath("prior-terrain.sketchyup");
@@ -415,10 +430,19 @@ void decoderLimits(const QTemporaryDir &files) {
         process.start(prior, {"--validate-native", path});
         check(process.waitForFinished(30000) && process.exitCode() == 0 && read(path) == bytes,
               "The prior release opens a schema-29 file unchanged");
-        std::cout << "prior release refusal: "
+        std::cout << "prior release check: "
                   << process.readAllStandardError().trimmed().toStdString() << '\n';
+        const auto demPath = files.filePath("prior-terrain-dem.sketchyup");
+        write(demPath, dem);
+        QProcess demProcess;
+        demProcess.start(prior, {"--validate-native", demPath});
+        check(demProcess.waitForFinished(30000) && demProcess.exitCode() != 0 &&
+                  read(demPath) == dem,
+              "The prior release refuses a schema-34 file unchanged");
+        std::cout << "prior release refusal: "
+                  << demProcess.readAllStandardError().trimmed().toStdString() << '\n';
     } else
-        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release refusal not exercised\n";
+        std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release check not exercised\n";
 }
 void automation() {
     auto f = fixture();

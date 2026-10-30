@@ -2,6 +2,7 @@
 #include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
+#include "core/terrain_records.hpp"
 #include "sketchyup/version.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -217,9 +218,15 @@ int main(int argc, char **argv) {
                 loaded.materials().begin(), loaded.materials().end(),
                 [](const auto &entry) { return entry.second->textureSize.has_value(); });
             const auto geographic = bool(loaded.site() && loaded.site()->geographic);
+            // Schema 34 (ADR 0181 §3.2): a terrain from a GeoTIFF elevation file carries its source record.
+            const auto demTerrain = std::any_of(
+                loaded.bodies().begin(), loaded.bodies().end(), [](const auto &entry) {
+                    return entry.second->terrain && entry.second->terrain->provenance.dem;
+                });
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (textureSized   ? nativeMaterialTextureSizeDocumentVersion
+                          (demTerrain     ? nativeDemTerrainDocumentVersion
+                           : textureSized ? nativeMaterialTextureSizeDocumentVersion
                            : geographic   ? nativeGeographicSiteDocumentVersion
                            : edgeStroke   ? nativeEdgeStylesDocumentVersion
                            : presentation ? nativePresentationDocumentVersion
